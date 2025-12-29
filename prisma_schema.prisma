@@ -1,0 +1,451 @@
+// prisma/schema.prisma
+// Sistema de Control de Inventario IT
+// Generado para desarrollo por IA
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USUARIOS DEL SISTEMA
+// ============================================
+
+enum SystemRole {
+  admin
+  tecnico
+  supervisor
+  rrhh
+  auditor
+}
+
+model SystemUser {
+  id            String     @id @default(uuid())
+  email         String     @unique
+  passwordHash  String     @map("password_hash")
+  nombre        String
+  rol           SystemRole
+  activo        Boolean    @default(true)
+  ultimoLogin   DateTime?  @map("ultimo_login")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  @@map("system_users")
+}
+
+// ============================================
+// EMPLEADOS
+// ============================================
+
+enum TipoContrato {
+  planta
+  proyecto
+  externo
+}
+
+enum EstadoEmpleado {
+  activo
+  desvinculado
+  licencia
+}
+
+model Employee {
+  id               String         @id @default(uuid())
+  rut              String         @unique // Formato: "21.523.308-1"
+  nombre           String
+  apellidoPaterno  String         @map("apellido_paterno")
+  apellidoMaterno  String?        @map("apellido_materno")
+  correo           String         @unique
+  cargo            String?
+  jefatura         String?        // Nombre del jefe directo
+  supervisor       String?
+  ubicacion        String?        // Santiago, Rancagua, Concepcion
+  tipoContrato     TipoContrato   @map("tipo_contrato")
+  fechaIngreso     DateTime?      @map("fecha_ingreso")
+  fechaTermino     DateTime?      @map("fecha_termino")
+  estado           EstadoEmpleado @default(activo)
+  telefonoContacto String?        @map("telefono_contacto")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  // Relaciones
+  assignments     Assignment[]
+  kitAssignments  KitAssignment[]
+  terminations    Termination[]
+
+  @@map("employees")
+}
+
+// ============================================
+// CATEGORÍAS Y ACTIVOS
+// ============================================
+
+model AssetCategory {
+  id            String   @id @default(uuid())
+  nombre        String   // Notebook, Celular, Monitor, etc.
+  descripcion   String?
+  requiereSerie Boolean  @default(true) @map("requiere_serie")
+  requiereImei  Boolean  @default(false) @map("requiere_imei")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relaciones
+  assets Asset[]
+
+  @@map("asset_categories")
+}
+
+enum EstadoActivo {
+  disponible
+  asignado
+  en_mantencion
+  reutilizable
+  baja
+  vendido
+}
+
+enum CondicionActivo {
+  nuevo
+  usado
+  dañado
+}
+
+model Asset {
+  id                   String          @id @default(uuid())
+  categoriaId          String          @map("categoria_id")
+  
+  // Identificación
+  numeroSerie          String?         @unique @map("numero_serie")
+  imei                 String?         // Solo celulares
+  numeroActivoInterno  String?         @map("numero_activo_interno")
+  nombreEquipo         String?         @map("nombre_equipo") // Nombre del equipo en red (ej: SCL-JPEREZ)
+
+  // Especificaciones generales
+  marca                String
+  modelo               String
+  
+  // Specs Notebook/PC
+  procesador           String?
+  discoDuro            String?         @map("disco_duro")
+  ram                  String?
+  pulgadas             Decimal?        @db.Decimal(4, 1)
+  sistemaOperativo     String?         @map("sistema_operativo")
+  
+  // Specs Celular
+  numeroTelefono       String?         @map("numero_telefono")
+  numeroActivacion     String?         @map("numero_activacion")
+  tipoPlan             String?         @map("tipo_plan")
+  tieneCargador        Boolean         @default(true) @map("tiene_cargador")
+  
+  // Estado y ubicación
+  estado               EstadoActivo    @default(disponible)
+  condicion            CondicionActivo @default(nuevo)
+  ubicacionFisica      String?         @map("ubicacion_fisica")
+  
+  // Software/Licencias
+  microsoft365         Boolean         @default(false) @map("microsoft_365")
+  intuneEnrolled       Boolean         @default(false) @map("intune_enrolled")
+  listaDistribucion    String?         @map("lista_distribucion")
+  
+  // Fechas importantes
+  fechaCompra          DateTime?       @map("fecha_compra")
+  fechaGarantiaFin     DateTime?       @map("fecha_garantia_fin")
+  fechaBaja            DateTime?       @map("fecha_baja")
+  
+  // Observaciones
+  observaciones        String?
+  
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
+
+  // Relaciones
+  categoria      AssetCategory    @relation(fields: [categoriaId], references: [id])
+  assignments    Assignment[]
+  maintenances   Maintenance[]
+  history        AssetHistory[]
+  purchaseAssets PurchaseAsset[]
+
+  @@map("assets")
+}
+
+// ============================================
+// PROVEEDORES Y COMPRAS
+// ============================================
+
+model Supplier {
+  id             String    @id @default(uuid())
+  rutEmpresa     String?   @map("rut_empresa")
+  razonSocial    String    @map("razon_social")
+  nombreContacto String?   @map("nombre_contacto")
+  email          String?
+  telefono       String?
+  direccion      String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  // Relaciones
+  purchases Purchase[]
+
+  @@map("suppliers")
+}
+
+enum Moneda {
+  CLP
+  USD
+}
+
+model Purchase {
+  id             String    @id @default(uuid())
+  supplierId     String    @map("supplier_id")
+  numeroFactura  String    @map("numero_factura")
+  fechaFactura   DateTime  @map("fecha_factura")
+  montoTotal     Decimal?  @map("monto_total") @db.Decimal(12, 2)
+  moneda         Moneda    @default(CLP)
+  ordenCompra    String?   @map("orden_compra")
+  documentoUrl   String?   @map("documento_url")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  // Relaciones
+  supplier       Supplier        @relation(fields: [supplierId], references: [id])
+  purchaseAssets PurchaseAsset[]
+
+  @@map("purchases")
+}
+
+model PurchaseAsset {
+  id             String   @id @default(uuid())
+  purchaseId     String   @map("purchase_id")
+  assetId        String   @map("asset_id")
+  precioUnitario Decimal? @map("precio_unitario") @db.Decimal(12, 2)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relaciones
+  purchase Purchase @relation(fields: [purchaseId], references: [id])
+  asset    Asset    @relation(fields: [assetId], references: [id])
+
+  @@map("purchase_assets")
+}
+
+// ============================================
+// ASIGNACIONES
+// ============================================
+
+enum TipoMovimiento {
+  ingreso
+  cambio
+  reemplazo
+  temporal
+}
+
+enum EstadoDevolucion {
+  ok
+  dañado
+  incompleto
+}
+
+model Assignment {
+  id                     String            @id @default(uuid())
+  assetId                String            @map("asset_id")
+  employeeId             String            @map("employee_id")
+  
+  // Datos de entrega
+  fechaEntrega           DateTime          @map("fecha_entrega")
+  lugarEntrega           String?           @map("lugar_entrega")
+  entregadoPor           String?           @map("entregado_por")
+  tipoMovimiento         TipoMovimiento    @map("tipo_movimiento")
+  motivo                 String?
+  
+  // Datos de devolución
+  fechaDevolucion        DateTime?         @map("fecha_devolucion")
+  recibidoPor            String?           @map("recibido_por")
+  estadoDevolucion       EstadoDevolucion? @map("estado_devolucion")
+  observacionesDevolucion String?          @map("observaciones_devolucion")
+  
+  // Estado del registro
+  activo                 Boolean           @default(true)
+  
+  // Actas digitales
+  actaEntregaUrl         String?           @map("acta_entrega_url")
+  actaDevolucionUrl      String?           @map("acta_devolucion_url")
+  firmaEmpleadoEntrega   String?           @map("firma_empleado_entrega")
+  firmaEmpleadoDevolucion String?          @map("firma_empleado_devolucion")
+  
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt              DateTime          @updatedAt @map("updated_at")
+
+  // Relaciones
+  asset    Asset    @relation(fields: [assetId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("assignments")
+}
+
+// ============================================
+// KIT DE BIENVENIDA Y EPP
+// ============================================
+
+enum CategoriaKit {
+  kit_bienvenida
+  epp
+}
+
+model WelcomeKitItem {
+  id          String       @id @default(uuid())
+  nombre      String
+  categoria   CategoriaKit
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  // Relaciones
+  kitAssignments KitAssignment[]
+
+  @@map("welcome_kit_items")
+}
+
+enum EstadoKit {
+  entregado
+  devuelto
+  perdido
+}
+
+model KitAssignment {
+  id            String    @id @default(uuid())
+  employeeId    String    @map("employee_id")
+  itemId        String    @map("item_id")
+  fechaEntrega  DateTime  @map("fecha_entrega")
+  estado        EstadoKit @default(entregado)
+  observaciones String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  // Relaciones
+  employee Employee       @relation(fields: [employeeId], references: [id])
+  item     WelcomeKitItem @relation(fields: [itemId], references: [id])
+
+  @@map("kit_assignments")
+}
+
+// ============================================
+// MANTENCIONES
+// ============================================
+
+enum TipoMantencion {
+  preventiva
+  correctiva
+  actualizacion_so
+  limpieza
+  reparacion
+}
+
+enum EstadoMantencion {
+  pendiente
+  en_proceso
+  completada
+  cancelada
+}
+
+model Maintenance {
+  id                 String           @id @default(uuid())
+  assetId            String           @map("asset_id")
+  
+  tipo               TipoMantencion
+  descripcion        String
+  
+  fechaProgramada    DateTime?        @map("fecha_programada")
+  fechaRealizada     DateTime?        @map("fecha_realizada")
+  proximaMantencion  DateTime?        @map("proxima_mantencion")
+  
+  realizadoPor       String?          @map("realizado_por")
+  costo              Decimal?         @db.Decimal(10, 2)
+  proveedorExterno   String?          @map("proveedor_externo")
+  
+  estado             EstadoMantencion @default(pendiente)
+  resultado          String?
+  
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  // Relaciones
+  asset Asset @relation(fields: [assetId], references: [id])
+
+  @@map("maintenances")
+}
+
+// ============================================
+// HISTORIAL DE ACTIVOS (TRAZABILIDAD)
+// ============================================
+
+enum TipoEvento {
+  creacion
+  asignacion
+  devolucion
+  mantencion
+  cambio_estado
+  actualizacion_specs
+  baja
+  venta
+}
+
+model AssetHistory {
+  id              String     @id @default(uuid())
+  assetId         String     @map("asset_id")
+  
+  tipoEvento      TipoEvento @map("tipo_evento")
+  descripcion     String
+  datosAnteriores Json?      @map("datos_anteriores")
+  datosNuevos     Json?      @map("datos_nuevos")
+  
+  usuarioSistema  String?    @map("usuario_sistema")
+  
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  // Relaciones
+  asset Asset @relation(fields: [assetId], references: [id])
+
+  @@map("asset_history")
+}
+
+// ============================================
+// DESVINCULACIONES
+// ============================================
+
+enum EstadoDevolucionTipo {
+  ok
+  dañado
+  no_aplica
+  pendiente
+}
+
+model Termination {
+  id                      String                @id @default(uuid())
+  employeeId              String                @map("employee_id")
+  
+  fechaDesvinculacion     DateTime              @map("fecha_desvinculacion")
+  fechaDevolucionEquipos  DateTime?             @map("fecha_devolucion_equipos")
+  
+  // Estados de devolución por tipo
+  estadoNotebook          EstadoDevolucionTipo  @default(pendiente) @map("estado_notebook")
+  estadoCelular           EstadoDevolucionTipo  @default(pendiente) @map("estado_celular")
+  estadoMonitor           EstadoDevolucionTipo  @default(pendiente) @map("estado_monitor")
+  estadoKit               EstadoDevolucionTipo  @default(pendiente) @map("estado_kit")
+  
+  recibidoPor             String?               @map("recibido_por")
+  lugarDevolucion         String?               @map("lugar_devolucion")
+  
+  requiereDescuento       Boolean               @default(false) @map("requiere_descuento")
+  montoDescuento          Decimal?              @map("monto_descuento") @db.Decimal(10, 2)
+  motivoDescuento         String?               @map("motivo_descuento")
+  
+  notificadoRrhh          Boolean               @default(false) @map("notificado_rrhh")
+  fechaNotificacionRrhh   DateTime?             @map("fecha_notificacion_rrhh")
+  
+  observaciones           String?
+  
+  createdAt               DateTime              @default(now()) @map("created_at")
+  updatedAt               DateTime              @updatedAt @map("updated_at")
+
+  // Relaciones
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("terminations")
+}

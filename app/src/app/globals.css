@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* Forzar modo claro para la aplicación */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #f3f4f6;
+    --foreground: #171717;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+/* Estilos para select y opciones - Asegurar legibilidad */
+select {
+  color: #1f2937; /* gray-800 */
+  background-color: #ffffff;
+}
+
+select option {
+  color: #1f2937; /* gray-800 - texto oscuro para mejor legibilidad */
+  background-color: #ffffff;
+  padding: 8px 12px;
+}
+
+select option:hover,
+select option:focus,
+select option:checked {
+  background-color: #3b82f6; /* blue-500 */
+  color: #ffffff;
+}
+
+/* Placeholder option (primera opción vacía) */
+select option[value=""] {
+  color: #6b7280; /* gray-500 */
+}
+
+/* Asegurar que el select muestre texto oscuro cuando tiene valor */
+select:not(:invalid) {
+  color: #1f2937;
+}
+
+/* Input y textarea consistencia */
+input,
+textarea,
+select {
+  color: #1f2937;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af; /* gray-400 */
+}
+
+/* Asegurar contraste en tarjetas blancas */
+.bg-white {
+  color: #1f2937; /* gray-800 */
+}
+
+.bg-white p,
+.bg-white span,
+.bg-white h1,
+.bg-white h2,
+.bg-white h3,
+.bg-white h4,
+.bg-white td,
+.bg-white th {
+  color: inherit;
+}
+
+/* Labels grises con buen contraste */
+.text-gray-500 {
+  color: #6b7280 !important; /* gray-500 - visible */
+}
+
+/* Texto principal oscuro */
+.text-gray-900 {
+  color: #111827 !important; /* gray-900 - muy oscuro */
+}
+
+.font-medium:not([class*="text-"]) {
+  color: #1f2937; /* gray-800 */
+}
+
+/* ========================================
+   UI COMPONENT ANIMATIONS
+   ======================================== */
+
+/* Skeleton shimmer animation */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Modal entrance animation */
+@keyframes modalIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Toast entrance animation */
+@keyframes toastIn {
+  0% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* ========================================
+   ACCESSIBILITY - prefers-reduced-motion
+   ======================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ========================================
+   FOCUS VISIBLE IMPROVEMENTS
+   ======================================== */
+:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Remove default focus for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
+}

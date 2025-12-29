@@ -1,0 +1,1036 @@
+
+================================================================================
+MIGRACION DE DATOS - SISTEMA DE INVENTARIO
+================================================================================
+Fecha: 2025-12-27 22:09:37
+================================================================================
+[OK] Conexion establecida con la base de datos
+
+================================================================================
+PASO 1: Creando categorias de activos
+================================================================================
+  [INFO] Categoria ya existe: Notebook
+  [INFO] Categoria ya existe: Celular
+  [INFO] Categoria ya existe: Monitor
+  [INFO] Categoria ya existe: Mouse
+  [INFO] Categoria ya existe: Audífonos
+  [INFO] Categoria ya existe: Impresora
+
+================================================================================
+PASO 2: Migrando empleados
+================================================================================
+
+  Procesando: Consolidado inventario Notebook (1).xlsx
+    Total empleados en cache: 192
+
+  Procesando: Consolidado inventario Celulares.xlsx
+    Total empleados en cache: 199
+
+  Procesando: Consolidado inventario Monitor.xlsx
+  [ERROR] Error al leer archivo C:\Users\nanon\OneDrive\Documentos\GitHub\Inventario_Equipo\excel\Consolidado inventario Monitor.xlsx: 'float' object has no attribute 'strip'
+    Total empleados en cache: 200
+
+  Procesando: Consolidado inventario Mouse.xlsx
+    Total empleados en cache: 200
+
+  Procesando: Consolidado inventario Audifonos.xlsx
+    Total empleados en cache: 200
+
+  Procesando: Inventario Kit +EPP + Mochila.xlsx
+    Total empleados en cache: 203
+
+  Procesando: Registro desvinculaciones.xlsx
+    Total empleados en cache: 205
+
+  [OK] Total empleados migrados: 205
+
+================================================================================
+PASO 9: Migrando Impresoras
+================================================================================
+  [OK] Impresoras migradas: 3
+
+================================================================================
+PASO 4: Migrando Notebooks Disponibles
+================================================================================
+    [ERROR] Error en fila 0: duplicate key value violates unique constraint "assets_numero_serie_key"
+DETAIL:  Key (numero_serie)=(T7NXCV03D000278) already exists.
+
+    [ERROR] Error en fila 1: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 2: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 3: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 4: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 5: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 6: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 7: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 8: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 9: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 10: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 11: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 12: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 13: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 14: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 15: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 16: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 17: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 18: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 19: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 20: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 21: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 22: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 23: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 24: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 25: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 26: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 27: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 28: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 29: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 30: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 31: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 32: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 33: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 34: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 35: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 36: current transaction is aborted, commands ignored until end of transaction block
+
+  [OK] Notebooks disponibles migrados: 0
+
+================================================================================
+PASO 3: Migrando Notebooks Asignados
+================================================================================
+  [INFO] Serial duplicado 5HNVYJ3: 2 registros, el mas reciente es index 177
+  [INFO] Serial duplicado R8N0LP01618032B: 2 registros, el mas reciente es index 178
+  [INFO] Serial duplicado 5CD30933S5: 2 registros, el mas reciente es index 95
+  [INFO] Serial duplicado PF3BXJ08: 2 registros, el mas reciente es index 203
+  [INFO] Serial duplicado R8N0LP01624732F: 2 registros, el mas reciente es index 204
+  [INFO] Serial duplicado 5CD248CH3K: 2 registros, el mas reciente es index 192
+  [INFO] Serial duplicado PF3BR8D8: 2 registros, el mas reciente es index 208
+  [INFO] Serial duplicado 5CD1267387: 2 registros, el mas reciente es index 209
+  [INFO] Serial duplicado SBN0CX04127547C: 2 registros, el mas reciente es index 199
+  [INFO] Serial duplicado CND23747Y73: 4 registros, el mas reciente es index 58
+  [INFO] Serial duplicado S2N0CX01D876069: 2 registros, el mas reciente es index 184
+  [INFO] Serial duplicado RAN0LP030339434: 2 registros, el mas reciente es index 207
+  [INFO] Serial duplicado 5CD30933QY: 2 registros, el mas reciente es index 186
+  [INFO] Serial duplicado S6N0CX10X037260: 2 registros, el mas reciente es index 206
+  [INFO] Serial duplicado R8N0LP016035329: 2 registros, el mas reciente es index 180
+  [INFO] Serial duplicado S6N0CX10X098266: 2 registros, el mas reciente es index 179
+  [INFO] Serial duplicado R9N0LP00M882367: 2 registros, el mas reciente es index 193
+  [INFO] Serial duplicado S6N0CX10X042269: 2 registros, el mas reciente es index 173
+  [INFO] Serial duplicado PF3BY71F: 2 registros, el mas reciente es index 191
+  [INFO] Serial duplicado R9N0LP00M99636D: 2 registros, el mas reciente es index 182
+  [INFO] Serial duplicado 5CD236CFJ1: 2 registros, el mas reciente es index 181
+  [INFO] Serial duplicado PF3BXB9T: 3 registros, el mas reciente es index 190
+  [INFO] Serial duplicado 64HGPH3: 2 registros, el mas reciente es index 205
+  [INFO] Serial duplicado T2NXCV09N071085: 2 registros, el mas reciente es index 188
+  [INFO] Serial duplicado T2NXCV00D401068: 2 registros, el mas reciente es index 210
+  [INFO] Serial duplicado S2N0CX01D861064: 2 registros, el mas reciente es index 202
+    [ERROR] Error en fila 0: duplicate key value violates unique constraint "assets_numero_serie_key"
+DETAIL:  Key (numero_serie)=(MANXCV04B054409) already exists.
+
+    [ERROR] Error en fila 1: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 2: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 3: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 4: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 5: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 6: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 7: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 8: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 9: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 10: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 11: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 12: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 13: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 14: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 15: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 16: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 17: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 18: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 19: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 20: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 21: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 22: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 23: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 24: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 25: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 26: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 27: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 28: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 29: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 30: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 31: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 32: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 33: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 34: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 35: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 36: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 37: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 38: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 39: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 40: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 41: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 42: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 43: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 44: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 45: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 46: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 47: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 48: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 49: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 50: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 51: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 52: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 53: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 54: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 55: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 56: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 57: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 58: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 59: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 60: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 61: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 62: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 63: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 64: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 65: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 66: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 67: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 68: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 69: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 70: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 71: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 72: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 73: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 74: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 75: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 76: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 77: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 78: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 79: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 80: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 81: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 82: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 83: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 84: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 85: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 86: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 87: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 88: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 89: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 90: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 91: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 92: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 93: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 94: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 95: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 96: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 97: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 98: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 99: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 100: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 101: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 102: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 103: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 104: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 105: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 106: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 107: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 108: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 109: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 110: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 111: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 112: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 113: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 114: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 115: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 116: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 117: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 118: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 119: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 120: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 121: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 122: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 123: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 124: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 125: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 126: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 127: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 128: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 129: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 130: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 131: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 132: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 133: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 134: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 135: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 136: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 137: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 138: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 139: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 140: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 141: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 142: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 143: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 144: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 145: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 146: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 147: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 148: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 149: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 150: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 151: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 152: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 153: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 154: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 155: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 156: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 157: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 158: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 159: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 160: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 161: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 162: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 163: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 164: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 165: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 166: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 167: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 168: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 169: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 170: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 171: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 172: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 173: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 174: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 175: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 176: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 177: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 178: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 179: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 180: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 181: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 182: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 183: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 184: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 185: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 186: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 187: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 188: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 189: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 190: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 191: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 192: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 193: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 194: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 195: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 196: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 197: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 198: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 199: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 200: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 201: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 202: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 203: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 204: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 205: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 206: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 207: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 208: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 209: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 210: current transaction is aborted, commands ignored until end of transaction block
+
+  [OK] Notebooks migrados: 0 assets, 0 asignaciones
+
+================================================================================
+PASO 5: Migrando Celulares
+================================================================================
+    [ERROR] Error en fila 0: duplicate key value violates unique constraint "assets_numero_serie_key"
+DETAIL:  Key (numero_serie)=(ZY32FB7NWQ) already exists.
+
+    [ERROR] Error en fila 1: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 2: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 3: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 4: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 5: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 6: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 7: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 8: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 9: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 10: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 11: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 12: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 13: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 14: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 15: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 16: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 17: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 18: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 19: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 20: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 21: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 22: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 23: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 24: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 25: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 26: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 27: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 28: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 29: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 30: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 31: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 32: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 33: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 34: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 35: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 36: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 37: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 38: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 39: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 40: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 41: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 42: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 43: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 44: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 45: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 46: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 47: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 48: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 49: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 50: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 51: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 52: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 53: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 54: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 55: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 56: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 57: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 58: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 59: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 60: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 61: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 62: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 63: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 64: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 65: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 66: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 67: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 68: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 69: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 70: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 71: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 72: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 73: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 74: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 75: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 76: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 77: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 78: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 79: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 80: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 81: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 82: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 83: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 84: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 85: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 86: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 87: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 88: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 89: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 90: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 91: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 92: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 93: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 94: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 95: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 96: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 97: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 98: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 99: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 100: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 101: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 102: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 103: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 104: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 105: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 106: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 107: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 108: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 109: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 110: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 111: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 112: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 113: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 114: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 115: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 116: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 117: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 118: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 119: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 120: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 121: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 122: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 123: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 124: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 125: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 126: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 127: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 128: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 129: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 130: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 131: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 132: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 133: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 134: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 135: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 136: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 137: current transaction is aborted, commands ignored until end of transaction block
+
+  [OK] Celulares migrados: 0 assets, 0 asignaciones
+
+================================================================================
+PASO 6: Migrando Monitores
+================================================================================
+    [ERROR] Error en fila 11: duplicate key value violates unique constraint "assets_numero_serie_key"
+DETAIL:  Key (numero_serie)=(51054/256100014862) already exists.
+
+    [ERROR] Error en fila 12: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 13: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 14: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 15: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 16: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 17: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 18: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 19: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 20: current transaction is aborted, commands ignored until end of transaction block
+
+  [OK] Monitores migrados: 11 assets, 6 asignaciones
+
+================================================================================
+PASO 7: Migrando Mouse
+================================================================================
+  [OK] Mouse migrados: 3 assets, 2 asignaciones
+
+================================================================================
+PASO 8: Migrando Audifonos
+================================================================================
+    [ERROR] Error en fila 0: duplicate key value violates unique constraint "assets_numero_serie_key"
+DETAIL:  Key (numero_serie)=(202309000649) already exists.
+
+    [ERROR] Error en fila 1: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 2: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 3: current transaction is aborted, commands ignored until end of transaction block
+
+  [OK] Audifonos migrados: 0 assets, 0 asignaciones
+
+================================================================================
+PASO 10: Migrando Kits de Bienvenida y EPP
+================================================================================
+  [OK] Item de kit creado: Plástico Credencial
+  [OK] Item de kit creado: Porta credencial
+  [OK] Item de kit creado: Cinta Porta credencial
+  [OK] Item de kit creado: EPP - Reposa muñequero
+  [OK] Item de kit creado: EPP - Mouse pad
+  [OK] Item de kit creado: Agenda
+  [OK] Item de kit creado: Taza
+  [OK] Item de kit creado: Mochila
+  [OK] Asignaciones de kit migradas: 265
+
+================================================================================
+PASO 11: Migrando Desvinculaciones
+================================================================================
+    [ERROR] Error en fila 0: invalid input value for enum "EstadoDevolucionTipo": "incompleto"
+LINE 7: ...imestamp, '2025-09-30T00:00:00'::timestamp, 'ok', 'incomplet...
+                                                             ^
+
+    [ERROR] Error en fila 1: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 2: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 3: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 4: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 5: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 6: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 7: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 8: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 9: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 10: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 11: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 12: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 13: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 14: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 15: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 16: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 17: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 18: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 19: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 20: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 21: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 22: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 23: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 24: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 25: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 26: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 27: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 28: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 29: current transaction is aborted, commands ignored until end of transaction block
+
+    [ERROR] Error en fila 30: current transaction is aborted, commands ignored until end of transaction block
+
+  [OK] Desvinculaciones migradas: 0
+
+================================================================================
+REPORTE FINAL DE MIGRACION
+================================================================================
+
+Registros migrados:
+  - Categorias de activos: 0
+  - Empleados: 205
+  - Activos: 0
+  - Asignaciones: 0
+  - Items de kit: 8
+  - Asignaciones de kit: 265
+  - Desvinculaciones: 0
+  - Mantenciones: 0
+
+TOTAL DE REGISTROS: 478
+
+[WARN] Se encontraron 432 errores durante la migracion:
+  1. Reading C:\Users\nanon\OneDrive\Documentos\GitHub\Inventario_Equipo\excel\Consolidado inventario Monitor.xlsx: 'float' object has no attribute 'strip'
+  2. Available notebook row 0: duplicate key value violates unique constraint "assets_numero_serie_key"
+DETAIL:  Key (numero_serie)=(T7NXCV03D000278) already exists.
+
+  3. Available notebook row 1: current transaction is aborted, commands ignored until end of transaction block
+
+  4. Available notebook row 2: current transaction is aborted, commands ignored until end of transaction block
+
+  5. Available notebook row 3: current transaction is aborted, commands ignored until end of transaction block
+
+  6. Available notebook row 4: current transaction is aborted, commands ignored until end of transaction block
+
+  7. Available notebook row 5: current transaction is aborted, commands ignored until end of transaction block
+
+  8. Available notebook row 6: current transaction is aborted, commands ignored until end of transaction block
+
+  9. Available notebook row 7: current transaction is aborted, commands ignored until end of transaction block
+
+  10. Available notebook row 8: current transaction is aborted, commands ignored until end of transaction block
+
+  ... y 422 errores mas
+
+[OK] Reporte guardado en: migration_report.json
+================================================================================
+[OK] Conexion cerrada

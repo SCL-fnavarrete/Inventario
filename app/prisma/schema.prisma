@@ -1,0 +1,437 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SystemUser {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  nombre       String
+  rol          SystemRole
+  activo       Boolean    @default(true)
+  ultimoLogin  DateTime?  @map("ultimo_login")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  @@map("system_users")
+}
+
+model Employee {
+  id                   String          @id @default(uuid())
+  rut                  String          @unique
+  nombres              String          @map("nombre")
+  apellidoPaterno      String          @map("apellido_paterno")
+  apellidoMaterno      String?         @map("apellido_materno")
+  correo               String          @unique
+  cargo                String?
+  jefatura             String?
+  supervisor           String?
+  ubicacion            String?
+  tipoContrato         TipoContrato    @map("tipo_contrato")
+  fechaIngreso         DateTime?       @map("fecha_ingreso")
+  fechaTermino         DateTime?       @map("fecha_termino")
+  estado               EstadoEmpleado  @default(activo)
+  telefonoContacto     String?         @map("telefono_contacto")
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
+  fechaEntregaEpp      DateTime?       @map("fecha_entrega_epp")
+  fechaEntregaKit      DateTime?       @map("fecha_entrega_kit")
+  proximaMantencionEpp DateTime?       @map("proxima_mantencion_epp")
+  activosActuales      Asset[]         @relation("EmpleadoActual")
+  assignments          Assignment[]
+  dispatchGuides       DispatchGuide[]
+  kitAssignments       KitAssignment[]
+  terminations         Termination[]
+
+  @@index([estado])
+  @@index([tipoContrato])
+  @@index([ubicacion])
+  @@index([jefatura])
+  @@index([createdAt])
+  @@map("employees")
+}
+
+model AssetCategory {
+  id            String   @id @default(uuid())
+  nombre        String   @unique
+  descripcion   String?
+  requiereSerie Boolean  @default(true) @map("requiere_serie")
+  requiereImei  Boolean  @default(false) @map("requiere_imei")
+  createdAt     DateTime @default(now()) @map("created_at")
+  assets        Asset[]
+
+  @@map("asset_categories")
+}
+
+model Asset {
+  id                  String              @id @default(uuid())
+  categoriaId         String              @map("categoria_id")
+  numeroSerie         String?             @unique @map("numero_serie")
+  imei                String?
+  numeroActivoInterno String?             @map("numero_activo_interno")
+  marca               String
+  modelo              String
+  procesador          String?
+  discoDuro           String?             @map("disco_duro")
+  ram                 String?
+  pulgadas            Decimal?            @db.Decimal(4, 1)
+  sistemaOperativo    String?             @map("sistema_operativo")
+  numeroTelefono      String?             @map("numero_telefono")
+  numeroActivacion    String?             @map("numero_activacion")
+  tipoPlan            String?             @map("tipo_plan")
+  operador            String?             // Operador de celular (Entel, Movistar, etc)
+  tieneCargador       Boolean             @default(true) @map("tiene_cargador")
+  estado              EstadoActivo        @default(disponible)
+  condicion           CondicionActivo     @default(nuevo)
+  ubicacionFisica     String?             @map("ubicacion_fisica")
+  microsoft365        Boolean             @default(false) @map("microsoft_365")
+  intuneEnrolled      Boolean             @default(false) @map("intune_enrolled")
+  listaDistribucion   String?             @map("lista_distribucion")
+  antivirus           String?             // Software antivirus instalado
+  incidencia          String?             // Incidencias reportadas (robo, falla, etc)
+  fechaCompra         DateTime?           @map("fecha_compra")
+  fechaGarantiaFin    DateTime?           @map("fecha_garantia_fin")
+  fechaBaja           DateTime?           @map("fecha_baja")
+  observaciones       String?
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+  empleadoActualId    String?             @map("empleado_actual_id")
+  nombreEquipo        String?             @map("nombre_equipo")
+  history             AssetHistory[]
+  categoria           AssetCategory       @relation(fields: [categoriaId], references: [id])
+  empleadoActual      Employee?           @relation("EmpleadoActual", fields: [empleadoActualId], references: [id])
+  assignments         Assignment[]
+  dispatchItems       DispatchGuideItem[]
+  maintenances        Maintenance[]
+  purchaseAssets      PurchaseAsset[]
+
+  @@index([estado])
+  @@index([categoriaId])
+  @@index([empleadoActualId])
+  @@index([marca])
+  @@index([createdAt])
+  @@map("assets")
+}
+
+model Supplier {
+  id             String     @id @default(uuid())
+  rutEmpresa     String?    @map("rut_empresa")
+  razonSocial    String     @map("razon_social")
+  nombreContacto String?    @map("nombre_contacto")
+  email          String?
+  telefono       String?
+  direccion      String?
+  createdAt      DateTime   @default(now()) @map("created_at")
+  purchases      Purchase[]
+
+  @@map("suppliers")
+}
+
+model Purchase {
+  id             String          @id @default(uuid())
+  supplierId     String          @map("supplier_id")
+  numeroFactura  String          @map("numero_factura")
+  fechaFactura   DateTime        @map("fecha_factura")
+  montoTotal     Decimal?        @map("monto_total") @db.Decimal(12, 2)
+  moneda         Moneda          @default(CLP)
+  ordenCompra    String?         @map("orden_compra")
+  documentoUrl   String?         @map("documento_url")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  purchaseAssets PurchaseAsset[]
+  supplier       Supplier        @relation(fields: [supplierId], references: [id])
+
+  @@map("purchases")
+}
+
+model PurchaseAsset {
+  id             String   @id @default(uuid())
+  purchaseId     String   @map("purchase_id")
+  assetId        String   @map("asset_id")
+  precioUnitario Decimal? @map("precio_unitario") @db.Decimal(12, 2)
+  createdAt      DateTime @default(now()) @map("created_at")
+  asset          Asset    @relation(fields: [assetId], references: [id])
+  purchase       Purchase @relation(fields: [purchaseId], references: [id])
+
+  @@map("purchase_assets")
+}
+
+model Assignment {
+  id                      String            @id @default(uuid())
+  assetId                 String            @map("asset_id")
+  employeeId              String            @map("employee_id")
+  fechaEntrega            DateTime          @map("fecha_entrega")
+  lugarEntrega            String?           @map("lugar_entrega")
+  entregadoPor            String?           @map("entregado_por")
+  tipoMovimiento          TipoMovimiento    @map("tipo_movimiento")
+  motivo                  String?
+  fechaDevolucion         DateTime?         @map("fecha_devolucion")
+  recibidoPor             String?           @map("recibido_por")
+  estadoDevolucion        EstadoDevolucion? @map("estado_devolucion")
+  observacionesDevolucion String?           @map("observaciones_devolucion")
+  activo                  Boolean           @default(true)
+  actaEntregaUrl          String?           @map("acta_entrega_url")
+  actaDevolucionUrl       String?           @map("acta_devolucion_url")
+  firmaEmpleadoEntrega    String?           @map("firma_empleado_entrega")
+  firmaEmpleadoDevolucion String?           @map("firma_empleado_devolucion")
+  createdAt               DateTime          @default(now()) @map("created_at")
+  updatedAt               DateTime          @updatedAt @map("updated_at")
+  asset                   Asset             @relation(fields: [assetId], references: [id])
+  employee                Employee          @relation(fields: [employeeId], references: [id])
+
+  @@index([assetId])
+  @@index([employeeId])
+  @@index([activo])
+  @@index([fechaEntrega])
+  @@index([tipoMovimiento])
+  @@map("assignments")
+}
+
+model WelcomeKitItem {
+  id             String          @id @default(uuid())
+  nombre         String
+  categoria      CategoriaKit
+  createdAt      DateTime        @default(now()) @map("created_at")
+  kitAssignments KitAssignment[]
+
+  @@map("welcome_kit_items")
+}
+
+model KitAssignment {
+  id            String         @id @default(uuid())
+  employeeId    String         @map("employee_id")
+  itemId        String         @map("item_id")
+  fechaEntrega  DateTime       @map("fecha_entrega")
+  estado        EstadoKit      @default(entregado)
+  observaciones String?
+  createdAt     DateTime       @default(now()) @map("created_at")
+  employee      Employee       @relation(fields: [employeeId], references: [id])
+  item          WelcomeKitItem @relation(fields: [itemId], references: [id])
+
+  @@map("kit_assignments")
+}
+
+model Maintenance {
+  id                String           @id @default(uuid())
+  assetId           String           @map("asset_id")
+  tipo              TipoMantencion
+  descripcion       String
+  fechaProgramada   DateTime?        @map("fecha_programada")
+  fechaRealizada    DateTime?        @map("fecha_realizada")
+  proximaMantencion DateTime?        @map("proxima_mantencion")
+  realizadoPor      String?          @map("realizado_por")
+  costo             Decimal?         @db.Decimal(10, 2)
+  proveedorExterno  String?          @map("proveedor_externo")
+  estado            EstadoMantencion @default(pendiente)
+  resultado         String?
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  asset             Asset            @relation(fields: [assetId], references: [id])
+
+  @@index([assetId])
+  @@index([estado])
+  @@index([tipo])
+  @@index([fechaProgramada])
+  @@map("maintenances")
+}
+
+model AssetHistory {
+  id              String     @id @default(uuid())
+  assetId         String     @map("asset_id")
+  tipoEvento      TipoEvento @map("tipo_evento")
+  descripcion     String
+  datosAnteriores Json?      @map("datos_anteriores")
+  datosNuevos     Json?      @map("datos_nuevos")
+  usuarioSistema  String?    @map("usuario_sistema")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  asset           Asset      @relation(fields: [assetId], references: [id])
+
+  @@index([assetId])
+  @@index([tipoEvento])
+  @@index([createdAt])
+  @@map("asset_history")
+}
+
+model Termination {
+  id                     String               @id @default(uuid())
+  employeeId             String               @map("employee_id")
+  fechaDesvinculacion    DateTime             @map("fecha_desvinculacion")
+  fechaDevolucionEquipos DateTime?            @map("fecha_devolucion_equipos")
+  estadoNotebook         EstadoDevolucionTipo @default(pendiente) @map("estado_notebook")
+  estadoCelular          EstadoDevolucionTipo @default(pendiente) @map("estado_celular")
+  estadoMonitor          EstadoDevolucionTipo @default(pendiente) @map("estado_monitor")
+  estadoKit              EstadoDevolucionTipo @default(pendiente) @map("estado_kit")
+  numeroTelefonoCelular  String?              @map("numero_telefono_celular") // Nro telefono del celular devuelto
+  imeiCelular            String?              @map("imei_celular") // IMEI del celular devuelto
+  recibidoPor            String?              @map("recibido_por")
+  lugarDevolucion        String?              @map("lugar_devolucion")
+  requiereDescuento      Boolean              @default(false) @map("requiere_descuento")
+  montoDescuento         Decimal?             @map("monto_descuento") @db.Decimal(10, 2)
+  motivoDescuento        String?              @map("motivo_descuento")
+  notificadoRrhh         Boolean              @default(false) @map("notificado_rrhh")
+  fechaNotificacionRrhh  DateTime?            @map("fecha_notificacion_rrhh")
+  observaciones          String?
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
+  employee               Employee             @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([notificadoRrhh])
+  @@index([fechaDesvinculacion])
+  @@map("terminations")
+}
+
+model DispatchGuide {
+  id                 String              @id @default(uuid())
+  numero             String              @unique
+  origen             String
+  destino            String
+  tipoDespacho       TipoDespacho        @map("tipo_despacho")
+  despachadoPor      String              @map("despachado_por")
+  fechaDespacho      DateTime            @map("fecha_despacho")
+  destinatarioId     String?             @map("destinatario_id")
+  destinatarioNombre String?             @map("destinatario_nombre")
+  destinatarioRut    String?             @map("destinatario_rut")
+  observaciones      String?
+  estado             EstadoGuia          @default(pendiente)
+  fechaRecepcion     DateTime?           @map("fecha_recepcion")
+  recibidoPor        String?             @map("recibido_por")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  items              DispatchGuideItem[]
+  destinatario       Employee?           @relation(fields: [destinatarioId], references: [id])
+
+  @@index([numero])
+  @@index([estado])
+  @@index([fechaDespacho])
+  @@index([destinatarioId])
+  @@map("dispatch_guides")
+}
+
+model DispatchGuideItem {
+  id            String        @id @default(uuid())
+  guideId       String        @map("guide_id")
+  assetId       String        @map("asset_id")
+  observaciones String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  asset         Asset         @relation(fields: [assetId], references: [id])
+  guide         DispatchGuide @relation(fields: [guideId], references: [id], onDelete: Cascade)
+
+  @@index([guideId])
+  @@index([assetId])
+  @@map("dispatch_guide_items")
+}
+
+enum SystemRole {
+  admin
+  tecnico
+  supervisor
+  rrhh
+  auditor
+}
+
+enum TipoContrato {
+  planta
+  proyecto
+  externo
+}
+
+enum EstadoEmpleado {
+  activo
+  desvinculado
+  licencia
+}
+
+enum EstadoActivo {
+  disponible
+  asignado
+  en_mantencion
+  reutilizable
+  baja
+  vendido
+}
+
+enum CondicionActivo {
+  nuevo
+  usado
+  danado
+}
+
+enum Moneda {
+  CLP
+  USD
+}
+
+enum TipoMovimiento {
+  ingreso
+  cambio
+  reemplazo
+  temporal
+}
+
+enum EstadoDevolucion {
+  ok
+  danado
+  incompleto
+}
+
+enum CategoriaKit {
+  kit_bienvenida
+  epp
+}
+
+enum EstadoKit {
+  entregado
+  devuelto
+  perdido
+}
+
+enum TipoMantencion {
+  preventiva
+  correctiva
+  actualizacion_so
+  limpieza
+  reparacion
+}
+
+enum EstadoMantencion {
+  pendiente
+  en_proceso
+  completada
+  cancelada
+}
+
+enum TipoEvento {
+  creacion
+  asignacion
+  devolucion
+  mantencion
+  cambio_estado
+  actualizacion_specs
+  baja
+  venta
+}
+
+enum EstadoDevolucionTipo {
+  ok
+  danado
+  no_aplica
+  pendiente
+}
+
+enum TipoDespacho {
+  asignacion
+  traslado
+  prestamo
+}
+
+enum EstadoGuia {
+  pendiente
+  despachado
+  recibido
+  anulado
+}

@@ -1,0 +1,1226 @@
+[
+  {
+    "filename": "Consolidado inventario Audifonos.xlsx",
+    "filepath": "C:\\Users\\nanon\\OneDrive\\Documentos\\GitHub\\Inventario_Equipo\\excel\\Consolidado inventario Audifonos.xlsx",
+    "rows": 4,
+    "columns": [
+      "RUT",
+      "Nombre",
+      "Apellido P.",
+      "Apellido M.",
+      "Equipo",
+      "Marca",
+      "Modelo",
+      "N° Serie",
+      "Estado",
+      "Fecha asignado",
+      "Lugar"
+    ],
+    "column_count": 11,
+    "dtypes": {
+      "RUT": "object",
+      "Nombre": "object",
+      "Apellido P.": "object",
+      "Apellido M.": "object",
+      "Equipo": "object",
+      "Marca": "object",
+      "Modelo": "object",
+      "N° Serie": "float64",
+      "Estado": "object",
+      "Fecha asignado": "datetime64[ns]",
+      "Lugar": "object"
+    },
+    "sample_data": {
+      "RUT": [
+        "20.975.912-8",
+        "19.379.000-3"
+      ],
+      "Nombre": [
+        "Matias Andres",
+        "Angelica Constanza ",
+        "No disponible"
+      ],
+      "Apellido P.": [
+        "Huichaqueo",
+        "Ormeño  "
+      ],
+      "Apellido M.": [
+        "Moraga",
+        "Llancafilo"
+      ],
+      "Equipo": [
+        "Audifonos",
+        "Audifonos",
+        "Audifonos"
+      ],
+      "Marca": [
+        "Targus",
+        "Jabra ",
+        "Targus"
+      ],
+      "Modelo": [
+        "AEH102",
+        "HSC016",
+        "AEH102"
+      ],
+      "N° Serie": [
+        "202309000649.0",
+        "259684478.0",
+        "202309000748.0"
+      ],
+      "Estado": [
+        "Nuevo",
+        "Usado",
+        "Usado"
+      ],
+      "Fecha asignado": [
+        "2025-10-23 00:00:00",
+        "2025-11-20 00:00:00"
+      ],
+      "Lugar": [
+        "RM",
+        "RM",
+        "RM"
+      ]
+    },
+    "null_counts": {
+      "RUT": 2,
+      "Nombre": 0,
+      "Apellido P.": 2,
+      "Apellido M.": 2,
+      "Equipo": 0,
+      "Marca": 0,
+      "Modelo": 0,
+      "N° Serie": 1,
+      "Estado": 0,
+      "Fecha asignado": 2,
+      "Lugar": 1
+    },
+    "unique_values_count": {
+      "RUT": 2,
+      "Nombre": 3,
+      "Apellido P.": 2,
+      "Apellido M.": 2,
+      "Equipo": 1,
+      "Marca": 2,
+      "Modelo": 2,
+      "N° Serie": 3,
+      "Estado": 2,
+      "Fecha asignado": 2,
+      "Lugar": 1
+    }
+  },
+  {
+    "filename": "Consolidado inventario Celulares.xlsx",
+    "filepath": "C:\\Users\\nanon\\OneDrive\\Documentos\\GitHub\\Inventario_Equipo\\excel\\Consolidado inventario Celulares.xlsx",
+    "rows": 138,
+    "columns": [
+      "RUT",
+      "Nombre",
+      "Apellido P.",
+      "Apellido M.",
+      "Marca",
+      "Modelo",
+      "N° serie",
+      "IMEI ",
+      "Estado",
+      "N° Telefono",
+      "Operador",
+      "Fecha entrega",
+      "Incidencia"
+    ],
+    "column_count": 13,
+    "dtypes": {
+      "RUT": "object",
+      "Nombre": "object",
+      "Apellido P.": "object",
+      "Apellido M.": "object",
+      "Marca": "object",
+      "Modelo": "object",
+      "N° serie": "object",
+      "IMEI ": "object",
+      "Estado": "object",
+      "N° Telefono": "object",
+      "Operador": "object",
+      "Fecha entrega": "datetime64[ns]",
+      "Incidencia": "object"
+    },
+    "sample_data": {
+      "RUT": [
+        "15.418.367-1",
+        "19.733.719-2",
+        "25.255.101-8"
+      ],
+      "Nombre": [
+        "Rodrigo Alonso Rafael",
+        "Ximena ",
+        "Karen Lizce"
+      ],
+      "Apellido P.": [
+        "Lopez",
+        "Devia",
+        "Guevara"
+      ],
+      "Apellido M.": [
+        "Vargas",
+        "Amaro",
+        "Nieto"
+      ],
+      "Marca": [
+        "Motorola",
+        "Samsung",
+        "Samsung"
+      ],
+      "Modelo": [
+        "Moto E30",
+        "Galaxy A04",
+        "Galaxy A04"
+      ],
+      "N° serie": [
+        "ZY32FB7NWQ",
+        "R92TB09CDBL",
+        "ZY22GWD2F7"
+      ],
+      "IMEI ": [
+        "355447170897098",
+        "358048275494125",
+        "358048275578273"
+      ],
+      "Estado": [
+        "Usado",
+        "Usado",
+        "Usado"
+      ],
+      "N° Telefono": [
+        "56981384873",
+        "56984318347",
+        "56934429316"
+      ],
+      "Operador": [
+        "Entel",
+        "Entel",
+        "Entel"
+      ],
+      "Fecha entrega": [
+        "2023-03-09 00:00:00",
+        "2023-03-09 00:00:00",
+        "2023-06-27 00:00:00"
+      ],
+      "Incidencia": [
+        "Falla",
+        "Robo",
+        "Hurto"
+      ]
+    },
+    "null_counts": {
+      "RUT": 7,
+      "Nombre": 0,
+      "Apellido P.": 5,
+      "Apellido M.": 6,
+      "Marca": 0,
+      "Modelo": 0,
+      "N° serie": 5,
+      "IMEI ": 3,
+      "Estado": 0,
+      "N° Telefono": 1,
+      "Operador": 0,
+      "Fecha entrega": 19,
+      "Incidencia": 134
+    },
+    "unique_values_count": {
+      "RUT": 120,
+      "Nombre": 126,
+      "Apellido P.": 111,
+      "Apellido M.": 105,
+      "Marca": 9,
+      "Modelo": 27,
+      "N° serie": 106,
+      "IMEI ": 112,
+      "Estado": 4,
+      "N° Telefono": 118,
+      "Operador": 2,
+      "Fecha entrega": 75,
+      "Incidencia": 3
+    }
+  },
+  {
+    "filename": "Consolidado inventario Impresora.xlsx",
+    "filepath": "C:\\Users\\nanon\\OneDrive\\Documentos\\GitHub\\Inventario_Equipo\\excel\\Consolidado inventario Impresora.xlsx",
+    "rows": 3,
+    "columns": [
+      "Marca",
+      "Modelo",
+      "S/N",
+      "Ubicación"
+    ],
+    "column_count": 4,
+    "dtypes": {
+      "Marca": "object",
+      "Modelo": "object",
+      "S/N": "object",
+      "Ubicación": "object"
+    },
+    "sample_data": {
+      "Marca": [
+        "Canon",
+        "Epson",
+        "Canon"
+      ],
+      "Modelo": [
+        "Pixma G4110",
+        "L8050",
+        "Pixma G3170"
+      ],
+      "S/N": [
+        "KLPF36812",
+        "XB5P005122",
+        "KPCY09192"
+      ],
+      "Ubicación": [
+        "Santiago",
+        "Santiago",
+        "Concepcion"
+      ]
+    },
+    "null_counts": {
+      "Marca": 0,
+      "Modelo": 0,
+      "S/N": 0,
+      "Ubicación": 0
+    },
+    "unique_values_count": {
+      "Marca": 2,
+      "Modelo": 3,
+      "S/N": 3,
+      "Ubicación": 2
+    }
+  },
+  {
+    "filename": "Consolidado inventario Monitor.xlsx",
+    "filepath": "C:\\Users\\nanon\\OneDrive\\Documentos\\GitHub\\Inventario_Equipo\\excel\\Consolidado inventario Monitor.xlsx",
+    "rows": 21,
+    "columns": [
+      "RUT",
+      "Nombre",
+      "Apellido P.",
+      "Apellido M.",
+      "Correo",
+      "Cargo",
+      "Comuna",
+      "Equipo",
+      "Marca",
+      "Modelo",
+      "Pulgadas",
+      "N° Serie",
+      "Fecha asignado",
+      "Estado",
+      "Lugar",
+      "Usuario"
+    ],
+    "column_count": 16,
+    "dtypes": {
+      "RUT": "object",
+      "Nombre": "object",
+      "Apellido P.": "object",
+      "Apellido M.": "object",
+      "Correo": "object",
+      "Cargo": "object",
+      "Comuna": "object",
+      "Equipo": "object",
+      "Marca": "object",
+      "Modelo": "object",
+      "Pulgadas": "int64",
+      "N° Serie": "object",
+      "Fecha asignado": "datetime64[ns]",
+      "Estado": "object",
+      "Lugar": "object",
+      "Usuario": "object"
+    },
+    "sample_data": {
+      "RUT": [
+        "18.907.054-3",
+        "12.288.748-0",
+        "16.924.730-7"
+      ],
+      "Nombre": [
+        "Oficina",
+        "Oficina  - Carolina F.",
+        "Oficina - Jefatura"
+      ],
+      "Apellido P.": [
+        "Tapia ",
+        "Paillalef ",
+        "Inostroza "
+      ],
+      "Apellido M.": [
+        "Valdés",
+        "Paredes",
+        "Bañares"
+      ],
+      "Correo": [
+        "itapia@sclconsultores.com",
+        "lpaillalef@sclconsultores.com",
+        "einostroza@sclconsultores.com"
+      ],
+      "Cargo": [
+        "Operador de Monitoreo",
+        "Técnico Monitoreo",
+        "Residente N2"
+      ],
+      "Comuna": [
+        "RM",
+        "RM",
+        "Quinta Normal"
+      ],
+      "Equipo": [
+        "Monitor",
+        "Monitor",
+        "Monitor"
+      ],
+      "Marca": [
+        "Samsung",
+        "XIAOMI",
+        "Samsung"
+      ],
+      "Modelo": [
+        "S27C310EAL",
+        "A27i",
+        "S24R35AFHL"
+      ],
+      "Pulgadas": [
+        "27",
+        "27",
+        "24"
+      ],
+      "N° Serie": [
+        "5NJJH4CWA01323",
+        "51054/126100072598",
+        "5EUKH4TT400914D"
+      ],
+      "Fecha asignado": [
+        "2024-02-01 00:00:00",
+        "2024-12-10 00:00:00",
+        "2025-10-01 00:00:00"
+      ],
+      "Estado": [
+        "Nuevo",
+        "Nuevo",
+        "Usado"
+      ],
+      "Lugar": [
+        "RM",
+        "RM",
+        "RM"
+      ],
+      "Usuario": [
+        "Desvinculado",
+        "Desvinculado",
+        "Activo"
+      ]
+    },
+    "null_counts": {
+      "RUT": 4,
+      "Nombre": 0,
+      "Apellido P.": 4,
+      "Apellido M.": 5,
+      "Correo": 4,
+      "Cargo": 4,
+      "Comuna": 4,
+      "Equipo": 0,
+      "Marca": 0,
+      "Modelo": 0,
+      "Pulgadas": 0,
+      "N° Serie": 0,
+      "Fecha asignado": 0,
+      "Estado": 0,
+      "Lugar": 2,
+      "Usuario": 4
+    },
+    "unique_values_count": {
+      "RUT": 16,
+      "Nombre": 20,
+      "Apellido P.": 17,
+      "Apellido M.": 16,
+      "Correo": 17,
+      "Cargo": 8,
+      "Comuna": 7,
+      "Equipo": 1,
+      "Marca": 3,
+      "Modelo": 4,
+      "Pulgadas": 3,
+      "N° Serie": 17,
+      "Fecha asignado": 15,
+      "Estado": 2,
+      "Lugar": 6,
+      "Usuario": 2
+    }
+  },
+  {
+    "filename": "Consolidado inventario Mouse.xlsx",
+    "filepath": "C:\\Users\\nanon\\OneDrive\\Documentos\\GitHub\\Inventario_Equipo\\excel\\Consolidado inventario Mouse.xlsx",
+    "rows": 3,
+    "columns": [
+      "RUT",
+      "Nombre",
+      "Apellido P.",
+      "Apellido M.",
+      "Equipo",
+      "Marca",
+      "Modelo",
+      "N° Serie",
+      "Estado",
+      "Fecha asignado",
+      "Lugar"
+    ],
+    "column_count": 11,
+    "dtypes": {
+      "RUT": "object",
+      "Nombre": "object",
+      "Apellido P.": "object",
+      "Apellido M.": "object",
+      "Equipo": "object",
+      "Marca": "object",
+      "Modelo": "object",
+      "N° Serie": "object",
+      "Estado": "object",
+      "Fecha asignado": "datetime64[ns]",
+      "Lugar": "object"
+    },
+    "sample_data": {
+      "RUT": [
+        "15.941.817-0",
+        "17.859.854-6"
+      ],
+      "Nombre": [
+        "Fernando Alexis ",
+        "Gabriel Sebastian ",
+        "Disponible"
+      ],
+      "Apellido P.": [
+        "Navarrete ",
+        "Tapia "
+      ],
+      "Apellido M.": [
+        "Gonzalez",
+        "Rojo"
+      ],
+      "Equipo": [
+        "Mouse Inalambrico",
+        "Mouse Inalambrico",
+        "Mouse Inalambrico"
+      ],
+      "Marca": [
+        "Genius",
+        "Genius",
+        "Genius"
+      ],
+      "Modelo": [
+        "NX-7000",
+        "NX-7000",
+        "NX-7000"
+      ],
+      "N° Serie": [
+        "35G98141005857",
+        "35G98141005858",
+        "35G98141005856"
+      ],
+      "Estado": [
+        "Nuevo",
+        "Nuevo",
+        "Nuevo"
+      ],
+      "Fecha asignado": [
+        "2025-12-03 00:00:00",
+        "2025-12-04 00:00:00"
+      ],
+      "Lugar": [
+        "RM",
+        "RM",
+        "RM"
+      ]
+    },
+    "null_counts": {
+      "RUT": 1,
+      "Nombre": 0,
+      "Apellido P.": 1,
+      "Apellido M.": 1,
+      "Equipo": 0,
+      "Marca": 0,
+      "Modelo": 0,
+      "N° Serie": 0,
+      "Estado": 0,
+      "Fecha asignado": 1,
+      "Lugar": 0
+    },
+    "unique_values_count": {
+      "RUT": 2,
+      "Nombre": 3,
+      "Apellido P.": 2,
+      "Apellido M.": 2,
+      "Equipo": 1,
+      "Marca": 1,
+      "Modelo": 1,
+      "N° Serie": 3,
+      "Estado": 1,
+      "Fecha asignado": 2,
+      "Lugar": 1
+    }
+  },
+  {
+    "filename": "Consolidado inventario Notebook (1).xlsx",
+    "filepath": "C:\\Users\\nanon\\OneDrive\\Documentos\\GitHub\\Inventario_Equipo\\excel\\Consolidado inventario Notebook (1).xlsx",
+    "rows": 211,
+    "columns": [
+      "Jefatura",
+      "Supervisor",
+      "RUT",
+      "Nombre",
+      "onoso",
+      "Apellido M.",
+      "Correo",
+      "Cargo",
+      "Comuna",
+      "Equipo",
+      "Marca",
+      "Modelo",
+      "N° Serie",
+      "Nombre Equipo",
+      "Procesador ",
+      "Disco Duro",
+      "RAM",
+      "O.S.",
+      "Microsoft 365 Empresa",
+      "Estado",
+      "Fecha de entrega",
+      "Mantencion",
+      "Proxima Mantencion",
+      "Antivirus"
+    ],
+    "column_count": 24,
+    "dtypes": {
+      "Jefatura": "object",
+      "Supervisor": "object",
+      "RUT": "object",
+      "Nombre": "object",
+      "onoso": "object",
+      "Apellido M.": "object",
+      "Correo": "object",
+      "Cargo": "object",
+      "Comuna": "object",
+      "Equipo": "object",
+      "Marca": "object",
+      "Modelo": "object",
+      "N° Serie": "object",
+      "Nombre Equipo": "object",
+      "Procesador ": "object",
+      "Disco Duro": "object",
+      "RAM": "object",
+      "O.S.": "object",
+      "Microsoft 365 Empresa": "object",
+      "Estado": "object",
+      "Fecha de entrega": "object",
+      "Mantencion": "datetime64[ns]",
+      "Proxima Mantencion": "datetime64[ns]",
+      "Antivirus": "object"
+    },
+    "sample_data": {
+      "Jefatura": [
+        "Cristian Ormeño",
+        "Ariel Fernandez",
+        "Ariel Fernandez"
+      ],
+      "Supervisor": [
+        "Elias Valenzuela ",
+        "Elias Valenzuela ",
+        "Benjamin Astudillo"
+      ],
+      "RUT": [
+        "19.726.971-5",
+        "19.542.936-7",
+        "21.198.430-9"
+      ],
+      "Nombre": [
+        "Alejandro Marcelo",
+        "Bryan Angelo",
+        "Alvaro Alejandro"
+      ],
+      "onoso": [
+        "Aranda",
+        "Alarcon",
+        "Vejar"
+      ],
+      "Apellido M.": [
+        "Tapia",
+        "Marquez",
+        "Sanzana"
+      ],
+      "Correo": [
+        "aaranda@sclconsultores.com",
+        "balarcon@sclconsultores.com",
+        "avejar@sclconsultores.com"
+      ],
+      "Cargo": [
+        "Mesa Unificada",
+        "Operador de Monitoreo",
+        "Operador de Monitoreo"
+      ],
+      "Comuna": [
+        "Limache",
+        "RM",
+        "Concepción"
+      ],
+      "Equipo": [
+        "Notebook",
+        "Notebook",
+        "Notebook"
+      ],
+      "Marca": [
+        "Asus",
+        "Asus",
+        "Asus"
+      ],
+      "Modelo": [
+        "Asus Expertbook P2451FA_P2451FA ",
+        "Vivobook X1404ZA",
+        "Vivobook X1404ZA"
+      ],
+      "N° Serie": [
+        "MANXCV04B054409",
+        "S2N0CX01D78106C",
+        "SBN0CX04127847B"
+      ],
+      "Nombre Equipo": [
+        "SCL-AARANDA",
+        "SCL-BALARCON",
+        "SCL-AVEJAR"
+      ],
+      "Procesador ": [
+        "Intel Core i5-10210U",
+        "Intel Core I5-1235U",
+        "Intel Core I5-1235U"
+      ],
+      "Disco Duro": [
+        "256 GB",
+        "512 GB",
+        "512 GB"
+      ],
+      "RAM": [
+        "8 GB",
+        "16 GB",
+        "16 GB"
+      ],
+      "O.S.": [
+        "Windows 11 Business",
+        "Windows 11 Business",
+        "Windows 11 Business"
+      ],
+      "Microsoft 365 Empresa": [
+        "Premium",
+        "Premium",
+        "Premium"
+      ],
+      "Estado": [
+        "Usado",
+        "Nuevo",
+        "Usado"
+      ],
+      "Fecha de entrega": [
+        "2023-03-30 00:00:00",
+        "2024-09-25 00:00:00",
+        "2025-06-02 00:00:00"
+      ],
+      "Mantencion": [
+        "2025-03-30 00:00:00",
+        "2025-09-25 00:00:00",
+        "2025-06-02 00:00:00"
+      ],
+      "Proxima Mantencion": [
+        "2026-03-30 00:00:00",
+        "2026-09-25 00:00:00",
+        "2026-06-02 00:00:00"
+      ],
+      "Antivirus": [
+        "Defender",
+        "Defender",
+        "Defender"
+      ]
+    },
+    "null_counts": {
+      "Jefatura": 0,
+      "Supervisor": 59,
+      "RUT": 0,
+      "Nombre": 0,
+      "onoso": 0,
+      "Apellido M.": 0,
+      "Correo": 0,
+      "Cargo": 0,
+      "Comuna": 0,
+      "Equipo": 0,
+      "Marca": 0,
+      "Modelo": 0,
+      "N° Serie": 0,
+      "Nombre Equipo": 1,
+      "Procesador ": 0,
+      "Disco Duro": 0,
+      "RAM": 0,
+      "O.S.": 0,
+      "Microsoft 365 Empresa": 0,
+      "Estado": 0,
+      "Fecha de entrega": 0,
+      "Mantencion": 0,
+      "Proxima Mantencion": 0,
+      "Antivirus": 0
+    },
+    "unique_values_count": {
+      "Jefatura": 15,
+      "Supervisor": 18,
+      "RUT": 192,
+      "Nombre": 194,
+      "onoso": 158,
+      "Apellido M.": 155,
+      "Correo": 193,
+      "Cargo": 66,
+      "Comuna": 56,
+      "Equipo": 1,
+      "Marca": 5,
+      "Modelo": 22,
+      "N° Serie": 183,
+      "Nombre Equipo": 202,
+      "Procesador ": 15,
+      "Disco Duro": 9,
+      "RAM": 7,
+      "O.S.": 3,
+      "Microsoft 365 Empresa": 1,
+      "Estado": 2,
+      "Fecha de entrega": 157,
+      "Mantencion": 139,
+      "Proxima Mantencion": 151,
+      "Antivirus": 1
+    }
+  },
+  {
+    "filename": "Inventario Kit +EPP + Mochila.xlsx",
+    "filepath": "C:\\Users\\nanon\\OneDrive\\Documentos\\GitHub\\Inventario_Equipo\\excel\\Inventario Kit +EPP + Mochila.xlsx",
+    "rows": 63,
+    "columns": [
+      "RUT",
+      "Nombre",
+      "Apellido P.",
+      "Apellido M.",
+      "Fecha",
+      "Plastico \nCredencial",
+      "Porta\ncredencial",
+      "Cinta \nPorta\ncredencial",
+      "EPP-\nReposa \nmuñequero",
+      "EPP-\nmouse\npad",
+      "Agenda",
+      "Tazas",
+      "Mochila"
+    ],
+    "column_count": 13,
+    "dtypes": {
+      "RUT": "object",
+      "Nombre": "object",
+      "Apellido P.": "object",
+      "Apellido M.": "object",
+      "Fecha": "datetime64[ns]",
+      "Plastico \nCredencial": "int64",
+      "Porta\ncredencial": "int64",
+      "Cinta \nPorta\ncredencial": "int64",
+      "EPP-\nReposa \nmuñequero": "int64",
+      "EPP-\nmouse\npad": "int64",
+      "Agenda": "int64",
+      "Tazas": "int64",
+      "Mochila": "int64"
+    },
+    "sample_data": {
+      "RUT": [
+        "18.665.756-K",
+        "16.223.951-1",
+        "16.954.466-2"
+      ],
+      "Nombre": [
+        "Bastián Antonio",
+        "Carolina Isabel",
+        "Felipe Ignacio"
+      ],
+      "Apellido P.": [
+        "Gutiérrez",
+        "Fernández",
+        "Lavin "
+      ],
+      "Apellido M.": [
+        "  Farías",
+        "  Vela",
+        " Gentile"
+      ],
+      "Fecha": [
+        "2025-09-22 00:00:00",
+        "2025-09-23 00:00:00",
+        "2025-09-24 00:00:00"
+      ],
+      "Plastico \nCredencial": [
+        "1",
+        "1",
+        "1"
+      ],
+      "Porta\ncredencial": [
+        "1",
+        "1",
+        "1"
+      ],
+      "Cinta \nPorta\ncredencial": [
+        "1",
+        "1",
+        "1"
+      ],
+      "EPP-\nReposa \nmuñequero": [
+        "1",
+        "1",
+        "1"
+      ],
+      "EPP-\nmouse\npad": [
+        "1",
+        "1",
+        "1"
+      ],
+      "Agenda": [
+        "1",
+        "1",
+        "1"
+      ],
+      "Tazas": [
+        "1",
+        "1",
+        "1"
+      ],
+      "Mochila": [
+        "1",
+        "1",
+        "1"
+      ]
+    },
+    "null_counts": {
+      "RUT": 0,
+      "Nombre": 0,
+      "Apellido P.": 0,
+      "Apellido M.": 0,
+      "Fecha": 0,
+      "Plastico \nCredencial": 0,
+      "Porta\ncredencial": 0,
+      "Cinta \nPorta\ncredencial": 0,
+      "EPP-\nReposa \nmuñequero": 0,
+      "EPP-\nmouse\npad": 0,
+      "Agenda": 0,
+      "Tazas": 0,
+      "Mochila": 0
+    },
+    "unique_values_count": {
+      "RUT": 62,
+      "Nombre": 61,
+      "Apellido P.": 58,
+      "Apellido M.": 61,
+      "Fecha": 33,
+      "Plastico \nCredencial": 2,
+      "Porta\ncredencial": 2,
+      "Cinta \nPorta\ncredencial": 2,
+      "EPP-\nReposa \nmuñequero": 2,
+      "EPP-\nmouse\npad": 2,
+      "Agenda": 2,
+      "Tazas": 2,
+      "Mochila": 2
+    }
+  },
+  {
+    "filename": "Notebook disponibles.xlsx",
+    "filepath": "C:\\Users\\nanon\\OneDrive\\Documentos\\GitHub\\Inventario_Equipo\\excel\\Notebook disponibles.xlsx",
+    "rows": 37,
+    "columns": [
+      "Estado",
+      "Ubicación",
+      "Pulgadas",
+      "Marca",
+      "Modelo",
+      "Serie",
+      "Procesador",
+      "Disco Duro",
+      "RAM",
+      "Equipo",
+      "Fecha",
+      "O.S"
+    ],
+    "column_count": 12,
+    "dtypes": {
+      "Estado": "object",
+      "Ubicación": "object",
+      "Pulgadas": "float64",
+      "Marca": "object",
+      "Modelo": "object",
+      "Serie": "object",
+      "Procesador": "object",
+      "Disco Duro": "object",
+      "RAM": "object",
+      "Equipo": "object",
+      "Fecha": "datetime64[ns]",
+      "O.S": "object"
+    },
+    "sample_data": {
+      "Estado": [
+        "Asignado",
+        "Asignado",
+        "Asignado"
+      ],
+      "Ubicación": [
+        "Oficina",
+        "Oficina",
+        "Oficina"
+      ],
+      "Pulgadas": [
+        "15.6",
+        "15.6",
+        "15.6"
+      ],
+      "Marca": [
+        "Asus",
+        "Asus",
+        "Asus"
+      ],
+      "Modelo": [
+        "Asus ExpertBook B1503CVA",
+        "Asus ExpertBook B1503CVA",
+        "Asus ExpertBook B1503CVA"
+      ],
+      "Serie": [
+        "T7NXCV03D000278",
+        "T7NXCV03C98627F",
+        "T7NXCV03C99627E"
+      ],
+      "Procesador": [
+        "Intel Core 5-120U",
+        "Intel Core 5-120U",
+        "Intel Core 5-120U"
+      ],
+      "Disco Duro": [
+        "500 GB",
+        "500 GB",
+        "500 GB"
+      ],
+      "RAM": [
+        "16 GB",
+        "16 GB",
+        "16 GB"
+      ],
+      "Equipo": [
+        "Nuevo",
+        "Nuevo",
+        "Nuevo"
+      ],
+      "Fecha": [
+        "2025-10-29 00:00:00",
+        "2025-10-29 00:00:00",
+        "2025-10-29 00:00:00"
+      ],
+      "O.S": [
+        "Windows 11 Pro",
+        "Windows 11 Pro",
+        "Windows 11 Pro"
+      ]
+    },
+    "null_counts": {
+      "Estado": 0,
+      "Ubicación": 0,
+      "Pulgadas": 0,
+      "Marca": 0,
+      "Modelo": 0,
+      "Serie": 0,
+      "Procesador": 0,
+      "Disco Duro": 1,
+      "RAM": 1,
+      "Equipo": 0,
+      "Fecha": 0,
+      "O.S": 0
+    },
+    "unique_values_count": {
+      "Estado": 4,
+      "Ubicación": 1,
+      "Pulgadas": 3,
+      "Marca": 5,
+      "Modelo": 11,
+      "Serie": 37,
+      "Procesador": 9,
+      "Disco Duro": 4,
+      "RAM": 3,
+      "Equipo": 2,
+      "Fecha": 19,
+      "O.S": 1
+    }
+  },
+  {
+    "filename": "Registro desvinculaciones.xlsx",
+    "filepath": "C:\\Users\\nanon\\OneDrive\\Documentos\\GitHub\\Inventario_Equipo\\excel\\Registro desvinculaciones.xlsx",
+    "rows": 31,
+    "columns": [
+      "Jefatura",
+      "Supervisor",
+      "RUT",
+      "Nombre",
+      "Apellido P.",
+      "Apellido M.",
+      "Contacto",
+      "Fecha des.",
+      "Lugar Entrega",
+      "Recibe",
+      "Fecha dev.",
+      "Estado Notebook",
+      "Estado Celular",
+      "Estado Monitor",
+      "Nro",
+      "IMEI",
+      "Observación"
+    ],
+    "column_count": 17,
+    "dtypes": {
+      "Jefatura": "object",
+      "Supervisor": "object",
+      "RUT": "object",
+      "Nombre": "object",
+      "Apellido P.": "object",
+      "Apellido M.": "object",
+      "Contacto": "object",
+      "Fecha des.": "datetime64[ns]",
+      "Lugar Entrega": "object",
+      "Recibe": "object",
+      "Fecha dev.": "datetime64[ns]",
+      "Estado Notebook": "object",
+      "Estado Celular": "object",
+      "Estado Monitor": "object",
+      "Nro": "object",
+      "IMEI": "object",
+      "Observación": "object"
+    },
+    "sample_data": {
+      "Jefatura": [
+        "Juan Paulo Henriquez",
+        "Karen Guevara",
+        "Karen Guevara"
+      ],
+      "Supervisor": [
+        "Karen Guevara",
+        "Karen Guevara",
+        "Benjamin Astudillo"
+      ],
+      "RUT": [
+        "17.732.682-8",
+        "15.548.894-8",
+        "16.124.476-7"
+      ],
+      "Nombre": [
+        "Pedro Eduardo",
+        "Atilio Alexis",
+        "Daniela Natalia "
+      ],
+      "Apellido P.": [
+        "Ortega",
+        "Espinoza",
+        "Vergara"
+      ],
+      "Apellido M.": [
+        "Quidel",
+        "Fica",
+        "Estay"
+      ],
+      "Contacto": [
+        "9 63862158",
+        "9 62398167",
+        "9 78890160"
+      ],
+      "Fecha des.": [
+        "2025-09-30 00:00:00",
+        "2025-09-30 00:00:00",
+        "2025-10-01 00:00:00"
+      ],
+      "Lugar Entrega": [
+        "Santiago",
+        "Santiago",
+        "Santiago"
+      ],
+      "Recibe": [
+        "Carolina Fernández",
+        "Carolina Fernández",
+        "Carolina Fernández"
+      ],
+      "Fecha dev.": [
+        "2025-09-30 00:00:00",
+        "2025-10-01 00:00:00",
+        "2025-10-01 00:00:00"
+      ],
+      "Estado Notebook": [
+        "OK",
+        "OK",
+        "OK"
+      ],
+      "Estado Celular": [
+        "SIN CARGADOR",
+        "SIN CARGADOR",
+        "OK"
+      ],
+      "Estado Monitor": [
+        "OK",
+        "-"
+      ],
+      "Nro": [
+        "982114961",
+        "982116906",
+        "939451573"
+      ],
+      "IMEI": [
+        "354964990931668",
+        "866622057423224",
+        "352295692106420"
+      ],
+      "Observación": [
+        "Formateado",
+        "Formateado",
+        "Formateado"
+      ]
+    },
+    "null_counts": {
+      "Jefatura": 0,
+      "Supervisor": 8,
+      "RUT": 0,
+      "Nombre": 0,
+      "Apellido P.": 0,
+      "Apellido M.": 0,
+      "Contacto": 0,
+      "Fecha des.": 0,
+      "Lugar Entrega": 0,
+      "Recibe": 0,
+      "Fecha dev.": 0,
+      "Estado Notebook": 4,
+      "Estado Celular": 16,
+      "Estado Monitor": 29,
+      "Nro": 17,
+      "IMEI": 18,
+      "Observación": 3
+    },
+    "unique_values_count": {
+      "Jefatura": 7,
+      "Supervisor": 7,
+      "RUT": 31,
+      "Nombre": 31,
+      "Apellido P.": 30,
+      "Apellido M.": 29,
+      "Contacto": 31,
+      "Fecha des.": 21,
+      "Lugar Entrega": 3,
+      "Recibe": 3,
+      "Fecha dev.": 21,
+      "Estado Notebook": 1,
+      "Estado Celular": 3,
+      "Estado Monitor": 2,
+      "Nro": 12,
+      "IMEI": 11,
+      "Observación": 17
+    }
+  }
+]
