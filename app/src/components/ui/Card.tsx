@@ -5,7 +5,7 @@ import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
 type CardVariant = "default" | "elevated" | "bordered";
 type CardPadding = "none" | "sm" | "md" | "lg";
 
-interface CardProps extends HTMLAttributes<HTMLDivElement> {
+interface CardProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   variant?: CardVariant;
   padding?: CardPadding;
   title?: ReactNode;
