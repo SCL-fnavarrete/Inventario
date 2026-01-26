@@ -2,14 +2,23 @@ import { z } from "zod";
 
 // Enum de moneda
 export const MonedaEnum = z.enum(["CLP", "USD"]);
+export const TipoCompraEnum = z.enum(["FACTURA", "GASTO_MENOR"]);
+export const MetodoPagoEnum = z.enum([
+  "EFECTIVO",
+  "TRANSFERENCIA",
+  "TARJETA_CREDITO",
+  "CAJA_CHICA",
+  "REEMBOLSO_PENDIENTE",
+]);
 
 // Schema para crear una compra/factura
 export const createPurchaseSchema = z.object({
-  supplierId: z.string().uuid("ID de proveedor inválido"),
+  supplierId: z.string().uuid("ID de proveedor inválido").optional().nullable(),
   numeroFactura: z
     .string()
-    .min(1, "El número de factura es requerido")
-    .max(50, "Máximo 50 caracteres"),
+    .max(50, "Máximo 50 caracteres")
+    .optional()
+    .nullable(),
   fechaFactura: z.string().transform((val) => new Date(val)),
   montoTotal: z
     .number()
@@ -17,6 +26,10 @@ export const createPurchaseSchema = z.object({
     .optional()
     .nullable(),
   moneda: MonedaEnum.default("CLP"),
+  tipoCompra: TipoCompraEnum.default("FACTURA"),
+  metodoPago: MetodoPagoEnum.default("TRANSFERENCIA"),
+  descripcion: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
+  compradoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   ordenCompra: z
     .string()
     .max(50, "Máximo 50 caracteres")
@@ -34,12 +47,12 @@ export const createPurchaseSchema = z.object({
 
 // Schema para actualizar una compra/factura
 export const updatePurchaseSchema = z.object({
-  supplierId: z.string().uuid("ID de proveedor inválido").optional(),
+  supplierId: z.string().uuid("ID de proveedor inválido").optional().nullable(),
   numeroFactura: z
     .string()
-    .min(1, "El número de factura es requerido")
     .max(50, "Máximo 50 caracteres")
-    .optional(),
+    .optional()
+    .nullable(),
   fechaFactura: z
     .string()
     .optional()
@@ -50,6 +63,10 @@ export const updatePurchaseSchema = z.object({
     .optional()
     .nullable(),
   moneda: MonedaEnum.optional(),
+  tipoCompra: TipoCompraEnum.optional(),
+  metodoPago: MetodoPagoEnum.optional(),
+  descripcion: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
+  compradoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   ordenCompra: z
     .string()
     .max(50, "Máximo 50 caracteres")
@@ -100,6 +117,8 @@ export const purchaseFiltersSchema = z.object({
   search: z.string().optional(),
   supplierId: z.string().uuid().optional(),
   moneda: MonedaEnum.optional(),
+  tipoCompra: TipoCompraEnum.optional(),
+  metodoPago: MetodoPagoEnum.optional(),
   fechaDesde: z.string().optional(),
   fechaHasta: z.string().optional(),
   montoMin: z.coerce.number().optional(),

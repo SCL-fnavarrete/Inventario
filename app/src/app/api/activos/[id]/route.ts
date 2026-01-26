@@ -178,9 +178,18 @@ export async function PUT(
         { status: 400 }
       );
     }
-    console.error("Error updating asset:", error);
+
+    // Log detallado del error para debugging
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorStack = error instanceof Error ? error.stack : "";
+    console.error("Error updating asset:", {
+      message: errorMessage,
+      stack: errorStack,
+      error
+    });
+
     return NextResponse.json(
-      { error: "Error al actualizar activo" },
+      { error: "Error al actualizar activo", details: errorMessage },
       { status: 500 }
     );
   }

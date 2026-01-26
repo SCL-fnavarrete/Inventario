@@ -22,6 +22,8 @@ export async function GET(request: NextRequest) {
       search: searchParams.get("search") || undefined,
       supplierId: searchParams.get("supplierId") || undefined,
       moneda: searchParams.get("moneda") || undefined,
+      tipoCompra: searchParams.get("tipoCompra") || undefined,
+      metodoPago: searchParams.get("metodoPago") || undefined,
       fechaDesde: searchParams.get("fechaDesde") || undefined,
       fechaHasta: searchParams.get("fechaHasta") || undefined,
       montoMin: searchParams.get("montoMin") || undefined,
@@ -53,10 +55,20 @@ export async function GET(request: NextRequest) {
       where.moneda = filters.moneda;
     }
 
+    if (filters.tipoCompra) {
+      where.tipoCompra = filters.tipoCompra;
+    }
+
+    if (filters.metodoPago) {
+      where.metodoPago = filters.metodoPago;
+    }
+
     if (filters.search) {
       where.OR = [
         { numeroFactura: { contains: filters.search, mode: "insensitive" } },
         { ordenCompra: { contains: filters.search, mode: "insensitive" } },
+        { descripcion: { contains: filters.search, mode: "insensitive" } },
+        { compradoPor: { contains: filters.search, mode: "insensitive" } },
         { supplier: { razonSocial: { contains: filters.search, mode: "insensitive" } } },
       ];
     }
@@ -158,16 +170,18 @@ export async function POST(request: NextRequest) {
 
     const data = validationResult.data;
 
-    // Verificar que el proveedor existe
-    const supplier = await prisma.supplier.findUnique({
-      where: { id: data.supplierId },
-    });
+    // Verificar que el proveedor existe (si se proporciona)
+    if (data.supplierId) {
+      const supplier = await prisma.supplier.findUnique({
+        where: { id: data.supplierId },
+      });
 
-    if (!supplier) {
-      return NextResponse.json(
-        { error: "Proveedor no encontrado" },
-        { status: 404 }
-      );
+      if (!supplier) {
+        return NextResponse.json(
+          { error: "Proveedor no encontrado" },
+          { status: 404 }
+        );
+      }
     }
 
     // Verificar que los activos existen (si se proporcionan)
@@ -199,6 +213,10 @@ export async function POST(request: NextRequest) {
           fechaFactura: data.fechaFactura,
           montoTotal: data.montoTotal,
           moneda: data.moneda,
+          tipoCompra: data.tipoCompra,
+          metodoPago: data.metodoPago,
+          descripcion: data.descripcion,
+          compradoPor: data.compradoPor,
           ordenCompra: data.ordenCompra,
           documentoUrl: data.documentoUrl,
         },

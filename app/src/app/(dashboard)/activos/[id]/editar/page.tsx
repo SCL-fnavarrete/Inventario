@@ -89,13 +89,12 @@ export default function EditarActivoPage({
       setSuppliers(sups.data || []);
 
       if (asset) {
-        const specs = asset.especificaciones || {};
         setFormData({
           categoriaId: asset.categoriaId,
           marca: asset.marca,
           modelo: asset.modelo,
-          numeroSerie: asset.numeroSerie,
-          codigoInterno: asset.codigoInterno || "",
+          numeroSerie: asset.numeroSerie || "",
+          codigoInterno: asset.numeroActivoInterno || "",
           estado: asset.estado,
           condicion: asset.condicion,
           fechaCompra: asset.fechaCompra
@@ -103,14 +102,14 @@ export default function EditarActivoPage({
             : "",
           valorCompra: asset.valorCompra?.toString() || "",
           proveedorId: asset.proveedorId || "",
-          procesador: specs.procesador || "",
-          ram: specs.ram || "",
-          almacenamiento: specs.almacenamiento || "",
-          sistemaOperativo: specs.sistemaOperativo || "",
-          imei: specs.imei || "",
-          numeroTelefono: specs.numeroTelefono || "",
-          pulgadas: specs.pulgadas || "",
-          resolucion: specs.resolucion || "",
+          procesador: asset.procesador || "",
+          ram: asset.ram || "",
+          almacenamiento: asset.discoDuro || "",
+          sistemaOperativo: asset.sistemaOperativo || "",
+          imei: asset.imei || "",
+          numeroTelefono: asset.numeroTelefono || "",
+          pulgadas: asset.pulgadas?.toString() || "",
+          resolucion: "",
           observaciones: asset.observaciones || "",
         });
       }
@@ -135,20 +134,35 @@ export default function EditarActivoPage({
     setLoading(true);
 
     try {
+      // Mapear nombres de campos del frontend a los del backend
+      const payload = {
+        categoriaId: formData.categoriaId,
+        marca: formData.marca,
+        modelo: formData.modelo,
+        numeroSerie: formData.numeroSerie || null,
+        numeroActivoInterno: formData.codigoInterno || null,
+        estado: formData.estado,
+        condicion: formData.condicion,
+        fechaCompra: formData.fechaCompra || null,
+        procesador: formData.procesador || null,
+        ram: formData.ram || null,
+        discoDuro: formData.almacenamiento || null,
+        sistemaOperativo: formData.sistemaOperativo || null,
+        imei: formData.imei || null,
+        numeroTelefono: formData.numeroTelefono || null,
+        pulgadas: formData.pulgadas || null,
+        observaciones: formData.observaciones || null,
+      };
+
       const res = await fetch(`/api/activos/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          valorCompra: formData.valorCompra ? parseFloat(formData.valorCompra) : null,
-          fechaCompra: formData.fechaCompra || null,
-          proveedorId: formData.proveedorId || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.message || "Error al actualizar activo");
+        throw new Error(error.details || error.message || "Error al actualizar activo");
       }
 
       router.push(`/activos/${id}`);
@@ -246,14 +260,13 @@ export default function EditarActivoPage({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Número de Serie *
+                Número de Serie
               </label>
               <input
                 type="text"
                 name="numeroSerie"
                 value={formData.numeroSerie}
                 onChange={handleChange}
-                required
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>

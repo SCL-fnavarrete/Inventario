@@ -215,7 +215,7 @@ async function getReportePorPeriodo(
     } else if (groupBy === "year") {
       key = `${date.getFullYear()}`;
     } else {
-      key = purchase.supplier.razonSocial;
+      key = purchase.supplier?.razonSocial || "Sin proveedor";
     }
 
     if (!groupedData[key]) {
@@ -236,7 +236,9 @@ async function getReportePorPeriodo(
       groupedData[key].montoTotalUSD += purchase.montoTotal?.toNumber() || 0;
     }
     groupedData[key].totalActivos += purchase._count.purchaseAssets;
-    groupedData[key].proveedores.add(purchase.supplier.id);
+    if (purchase.supplier) {
+      groupedData[key].proveedores.add(purchase.supplier.id);
+    }
   });
 
   // Convertir a array y ordenar
@@ -390,7 +392,7 @@ async function getReporteResumen(whereCondition: object) {
       id: c.id,
       numeroFactura: c.numeroFactura,
       fechaFactura: c.fechaFactura,
-      proveedor: c.supplier.razonSocial,
+      proveedor: c.supplier?.razonSocial || "Sin proveedor",
       montoTotal: c.montoTotal,
       moneda: c.moneda,
       cantidadActivos: c._count.purchaseAssets,

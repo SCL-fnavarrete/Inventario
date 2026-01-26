@@ -135,16 +135,20 @@ model Supplier {
 
 model Purchase {
   id             String          @id @default(uuid())
-  supplierId     String          @map("supplier_id")
-  numeroFactura  String          @map("numero_factura")
+  supplierId     String?         @map("supplier_id")
+  numeroFactura  String?         @map("numero_factura")
   fechaFactura   DateTime        @map("fecha_factura")
   montoTotal     Decimal?        @map("monto_total") @db.Decimal(12, 2)
   moneda         Moneda          @default(CLP)
+  tipoCompra     TipoCompra      @default(FACTURA) @map("tipo_compra")
+  metodoPago     MetodoPago      @default(TRANSFERENCIA) @map("metodo_pago")
+  descripcion    String?
+  compradoPor    String?         @map("comprado_por")
   ordenCompra    String?         @map("orden_compra")
   documentoUrl   String?         @map("documento_url")
   createdAt      DateTime        @default(now()) @map("created_at")
   purchaseAssets PurchaseAsset[]
-  supplier       Supplier        @relation(fields: [supplierId], references: [id])
+  supplier       Supplier?       @relation(fields: [supplierId], references: [id])
 
   @@map("purchases")
 }
@@ -365,6 +369,19 @@ enum CondicionActivo {
 enum Moneda {
   CLP
   USD
+}
+
+enum TipoCompra {
+  FACTURA
+  GASTO_MENOR
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  TARJETA_CREDITO
+  CAJA_CHICA
+  REEMBOLSO_PENDIENTE
 }
 
 enum TipoMovimiento {
