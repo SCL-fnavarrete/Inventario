@@ -125,6 +125,13 @@ export async function PUT(
       );
     }
 
+    // Helper para convertir pulgadas a número o null
+    const parsePulgadas = (value: string | number | null | undefined): number | null => {
+      if (value === undefined || value === null || value === "") return null;
+      const num = typeof value === "number" ? value : parseFloat(value);
+      return isNaN(num) ? null : num;
+    };
+
     // Actualizar activo
     const asset = await prisma.asset.update({
       where: { id },
@@ -148,7 +155,7 @@ export async function PUT(
         ...(validatedData.numeroActivacion !== undefined && { numeroActivacion: validatedData.numeroActivacion || null }),
         ...(validatedData.tipoPlan !== undefined && { tipoPlan: validatedData.tipoPlan || null }),
         ...(validatedData.tieneCargador !== undefined && { tieneCargador: validatedData.tieneCargador }),
-        ...(validatedData.pulgadas !== undefined && { pulgadas: validatedData.pulgadas }),
+        ...(validatedData.pulgadas !== undefined && { pulgadas: parsePulgadas(validatedData.pulgadas) }),
         ...(validatedData.ubicacionFisica !== undefined && { ubicacionFisica: validatedData.ubicacionFisica || null }),
         ...(validatedData.microsoft365 !== undefined && { microsoft365: validatedData.microsoft365 }),
         ...(validatedData.intuneEnrolled !== undefined && { intuneEnrolled: validatedData.intuneEnrolled }),
