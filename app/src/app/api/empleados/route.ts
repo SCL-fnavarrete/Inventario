@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
             select: {
               assignments: { where: { activo: true } },
               kitAssignments: true,
+              activosActuales: true,
             },
           },
         },
@@ -127,6 +128,7 @@ export async function GET(request: NextRequest) {
               select: {
                 assignments: { where: { activo: true } },
                 kitAssignments: true,
+                activosActuales: true,
               },
             },
           },

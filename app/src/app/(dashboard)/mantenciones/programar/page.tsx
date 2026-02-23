@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -18,7 +18,8 @@ import {
   AlertCircle,
   Loader2,
   CheckCircle,
-  X,
+  ChevronRight,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,21 @@ type Asset = {
     nombres: string;
     apellidoPaterno: string;
   } | null;
+};
+
+type Employee = {
+  id: string;
+  rut: string;
+  nombres: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string | null;
+  correo: string;
+  cargo: string | null;
+  ubicacion: string | null;
+  _count: {
+    assignments: number;
+    activosActuales: number;
+  };
 };
 
 const tipoOptions = [
@@ -65,20 +81,18 @@ export default function ProgramarMantencionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
-  const [searching, setSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [loadingAsset, setLoadingAsset] = useState(false);
 
-  // Autocomplete states
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Employee selection states
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [employeeAssets, setEmployeeAssets] = useState<Asset[]>([]);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [loadingEmployees, setLoadingEmployees] = useState(true);
+  const [loadingEmployeeAssets, setLoadingEmployeeAssets] = useState(false);
 
   const [formData, setFormData] = useState({
     tipo: "",
@@ -90,6 +104,11 @@ export default function ProgramarMantencionPage() {
     proveedorExterno: "",
   });
 
+  // Load employees on mount
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
+
   // Load asset from URL parameter if present
   useEffect(() => {
     const activoId = searchParams.get("activoId");
@@ -98,174 +117,82 @@ export default function ProgramarMantencionPage() {
     }
   }, [searchParams]);
 
+  async function fetchEmployees() {
+    setLoadingEmployees(true);
+    setError("");
+    try {
+      const res = await fetch(
+        "/api/empleados?estado=activo&limit=100&sortBy=nombres&sortOrder=asc"
+      );
+      if (!res.ok) throw new Error("Error al cargar empleados");
+      const data = await res.json();
+      setEmployees(data.data || []);
+    } catch (err) {
+      console.error("Error fetching employees:", err);
+      setError("Error al cargar la lista de empleados");
+    } finally {
+      setLoadingEmployees(false);
+    }
+  }
+
   async function loadAssetById(id: string) {
     setLoadingAsset(true);
     setError("");
-
     try {
       const res = await fetch(`/api/activos/${id}`);
-      if (!res.ok) {
-        throw new Error("Activo no encontrado");
-      }
+      if (!res.ok) throw new Error("Activo no encontrado");
       const asset = await res.json();
       setSelectedAsset(asset);
-      setStep(2); // Skip to step 2 when asset is preselected
+      setStep(2);
     } catch (err) {
       console.error("Error loading asset:", err);
-      setError("Error al cargar el activo. Por favor, búscalo manualmente.");
+      setError("Error al cargar el activo. Por favor, selecciónalo manualmente.");
     } finally {
       setLoadingAsset(false);
     }
   }
 
-  // Search with debounce for autocomplete
-  const searchAssets = useCallback(async (term: string) => {
-    if (!term.trim()) {
-      setAssets([]);
-      setShowDropdown(false);
-      return;
-    }
-
-    setSearching(true);
+  async function handleSelectEmployee(emp: Employee) {
+    setSelectedEmployee(emp);
+    setEmployeeAssets([]);
+    setLoadingEmployeeAssets(true);
     setError("");
-
     try {
-      const params = new URLSearchParams({
-        search: term,
-        limit: "10",
-      });
-
-      const res = await fetch(`/api/activos?${params}`);
+      const res = await fetch(`/api/empleados/${emp.id}`);
+      if (!res.ok) throw new Error("Error al cargar activos");
       const data = await res.json();
-
-      setAssets(data.data || []);
-      setShowDropdown(true);
-      setHighlightedIndex(-1);
+      setEmployeeAssets(data.activosActuales || []);
     } catch (err) {
-      console.error("Error searching assets:", err);
-      setError("Error al buscar activos");
-      setShowDropdown(false);
+      console.error("Error fetching employee assets:", err);
+      setError("Error al cargar los activos del empleado");
     } finally {
-      setSearching(false);
+      setLoadingEmployeeAssets(false);
     }
-  }, []);
+  }
 
-  // Handle search input change with debounce
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value);
+  function handleBackToEmployees() {
+    setSelectedEmployee(null);
+    setEmployeeAssets([]);
+    setError("");
+  }
 
-    // Clear previous timer
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    // Set new timer
-    if (value.trim()) {
-      debounceTimerRef.current = setTimeout(() => {
-        searchAssets(value);
-      }, 300); // 300ms debounce
-    } else {
-      setAssets([]);
-      setShowDropdown(false);
-    }
-  };
-
-  // Handle asset selection
-  const handleSelectAsset = (asset: Asset) => {
+  function handleSelectAsset(asset: Asset) {
     setSelectedAsset(asset);
-    setSearchTerm("");
-    setShowDropdown(false);
-    setAssets([]);
     setStep(2);
-  };
+  }
 
-  // Handle keyboard navigation
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showDropdown || assets.length === 0) return;
-
-    switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        setHighlightedIndex((prev) =>
-          prev < assets.length - 1 ? prev + 1 : prev
-        );
-        break;
-      case "ArrowUp":
-        e.preventDefault();
-        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : -1));
-        break;
-      case "Enter":
-        e.preventDefault();
-        if (highlightedIndex >= 0 && highlightedIndex < assets.length) {
-          handleSelectAsset(assets[highlightedIndex]);
-        }
-        break;
-      case "Escape":
-        e.preventDefault();
-        setShowDropdown(false);
-        setHighlightedIndex(-1);
-        break;
-    }
-  };
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node) &&
-        searchInputRef.current &&
-        !searchInputRef.current.contains(event.target as Node)
-      ) {
-        setShowDropdown(false);
-        setHighlightedIndex(-1);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-  // Cleanup debounce timer
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, []);
-
-  // Scroll highlighted item into view
-  useEffect(() => {
-    if (highlightedIndex >= 0 && dropdownRef.current) {
-      const items = dropdownRef.current.querySelectorAll('[data-dropdown-item]');
-      const highlightedItem = items[highlightedIndex] as HTMLElement;
-      if (highlightedItem) {
-        highlightedItem.scrollIntoView({
-          block: 'nearest',
-          behavior: 'smooth',
-        });
-      }
-    }
-  }, [highlightedIndex]);
-
-  // Helper function to highlight matching text
-  const highlightText = (text: string, query: string) => {
-    if (!query.trim()) return text;
-
-    const parts = text.split(new RegExp(`(${query})`, 'gi'));
-    return parts.map((part, index) =>
-      part.toLowerCase() === query.toLowerCase() ? (
-        <mark key={index} className="bg-yellow-200 text-gray-900 font-medium">
-          {part}
-        </mark>
-      ) : (
-        part
-      )
+  // Filter employees by search term (client-side)
+  const filteredEmployees = employees.filter((emp) => {
+    if (!employeeSearch.trim()) return true;
+    const search = employeeSearch.toLowerCase();
+    return (
+      emp.nombres.toLowerCase().includes(search) ||
+      emp.apellidoPaterno.toLowerCase().includes(search) ||
+      (emp.apellidoMaterno?.toLowerCase().includes(search) ?? false) ||
+      emp.rut.toLowerCase().includes(search) ||
+      (emp.cargo?.toLowerCase().includes(search) ?? false)
     );
-  };
+  });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -360,106 +287,209 @@ export default function ProgramarMantencionPage() {
         ))}
       </div>
 
-      {/* Step 1: Seleccionar Activo */}
+      {/* Step 1: Select Employee → then Asset */}
       {step === 1 && (
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
-              1
-            </span>
-            Seleccionar Activo
-          </h2>
+          {!selectedEmployee ? (
+            <>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
+                  1
+                </span>
+                Seleccionar Empleado
+              </h2>
 
-          {/* Autocomplete Search Input */}
-          <div className="mb-4 relative">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none z-10" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Buscar por número de serie, marca, modelo..."
-                value={searchTerm}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onFocus={() => {
-                  if (assets.length > 0) setShowDropdown(true);
-                }}
-                className="w-full pl-10 pr-10 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                autoComplete="off"
-              />
-              {searching && (
-                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-blue-600 animate-spin" />
-              )}
-              {searchTerm && !searching && (
-                <button
-                  onClick={() => {
-                    setSearchTerm("");
-                    setAssets([]);
-                    setShowDropdown(false);
-                    searchInputRef.current?.focus();
-                  }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              )}
-            </div>
+              {/* Search filter */}
+              <div className="mb-4 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Filtrar por nombre, RUT o cargo..."
+                  value={employeeSearch}
+                  onChange={(e) => setEmployeeSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                />
+              </div>
 
-            {/* Dropdown with suggestions */}
-            {showDropdown && assets.length > 0 && (
-              <div
-                ref={dropdownRef}
-                className="absolute z-50 w-full mt-2 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto"
-              >
-                <div className="p-2">
-                  <p className="text-xs text-gray-500 px-3 py-2">
-                    {assets.length} resultado{assets.length !== 1 ? "s" : ""} encontrado{assets.length !== 1 ? "s" : ""}
+              {error && (
+                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+                  <AlertCircle size={20} />
+                  {error}
+                </div>
+              )}
+
+              {/* Employee list */}
+              {loadingEmployees ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                  <span className="ml-3 text-gray-600">Cargando empleados...</span>
+                </div>
+              ) : filteredEmployees.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p className="font-medium text-gray-700">
+                    {employeeSearch
+                      ? "No se encontraron empleados"
+                      : "No hay empleados activos"}
                   </p>
-                  {assets.map((asset, index) => (
+                  {employeeSearch && (
+                    <p className="text-sm mt-1">Intenta con otros términos de búsqueda</p>
+                  )}
+                </div>
+              ) : (
+                <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+                  {filteredEmployees.map((emp) => (
+                    <button
+                      key={emp.id}
+                      onClick={() => handleSelectEmployee(emp)}
+                      className="w-full flex items-center gap-3 p-4 hover:bg-blue-50 transition-colors text-left"
+                    >
+                      <div className="flex-shrink-0 w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                        <User className="h-5 w-5 text-gray-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate">
+                          {emp.nombres} {emp.apellidoPaterno}
+                          {emp.apellidoMaterno ? ` ${emp.apellidoMaterno}` : ""}
+                        </p>
+                        <p className="text-sm text-gray-500 truncate">
+                          {emp.cargo || "Sin cargo"} &bull; {emp.rut}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {emp._count.activosActuales > 0 && (
+                          <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                            {emp._count.activosActuales}{" "}
+                            activo{emp._count.activosActuales !== 1 ? "s" : ""}
+                          </span>
+                        )}
+                        <ChevronRight className="h-5 w-5 text-gray-400" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Count info */}
+              {!loadingEmployees && filteredEmployees.length > 0 && (
+                <div className="mt-4 text-sm text-gray-500 text-center">
+                  Mostrando {filteredEmployees.length} empleado
+                  {filteredEmployees.length !== 1 ? "s" : ""}
+                  {employeeSearch ? ` de ${employees.length}` : ""}
+                </div>
+              )}
+
+              {/* Help text */}
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                <div className="flex gap-3">
+                  <Users className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-900">
+                      Selecciona un empleado
+                    </p>
+                    <p className="text-sm text-blue-700 mt-1">
+                      Elige al empleado para ver sus activos asignados y programar una mantención.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
+                  1
+                </span>
+                Seleccionar Activo
+              </h2>
+
+              {/* Selected employee info */}
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg flex items-center gap-3">
+                <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                  <User className="h-5 w-5 text-blue-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900">
+                    {selectedEmployee.nombres} {selectedEmployee.apellidoPaterno}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {selectedEmployee.cargo || "Sin cargo"} &bull;{" "}
+                    {selectedEmployee.rut}
+                  </p>
+                </div>
+                <button
+                  onClick={handleBackToEmployees}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
+                >
+                  Cambiar empleado
+                </button>
+              </div>
+
+              {error && (
+                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+                  <AlertCircle size={20} />
+                  {error}
+                </div>
+              )}
+
+              {/* Employee's assets */}
+              {loadingEmployeeAssets ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                  <span className="ml-3 text-gray-600">Cargando activos...</span>
+                </div>
+              ) : employeeAssets.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Package className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p className="font-medium text-gray-700">
+                    Este empleado no tiene activos asignados
+                  </p>
+                  <p className="text-sm mt-1">
+                    Selecciona otro empleado para ver sus activos
+                  </p>
+                  <button
+                    onClick={handleBackToEmployees}
+                    className="mt-4 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Volver a empleados
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Selecciona el activo para programar la mantención:
+                  </p>
+                  {employeeAssets.map((asset) => (
                     <button
                       key={asset.id}
-                      data-dropdown-item
                       onClick={() => handleSelectAsset(asset)}
-                      onMouseEnter={() => setHighlightedIndex(index)}
-                      className={cn(
-                        "w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left",
-                        highlightedIndex === index
-                          ? "bg-blue-50 border-2 border-blue-500"
-                          : "hover:bg-gray-50 border-2 border-transparent"
-                      )}
+                      className="w-full flex items-center gap-3 p-4 rounded-lg border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
                     >
-                      <span className={cn(
-                        "flex-shrink-0 transition-colors",
-                        highlightedIndex === index ? "text-blue-600" : "text-gray-400"
-                      )}>
+                      <span className="flex-shrink-0 text-gray-400">
                         {getCategoryIcon(asset.categoria.nombre)}
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-900 truncate">
-                          {highlightText(`${asset.marca} ${asset.modelo}`, searchTerm)}
+                          {asset.marca} {asset.modelo}
                         </p>
                         <p className="text-sm text-gray-600 truncate">
                           <span className="font-medium">{asset.categoria.nombre}</span>
-                          {" • "}
+                          {" \u2022 "}
                           <span>
-                            {asset.numeroSerie
-                              ? highlightText(asset.numeroSerie, searchTerm)
-                              : "Sin número de serie"}
+                            {asset.numeroSerie || "Sin número de serie"}
                           </span>
                         </p>
-                        {asset.empleadoActual && (
-                          <p className="text-xs text-gray-500 truncate mt-1">
-                            Asignado a: {asset.empleadoActual.nombres} {asset.empleadoActual.apellidoPaterno}
-                          </p>
-                        )}
                       </div>
                       <div className="flex-shrink-0">
                         <span
                           className={cn(
                             "px-2.5 py-1 text-xs font-medium rounded-full whitespace-nowrap",
-                            asset.estado === "disponible" && "bg-green-100 text-green-700",
-                            asset.estado === "asignado" && "bg-blue-100 text-blue-700",
-                            asset.estado === "en_mantencion" && "bg-orange-100 text-orange-700"
+                            asset.estado === "disponible" &&
+                              "bg-green-100 text-green-700",
+                            asset.estado === "asignado" &&
+                              "bg-blue-100 text-blue-700",
+                            asset.estado === "en_mantencion" &&
+                              "bg-orange-100 text-orange-700"
                           )}
                         >
                           {asset.estado}
@@ -468,47 +498,9 @@ export default function ProgramarMantencionPage() {
                     </button>
                   ))}
                 </div>
-                <div className="border-t border-gray-200 px-3 py-2 bg-gray-50 rounded-b-lg">
-                  <p className="text-xs text-gray-500">
-                    Usa las flechas <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded text-xs">↑</kbd> <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded text-xs">↓</kbd> para navegar y <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded text-xs">Enter</kbd> para seleccionar
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* No results message */}
-            {!searching && searchTerm && assets.length === 0 && (
-              <div className="absolute z-50 w-full mt-2 bg-white rounded-lg shadow-xl border border-gray-200 p-6">
-                <div className="text-center text-gray-500">
-                  <Package className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                  <p className="font-medium text-gray-700">No se encontraron activos</p>
-                  <p className="text-sm mt-1">Intenta con otros términos de búsqueda</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
-              <AlertCircle size={20} />
-              {error}
-            </div>
+              )}
+            </>
           )}
-
-          {/* Help text */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
-            <div className="flex gap-3">
-              <Search className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-blue-900">
-                  Búsqueda inteligente
-                </p>
-                <p className="text-sm text-blue-700 mt-1">
-                  Comienza a escribir para ver sugerencias en tiempo real. Puedes buscar por número de serie, marca, modelo o categoría.
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 

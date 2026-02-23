@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -17,6 +17,8 @@ import {
   AlertCircle,
   CheckCircle,
   Loader2,
+  ChevronRight,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +33,21 @@ type Assignment = {
     categoria: {
       nombre: string;
     };
+  };
+};
+
+type EmployeeListItem = {
+  id: string;
+  rut: string;
+  nombres: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string | null;
+  correo: string;
+  cargo: string | null;
+  ubicacion: string | null;
+  _count: {
+    assignments: number;
+    activosActuales: number;
   };
 };
 
@@ -70,12 +87,15 @@ function formatDate(dateString: string | null): string {
 
 export default function NuevaDesvinculacionPage() {
   const router = useRouter();
-  const [searchRut, setSearchRut] = useState("");
   const [employee, setEmployee] = useState<Employee | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // Employee list states
+  const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [loadingEmployees, setLoadingEmployees] = useState(true);
+  const [loadingEmployee, setLoadingEmployee] = useState(false);
 
   const [formData, setFormData] = useState({
     fechaDesvinculacion: new Date().toISOString().split("T")[0],
@@ -84,48 +104,72 @@ export default function NuevaDesvinculacionPage() {
     observaciones: "",
   });
 
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (!searchRut.trim()) return;
+  // Load active employees on mount
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
 
-    setSearching(true);
-    setSearchError("");
-    setEmployee(null);
-
+  async function fetchEmployees() {
+    setLoadingEmployees(true);
+    setError("");
     try {
-      const res = await fetch(`/api/empleados/buscar?rut=${encodeURIComponent(searchRut)}`);
+      const res = await fetch(
+        "/api/empleados?estado=activo&limit=100&sortBy=nombres&sortOrder=asc"
+      );
+      if (!res.ok) throw new Error("Error al cargar empleados");
+      const data = await res.json();
+      setEmployees(data.data || []);
+    } catch (err) {
+      console.error("Error fetching employees:", err);
+      setError("Error al cargar la lista de empleados");
+    } finally {
+      setLoadingEmployees(false);
+    }
+  }
+
+  async function handleSelectEmployee(emp: EmployeeListItem) {
+    setLoadingEmployee(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/empleados/${emp.id}`);
+      if (!res.ok) throw new Error("Error al cargar datos del empleado");
       const data = await res.json();
 
-      if (!res.ok) {
-        setSearchError(data.error || "Empleado no encontrado");
-        return;
-      }
-
-      if (data.estado !== "activo") {
-        setSearchError("El empleado ya está desvinculado");
-        return;
-      }
-
-      // Obtener datos completos del empleado con asignaciones activas
-      const employeeRes = await fetch(`/api/empleados/${data.id}`);
-      const employeeData = await employeeRes.json();
-
-      // Filtrar solo asignaciones activas
-      const activeAssignments = employeeData.assignments?.filter(
-        (a: Assignment & { activo: boolean }) => a.activo
-      ) || [];
+      // Filter only active assignments
+      const activeAssignments =
+        data.assignments?.filter(
+          (a: Assignment & { activo: boolean }) => a.activo
+        ) || [];
 
       setEmployee({
-        ...employeeData,
+        ...data,
         assignments: activeAssignments,
       });
     } catch (err) {
-      console.error("Error searching employee:", err);
-      setSearchError("Error al buscar empleado");
+      console.error("Error fetching employee:", err);
+      setError("Error al cargar los datos del empleado");
     } finally {
-      setSearching(false);
+      setLoadingEmployee(false);
     }
   }
+
+  function handleBackToList() {
+    setEmployee(null);
+    setError("");
+  }
+
+  // Filter employees by search term (client-side)
+  const filteredEmployees = employees.filter((emp) => {
+    if (!employeeSearch.trim()) return true;
+    const search = employeeSearch.toLowerCase();
+    return (
+      emp.nombres.toLowerCase().includes(search) ||
+      emp.apellidoPaterno.toLowerCase().includes(search) ||
+      (emp.apellidoMaterno?.toLowerCase().includes(search) ?? false) ||
+      emp.rut.toLowerCase().includes(search) ||
+      (emp.cargo?.toLowerCase().includes(search) ?? false)
+    );
+  });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -190,40 +234,121 @@ export default function NuevaDesvinculacionPage() {
         </div>
       </div>
 
-      {/* Step 1: Buscar empleado */}
+      {/* Step 1: Seleccionar empleado */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <span className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-sm font-bold">
             1
           </span>
-          Buscar Empleado
+          {employee ? "Empleado Seleccionado" : "Seleccionar Empleado"}
         </h2>
 
-        <form onSubmit={handleSearch} className="flex gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Ingrese RUT del empleado (ej: 12.345.678-9)"
-              value={searchRut}
-              onChange={(e) => setSearchRut(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-            />
+        {loadingEmployee ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-red-600" />
+            <span className="ml-3 text-gray-600">Cargando datos del empleado...</span>
           </div>
-          <button
-            type="submit"
-            disabled={searching || !searchRut.trim()}
-            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {searching ? <Loader2 className="animate-spin" size={20} /> : <Search size={20} />}
-            Buscar
-          </button>
-        </form>
+        ) : !employee ? (
+          <>
+            {/* Search filter */}
+            <div className="mb-4 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Filtrar por nombre, RUT o cargo..."
+                value={employeeSearch}
+                onChange={(e) => setEmployeeSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all"
+              />
+            </div>
 
-        {searchError && (
-          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
-            <AlertCircle size={20} />
-            {searchError}
+            {error && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+                <AlertCircle size={20} />
+                {error}
+              </div>
+            )}
+
+            {/* Employee list */}
+            {loadingEmployees ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-red-600" />
+                <span className="ml-3 text-gray-600">Cargando empleados...</span>
+              </div>
+            ) : filteredEmployees.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p className="font-medium text-gray-700">
+                  {employeeSearch
+                    ? "No se encontraron empleados"
+                    : "No hay empleados activos"}
+                </p>
+                {employeeSearch && (
+                  <p className="text-sm mt-1">Intenta con otros términos de búsqueda</p>
+                )}
+              </div>
+            ) : (
+              <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+                {filteredEmployees.map((emp) => (
+                  <button
+                    key={emp.id}
+                    onClick={() => handleSelectEmployee(emp)}
+                    className="w-full flex items-center gap-3 p-4 hover:bg-red-50 transition-colors text-left"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                      <User className="h-5 w-5 text-gray-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 truncate">
+                        {emp.nombres} {emp.apellidoPaterno}
+                        {emp.apellidoMaterno ? ` ${emp.apellidoMaterno}` : ""}
+                      </p>
+                      <p className="text-sm text-gray-500 truncate">
+                        {emp.cargo || "Sin cargo"} &bull; {emp.rut}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {emp._count.activosActuales > 0 && (
+                        <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-700">
+                          {emp._count.activosActuales}{" "}
+                          equipo{emp._count.activosActuales !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                      <ChevronRight className="h-5 w-5 text-gray-400" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Count info */}
+            {!loadingEmployees && filteredEmployees.length > 0 && (
+              <div className="mt-4 text-sm text-gray-500 text-center">
+                Mostrando {filteredEmployees.length} empleado
+                {filteredEmployees.length !== 1 ? "s" : ""} activo
+                {filteredEmployees.length !== 1 ? "s" : ""}
+                {employeeSearch ? ` de ${employees.length}` : ""}
+              </div>
+            )}
+          </>
+        ) : (
+          /* Selected employee summary with change button */
+          <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+              <User className="h-6 w-6 text-red-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gray-900">
+                {employee.nombres} {employee.apellidoPaterno} {employee.apellidoMaterno}
+              </p>
+              <p className="text-sm text-gray-500 font-mono">{employee.rut}</p>
+            </div>
+            <button
+              onClick={handleBackToList}
+              className="text-sm text-red-600 hover:text-red-800 font-medium whitespace-nowrap"
+            >
+              Cambiar empleado
+            </button>
           </div>
         )}
       </div>
@@ -241,18 +366,6 @@ export default function NuevaDesvinculacionPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Info del empleado */}
             <div className="space-y-4">
-              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                  <User className="h-6 w-6 text-red-600" />
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">
-                    {employee.nombres} {employee.apellidoPaterno} {employee.apellidoMaterno}
-                  </p>
-                  <p className="text-sm text-gray-500 font-mono">{employee.rut}</p>
-                </div>
-              </div>
-
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-gray-500">Correo</p>
