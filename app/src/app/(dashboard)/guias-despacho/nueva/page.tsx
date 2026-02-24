@@ -136,7 +136,7 @@ export default function NuevaGuiaDespachoPage() {
 
   function selectEmployee(employee: Employee) {
     setSelectedEmployee(employee);
-    setRutSearch(employee.rut);
+    setRutSearch(employee.rut || employee.correo);
     setShowSuggestions(false);
     setEmployeeSuggestions([]);
     setEmployeeError(null);
@@ -480,7 +480,7 @@ export default function NuevaGuiaDespachoPage() {
                                 {emp.nombres} {emp.apellidoPaterno} {emp.apellidoMaterno}
                               </p>
                               <p className="text-sm text-gray-600 truncate">
-                                RUT: {emp.rut}
+                                RUT: {emp.rut || "—"}
                               </p>
                               {emp.cargo && (
                                 <p className="text-xs text-gray-500 truncate">
@@ -522,7 +522,7 @@ export default function NuevaGuiaDespachoPage() {
                         </p>
                         <div className="mt-1 space-y-0.5">
                           <p className="text-sm text-gray-700">
-                            <span className="font-medium">RUT:</span> {selectedEmployee.rut}
+                            <span className="font-medium">RUT:</span> {selectedEmployee.rut || "—"}
                           </p>
                           <p className="text-sm text-gray-700">
                             <span className="font-medium">Email:</span> {selectedEmployee.correo}

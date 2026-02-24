@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Si hay destinatarioId, obtener datos del empleado
-    let empleadoData: { nombre: string; rut: string } | null = null;
+    let empleadoData: { nombre: string; rut: string | null } | null = null;
     if (destinatarioId) {
       const empleado = await prisma.employee.findUnique({
         where: { id: destinatarioId },

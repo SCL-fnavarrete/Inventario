@@ -290,7 +290,7 @@ export default function GuiaDespachoDetailPage({
               </div>
               <div>
                 <dt className="text-sm text-gray-500">RUT</dt>
-                <dd className="font-medium">{guide.destinatario.rut}</dd>
+                <dd className="font-medium">{guide.destinatario.rut || "—"}</dd>
               </div>
               <div>
                 <dt className="text-sm text-gray-500">Cargo</dt>

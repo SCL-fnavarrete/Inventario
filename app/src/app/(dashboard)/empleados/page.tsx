@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 
 type Employee = {
   id: string;
-  rut: string;
+  rut: string | null;
   nombres: string;
   apellidoPaterno: string;
   apellidoMaterno: string | null;
@@ -33,6 +33,7 @@ type Employee = {
   tipoContrato: string;
   estado: string;
   fechaIngreso: string | null;
+  origenMicrosoft?: boolean;
   _count: {
     assignments: number;
     kitAssignments: number;
@@ -516,13 +517,18 @@ export default function EmpleadosPage() {
                   <tr key={employee.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-mono text-gray-900">
-                        {employee.rut}
+                        {employee.rut || "—"}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <p className="text-sm font-medium text-gray-900">
                           {employee.nombres} {employee.apellidoPaterno}
+                          {employee.origenMicrosoft && (
+                            <span className="ml-1.5 inline-flex items-center text-[10px] bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded font-normal">
+                              Microsoft
+                            </span>
+                          )}
                         </p>
                         {employee.ubicacion && (
                           <p className="text-xs text-gray-500 flex items-center gap-1">

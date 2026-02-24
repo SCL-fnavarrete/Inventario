@@ -7,7 +7,7 @@ export const EstadoEmpleadoEnum = z.enum(["activo", "desvinculado", "licencia"])
 
 // Schema para crear un empleado
 export const createEmployeeSchema = z.object({
-  rut: rutSchema,
+  rut: rutOptionalSchema,
   nombres: z.string().min(1, "El nombre es requerido").max(100, "Máximo 100 caracteres"),
   apellidoPaterno: z.string().min(1, "El apellido paterno es requerido").max(100, "Máximo 100 caracteres"),
   apellidoMaterno: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
@@ -48,7 +48,7 @@ export const createEmployeeSchema = z.object({
 
 // Schema para actualizar un empleado
 export const updateEmployeeSchema = z.object({
-  rut: rutSchema.optional(),
+  rut: rutOptionalSchema,
   nombres: z.string().min(1, "El nombre es requerido").max(100, "Máximo 100 caracteres").optional(),
   apellidoPaterno: z.string().min(1, "El apellido paterno es requerido").max(100, "Máximo 100 caracteres").optional(),
   apellidoMaterno: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
@@ -126,8 +126,23 @@ export const importEmployeeSchema = z.object({
   telefonoContacto: z.string().optional().nullable(),
 });
 
+// Schema para sincronizacion desde Microsoft Entra ID
+export const microsoftSyncEmployeeSchema = z.object({
+  microsoftId: z.string().min(1),
+  nombres: z.string().min(1).max(100),
+  apellidoPaterno: z.string().min(1).max(100),
+  apellidoMaterno: z.string().max(100).optional().nullable(),
+  correo: z.string().email().max(150),
+  cargo: z.string().max(100).optional().nullable(),
+  jefatura: z.string().max(100).optional().nullable(),
+  supervisor: z.string().max(100).optional().nullable(),
+  ubicacion: z.string().max(100).optional().nullable(),
+  telefonoContacto: z.string().max(20).optional().nullable(),
+});
+
 // Tipos inferidos
 export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>;
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>;
 export type EmployeeFilters = z.infer<typeof employeeFiltersSchema>;
 export type ImportEmployeeInput = z.infer<typeof importEmployeeSchema>;
+export type MicrosoftSyncEmployeeInput = z.infer<typeof microsoftSyncEmployeeSchema>;

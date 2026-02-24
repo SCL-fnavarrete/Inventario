@@ -27,7 +27,7 @@ type Empleado = {
   nombres: string;
   apellidoPaterno: string;
   apellidoMaterno: string | null;
-  rut: string;
+  rut: string | null;
   cargo: string | null;
   ubicacion: string | null;
   estado: string;
@@ -55,7 +55,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
       if (nombreCompleto.includes(searchLower)) return true;
 
       // Buscar en RUT del empleado
-      if (empleado.rut.toLowerCase().includes(searchLower)) return true;
+      if (empleado.rut?.toLowerCase().includes(searchLower)) return true;
 
       // Buscar en los activos asignados
       return empleado.assignments.some((assignment) => {
@@ -207,7 +207,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
                         {empleado.apellidoMaterno}
                       </Link>
                       <p className="text-sm text-gray-500">
-                        {empleado.rut} | {empleado.cargo} | {empleado.ubicacion}
+                        {empleado.rut || "—"} | {empleado.cargo} | {empleado.ubicacion}
                       </p>
                     </div>
                     <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
@@ -361,7 +361,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
                   <p className="font-medium text-gray-900">
                     {empleado.nombres} {empleado.apellidoPaterno}
                   </p>
-                  <p className="text-sm text-gray-500">{empleado.rut}</p>
+                  <p className="text-sm text-gray-500">{empleado.rut || "—"}</p>
                   <p className="text-xs text-gray-400">
                     {empleado.cargo} | {empleado.ubicacion}
                   </p>

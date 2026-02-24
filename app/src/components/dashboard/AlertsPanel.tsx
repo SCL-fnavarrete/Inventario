@@ -27,7 +27,7 @@ interface Termination {
   estadoMonitor: string;
   fechaDesvinculacion: Date;
   employee: {
-    rut: string;
+    rut: string | null;
     nombres: string;
     apellidoPaterno: string;
   };
@@ -143,7 +143,7 @@ export function AlertsPanel({
                     Devolución Pendiente
                   </p>
                   <p className="text-xs text-orange-700 truncate">
-                    {t.employee.nombres} {t.employee.apellidoPaterno} ({t.employee.rut})
+                    {t.employee.nombres} {t.employee.apellidoPaterno}{t.employee.rut ? ` (${t.employee.rut})` : ""}
                   </p>
                   <p className="text-xs text-orange-600">
                     Pendiente: {pendientes.join(", ")}

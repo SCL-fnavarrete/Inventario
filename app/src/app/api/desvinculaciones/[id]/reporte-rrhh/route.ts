@@ -159,7 +159,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     doc.setFont("helvetica", "bold");
     doc.text("RUT:", leftCol, yPos);
     doc.setFont("helvetica", "normal");
-    doc.text(employee.rut, leftCol + 30, yPos);
+    doc.text(employee.rut || "-", leftCol + 30, yPos);
 
     doc.setFont("helvetica", "bold");
     doc.text("Fecha Ingreso:", midCol, yPos);
@@ -420,7 +420,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="reporte_rrhh_${employee.rut.replace(/\./g, "")}_${new Date().toISOString().split("T")[0]}.pdf"`,
+        "Content-Disposition": `attachment; filename="reporte_rrhh_${(employee.rut || employee.id).replace(/\./g, "")}_${new Date().toISOString().split("T")[0]}.pdf"`,
       },
     });
   } catch (error) {

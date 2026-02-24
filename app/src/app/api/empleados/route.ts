@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
 
       // Filtrar por RUT normalizado O por los campos de texto normales
       const filtered = allEmployees.filter((emp) => {
-        const empRutNormalized = normalizeRut(emp.rut);
+        const empRutNormalized = emp.rut ? normalizeRut(emp.rut) : "";
         const searchLower = filters.search!.toLowerCase();
 
         // Coincide por RUT normalizado
@@ -177,16 +177,18 @@ export async function POST(request: NextRequest) {
 
     const data = validationResult.data;
 
-    // Verificar si ya existe un empleado con el mismo RUT
-    const existingByRut = await prisma.employee.findUnique({
-      where: { rut: data.rut },
-    });
+    // Verificar si ya existe un empleado con el mismo RUT (solo si se proporciona)
+    if (data.rut) {
+      const existingByRut = await prisma.employee.findUnique({
+        where: { rut: data.rut },
+      });
 
-    if (existingByRut) {
-      return NextResponse.json(
-        { error: "Ya existe un empleado con este RUT" },
-        { status: 409 }
-      );
+      if (existingByRut) {
+        return NextResponse.json(
+          { error: "Ya existe un empleado con este RUT" },
+          { status: 409 }
+        );
+      }
     }
 
     // Verificar si ya existe un empleado con el mismo correo

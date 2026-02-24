@@ -76,7 +76,7 @@ type MonitorAsignado = {
 type Ficha = {
   empleado: {
     id: string;
-    rut: string;
+    rut: string | null;
     nombreCompleto: string;
     nombres: string;
     apellidoPaterno: string;
@@ -91,6 +91,7 @@ type Ficha = {
     fechaTermino: string | null;
     estado: string;
     telefonoContacto: string | null;
+    origenMicrosoft?: boolean;
   };
   notebooks: NotebookAsignado[];
   celulares: CelularAsignado[];
@@ -274,7 +275,14 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
             </div>
             <div>
               <h2 className="text-2xl font-bold">{ficha.empleado.nombreCompleto}</h2>
-              <p className="text-blue-200 font-mono">{ficha.empleado.rut}</p>
+              <p className="text-blue-200 font-mono">
+                {ficha.empleado.rut || "Sin RUT"}
+                {ficha.empleado.origenMicrosoft && (
+                  <span className="ml-2 inline-flex items-center text-[10px] bg-sky-500/20 text-sky-200 px-1.5 py-0.5 rounded">
+                    Microsoft
+                  </span>
+                )}
+              </p>
             </div>
           </div>
           <div className={cn(

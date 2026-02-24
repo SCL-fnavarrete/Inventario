@@ -189,7 +189,7 @@ export default function ProgramarMantencionPage() {
       emp.nombres.toLowerCase().includes(search) ||
       emp.apellidoPaterno.toLowerCase().includes(search) ||
       (emp.apellidoMaterno?.toLowerCase().includes(search) ?? false) ||
-      emp.rut.toLowerCase().includes(search) ||
+      (emp.rut?.toLowerCase().includes(search) ?? false) ||
       (emp.cargo?.toLowerCase().includes(search) ?? false)
     );
   });

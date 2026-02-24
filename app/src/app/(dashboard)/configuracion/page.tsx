@@ -6,7 +6,8 @@ import {
   Settings2,
   ChevronRight,
   Trash2,
-  ShieldAlert
+  ShieldAlert,
+  Cloud,
 } from "lucide-react";
 
 const configSections = [
@@ -41,6 +42,14 @@ const configSections = [
     icon: Settings2,
     color: "bg-orange-100 text-orange-600",
     adminOnly: false,
+  },
+  {
+    title: "Microsoft Sync",
+    description: "Sincroniza empleados desde Microsoft Entra ID (Azure AD)",
+    href: "/configuracion/microsoft-sync",
+    icon: Cloud,
+    color: "bg-sky-100 text-sky-600",
+    adminOnly: true,
   },
   {
     title: "Mantenimiento de Datos",

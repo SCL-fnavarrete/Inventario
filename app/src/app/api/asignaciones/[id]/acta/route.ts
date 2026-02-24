@@ -99,7 +99,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     doc.setFontSize(10);
 
     const empleadoData = [
-      ["RUT:", assignment.employee.rut],
+      ["RUT:", assignment.employee.rut || "-"],
       ["Nombre:", `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno} ${assignment.employee.apellidoMaterno || ""}`],
       ["Correo:", assignment.employee.correo],
       ["Cargo:", assignment.employee.cargo || "-"],
@@ -223,7 +223,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     doc.setFontSize(9);
     doc.text("Firma Colaborador", 35, yPos + 5);
     doc.text(`${assignment.employee.nombres} ${assignment.employee.apellidoPaterno}`, 15, yPos + 10);
-    doc.text(`RUT: ${assignment.employee.rut}`, 15, yPos + 15);
+    doc.text(`RUT: ${assignment.employee.rut || "-"}`, 15, yPos + 15);
 
     // Firma TI
     doc.line(pageWidth - 85, yPos, pageWidth - 15, yPos);
@@ -249,7 +249,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="acta_${tipo}_${assignment.employee.rut.replace(/\./g, "")}_${assignment.asset.numeroSerie || assignment.id}.pdf"`,
+        "Content-Disposition": `attachment; filename="acta_${tipo}_${(assignment.employee.rut || assignment.employee.id).replace(/\./g, "")}_${assignment.asset.numeroSerie || assignment.id}.pdf"`,
       },
     });
   } catch (error) {

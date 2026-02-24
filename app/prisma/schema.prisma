@@ -24,7 +24,7 @@ model SystemUser {
 
 model Employee {
   id                   String          @id @default(uuid())
-  rut                  String          @unique
+  rut                  String?         @unique
   nombres              String          @map("nombre")
   apellidoPaterno      String          @map("apellido_paterno")
   apellidoMaterno      String?         @map("apellido_materno")
@@ -38,6 +38,8 @@ model Employee {
   fechaTermino         DateTime?       @map("fecha_termino")
   estado               EstadoEmpleado  @default(activo)
   telefonoContacto     String?         @map("telefono_contacto")
+  microsoftId          String?         @unique @map("microsoft_id")
+  origenMicrosoft       Boolean         @default(false) @map("origen_microsoft")
   createdAt            DateTime        @default(now()) @map("created_at")
   updatedAt            DateTime        @updatedAt @map("updated_at")
   fechaEntregaEpp      DateTime?       @map("fecha_entrega_epp")
@@ -53,6 +55,7 @@ model Employee {
   @@index([tipoContrato])
   @@index([ubicacion])
   @@index([jefatura])
+  @@index([microsoftId])
   @@index([createdAt])
   @@map("employees")
 }
