@@ -18,6 +18,7 @@ import {
   Menu,
   X,
   FileText,
+  ClipboardList,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -27,12 +28,13 @@ const menuItems = [
   { href: "/activos", label: "Activos", icon: Laptop },
   { href: "/empleados", label: "Empleados", icon: Users },
   { href: "/asignaciones", label: "Asignaciones", icon: ArrowLeftRight },
-  { href: "/guias-despacho", label: "Guías de Despacho", icon: FileText },
+  { href: "/solicitudes", label: "Solicitudes", icon: ClipboardList },
+  { href: "/guias-despacho", label: "Guias de Despacho", icon: FileText },
   { href: "/desvinculaciones", label: "Desvinculaciones", icon: UserMinus },
   { href: "/mantenciones", label: "Mantenciones", icon: Wrench },
   { href: "/compras", label: "Compras", icon: ShoppingCart },
   { href: "/reportes", label: "Reportes", icon: BarChart3 },
-  { href: "/configuracion", label: "Configuración", icon: Settings },
+  { href: "/configuracion", label: "Configuracion", icon: Settings, roles: ["admin"] as string[] },
 ];
 
 export function Sidebar() {
@@ -83,7 +85,9 @@ export function Sidebar() {
 
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-            {menuItems.map((item) => {
+            {menuItems
+              .filter((item) => !item.roles || item.roles.includes(userRole))
+              .map((item) => {
               const isActive = pathname === item.href ||
                 (item.href !== "/" && pathname.startsWith(item.href));
               const Icon = item.icon;

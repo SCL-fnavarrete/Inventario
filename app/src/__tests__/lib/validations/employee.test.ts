@@ -71,10 +71,10 @@ describe('Employee Validation - createEmployeeSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  test('should reject missing RUT', () => {
+  test('should accept missing RUT (RUT is optional — employees from Microsoft Entra ID may not have it)', () => {
     const { rut, ...employeeWithoutRut } = validEmployee
     const result = createEmployeeSchema.safeParse(employeeWithoutRut)
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 
   test('should reject invalid RUT format', () => {

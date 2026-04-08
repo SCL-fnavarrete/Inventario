@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { updateAssetSchema } from "@/lib/validations/asset";
 import { assetHistoryService } from "@/lib/services/assetHistoryService";
+import { validateTransition } from "@/lib/services/assetStateMachine";
 import { ZodError } from "zod";
 
 export async function GET(
@@ -83,7 +84,7 @@ export async function PUT(
 
       if (duplicateSerie) {
         return NextResponse.json(
-          { message: "Ya existe un activo con este número de serie" },
+          { error: "Ya existe un activo con este numero de serie" },
           { status: 400 }
         );
       }
@@ -91,8 +92,31 @@ export async function PUT(
 
     const usuario = session.user?.email || "sistema";
 
-    // Registrar cambio de estado en historial si cambió
+    // Validar transición de estado con la máquina de estados (SPEC 2.7)
     if (validatedData.estado && validatedData.estado !== existingAsset.estado) {
+      const activeAssignment = await prisma.assignment.findFirst({
+        where: { assetId: id, activo: true },
+      });
+      const activeMaintenance = await prisma.maintenance.findFirst({
+        where: { assetId: id, estado: { in: ['pendiente', 'en_proceso'] } },
+      });
+
+      const transitionResult = validateTransition(
+        existingAsset.estado,
+        validatedData.estado,
+        {
+          hasActiveAssignment: !!activeAssignment,
+          hasActiveMaintenance: !!activeMaintenance,
+        }
+      );
+
+      if (!transitionResult.valid) {
+        return NextResponse.json(
+          { error: "Transición de estado no permitida", details: transitionResult.errors },
+          { status: 400 }
+        );
+      }
+
       await assetHistoryService.registrarCambioEstado(
         id,
         existingAsset.estado,
@@ -161,6 +185,10 @@ export async function PUT(
         ...(validatedData.intuneEnrolled !== undefined && { intuneEnrolled: validatedData.intuneEnrolled }),
         ...(validatedData.listaDistribucion !== undefined && { listaDistribucion: validatedData.listaDistribucion || null }),
         ...(validatedData.observaciones !== undefined && { observaciones: validatedData.observaciones || null }),
+        ...(validatedData.operador !== undefined && { operador: validatedData.operador || null }),
+        ...(validatedData.antivirus !== undefined && { antivirus: validatedData.antivirus || null }),
+        ...(validatedData.incidencia !== undefined && { incidencia: validatedData.incidencia || null }),
+        ...(validatedData.nombreEquipo !== undefined && { nombreEquipo: validatedData.nombreEquipo || null }),
       },
     });
 
@@ -169,7 +197,7 @@ export async function PUT(
     if (error instanceof ZodError) {
       return NextResponse.json(
         {
-          message: "Error de validación",
+          error: "Error de validacion",
           errors: error.issues.map((e) => ({
             field: String(e.path.join('.')),
             message: e.message

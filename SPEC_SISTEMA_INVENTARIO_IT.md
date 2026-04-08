@@ -36,11 +36,11 @@ Una empresa de servicios IT necesita gestionar el ciclo de vida completo de acti
 ```sql
 CREATE TABLE employees (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    rut VARCHAR(12) UNIQUE NOT NULL,           -- Ej: "21.523.308-1"
+    rut VARCHAR(12) UNIQUE,                    -- Opcional. Ej: "21.523.308-1" (ver nota)
     nombre VARCHAR(100) NOT NULL,
     apellido_paterno VARCHAR(100) NOT NULL,
     apellido_materno VARCHAR(100),
-    correo VARCHAR(150) UNIQUE NOT NULL,       -- Ej: "bsanjuan@sclconsultores.com"
+    correo VARCHAR(150) UNIQUE NOT NULL,       -- Identificador primario. Ej: "bsanjuan@sclconsultores.com"
     cargo VARCHAR(100),
     jefatura VARCHAR(100),                      -- Nombre del jefe directo
     supervisor VARCHAR(100),
@@ -50,10 +50,20 @@ CREATE TABLE employees (
     fecha_termino DATE,                         -- NULL si es planta indefinido
     estado ENUM('activo', 'desvinculado', 'licencia') DEFAULT 'activo',
     telefono_contacto VARCHAR(20),
+    microsoft_id VARCHAR(255) UNIQUE,          -- ID del usuario en Microsoft Entra ID
+    origen_microsoft BOOLEAN DEFAULT false,    -- true si fue sincronizado desde Entra ID
+    fecha_entrega_epp DATE,                    -- Fecha de entrega de EPP al empleado
+    fecha_entrega_kit DATE,                    -- Fecha de entrega del kit de bienvenida
+    proxima_mantencion_epp DATE,               -- Próxima revisión de EPP programada
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 ```
+
+> **NOTA:** `rut` es opcional porque empleados sincronizados desde Microsoft Entra ID pueden
+> no tener el RUT registrado en el directorio corporativo. `correo` es el identificador primario
+> para el negocio. En la primera sincronización el match se realiza por `correo`; en las
+> sincronizaciones posteriores se usa `microsoft_id` (más robusto ante cambios de email).
 
 ### CATEGORÍAS DE ACTIVOS (asset_categories)
 ```sql
@@ -86,19 +96,23 @@ CREATE TABLE assets (
     procesador VARCHAR(100),                   -- Ej: "Intel Core i5-1135G7"
     disco_duro VARCHAR(50),                    -- Ej: "250 GB", "500 GB"
     ram VARCHAR(20),                           -- Ej: "12 GB", "16 GB"
-    pulgadas DECIMAL(4,1),                     -- Ej: 14.0, 15.6, 27
+    pulgadas DECIMAL(4,1),                     -- Positivo. Ej: 14.0, 15.6, 27
     sistema_operativo VARCHAR(50),             -- Ej: "Windows 10", "Windows 11 Pro"
+    antivirus VARCHAR(100),                    -- Software antivirus instalado
+    nombre_equipo VARCHAR(100),               -- Hostname del equipo en la red corporativa
     
     -- Specs Celular
     numero_telefono VARCHAR(20),               -- Ej: "56996191268"
     numero_activacion VARCHAR(20),             -- Número de línea activación
     tipo_plan VARCHAR(50),                     -- Ej: "Full"
+    operador VARCHAR(50),                     -- Operador de telefonía (Entel, Movistar, WOM, etc.)
     tiene_cargador BOOLEAN DEFAULT true,
     
     -- Estado y ubicación
     estado ENUM('disponible', 'asignado', 'en_mantencion', 'reutilizable', 'baja', 'vendido') DEFAULT 'disponible',
     condicion ENUM('nuevo', 'usado', 'dañado') DEFAULT 'nuevo',
     ubicacion_fisica VARCHAR(100),             -- Ej: "Bodega", "Oficina Santiago"
+    empleado_actual_id UUID REFERENCES employees(id),  -- Desnormalización: empleado con asignación activa
     
     -- Software/Licencias
     microsoft_365 BOOLEAN DEFAULT false,
@@ -110,8 +124,9 @@ CREATE TABLE assets (
     fecha_garantia_fin DATE,
     fecha_baja DATE,
     
-    -- Observaciones
+    -- Observaciones e incidencias
     observaciones TEXT,                        -- Ej: "Pantalla rota, problema BIOS, Teclado malo"
+    incidencia TEXT,                           -- Incidencias reportadas (robo, falla hardware, etc.)
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -137,10 +152,14 @@ CREATE TABLE suppliers (
 CREATE TABLE purchases (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     supplier_id UUID REFERENCES suppliers(id),
-    numero_factura VARCHAR(50) NOT NULL,
+    numero_factura VARCHAR(50),                -- Opcional: gastos menores pueden no tener factura
     fecha_factura DATE NOT NULL,
     monto_total DECIMAL(12,2),
     moneda ENUM('CLP', 'USD') DEFAULT 'CLP',
+    tipo_compra ENUM('FACTURA', 'GASTO_MENOR') DEFAULT 'FACTURA',
+    metodo_pago ENUM('EFECTIVO', 'TRANSFERENCIA', 'TARJETA_CREDITO', 'CAJA_CHICA', 'REEMBOLSO_PENDIENTE') DEFAULT 'TRANSFERENCIA',
+    descripcion TEXT,                          -- Descripción libre de la compra
+    comprado_por VARCHAR(100),                 -- Nombre de quien realizó la compra
     orden_compra VARCHAR(50),
     documento_url VARCHAR(500),                -- Link al PDF de la factura
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -254,7 +273,8 @@ CREATE TABLE asset_history (
         'cambio_estado',
         'actualizacion_specs',
         'baja',
-        'venta'
+        'venta',
+        'solicitud_workflow'         -- Acción ejecutada por el sistema de solicitudes
     ) NOT NULL,
     
     descripcion TEXT NOT NULL,
@@ -312,6 +332,373 @@ CREATE TABLE terminations (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 ```
+
+---
+
+## 2.1 bis — Modelos del Sistema de Solicitudes y Despacho
+
+### SOLICITUDES DE WORKFLOW (workflow_requests)
+```sql
+CREATE TABLE workflow_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    numero VARCHAR(50) UNIQUE NOT NULL,        -- Ej: "SOL-2026-0001" (auto-generado)
+    tipo ENUM('onboarding', 'cambio_equipo', 'devolucion_termino') NOT NULL,
+    estado ENUM(
+        -- Onboarding
+        'solicitud_recibida', 'gestion_ti', 'equipos_entregados', 'registro_rrhh',
+        -- Cambio equipo
+        'incidencia_detectada', 'cambio_ejecutado', 'confirmacion_rrhh',
+        -- Devolución por término
+        'solicitud_emitida', 'coordinacion_en_curso', 'equipo_recibido', 'consolidacion_cierre'
+    ) NOT NULL,
+    prioridad ENUM('baja', 'media', 'alta', 'urgente') DEFAULT 'media',
+    employee_id UUID REFERENCES employees(id) NOT NULL,
+    solicitante_id UUID REFERENCES system_users(id) NOT NULL,
+    responsable_actual_id UUID REFERENCES system_users(id),
+
+    -- Campos específicos de Onboarding
+    fecha_ingreso DATE,
+    cargo_solicitado VARCHAR(200),
+    ubicacion_destino VARCHAR(200),
+    requiere_notebook BOOLEAN DEFAULT false,
+    requiere_celular BOOLEAN DEFAULT false,
+    requiere_monitor BOOLEAN DEFAULT false,
+
+    -- Campos específicos de Cambio de Equipo
+    ticket_freshdesk VARCHAR(100),
+    motivo_cambio TEXT,
+
+    -- Campos específicos de Devolución por Término
+    fecha_desvinculacion DATE,
+    medio_devolucion VARCHAR(100),             -- Ej: "Presencial", "Chilexpress"
+    ot_chilexpress VARCHAR(100),
+    ciudad_devolucion VARCHAR(200),
+
+    -- Referencias a registros creados como efecto secundario de transiciones
+    assignment_ids TEXT[],                     -- IDs de assignments creados por este workflow
+    termination_id UUID,                       -- ID del termination creado al cierre
+    dispatch_guide_id UUID,                    -- ID de la guía de despacho asociada
+
+    observaciones TEXT,
+    fecha_cierre TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+```
+
+### COMENTARIOS DE SOLICITUD (workflow_comments)
+```sql
+CREATE TABLE workflow_comments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    request_id UUID REFERENCES workflow_requests(id) ON DELETE CASCADE NOT NULL,
+    autor_id UUID REFERENCES system_users(id) NOT NULL,
+    mensaje TEXT NOT NULL,
+    es_interno BOOLEAN DEFAULT false,          -- true = nota interna, false = comunicación al solicitante
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### TRANSICIONES DE ESTADO (workflow_transitions)
+```sql
+CREATE TABLE workflow_transitions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    request_id UUID REFERENCES workflow_requests(id) ON DELETE CASCADE NOT NULL,
+    estado_anterior ENUM(...) NOT NULL,        -- Ver enum EstadoSolicitud
+    estado_nuevo ENUM(...) NOT NULL,
+    ejecutado_por_id UUID REFERENCES system_users(id) NOT NULL,
+    comentario TEXT,
+    datos_accion JSONB,                        -- Datos variables por transición (ver sección 2.5.4)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    -- INMUTABLE: las transiciones nunca se eliminan
+);
+```
+
+### PENDIENTES DE SOLICITUD (workflow_pendientes)
+```sql
+CREATE TABLE workflow_pendientes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    request_id UUID REFERENCES workflow_requests(id) ON DELETE CASCADE NOT NULL,
+    tipo ENUM(
+        'celular', 'audifonos', 'mochila', 'cargador',
+        'epp_zapatos', 'epp_chaleco', 'epp_casco', 'epp_lentes',
+        'kit_bienvenida', 'otro'
+    ) NOT NULL,
+    estado ENUM('pendiente', 'gestionando', 'entregado', 'no_aplica') DEFAULT 'pendiente',
+    descripcion TEXT,
+    actualizado_por VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+```
+
+### GUÍAS DE DESPACHO (dispatch_guides)
+```sql
+CREATE TABLE dispatch_guides (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    numero VARCHAR(50) UNIQUE NOT NULL,        -- Número correlativo auto-generado
+    origen VARCHAR(200) NOT NULL,              -- Lugar de origen del despacho
+    destino VARCHAR(200) NOT NULL,             -- Lugar de destino
+    tipo_despacho ENUM('asignacion', 'traslado', 'prestamo') NOT NULL,
+    despachado_por VARCHAR(100) NOT NULL,
+    fecha_despacho TIMESTAMP NOT NULL,
+    destinatario_id UUID REFERENCES employees(id),     -- Opcional: destinatario interno
+    destinatario_nombre VARCHAR(200),          -- Para destinatarios externos
+    destinatario_rut VARCHAR(15),
+    observaciones TEXT,
+    estado ENUM('pendiente', 'despachado', 'recibido', 'anulado') DEFAULT 'pendiente',
+    fecha_recepcion TIMESTAMP,
+    recibido_por VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+```
+
+### DETALLE DE GUÍA DE DESPACHO (dispatch_guide_items)
+```sql
+CREATE TABLE dispatch_guide_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    guide_id UUID REFERENCES dispatch_guides(id) ON DELETE CASCADE NOT NULL,
+    asset_id UUID REFERENCES assets(id) NOT NULL,
+    observaciones TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+---
+
+## 2.5 Sistema de Solicitudes (Workflow)
+
+### 2.5.1 Propósito y casos de uso
+
+El sistema de solicitudes es un **orquestador de procesos** que encapsula flujos de negocio completos, ocultando la complejidad de efectos secundarios (crear asignaciones, desvinculaciones, guías de despacho) detrás de una API de transición de estados. Permite auditar cada paso del proceso con trazabilidad completa.
+
+**Tres tipos de solicitud:**
+
+| Tipo | Descripción | Iniciador | Efecto final |
+|------|-------------|-----------|--------------|
+| `onboarding` | Nuevo empleado necesita equipos | RRHH/Admin | Crea `assignments` para cada activo entregado |
+| `cambio_equipo` | Reemplazo por falla o pérdida | Técnico/Admin | Devuelve activo viejo + asigna activo nuevo |
+| `devolucion_termino` | Empleado se desvincula | RRHH/Admin | Crea `termination` con estados por tipo de equipo |
+
+### 2.5.2 Máquinas de estado por tipo
+
+```
+ONBOARDING:
+  solicitud_recibida → [tecnico|admin] → gestion_ti
+  gestion_ti         → [tecnico|admin] → equipos_entregados   ← SIDE EFFECT: crea assignments
+  equipos_entregados → [rrhh|admin]    → registro_rrhh        ← ESTADO FINAL
+
+CAMBIO_EQUIPO:
+  incidencia_detectada → [tecnico|admin] → cambio_ejecutado   ← SIDE EFFECT: devuelve + asigna
+  cambio_ejecutado     → [rrhh|admin]    → confirmacion_rrhh  ← ESTADO FINAL
+
+DEVOLUCION_TERMINO:
+  solicitud_emitida     → [tecnico|admin] → coordinacion_en_curso
+  coordinacion_en_curso → [tecnico|admin] → equipo_recibido
+  equipo_recibido       → [rrhh|admin]    → consolidacion_cierre  ← SIDE EFFECT: crea termination
+                                                                   ← ESTADO FINAL
+```
+
+### 2.5.3 Reglas de negocio
+
+1. **Roles por estado:** Solo `tecnico` y `admin` pueden avanzar estados intermedios de TI. Solo `rrhh` y `admin` pueden avanzar estados de confirmación RRHH. No hay retroceso de estados.
+2. **Activos asignables:** Un activo solo puede asignarse si su `estado` es `disponible` o `reutilizable`.
+3. **Empleados asignables:** Un empleado solo puede recibir asignación si su `estado` es `activo`.
+4. **Devolución con daño:** Si `estadoDevolucion = danado`, el activo devuelto queda en `baja`. Si es `ok` o `incompleto`, queda en `reutilizable`.
+5. **Inmutabilidad:** `workflow_transitions` es un log inmutable. Las transiciones nunca se eliminan.
+6. **Acumulación:** `assignment_ids` en `workflow_requests` es acumulativo; cada assignment creado se agrega al array, nunca se sobreescribe.
+
+### 2.5.4 Estructura del campo `datos_accion` por transición con efecto
+
+El campo `datos_accion JSONB` en `workflow_transitions` transporta los datos variables de cada transición con efecto secundario:
+
+**`gestion_ti → equipos_entregados` (onboarding):**
+```typescript
+{
+  assetIds: string[]       // requerido: IDs de activos a asignar
+  lugarEntrega?: string    // opcional: lugar de entrega
+}
+```
+
+**`incidencia_detectada → cambio_ejecutado` (cambio_equipo):**
+```typescript
+{
+  oldAssignmentId?: string                              // opcional: asignación a devolver
+  estadoDevolucion?: 'ok' | 'danado' | 'incompleto'   // estado del equipo devuelto
+  newAssetId?: string                                   // opcional: activo nuevo a asignar
+  lugarEntrega?: string
+}
+```
+
+**`equipo_recibido → consolidacion_cierre` (devolucion_termino):**
+```typescript
+{
+  estadoNotebook?: 'ok' | 'danado' | 'no_aplica' | 'pendiente'
+  estadoCelular?:  'ok' | 'danado' | 'no_aplica' | 'pendiente'
+  estadoMonitor?:  'ok' | 'danado' | 'no_aplica' | 'pendiente'
+  estadoKit?:      'ok' | 'danado' | 'no_aplica' | 'pendiente'
+  lugarDevolucion?: string
+}
+```
+
+---
+
+## 2.6 Integración Microsoft Entra ID (Azure AD)
+
+### Propósito
+
+Sincronización **read-only** de empleados desde el directorio corporativo Microsoft Entra ID. El sistema **nunca escribe** en Entra ID; solo consume datos.
+
+### Flujo de sincronización
+
+1. El admin accede a `/configuracion/microsoft-sync` y presiona el botón de sincronización.
+2. El sistema llama a `microsoftGraphService.ts` que consulta la Graph API de Microsoft.
+3. Los empleados del directorio se comparan con la BD local.
+4. Se crean o actualizan registros; nunca se eliminan (baja se gestiona manualmente).
+
+### Estrategia de match
+
+| Sincronización | Clave de match | Razón |
+|---------------|----------------|-------|
+| Primera sync | `correo` | El `microsoft_id` aún no está en BD |
+| Syncs posteriores | `microsoft_id` | Más robusto ante cambios de email corporativo |
+
+### Campos sincronizados vs manuales
+
+| Campo | Sincronizado | Manual |
+|-------|-------------|--------|
+| nombres, apellidos | ✅ | |
+| correo | ✅ | |
+| cargo | ✅ | |
+| jefatura | ✅ | |
+| ubicacion | ✅ | |
+| microsoft_id | ✅ | |
+| rut | | ✅ |
+| tipoContrato | | ✅ |
+| fechaIngreso | | ✅ |
+| telefonoContacto | | ✅ |
+
+> **NOTA:** `rut` no está en el directorio de Entra ID. Por eso `rut` es opcional en la tabla
+> `employees`. Si un empleado se sincroniza sin RUT, el dato debe ingresarse manualmente después.
+
+---
+
+## 2.7 Máquina de Estados del Ciclo de Vida de Activos
+
+### 2.7.1 Diagrama de transiciones válidas
+
+```
+                    ┌─────────────┐
+                    │  disponible │
+                    └──────┬──────┘
+                     ↓          ↓
+              ┌──────────┐  ┌──────────────┐
+              │ asignado │  │en_mantencion │
+              └────┬─────┘  └──────┬───────┘
+               ↓   ↓   ↓      ↓   ↓   ↓
+    ┌──────────────┐ ┌─────┐  (vuelve a disponible, asignado, o baja)
+    │en_mantencion │ │baja │
+    └──────────────┘ └──┬──┘
+    ┌──────────────┐    ↓
+    │ reutilizable │  ┌────────┐
+    └──────┬───────┘  │vendido │ (TERMINAL)
+     ↓   ↓   ↓       └────────┘
+  (asignado, disponible, baja)
+```
+
+### 2.7.2 Tabla de transiciones, precondiciones y efectos
+
+| Desde | Hasta | Precondiciones | Efecto |
+|-------|-------|----------------|--------|
+| `disponible` | `asignado` | Debe existir asignación creada | `empleadoActualId` se actualiza |
+| `disponible` | `en_mantencion` | Debe existir mantención programada | — |
+| `asignado` | `reutilizable` | Requiere devolución con estado `ok` o `incompleto` | `empleadoActualId` → null |
+| `asignado` | `baja` | Requiere devolución con estado `danado` | `empleadoActualId` → null, `fechaBaja` = hoy |
+| `asignado` | `en_mantencion` | Debe existir mantención programada | Asignación se pausa |
+| `en_mantencion` | `disponible` | Mantención completada + activo NO tenía asignación previa | — |
+| `en_mantencion` | `asignado` | Mantención completada + activo tenía asignación previa | — |
+| `en_mantencion` | `baja` | Mantención completada con resultado `no_reparable` + motivo obligatorio | `fechaBaja` = hoy |
+| `reutilizable` | `asignado` | Debe existir nueva asignación | `empleadoActualId` se actualiza |
+| `reutilizable` | `disponible` | Sin restricción | — |
+| `reutilizable` | `baja` | Requiere motivo obligatorio | `fechaBaja` = hoy |
+| `baja` | `vendido` | Requiere datos de venta (comprador, monto, fecha) | — |
+| `vendido` | — | **Estado terminal.** No se permite ninguna transición. | — |
+
+### 2.7.3 Proceso de Baja
+
+Dar de baja un activo es una operación irreversible (solo puede ir a `vendido` después). Requiere:
+
+1. **Precondiciones:**
+   - El activo NO tiene asignación activa (si tiene, debe devolverse primero)
+   - El activo NO está en mantención activa (si está, debe cerrarse primero)
+2. **Datos obligatorios:**
+   - `motivo`: `obsolescencia` | `falla_irreparable` | `robo` | `extravio` | `otro`
+   - `condicionFinal`: `danado` | `usado`
+   - Si motivo = `otro`, se requiere `motivoDetalle` (texto libre)
+3. **Efectos automáticos:**
+   - `fechaBaja` = fecha actual
+   - `estado` → `baja`
+   - `condicion` → `condicionFinal` proporcionado
+   - Registro en `asset_history` con tipo `baja`
+
+### 2.7.4 Proceso de Venta
+
+1. **Precondiciones:**
+   - Estado = `baja` o `reutilizable`
+   - Sin asignación activa
+2. **Datos obligatorios:**
+   - `comprador`: nombre/razón social
+   - `monto`: número positivo
+   - `moneda`: `CLP` o `USD`
+   - `fechaVenta`: fecha
+3. **Datos opcionales:**
+   - `documentoVenta`: URL al documento de venta
+4. **Efectos automáticos:**
+   - `estado` → `vendido`
+   - Registro en `asset_history` con tipo `venta`
+
+### 2.7.5 Cierre de Mantención
+
+El cierre de una mantención determina el destino del activo:
+
+| Resultado | Estado destino del activo | Datos requeridos |
+|-----------|--------------------------|------------------|
+| `reparado` | Estado previo a la mantención (`disponible` si no tenía asignación, `asignado` si tenía) | `realizadoPor` |
+| `no_reparable` | `baja` | `realizadoPor`, `motivoBaja` (obligatorio) |
+| `pendiente_repuestos` | Sigue en `en_mantencion` | `realizadoPor` |
+
+Datos opcionales para todos: `costo`, `proveedorExterno`, `proximaMantencion`.
+
+### 2.7.6 Reasignación de Equipo
+
+Operación atómica que ejecuta devolución + asignación en una transacción.
+
+1. **Precondiciones:**
+   - Activo en estado `asignado`
+   - Estado de devolución ≠ `danado` (si dañado → bloquear, sugerir baja)
+   - Empleado destino en estado `activo`
+2. **Datos obligatorios:**
+   - `assignmentId`: asignación actual a devolver
+   - `newEmployeeId`: empleado destino
+   - `estadoDevolucion`: `ok` | `incompleto`
+   - `motivoReasignacion`: texto libre
+3. **Efectos automáticos:**
+   - Assignment actual → `activo = false`, `fechaDevolucion` = hoy
+   - Nuevo assignment creado con `tipoMovimiento = cambio`
+   - `empleadoActualId` → nuevo empleado
+   - 2 registros en `asset_history`: `devolucion` + `asignacion`
+
+### 2.7.7 Devolución Formalizada
+
+Regla de destino automático del activo tras devolución:
+
+| Estado devolución | Destino activo | Descripción daños |
+|-------------------|---------------|-------------------|
+| `ok` | `reutilizable` | No requerida |
+| `danado` | `baja` | **Obligatoria** |
+| `incompleto` | `reutilizable` | Opcional |
+
+Efectos: `empleadoActualId` → null, assignment → `activo = false`.
 
 ---
 
@@ -1035,8 +1422,31 @@ Ubicación | Tipo Contrato | Fecha Ingreso
 
 # FIN DEL DOCUMENTO DE ESPECIFICACIONES
 
-Versión: 1.0
-Fecha: 2025
-Metodología: BMAD
+Versión: 1.2
+Fecha: 2026-04-07
+Metodología: BMAD + SDD (Spec Driven Design)
 Autor: Arquitectura generada para desarrollo por IA
 ```
+
+---
+
+## Changelog SPEC
+
+- **v1.0 (2025):** Versión inicial — 12 modelos, stack definido, metodología BMAD.
+- **v1.2 (2026-04-07):**
+  - Sección 2.7: Máquina de estados del ciclo de vida de activos con 12 transiciones válidas, precondiciones y efectos.
+  - Sección 2.7.3: Proceso de baja con motivos y condición final.
+  - Sección 2.7.4: Proceso de venta con datos obligatorios.
+  - Sección 2.7.5: Cierre de mantención con resultado estructurado.
+  - Sección 2.7.6: Reasignación de equipo (devolución + asignación atómica).
+  - Sección 2.7.7: Devolución formalizada con destino automático.
+  - Fix bug: devolución danado → baja (era reutilizable).
+- **v1.1 (2026-04-07):**
+  - Corrección `employees.rut`: NOT NULL → nullable. Razón: sync Microsoft Entra ID.
+  - Agrega campos Employee: `microsoft_id`, `origen_microsoft`, `fecha_entrega_epp`, `fecha_entrega_kit`, `proxima_mantencion_epp`.
+  - Agrega campos Asset: `antivirus`, `nombre_equipo`, `operador`, `incidencia`, `empleado_actual_id`.
+  - Agrega campos Purchase: `tipo_compra`, `metodo_pago`, `descripcion`, `comprado_por`. `numero_factura` pasa a nullable.
+  - `asset_history.tipo_evento`: agrega valor `solicitud_workflow`.
+  - Sección 2.1 bis: agrega 6 modelos nuevos (`workflow_requests`, `workflow_comments`, `workflow_transitions`, `workflow_pendientes`, `dispatch_guides`, `dispatch_guide_items`).
+  - Sección 2.5: Sistema de Solicitudes (Workflow) — máquinas de estado, reglas de negocio, estructura `datos_accion`.
+  - Sección 2.6: Integración Microsoft Entra ID — flujo, estrategia de match, campos sincronizados vs manuales.

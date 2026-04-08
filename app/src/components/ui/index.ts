@@ -9,10 +9,6 @@ export type { default as ButtonDefault } from "./Button";
 export { Card } from "./Card";
 export type { default as CardDefault } from "./Card";
 
-// FormField
-export { FormField } from "./FormField";
-export type { default as FormFieldDefault } from "./FormField";
-
 // Badge
 export { Badge, AssetStatusBadge, getStatusLabel } from "./Badge";
 export type { default as BadgeDefault } from "./Badge";
@@ -53,12 +49,3 @@ export {
   UnsavedChangesDialog,
 } from "./ConfirmDialog";
 export type { default as ConfirmDialogDefault } from "./ConfirmDialog";
-
-// Breadcrumb
-export {
-  Breadcrumb,
-  PageBreadcrumb,
-  AssetBreadcrumb,
-  EmployeeBreadcrumb,
-} from "./Breadcrumb";
-export type { default as BreadcrumbDefault } from "./Breadcrumb";

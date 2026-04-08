@@ -1,0 +1,105 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { assetVentaSchema } from '@/lib/validations/assetTransition';
+import { validateTransition } from '@/lib/services/assetStateMachine';
+import { assetHistoryService } from '@/lib/services/assetHistoryService';
+
+// SPEC 2.7.4: Proceso de Venta
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+
+    // Validar datos de venta
+    const validationResult = assetVentaSchema.safeParse(body);
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { error: 'Datos inválidos', details: validationResult.error.issues },
+        { status: 400 }
+      );
+    }
+
+    const data = validationResult.data;
+
+    // Cargar activo
+    const asset = await prisma.asset.findUnique({
+      where: { id },
+      include: {
+        assignments: { where: { activo: true } },
+        categoria: true,
+      },
+    });
+
+    if (!asset) {
+      return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
+    }
+
+    // SPEC: Solo se puede vender desde baja o reutilizable
+    if (asset.estado !== 'baja' && asset.estado !== 'reutilizable') {
+      return NextResponse.json(
+        { error: `El activo debe estar en estado "baja" o "reutilizable" para vender. Estado actual: ${asset.estado}` },
+        { status: 400 }
+      );
+    }
+
+    // Verificar sin asignación activa
+    if (asset.assignments.length > 0) {
+      return NextResponse.json(
+        { error: 'El activo tiene una asignación activa. No se puede vender.' },
+        { status: 400 }
+      );
+    }
+
+    // Validar transición
+    const transitionResult = validateTransition(asset.estado, 'vendido', {
+      hasActiveAssignment: false,
+      hasActiveMaintenance: false,
+      motivo: `Venta a ${data.comprador}`,
+    });
+
+    if (!transitionResult.valid) {
+      return NextResponse.json(
+        { error: 'Transición no permitida', details: transitionResult.errors },
+        { status: 400 }
+      );
+    }
+
+    const usuario = session.user?.email || 'sistema';
+
+    // Ejecutar venta en transacción
+    const result = await prisma.$transaction(async (tx) => {
+      const updated = await tx.asset.update({
+        where: { id },
+        data: {
+          estado: 'vendido',
+        },
+        include: { categoria: true },
+      });
+
+      // Registrar en historial (reutiliza assetHistoryService)
+      await assetHistoryService.registrarVenta(
+        id,
+        data.comprador,
+        Number(data.monto),
+        usuario
+      );
+
+      return updated;
+    });
+
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error('Error processing asset sale:', error);
+    return NextResponse.json({ error: 'Error al registrar la venta' }, { status: 500 });
+  }
+}

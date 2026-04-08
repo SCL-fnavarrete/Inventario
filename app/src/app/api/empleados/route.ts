@@ -4,7 +4,23 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createEmployeeSchema, employeeFiltersSchema } from "@/lib/validations/employee";
 import { Prisma } from "@prisma/client";
-import { normalizeRut, looksLikeRut } from "@/lib/utils/rut";
+import { normalizeRut } from "@/lib/utils/rut";
+
+/**
+ * Quita acentos/diacríticos de un string.
+ * "César" → "cesar", "González" → "gonzalez"
+ */
+function removeAccents(str: string): string {
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+/**
+ * Compara un campo contra un término de búsqueda, ambos sin acentos.
+ */
+function matchNoAccent(field: string | null | undefined, searchTermNoAccent: string): boolean {
+  if (!field) return false;
+  return removeAccents(field).includes(searchTermNoAccent);
+}
 
 // GET /api/empleados - Listar empleados con filtros y paginación
 export async function GET(request: NextRequest) {
@@ -42,19 +58,14 @@ export async function GET(request: NextRequest) {
     // Construir condiciones de búsqueda
     const where: Prisma.EmployeeWhereInput = {};
 
-    // Flag para indicar si la búsqueda parece ser un RUT
-    const searchLooksLikeRut = filters.search ? looksLikeRut(filters.search) : false;
+    // Normalizar búsqueda: quitar puntos/guiones (RUT) y acentos
     const normalizedSearch = filters.search ? normalizeRut(filters.search) : "";
 
     if (filters.search) {
-      where.OR = [
-        { rut: { contains: filters.search, mode: "insensitive" } },
-        { nombres: { contains: filters.search, mode: "insensitive" } },
-        { apellidoPaterno: { contains: filters.search, mode: "insensitive" } },
-        { apellidoMaterno: { contains: filters.search, mode: "insensitive" } },
-        { correo: { contains: filters.search, mode: "insensitive" } },
-        { cargo: { contains: filters.search, mode: "insensitive" } },
-      ];
+      // Siempre traer todos y filtrar en memoria para soportar:
+      // 1. RUT sin formato (15941817 → matchea 15.941.817-K)
+      // 2. Sin acentos (Cesar → matchea César)
+      // La base es chica (<1000 empleados) así que es viable
     }
 
     if (filters.estado) {
@@ -73,14 +84,23 @@ export async function GET(request: NextRequest) {
       where.jefatura = { contains: filters.jefatura, mode: "insensitive" };
     }
 
-    // Si la búsqueda parece RUT, traemos más resultados y filtramos después
-    // para poder comparar RUT normalizados (sin puntos ni guiones)
     let employees;
     let total;
 
-    if (searchLooksLikeRut && normalizedSearch.length >= 4) {
-      // Traer todos los empleados y filtrar por RUT normalizado
+    if (filters.search && filters.search.length >= 2) {
+      // Búsqueda normalizada: sin acentos, sin puntos/guiones para RUT
       const allEmployees = await prisma.employee.findMany({
+        where: {
+          // Aplicar filtros no-search (estado, tipoContrato, etc.)
+          ...(filters.estado && { estado: filters.estado }),
+          ...(filters.tipoContrato && { tipoContrato: filters.tipoContrato }),
+          ...(filters.ubicacion && {
+            ubicacion: { contains: filters.ubicacion, mode: "insensitive" },
+          }),
+          ...(filters.jefatura && {
+            jefatura: { contains: filters.jefatura, mode: "insensitive" },
+          }),
+        },
         orderBy: { [filters.sortBy]: filters.sortOrder },
         include: {
           _count: {
@@ -93,22 +113,21 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      // Filtrar por RUT normalizado O por los campos de texto normales
-      const filtered = allEmployees.filter((emp) => {
-        const empRutNormalized = emp.rut ? normalizeRut(emp.rut) : "";
-        const searchLower = filters.search!.toLowerCase();
+      const searchTerms = removeAccents(filters.search.toLowerCase());
 
-        // Coincide por RUT normalizado
-        if (empRutNormalized.includes(normalizedSearch)) {
+      const filtered = allEmployees.filter((emp) => {
+        // 1. Buscar por RUT normalizado (sin puntos ni guiones)
+        const empRutNormalized = emp.rut ? normalizeRut(emp.rut) : "";
+        if (normalizedSearch && empRutNormalized.includes(normalizedSearch)) {
           return true;
         }
 
-        // Coincide por nombre/apellido/correo/cargo
-        if (emp.nombres.toLowerCase().includes(searchLower)) return true;
-        if (emp.apellidoPaterno.toLowerCase().includes(searchLower)) return true;
-        if (emp.apellidoMaterno?.toLowerCase().includes(searchLower)) return true;
-        if (emp.correo.toLowerCase().includes(searchLower)) return true;
-        if (emp.cargo?.toLowerCase().includes(searchLower)) return true;
+        // 2. Buscar en campos de texto sin acentos
+        if (matchNoAccent(emp.nombres, searchTerms)) return true;
+        if (matchNoAccent(emp.apellidoPaterno, searchTerms)) return true;
+        if (matchNoAccent(emp.apellidoMaterno, searchTerms)) return true;
+        if (matchNoAccent(emp.correo, searchTerms)) return true;
+        if (matchNoAccent(emp.cargo, searchTerms)) return true;
 
         return false;
       });
@@ -116,7 +135,7 @@ export async function GET(request: NextRequest) {
       total = filtered.length;
       employees = filtered.slice(skip, skip + filters.limit);
     } else {
-      // Búsqueda normal con Prisma
+      // Sin búsqueda de texto: usar Prisma directamente
       [employees, total] = await Promise.all([
         prisma.employee.findMany({
           where,

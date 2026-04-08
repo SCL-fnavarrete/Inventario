@@ -365,7 +365,7 @@ export default async function DetalleActivoPage({
             <div className="space-y-2">
               {(asset.estado === "disponible" || asset.estado === "reutilizable") && (
                 <Link
-                  href={`/asignaciones/nueva?activoId=${asset.id}`}
+                  href="/solicitudes/nueva"
                   className="block w-full py-2 px-4 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 text-center transition-colors"
                 >
                   Asignar a empleado
@@ -377,11 +377,35 @@ export default async function DetalleActivoPage({
                 </div>
               )}
               {asset.estado === "asignado" && (
+                <>
+                  <Link
+                    href={`/asignaciones/devolucion?id=${asset.assignments[0]?.id}`}
+                    className="block w-full py-2 px-4 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 text-center transition-colors"
+                  >
+                    Registrar devolución
+                  </Link>
+                  <Link
+                    href={`/activos/${asset.id}/reasignar`}
+                    className="block w-full py-2 px-4 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 text-center transition-colors"
+                  >
+                    Reasignar equipo
+                  </Link>
+                </>
+              )}
+              {(asset.estado === "disponible" || asset.estado === "reutilizable" || asset.estado === "asignado") && (
                 <Link
-                  href={`/asignaciones/devolucion?id=${asset.assignments[0]?.id}`}
-                  className="block w-full py-2 px-4 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 text-center transition-colors"
+                  href={`/activos/${asset.id}/baja`}
+                  className="block w-full py-2 px-4 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 text-center transition-colors"
                 >
-                  Registrar devolución
+                  Dar de baja
+                </Link>
+              )}
+              {(asset.estado === "baja" || asset.estado === "reutilizable") && (
+                <Link
+                  href={`/activos/${asset.id}/venta`}
+                  className="block w-full py-2 px-4 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 text-center transition-colors"
+                >
+                  Registrar venta
                 </Link>
               )}
               <Link

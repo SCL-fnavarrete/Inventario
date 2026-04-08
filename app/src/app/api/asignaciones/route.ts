@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAssignmentSchema, assignmentFiltersSchema } from "@/lib/validations/assignment";
+import { executeAssignment } from "@/lib/services/workflowExecutionService";
 import { Prisma } from "@prisma/client";
 
 // GET /api/asignaciones - Listar asignaciones con filtros
 export async function GET(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
 
     const filtersResult = assignmentFiltersSchema.safeParse({
@@ -107,9 +115,14 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/asignaciones - Crear nueva asignación
+// POST /api/asignaciones - Crear nueva asignacion
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
     const body = await request.json();
 
     const validationResult = createAssignmentSchema.safeParse(body);
@@ -123,89 +136,17 @@ export async function POST(request: NextRequest) {
 
     const data = validationResult.data;
 
-    // Verificar que el activo existe y está disponible
-    const asset = await prisma.asset.findUnique({
-      where: { id: data.assetId },
-      include: { categoria: true },
-    });
-
-    if (!asset) {
-      return NextResponse.json(
-        { error: "Activo no encontrado" },
-        { status: 404 }
-      );
-    }
-
-    if (asset.estado !== "disponible" && asset.estado !== "reutilizable") {
-      return NextResponse.json(
-        { error: `El activo no está disponible. Estado actual: ${asset.estado}` },
-        { status: 400 }
-      );
-    }
-
-    // Verificar que el empleado existe y está activo
-    const employee = await prisma.employee.findUnique({
-      where: { id: data.employeeId },
-    });
-
-    if (!employee) {
-      return NextResponse.json(
-        { error: "Empleado no encontrado" },
-        { status: 404 }
-      );
-    }
-
-    if (employee.estado !== "activo") {
-      return NextResponse.json(
-        { error: "El empleado no está activo" },
-        { status: 400 }
-      );
-    }
-
-    // Crear asignación y actualizar activo en una transacción
+    // Crear asignación y actualizar activo en una transacción usando servicio compartido
     const result = await prisma.$transaction(async (tx) => {
-      // Crear asignación
-      const assignment = await tx.assignment.create({
-        data: {
-          assetId: data.assetId,
-          employeeId: data.employeeId,
-          fechaEntrega: data.fechaEntrega,
-          lugarEntrega: data.lugarEntrega,
-          entregadoPor: data.entregadoPor,
-          tipoMovimiento: data.tipoMovimiento,
-          motivo: data.motivo,
-          activo: true,
-        },
-        include: {
-          asset: {
-            include: { categoria: true },
-          },
-          employee: true,
-        },
+      return executeAssignment(tx, {
+        assetId: data.assetId,
+        employeeId: data.employeeId,
+        fechaEntrega: data.fechaEntrega,
+        lugarEntrega: data.lugarEntrega,
+        entregadoPor: data.entregadoPor,
+        tipoMovimiento: data.tipoMovimiento,
+        motivo: data.motivo,
       });
-
-      // Actualizar estado del activo
-      await tx.asset.update({
-        where: { id: data.assetId },
-        data: {
-          estado: "asignado",
-          empleadoActualId: data.employeeId,
-        },
-      });
-
-      // Registrar en historial
-      await tx.assetHistory.create({
-        data: {
-          assetId: data.assetId,
-          tipoEvento: "asignacion",
-          descripcion: `Asignado a ${employee.nombres} ${employee.apellidoPaterno} (${employee.rut})`,
-          datosAnteriores: { estado: asset.estado, empleadoActualId: asset.empleadoActualId },
-          datosNuevos: { estado: "asignado", empleadoActualId: data.employeeId },
-          usuarioSistema: data.entregadoPor || "Sistema",
-        },
-      });
-
-      return assignment;
     });
 
     return NextResponse.json(result, { status: 201 });

@@ -10,30 +10,6 @@ type Category = {
   nombre: string;
 };
 
-type Supplier = {
-  id: string;
-  nombre: string;
-};
-
-type Asset = {
-  id: string;
-  categoriaId: string;
-  marca: string;
-  modelo: string;
-  numeroSerie: string;
-  codigoInterno: string | null;
-  estado: string;
-  condicion: string;
-  fechaCompra: string | null;
-  valorCompra: number | null;
-  proveedorId: string | null;
-  especificaciones: Record<string, string> | null;
-  observaciones: string | null;
-  categoria: {
-    nombre: string;
-  };
-};
-
 export default function EditarActivoPage({
   params,
 }: {
@@ -43,8 +19,8 @@ export default function EditarActivoPage({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [formData, setFormData] = useState({
     categoriaId: "",
     marca: "",
@@ -54,8 +30,6 @@ export default function EditarActivoPage({
     estado: "disponible",
     condicion: "nuevo",
     fechaCompra: "",
-    valorCompra: "",
-    proveedorId: "",
     procesador: "",
     ram: "",
     almacenamiento: "",
@@ -63,8 +37,11 @@ export default function EditarActivoPage({
     imei: "",
     numeroTelefono: "",
     pulgadas: "",
-    resolucion: "",
     observaciones: "",
+    operador: "",
+    antivirus: "",
+    incidencia: "",
+    nombreEquipo: "",
   });
 
   useEffect(() => {
@@ -73,20 +50,17 @@ export default function EditarActivoPage({
 
   async function fetchData() {
     try {
-      const [catRes, supRes, assetRes] = await Promise.all([
+      const [catRes, assetRes] = await Promise.all([
         fetch("/api/categorias"),
-        fetch("/api/proveedores"),
         fetch(`/api/activos/${id}`),
       ]);
 
-      const [cats, sups, asset] = await Promise.all([
+      const [cats, asset] = await Promise.all([
         catRes.json(),
-        supRes.json(),
         assetRes.json(),
       ]);
 
       setCategories(cats);
-      setSuppliers(sups.data || []);
 
       if (asset) {
         setFormData({
@@ -100,8 +74,6 @@ export default function EditarActivoPage({
           fechaCompra: asset.fechaCompra
             ? new Date(asset.fechaCompra).toISOString().split("T")[0]
             : "",
-          valorCompra: asset.valorCompra?.toString() || "",
-          proveedorId: asset.proveedorId || "",
           procesador: asset.procesador || "",
           ram: asset.ram || "",
           almacenamiento: asset.discoDuro || "",
@@ -109,14 +81,16 @@ export default function EditarActivoPage({
           imei: asset.imei || "",
           numeroTelefono: asset.numeroTelefono || "",
           pulgadas: asset.pulgadas?.toString() || "",
-          resolucion: "",
           observaciones: asset.observaciones || "",
+          operador: asset.operador || "",
+          antivirus: asset.antivirus || "",
+          incidencia: asset.incidencia || "",
+          nombreEquipo: asset.nombreEquipo || "",
         });
       }
-    } catch (error) {
-      console.error("Error fetching data:", error);
+    } catch (err) {
+      console.error("Error fetching data:", err);
       setCategories([]);
-      setSuppliers([]);
     } finally {
       setLoadingData(false);
     }
@@ -132,9 +106,9 @@ export default function EditarActivoPage({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    setError(null);
 
     try {
-      // Mapear nombres de campos del frontend a los del backend
       const payload = {
         categoriaId: formData.categoriaId,
         marca: formData.marca,
@@ -152,6 +126,10 @@ export default function EditarActivoPage({
         numeroTelefono: formData.numeroTelefono || null,
         pulgadas: formData.pulgadas || null,
         observaciones: formData.observaciones || null,
+        operador: formData.operador || null,
+        antivirus: formData.antivirus || null,
+        incidencia: formData.incidencia || null,
+        nombreEquipo: formData.nombreEquipo || null,
       };
 
       const res = await fetch(`/api/activos/${id}`, {
@@ -161,14 +139,14 @@ export default function EditarActivoPage({
       });
 
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.details || error.message || "Error al actualizar activo");
+        const err = await res.json();
+        throw new Error(err.error || err.details || err.message || "Error al actualizar activo");
       }
 
       router.push(`/activos/${id}`);
-    } catch (error) {
-      console.error("Error updating asset:", error);
-      alert(error instanceof Error ? error.message : "Error al actualizar activo");
+    } catch (err) {
+      console.error("Error updating asset:", err);
+      setError(err instanceof Error ? err.message : "Error al actualizar activo");
     } finally {
       setLoading(false);
     }
@@ -205,17 +183,24 @@ export default function EditarActivoPage({
         </div>
       </div>
 
+      {/* Error message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          {error}
+        </div>
+      )}
+
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Información General */}
+        {/* Informacion General */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Información General
+            Informacion General
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Categoría *
+                Categoria *
               </label>
               <select
                 name="categoriaId"
@@ -224,7 +209,7 @@ export default function EditarActivoPage({
                 required
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="">Seleccionar categoría</option>
+                <option value="">Seleccionar categoria</option>
                 {categories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.nombre}
@@ -260,7 +245,7 @@ export default function EditarActivoPage({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Número de Serie
+                Numero de Serie
               </label>
               <input
                 type="text"
@@ -272,7 +257,7 @@ export default function EditarActivoPage({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Código Interno
+                Codigo Interno
               </label>
               <input
                 type="text"
@@ -294,7 +279,7 @@ export default function EditarActivoPage({
               >
                 <option value="disponible">Disponible</option>
                 <option value="asignado">Asignado</option>
-                <option value="en_mantencion">En Mantención</option>
+                <option value="en_mantencion">En Mantencion</option>
                 <option value="reutilizable">Reutilizable</option>
                 <option value="baja">Baja</option>
                 <option value="vendido">Vendido</option>
@@ -302,7 +287,7 @@ export default function EditarActivoPage({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Condición
+                Condicion
               </label>
               <select
                 name="condicion"
@@ -312,18 +297,9 @@ export default function EditarActivoPage({
               >
                 <option value="nuevo">Nuevo</option>
                 <option value="usado">Usado</option>
-                <option value="danado">Dañado</option>
+                <option value="danado">Danado</option>
               </select>
             </div>
-          </div>
-        </div>
-
-        {/* Información de Compra */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Información de Compra
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Fecha de Compra
@@ -336,46 +312,16 @@ export default function EditarActivoPage({
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Valor de Compra (CLP)
-              </label>
-              <input
-                type="number"
-                name="valorCompra"
-                value={formData.valorCompra}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Proveedor
-              </label>
-              <select
-                name="proveedorId"
-                value={formData.proveedorId}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Seleccionar proveedor</option>
-                {suppliers.map((sup) => (
-                  <option key={sup.id} value={sup.id}>
-                    {sup.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
         </div>
 
-        {/* Especificaciones Técnicas - Notebook */}
+        {/* Especificaciones Tecnicas - Notebook */}
         {isNotebook && (
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Especificaciones Técnicas - Notebook
+              Especificaciones Tecnicas - Notebook
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Procesador
@@ -424,15 +370,41 @@ export default function EditarActivoPage({
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Antivirus
+                </label>
+                <input
+                  type="text"
+                  name="antivirus"
+                  value={formData.antivirus}
+                  onChange={handleChange}
+                  placeholder="ej: Windows Defender"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nombre del Equipo
+                </label>
+                <input
+                  type="text"
+                  name="nombreEquipo"
+                  value={formData.nombreEquipo}
+                  onChange={handleChange}
+                  placeholder="ej: NB-SCL-001"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
             </div>
           </div>
         )}
 
-        {/* Especificaciones Técnicas - Celular */}
+        {/* Especificaciones Tecnicas - Celular */}
         {isCelular && (
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Especificaciones Técnicas - Celular
+              Especificaciones Tecnicas - Celular
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
@@ -449,7 +421,7 @@ export default function EditarActivoPage({
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Número de Teléfono
+                  Numero de Telefono
                 </label>
                 <input
                   type="text"
@@ -468,18 +440,37 @@ export default function EditarActivoPage({
                   name="almacenamiento"
                   value={formData.almacenamiento}
                   onChange={handleChange}
+                  placeholder="ej: 128GB"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Operador
+                </label>
+                <select
+                  name="operador"
+                  value={formData.operador}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Seleccionar operador</option>
+                  <option value="Entel">Entel</option>
+                  <option value="Movistar">Movistar</option>
+                  <option value="WOM">WOM</option>
+                  <option value="Claro">Claro</option>
+                  <option value="Otro">Otro</option>
+                </select>
               </div>
             </div>
           </div>
         )}
 
-        {/* Especificaciones Técnicas - Monitor */}
+        {/* Especificaciones Tecnicas - Monitor */}
         {isMonitor && (
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Especificaciones Técnicas - Monitor
+              Especificaciones Tecnicas - Monitor
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -490,18 +481,6 @@ export default function EditarActivoPage({
                   type="text"
                   name="pulgadas"
                   value={formData.pulgadas}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Resolución
-                </label>
-                <input
-                  type="text"
-                  name="resolucion"
-                  value={formData.resolucion}
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -520,6 +499,19 @@ export default function EditarActivoPage({
             rows={4}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Incidencia
+            </label>
+            <textarea
+              name="incidencia"
+              value={formData.incidencia}
+              onChange={handleChange}
+              rows={2}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Incidencias reportadas (robo, falla, etc.)..."
+            />
+          </div>
         </div>
 
         {/* Actions */}

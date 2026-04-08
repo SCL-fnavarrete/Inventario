@@ -19,6 +19,11 @@ model SystemUser {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
+  solicitudesCreadas  WorkflowRequest[] @relation("SolicitanteRelation")
+  solicitudesAsignadas WorkflowRequest[] @relation("ResponsableRelation")
+  workflowComments    WorkflowComment[]
+  workflowTransitions WorkflowTransition[]
+
   @@map("system_users")
 }
 
@@ -50,6 +55,7 @@ model Employee {
   dispatchGuides       DispatchGuide[]
   kitAssignments       KitAssignment[]
   terminations         Termination[]
+  workflowRequests     WorkflowRequest[]
 
   @@index([estado])
   @@index([tipoContrato])
@@ -334,6 +340,107 @@ model DispatchGuideItem {
   @@map("dispatch_guide_items")
 }
 
+model WorkflowRequest {
+  id                    String              @id @default(uuid())
+  numero                String              @unique
+  tipo                  TipoSolicitud
+  estado                EstadoSolicitud
+  prioridad             PrioridadSolicitud  @default(media)
+  employeeId            String              @map("employee_id")
+  solicitanteId         String              @map("solicitante_id")
+  responsableActualId   String?             @map("responsable_actual_id")
+  // Campos onboarding
+  fechaIngreso          DateTime?           @map("fecha_ingreso")
+  cargoSolicitado       String?             @map("cargo_solicitado")
+  ubicacionDestino      String?             @map("ubicacion_destino")
+  requiereNotebook      Boolean             @default(false) @map("requiere_notebook")
+  requiereCelular       Boolean             @default(false) @map("requiere_celular")
+  requiereMonitor       Boolean             @default(false) @map("requiere_monitor")
+  // Campos cambio equipo
+  ticketFreshdesk       String?             @map("ticket_freshdesk")
+  motivoCambio          String?             @map("motivo_cambio")
+  // Campos devolución
+  fechaDesvinculacion   DateTime?           @map("fecha_desvinculacion")
+  medioDevolucion       String?             @map("medio_devolucion")
+  otChilexpress         String?             @map("ot_chilexpress")
+  ciudadDevolucion      String?             @map("ciudad_devolucion")
+  // Referencias a registros creados
+  assignmentIds         String[]            @map("assignment_ids")
+  terminationId         String?             @map("termination_id")
+  dispatchGuideId       String?             @map("dispatch_guide_id")
+  // General
+  observaciones         String?
+  fechaCierre           DateTime?           @map("fecha_cierre")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+
+  employee              Employee            @relation(fields: [employeeId], references: [id])
+  solicitante           SystemUser          @relation("SolicitanteRelation", fields: [solicitanteId], references: [id])
+  responsableActual     SystemUser?         @relation("ResponsableRelation", fields: [responsableActualId], references: [id])
+  comments              WorkflowComment[]
+  transitions           WorkflowTransition[]
+  pendientes            WorkflowPendiente[]
+
+  @@index([tipo])
+  @@index([estado])
+  @@index([employeeId])
+  @@index([solicitanteId])
+  @@index([responsableActualId])
+  @@index([createdAt])
+  @@map("workflow_requests")
+}
+
+model WorkflowComment {
+  id          String          @id @default(uuid())
+  requestId   String          @map("request_id")
+  autorId     String          @map("autor_id")
+  mensaje     String
+  esInterno   Boolean         @default(false) @map("es_interno")
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  request     WorkflowRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  autor       SystemUser      @relation(fields: [autorId], references: [id])
+
+  @@index([requestId])
+  @@index([autorId])
+  @@map("workflow_comments")
+}
+
+model WorkflowTransition {
+  id              String          @id @default(uuid())
+  requestId       String          @map("request_id")
+  estadoAnterior  EstadoSolicitud @map("estado_anterior")
+  estadoNuevo     EstadoSolicitud @map("estado_nuevo")
+  ejecutadoPorId  String          @map("ejecutado_por_id")
+  comentario      String?
+  datosAccion     Json?           @map("datos_accion")
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  request         WorkflowRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  ejecutadoPor    SystemUser      @relation(fields: [ejecutadoPorId], references: [id])
+
+  @@index([requestId])
+  @@index([createdAt])
+  @@map("workflow_transitions")
+}
+
+model WorkflowPendiente {
+  id              String          @id @default(uuid())
+  requestId       String          @map("request_id")
+  tipo            TipoPendiente
+  estado          EstadoPendiente @default(pendiente)
+  descripcion     String?
+  actualizadoPor  String?         @map("actualizado_por")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  request         WorkflowRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([estado])
+  @@map("workflow_pendientes")
+}
+
 enum SystemRole {
   admin
   tecnico
@@ -435,6 +542,57 @@ enum TipoEvento {
   actualizacion_specs
   baja
   venta
+  solicitud_workflow
+}
+
+enum TipoSolicitud {
+  onboarding
+  cambio_equipo
+  devolucion_termino
+}
+
+enum EstadoSolicitud {
+  // Onboarding
+  solicitud_recibida
+  gestion_ti
+  equipos_entregados
+  registro_rrhh
+  // Cambio equipo
+  incidencia_detectada
+  cambio_ejecutado
+  confirmacion_rrhh
+  // Devolución
+  solicitud_emitida
+  coordinacion_en_curso
+  equipo_recibido
+  consolidacion_cierre
+}
+
+enum PrioridadSolicitud {
+  baja
+  media
+  alta
+  urgente
+}
+
+enum TipoPendiente {
+  celular
+  audifonos
+  mochila
+  cargador
+  epp_zapatos
+  epp_chaleco
+  epp_casco
+  epp_lentes
+  kit_bienvenida
+  otro
+}
+
+enum EstadoPendiente {
+  pendiente
+  gestionando
+  entregado
+  no_aplica
 }
 
 enum EstadoDevolucionTipo {

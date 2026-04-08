@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const estado = searchParams.get("estado") || "";
     const categoriaId = searchParams.get("categoriaId") || "";
+    const empleadoActualId = searchParams.get("empleadoActualId") || "";
 
     const where: Record<string, unknown> = {};
 
@@ -37,6 +38,10 @@ export async function GET(request: NextRequest) {
 
     if (categoriaId) {
       where.categoriaId = categoriaId;
+    }
+
+    if (empleadoActualId) {
+      where.empleadoActualId = empleadoActualId;
     }
 
     const [assets, total] = await Promise.all([
@@ -101,7 +106,7 @@ export async function POST(request: NextRequest) {
 
       if (existingAsset) {
         return NextResponse.json(
-          { message: "Ya existe un activo con este número de serie" },
+          { error: "Ya existe un activo con este numero de serie" },
           { status: 400 }
         );
       }
@@ -134,6 +139,10 @@ export async function POST(request: NextRequest) {
         intuneEnrolled: validatedData.intuneEnrolled || false,
         listaDistribucion: validatedData.listaDistribucion || null,
         observaciones: validatedData.observaciones || null,
+        operador: validatedData.operador || null,
+        antivirus: validatedData.antivirus || null,
+        incidencia: validatedData.incidencia || null,
+        nombreEquipo: validatedData.nombreEquipo || null,
       },
     });
 
@@ -148,7 +157,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof ZodError) {
       return NextResponse.json(
         {
-          message: "Error de validación",
+          error: "Error de validacion",
           errors: error.issues.map((e) => ({
             field: String(e.path.join('.')),
             message: e.message

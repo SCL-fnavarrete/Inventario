@@ -5,7 +5,8 @@ Sistema web para la gestión integral del ciclo de vida de activos tecnológicos
 ## Características Principales
 
 - **Gestión de Activos**: CRUD completo de notebooks, celulares, monitores, impresoras y periféricos
-- **Gestión de Empleados**: Registro con RUT chileno validado, tipos de contrato y ubicaciones
+- **Gestión de Empleados**: Registro con RUT chileno validado (opcional), tipos de contrato y ubicaciones
+- **Microsoft Entra ID Sync**: Sincronización unidireccional (solo lectura) de empleados desde Azure AD via Graph API
 - **Asignaciones**: Flujo completo de entrega y devolución de equipos con actas digitales
 - **Mantenciones**: Programación y seguimiento de mantenciones preventivas y correctivas
 - **Desvinculaciones**: Proceso de devolución de equipos al término de contrato
@@ -60,6 +61,11 @@ DATABASE_URL="postgresql://usuario:password@localhost:5432/inventario_it?schema=
 # NextAuth
 NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="tu-secret-seguro-aqui"
+
+# Microsoft Entra ID (opcional - para sincronizar empleados)
+MICROSOFT_TENANT_ID=""
+MICROSOFT_CLIENT_ID=""
+MICROSOFT_CLIENT_SECRET=""
 ```
 
 4. **Ejecutar migraciones de base de datos**
@@ -209,6 +215,10 @@ src/
 - `GET /api/empleados/:id/ficha` - Ficha completa
 - `GET /api/empleados/buscar?rut=XX.XXX.XXX-X` - Buscar por RUT
 
+### Microsoft Sync
+- `GET /api/microsoft-sync/status` - Estado de configuracion y estadisticas
+- `POST /api/microsoft-sync` - Ejecutar sincronizacion (solo admin)
+
 ### Asignaciones
 - `GET /api/asignaciones` - Listar asignaciones
 - `POST /api/asignaciones` - Nueva asignación
@@ -225,6 +235,7 @@ El sistema valida automáticamente el formato y dígito verificador de RUTs chil
 - Formato aceptado: `XX.XXX.XXX-X` o `XXXXXXXX-X`
 - Se formatea automáticamente con puntos y guión
 - Acepta dígito verificador numérico o K
+- RUT es opcional para empleados sincronizados desde Microsoft Entra ID
 
 ## Importación desde Excel
 
@@ -243,9 +254,15 @@ El sistema valida automáticamente el formato y dígito verificador de RUTs chil
 DATABASE_URL="postgresql://..."
 NEXTAUTH_URL="https://tu-dominio.com"
 NEXTAUTH_SECRET="secret-muy-seguro-de-produccion"
+
+# Opcional - Microsoft Entra ID
+MICROSOFT_TENANT_ID="..."
+MICROSOFT_CLIENT_ID="..."
+MICROSOFT_CLIENT_SECRET="..."
 ```
 
 ### Despliegue en Vercel
+Root Directory debe estar configurado como `app` en Project Settings.
 ```bash
 npm run build
 vercel deploy --prod

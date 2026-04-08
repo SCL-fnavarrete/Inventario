@@ -85,13 +85,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const data = validationResult.data;
 
-    // Determinar nuevo estado del activo basado en estado de devolución
-    let nuevoEstadoActivo: "disponible" | "reutilizable" | "baja" = "reutilizable";
-    if (data.estadoDevolucion === "ok") {
-      nuevoEstadoActivo = "disponible";
-    } else if (data.estadoDevolucion === "danado") {
-      nuevoEstadoActivo = "reutilizable"; // Necesita revisión
+    // SPEC 2.7.7: Destino automático del activo según estado de devolución
+    let nuevoEstadoActivo: "reutilizable" | "baja" = "reutilizable";
+    if (data.estadoDevolucion === "danado") {
+      nuevoEstadoActivo = "baja"; // SPEC: danado → baja
     }
+    // ok → reutilizable, incompleto → reutilizable
 
     // Actualizar asignación y activo en una transacción
     const result = await prisma.$transaction(async (tx) => {
@@ -113,13 +112,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         },
       });
 
-      // Actualizar estado del activo
+      // Actualizar estado del activo (SPEC 2.7.7)
       await tx.asset.update({
         where: { id: existingAssignment.assetId },
         data: {
           estado: nuevoEstadoActivo,
           condicion: data.estadoDevolucion === "danado" ? "danado" : "usado",
           empleadoActualId: null,
+          ...(nuevoEstadoActivo === "baja" && { fechaBaja: new Date() }),
         },
       });
 

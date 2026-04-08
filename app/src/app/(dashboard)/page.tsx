@@ -14,6 +14,7 @@ import {
   XCircle,
   Package,
   FileText,
+  ClipboardList,
 } from "lucide-react";
 import Link from "next/link";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
@@ -33,6 +34,7 @@ async function getStats() {
     pendingTerminations,
     recentAssignments,
     categories,
+    solicitudesAbiertas,
   ] = await Promise.all([
     prisma.asset.count(),
     prisma.asset.count({ where: { estado: "disponible" } }),
@@ -65,6 +67,9 @@ async function getStats() {
           select: { assets: true },
         },
       },
+    }),
+    prisma.workflowRequest.count({
+      where: { fechaCierre: null },
     }),
   ]);
 
@@ -166,6 +171,7 @@ async function getStats() {
     stockByCategory,
     estadosData,
     asignacionesChartData,
+    solicitudesAbiertas,
   };
 }
 
@@ -369,7 +375,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Segunda fila de KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-white rounded-lg shadow p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -428,6 +434,20 @@ export default async function DashboardPage() {
             </div>
           </div>
         </div>
+
+        <Link href="/solicitudes" className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-gray-500">Solicitudes Abiertas</p>
+              <p className="text-2xl font-bold text-indigo-600">
+                {stats.solicitudesAbiertas}
+              </p>
+            </div>
+            <div className="p-2 bg-indigo-100 rounded-full">
+              <ClipboardList className="h-5 w-5 text-indigo-600" />
+            </div>
+          </div>
+        </Link>
       </div>
 
       {/* Gráficos */}
@@ -510,7 +530,7 @@ export default async function DashboardPage() {
                 </span>
               </Link>
               <Link
-                href="/asignaciones/nueva"
+                href="/solicitudes/nueva"
                 className="flex flex-col items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
               >
                 <CheckCircle className="h-6 w-6 text-purple-600 mb-1" />
@@ -519,12 +539,12 @@ export default async function DashboardPage() {
                 </span>
               </Link>
               <Link
-                href="/mantenciones/programar"
-                className="flex flex-col items-center p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
+                href="/solicitudes/nueva"
+                className="flex flex-col items-center p-3 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
               >
-                <Wrench className="h-6 w-6 text-orange-600 mb-1" />
-                <span className="text-xs font-medium text-orange-900">
-                  Programar Mant.
+                <ClipboardList className="h-6 w-6 text-indigo-600 mb-1" />
+                <span className="text-xs font-medium text-indigo-900">
+                  Nueva Solicitud
                 </span>
               </Link>
             </div>

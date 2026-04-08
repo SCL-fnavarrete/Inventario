@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Estados de activos válidos
+// Estados de activos validos
 export const estadoActivoEnum = z.enum([
   "disponible",
   "asignado",
@@ -10,66 +10,72 @@ export const estadoActivoEnum = z.enum([
   "vendido",
 ]);
 
-// Condiciones de activos válidas
+// Condiciones de activos validas
 export const condicionActivoEnum = z.enum(["nuevo", "usado", "danado"]);
 
 // Schema base para activos
 export const assetSchema = z.object({
-  categoriaId: z.string().uuid("ID de categoría inválido"),
+  categoriaId: z.string().uuid("ID de categoria invalido"),
 
-  // Identificación
-  numeroSerie: z.string().max(50, "Máximo 50 caracteres").optional().nullable(),
-  imei: z.string().max(20, "Máximo 20 caracteres").optional().nullable(),
-  numeroActivoInterno: z.string().max(50, "Máximo 50 caracteres").optional().nullable(),
-  codigoInterno: z.string().max(50, "Máximo 50 caracteres").optional().nullable(),
+  // Identificacion
+  numeroSerie: z.string().max(50, "Maximo 50 caracteres").optional().nullable(),
+  imei: z.string().max(20, "Maximo 20 caracteres").optional().nullable(),
+  numeroActivoInterno: z.string().max(50, "Maximo 50 caracteres").optional().nullable(),
 
   // Datos generales
-  marca: z.string().min(1, "La marca es requerida").max(50, "Máximo 50 caracteres"),
-  modelo: z.string().min(1, "El modelo es requerido").max(100, "Máximo 100 caracteres"),
+  marca: z.string().min(1, "La marca es requerida").max(50, "Maximo 50 caracteres"),
+  modelo: z.string().min(1, "El modelo es requerido").max(100, "Maximo 100 caracteres"),
 
   // Specs Notebook/PC
-  procesador: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
-  discoDuro: z.string().max(50, "Máximo 50 caracteres").optional().nullable(),
-  almacenamiento: z.string().max(50, "Máximo 50 caracteres").optional().nullable(),
-  ram: z.string().max(20, "Máximo 20 caracteres").optional().nullable(),
-  pulgadas: z.union([z.string(), z.number()]).optional().nullable(),
-  resolucion: z.string().max(50, "Máximo 50 caracteres").optional().nullable(),
-  sistemaOperativo: z.string().max(50, "Máximo 50 caracteres").optional().nullable(),
+  procesador: z.string().max(100, "Maximo 100 caracteres").optional().nullable(),
+  discoDuro: z.string().max(50, "Maximo 50 caracteres").optional().nullable(),
+  ram: z.string().max(20, "Maximo 20 caracteres").optional().nullable(),
+  pulgadas: z
+    .union([
+      z
+        .string()
+        .transform((v) => parseFloat(v))
+        .pipe(z.number().positive('Las pulgadas deben ser un valor positivo')),
+      z.number().positive('Las pulgadas deben ser un valor positivo'),
+    ])
+    .optional()
+    .nullable(),
+  sistemaOperativo: z.string().max(50, "Maximo 50 caracteres").optional().nullable(),
+  antivirus: z.string().max(100, "Maximo 100 caracteres").optional().nullable(),
+  nombreEquipo: z.string().max(100, "Maximo 100 caracteres").optional().nullable(),
 
   // Specs Celular
-  numeroTelefono: z.string().max(20, "Máximo 20 caracteres").optional().nullable(),
-  numeroActivacion: z.string().max(20, "Máximo 20 caracteres").optional().nullable(),
-  tipoPlan: z.string().max(50, "Máximo 50 caracteres").optional().nullable(),
+  numeroTelefono: z.string().max(20, "Maximo 20 caracteres").optional().nullable(),
+  numeroActivacion: z.string().max(20, "Maximo 20 caracteres").optional().nullable(),
+  tipoPlan: z.string().max(50, "Maximo 50 caracteres").optional().nullable(),
+  operador: z.string().max(50, "Maximo 50 caracteres").optional().nullable(),
   tieneCargador: z.boolean().optional(),
 
-  // Estado y ubicación
+  // Estado y ubicacion
   estado: estadoActivoEnum.optional().default("disponible"),
   condicion: condicionActivoEnum.optional().default("nuevo"),
-  ubicacionFisica: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
-
-  // Compra/Proveedor
-  valorCompra: z.number().optional().nullable(),
-  proveedorId: z.string().uuid("ID de proveedor inválido").optional().nullable().or(z.literal("")),
+  ubicacionFisica: z.string().max(100, "Maximo 100 caracteres").optional().nullable(),
 
   // Software/Licencias
   microsoft365: z.boolean().optional(),
   intuneEnrolled: z.boolean().optional(),
-  listaDistribucion: z.string().max(200, "Máximo 200 caracteres").optional().nullable(),
+  listaDistribucion: z.string().max(200, "Maximo 200 caracteres").optional().nullable(),
 
   // Fechas (acepta YYYY-MM-DD o ISO 8601 completo)
   fechaCompra: z.string().optional().nullable(),
   fechaGarantiaFin: z.string().optional().nullable(),
   fechaBaja: z.string().optional().nullable(),
 
-  // Observaciones
+  // Observaciones e incidencias
   observaciones: z.string().optional().nullable(),
+  incidencia: z.string().optional().nullable(),
 });
 
 // Schema para crear activo (campos requeridos)
 export const createAssetSchema = assetSchema.extend({
-  categoriaId: z.string().uuid("ID de categoría inválido"),
-  marca: z.string().min(1, "La marca es requerida").max(50, "Máximo 50 caracteres"),
-  modelo: z.string().min(1, "El modelo es requerido").max(100, "Máximo 100 caracteres"),
+  categoriaId: z.string().uuid("ID de categoria invalido"),
+  marca: z.string().min(1, "La marca es requerida").max(50, "Maximo 50 caracteres"),
+  modelo: z.string().min(1, "El modelo es requerido").max(100, "Maximo 100 caracteres"),
 });
 
 // Schema para actualizar activo (todos opcionales)
