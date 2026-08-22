@@ -41,10 +41,18 @@ export const returnAssignmentSchema = z.object({
   aceptaPoliticaUso: policyAcceptanceSchema,
 }).strict();
 
-/** A single official act for several assignments; client timestamps are not part of this shape. */
+/**
+ * A single official act for several assignments; client timestamps are not part
+ * of this shape.
+ *
+ * `employeeId` is required: the act belongs to one employee, and its signature
+ * is that person's. While it was optional, `executeReturn` fell back to
+ * `assignment.employeeId` and compared the assignment against itself, so a
+ * batch mixing two employees closed every return with a single signature.
+ */
 export const returnMultipleAssignmentsSchema = z.object({
   assignmentIds: z.array(z.string().uuid('ID de asignación inválido')).min(1).max(100),
-  employeeId: z.string().uuid('ID de empleado inválido').optional(),
+  employeeId: z.string().uuid('ID de empleado inválido'),
   fechaDevolucion: z.string().transform((val) => new Date(val)),
   recibidoPor: z.string().trim().min(1, 'Recibido por es requerido').max(100),
   estadoDevolucion: EstadoDevolucionEnum,

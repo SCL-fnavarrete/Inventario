@@ -196,6 +196,13 @@ export default function DevolucionPage() {
       setError("La devolución oficial requiere firma y aceptación de política de uso");
       return;
     }
+    // El acto pertenece a un empleado: sin él, la firma no tiene dueño. El
+    // servidor lo exige igual; aquí es para dar el motivo real en vez de un
+    // "Datos inválidos".
+    if (!employee?.id) {
+      setError("No se pudo identificar al empleado de la devolución");
+      return;
+    }
 
     setSubmitting(true);
     setError("");
@@ -207,7 +214,7 @@ export default function DevolucionPage() {
         body: JSON.stringify({
           ...returnData,
           assignmentIds: selectedAssignments,
-          employeeId: employee?.id,
+          employeeId: employee.id,
         }),
       });
       if (!res.ok) {

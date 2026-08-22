@@ -1,7 +1,9 @@
+import { FIRMA_VALIDA } from '@/test-utils/signature';
 import {
   createAssignmentSchema,
   createMultipleAssignmentsSchema,
   returnAssignmentSchema,
+  returnMultipleAssignmentsSchema,
   assignmentFiltersSchema,
   TipoMovimientoEnum,
   EstadoDevolucionEnum,
@@ -41,7 +43,7 @@ describe('Assignment Validation - EstadoDevolucionEnum', () => {
 
 describe('Assignment Validation - createAssignmentSchema', () => {
   const firmaPng =
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg=='
+    FIRMA_VALIDA
   const validAssignment = {
     assetId: '550e8400-e29b-41d4-a716-446655440000',
     employeeId: '550e8400-e29b-41d4-a716-446655440001',
@@ -152,7 +154,7 @@ describe('Assignment Validation - createAssignmentSchema', () => {
 
 describe('Assignment Validation - createMultipleAssignmentsSchema', () => {
   const firmaPng =
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg=='
+    FIRMA_VALIDA
   const validMultipleAssignment = {
     employeeId: '550e8400-e29b-41d4-a716-446655440001',
     assetIds: [
@@ -189,7 +191,7 @@ describe('Assignment Validation - createMultipleAssignmentsSchema', () => {
 
 describe('Assignment Validation - returnAssignmentSchema', () => {
   const firmaPng =
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg=='
+    FIRMA_VALIDA
   const validReturn = {
     fechaDevolucion: '2024-06-15',
     estadoDevolucion: 'ok' as const,
@@ -302,5 +304,49 @@ describe('Assignment Validation - assignmentFiltersSchema', () => {
       sortBy: 'invalidField',
     })
     expect(result.success).toBe(false)
+  })
+})
+
+/**
+ * Un acto oficial de devolución por lote pertenece a **un** empleado: la firma
+ * que lo cierra es la de esa persona.
+ *
+ * Cuando `employeeId` era opcional, el servicio caía al fallback
+ * `context?.expectedEmployeeId ?? assignment.employeeId` y comparaba la
+ * asignación consigo misma, así que la comprobación de pertenencia no
+ * comprobaba nada: un lote con asignaciones de dos empleados se cerraba con una
+ * sola firma. La página envía `employee?.id`, y `JSON.stringify` elimina la
+ * clave cuando ese estado todavía es `null`, así que el hueco era alcanzable
+ * sin un cliente hostil.
+ */
+describe('returnMultipleAssignmentsSchema — dueño del acto', () => {
+  const firma =
+    FIRMA_VALIDA
+
+  const acto = {
+    assignmentIds: ['550e8400-e29b-41d4-a716-446655440001'],
+    fechaDevolucion: '2026-08-22',
+    recibidoPor: 'Técnico TI',
+    estadoDevolucion: 'ok',
+    firmaEmpleadoDevolucion: firma,
+    aceptaPoliticaUso: true,
+  }
+
+  test('exige employeeId: sin dueño no hay acto que firmar', () => {
+    const result = returnMultipleAssignmentsSchema.safeParse(acto)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path[0] === 'employeeId')).toBe(true)
+    }
+  })
+
+  test('acepta el acto cuando declara a su empleado', () => {
+    const result = returnMultipleAssignmentsSchema.safeParse({
+      ...acto,
+      employeeId: '550e8400-e29b-41d4-a716-446655440000',
+    })
+
+    expect(result.success).toBe(true)
   })
 })

@@ -1,3 +1,4 @@
+import { FIRMA_VALIDA } from '@/test-utils/signature';
 import {
   assetBajaSchema,
   assetVentaSchema,
@@ -197,7 +198,7 @@ describe('maintenanceCloseSchema', () => {
 // SPEC: Sección 2.7.6 — Reasignación
 describe('assetReassignmentSchema', () => {
   const firmaPng =
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg==';
+    FIRMA_VALIDA;
   const validReassignment = {
     assignmentId: '550e8400-e29b-41d4-a716-446655440000',
     newEmployeeId: '550e8400-e29b-41d4-a716-446655440001',

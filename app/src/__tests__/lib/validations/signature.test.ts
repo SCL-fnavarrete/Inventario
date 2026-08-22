@@ -2,9 +2,9 @@ import {
   MAX_SIGNATURE_BYTES,
   pngSignatureSchema,
 } from '@/lib/validations/signature';
+import { FIRMA_VALIDA, pngDeUnPixel, pngSinDatosDeImagen, pngValido } from '@/test-utils/signature';
 
-const PNG_SIGNATURE =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg==';
+const PNG_SIGNATURE = FIRMA_VALIDA;
 
 describe('pngSignatureSchema', () => {
   test('acepta un PNG base64 real y conserva su data URL', () => {
@@ -32,6 +32,26 @@ describe('pngSignatureSchema', () => {
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3phAAAABJRU5ErkJggg==',
   ])('rechaza PNG truncado, con chunks inválidos o base64 no canónico: %s', (firma) => {
     expect(pngSignatureSchema.safeParse(firma).success).toBe(false);
+  });
+
+  /**
+   * `IHDR` declara el tamaño y `IEND` cierra el archivo; los píxeles viven en
+   * los chunks `IDAT`, que la especificación PNG exige y este validador no
+   * pedía. Sin ellos, ~60 bytes de estructura bastaban para satisfacer el
+   * control de firma: el acta se emitía y el visor no dibujaba nada.
+   */
+  test('rechaza un PNG estructuralmente correcto pero sin datos de imagen', () => {
+    expect(pngSignatureSchema.safeParse(pngSinDatosDeImagen()).success).toBe(false);
+  });
+
+  test('rechaza un PNG de un solo píxel: es un token, no una firma', () => {
+    expect(pngSignatureSchema.safeParse(pngDeUnPixel()).success).toBe(false);
+  });
+
+  test('acepta el tamaño mínimo declarado y rechaza el inmediatamente inferior', () => {
+    expect(pngSignatureSchema.safeParse(pngValido(64, 32)).success).toBe(true);
+    expect(pngSignatureSchema.safeParse(pngValido(63, 32)).success).toBe(false);
+    expect(pngSignatureSchema.safeParse(pngValido(64, 31)).success).toBe(false);
   });
 
   test('rechaza una firma PNG que excede el límite conservador', () => {

@@ -604,6 +604,61 @@ archivo (`sharepoint_item_id`, `sharepoint_url`, `archivo_estado`,
 FK `SET NULL`, cada contexto puede conservarse o cambiar de un valor existente a
 `NULL`; no puede asignarse ni reemplazarse por otro contexto.
 
+### 2.1 quinquies El acto oficial de entrega y devolución
+
+Un acto oficial es una entrega o una devolución respaldada por la firma del
+empleado y su aceptación explícita de la política de uso. Estas reglas valen
+para **todos** los caminos que producen uno: la transición de una solicitud, el
+alta y la devolución directas, la reasignación, la devolución por lote y el
+cierre de una desvinculación.
+
+**Un acto, un empleado.** La devolución por lote exige `employee_id`: el acto
+pertenece a una persona y la firma que lo cierra es la suya. Antes el campo era
+opcional y la verificación de pertenencia caía al `employee_id` de cada
+asignación, comparándola consigo misma; un lote que mezclaba empleados cerraba
+todas las devoluciones con una sola firma. La devolución individual no necesita
+declararlo: su empleado es el de la propia asignación.
+
+**Qué garantiza la validación de la firma.** La firma es un PNG en base64 con
+cabecera y estructura completas —`IHDR` primero, al menos un `IDAT` con datos, e
+`IEND` al final—, de tamaño mínimo 64×32 y máximo 256 KB, con base64 canónico.
+Exigir `IDAT` es lo que descarta un archivo sin imagen: sin ese chunk, ~60 bytes
+de estructura satisfacían el control y el visor no dibujaba nada.
+
+*Límite conocido y deliberado:* un PNG bien formado y del tamaño correcto cuyos
+píxeles sean todos transparentes pasa la validación. Comprobar que hay trazo
+exigiría descomprimir el flujo `IDAT` y contar píxeles opacos. El control
+garantiza "esto es una imagen real con la forma esperada", no "alguien firmó".
+
+**La firma tiene un solo lugar.** Vive en `assignments` (y, sellada, en el
+snapshot del documento emitido). `workflow_transitions.datos_accion` registra
+qué se hizo y deja constancia de que la firma existió
+(`firma_entrega_registrada`, `firma_devolucion_registrada`), nunca una segunda
+copia de la imagen: duplicarla engordaba la auditoría y la ficha de la solicitud
+devolvía todas las firmas en cada lectura.
+
+**El cierre de una desvinculación no firma lo que no evaluó.** Los estados de
+notebook, celular y monitor se contrastan en ambos sentidos con los activos
+realmente asignados. Además:
+
+- `estado_kit` se contrasta con `kit_assignments`, no con las categorías de
+  activos: si el empleado tiene ítems en estado `entregado`, no puede declararse
+  `no_aplica`; si no tiene ninguno, debe declararse `no_aplica`. Al cerrar con
+  `ok` o `danado`, esos ítems pasan a `devuelto`, que es lo que mantiene la
+  regla coherente en el tiempo.
+- Un `estado_kit` dañado exige descuento, igual que las otras tres categorías.
+- Si el empleado tiene asignado un activo de una categoría que este cierre no
+  pregunta (hoy `tipo_devolucion = otro`), el cierre se rechaza y nombra el
+  activo. Antes se registraba como devuelto en buen estado sin que nadie lo
+  hubiera mirado. La salida es devolverlo con su propia acta y luego consolidar.
+
+**Actas del parque histórico.** Las asignaciones anteriores a este control no
+tienen firma. Su acta se emite igual, sellada como `REGISTRO HISTÓRICO — sin
+evidencia oficial de firma` y con la cabecera `X-Evidencia-Oficial: ausente`;
+cuando la firma existe, el PDF la dibuja y la cabecera dice `presente`.
+Rechazarlas con 409 dejaba sin acta a todo el inventario ya cargado. El acta
+inmutable y versionada de `documentos_emitidos` reemplaza a esta ruta.
+
 #### NOTIFICACIONES ENVIADAS (notificaciones_enviadas)
 
 `NotificacionEnviada` deja evidencia del intento de correo Graph: `id` UUID,
@@ -1635,6 +1690,13 @@ nunca debió existir como fila separada.
 
 ## Changelog SPEC
 
+- **v1.6 (2026-08-22):**
+  - Sección 2.1 quinquies nueva: reglas del acto oficial de entrega y devolución, comunes a todos los caminos que producen uno. Cierra los hallazgos de la revisión de la Ola 2.3.
+  - `employee_id` obligatorio en la devolución por lote: era opcional y la verificación de pertenencia se comparaba consigo misma, así que un lote de varios empleados se cerraba con una sola firma.
+  - La firma exige al menos un chunk `IDAT` y 64×32 mínimo. Se documenta el límite que el control **no** cubre: un PNG en blanco del tamaño correcto pasa.
+  - La firma deja de duplicarse en `workflow_transitions.datos_accion`; queda solo la constancia de que existió.
+  - `estado_kit` se contrasta con `kit_assignments` y sus ítems pasan a `devuelto` al cerrar; un kit dañado exige descuento; un activo de categoría no evaluada bloquea el cierre en vez de registrarse como devuelto en buen estado.
+  - El acta de una asignación histórica se emite sellada como registro sin evidencia, en vez de responder 409; cuando hay firma, el PDF la dibuja.
 - **v1.5 (2026-08-22):**
   - Sección 1.3.2: una petición sin sesión a `/api/**` responde `401` con el formato de error unificado, no un redirect a la página de login. El redirect devolvía HTML a los `fetch()` del cliente, que fallaban con `Unexpected token '<'` en vez de informar que la sesión expiró.
   - Sección 1.3.2: las páginas sin sesión van a `/login` en un solo salto. Antes rebotaban por `/api/auth/signin`, porque el redirect lo emitía `withAuth` y no el middleware.

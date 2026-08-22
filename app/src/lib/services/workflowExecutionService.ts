@@ -256,9 +256,17 @@ export async function executeReturn(
 
 type TerminationAssetType = 'notebook' | 'celular' | 'monitor';
 
+/**
+ * Las tres categorías que el formulario de cierre pregunta una por una. Todo
+ * activo asignado cae en `TipoDevolucion`, así que cualquier otro valor —hoy
+ * `otro`— describe un equipo cuyo estado nadie declara.
+ */
+const EVALUATED_CATEGORIES: readonly TerminationAssetType[] = ['notebook', 'celular', 'monitor'];
+
 function assertTerminationCategoryStates(
-  assignments: Array<{ asset: { categoria: { tipoDevolucion: string } } }>,
-  params: ExecuteTerminationReturnParams
+  assignments: Array<{ asset: { categoria: { nombre?: string; tipoDevolucion: string } } }>,
+  params: ExecuteTerminationReturnParams,
+  kitsEntregados: number
 ) {
   if (params.estadoKit === 'pendiente') {
     throw new ServiceConflictError('No se puede cerrar una devolución con estado pendiente');
@@ -268,6 +276,30 @@ function assertTerminationCategoryStates(
     ['celular', params.estadoCelular],
     ['monitor', params.estadoMonitor],
   ];
+
+  // El kit no vive en `Asset` sino en `KitAssignment`, así que su contraste es
+  // contra lo que ese registro dice que el empleado tiene, no contra las
+  // categorías de activos.
+  // `pendiente` ya quedó descartado arriba para cualquier estado del kit.
+  if (kitsEntregados > 0 && params.estadoKit === 'no_aplica') {
+    throw new ServiceConflictError(
+      `No se puede cerrar: el empleado tiene ${kitsEntregados} ítem(s) de kit entregados y el estado declarado es no_aplica`
+    );
+  }
+  if (kitsEntregados === 0 && params.estadoKit !== 'no_aplica') {
+    throw new ServiceConflictError('El empleado no tiene kit entregado: el estado del kit debe ser no_aplica');
+  }
+
+  // Un acta no puede afirmar el estado de algo que nadie evaluó.
+  const sinEvaluar = assignments.find(
+    (assignment) => !EVALUATED_CATEGORIES.includes(assignment.asset.categoria.tipoDevolucion as TerminationAssetType)
+  );
+  if (sinEvaluar) {
+    throw new ServiceConflictError(
+      `No se puede cerrar: hay un activo de categoría "${sinEvaluar.asset.categoria.nombre ?? sinEvaluar.asset.categoria.tipoDevolucion}" cuyo estado este cierre no evalúa. Devuélvalo con su propia acta antes de consolidar.`
+    );
+  }
+
   for (const [category, state] of states) {
     const hasActiveAsset = assignments.some((assignment) => assignment.asset.categoria.tipoDevolucion === category);
     if (hasActiveAsset && (state === 'pendiente' || state === 'no_aplica')) {
@@ -307,7 +339,10 @@ export async function executeTerminationReturn(
     throw new ServiceConflictError('La desvinculación no pertenece al empleado de este acto');
   }
   const assignments = termination.employee.assignments;
-  assertTerminationCategoryStates(assignments, params);
+  const kitsEntregados = await tx.kitAssignment.count({
+    where: { employeeId: expectedEmployeeId, estado: 'entregado' },
+  });
+  assertTerminationCategoryStates(assignments, params, kitsEntregados);
   for (const assignment of assignments) {
     if (
       assignment.employeeId !== expectedEmployeeId ||
@@ -320,7 +355,12 @@ export async function executeTerminationReturn(
     }
   }
 
-  const hayDanos = [params.estadoNotebook, params.estadoCelular, params.estadoMonitor].includes('danado');
+  const hayDanos = [
+    params.estadoNotebook,
+    params.estadoCelular,
+    params.estadoMonitor,
+    params.estadoKit,
+  ].includes('danado');
   const updatedTermination = await tx.termination.update({
     where: { id: params.terminationId },
     data: {
@@ -337,6 +377,15 @@ export async function executeTerminationReturn(
       observaciones: params.observaciones,
     },
   });
+
+  // El kit declarado deja de estar entregado. Sin esto la validación de arriba
+  // seguiría viendo el kit como pendiente de devolver para siempre.
+  if (kitsEntregados > 0) {
+    await tx.kitAssignment.updateMany({
+      where: { employeeId: expectedEmployeeId, estado: 'entregado' },
+      data: { estado: 'devuelto' },
+    });
+  }
 
   const results = [];
   for (const assignment of assignments) {

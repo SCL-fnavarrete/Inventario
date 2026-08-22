@@ -11,6 +11,26 @@ import {
 } from '@/lib/services/workflowExecutionService';
 import { ConflictError, ForbiddenError, NotFoundError, requirePermission, handleApiError } from '@/lib/auth/guard';
 
+/**
+ * La firma vive en `Assignment`, que es de donde el documento inmutable la
+ * toma. La transición registra qué se hizo, no una segunda copia de la
+ * evidencia: `WorkflowTransition.datosAccion` guardaba la misma imagen base64
+ * —hasta 256 KB por transición— y `GET /api/solicitudes/[id]` devuelve las
+ * transiciones completas, así que cada carga de la ficha arrastraba todas las
+ * firmas de la solicitud.
+ *
+ * Queda la constancia de que la firma existió; la imagen, en su único lugar.
+ */
+function datosAccionParaAuditoria(datosAccion: unknown) {
+  if (!datosAccion || typeof datosAccion !== 'object') return undefined;
+  const { firmaEmpleadoEntrega, firmaEmpleadoDevolucion, ...resto } = datosAccion as Record<string, unknown>;
+  return {
+    ...resto,
+    ...(firmaEmpleadoEntrega ? { firmaEntregaRegistrada: true } : {}),
+    ...(firmaEmpleadoDevolucion ? { firmaDevolucionRegistrada: true } : {}),
+  };
+}
+
 // POST /api/solicitudes/[id]/transicion - Advance workflow state
 export async function POST(
   request: NextRequest,
@@ -174,7 +194,7 @@ export async function POST(
           responsableActual: { select: { id: true, nombre: true, rol: true } },
         },
       });
-      const datosAccion = 'datosAccion' in input ? input.datosAccion : undefined;
+      const datosAccion = datosAccionParaAuditoria('datosAccion' in input ? input.datosAccion : undefined);
       await tx.workflowTransition.create({
         data: {
           requestId: id,

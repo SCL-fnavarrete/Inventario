@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { FIRMA_VALIDA } from '@/test-utils/signature';
 import {
   executeAssignment,
   executeReturn,
@@ -6,7 +7,7 @@ import {
 } from '@/lib/services/workflowExecutionService';
 
 const firmaPng =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg==';
+  FIRMA_VALIDA;
 
 describe('executeAssignment', () => {
   test('detiene la entrega sin crear asignación cuando el CAS del activo no la puede reclamar', async () => {
@@ -264,6 +265,10 @@ describe('executeTerminationReturn', () => {
         }),
         update: terminationUpdate,
       },
+      kitAssignment: {
+        count: jest.fn().mockResolvedValue(0),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
       assignment: { findUnique: jest.fn().mockResolvedValue(assignmentRecord), updateMany: assignmentUpdate },
       asset: { updateMany: assetUpdate },
       assetHistory: { create: assetHistoryCreate },
@@ -309,6 +314,7 @@ describe('executeTerminationReturn', () => {
       },
       assignment: { update: assignmentUpdate },
       asset: { update: assetUpdate },
+      kitAssignment: { count: jest.fn().mockResolvedValue(0), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       assetHistory: { create: jest.fn() },
     } as unknown as Prisma.TransactionClient;
 
@@ -328,40 +334,34 @@ describe('executeTerminationReturn', () => {
     expect(assetUpdate).not.toHaveBeenCalled();
   });
 
-  test('no clasifica como notebook una categoría llamada Notebook cuyo tipo es otro', async () => {
+  test('una categoría llamada Notebook cuyo tipo es otro no se cierra como notebook', async () => {
     const { tx, assignmentUpdate, assetUpdate } = transactionForCategory('Notebook', 'otro');
 
-    await executeTerminationReturn(tx, {
-      ...returnParams,
-      estadoNotebook: 'no_aplica', estadoCelular: 'no_aplica', estadoMonitor: 'no_aplica',
-    });
-
-    expect(assignmentUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ estadoDevolucion: 'ok' }),
+    // El nombre no manda: el tipo estable la deja fuera de las tres categorías
+    // que el cierre evalúa, así que su estado no se puede firmar aquí.
+    await expect(
+      executeTerminationReturn(tx, {
+        ...returnParams,
+        estadoNotebook: 'no_aplica', estadoCelular: 'no_aplica', estadoMonitor: 'no_aplica',
       })
-    );
-    expect(assetUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ estado: 'reutilizable' }) })
-    );
+    ).rejects.toThrow(/no se puede cerrar/i);
+
+    expect(assignmentUpdate).not.toHaveBeenCalled();
+    expect(assetUpdate).not.toHaveBeenCalled();
   });
 
-  test('no aplica los estados dañados de notebook, celular o monitor a una categoría otro', async () => {
+  test('una docking station no hereda el estado del notebook ni se cierra sin evaluar', async () => {
     const { tx, assignmentUpdate, assetUpdate } = transactionForCategory('Docking Station', 'otro');
 
-    await executeTerminationReturn(tx, {
-      ...returnParams,
-      estadoNotebook: 'no_aplica', estadoCelular: 'no_aplica', estadoMonitor: 'no_aplica',
-    });
-
-    expect(assignmentUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ estadoDevolucion: 'ok' }),
+    await expect(
+      executeTerminationReturn(tx, {
+        ...returnParams,
+        estadoNotebook: 'no_aplica', estadoCelular: 'no_aplica', estadoMonitor: 'no_aplica',
       })
-    );
-    expect(assetUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ estado: 'reutilizable' }) })
-    );
+    ).rejects.toThrow(/no se puede cerrar/i);
+
+    expect(assignmentUpdate).not.toHaveBeenCalled();
+    expect(assetUpdate).not.toHaveBeenCalled();
   });
 
   test('aplica una sola firma y timestamp de servidor a cada asignación de una devolución múltiple', async () => {
@@ -399,6 +399,7 @@ describe('executeTerminationReturn', () => {
         updateMany: assignmentUpdate,
       },
       asset: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      kitAssignment: { count: jest.fn().mockResolvedValue(0), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       assetHistory: { create: jest.fn().mockResolvedValue({}) },
     } as unknown as Prisma.TransactionClient;
 
@@ -408,5 +409,125 @@ describe('executeTerminationReturn', () => {
     expect(signatureUpdates).toHaveLength(2);
     expect(signatureUpdates.every((data) => data.firmaEmpleadoDevolucion === firmaPng)).toBe(true);
     expect(signatureUpdates[0].firmaEmpleadoDevolucionEn).toBe(signatureUpdates[1].firmaEmpleadoDevolucionEn);
+  });
+});
+
+/**
+ * El cierre de una desvinculación firma un acta que afirma en qué estado volvió
+ * cada cosa. Antes, `estadoNotebook`, `estadoCelular` y `estadoMonitor` se
+ * cruzaban con los activos realmente asignados —en los dos sentidos—, pero
+ * `estadoKit` sólo tenía prohibido quedar en `pendiente`: nadie lo comparaba
+ * con `KitAssignment`. Así, quien tenía kit entregado podía declarar
+ * `no_aplica`, y quien nunca recibió uno podía declarar `ok`.
+ *
+ * El mismo agujero, por el otro lado: toda asignación activa de una categoría
+ * que el formulario no pregunta (`otro`) se cerraba con `ok` por defecto, sin
+ * que nadie hubiera mirado el equipo.
+ */
+describe('executeTerminationReturn — kit y categorías no evaluadas', () => {
+  const baseParams = {
+    terminationId: 'termination-1',
+    fechaDevolucionEquipos: new Date('2026-08-21T00:00:00.000Z'),
+    estadoNotebook: 'no_aplica' as const,
+    estadoCelular: 'no_aplica' as const,
+    estadoMonitor: 'no_aplica' as const,
+    estadoKit: 'no_aplica' as const,
+    recibidoPor: 'Técnico TI',
+    lugarDevolucion: 'Santiago',
+    firmaEmpleadoDevolucion: FIRMA_VALIDA,
+    aceptaPoliticaUso: true as const,
+  };
+
+  function transaccion({
+    tipoDevolucion = 'notebook',
+    kitsEntregados = 0,
+    conAsignacion = true,
+  }: { tipoDevolucion?: string; kitsEntregados?: number; conAsignacion?: boolean } = {}) {
+    const assignmentRecord = {
+      id: 'assignment-1',
+      assetId: 'asset-1',
+      employeeId: 'employee-1',
+      activo: true,
+      asset: {
+        id: 'asset-1', estado: 'asignado', empleadoActualId: 'employee-1', deletedAt: null,
+        categoria: { nombre: 'Categoría', tipoDevolucion },
+      },
+      employee: { nombres: 'Ada', apellidoPaterno: 'Lovelace' },
+    };
+    const assignments = conAsignacion ? [assignmentRecord] : [];
+    const terminationUpdate = jest.fn().mockResolvedValue({ id: 'termination-1' });
+    const kitUpdateMany = jest.fn().mockResolvedValue({ count: kitsEntregados });
+    const tx = {
+      termination: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'termination-1',
+          employeeId: 'employee-1',
+          employee: { id: 'employee-1', nombres: 'Ada', apellidoPaterno: 'Lovelace', assignments },
+        }),
+        update: terminationUpdate,
+      },
+      kitAssignment: {
+        count: jest.fn().mockResolvedValue(kitsEntregados),
+        updateMany: kitUpdateMany,
+      },
+      assignment: { findUnique: jest.fn().mockResolvedValue(assignmentRecord), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      asset: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      assetHistory: { create: jest.fn().mockResolvedValue({}) },
+    } as unknown as Prisma.TransactionClient;
+
+    return { tx, terminationUpdate, kitUpdateMany };
+  }
+
+  test('no deja declarar no_aplica cuando el empleado tiene kit entregado', async () => {
+    const { tx, terminationUpdate } = transaccion({ kitsEntregados: 2 });
+
+    await expect(
+      executeTerminationReturn(tx, { ...baseParams, estadoNotebook: 'ok', estadoKit: 'no_aplica' })
+    ).rejects.toThrow(/kit/i);
+
+    expect(terminationUpdate).not.toHaveBeenCalled();
+  });
+
+  test('exige no_aplica cuando el empleado nunca recibió kit', async () => {
+    const { tx, terminationUpdate } = transaccion({ kitsEntregados: 0 });
+
+    await expect(
+      executeTerminationReturn(tx, { ...baseParams, estadoNotebook: 'ok', estadoKit: 'ok' })
+    ).rejects.toThrow(/kit/i);
+
+    expect(terminationUpdate).not.toHaveBeenCalled();
+  });
+
+  test('un kit dañado obliga al descuento, igual que los otros equipos', async () => {
+    const { tx, terminationUpdate } = transaccion({ kitsEntregados: 1 });
+
+    await executeTerminationReturn(tx, { ...baseParams, estadoNotebook: 'ok', estadoKit: 'danado' });
+
+    expect(terminationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ requiereDescuento: true }) })
+    );
+  });
+
+  test('cierra el ciclo del kit: lo entregado pasa a devuelto', async () => {
+    const { tx, kitUpdateMany } = transaccion({ kitsEntregados: 1 });
+
+    await executeTerminationReturn(tx, { ...baseParams, estadoNotebook: 'ok', estadoKit: 'ok' });
+
+    expect(kitUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ employeeId: 'employee-1', estado: 'entregado' }),
+        data: { estado: 'devuelto' },
+      })
+    );
+  });
+
+  test('no firma el estado de un activo que el formulario no evalúa', async () => {
+    const { tx, terminationUpdate } = transaccion({ tipoDevolucion: 'otro' });
+
+    await expect(
+      executeTerminationReturn(tx, { ...baseParams })
+    ).rejects.toThrow(/no se puede/i);
+
+    expect(terminationUpdate).not.toHaveBeenCalled();
   });
 });

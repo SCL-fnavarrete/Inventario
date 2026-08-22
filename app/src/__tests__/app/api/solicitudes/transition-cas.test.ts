@@ -16,7 +16,8 @@ import { prisma } from '@/lib/prisma';
 import { executeAssignment } from '@/lib/services/workflowExecutionService';
 import { NextRequest } from 'next/server';
 
-const signature = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg==';
+import { FIRMA_VALIDA } from '@/test-utils/signature';
+const signature = FIRMA_VALIDA;
 
 describe('POST /api/solicitudes/[id]/transicion — CAS', () => {
   test('no ejecuta entrega si otro request ya reclamó el estado de la solicitud', async () => {
@@ -44,5 +45,61 @@ describe('POST /api/solicitudes/[id]/transicion — CAS', () => {
 
     expect(response.status).toBe(409);
     expect(executeAssignment).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * La firma tiene un solo lugar canónico: `Assignment`, de donde Task 6 la toma
+ * para sellar el documento inmutable.
+ *
+ * La transición guardaba `datosAccion` tal como llegó, así que la misma imagen
+ * base64 —hasta 256 KB— quedaba también en la tabla de auditoría. Y como
+ * `GET /api/solicitudes/[id]` incluye las transiciones completas, cada carga de
+ * la ficha devolvía todas las firmas de la solicitud a cualquier rol que pueda
+ * leerla.
+ */
+describe('POST /api/solicitudes/[id]/transicion — la auditoría no guarda la firma', () => {
+  function transaccionQueRegistra() {
+    const transitionCreate = jest.fn().mockResolvedValue({});
+    const tx = {
+      workflowRequest: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'request-1', tipo: 'onboarding', estado: 'gestion_ti', employeeId: 'employee-1',
+          employee: { id: 'employee-1' }, assignmentIds: [], numero: 'WF-1', motivoCambio: null,
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        update: jest.fn().mockResolvedValue({ id: 'request-1', estado: 'equipos_entregados' }),
+      },
+      workflowTransition: { create: transitionCreate },
+    };
+    (prisma.$transaction as jest.Mock).mockImplementation((callback) => callback(tx));
+    return { transitionCreate };
+  }
+
+  test('registra la transición sin la imagen de la firma, pero deja constancia de que existió', async () => {
+    (prisma.systemUser.findUnique as jest.Mock).mockResolvedValue({ id: 'system-1', nombre: 'Técnico', rol: 'tecnico' });
+    (executeAssignment as jest.Mock).mockResolvedValue({
+      assignment: { id: 'assignment-1' },
+      evidenciaParaDocumento: { tipo: 'entrega', assignmentId: 'assignment-1' },
+    });
+    const { transitionCreate } = transaccionQueRegistra();
+
+    const response = await POST(new NextRequest('http://localhost/api/solicitudes/request-1/transicion', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        nuevoEstado: 'equipos_entregados',
+        datosAccion: {
+          assetIds: ['550e8400-e29b-41d4-a716-446655440001'], lugarEntrega: 'Santiago',
+          firmaEmpleadoEntrega: signature, aceptaPoliticaUso: true,
+        },
+      }),
+    }), { params: Promise.resolve({ id: 'request-1' }) });
+
+    expect(response.status).toBe(200);
+    const persistido = transitionCreate.mock.calls[0][0].data.datosAccion;
+    expect(JSON.stringify(persistido)).not.toContain('data:image/png');
+    expect(persistido.lugarEntrega).toBe('Santiago');
+    expect(persistido.assetIds).toEqual(['550e8400-e29b-41d4-a716-446655440001']);
+    expect(persistido.firmaEntregaRegistrada).toBe(true);
   });
 });

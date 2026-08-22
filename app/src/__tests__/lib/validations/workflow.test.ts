@@ -1,3 +1,4 @@
+import { FIRMA_VALIDA } from '@/test-utils/signature';
 import {
   createWorkflowRequestSchema,
   transitionSchema,
@@ -188,7 +189,7 @@ describe('transitionSchema', () => {
         newAssetId: '550e8400-e29b-41d4-a716-446655440000',
         lugarEntrega: 'Santiago',
         firmaEmpleadoEntrega:
-          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg==',
+          FIRMA_VALIDA,
         aceptaPoliticaUso: true,
       },
     });
@@ -202,7 +203,7 @@ describe('transitionSchema', () => {
         estadoNotebook: 'ok', estadoCelular: 'no_aplica', estadoMonitor: 'no_aplica', estadoKit: 'no_aplica',
         lugarDevolucion: 'Santiago',
         firmaEmpleadoDevolucion:
-          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg==',
+          FIRMA_VALIDA,
         aceptaPoliticaUso: true,
       },
     });
@@ -228,7 +229,7 @@ describe('transitionSchema', () => {
   });
 
   const firmaPng =
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg==';
+    FIRMA_VALIDA;
 
   test('requiere evidencia completa para la entrega oficial de onboarding', () => {
     const result = transitionSchema.safeParse({

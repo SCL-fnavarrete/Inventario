@@ -55,15 +55,20 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const evidenciaOficial = tipo === 'entrega'
-      ? assignment.firmaEmpleadoEntrega && assignment.firmaEmpleadoEntregaEn
-      : assignment.firmaEmpleadoDevolucion && assignment.firmaEmpleadoDevolucionEn;
-    if (!evidenciaOficial) {
-      return NextResponse.json(
-        { error: `No existe evidencia oficial de ${tipo === 'entrega' ? 'entrega' : 'devolución'} para esta asignación` },
-        { status: 409 }
-      );
-    }
+    /**
+     * Las asignaciones anteriores al control de evidencia no tienen firma. Un
+     * 409 las dejaba sin acta —la función desaparecía para todo el parque ya
+     * cargado—, así que el acta se emite igual y declara lo que la respalda:
+     * la firma dibujada cuando existe, un sello de registro histórico cuando
+     * no. Task 6 la reemplaza por el documento inmutable y versionado.
+     */
+    const firmaOficial = tipo === 'entrega'
+      ? assignment.firmaEmpleadoEntrega
+      : assignment.firmaEmpleadoDevolucion;
+    const firmaOficialEn = tipo === 'entrega'
+      ? assignment.firmaEmpleadoEntregaEn
+      : assignment.firmaEmpleadoDevolucionEn;
+    const tieneEvidenciaOficial = Boolean(firmaOficial && firmaOficialEn);
 
     // Crear PDF
     const doc = new jsPDF();
@@ -231,6 +236,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     doc.setLineWidth(0.3);
 
     // Firma colaborador
+    if (tieneEvidenciaOficial && firmaOficial) {
+      try {
+        // La firma se guardó como PNG data URL; jsPDF la acepta tal cual.
+        doc.addImage(firmaOficial, "PNG", 15, yPos - 22, 70, 22);
+      } catch (firmaError) {
+        console.error("Error al dibujar la firma en el acta:", firmaError);
+      }
+    }
     doc.line(15, yPos, 85, yPos);
     doc.setFontSize(9);
     doc.text("Firma Colaborador", 35, yPos + 5);
@@ -242,6 +255,20 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     doc.text("Firma Depto. TI", pageWidth - 65, yPos + 5);
     const responsable = tipo === "entrega" ? assignment.entregadoPor : assignment.recibidoPor;
     doc.text(responsable || "Técnico IT", pageWidth - 85, yPos + 10);
+
+    if (!tieneEvidenciaOficial) {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(180, 30, 30);
+      doc.text(
+        "REGISTRO HISTÓRICO — sin evidencia oficial de firma",
+        pageWidth / 2,
+        yPos + 28,
+        { align: "center" }
+      );
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(0, 0, 0);
+    }
 
     // Footer
     doc.setFontSize(8);
@@ -261,7 +288,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="acta_${tipo}_${(assignment.employee.rut || assignment.employee.id).replace(/\./g, "")}_${assignment.asset.numeroSerie || assignment.id}.pdf"`,
+        "X-Evidencia-Oficial": tieneEvidenciaOficial ? "presente" : "ausente",
+        "Content-Disposition": `attachment; filename="acta_${tipo}${tieneEvidenciaOficial ? "" : "_historico"}_${(assignment.employee.rut || assignment.employee.id).replace(/\./g, "")}_${assignment.asset.numeroSerie || assignment.id}.pdf"`,
       },
     });
   } catch (error) {
