@@ -26,6 +26,7 @@ async function getReporteSummary() {
     prisma.asset.count({ where: ACTIVOS_VIGENTES }),
     prisma.asset.groupBy({
       by: ["estado"],
+      where: ACTIVOS_VIGENTES,
       _count: true,
     }),
     prisma.employee.count({ where: { estado: "activo" } }),

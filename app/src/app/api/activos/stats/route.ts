@@ -61,6 +61,7 @@ export async function GET() {
     // Obtener conteo por condición
     const byConditionRaw = await prisma.asset.groupBy({
       by: ["condicion"],
+      where: ACTIVOS_VIGENTES,
       _count: {
         condicion: true,
       },

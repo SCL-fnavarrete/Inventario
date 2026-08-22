@@ -48,7 +48,7 @@ export async function executeAssignment(
     include: { categoria: true },
   });
 
-  if (!asset) throw new Error('Activo no encontrado');
+  if (!asset || asset.deletedAt) throw new Error('Activo no encontrado');
   if (asset.estado !== 'disponible' && asset.estado !== 'reutilizable') {
     throw new Error(`El activo no está disponible. Estado actual: ${asset.estado}`);
   }

@@ -5,10 +5,11 @@ import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 async function getInventario() {
   const activos = await prisma.asset.findMany({
+    where: ACTIVOS_VIGENTES,
     include: {
       categoria: true,
       assignments: {
-        where: { ...ACTIVOS_VIGENTES, activo: true },
+        where: { activo: true },
         include: {
           employee: {
             select: {

@@ -29,7 +29,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
           cache: npm
           cache-dependency-path: app/package-lock.json
 
@@ -61,10 +61,6 @@ jobs:
   spec-guard:
     name: SPEC primero
     runs-on: ubuntu-latest
-    # En un push directo no hay base contra la cual comparar de forma fiable
-    # cuando es el primer commit de la rama; el guard vive en el PR, que es
-    # donde se decide el merge.
-    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,9 +68,17 @@ jobs:
 
       - name: El schema no cambia sin el SPEC
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.sha }}
         run: |
+          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE="$(git rev-parse "$HEAD^" 2>/dev/null || true)"
+            if [ -z "$BASE" ]; then
+              echo "::notice::Primer commit sin padre. Nada que verificar."
+              exit 0
+            fi
+          fi
+
           changed="$(git diff --name-only "$BASE" "$HEAD")"
           echo "Archivos modificados:"
           echo "$changed" | sed 's/^/  /'
