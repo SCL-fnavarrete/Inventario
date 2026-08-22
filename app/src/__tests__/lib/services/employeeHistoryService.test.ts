@@ -68,6 +68,29 @@ describe('employeeHistoryService', () => {
     ).rejects.toThrow('actor');
   });
 
+  test.each([
+    { microsoftId: 'entra-private-id' },
+    { campoNoPermitido: 'no debe persistirse' },
+  ])('rechaza claves sensibles o desconocidas del escritor genérico: %o', async (snapshot) => {
+    const create = jest.fn();
+    const tx = { employeeHistory: { create } } as unknown as Prisma.TransactionClient;
+
+    await expect(
+      employeeHistoryService.registrar(
+        {
+          employeeId: employee.id,
+          tipoEvento: 'sync_microsoft',
+          descripcion: 'Intento de snapshot no seguro',
+          datosNuevos: snapshot,
+          usuarioSistema: 'admin@example.com',
+        },
+        tx
+      )
+    ).rejects.toThrow(/snapshot|permitida/i);
+
+    expect(create).not.toHaveBeenCalled();
+  });
+
   test('obtiene el historial más reciente primero', async () => {
     (prisma.employeeHistory.findMany as jest.Mock).mockResolvedValue([]);
 

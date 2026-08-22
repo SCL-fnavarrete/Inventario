@@ -107,6 +107,32 @@ describe('POST /api/microsoft-sync — historial por empleado', () => {
     );
   });
 
+  test('audita el relink por correo aunque sólo cambie el identificador de Microsoft', async () => {
+    const microsoftIdNuevo = 'entra-2-private-id';
+    (fetchMicrosoftUsers as jest.Mock).mockResolvedValue([
+      { ...microsoftUser, microsoftId: microsoftIdNuevo, accountEnabled: true },
+    ]);
+    (prisma.employee.findUnique as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(employee);
+    const { tx, historyCreate } = configureTx({ ...employee, microsoftId: microsoftIdNuevo });
+
+    const response = await POST();
+
+    expect(await response.json()).toMatchObject({ actualizados: 1 });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.employee.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ microsoftId: microsoftIdNuevo }) })
+    );
+    expect(historyCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ tipoEvento: 'sync_microsoft' }) })
+    );
+
+    const eventData = historyCreate.mock.calls[0][0].data;
+    expect(JSON.stringify(eventData)).not.toContain(microsoftUser.microsoftId);
+    expect(JSON.stringify(eventData)).not.toContain(microsoftIdNuevo);
+  });
+
   test('desvincula una cuenta deshabilitada con un evento de estado', async () => {
     (fetchMicrosoftUsers as jest.Mock).mockResolvedValue([
       { ...microsoftUser, accountEnabled: false },

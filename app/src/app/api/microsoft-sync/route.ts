@@ -128,6 +128,11 @@ export async function POST() {
 
           if (employee) {
             const reactivado = employee.estado === 'desvinculado';
+            const soloReenlaceMicrosoft =
+              employee.origenMicrosoft &&
+              employee.microsoftId !== msUser.microsoftId &&
+              !hayCambiosSincronizados(employee, datosSincronizados) &&
+              !reactivado;
             const requiereActualizacion =
               hayCambiosSincronizados(employee, datosSincronizados) ||
               employee.microsoftId !== msUser.microsoftId ||
@@ -146,7 +151,11 @@ export async function POST() {
                   ...(reactivado && { estado: 'activo' }),
                 },
               });
-              await employeeHistoryService.registrarCambio(employee!, updated, actor, tx, 'microsoft');
+              if (soloReenlaceMicrosoft) {
+                await employeeHistoryService.registrarReenlaceMicrosoft(updated, actor, tx);
+              } else {
+                await employeeHistoryService.registrarCambio(employee!, updated, actor, tx, 'microsoft');
+              }
             });
             if (reactivado) {
               resultado.reactivados++;

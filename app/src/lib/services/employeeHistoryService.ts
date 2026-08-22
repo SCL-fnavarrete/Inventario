@@ -59,6 +59,8 @@ const SNAPSHOT_KEYS = [
   'proximaMantencionEpp',
 ] as const;
 
+const SNAPSHOT_KEY_SET = new Set<string>(SNAPSHOT_KEYS);
+
 function dateToIso(value: Date | null): string | null {
   return value ? value.toISOString() : null;
 }
@@ -75,6 +77,40 @@ function actorRequerido(actor: string): string {
     throw new Error('El actor del historial de empleados es obligatorio');
   }
   return actorNormalizado;
+}
+
+/**
+ * El escritor genérico es una frontera de seguridad: no basta con que los
+ * helpers creen snapshots seguros, porque un consumidor futuro podría llamar
+ * a `registrar` directamente. Los snapshots son planos y sólo admiten el
+ * allowlist explícito de EmployeeHistorySnapshotSource.
+ */
+function validarSnapshotEmpleadoSeguro(
+  snapshot: Prisma.InputJsonValue | undefined,
+  campo: 'datosAnteriores' | 'datosNuevos'
+): Prisma.InputJsonObject | undefined {
+  if (snapshot === undefined) return undefined;
+
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+    throw new Error(`El snapshot ${campo} debe ser un objeto seguro de empleado`);
+  }
+
+  for (const [key, value] of Object.entries(snapshot)) {
+    if (!SNAPSHOT_KEY_SET.has(key)) {
+      throw new Error(`La clave "${key}" no está permitida en snapshots de empleados`);
+    }
+
+    if (
+      value !== null &&
+      typeof value !== 'string' &&
+      typeof value !== 'number' &&
+      typeof value !== 'boolean'
+    ) {
+      throw new Error(`El valor de "${key}" no es válido en snapshots de empleados`);
+    }
+  }
+
+  return snapshot as Prisma.InputJsonObject;
 }
 
 /**
@@ -159,8 +195,8 @@ export const employeeHistoryService = {
         employeeId: data.employeeId,
         tipoEvento: data.tipoEvento,
         descripcion: data.descripcion,
-        datosAnteriores: data.datosAnteriores,
-        datosNuevos: data.datosNuevos,
+        datosAnteriores: validarSnapshotEmpleadoSeguro(data.datosAnteriores, 'datosAnteriores'),
+        datosNuevos: validarSnapshotEmpleadoSeguro(data.datosNuevos, 'datosNuevos'),
         usuarioSistema: actorRequerido(data.usuarioSistema),
       },
     });
@@ -211,6 +247,28 @@ export const employeeHistoryService = {
         descripcion: `Datos sincronizados desde Microsoft para ${nombreEmpleado(nuevo)}`,
         datosAnteriores: crearSnapshotEmpleado(anterior),
         datosNuevos: crearSnapshotEmpleado(nuevo),
+        usuarioSistema: actor,
+      },
+      tx
+    );
+  },
+
+  /**
+   * Un relink cambia sólo microsoftId, que por diseño no puede entrar al
+   * snapshot. La descripción conserva evidencia del hecho sin registrar ese
+   * identificador sensible ni su valor anterior.
+   */
+  async registrarReenlaceMicrosoft(
+    employee: EmployeeHistorySnapshotSource,
+    actor: string,
+    tx: PrismaTx
+  ) {
+    return this.registrar(
+      {
+        employeeId: employee.id,
+        tipoEvento: 'sync_microsoft',
+        descripcion: `Identidad de Microsoft vinculada nuevamente para ${nombreEmpleado(employee)}`,
+        datosNuevos: crearSnapshotEmpleado(employee),
         usuarioSistema: actor,
       },
       tx

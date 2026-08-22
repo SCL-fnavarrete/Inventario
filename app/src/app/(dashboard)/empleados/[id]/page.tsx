@@ -337,11 +337,10 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      <div className="border-b border-gray-200" role="tablist" aria-label="Secciones de ficha">
+      <div className="border-b border-gray-200">
         <button
           type="button"
-          role="tab"
-          aria-selected={activeTab === 'resumen'}
+          aria-pressed={activeTab === 'resumen'}
           onClick={() => setActiveTab('resumen')}
           className={cn(
             'border-b-2 px-4 py-3 text-sm font-medium',
@@ -354,8 +353,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
         </button>
         <button
           type="button"
-          role="tab"
-          aria-selected={activeTab === 'historial'}
+          aria-pressed={activeTab === 'historial'}
           onClick={() => setActiveTab('historial')}
           className={cn(
             'border-b-2 px-4 py-3 text-sm font-medium',
