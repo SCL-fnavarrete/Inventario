@@ -31,7 +31,6 @@ async function getReporteSummary() {
     prisma.employee.count({ where: { estado: "activo" } }),
     prisma.termination.count({
       where: {
-        ...ACTIVOS_VIGENTES,
         OR: [
           { estadoNotebook: "pendiente" },
           { estadoCelular: "pendiente" },
