@@ -445,11 +445,29 @@ describe('migración Ola 2 — contrato físico de evidencia', () => {
   });
 
   test('protege el documento emitido: bloquea delete y evidencia, permite staging y solo SET NULL de contexto', () => {
+    const documentTable = MIGRATION_SQL.match(
+      /CREATE TABLE "documentos_emitidos" \(([\s\S]*?)\n\);/
+    )?.[1];
+    expect(documentTable).toBeDefined();
+    const documentColumns = Array.from(
+      documentTable!.matchAll(/^\s+"([^"]+)"\s+/gm),
+      (match) => match[1]
+    );
+
     const protectionFunction = MIGRATION_SQL.match(
       /CREATE OR REPLACE FUNCTION "proteger_documentos_emitidos"\(\)[\s\S]*?\$\$;/
     )?.[0];
     expect(protectionFunction).toBeDefined();
     const sql = protectionFunction!;
+    const triggerColumns = Array.from(
+      sql.matchAll(/\b(?:OLD|NEW)\.([a-z0-9_]+)/g),
+      (match) => match[1]
+    );
+
+    expect(triggerColumns.length).toBeGreaterThan(0);
+    for (const column of triggerColumns) {
+      expect(documentColumns).toContain(column);
+    }
 
     expect(sql).toContain("IF TG_OP = 'DELETE' THEN");
     expect(sql).toContain('RETURN NEW;');
@@ -466,7 +484,6 @@ describe('migración Ola 2 — contrato físico de evidencia', () => {
       'firma_empleado_en',
       'motivo_reemision',
       'employee_id',
-      'created_at',
     ]) {
       expect(sql).toContain(`OLD.${protectedColumn} IS DISTINCT FROM NEW.${protectedColumn}`);
     }

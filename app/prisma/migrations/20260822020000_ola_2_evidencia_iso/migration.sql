@@ -189,8 +189,7 @@ BEGIN
        OR OLD.firma_empleado IS DISTINCT FROM NEW.firma_empleado
        OR OLD.firma_empleado_en IS DISTINCT FROM NEW.firma_empleado_en
        OR OLD.motivo_reemision IS DISTINCT FROM NEW.motivo_reemision
-       OR OLD.employee_id IS DISTINCT FROM NEW.employee_id
-       OR OLD.created_at IS DISTINCT FROM NEW.created_at THEN
+       OR OLD.employee_id IS DISTINCT FROM NEW.employee_id THEN
         RAISE EXCEPTION 'No se permite modificar la evidencia de un documento emitido';
     END IF;
 
