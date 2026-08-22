@@ -570,6 +570,14 @@ operativos `request_id`, `assignment_id` y `termination_id` son opcionales y
 usan `ON DELETE SET NULL`: borrar un contexto operativo jamás borra un documento
 emitido. Se indexan empleado/fecha, estado de archivo/fecha y cada contexto.
 
+La inmutabilidad también se aplica físicamente en la base: no se puede eliminar
+un documento emitido ni cambiar los datos de emisión, snapshot, hash, firma,
+versión, emisor o empleado. Solo son actualizables los metadatos staged de
+archivo (`sharepoint_item_id`, `sharepoint_url`, `archivo_estado`,
+`archivo_error`, `intentos_archivo`). Como excepción técnica necesaria para los
+FK `SET NULL`, cada contexto puede conservarse o cambiar de un valor existente a
+`NULL`; no puede asignarse ni reemplazarse por otro contexto.
+
 #### NOTIFICACIONES ENVIADAS (notificaciones_enviadas)
 
 `NotificacionEnviada` deja evidencia del intento de correo Graph: `id` UUID,

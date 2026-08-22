@@ -99,7 +99,9 @@ CREATE TABLE "notificaciones_enviadas" (
     "request_id" TEXT,
     "termination_id" TEXT,
 
-    CONSTRAINT "notificaciones_enviadas_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "notificaciones_enviadas_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "notificaciones_enviadas_destinatarios_not_null_check" CHECK ("destinatarios" IS NOT NULL),
+    CONSTRAINT "notificaciones_enviadas_documento_ids_not_null_check" CHECK ("documento_ids" IS NOT NULL)
 );
 
 -- CreateIndex
@@ -161,3 +163,47 @@ ALTER TABLE "notificaciones_enviadas" ADD CONSTRAINT "notificaciones_enviadas_re
 
 -- AddForeignKey
 ALTER TABLE "notificaciones_enviadas" ADD CONSTRAINT "notificaciones_enviadas_termination_id_fkey" FOREIGN KEY ("termination_id") REFERENCES "terminations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- Los documentos emitidos son evidencia física: no se borran ni se alteran los
+-- datos que definen la emisión. Solo se permite actualizar el estado staged de
+-- archivo (SharePoint, estado, error e intentos). Los contextos pueden pasar de
+-- un valor a NULL, y solamente en esa dirección, para que los FKs ON DELETE SET
+-- NULL conserven el documento cuando se borra un registro operativo.
+CREATE OR REPLACE FUNCTION "proteger_documentos_emitidos"()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'No se permite eliminar documentos emitidos';
+    END IF;
+
+    IF OLD.id IS DISTINCT FROM NEW.id
+       OR OLD.numero IS DISTINCT FROM NEW.numero
+       OR OLD.tipo IS DISTINCT FROM NEW.tipo
+       OR OLD.version IS DISTINCT FROM NEW.version
+       OR OLD.contenido_snapshot IS DISTINCT FROM NEW.contenido_snapshot
+       OR OLD.hash_sha256 IS DISTINCT FROM NEW.hash_sha256
+       OR OLD.emitido_por IS DISTINCT FROM NEW.emitido_por
+       OR OLD.emitido_en IS DISTINCT FROM NEW.emitido_en
+       OR OLD.firma_empleado IS DISTINCT FROM NEW.firma_empleado
+       OR OLD.firma_empleado_en IS DISTINCT FROM NEW.firma_empleado_en
+       OR OLD.motivo_reemision IS DISTINCT FROM NEW.motivo_reemision
+       OR OLD.employee_id IS DISTINCT FROM NEW.employee_id
+       OR OLD.created_at IS DISTINCT FROM NEW.created_at THEN
+        RAISE EXCEPTION 'No se permite modificar la evidencia de un documento emitido';
+    END IF;
+
+    IF (NEW.request_id IS NOT NULL AND NEW.request_id IS DISTINCT FROM OLD.request_id)
+       OR (NEW.assignment_id IS NOT NULL AND NEW.assignment_id IS DISTINCT FROM OLD.assignment_id)
+       OR (NEW.termination_id IS NOT NULL AND NEW.termination_id IS DISTINCT FROM OLD.termination_id) THEN
+        RAISE EXCEPTION 'Los contextos de un documento emitido solo pueden conservarse o quedar en NULL';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER "documentos_emitidos_proteger_inmutabilidad"
+BEFORE UPDATE OR DELETE ON "documentos_emitidos"
+FOR EACH ROW EXECUTE FUNCTION "proteger_documentos_emitidos"();

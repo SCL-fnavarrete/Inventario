@@ -68,7 +68,7 @@ npm run db:studio        # Prisma Studio GUI
 | `src/lib/validations/` | Zod schemas for all entities (asset, employee, assignment, workflow, etc.) |
 | `src/lib/utils/rut.ts` | Chilean RUT format validation |
 | `src/middleware.ts` | Auth enforcement: protects all routes except `/login`, `/api/auth` |
-| `prisma/schema.prisma` | 19 models with enums for asset states, conditions, contract types, workflow |
+| `prisma/schema.prisma` | 22 models, incluidos evidencia ISO, estados de activos, contratos y workflow |
 
 ### API Route Pattern
 
@@ -79,7 +79,7 @@ Every API route follows this sequence:
 4. Log to `assetHistoryService` for audit trail (on mutations)
 5. Return `NextResponse.json()`
 
-### Database Models (19 total)
+### Database Models (22 total)
 
 **Core:**
 - `SystemUser` — usuarios del sistema con roles
@@ -92,8 +92,11 @@ Every API route follows this sequence:
 - `WelcomeKitItem` / `KitAssignment` — kit de bienvenida y EPP
 - `Maintenance` — mantenciones
 - `AssetHistory` — historial/auditoría de activos
+- `EmployeeHistory` — historial inmutable de eventos del empleado
 - `Termination` — desvinculaciones
 - `DispatchGuide` / `DispatchGuideItem` — guías de despacho
+- `DocumentoEmitido` — acta versionada, snapshot y hash como evidencia inmutable
+- `NotificacionEnviada` — evidencia staged de solicitudes de correo Microsoft Graph
 
 **Workflow (solicitudes):**
 - `WorkflowRequest` — solicitud de onboarding, cambio de equipo o devolución por término
@@ -130,6 +133,19 @@ Every API route follows this sequence:
 
 **Historial:**
 - **TipoEvento:** `creacion`, `asignacion`, `devolucion`, `mantencion`, `cambio_estado`, `actualizacion_specs`, `baja`, `venta`, `solicitud_workflow`
+
+**Evidencia ISO:**
+- **TipoDevolucion:** `notebook`, `celular`, `monitor`, `kit`, `otro` — clasificación estable; `kit` se gestiona en `KitAssignment`.
+- **TipoEventoEmpleado:** `creacion`, `actualizacion`, `sync_microsoft`, `cambio_estado`, `desvinculacion`, `reactivacion`.
+- **TipoDocumento:** `anexo_entrega`, `comprobante_entrega`, `comprobante_cambio`, `acta_devolucion`.
+- **EstadoArchivoDocumento:** `pendiente`, `archivado`, `fallido`.
+- **TipoNotificacion:** `cierre_onboarding`, `cierre_desvinculacion`, `alerta_equipos_pendientes`.
+- **EstadoNotificacion:** `pendiente`, `enviada`, `fallida`. `enviada` significa que Graph aceptó la solicitud, no que una persona la recibió.
+
+Los documentos emitidos son físicamente inmutables: solo sus metadatos staged
+de archivo pueden actualizarse. Sus contextos operativos usan `SET NULL`; el
+trigger permite exclusivamente el paso de contexto no nulo a `NULL`, necesario
+cuando la FK conserva la evidencia al borrar un registro operativo.
 
 **Workflow / Solicitudes:**
 - **TipoSolicitud:** `onboarding`, `cambio_equipo`, `devolucion_termino`
