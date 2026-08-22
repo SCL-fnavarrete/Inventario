@@ -31,6 +31,7 @@ import { prisma } from '@/lib/prisma';
 import { NextRequest } from 'next/server';
 
 const laptopCategoryId = 'c0a80101-0000-4000-8000-000000000001';
+const cellularCategoryId = 'c0a80101-0000-4000-8000-000000000003';
 const otherCategoryId = 'c0a80101-0000-4000-8000-000000000002';
 const assetId = 'c0a80101-0000-4000-8000-000000000010';
 
@@ -46,6 +47,12 @@ const notebookNamedOtherCategory = {
   tipoDevolucion: 'otro',
 };
 
+const cellularCategory = {
+  id: cellularCategoryId,
+  nombre: 'Teléfono corporativo',
+  tipoDevolucion: 'celular',
+};
+
 function createRequest(categoriaId: string) {
   return new NextRequest('http://localhost/api/activos', {
     method: 'POST',
@@ -59,8 +66,14 @@ function createRequest(categoriaId: string) {
       discoDuro: '1 TB',
       sistemaOperativo: 'Windows 11',
       microsoft365: true,
+      antivirus: 'Defender',
+      nombreEquipo: 'NB-SCL-001',
       imei: '123456789012345',
       numeroTelefono: '+56912345678',
+      numeroActivacion: 'SIM-001',
+      tipoPlan: 'Empresa',
+      operador: 'Entel',
+      tieneCargador: true,
       pulgadas: 27,
     }),
   });
@@ -97,8 +110,14 @@ describe('API activos — whitelist por tipoDevolucion', () => {
       discoDuro: '1 TB',
       sistemaOperativo: 'Windows 11',
       microsoft365: true,
+      antivirus: 'Defender',
+      nombreEquipo: 'NB-SCL-001',
       imei: null,
       numeroTelefono: null,
+      numeroActivacion: null,
+      tipoPlan: null,
+      operador: null,
+      tieneCargador: false,
       pulgadas: null,
     });
   });
@@ -117,8 +136,38 @@ describe('API activos — whitelist por tipoDevolucion', () => {
       discoDuro: null,
       sistemaOperativo: null,
       microsoft365: false,
+      antivirus: null,
+      nombreEquipo: null,
       imei: null,
       numeroTelefono: null,
+      numeroActivacion: null,
+      tipoPlan: null,
+      operador: null,
+      tieneCargador: false,
+      pulgadas: null,
+    });
+  });
+
+  test('POST conserva todos los campos celular y limpia notebook/monitor según el enum', async () => {
+    (prisma.assetCategory.findUnique as jest.Mock).mockResolvedValue(cellularCategory);
+
+    const response = await POST(createRequest(cellularCategoryId));
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      imei: '123456789012345',
+      numeroTelefono: '+56912345678',
+      numeroActivacion: 'SIM-001',
+      tipoPlan: 'Empresa',
+      operador: 'Entel',
+      tieneCargador: true,
+      procesador: null,
+      ram: null,
+      discoDuro: null,
+      sistemaOperativo: null,
+      microsoft365: false,
+      antivirus: null,
+      nombreEquipo: null,
       pulgadas: null,
     });
   });
@@ -165,19 +214,25 @@ describe('API activos — whitelist por tipoDevolucion', () => {
     });
   });
 
-  test('PUT limpia las especificaciones existentes al cambiar Laptop por Notebook de tipo otro', async () => {
+  test('PUT limpia campos celular existentes al cambiar a una categoría de tipo otro y los audita', async () => {
     configureAssetUpdate({
       id: assetId,
-      categoriaId: laptopCategoryId,
-      categoria: laptopCategory,
+      categoriaId: cellularCategoryId,
+      categoria: cellularCategory,
       estado: 'disponible',
       procesador: 'Intel Core Ultra',
       ram: '32 GB',
       discoDuro: '1 TB',
       sistemaOperativo: 'Windows 11',
       microsoft365: true,
+      antivirus: 'Defender',
+      nombreEquipo: 'NB-SCL-001',
       imei: '123456789012345',
       numeroTelefono: '+56912345678',
+      numeroActivacion: 'SIM-001',
+      tipoPlan: 'Empresa',
+      operador: 'Entel',
+      tieneCargador: true,
       pulgadas: 27,
     });
     (prisma.assetCategory.findUnique as jest.Mock).mockResolvedValue(
@@ -201,10 +256,57 @@ describe('API activos — whitelist por tipoDevolucion', () => {
       discoDuro: null,
       sistemaOperativo: null,
       microsoft365: false,
+      antivirus: null,
+      nombreEquipo: null,
       imei: null,
       numeroTelefono: null,
+      numeroActivacion: null,
+      tipoPlan: null,
+      operador: null,
+      tieneCargador: false,
       pulgadas: null,
     });
+
+    const { assetHistoryService } = jest.requireMock('@/lib/services/assetHistoryService');
+    expect(assetHistoryService.registrarActualizacionSpecs).toHaveBeenCalledWith(
+      assetId,
+      expect.objectContaining({
+        categoriaId: cellularCategoryId,
+        procesador: 'Intel Core Ultra',
+        ram: '32 GB',
+        discoDuro: '1 TB',
+        sistemaOperativo: 'Windows 11',
+        microsoft365: true,
+        antivirus: 'Defender',
+        nombreEquipo: 'NB-SCL-001',
+        imei: '123456789012345',
+        numeroTelefono: '+56912345678',
+        numeroActivacion: 'SIM-001',
+        tipoPlan: 'Empresa',
+        operador: 'Entel',
+        tieneCargador: true,
+        pulgadas: 27,
+      }),
+      expect.objectContaining({
+        categoriaId: otherCategoryId,
+        procesador: null,
+        ram: null,
+        discoDuro: null,
+        sistemaOperativo: null,
+        microsoft365: false,
+        antivirus: null,
+        nombreEquipo: null,
+        imei: null,
+        numeroTelefono: null,
+        numeroActivacion: null,
+        tipoPlan: null,
+        operador: null,
+        tieneCargador: false,
+        pulgadas: null,
+      }),
+      'ti@example.com',
+      expect.anything()
+    );
   });
 
   test('PUT rechaza la categoría efectiva inexistente', async () => {

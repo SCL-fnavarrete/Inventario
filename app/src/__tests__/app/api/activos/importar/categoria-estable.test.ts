@@ -46,8 +46,34 @@ const mockAssetHistoryCreate = prisma.assetHistory.create as jest.Mock;
 const mockSheetToJson = XLSX.utils.sheet_to_json as jest.Mock;
 
 const rows = [
-  ['Marca', 'Modelo', 'Serie', 'Procesador', 'IMEI', 'Pulgadas'],
-  ['Lenovo', 'T14', 'SN-001', 'Intel Core Ultra', '123456789012345', '27'],
+  [
+    'Marca',
+    'Modelo',
+    'Serie',
+    'Procesador',
+    'IMEI',
+    'Pulgadas',
+    'Antivirus',
+    'Nombre Equipo',
+    'Nro Activación',
+    'Tipo Plan',
+    'Operador',
+    'Cargador',
+  ],
+  [
+    'Lenovo',
+    'T14',
+    'SN-001',
+    'Intel Core Ultra',
+    '123456789012345',
+    '27',
+    'Defender',
+    'NB-SCL-001',
+    'SIM-001',
+    'Empresa',
+    'Entel',
+    'Sí',
+  ],
 ];
 
 function requestFor(categoriaId: string): NextRequest {
@@ -72,6 +98,12 @@ function requestFor(categoriaId: string): NextRequest {
         procesador: 'Procesador',
         imei: 'IMEI',
         pulgadas: 'Pulgadas',
+        antivirus: 'Antivirus',
+        nombreEquipo: 'Nombre Equipo',
+        numeroActivacion: 'Nro Activación',
+        tipoPlan: 'Tipo Plan',
+        operador: 'Operador',
+        cargador: 'Cargador',
       }),
     ],
   ]);
@@ -107,7 +139,13 @@ describe('POST /api/activos/importar — categoría estable', () => {
         data: expect.objectContaining({
           categoriaId: 'cat-laptop',
           procesador: 'Intel Core Ultra',
+          antivirus: 'Defender',
+          nombreEquipo: 'NB-SCL-001',
           imei: null,
+          numeroActivacion: null,
+          tipoPlan: null,
+          operador: null,
+          tieneCargador: false,
           pulgadas: null,
         }),
       })
@@ -129,7 +167,13 @@ describe('POST /api/activos/importar — categoría estable', () => {
         data: expect.objectContaining({
           categoriaId: 'cat-otro',
           procesador: null,
+          antivirus: null,
+          nombreEquipo: null,
           imei: null,
+          numeroActivacion: null,
+          tipoPlan: null,
+          operador: null,
+          tieneCargador: false,
           pulgadas: null,
         }),
       })

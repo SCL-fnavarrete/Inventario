@@ -66,6 +66,7 @@ export default function ImportarActivosPage() {
   const [showErrorReview, setShowErrorReview] = useState(false);
   const [reimportingCorrected, setReimportingCorrected] = useState(false);
   const categoriaIdRef = useRef(categoriaId);
+  const sheetRequestVersionRef = useRef(0);
 
   function resetCategoryDerivedState() {
     setPreview(null);
@@ -171,6 +172,7 @@ export default function ImportarActivosPage() {
     { key: "numeroTelefono", label: "Nro. Telefónico", categories: ["celular"] },
     { key: "tipoPlan", label: "Tipo Plan", categories: ["celular"] },
     { key: "cargador", label: "Cargador", categories: ["celular"] },
+    { key: "operador", label: "Operador", categories: ["celular"] },
     { key: "lugarEntrega", label: "Lugar Entrega", categories: ["celular"] },
     { key: "entrega", label: "Entrega", categories: ["celular"] },
     { key: "tipoEquipo", label: "Tipo", categories: ["celular"] },
@@ -186,7 +188,10 @@ export default function ImportarActivosPage() {
       const selectedFile = e.target.files?.[0];
       if (!selectedFile) return;
 
+      const requestVersion = ++sheetRequestVersionRef.current;
       setFile(selectedFile);
+      setAvailableSheets([]);
+      setSheetName("");
       resetCategoryDerivedState();
       setParsing(true);
 
@@ -204,14 +209,19 @@ export default function ImportarActivosPage() {
         }
 
         const data = await res.json();
+        if (sheetRequestVersionRef.current !== requestVersion) return;
         setAvailableSheets(data.sheets);
         if (data.sheets.length === 1) {
           setSheetName(data.sheets[0]);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Error al procesar archivo");
+        if (sheetRequestVersionRef.current === requestVersion) {
+          setError(err instanceof Error ? err.message : "Error al procesar archivo");
+        }
       } finally {
-        setParsing(false);
+        if (sheetRequestVersionRef.current === requestVersion) {
+          setParsing(false);
+        }
       }
     },
     []
@@ -280,6 +290,7 @@ export default function ImportarActivosPage() {
         numeroTelefono: ["nro telefonico", "nro. telefonico", "telefono", "numero telefonico"],
         tipoPlan: ["tipo plan", "plan"],
         cargador: ["cargador"],
+        operador: ["operador", "compañía", "compania"],
         lugarEntrega: ["lugar entrega", "lugar"],
         entrega: ["entrega"],
         tipoEquipo: ["tipo"],
@@ -613,8 +624,10 @@ export default function ImportarActivosPage() {
                   <button
                     onClick={(e) => {
                       e.preventDefault();
+                      sheetRequestVersionRef.current += 1;
                       setFile(null);
                       setAvailableSheets([]);
+                      setSheetName("");
                       resetCategoryDerivedState();
                     }}
                     className="p-1 hover:bg-green-100 rounded"

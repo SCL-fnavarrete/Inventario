@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { parseDDMMYYYYToDate } from "@/lib/excel-utils";
 import type { CorrectedRow, ImportRowStatus, ImportBatchResult } from "@/types/import";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { getCategorySpecialFields } from '@/lib/assetImportCategoryFields';
+import { getCategorySpecialFields, parseCategoryBoolean } from '@/lib/assetImportCategoryFields';
 
 // Mapeo de estados del Excel a estados del sistema
 const ESTADO_MAP: Record<string, string> = {
@@ -221,6 +221,15 @@ export async function POST(request: NextRequest) {
         const pulgadasStr = row.data.pulgadas || "";
         const pulgadas = pulgadasStr ? parseFloat(pulgadasStr) : null;
         const sistemaOperativo = row.data.sistemaOperativo || null;
+        const antivirus = row.data.antivirus || null;
+        const nombreEquipo = row.data.nombreEquipo || null;
+        const numeroActivacion = row.data.numeroActivacion || null;
+        const tipoPlan = row.data.tipoPlan || null;
+        const operador = row.data.operador || null;
+        const tieneCargador = parseCategoryBoolean(
+          row.data.tieneCargador || row.data.cargador,
+          true
+        );
         const ubicacionFisica = row.data.comuna || null;
         const microsoft365Str = (row.data.microsoft365 || "").toLowerCase();
         const microsoft365 = ["si", "sí", "yes", "true", "1"].includes(microsoft365Str);
@@ -236,6 +245,12 @@ export async function POST(request: NextRequest) {
           pulgadas,
           sistemaOperativo,
           microsoft365,
+          antivirus,
+          nombreEquipo,
+          numeroActivacion,
+          tipoPlan,
+          operador,
+          tieneCargador,
         });
 
         // Crear activo

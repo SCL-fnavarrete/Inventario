@@ -4,7 +4,7 @@ import { logger } from "@/lib/logger";
 import * as XLSX from "xlsx";
 import { convertExcelDateValue, parseDDMMYYYYToDate } from "@/lib/excel-utils";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { getCategorySpecialFields } from '@/lib/assetImportCategoryFields';
+import { getCategorySpecialFields, parseCategoryBoolean } from '@/lib/assetImportCategoryFields';
 
 // Filas de inicio conocidas por categoría
 // Todas las categorías usan fila 0 (primera fila) como encabezado por defecto
@@ -347,6 +347,15 @@ export async function POST(request: NextRequest) {
 
         // Campos adicionales que estaban siendo ignorados
         const sistemaOperativo = getValue("sistemaOperativo") || null;
+        const antivirus = getValue("antivirus") || null;
+        const nombreEquipo = getValue("nombreEquipo") || null;
+        const numeroActivacion = getValue("numeroActivacion") || null;
+        const tipoPlan = getValue("tipoPlan") || null;
+        const operador = getValue("operador") || null;
+        const tieneCargador = parseCategoryBoolean(
+          getValue("tieneCargador") || getValue("cargador"),
+          true
+        );
         const ubicacionFisica = getValue("comuna") || null;
 
         // Microsoft 365: parsear booleano desde Excel (SI/NO, true/false, 1/0)
@@ -366,6 +375,12 @@ export async function POST(request: NextRequest) {
           pulgadas,
           sistemaOperativo,
           microsoft365,
+          antivirus,
+          nombreEquipo,
+          numeroActivacion,
+          tipoPlan,
+          operador,
+          tieneCargador,
         });
 
         // Crear activo

@@ -116,8 +116,16 @@ export async function POST(request: NextRequest) {
       ram: validatedData.ram || null,
       discoDuro: validatedData.discoDuro || null,
       sistemaOperativo: validatedData.sistemaOperativo || null,
+      antivirus: validatedData.antivirus || null,
+      nombreEquipo: validatedData.nombreEquipo || null,
       imei: validatedData.imei || null,
       numeroTelefono: validatedData.numeroTelefono || null,
+      numeroActivacion: validatedData.numeroActivacion || null,
+      tipoPlan: validatedData.tipoPlan || null,
+      operador: validatedData.operador || null,
+      // El schema deja este campo opcional y Prisma lo inicializa en true.
+      // Al enviar la whitelist de celular lo hacemos explícito con ese mismo default.
+      tieneCargador: validatedData.tieneCargador ?? true,
       pulgadas: validatedData.pulgadas ?? null,
       microsoft365: validatedData.microsoft365 ?? false,
     });
@@ -135,17 +143,11 @@ export async function POST(request: NextRequest) {
         fechaGarantiaFin: validatedData.fechaGarantiaFin ? new Date(validatedData.fechaGarantiaFin) : null,
         fechaBaja: validatedData.fechaBaja ? new Date(validatedData.fechaBaja) : null,
         ...specialFields,
-        numeroActivacion: validatedData.numeroActivacion || null,
-        tipoPlan: validatedData.tipoPlan || null,
-        tieneCargador: validatedData.tieneCargador || false,
         ubicacionFisica: validatedData.ubicacionFisica || null,
         intuneEnrolled: validatedData.intuneEnrolled || false,
         listaDistribucion: validatedData.listaDistribucion || null,
         observaciones: validatedData.observaciones || null,
-        operador: validatedData.operador || null,
-        antivirus: validatedData.antivirus || null,
         incidencia: validatedData.incidencia || null,
-        nombreEquipo: validatedData.nombreEquipo || null,
       },
     });
 

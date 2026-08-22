@@ -135,4 +135,64 @@ describe('importación de activos — categoría estable', () => {
     expect(screen.queryByText('Paso 2: Mapeo de Columnas')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Vista previa' })).toBeInTheDocument();
   });
+
+  test('mantiene las hojas de B cuando la respuesta tardía de A llega después', async () => {
+    let resolveSheetsA:
+      | ((value: { ok: boolean; json: () => Promise<{ sheets: string[] }> }) => void)
+      | undefined;
+    const sheetsA = new Promise<{ ok: boolean; json: () => Promise<{ sheets: string[] }> }>(
+      (resolve) => {
+        resolveSheetsA = resolve;
+      }
+    );
+    let sheetRequestCount = 0;
+
+    mockFetch.mockImplementation((url: string) => {
+      if (url === '/api/categorias') {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+
+      if (url === '/api/activos/importar/sheets') {
+        sheetRequestCount += 1;
+        if (sheetRequestCount === 1) return sheetsA;
+        return Promise.resolve({ ok: true, json: async () => ({ sheets: ['Hoja B'] }) });
+      }
+
+      throw new Error(`Fetch inesperado: ${url}`);
+    });
+
+    const { container } = render(<ImportarActivosPage />);
+    const fileInput = container.querySelector('input[type="file"]');
+    if (!fileInput) throw new Error('Input de archivo no encontrado');
+
+    fireEvent.change(fileInput, {
+      target: {
+        files: [
+          new File(['A'], 'archivo-a.xlsx', {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          }),
+        ],
+      },
+    });
+    await waitFor(() => expect(sheetRequestCount).toBe(1));
+
+    fireEvent.change(fileInput, {
+      target: {
+        files: [
+          new File(['B'], 'archivo-b.xlsx', {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          }),
+        ],
+      },
+    });
+    await screen.findByDisplayValue('Hoja B');
+
+    await act(async () => {
+      resolveSheetsA?.({ ok: true, json: async () => ({ sheets: ['Hoja A'] }) });
+      await sheetsA;
+    });
+
+    expect(screen.getByDisplayValue('Hoja B')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('Hoja A')).not.toBeInTheDocument();
+  });
 });

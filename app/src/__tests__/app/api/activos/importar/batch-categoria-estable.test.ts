@@ -45,6 +45,12 @@ const row = {
     procesador: 'Intel Core Ultra',
     imei: '123456789012345',
     pulgadas: '27',
+    antivirus: 'Defender',
+    nombreEquipo: 'NB-SCL-001',
+    numeroActivacion: 'SIM-001',
+    tipoPlan: 'Empresa',
+    operador: 'Entel',
+    cargador: 'Sí',
   },
 };
 
@@ -79,7 +85,13 @@ describe('POST /api/activos/importar/batch — categoría estable', () => {
         data: expect.objectContaining({
           categoriaId: 'cat-laptop',
           procesador: 'Intel Core Ultra',
+          antivirus: 'Defender',
+          nombreEquipo: 'NB-SCL-001',
           imei: null,
+          numeroActivacion: null,
+          tipoPlan: null,
+          operador: null,
+          tieneCargador: false,
           pulgadas: null,
         }),
       })
@@ -98,7 +110,17 @@ describe('POST /api/activos/importar/batch — categoría estable', () => {
     expect(response.status).toBe(200);
     expect(mockAssetCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ procesador: null, imei: null, pulgadas: null }),
+        data: expect.objectContaining({
+          procesador: null,
+          antivirus: null,
+          nombreEquipo: null,
+          imei: null,
+          numeroActivacion: null,
+          tipoPlan: null,
+          operador: null,
+          tieneCargador: false,
+          pulgadas: null,
+        }),
       })
     );
   });

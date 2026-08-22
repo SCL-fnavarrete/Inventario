@@ -29,14 +29,18 @@ export default function NuevoActivoPage() {
     ram: "",
     almacenamiento: "",
     sistemaOperativo: "",
+    microsoft365: false,
+    antivirus: "",
+    nombreEquipo: "",
     imei: "",
     numeroTelefono: "",
+    numeroActivacion: "",
+    tipoPlan: "",
+    operador: "",
+    tieneCargador: true,
     pulgadas: "",
     observaciones: "",
-    operador: "",
-    antivirus: "",
     incidencia: "",
-    nombreEquipo: "",
   });
 
   useEffect(() => {
@@ -70,13 +74,21 @@ export default function NuevoActivoPage() {
           sistemaOperativo: "",
           antivirus: "",
           nombreEquipo: "",
+          microsoft365: false,
         }),
         ...(tipoDevolucion !== "celular" && {
           imei: "",
           numeroTelefono: "",
+          numeroActivacion: "",
+          tipoPlan: "",
           operador: "",
         }),
         ...(tipoDevolucion !== "monitor" && { pulgadas: "" }),
+        tieneCargador:
+          tipoDevolucion === "celular" &&
+          categories.find((category) => category.id === prev.categoriaId)?.tipoDevolucion === "celular"
+            ? prev.tieneCargador
+            : tipoDevolucion === "celular",
       }));
       return;
     }
@@ -103,14 +115,18 @@ export default function NuevoActivoPage() {
         ram: formData.ram || null,
         discoDuro: formData.almacenamiento || null,
         sistemaOperativo: formData.sistemaOperativo || null,
+        microsoft365: formData.microsoft365,
+        antivirus: formData.antivirus || null,
+        nombreEquipo: formData.nombreEquipo || null,
         imei: formData.imei || null,
         numeroTelefono: formData.numeroTelefono || null,
+        numeroActivacion: formData.numeroActivacion || null,
+        tipoPlan: formData.tipoPlan || null,
+        operador: formData.operador || null,
+        tieneCargador: formData.tieneCargador,
         pulgadas: formData.pulgadas || null,
         observaciones: formData.observaciones || null,
-        operador: formData.operador || null,
-        antivirus: formData.antivirus || null,
         incidencia: formData.incidencia || null,
-        nombreEquipo: formData.nombreEquipo || null,
       };
 
       const res = await fetch("/api/activos", {

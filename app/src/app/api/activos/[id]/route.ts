@@ -12,7 +12,10 @@ import {
   ValidationError,
 } from '@/lib/auth/guard';
 import { logger } from '@/lib/logger';
-import { getCategorySpecialFields } from '@/lib/assetImportCategoryFields';
+import {
+  ASSET_CATEGORY_SPECIAL_FIELDS,
+  getCategorySpecialFields,
+} from '@/lib/assetImportCategoryFields';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -68,6 +71,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!category) {
       return NextResponse.json({ error: 'Categoría no encontrada' }, { status: 404 });
     }
+
+    const categoryChanged = categoriaIdEfectiva !== existingAsset.categoriaId;
 
     // Verificar si el número de serie ya existe (si se cambió y se proporciona)
     if (validatedData.numeroSerie && validatedData.numeroSerie !== existingAsset.numeroSerie) {
@@ -134,11 +139,31 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         validatedData.sistemaOperativo !== undefined
           ? validatedData.sistemaOperativo || null
           : existingAsset.sistemaOperativo,
+      antivirus:
+        validatedData.antivirus !== undefined ? validatedData.antivirus || null : existingAsset.antivirus,
+      nombreEquipo:
+        validatedData.nombreEquipo !== undefined
+          ? validatedData.nombreEquipo || null
+          : existingAsset.nombreEquipo,
       imei: validatedData.imei !== undefined ? validatedData.imei || null : existingAsset.imei,
       numeroTelefono:
         validatedData.numeroTelefono !== undefined
           ? validatedData.numeroTelefono || null
           : existingAsset.numeroTelefono,
+      numeroActivacion:
+        validatedData.numeroActivacion !== undefined
+          ? validatedData.numeroActivacion || null
+          : existingAsset.numeroActivacion,
+      tipoPlan:
+        validatedData.tipoPlan !== undefined ? validatedData.tipoPlan || null : existingAsset.tipoPlan,
+      operador:
+        validatedData.operador !== undefined ? validatedData.operador || null : existingAsset.operador,
+      tieneCargador:
+        validatedData.tieneCargador !== undefined
+          ? validatedData.tieneCargador
+          : categoryChanged && category.tipoDevolucion === 'celular'
+            ? true
+            : existingAsset.tieneCargador,
       pulgadas:
         validatedData.pulgadas !== undefined
           ? parsePulgadas(validatedData.pulgadas)
@@ -151,19 +176,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Registrar cambios en especificaciones técnicas, incluidos los campos
     // limpiados automáticamente al cambiar la categoría efectiva.
-    const specsFields = [
-      'procesador',
-      'ram',
-      'discoDuro',
-      'sistemaOperativo',
-      'pulgadas',
-      'microsoft365',
-    ] as const;
     const specsAnteriores: Record<string, unknown> = {};
     const specsNuevos: Record<string, unknown> = {};
     let hasSpecChanges = false;
 
-    for (const field of specsFields) {
+    for (const field of ASSET_CATEGORY_SPECIAL_FIELDS) {
       const previousValue =
         field === 'pulgadas' ? parsePulgadas(existingAsset.pulgadas) : existingAsset[field];
       if (specialFields[field] !== previousValue) {
@@ -171,6 +188,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         specsNuevos[field] = specialFields[field];
         hasSpecChanges = true;
       }
+    }
+
+    if (categoryChanged) {
+      specsAnteriores.categoriaId = existingAsset.categoriaId;
+      specsAnteriores.tipoDevolucion = existingAsset.categoria.tipoDevolucion;
+      specsNuevos.categoriaId = categoriaIdEfectiva;
+      specsNuevos.tipoDevolucion = category.tipoDevolucion;
+      hasSpecChanges = true;
     }
 
     // Las tres escrituras -- historial de estado, historial de specs y el
@@ -225,13 +250,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             fechaBaja: validatedData.fechaBaja ? new Date(validatedData.fechaBaja) : null,
           }),
           ...specialFields,
-          ...(validatedData.numeroActivacion !== undefined && {
-            numeroActivacion: validatedData.numeroActivacion || null,
-          }),
-          ...(validatedData.tipoPlan !== undefined && { tipoPlan: validatedData.tipoPlan || null }),
-          ...(validatedData.tieneCargador !== undefined && {
-            tieneCargador: validatedData.tieneCargador,
-          }),
           ...(validatedData.ubicacionFisica !== undefined && {
             ubicacionFisica: validatedData.ubicacionFisica || null,
           }),
@@ -244,15 +262,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           ...(validatedData.observaciones !== undefined && {
             observaciones: validatedData.observaciones || null,
           }),
-          ...(validatedData.operador !== undefined && { operador: validatedData.operador || null }),
-          ...(validatedData.antivirus !== undefined && {
-            antivirus: validatedData.antivirus || null,
-          }),
           ...(validatedData.incidencia !== undefined && {
             incidencia: validatedData.incidencia || null,
-          }),
-          ...(validatedData.nombreEquipo !== undefined && {
-            nombreEquipo: validatedData.nombreEquipo || null,
           }),
         },
       });

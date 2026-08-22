@@ -35,14 +35,18 @@ export default function EditarActivoPage({
     ram: "",
     almacenamiento: "",
     sistemaOperativo: "",
+    microsoft365: false,
+    antivirus: "",
+    nombreEquipo: "",
     imei: "",
     numeroTelefono: "",
+    numeroActivacion: "",
+    tipoPlan: "",
+    operador: "",
+    tieneCargador: true,
     pulgadas: "",
     observaciones: "",
-    operador: "",
-    antivirus: "",
     incidencia: "",
-    nombreEquipo: "",
   });
 
   useEffect(() => {
@@ -79,14 +83,18 @@ export default function EditarActivoPage({
           ram: asset.ram || "",
           almacenamiento: asset.discoDuro || "",
           sistemaOperativo: asset.sistemaOperativo || "",
+          microsoft365: asset.microsoft365 ?? false,
+          antivirus: asset.antivirus || "",
+          nombreEquipo: asset.nombreEquipo || "",
           imei: asset.imei || "",
           numeroTelefono: asset.numeroTelefono || "",
+          numeroActivacion: asset.numeroActivacion || "",
+          tipoPlan: asset.tipoPlan || "",
+          operador: asset.operador || "",
+          tieneCargador: asset.tieneCargador ?? true,
           pulgadas: asset.pulgadas?.toString() || "",
           observaciones: asset.observaciones || "",
-          operador: asset.operador || "",
-          antivirus: asset.antivirus || "",
           incidencia: asset.incidencia || "",
-          nombreEquipo: asset.nombreEquipo || "",
         });
       }
     } catch (err) {
@@ -114,13 +122,21 @@ export default function EditarActivoPage({
           sistemaOperativo: "",
           antivirus: "",
           nombreEquipo: "",
+          microsoft365: false,
         }),
         ...(tipoDevolucion !== "celular" && {
           imei: "",
           numeroTelefono: "",
+          numeroActivacion: "",
+          tipoPlan: "",
           operador: "",
         }),
         ...(tipoDevolucion !== "monitor" && { pulgadas: "" }),
+        tieneCargador:
+          tipoDevolucion === "celular" &&
+          categories.find((category) => category.id === prev.categoriaId)?.tipoDevolucion === "celular"
+            ? prev.tieneCargador
+            : tipoDevolucion === "celular",
       }));
       return;
     }
@@ -147,14 +163,18 @@ export default function EditarActivoPage({
         ram: formData.ram || null,
         discoDuro: formData.almacenamiento || null,
         sistemaOperativo: formData.sistemaOperativo || null,
+        microsoft365: formData.microsoft365,
+        antivirus: formData.antivirus || null,
+        nombreEquipo: formData.nombreEquipo || null,
         imei: formData.imei || null,
         numeroTelefono: formData.numeroTelefono || null,
+        numeroActivacion: formData.numeroActivacion || null,
+        tipoPlan: formData.tipoPlan || null,
+        operador: formData.operador || null,
+        tieneCargador: formData.tieneCargador,
         pulgadas: formData.pulgadas || null,
         observaciones: formData.observaciones || null,
-        operador: formData.operador || null,
-        antivirus: formData.antivirus || null,
         incidencia: formData.incidencia || null,
-        nombreEquipo: formData.nombreEquipo || null,
       };
 
       const res = await fetch(`/api/activos/${id}`, {
