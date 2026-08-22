@@ -316,6 +316,14 @@ export default function CategoriasPage() {
                       />
                     </td>
                     <td className="px-6 py-4">
+                      <input
+                        type="text"
+                        value={formData.descripcion}
+                        onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                    </td>
+                    <td className="px-6 py-4">
                       <select
                         value={formData.tipoDevolucion}
                         onChange={(e) =>
@@ -332,14 +340,6 @@ export default function CategoriasPage() {
                           </option>
                         ))}
                       </select>
-                    </td>
-                    <td className="px-6 py-4">
-                      <input
-                        type="text"
-                        value={formData.descripcion}
-                        onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                      />
                     </td>
                     <td className="px-6 py-4 text-center">
                       <input

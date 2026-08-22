@@ -10,7 +10,7 @@ const HEADER_ROWS: Record<string, number> = {
   notebook: 0,
   celular: 0,
   monitor: 0,
-  epp: 0,
+  kit: 0,
   otro: 0,
   desvinculaciones: 0,
   default: 0,
@@ -23,14 +23,22 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get("file") as File;
     const sheetName = formData.get("sheetName") as string;
-    const categoria = formData.get("categoria") as string;
+    const categoriaId = formData.get("categoriaId") as string;
     const mappingStr = formData.get("mapping") as string;
 
-    if (!file || !sheetName) {
+    if (!file || !sheetName || !categoriaId) {
       return NextResponse.json(
         { error: "Faltan parámetros requeridos" },
         { status: 400 }
       );
+    }
+
+    const categoryRecord = await prisma.assetCategory.findUnique({
+      where: { id: categoriaId },
+    });
+
+    if (!categoryRecord) {
+      return NextResponse.json({ error: "Categoría no encontrada" }, { status: 404 });
     }
 
     // Parsear mapping si existe
@@ -47,7 +55,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const headerRow = HEADER_ROWS[categoria?.toLowerCase()] ?? HEADER_ROWS.default;
+    const headerRow = HEADER_ROWS[categoryRecord.tipoDevolucion] ?? HEADER_ROWS.default;
 
     const jsonData = XLSX.utils.sheet_to_json<string[]>(worksheet, {
       header: 1,

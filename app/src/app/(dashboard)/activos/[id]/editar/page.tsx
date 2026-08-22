@@ -8,6 +8,7 @@ import { ArrowLeft, Save } from "lucide-react";
 type Category = {
   id: string;
   nombre: string;
+  tipoDevolucion: "notebook" | "celular" | "monitor" | "kit" | "otro";
 };
 
 export default function EditarActivoPage({
@@ -161,9 +162,9 @@ export default function EditarActivoPage({
   }
 
   const selectedCategory = categories.find((c) => c.id === formData.categoriaId);
-  const isNotebook = selectedCategory?.nombre.toLowerCase() === "notebook";
-  const isCelular = selectedCategory?.nombre.toLowerCase() === "celular";
-  const isMonitor = selectedCategory?.nombre.toLowerCase() === "monitor";
+  const isNotebook = selectedCategory?.tipoDevolucion === "notebook";
+  const isCelular = selectedCategory?.tipoDevolucion === "celular";
+  const isMonitor = selectedCategory?.tipoDevolucion === "monitor";
 
   return (
     <div className="space-y-6">

@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 import * as XLSX from "xlsx";
 import { convertExcelDateValue, parseDDMMYYYYToDate } from "@/lib/excel-utils";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { getImportSpecialFields } from '@/lib/assetImportCategoryFields';
 
 // Filas de inicio conocidas por categoría
 // Todas las categorías usan fila 0 (primera fila) como encabezado por defecto
@@ -11,7 +12,7 @@ const HEADER_ROWS: Record<string, number> = {
   notebook: 0,
   celular: 0,
   monitor: 0,
-  epp: 0,
+  kit: 0,
   otro: 0,
   desvinculaciones: 0,
   default: 0,
@@ -57,10 +58,10 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get("file") as File;
     const sheetName = formData.get("sheetName") as string;
-    const categoria = formData.get("categoria") as string;
+    const categoriaId = formData.get("categoriaId") as string;
     const mappingStr = formData.get("mapping") as string;
 
-    if (!file || !sheetName || !categoria || !mappingStr) {
+    if (!file || !sheetName || !categoriaId || !mappingStr) {
       return NextResponse.json(
         { error: "Faltan parámetros requeridos" },
         { status: 400 }
@@ -102,23 +103,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Obtener o crear categoría
-    let categoryRecord = await prisma.assetCategory.findFirst({
-      where: {
-        nombre: {
-          equals: categoria,
-          mode: "insensitive",
-        },
-      },
+    const categoryRecord = await prisma.assetCategory.findUnique({
+      where: { id: categoriaId },
     });
 
     if (!categoryRecord) {
-      categoryRecord = await prisma.assetCategory.create({
-        data: {
-          nombre: categoria.charAt(0).toUpperCase() + categoria.slice(1),
-          descripcion: `Categoría ${categoria}`,
-        },
-      });
+      return NextResponse.json({ error: "Categoría no encontrada" }, { status: 404 });
     }
 
     // Leer archivo Excel
@@ -126,7 +116,7 @@ export async function POST(request: NextRequest) {
     const workbook = XLSX.read(buffer, { type: "array" });
     const worksheet = workbook.Sheets[sheetName];
 
-    const headerRow = HEADER_ROWS[categoria.toLowerCase()] ?? HEADER_ROWS.default;
+    const headerRow = HEADER_ROWS[categoryRecord.tipoDevolucion] ?? HEADER_ROWS.default;
 
     const jsonData = XLSX.utils.sheet_to_json<string[]>(worksheet, {
       header: 1,
@@ -367,6 +357,17 @@ export async function POST(request: NextRequest) {
         const fechaCompraStr = getValue("fechaEntrega");
         const fechaCompra = fechaCompraStr ? parseDDMMYYYYToDate(fechaCompraStr) : null;
 
+        const specialFields = getImportSpecialFields(categoryRecord.tipoDevolucion, {
+          procesador,
+          ram,
+          discoDuro,
+          imei,
+          numeroTelefono,
+          pulgadas,
+          sistemaOperativo,
+          microsoft365,
+        });
+
         // Crear activo
         const asset = await prisma.asset.create({
           data: {
@@ -376,15 +377,8 @@ export async function POST(request: NextRequest) {
             numeroSerie,
             estado,
             condicion: "usado",
-            procesador,
-            ram,
-            discoDuro,
-            imei,
-            numeroTelefono,
-            pulgadas,
-            sistemaOperativo,
+            ...specialFields,
             ubicacionFisica,
-            microsoft365,
             fechaCompra,
             observaciones: getValue("observaciones") || null,
             empleadoActualId: empleadoId,

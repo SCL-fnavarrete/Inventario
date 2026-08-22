@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { parseDDMMYYYYToDate } from "@/lib/excel-utils";
 import type { CorrectedRow, ImportRowStatus, ImportBatchResult } from "@/types/import";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { getImportSpecialFields } from '@/lib/assetImportCategoryFields';
 
 // Mapeo de estados del Excel a estados del sistema
 const ESTADO_MAP: Record<string, string> = {
@@ -33,29 +34,21 @@ export async function POST(request: NextRequest) {
     const session = await requirePermission('activos', 'write');
 
     const body = await request.json();
-    const { categoria, rows } = body as { categoria: string; rows: CorrectedRow[] };
+    const { categoriaId, rows } = body as { categoriaId: string; rows: CorrectedRow[] };
 
-    if (!categoria || !rows || rows.length === 0) {
+    if (!categoriaId || !rows || rows.length === 0) {
       return NextResponse.json(
         { error: "Faltan parámetros requeridos" },
         { status: 400 }
       );
     }
 
-    // Obtener o crear categoría
-    let categoryRecord = await prisma.assetCategory.findFirst({
-      where: {
-        nombre: { equals: categoria, mode: "insensitive" },
-      },
+    const categoryRecord = await prisma.assetCategory.findUnique({
+      where: { id: categoriaId },
     });
 
     if (!categoryRecord) {
-      categoryRecord = await prisma.assetCategory.create({
-        data: {
-          nombre: categoria.charAt(0).toUpperCase() + categoria.slice(1),
-          descripcion: `Categoría ${categoria}`,
-        },
-      });
+      return NextResponse.json({ error: "Categoría no encontrada" }, { status: 404 });
     }
 
     // Obtener series existentes para evitar duplicados
@@ -234,6 +227,17 @@ export async function POST(request: NextRequest) {
         const fechaCompraStr = row.data.fechaEntrega || "";
         const fechaCompra = fechaCompraStr ? parseDDMMYYYYToDate(fechaCompraStr) : null;
 
+        const specialFields = getImportSpecialFields(categoryRecord.tipoDevolucion, {
+          procesador,
+          ram,
+          discoDuro,
+          imei,
+          numeroTelefono,
+          pulgadas,
+          sistemaOperativo,
+          microsoft365,
+        });
+
         // Crear activo
         const asset = await prisma.asset.create({
           data: {
@@ -243,15 +247,8 @@ export async function POST(request: NextRequest) {
             numeroSerie,
             estado,
             condicion: "usado",
-            procesador,
-            ram,
-            discoDuro,
-            imei,
-            numeroTelefono,
-            pulgadas,
-            sistemaOperativo,
+            ...specialFields,
             ubicacionFisica,
-            microsoft365,
             fechaCompra,
             observaciones: row.data.observaciones || null,
             empleadoActualId: empleadoId,

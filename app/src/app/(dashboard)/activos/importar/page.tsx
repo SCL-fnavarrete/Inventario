@@ -16,12 +16,23 @@ import { cn } from "@/lib/utils";
 import { ErrorReviewPanel } from "@/components/import/ErrorReviewPanel";
 import type { ImportRowStatus, CorrectedRow } from "@/types/import";
 
+type TipoDevolucion = "notebook" | "celular" | "monitor" | "kit" | "otro";
+type CategoriaAplicable = TipoDevolucion | "*";
+
 type Category = {
-  id: number;
+  id: string;
   nombre: string;
   descripcion: string | null;
   requiereSerie: boolean;
   requiereImei: boolean;
+  tipoDevolucion: TipoDevolucion;
+};
+
+type ImportField = {
+  key: string;
+  label: string;
+  required?: boolean;
+  categories: CategoriaAplicable[];
 };
 
 type ImportResult = {
@@ -42,7 +53,7 @@ export default function ImportarActivosPage() {
   const [file, setFile] = useState<File | null>(null);
   const [sheetName, setSheetName] = useState("");
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
-  const [categoria, setCategoria] = useState("");
+  const [categoriaId, setCategoriaId] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -73,7 +84,7 @@ export default function ImportarActivosPage() {
   }, []);
 
   // Campos requeridos por categoría ("*" significa todas las categorías)
-  const allRequiredFields = [
+  const allRequiredFields: ImportField[] = [
     // Campos básicos de activos (siempre requeridos para todas las categorías)
     { key: "numeroSerie", label: "N° Serie", required: true, categories: ["*"] },
     { key: "marca", label: "Marca", required: true, categories: ["*"] },
@@ -81,7 +92,7 @@ export default function ImportarActivosPage() {
   ];
 
   // Campos de empleado (opcionales - solo requeridos si el activo está asignado)
-  const employeeFields = [
+  const employeeFields: ImportField[] = [
     { key: "rut", label: "RUT", required: false, categories: ["*"] },
     { key: "nombre", label: "Nombre", required: false, categories: ["*"] },
     { key: "apellidoP", label: "Apellido P.", required: false, categories: ["*"] },
@@ -91,21 +102,26 @@ export default function ImportarActivosPage() {
   ];
 
   // Función para verificar si un campo aplica a la categoría seleccionada
-  const fieldMatchesCategory = (fieldCategories: string[], selectedCategory: string) => {
-    if (!selectedCategory) return true;
+  const fieldMatchesCategory = (
+    fieldCategories: CategoriaAplicable[],
+    selectedTipoDevolucion: TipoDevolucion | undefined
+  ) => {
+    if (!selectedTipoDevolucion) return true;
     if (fieldCategories.includes("*")) return true;
-    return fieldCategories.includes(selectedCategory);
+    return fieldCategories.includes(selectedTipoDevolucion);
   };
 
+  const selectedCategory = categories.find((category) => category.id === categoriaId);
+
   const requiredFields = allRequiredFields.filter(
-    (field) => fieldMatchesCategory(field.categories, categoria)
+    (field) => fieldMatchesCategory(field.categories, selectedCategory?.tipoDevolucion)
   );
 
   const employeeFieldsFiltered = employeeFields.filter(
-    (field) => fieldMatchesCategory(field.categories, categoria)
+    (field) => fieldMatchesCategory(field.categories, selectedCategory?.tipoDevolucion)
   );
 
-  const allOptionalFields = [
+  const allOptionalFields: ImportField[] = [
     // Campos comunes para todas las categorías
     { key: "estado", label: "Estado", categories: ["*"] },
     { key: "observaciones", label: "Observaciones", categories: ["*"] },
@@ -140,7 +156,7 @@ export default function ImportarActivosPage() {
 
   // Filtrar campos opcionales según la categoría seleccionada
   const optionalFields = allOptionalFields.filter(
-    (field) => fieldMatchesCategory(field.categories, categoria)
+    (field) => fieldMatchesCategory(field.categories, selectedCategory?.tipoDevolucion)
   );
 
   const handleFileChange = useCallback(
@@ -183,7 +199,7 @@ export default function ImportarActivosPage() {
   );
 
   async function handlePreview() {
-    if (!file || !sheetName || !categoria) {
+    if (!file || !sheetName || !categoriaId) {
       setError("Selecciona un archivo, hoja y categoría");
       return;
     }
@@ -195,7 +211,7 @@ export default function ImportarActivosPage() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("sheetName", sheetName);
-      formData.append("categoria", categoria);
+      formData.append("categoriaId", categoriaId);
 
       const res = await fetch("/api/activos/importar/preview", {
         method: "POST",
@@ -275,7 +291,7 @@ export default function ImportarActivosPage() {
   }
 
   async function handleImport() {
-    if (!file || !sheetName || !categoria) {
+    if (!file || !sheetName || !categoriaId) {
       setError("Datos incompletos");
       return;
     }
@@ -298,7 +314,7 @@ export default function ImportarActivosPage() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("sheetName", sheetName);
-      formData.append("categoria", categoria);
+      formData.append("categoriaId", categoriaId);
       formData.append("mapping", JSON.stringify(columnMapping));
 
       const res = await fetch("/api/activos/importar", {
@@ -339,7 +355,7 @@ export default function ImportarActivosPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          categoria,
+          categoriaId,
           rows: correctedRows,
         }),
       });
@@ -605,8 +621,8 @@ export default function ImportarActivosPage() {
                   Categoría de Activos *
                 </label>
                 <select
-                  value={categoria}
-                  onChange={(e) => setCategoria(e.target.value)}
+                  value={categoriaId}
+                  onChange={(e) => setCategoriaId(e.target.value)}
                   disabled={loadingCategories}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
                 >
@@ -614,7 +630,7 @@ export default function ImportarActivosPage() {
                     {loadingCategories ? "Cargando categorías..." : "Seleccionar categoría"}
                   </option>
                   {categories.map((cat) => (
-                    <option key={cat.id} value={cat.nombre.toLowerCase()}>
+                    <option key={cat.id} value={cat.id}>
                       {cat.nombre}
                     </option>
                   ))}
@@ -623,7 +639,7 @@ export default function ImportarActivosPage() {
             </div>
           )}
 
-          {file && sheetName && categoria && !preview && (
+          {file && sheetName && categoriaId && !preview && (
             <button
               onClick={handlePreview}
               disabled={parsing}
