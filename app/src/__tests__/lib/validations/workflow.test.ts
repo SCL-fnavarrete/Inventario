@@ -182,12 +182,31 @@ describe('transitionSchema', () => {
   });
 
   test('acepta estado válido de cambio_equipo', () => {
-    const result = transitionSchema.safeParse({ nuevoEstado: 'cambio_ejecutado' });
+    const result = transitionSchema.safeParse({
+      nuevoEstado: 'cambio_ejecutado',
+      datosAccion: {
+        newAssetId: '550e8400-e29b-41d4-a716-446655440000',
+        lugarEntrega: 'Santiago',
+        firmaEmpleadoEntrega:
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg==',
+        aceptaPoliticaUso: true,
+      },
+    });
     expect(result.success).toBe(true);
   });
 
   test('acepta estado válido de devolucion_termino', () => {
-    const result = transitionSchema.safeParse({ nuevoEstado: 'consolidacion_cierre' });
+    const result = transitionSchema.safeParse({
+      nuevoEstado: 'consolidacion_cierre',
+      datosAccion: {
+        terminationId: '550e8400-e29b-41d4-a716-446655440000',
+        estadoNotebook: 'ok', estadoCelular: 'no_aplica', estadoMonitor: 'no_aplica', estadoKit: 'no_aplica',
+        lugarDevolucion: 'Santiago',
+        firmaEmpleadoDevolucion:
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg==',
+        aceptaPoliticaUso: true,
+      },
+    });
     expect(result.success).toBe(true);
   });
 
@@ -209,15 +228,67 @@ describe('transitionSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  test('acepta datosAccion como objeto libre', () => {
+  const firmaPng =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg==';
+
+  test('requiere evidencia completa para la entrega oficial de onboarding', () => {
     const result = transitionSchema.safeParse({
       nuevoEstado: 'equipos_entregados',
       datosAccion: {
-        assetIds: ['uuid-1', 'uuid-2'],
+        assetIds: ['550e8400-e29b-41d4-a716-446655440000'],
         lugarEntrega: 'Santiago',
+        firmaEmpleadoEntrega: firmaPng,
+        aceptaPoliticaUso: true,
       },
     });
     expect(result.success).toBe(true);
+  });
+
+  test('rechaza la entrega oficial sin aceptación literal de política', () => {
+    expect(
+      transitionSchema.safeParse({
+        nuevoEstado: 'equipos_entregados',
+        datosAccion: {
+          assetIds: ['550e8400-e29b-41d4-a716-446655440000'],
+          lugarEntrega: 'Santiago',
+          firmaEmpleadoEntrega: firmaPng,
+          aceptaPoliticaUso: false,
+        },
+      }).success
+    ).toBe(false);
+  });
+
+  test('rechaza timestamps de firma enviados por el cliente', () => {
+    expect(
+      transitionSchema.safeParse({
+        nuevoEstado: 'equipos_entregados',
+        datosAccion: {
+          assetIds: ['550e8400-e29b-41d4-a716-446655440000'],
+          lugarEntrega: 'Santiago',
+          firmaEmpleadoEntrega: firmaPng,
+          aceptaPoliticaUso: true,
+          firmaEmpleadoEntregaEn: '2026-08-22T00:00:00.000Z',
+        },
+      }).success
+    ).toBe(false);
+  });
+
+  test('exige la evidencia de devolución al cerrar un offboarding', () => {
+    expect(
+      transitionSchema.safeParse({
+        nuevoEstado: 'consolidacion_cierre',
+        datosAccion: {
+          terminationId: '550e8400-e29b-41d4-a716-446655440000',
+          estadoNotebook: 'ok',
+          estadoCelular: 'no_aplica',
+          estadoMonitor: 'no_aplica',
+          estadoKit: 'no_aplica',
+          lugarDevolucion: 'Santiago',
+          firmaEmpleadoDevolucion: firmaPng,
+          aceptaPoliticaUso: true,
+        },
+      }).success
+    ).toBe(true);
   });
 });
 

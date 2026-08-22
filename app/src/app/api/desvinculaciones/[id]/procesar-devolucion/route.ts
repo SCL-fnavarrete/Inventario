@@ -52,6 +52,8 @@ export async function POST(
         montoDescuento: data.montoDescuento,
         motivoDescuento: data.motivoDescuento,
         observaciones: data.observaciones,
+        firmaEmpleadoDevolucion: data.firmaEmpleadoDevolucion,
+        aceptaPoliticaUso: data.aceptaPoliticaUso,
       });
     });
 

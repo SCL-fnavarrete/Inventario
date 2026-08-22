@@ -29,7 +29,10 @@ export async function POST(
       );
     }
 
-    const { nuevoEstado, comentario, datosAccion } = validationResult.data;
+    const { nuevoEstado, comentario } = validationResult.data;
+    const datosAccion =
+      'datosAccion' in validationResult.data ? validationResult.data.datosAccion : undefined;
+    const datosAccionRecord = datosAccion as Record<string, unknown> | undefined;
 
     // Find system user
     const systemUser = await prisma.systemUser.findUnique({
@@ -75,16 +78,18 @@ export async function POST(
         nuevoEstado === 'equipos_entregados'
       ) {
         // Create assignments for selected assets
-        const assets = (datosAccion?.assetIds as string[]) || [];
+        const assets = (datosAccionRecord?.assetIds as string[]) || [];
         for (const assetId of assets) {
           const assignment = await executeAssignment(tx, {
             assetId,
             employeeId: workflowRequest.employeeId,
             fechaEntrega: new Date(),
-            lugarEntrega: (datosAccion?.lugarEntrega as string) || null,
+            lugarEntrega: (datosAccionRecord?.lugarEntrega as string) || null,
             entregadoPor: systemUser.nombre,
             tipoMovimiento: 'ingreso',
             motivo: `Onboarding - ${workflowRequest.numero}`,
+            firmaEmpleadoEntrega: datosAccionRecord?.firmaEmpleadoEntrega as string,
+            aceptaPoliticaUso: datosAccionRecord?.aceptaPoliticaUso as true,
           });
           assignmentIds.push(assignment.id);
         }
@@ -96,16 +101,18 @@ export async function POST(
         nuevoEstado === 'cambio_ejecutado'
       ) {
         // Return old asset and assign new one
-        const oldAssignmentId = datosAccion?.oldAssignmentId as string | undefined;
-        const newAssetId = datosAccion?.newAssetId as string | undefined;
+        const oldAssignmentId = datosAccionRecord?.oldAssignmentId as string | undefined;
+        const newAssetId = datosAccionRecord?.newAssetId as string | undefined;
 
         if (oldAssignmentId) {
           await executeReturn(tx, {
             assignmentId: oldAssignmentId,
             fechaDevolucion: new Date(),
             recibidoPor: systemUser.nombre,
-            estadoDevolucion: (datosAccion?.estadoDevolucion as 'ok' | 'danado' | 'incompleto') || 'ok',
+            estadoDevolucion: (datosAccionRecord?.estadoDevolucion as 'ok' | 'danado' | 'incompleto') || 'ok',
             observacionesDevolucion: `Cambio de equipo - ${workflowRequest.numero}`,
+            firmaEmpleadoDevolucion: datosAccionRecord?.firmaEmpleadoDevolucion as string,
+            aceptaPoliticaUso: datosAccionRecord?.aceptaPoliticaUso as true,
           });
         }
 
@@ -114,10 +121,12 @@ export async function POST(
             assetId: newAssetId,
             employeeId: workflowRequest.employeeId,
             fechaEntrega: new Date(),
-            lugarEntrega: (datosAccion?.lugarEntrega as string) || null,
+            lugarEntrega: (datosAccionRecord?.lugarEntrega as string) || null,
             entregadoPor: systemUser.nombre,
             tipoMovimiento: 'cambio',
             motivo: workflowRequest.motivoCambio || `Cambio - ${workflowRequest.numero}`,
+            firmaEmpleadoEntrega: datosAccionRecord?.firmaEmpleadoEntrega as string,
+            aceptaPoliticaUso: datosAccionRecord?.aceptaPoliticaUso as true,
           });
           assignmentIds.push(assignment.id);
         }
@@ -132,8 +141,8 @@ export async function POST(
         await tx.workflowRequest.update({
           where: { id },
           data: {
-            medioDevolucion: (datosAccion?.medioDevolucion as string) || undefined,
-            otChilexpress: (datosAccion?.otChilexpress as string) || undefined,
+            medioDevolucion: (datosAccionRecord?.medioDevolucion as string) || undefined,
+            otChilexpress: (datosAccionRecord?.otChilexpress as string) || undefined,
           },
         });
       }
@@ -144,7 +153,7 @@ export async function POST(
         nuevoEstado === 'consolidacion_cierre'
       ) {
         // Execute termination return if data provided
-        const terminationData = datosAccion as Record<string, unknown> | undefined;
+        const terminationData = datosAccionRecord;
         if (terminationData?.terminationId) {
           const updatedTermination = await executeTerminationReturn(tx, {
             terminationId: terminationData.terminationId as string,
@@ -156,6 +165,8 @@ export async function POST(
             recibidoPor: systemUser.nombre,
             lugarDevolucion: (terminationData.lugarDevolucion as string) || 'Oficina',
             observaciones: comentario || undefined,
+            firmaEmpleadoDevolucion: terminationData.firmaEmpleadoDevolucion as string,
+            aceptaPoliticaUso: terminationData.aceptaPoliticaUso as true,
           });
           await tx.workflowRequest.update({
             where: { id },

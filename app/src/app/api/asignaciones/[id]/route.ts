@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { returnAssignmentSchema } from "@/lib/validations/assignment";
+import { executeReturn } from '@/lib/services/workflowExecutionService';
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 interface RouteParams {
@@ -84,64 +85,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const data = validationResult.data;
 
-    // SPEC 2.7.7: Destino automático del activo según estado de devolución
-    let nuevoEstadoActivo: "reutilizable" | "baja" = "reutilizable";
-    if (data.estadoDevolucion === "danado") {
-      nuevoEstadoActivo = "baja"; // SPEC: danado → baja
-    }
-    // ok → reutilizable, incompleto → reutilizable
-
-    // Actualizar asignación y activo en una transacción
+    // La misma operación que usa el workflow evita un bypass de firma/política.
     const result = await prisma.$transaction(async (tx) => {
-      // Actualizar asignación
-      const assignment = await tx.assignment.update({
-        where: { id },
-        data: {
-          fechaDevolucion: data.fechaDevolucion,
-          recibidoPor: data.recibidoPor,
-          estadoDevolucion: data.estadoDevolucion,
-          observacionesDevolucion: data.observacionesDevolucion,
-          activo: false,
-        },
-        include: {
-          asset: {
-            include: { categoria: true },
-          },
-          employee: true,
-        },
+      return executeReturn(tx, {
+        assignmentId: id,
+        fechaDevolucion: data.fechaDevolucion,
+        recibidoPor: data.recibidoPor,
+        estadoDevolucion: data.estadoDevolucion,
+        observacionesDevolucion: data.observacionesDevolucion,
+        firmaEmpleadoDevolucion: data.firmaEmpleadoDevolucion,
+        aceptaPoliticaUso: data.aceptaPoliticaUso,
       });
-
-      // Actualizar estado del activo (SPEC 2.7.7)
-      await tx.asset.update({
-        where: { id: existingAssignment.assetId },
-        data: {
-          estado: nuevoEstadoActivo,
-          condicion: data.estadoDevolucion === "danado" ? "danado" : "usado",
-          empleadoActualId: null,
-          ...(nuevoEstadoActivo === "baja" && { fechaBaja: new Date() }),
-        },
-      });
-
-      // Registrar en historial
-      await tx.assetHistory.create({
-        data: {
-          assetId: existingAssignment.assetId,
-          tipoEvento: "devolucion",
-          descripcion: `Devuelto por ${existingAssignment.employee.nombres} ${existingAssignment.employee.apellidoPaterno}. Estado: ${data.estadoDevolucion}`,
-          datosAnteriores: {
-            estado: "asignado",
-            empleadoActualId: existingAssignment.employeeId,
-          },
-          datosNuevos: {
-            estado: nuevoEstadoActivo,
-            empleadoActualId: null,
-            estadoDevolucion: data.estadoDevolucion,
-          },
-          usuarioSistema: data.recibidoPor || "Sistema",
-        },
-      });
-
-      return assignment;
     });
 
     return NextResponse.json(result);

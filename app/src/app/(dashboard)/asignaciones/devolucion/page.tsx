@@ -20,6 +20,7 @@ import {
   FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import OfficialEvidenceFields from '@/components/ui/OfficialEvidenceFields';
 
 type Assignment = {
   id: string;
@@ -90,6 +91,8 @@ export default function DevolucionPage() {
     recibidoPor: "",
     estadoDevolucion: "ok",
     observacionesDevolucion: "",
+    firmaEmpleadoDevolucion: null as string | null,
+    aceptaPoliticaUso: false,
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -180,6 +183,10 @@ export default function DevolucionPage() {
 
     if (selectedAssignments.length === 0) {
       setError("Debe seleccionar al menos un equipo para devolver");
+      return;
+    }
+    if (!returnData.firmaEmpleadoDevolucion || !returnData.aceptaPoliticaUso) {
+      setError("La devolución oficial requiere firma y aceptación de política de uso");
       return;
     }
 
@@ -534,6 +541,19 @@ export default function DevolucionPage() {
               </div>
             </div>
 
+            <OfficialEvidenceFields
+              kind="devolucion"
+              signature={returnData.firmaEmpleadoDevolucion}
+              onSignatureChange={(firmaEmpleadoDevolucion) =>
+                setReturnData((prev) => ({ ...prev, firmaEmpleadoDevolucion }))
+              }
+              accepted={returnData.aceptaPoliticaUso}
+              onAcceptedChange={(aceptaPoliticaUso) =>
+                setReturnData((prev) => ({ ...prev, aceptaPoliticaUso }))
+              }
+              disabled={submitting}
+            />
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Observaciones
@@ -656,12 +676,14 @@ export default function DevolucionPage() {
                 setAssignments([]);
                 setSelectedAssignments([]);
                 setSuccess(false);
-                setReturnData({
-                  fechaDevolucion: new Date().toISOString().split("T")[0],
-                  recibidoPor: "",
-                  estadoDevolucion: "ok",
-                  observacionesDevolucion: "",
-                });
+    setReturnData({
+      fechaDevolucion: new Date().toISOString().split("T")[0],
+      recibidoPor: "",
+      estadoDevolucion: "ok",
+      observacionesDevolucion: "",
+      firmaEmpleadoDevolucion: null,
+      aceptaPoliticaUso: false,
+    });
               }}
               className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
             >

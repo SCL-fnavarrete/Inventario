@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { pngSignatureSchema, policyAcceptanceSchema } from './signature';
 
 // Enums que coinciden con Prisma
 export const EstadoDevolucionTipoEnum = z.enum(["ok", "danado", "no_aplica", "pendiente"]);
@@ -50,7 +51,9 @@ export const registerReturnSchema = z.object({
   montoDescuento: z.number().positive("El monto debe ser positivo").optional().nullable(),
   motivoDescuento: z.string().optional().nullable(),
   observaciones: z.string().optional().nullable(),
-});
+  firmaEmpleadoDevolucion: pngSignatureSchema,
+  aceptaPoliticaUso: policyAcceptanceSchema,
+}).strict();
 
 // Schema para filtros de búsqueda
 export const terminationFiltersSchema = z.object({

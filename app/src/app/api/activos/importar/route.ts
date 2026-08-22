@@ -445,6 +445,7 @@ export async function POST(request: NextRequest) {
               fechaEntrega,
               tipoMovimiento: "ingreso",
               activo: true,
+              motivo: "Carga inicial histórica sin documento oficial",
             },
           });
 

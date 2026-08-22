@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { estadoActivoEnum, condicionActivoEnum } from './asset';
+import { pngSignatureSchema, policyAcceptanceSchema } from './signature';
 
 // SPEC: Sección 2.7.2 — Transiciones válidas del ciclo de vida de activos
 
@@ -75,9 +76,13 @@ export const assetReassignmentSchema = z.object({
     if (isNaN(date.getTime())) throw new Error('Fecha inválida');
     return date;
   }),
-  lugarEntrega: z.string().max(100).optional().nullable(),
+  lugarEntrega: z.string().min(1, 'Lugar de entrega requerido').max(100),
   entregadoPor: z.string().max(100).optional().nullable(),
-});
+  firmaEmpleadoDevolucion: pngSignatureSchema,
+  aceptaPoliticaUsoDevolucion: policyAcceptanceSchema,
+  firmaEmpleadoEntrega: pngSignatureSchema,
+  aceptaPoliticaUsoEntrega: policyAcceptanceSchema,
+}).strict();
 
 // Tipos inferidos
 export type AssetTransitionInput = z.infer<typeof assetTransitionSchema>;

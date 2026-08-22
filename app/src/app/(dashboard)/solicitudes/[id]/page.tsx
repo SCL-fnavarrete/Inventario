@@ -15,6 +15,7 @@ import {
   User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import OfficialEvidenceFields from '@/components/ui/OfficialEvidenceFields';
 
 type WorkflowDetail = {
   id: string;
@@ -81,6 +82,8 @@ type WorkflowDetail = {
     updatedAt: string;
   }[];
 };
+
+type AvailableAsset = { id: string; marca: string; modelo: string; numeroSerie: string | null };
 
 const estadoLabels: Record<string, string> = {
   solicitud_recibida: 'Solicitud Recibida',
@@ -149,6 +152,26 @@ export default function SolicitudDetailPage() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [error, setError] = useState('');
+  const [transitionFormOpen, setTransitionFormOpen] = useState(false);
+  const [availableAssets, setAvailableAssets] = useState<AvailableAsset[]>([]);
+  const [actionData, setActionData] = useState({
+    assetIds: [] as string[],
+    lugarEntrega: '',
+    oldAssignmentId: '',
+    newAssetId: '',
+    estadoDevolucion: 'ok',
+    estadoNotebook: 'no_aplica',
+    estadoCelular: 'no_aplica',
+    estadoMonitor: 'no_aplica',
+    estadoKit: 'no_aplica',
+    terminationId: '',
+    lugarDevolucion: '',
+    medioDevolucion: '',
+    otChilexpress: '',
+    firmaEmpleadoEntrega: null as string | null,
+    firmaEmpleadoDevolucion: null as string | null,
+    aceptaPoliticaUso: false,
+  });
 
   const fetchData = useCallback(async () => {
     try {
@@ -186,24 +209,121 @@ export default function SolicitudDetailPage() {
     }
   };
 
-  const handleTransition = async (nuevoEstado: string) => {
+  const handleTransition = async (nuevoEstado: string, datosAccion?: Record<string, unknown>) => {
     setTransitioning(true);
     setError('');
     try {
       const res = await fetch(`/api/solicitudes/${id}/transicion`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nuevoEstado }),
+        body: JSON.stringify(datosAccion ? { nuevoEstado, datosAccion } : { nuevoEstado }),
       });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || 'Error al avanzar solicitud');
       }
       fetchData();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
+      return false;
     } finally {
       setTransitioning(false);
+    }
+  };
+
+  const needsActionData = (nuevoEstado: string) =>
+    nuevoEstado === 'equipos_entregados' ||
+    nuevoEstado === 'cambio_ejecutado' ||
+    nuevoEstado === 'equipo_recibido' ||
+    nuevoEstado === 'consolidacion_cierre';
+
+  const openTransitionForm = async (nuevoEstado: string) => {
+    if (!needsActionData(nuevoEstado)) {
+      await handleTransition(nuevoEstado);
+      return;
+    }
+    setError('');
+    setActionData((previous) => ({
+      ...previous,
+      terminationId: data?.terminationId || previous.terminationId,
+    }));
+    setTransitionFormOpen(true);
+    if (nuevoEstado === 'equipos_entregados' || nuevoEstado === 'cambio_ejecutado') {
+      try {
+        const response = await fetch('/api/activos?estado=disponible&limit=100');
+        if (!response.ok) throw new Error('No se pudieron cargar los activos disponibles');
+        const payload = await response.json();
+        setAvailableAssets(payload.data || []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'No se pudieron cargar los activos disponibles');
+      }
+    }
+  };
+
+  const submitTransitionEvidence = async (nuevoEstado: string) => {
+    let datosAccion: Record<string, unknown>;
+    if (nuevoEstado === 'equipos_entregados') {
+      if (!actionData.assetIds.length || !actionData.lugarEntrega || !actionData.firmaEmpleadoEntrega || !actionData.aceptaPoliticaUso) {
+        setError('Seleccione activos, lugar, firma y aceptación de política para registrar la entrega.');
+        return;
+      }
+      datosAccion = {
+        assetIds: actionData.assetIds,
+        lugarEntrega: actionData.lugarEntrega,
+        firmaEmpleadoEntrega: actionData.firmaEmpleadoEntrega,
+        aceptaPoliticaUso: true,
+      };
+    } else if (nuevoEstado === 'cambio_ejecutado') {
+      if (!actionData.oldAssignmentId && !actionData.newAssetId) {
+        setError('Seleccione una devolución, una entrega o ambas para ejecutar el cambio.');
+        return;
+      }
+      if (!actionData.aceptaPoliticaUso || (actionData.oldAssignmentId && !actionData.firmaEmpleadoDevolucion) || (actionData.newAssetId && (!actionData.firmaEmpleadoEntrega || !actionData.lugarEntrega))) {
+        setError('El cambio requiere firma y aceptación de política para cada acto seleccionado.');
+        return;
+      }
+      datosAccion = {
+        ...(actionData.oldAssignmentId && {
+          oldAssignmentId: actionData.oldAssignmentId,
+          estadoDevolucion: actionData.estadoDevolucion,
+          firmaEmpleadoDevolucion: actionData.firmaEmpleadoDevolucion,
+        }),
+        ...(actionData.newAssetId && {
+          newAssetId: actionData.newAssetId,
+          lugarEntrega: actionData.lugarEntrega,
+          firmaEmpleadoEntrega: actionData.firmaEmpleadoEntrega,
+        }),
+        aceptaPoliticaUso: true,
+      };
+    } else if (nuevoEstado === 'consolidacion_cierre') {
+      if (!actionData.terminationId || !actionData.lugarDevolucion || !actionData.firmaEmpleadoDevolucion || !actionData.aceptaPoliticaUso) {
+        setError('La devolución final requiere desvinculación, lugar, firma y aceptación de política.');
+        return;
+      }
+      datosAccion = {
+        terminationId: actionData.terminationId,
+        estadoNotebook: actionData.estadoNotebook,
+        estadoCelular: actionData.estadoCelular,
+        estadoMonitor: actionData.estadoMonitor,
+        estadoKit: actionData.estadoKit,
+        lugarDevolucion: actionData.lugarDevolucion,
+        firmaEmpleadoDevolucion: actionData.firmaEmpleadoDevolucion,
+        aceptaPoliticaUso: true,
+      };
+    } else {
+      if (!actionData.medioDevolucion && !actionData.otChilexpress) {
+        setError('Indique el medio o la orden de coordinación de devolución.');
+        return;
+      }
+      datosAccion = {
+        ...(actionData.medioDevolucion && { medioDevolucion: actionData.medioDevolucion }),
+        ...(actionData.otChilexpress && { otChilexpress: actionData.otChilexpress }),
+      };
+    }
+
+    if (await handleTransition(nuevoEstado, datosAccion)) {
+      setTransitionFormOpen(false);
     }
   };
 
@@ -334,13 +454,57 @@ export default function SolicitudDetailPage() {
                 Avanzar a: <strong>{estadoLabels[nextState]}</strong>
               </p>
               <button
-                onClick={() => handleTransition(nextState)}
+                onClick={() => openTransitionForm(nextState)}
                 disabled={transitioning}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
                 <ChevronRight className="h-4 w-4" />
                 {transitioning ? 'Avanzando...' : `Avanzar a ${estadoLabels[nextState]}`}
               </button>
+              {transitionFormOpen && (
+                <div className="mt-4 rounded-lg border border-blue-200 bg-white p-4">
+                  {nextState === 'equipos_entregados' && (
+                    <>
+                      <h4 className="mb-3 font-medium text-gray-900">Registrar entrega de equipos</h4>
+                      <div className="space-y-2">
+                        {availableAssets.map((asset) => (
+                          <label key={asset.id} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={actionData.assetIds.includes(asset.id)}
+                              onChange={(event) =>
+                                setActionData((previous) => ({
+                                  ...previous,
+                                  assetIds: event.target.checked
+                                    ? [...previous.assetIds, asset.id]
+                                    : previous.assetIds.filter((id) => id !== asset.id),
+                                }))
+                              }
+                            />
+                            {asset.marca} {asset.modelo} ({asset.numeroSerie || 'S/N'})
+                          </label>
+                        ))}
+                      </div>
+                      <label className="mt-3 block text-sm font-medium" htmlFor="lugar-entrega">Lugar de entrega</label>
+                      <input id="lugar-entrega" value={actionData.lugarEntrega} onChange={(event) => setActionData((previous) => ({ ...previous, lugarEntrega: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" />
+                      <div className="mt-3"><OfficialEvidenceFields kind="entrega" signature={actionData.firmaEmpleadoEntrega} onSignatureChange={(firmaEmpleadoEntrega) => setActionData((previous) => ({ ...previous, firmaEmpleadoEntrega }))} accepted={actionData.aceptaPoliticaUso} onAcceptedChange={(aceptaPoliticaUso) => setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))} /></div>
+                    </>
+                  )}
+                  {nextState === 'cambio_ejecutado' && (
+                    <>
+                      <h4 className="mb-3 font-medium text-gray-900">Evidencia del cambio de equipo</h4>
+                      <label className="block text-sm font-medium" htmlFor="asignacion-anterior">Asignación anterior a devolver</label>
+                      <select id="asignacion-anterior" value={actionData.oldAssignmentId} onChange={(event) => setActionData((previous) => ({ ...previous, oldAssignmentId: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2"><option value="">No se devuelve asignación</option>{data.employee.assignments.filter((assignment) => assignment.activo).map((assignment) => <option key={assignment.id} value={assignment.id}>{assignment.asset.marca} {assignment.asset.modelo}</option>)}</select>
+                      {actionData.oldAssignmentId && <><label className="mt-3 block text-sm font-medium" htmlFor="estado-devolucion">Estado de devolución</label><select id="estado-devolucion" value={actionData.estadoDevolucion} onChange={(event) => setActionData((previous) => ({ ...previous, estadoDevolucion: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2"><option value="ok">OK</option><option value="danado">Dañado</option><option value="incompleto">Incompleto</option></select><div className="mt-3"><OfficialEvidenceFields kind="devolucion" suffix=" anterior" signature={actionData.firmaEmpleadoDevolucion} onSignatureChange={(firmaEmpleadoDevolucion) => setActionData((previous) => ({ ...previous, firmaEmpleadoDevolucion }))} accepted={actionData.aceptaPoliticaUso} onAcceptedChange={(aceptaPoliticaUso) => setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))} /></div></>}
+                      <label className="mt-3 block text-sm font-medium" htmlFor="activo-nuevo">Activo nuevo a entregar</label><select id="activo-nuevo" value={actionData.newAssetId} onChange={(event) => setActionData((previous) => ({ ...previous, newAssetId: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2"><option value="">No se entrega activo</option>{availableAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.marca} {asset.modelo}</option>)}</select>
+                      {actionData.newAssetId && <><label className="mt-3 block text-sm font-medium" htmlFor="lugar-cambio">Lugar de entrega</label><input id="lugar-cambio" value={actionData.lugarEntrega} onChange={(event) => setActionData((previous) => ({ ...previous, lugarEntrega: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" /><div className="mt-3"><OfficialEvidenceFields kind="entrega" suffix=" nueva" signature={actionData.firmaEmpleadoEntrega} onSignatureChange={(firmaEmpleadoEntrega) => setActionData((previous) => ({ ...previous, firmaEmpleadoEntrega }))} accepted={actionData.aceptaPoliticaUso} onAcceptedChange={(aceptaPoliticaUso) => setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))} /></div></>}
+                    </>
+                  )}
+                  {nextState === 'equipo_recibido' && <><h4 className="mb-3 font-medium text-gray-900">Coordinación de devolución</h4><label className="block text-sm font-medium" htmlFor="medio-devolucion">Medio de devolución</label><input id="medio-devolucion" value={actionData.medioDevolucion} onChange={(event) => setActionData((previous) => ({ ...previous, medioDevolucion: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" /><label className="mt-3 block text-sm font-medium" htmlFor="ot-chilexpress">Orden de transporte</label><input id="ot-chilexpress" value={actionData.otChilexpress} onChange={(event) => setActionData((previous) => ({ ...previous, otChilexpress: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" /></>}
+                  {nextState === 'consolidacion_cierre' && <><h4 className="mb-3 font-medium text-gray-900">Registrar devolución final</h4><label className="block text-sm font-medium" htmlFor="termination-id">ID de desvinculación</label><input id="termination-id" value={actionData.terminationId} onChange={(event) => setActionData((previous) => ({ ...previous, terminationId: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" />{(['Notebook', 'Celular', 'Monitor', 'Kit'] as const).map((tipo) => { const key = `estado${tipo}` as 'estadoNotebook' | 'estadoCelular' | 'estadoMonitor' | 'estadoKit'; return <label key={key} className="mt-3 block text-sm font-medium">Estado {tipo}<select value={actionData[key]} onChange={(event) => setActionData((previous) => ({ ...previous, [key]: event.target.value }))} className="mt-1 block w-full rounded border border-gray-300 p-2"><option value="ok">OK</option><option value="danado">Dañado</option><option value="no_aplica">No aplica</option><option value="pendiente">Pendiente</option></select></label>; })}<label className="mt-3 block text-sm font-medium" htmlFor="lugar-devolucion">Lugar de devolución</label><input id="lugar-devolucion" value={actionData.lugarDevolucion} onChange={(event) => setActionData((previous) => ({ ...previous, lugarDevolucion: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" /><div className="mt-3"><OfficialEvidenceFields kind="devolucion" signature={actionData.firmaEmpleadoDevolucion} onSignatureChange={(firmaEmpleadoDevolucion) => setActionData((previous) => ({ ...previous, firmaEmpleadoDevolucion }))} accepted={actionData.aceptaPoliticaUso} onAcceptedChange={(aceptaPoliticaUso) => setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))} /></div></>}
+                  <div className="mt-4 flex gap-2"><button type="button" onClick={() => setTransitionFormOpen(false)} disabled={transitioning} className="rounded border border-gray-300 px-3 py-2 text-sm">Cancelar</button><button type="button" onClick={() => submitTransitionEvidence(nextState)} disabled={transitioning} className="rounded bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50">{transitioning ? 'Guardando...' : nextState === 'equipos_entregados' ? 'Confirmar entrega' : 'Confirmar transición'}</button></div>
+                </div>
+              )}
             </div>
           )}
 

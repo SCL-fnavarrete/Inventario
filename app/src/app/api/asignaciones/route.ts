@@ -135,6 +135,8 @@ export async function POST(request: NextRequest) {
         entregadoPor: data.entregadoPor,
         tipoMovimiento: data.tipoMovimiento,
         motivo: data.motivo,
+        firmaEmpleadoEntrega: data.firmaEmpleadoEntrega,
+        aceptaPoliticaUso: data.aceptaPoliticaUso,
       });
     });
 

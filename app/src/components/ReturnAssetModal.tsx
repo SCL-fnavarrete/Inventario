@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { X, Package, AlertCircle } from "lucide-react";
+import OfficialEvidenceFields from '@/components/ui/OfficialEvidenceFields';
 
 interface ReturnAssetModalProps {
   isOpen: boolean;
@@ -20,6 +21,8 @@ export interface ReturnAssetData {
   recibidoPor: string;
   estadoDevolucion: "ok" | "danado" | "incompleto";
   observacionesDevolucion?: string;
+  firmaEmpleadoDevolucion: string | null;
+  aceptaPoliticaUso: boolean;
 }
 
 export default function ReturnAssetModal({
@@ -35,6 +38,8 @@ export default function ReturnAssetModal({
     recibidoPor: "",
     estadoDevolucion: "ok",
     observacionesDevolucion: "",
+    firmaEmpleadoDevolucion: null,
+    aceptaPoliticaUso: false,
   });
 
   if (!isOpen) return null;
@@ -42,6 +47,10 @@ export default function ReturnAssetModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!formData.firmaEmpleadoDevolucion || !formData.aceptaPoliticaUso) {
+      setError('La devolución oficial requiere firma y aceptación de política de uso.');
+      return;
+    }
     setLoading(true);
 
     try {
@@ -61,6 +70,8 @@ export default function ReturnAssetModal({
         recibidoPor: "",
         estadoDevolucion: "ok",
         observacionesDevolucion: "",
+        firmaEmpleadoDevolucion: null,
+        aceptaPoliticaUso: false,
       });
       setError(null);
       onClose();
@@ -191,6 +202,17 @@ export default function ReturnAssetModal({
                 quedara listo para ser asignado nuevamente.
               </p>
             </div>
+
+            <OfficialEvidenceFields
+              kind="devolucion"
+              signature={formData.firmaEmpleadoDevolucion}
+              onSignatureChange={(firmaEmpleadoDevolucion) =>
+                setFormData({ ...formData, firmaEmpleadoDevolucion })
+              }
+              accepted={formData.aceptaPoliticaUso}
+              onAcceptedChange={(aceptaPoliticaUso) => setFormData({ ...formData, aceptaPoliticaUso })}
+              disabled={loading}
+            />
           </div>
 
           {/* Actions */}

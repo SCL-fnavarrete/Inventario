@@ -29,6 +29,7 @@ import {
   Backpack,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import OfficialEvidenceFields from '@/components/ui/OfficialEvidenceFields';
 
 type Assignment = {
   id: string;
@@ -192,6 +193,8 @@ export default function DesvinculacionDetallePage({
     montoDescuento: "",
     motivoDescuento: "",
     observaciones: "",
+    firmaEmpleadoDevolucion: null as string | null,
+    aceptaPoliticaUso: false,
   });
 
   // Estado para descuentos personalizados
@@ -324,6 +327,10 @@ export default function DesvinculacionDetallePage({
   async function handleProcessReturn(e: React.FormEvent) {
     e.preventDefault();
     if (!termination) return;
+    if (!returnForm.firmaEmpleadoDevolucion || !returnForm.aceptaPoliticaUso) {
+      setError('La devolución oficial requiere firma y aceptación de política de uso.');
+      return;
+    }
 
     setSubmitting(true);
     setError("");
@@ -396,6 +403,8 @@ export default function DesvinculacionDetallePage({
             : null,
           motivoDescuento: motivoDescuento || null,
           observaciones: returnForm.observaciones || null,
+          firmaEmpleadoDevolucion: returnForm.firmaEmpleadoDevolucion,
+          aceptaPoliticaUso: true,
         }),
       });
 
@@ -1002,6 +1011,21 @@ export default function DesvinculacionDetallePage({
               </div>
             </div>
 
+            <div className="mb-6">
+              <OfficialEvidenceFields
+                kind="devolucion"
+                signature={returnForm.firmaEmpleadoDevolucion}
+                onSignatureChange={(firmaEmpleadoDevolucion) =>
+                  setReturnForm((previous) => ({ ...previous, firmaEmpleadoDevolucion }))
+                }
+                accepted={returnForm.aceptaPoliticaUso}
+                onAcceptedChange={(aceptaPoliticaUso) =>
+                  setReturnForm((previous) => ({ ...previous, aceptaPoliticaUso }))
+                }
+                disabled={!!allProcessed || submitting}
+              />
+            </div>
+
             {/* Discount Section - Enhanced */}
             <div className="mb-6">
               <div className="border rounded-lg bg-gradient-to-br from-red-50 to-orange-50">
@@ -1341,7 +1365,7 @@ export default function DesvinculacionDetallePage({
                 </Link>
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || !returnForm.firmaEmpleadoDevolucion || !returnForm.aceptaPoliticaUso}
                   className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {submitting ? (

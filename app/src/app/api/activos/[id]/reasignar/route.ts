@@ -70,6 +70,7 @@ export async function POST(
 
     // Ejecutar reasignación en UNA transacción (SPEC: atómica)
     const result = await prisma.$transaction(async (tx) => {
+      const firmaEn = new Date();
       // 1. Cerrar asignación actual (devolución)
       await tx.assignment.update({
         where: { id: data.assignmentId },
@@ -79,6 +80,8 @@ export async function POST(
           recibidoPor: data.entregadoPor || usuario,
           estadoDevolucion: data.estadoDevolucion,
           observacionesDevolucion: `Reasignación: ${data.motivoReasignacion}`,
+          firmaEmpleadoDevolucion: data.firmaEmpleadoDevolucion,
+          firmaEmpleadoDevolucionEn: firmaEn,
         },
       });
 
@@ -92,6 +95,8 @@ export async function POST(
           entregadoPor: data.entregadoPor || usuario,
           tipoMovimiento: 'cambio',
           motivo: data.motivoReasignacion,
+          firmaEmpleadoEntrega: data.firmaEmpleadoEntrega,
+          firmaEmpleadoEntregaEn: firmaEn,
           activo: true,
         },
         include: {
@@ -107,26 +112,52 @@ export async function POST(
       });
 
       // 4. Registrar historial: devolución
-      await assetHistoryService.registrarDevolucion(
-        id,
-        `${currentAssignment.employee.nombres} ${currentAssignment.employee.apellidoPaterno}`,
-        currentAssignment.employee.rut || '',
-        data.estadoDevolucion,
-        `Reasignación: ${data.motivoReasignacion}`,
-        usuario
+      await assetHistoryService.registrar(
+        {
+          assetId: id,
+          tipoEvento: 'devolucion',
+          descripcion: `Devuelto por ${currentAssignment.employee.nombres} ${currentAssignment.employee.apellidoPaterno} (${currentAssignment.employee.rut || ''}) - Estado: ${data.estadoDevolucion}`,
+          datosNuevos: {
+            estadoDevolucion: data.estadoDevolucion,
+            observaciones: `Reasignación: ${data.motivoReasignacion}`,
+          },
+          usuarioSistema: usuario,
+        },
+        tx
       );
 
       // 5. Registrar historial: nueva asignación
-      await assetHistoryService.registrarAsignacion(
-        id,
-        `${newEmployee.nombres} ${newEmployee.apellidoPaterno}`,
-        newEmployee.rut || '',
-        data.lugarEntrega || '',
-        data.entregadoPor || usuario,
-        usuario
+      await assetHistoryService.registrar(
+        {
+          assetId: id,
+          tipoEvento: 'asignacion',
+          descripcion: `Asignado a ${newEmployee.nombres} ${newEmployee.apellidoPaterno} (${newEmployee.rut || ''}) en ${data.lugarEntrega}`,
+          datosNuevos: {
+            empleadoNombre: `${newEmployee.nombres} ${newEmployee.apellidoPaterno}`,
+            empleadoRut: newEmployee.rut || '',
+            lugarEntrega: data.lugarEntrega,
+            entregadoPor: data.entregadoPor || usuario,
+          },
+          usuarioSistema: usuario,
+        },
+        tx
       );
 
-      return newAssignment;
+      return {
+        ...newAssignment,
+        evidenciaParaDocumento: {
+          entrega: {
+            firmaEmpleado: data.firmaEmpleadoEntrega,
+            firmaEmpleadoEn: firmaEn,
+            aceptaPoliticaUso: true as const,
+          },
+          devolucion: {
+            firmaEmpleado: data.firmaEmpleadoDevolucion,
+            firmaEmpleadoEn: firmaEn,
+            aceptaPoliticaUso: true as const,
+          },
+        },
+      };
     });
 
     return NextResponse.json(result);

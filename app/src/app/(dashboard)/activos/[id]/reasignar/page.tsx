@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, XCircle, RefreshCw, Search } from 'lucide-react';
+import OfficialEvidenceFields from '@/components/ui/OfficialEvidenceFields';
 
 type Asset = {
   id: string;
@@ -47,6 +48,10 @@ export default function ReasignarActivoPage() {
   // Step 3
   const [lugarEntrega, setLugarEntrega] = useState('');
   const [entregadoPor, setEntregadoPor] = useState('');
+  const [firmaEmpleadoDevolucion, setFirmaEmpleadoDevolucion] = useState<string | null>(null);
+  const [aceptaPoliticaUsoDevolucion, setAceptaPoliticaUsoDevolucion] = useState(false);
+  const [firmaEmpleadoEntrega, setFirmaEmpleadoEntrega] = useState<string | null>(null);
+  const [aceptaPoliticaUsoEntrega, setAceptaPoliticaUsoEntrega] = useState(false);
 
   useEffect(() => {
     fetch(`/api/activos/${id}`)
@@ -76,6 +81,10 @@ export default function ReasignarActivoPage() {
 
   const handleSubmit = async () => {
     if (!activeAssignment || !selectedEmployee) return;
+    if (!lugarEntrega || !firmaEmpleadoDevolucion || !firmaEmpleadoEntrega || !aceptaPoliticaUsoDevolucion || !aceptaPoliticaUsoEntrega) {
+      setError('La reasignación oficial requiere lugar, ambas firmas y aceptación de política.');
+      return;
+    }
     setSubmitting(true);
     setError('');
 
@@ -89,8 +98,12 @@ export default function ReasignarActivoPage() {
           estadoDevolucion,
           motivoReasignacion,
           fechaReasignacion: new Date().toISOString(),
-          lugarEntrega: lugarEntrega || undefined,
+          lugarEntrega,
           entregadoPor: entregadoPor || undefined,
+          firmaEmpleadoDevolucion,
+          aceptaPoliticaUsoDevolucion: true,
+          firmaEmpleadoEntrega,
+          aceptaPoliticaUsoEntrega: true,
         }),
       });
 
@@ -287,7 +300,7 @@ export default function ReasignarActivoPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Lugar de entrega</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Lugar de entrega *</label>
                   <input
                     type="text"
                     value={lugarEntrega}
@@ -308,13 +321,32 @@ export default function ReasignarActivoPage() {
                 </div>
               </div>
 
+              <OfficialEvidenceFields
+                kind="devolucion"
+                suffix=" del titular anterior"
+                signature={firmaEmpleadoDevolucion}
+                onSignatureChange={setFirmaEmpleadoDevolucion}
+                accepted={aceptaPoliticaUsoDevolucion}
+                onAcceptedChange={setAceptaPoliticaUsoDevolucion}
+                disabled={submitting}
+              />
+              <OfficialEvidenceFields
+                kind="entrega"
+                suffix=" del nuevo titular"
+                signature={firmaEmpleadoEntrega}
+                onSignatureChange={setFirmaEmpleadoEntrega}
+                accepted={aceptaPoliticaUsoEntrega}
+                onAcceptedChange={setAceptaPoliticaUsoEntrega}
+                disabled={submitting}
+              />
+
               <div className="flex justify-between pt-4">
                 <button onClick={() => setStep(2)} className="px-4 py-2 text-gray-600 hover:text-gray-800">
                   ← Volver
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting}
+                  disabled={submitting || !lugarEntrega || !firmaEmpleadoDevolucion || !firmaEmpleadoEntrega || !aceptaPoliticaUsoDevolucion || !aceptaPoliticaUsoEntrega}
                   className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {submitting ? 'Procesando...' : 'Confirmar Reasignación'}

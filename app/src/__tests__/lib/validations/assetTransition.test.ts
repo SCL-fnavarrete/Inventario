@@ -196,16 +196,32 @@ describe('maintenanceCloseSchema', () => {
 
 // SPEC: Sección 2.7.6 — Reasignación
 describe('assetReassignmentSchema', () => {
+  const firmaPng =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg==';
   const validReassignment = {
     assignmentId: '550e8400-e29b-41d4-a716-446655440000',
     newEmployeeId: '550e8400-e29b-41d4-a716-446655440001',
     estadoDevolucion: 'ok' as const,
     motivoReasignacion: 'Cambio de área del empleado',
     fechaReasignacion: '2026-04-07',
+    lugarEntrega: 'Oficina Santiago',
+    firmaEmpleadoDevolucion: firmaPng,
+    aceptaPoliticaUsoDevolucion: true,
+    firmaEmpleadoEntrega: firmaPng,
+    aceptaPoliticaUsoEntrega: true,
   };
 
   test('acepta reasignación válida', () => {
     expect(assetReassignmentSchema.safeParse(validReassignment).success).toBe(true);
+  });
+
+  test('bloquea una reasignación directa sin aceptación de política en ambos actos', () => {
+    expect(
+      assetReassignmentSchema.safeParse({
+        ...validReassignment,
+        aceptaPoliticaUsoEntrega: false,
+      }).success
+    ).toBe(false);
   });
 
   test('rechaza sin motivoReasignacion', () => {

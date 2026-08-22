@@ -40,16 +40,35 @@ describe('Assignment Validation - EstadoDevolucionEnum', () => {
 })
 
 describe('Assignment Validation - createAssignmentSchema', () => {
+  const firmaPng =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg=='
   const validAssignment = {
     assetId: '550e8400-e29b-41d4-a716-446655440000',
     employeeId: '550e8400-e29b-41d4-a716-446655440001',
     fechaEntrega: '2024-01-15',
     tipoMovimiento: 'ingreso' as const,
+    firmaEmpleadoEntrega: firmaPng,
+    aceptaPoliticaUso: true,
   }
 
   test('should accept valid minimum assignment data', () => {
     const result = createAssignmentSchema.safeParse(validAssignment)
     expect(result.success).toBe(true)
+  })
+
+  test('bloquea una entrega directa sin aceptación explícita de política', () => {
+    expect(
+      createAssignmentSchema.safeParse({ ...validAssignment, aceptaPoliticaUso: false }).success
+    ).toBe(false)
+  })
+
+  test('bloquea timestamp de entrega decidido por el cliente', () => {
+    expect(
+      createAssignmentSchema.safeParse({
+        ...validAssignment,
+        firmaEmpleadoEntregaEn: '2024-01-15T00:00:00.000Z',
+      }).success
+    ).toBe(false)
   })
 
   test('should accept full assignment data', () => {
@@ -132,6 +151,8 @@ describe('Assignment Validation - createAssignmentSchema', () => {
 })
 
 describe('Assignment Validation - createMultipleAssignmentsSchema', () => {
+  const firmaPng =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg=='
   const validMultipleAssignment = {
     employeeId: '550e8400-e29b-41d4-a716-446655440001',
     assetIds: [
@@ -140,6 +161,8 @@ describe('Assignment Validation - createMultipleAssignmentsSchema', () => {
     ],
     fechaEntrega: '2024-01-15',
     tipoMovimiento: 'ingreso' as const,
+    firmaEmpleadoEntrega: firmaPng,
+    aceptaPoliticaUso: true,
   }
 
   test('should accept valid multiple assignment data', () => {
@@ -165,14 +188,24 @@ describe('Assignment Validation - createMultipleAssignmentsSchema', () => {
 })
 
 describe('Assignment Validation - returnAssignmentSchema', () => {
+  const firmaPng =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL3pgAAAABJRU5ErkJggg=='
   const validReturn = {
     fechaDevolucion: '2024-06-15',
     estadoDevolucion: 'ok' as const,
+    firmaEmpleadoDevolucion: firmaPng,
+    aceptaPoliticaUso: true,
   }
 
   test('should accept valid minimum return data', () => {
     const result = returnAssignmentSchema.safeParse(validReturn)
     expect(result.success).toBe(true)
+  })
+
+  test('bloquea una devolución directa cuando la política no fue aceptada', () => {
+    expect(
+      returnAssignmentSchema.safeParse({ ...validReturn, aceptaPoliticaUso: false }).success
+    ).toBe(false)
   })
 
   test('should accept full return data', () => {

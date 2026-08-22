@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { pngSignatureSchema, policyAcceptanceSchema } from './signature';
 
 // Enums que coinciden con Prisma
 export const TipoMovimientoEnum = z.enum(["ingreso", "cambio", "reemplazo", "temporal"]);
@@ -13,7 +14,9 @@ export const createAssignmentSchema = z.object({
   entregadoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   tipoMovimiento: TipoMovimientoEnum,
   motivo: z.string().optional().nullable(),
-});
+  firmaEmpleadoEntrega: pngSignatureSchema,
+  aceptaPoliticaUso: policyAcceptanceSchema,
+}).strict();
 
 // Schema para asignación múltiple (varios activos a un empleado)
 export const createMultipleAssignmentsSchema = z.object({
@@ -24,7 +27,9 @@ export const createMultipleAssignmentsSchema = z.object({
   entregadoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   tipoMovimiento: TipoMovimientoEnum,
   motivo: z.string().optional().nullable(),
-});
+  firmaEmpleadoEntrega: pngSignatureSchema,
+  aceptaPoliticaUso: policyAcceptanceSchema,
+}).strict();
 
 // Schema para registrar devolución
 export const returnAssignmentSchema = z.object({
@@ -32,7 +37,9 @@ export const returnAssignmentSchema = z.object({
   recibidoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   estadoDevolucion: EstadoDevolucionEnum,
   observacionesDevolucion: z.string().optional().nullable(),
-});
+  firmaEmpleadoDevolucion: pngSignatureSchema,
+  aceptaPoliticaUso: policyAcceptanceSchema,
+}).strict();
 
 // Schema para filtros de búsqueda
 export const assignmentFiltersSchema = z.object({

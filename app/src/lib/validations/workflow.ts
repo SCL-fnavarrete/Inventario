@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { pngSignatureSchema, policyAcceptanceSchema } from './signature';
 
 // Enums que coinciden con Prisma
 export const TipoSolicitudEnum = z.enum(['onboarding', 'cambio_equipo', 'devolucion_termino']);
@@ -94,12 +95,113 @@ export const createWorkflowRequestSchema = z.discriminatedUnion('tipo', [
   devolucionTerminoFields,
 ]);
 
-// Schema for transitioning state
-export const transitionSchema = z.object({
-  nuevoEstado: EstadoSolicitudEnum,
-  comentario: z.string().optional().nullable(),
-  datosAccion: z.record(z.string(), z.unknown()).optional().nullable(),
-});
+const uuid = z.string().uuid('ID inválido');
+const estadoDevolucion = z.enum(['ok', 'danado', 'incompleto']);
+const estadoDevolucionTermino = z.enum(['ok', 'danado', 'no_aplica', 'pendiente']);
+
+const deliveryActionSchema = z
+  .object({
+    assetIds: z.array(uuid).min(1, 'Debe seleccionar al menos un activo'),
+    lugarEntrega: z.string().min(1, 'Lugar de entrega requerido').max(100),
+    firmaEmpleadoEntrega: pngSignatureSchema,
+    aceptaPoliticaUso: policyAcceptanceSchema,
+  })
+  .strict();
+
+const returnActionSchema = z
+  .object({
+    terminationId: uuid,
+    estadoNotebook: estadoDevolucionTermino,
+    estadoCelular: estadoDevolucionTermino,
+    estadoMonitor: estadoDevolucionTermino,
+    estadoKit: estadoDevolucionTermino,
+    lugarDevolucion: z.string().min(1, 'Lugar de devolución requerido').max(100),
+    firmaEmpleadoDevolucion: pngSignatureSchema,
+    aceptaPoliticaUso: policyAcceptanceSchema,
+  })
+  .strict();
+
+const changeActionSchema = z
+  .object({
+    oldAssignmentId: uuid.optional(),
+    estadoDevolucion: estadoDevolucion.optional(),
+    newAssetId: uuid.optional(),
+    lugarEntrega: z.string().min(1).max(100).optional(),
+    firmaEmpleadoEntrega: pngSignatureSchema.optional(),
+    firmaEmpleadoDevolucion: pngSignatureSchema.optional(),
+    aceptaPoliticaUso: policyAcceptanceSchema,
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (!data.oldAssignmentId && !data.newAssetId) {
+      ctx.addIssue({ code: 'custom', message: 'El cambio requiere devolución, entrega o ambas' });
+    }
+    if (data.oldAssignmentId && (!data.estadoDevolucion || !data.firmaEmpleadoDevolucion)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['firmaEmpleadoDevolucion'],
+        message: 'La devolución requiere estado y firma',
+      });
+    }
+    if (data.newAssetId && (!data.lugarEntrega || !data.firmaEmpleadoEntrega)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['firmaEmpleadoEntrega'],
+        message: 'La entrega requiere lugar y firma',
+      });
+    }
+  });
+
+const logisticsActionSchema = z
+  .object({
+    medioDevolucion: z.string().min(1).max(100).optional(),
+    otChilexpress: z.string().min(1).max(100).optional(),
+  })
+  .strict()
+  .refine((data) => data.medioDevolucion || data.otChilexpress, {
+    message: 'Debe indicar al menos un dato de coordinación',
+  });
+
+const commonTransitionFields = {
+  comentario: z.string().max(2000).optional().nullable(),
+};
+
+// The action data is a closed discriminated union. A caller cannot smuggle a
+// client timestamp, a loose policy flag, or fields belonging to another effect.
+export const transitionSchema = z.discriminatedUnion('nuevoEstado', [
+  z.object({ nuevoEstado: z.literal('gestion_ti'), ...commonTransitionFields }).strict(),
+  z.object({ nuevoEstado: z.literal('registro_rrhh'), ...commonTransitionFields }).strict(),
+  z.object({ nuevoEstado: z.literal('confirmacion_rrhh'), ...commonTransitionFields }).strict(),
+  z.object({ nuevoEstado: z.literal('coordinacion_en_curso'), ...commonTransitionFields }).strict(),
+  z
+    .object({
+      nuevoEstado: z.literal('equipos_entregados'),
+      ...commonTransitionFields,
+      datosAccion: deliveryActionSchema,
+    })
+    .strict(),
+  z
+    .object({
+      nuevoEstado: z.literal('cambio_ejecutado'),
+      ...commonTransitionFields,
+      datosAccion: changeActionSchema,
+    })
+    .strict(),
+  z
+    .object({
+      nuevoEstado: z.literal('equipo_recibido'),
+      ...commonTransitionFields,
+      datosAccion: logisticsActionSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      nuevoEstado: z.literal('consolidacion_cierre'),
+      ...commonTransitionFields,
+      datosAccion: returnActionSchema,
+    })
+    .strict(),
+]);
 
 // Schema for creating comments
 export const createCommentSchema = z.object({

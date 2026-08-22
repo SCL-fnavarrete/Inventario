@@ -1,4 +1,10 @@
 import { Prisma } from '@prisma/client';
+import {
+  OfficialDeliveryEvidence,
+  OfficialReturnEvidence,
+  pngSignatureSchema,
+  policyAcceptanceSchema,
+} from '@/lib/validations/signature';
 
 type PrismaTx = Prisma.TransactionClient;
 
@@ -10,7 +16,7 @@ export type ExecuteAssignmentParams = {
   entregadoPor?: string | null;
   tipoMovimiento: 'ingreso' | 'cambio' | 'reemplazo' | 'temporal';
   motivo?: string | null;
-};
+} & OfficialDeliveryEvidence;
 
 export type ExecuteReturnParams = {
   assignmentId: string;
@@ -18,7 +24,7 @@ export type ExecuteReturnParams = {
   recibidoPor?: string | null;
   estadoDevolucion: 'ok' | 'danado' | 'incompleto';
   observacionesDevolucion?: string | null;
-};
+} & OfficialReturnEvidence;
 
 export type ExecuteTerminationReturnParams = {
   terminationId: string;
@@ -33,7 +39,31 @@ export type ExecuteTerminationReturnParams = {
   montoDescuento?: number | null;
   motivoDescuento?: string | null;
   observaciones?: string | null;
-};
+} & OfficialReturnEvidence;
+
+export type AssignmentEvidenceForDocument =
+  | {
+      tipo: 'entrega';
+      firmaEmpleado: string;
+      firmaEmpleadoEn: Date;
+      aceptaPoliticaUso: true;
+    }
+  | {
+      tipo: 'devolucion';
+      firmaEmpleado: string;
+      firmaEmpleadoEn: Date;
+      aceptaPoliticaUso: true;
+    };
+
+function assertOfficialEvidence(
+  firma: string,
+  aceptaPoliticaUso: boolean,
+  tipo: 'entrega' | 'devolucion'
+) {
+  if (!pngSignatureSchema.safeParse(firma).success || !policyAcceptanceSchema.safeParse(aceptaPoliticaUso).success) {
+    throw new Error(`La ${tipo} requiere firma PNG y aceptación explícita de política`);
+  }
+}
 
 /**
  * Creates an assignment and updates the asset state. Reusable from both
@@ -43,6 +73,8 @@ export async function executeAssignment(
   tx: PrismaTx,
   params: ExecuteAssignmentParams
 ) {
+  assertOfficialEvidence(params.firmaEmpleadoEntrega, params.aceptaPoliticaUso, 'entrega');
+  const firmaEmpleadoEntregaEn = new Date();
   const asset = await tx.asset.findUnique({
     where: { id: params.assetId },
     include: { categoria: true },
@@ -69,6 +101,8 @@ export async function executeAssignment(
       entregadoPor: params.entregadoPor,
       tipoMovimiento: params.tipoMovimiento,
       motivo: params.motivo,
+      firmaEmpleadoEntrega: params.firmaEmpleadoEntrega,
+      firmaEmpleadoEntregaEn,
       activo: true,
     },
     include: {
@@ -96,13 +130,23 @@ export async function executeAssignment(
     },
   });
 
-  return assignment;
+  return {
+    ...assignment,
+    evidenciaParaDocumento: {
+      tipo: 'entrega' as const,
+      firmaEmpleado: params.firmaEmpleadoEntrega,
+      firmaEmpleadoEn: firmaEmpleadoEntregaEn,
+      aceptaPoliticaUso: true as const,
+    } satisfies AssignmentEvidenceForDocument,
+  };
 }
 
 /**
  * Processes a single assignment return.
  */
 export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
+  assertOfficialEvidence(params.firmaEmpleadoDevolucion, params.aceptaPoliticaUso, 'devolucion');
+  const firmaEmpleadoDevolucionEn = new Date();
   const assignment = await tx.assignment.findUnique({
     where: { id: params.assignmentId },
     include: { asset: true, employee: true },
@@ -110,7 +154,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
 
   if (!assignment) throw new Error('Asignación no encontrada');
 
-  await tx.assignment.update({
+  const returnedAssignment = await tx.assignment.update({
     where: { id: params.assignmentId },
     data: {
       activo: false,
@@ -118,6 +162,8 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       recibidoPor: params.recibidoPor,
       estadoDevolucion: params.estadoDevolucion,
       observacionesDevolucion: params.observacionesDevolucion,
+      firmaEmpleadoDevolucion: params.firmaEmpleadoDevolucion,
+      firmaEmpleadoDevolucionEn,
     },
   });
 
@@ -130,6 +176,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       estado: nuevoEstado,
       condicion: params.estadoDevolucion === 'danado' ? 'danado' : 'usado',
       empleadoActualId: null,
+      ...(nuevoEstado === 'baja' && { fechaBaja: new Date() }),
     },
   });
 
@@ -147,7 +194,15 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
     },
   });
 
-  return assignment;
+  return {
+    ...returnedAssignment,
+    evidenciaParaDocumento: {
+      tipo: 'devolucion' as const,
+      firmaEmpleado: params.firmaEmpleadoDevolucion,
+      firmaEmpleadoEn: firmaEmpleadoDevolucionEn,
+      aceptaPoliticaUso: true as const,
+    } satisfies AssignmentEvidenceForDocument,
+  };
 }
 
 /**
@@ -157,6 +212,8 @@ export async function executeTerminationReturn(
   tx: PrismaTx,
   params: ExecuteTerminationReturnParams
 ) {
+  assertOfficialEvidence(params.firmaEmpleadoDevolucion, params.aceptaPoliticaUso, 'devolucion');
+  const firmaEmpleadoDevolucionEn = new Date();
   const termination = await tx.termination.findUnique({
     where: { id: params.terminationId },
     include: {
@@ -216,6 +273,8 @@ export async function executeTerminationReturn(
         estadoDevolucion,
         observacionesDevolucion:
           `Devolución por desvinculación. ${params.observaciones || ''}`.trim(),
+        firmaEmpleadoDevolucion: params.firmaEmpleadoDevolucion,
+        firmaEmpleadoDevolucionEn,
       },
     });
 
@@ -246,5 +305,13 @@ export async function executeTerminationReturn(
     });
   }
 
-  return updatedTermination;
+  return {
+    ...updatedTermination,
+    evidenciaParaDocumento: {
+      tipo: 'devolucion' as const,
+      firmaEmpleado: params.firmaEmpleadoDevolucion,
+      firmaEmpleadoEn: firmaEmpleadoDevolucionEn,
+      aceptaPoliticaUso: true as const,
+    } satisfies AssignmentEvidenceForDocument,
+  };
 }
