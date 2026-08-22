@@ -6,11 +6,42 @@ import {
   fetchMicrosoftUsers,
 } from '@/lib/services/microsoftGraphService';
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { employeeHistoryService } from '@/lib/services/employeeHistoryService';
+
+type DatosSincronizados = {
+  nombres: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string | null;
+  correo: string;
+  cargo: string | null;
+  ubicacion: string | null;
+  telefonoContacto: string | null;
+  jefatura: string | null;
+  supervisor: string | null;
+};
+
+function hayCambiosSincronizados(
+  employee: DatosSincronizados,
+  datos: DatosSincronizados
+): boolean {
+  return (
+    employee.nombres !== datos.nombres ||
+    employee.apellidoPaterno !== datos.apellidoPaterno ||
+    employee.apellidoMaterno !== datos.apellidoMaterno ||
+    employee.correo !== datos.correo ||
+    employee.cargo !== datos.cargo ||
+    employee.ubicacion !== datos.ubicacion ||
+    employee.telefonoContacto !== datos.telefonoContacto ||
+    employee.jefatura !== datos.jefatura ||
+    employee.supervisor !== datos.supervisor
+  );
+}
 
 // POST /api/microsoft-sync - Ejecutar sincronizacion de empleados
 export async function POST() {
   try {
-    await requirePermission('configuracion', 'write');
+    const session = await requirePermission('configuracion', 'write');
+    const actor = session.user.email || 'Sistema';
 
     const config = checkConfiguration();
     if (!config.configured) {
@@ -26,6 +57,7 @@ export async function POST() {
       creados: 0,
       actualizados: 0,
       desactivados: 0,
+      reactivados: 0,
       errores: [] as { usuario: string; error: string }[],
       alertas: [] as { tipo: string; empleado: string; equipos: number }[],
     };
@@ -34,6 +66,17 @@ export async function POST() {
       try {
         const { accountEnabled, ...datos } = msUser;
         const validated = microsoftSyncEmployeeSchema.parse(datos);
+        const datosSincronizados: DatosSincronizados = {
+          nombres: validated.nombres,
+          apellidoPaterno: validated.apellidoPaterno,
+          apellidoMaterno: validated.apellidoMaterno ?? null,
+          correo: validated.correo,
+          cargo: validated.cargo ?? null,
+          ubicacion: validated.ubicacion ?? null,
+          telefonoContacto: validated.telefonoContacto ?? null,
+          jefatura: validated.jefatura ?? null,
+          supervisor: validated.supervisor ?? null,
+        };
 
         // Buscar por microsoftId
         let employee = await prisma.employee.findUnique({
@@ -42,11 +85,13 @@ export async function POST() {
         });
 
         if (employee) {
-          if (!accountEnabled && employee.estado === 'activo') {
-            // Desactivar empleado
-            await prisma.employee.update({
-              where: { id: employee.id },
-              data: { estado: 'desvinculado' },
+          if (!accountEnabled && employee.estado !== 'desvinculado') {
+            await prisma.$transaction(async (tx) => {
+              const updated = await tx.employee.update({
+                where: { id: employee!.id },
+                data: { estado: 'desvinculado' },
+              });
+              await employeeHistoryService.registrarCambio(employee!, updated, actor, tx, 'microsoft');
             });
             resultado.desactivados++;
             if (employee.activosActuales.length > 0) {
@@ -56,23 +101,23 @@ export async function POST() {
                 equipos: employee.activosActuales.length,
               });
             }
-          } else if (accountEnabled) {
-            // Actualizar datos
-            await prisma.employee.update({
-              where: { id: employee.id },
-              data: {
-                nombres: validated.nombres,
-                apellidoPaterno: validated.apellidoPaterno,
-                apellidoMaterno: validated.apellidoMaterno,
-                correo: validated.correo,
-                cargo: validated.cargo,
-                ubicacion: validated.ubicacion,
-                telefonoContacto: validated.telefonoContacto,
-                jefatura: validated.jefatura,
-                supervisor: validated.supervisor,
-              },
+          } else if (accountEnabled && (hayCambiosSincronizados(employee, datosSincronizados) || employee.estado === 'desvinculado')) {
+            const reactivado = employee.estado === 'desvinculado';
+            await prisma.$transaction(async (tx) => {
+              const updated = await tx.employee.update({
+                where: { id: employee!.id },
+                data: {
+                  ...datosSincronizados,
+                  ...(reactivado && { estado: 'activo' }),
+                },
+              });
+              await employeeHistoryService.registrarCambio(employee!, updated, actor, tx, 'microsoft');
             });
-            resultado.actualizados++;
+            if (reactivado) {
+              resultado.reactivados++;
+            } else {
+              resultado.actualizados++;
+            }
           }
         } else if (accountEnabled) {
           // Buscar por correo para vincular
@@ -82,41 +127,44 @@ export async function POST() {
           });
 
           if (employee) {
-            // Vincular empleado existente
-            await prisma.employee.update({
-              where: { id: employee.id },
-              data: {
-                microsoftId: msUser.microsoftId,
-                origenMicrosoft: true,
-                nombres: validated.nombres,
-                apellidoPaterno: validated.apellidoPaterno,
-                apellidoMaterno: validated.apellidoMaterno,
-                cargo: validated.cargo,
-                ubicacion: validated.ubicacion,
-                telefonoContacto: validated.telefonoContacto,
-                jefatura: validated.jefatura,
-                supervisor: validated.supervisor,
-              },
+            const reactivado = employee.estado === 'desvinculado';
+            const requiereActualizacion =
+              hayCambiosSincronizados(employee, datosSincronizados) ||
+              employee.microsoftId !== msUser.microsoftId ||
+              !employee.origenMicrosoft ||
+              reactivado;
+
+            if (!requiereActualizacion) continue;
+
+            await prisma.$transaction(async (tx) => {
+              const updated = await tx.employee.update({
+                where: { id: employee!.id },
+                data: {
+                  ...datosSincronizados,
+                  microsoftId: msUser.microsoftId,
+                  origenMicrosoft: true,
+                  ...(reactivado && { estado: 'activo' }),
+                },
+              });
+              await employeeHistoryService.registrarCambio(employee!, updated, actor, tx, 'microsoft');
             });
-            resultado.actualizados++;
+            if (reactivado) {
+              resultado.reactivados++;
+            } else {
+              resultado.actualizados++;
+            }
           } else {
-            // Crear nuevo empleado
-            await prisma.employee.create({
-              data: {
-                microsoftId: msUser.microsoftId,
-                origenMicrosoft: true,
-                nombres: validated.nombres,
-                apellidoPaterno: validated.apellidoPaterno,
-                apellidoMaterno: validated.apellidoMaterno,
-                correo: validated.correo,
-                cargo: validated.cargo,
-                ubicacion: validated.ubicacion,
-                telefonoContacto: validated.telefonoContacto,
-                jefatura: validated.jefatura,
-                supervisor: validated.supervisor,
-                tipoContrato: 'externo',
-                estado: 'activo',
-              },
+            await prisma.$transaction(async (tx) => {
+              const created = await tx.employee.create({
+                data: {
+                  microsoftId: msUser.microsoftId,
+                  origenMicrosoft: true,
+                  ...datosSincronizados,
+                  tipoContrato: 'externo',
+                  estado: 'activo',
+                },
+              });
+              await employeeHistoryService.registrarCreacion(created, actor, tx);
             });
             resultado.creados++;
           }

@@ -4,6 +4,7 @@ import { createEmployeeSchema, employeeFiltersSchema } from "@/lib/validations/e
 import { Prisma } from "@prisma/client";
 import { normalizeRut } from "@/lib/utils/rut";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { employeeHistoryService } from '@/lib/services/employeeHistoryService';
 
 /**
  * Quita acentos/diacríticos de un string.
@@ -169,7 +170,7 @@ export async function GET(request: NextRequest) {
 // POST /api/empleados - Crear nuevo empleado
 export async function POST(request: NextRequest) {
   try {
-    await requirePermission('empleados', 'write');
+    const session = await requirePermission('empleados', 'write');
 
     const body = await request.json();
 
@@ -211,24 +212,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Crear empleado
-    const employee = await prisma.employee.create({
-      data: {
-        rut: data.rut,
-        nombres: data.nombres,
-        apellidoPaterno: data.apellidoPaterno,
-        apellidoMaterno: data.apellidoMaterno,
-        correo: data.correo,
-        cargo: data.cargo,
-        jefatura: data.jefatura,
-        supervisor: data.supervisor,
-        ubicacion: data.ubicacion,
-        tipoContrato: data.tipoContrato,
-        fechaIngreso: data.fechaIngreso,
-        fechaTermino: data.fechaTermino,
-        estado: data.estado,
-        telefonoContacto: data.telefonoContacto,
-      },
+    const employee = await prisma.$transaction(async (tx) => {
+      const created = await tx.employee.create({
+        data: {
+          rut: data.rut,
+          nombres: data.nombres,
+          apellidoPaterno: data.apellidoPaterno,
+          apellidoMaterno: data.apellidoMaterno,
+          correo: data.correo,
+          cargo: data.cargo,
+          jefatura: data.jefatura,
+          supervisor: data.supervisor,
+          ubicacion: data.ubicacion,
+          tipoContrato: data.tipoContrato,
+          fechaIngreso: data.fechaIngreso,
+          fechaTermino: data.fechaTermino,
+          estado: data.estado,
+          telefonoContacto: data.telefonoContacto,
+        },
+      });
+
+      await employeeHistoryService.registrarCreacion(
+        created,
+        session.user.email || 'Sistema',
+        tx
+      );
+
+      return created;
     });
 
     return NextResponse.json(employee, { status: 201 });

@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 import * as XLSX from "xlsx";
 import { formatearRut, validarDigitoVerificador, limpiarRut } from "@/lib/validations/rut";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { employeeHistoryService } from '@/lib/services/employeeHistoryService';
 
 // Constantes de seguridad para archivos
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -16,7 +17,7 @@ const ALLOWED_MIME_TYPES = [
 // POST /api/empleados/importar - Importar empleados desde Excel
 export async function POST(request: NextRequest) {
   try {
-    await requirePermission('empleados', 'write');
+    const session = await requirePermission('empleados', 'write');
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -176,10 +177,17 @@ export async function POST(request: NextRequest) {
         });
 
         if (existing) {
-          // Actualizar
-          await prisma.employee.update({
-            where: { rut },
-            data: employeeData,
+          await prisma.$transaction(async (tx) => {
+            const updated = await tx.employee.update({
+              where: { rut },
+              data: employeeData,
+            });
+            await employeeHistoryService.registrarCambio(
+              existing,
+              updated,
+              session.user.email || 'Sistema',
+              tx
+            );
           });
           results.updated++;
         } else {
@@ -197,9 +205,15 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
-          // Crear
-          await prisma.employee.create({
-            data: employeeData,
+          await prisma.$transaction(async (tx) => {
+            const created = await tx.employee.create({
+              data: employeeData,
+            });
+            await employeeHistoryService.registrarCreacion(
+              created,
+              session.user.email || 'Sistema',
+              tx
+            );
           });
           results.created++;
         }

@@ -4,6 +4,7 @@ import { parseDDMMYYYYToDate } from "@/lib/excel-utils";
 import type { CorrectedRow, ImportRowStatus, ImportBatchResult } from "@/types/import";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { getCategorySpecialFields, parseCategoryBoolean } from '@/lib/assetImportCategoryFields';
+import { employeeHistoryService } from '@/lib/services/employeeHistoryService';
 
 // Mapeo de estados del Excel a estados del sistema
 const ESTADO_MAP: Record<string, string> = {
@@ -158,32 +159,14 @@ export async function POST(request: NextRequest) {
                 `${nombres.toLowerCase().replace(/\s+/g, ".")}.${apellidoPaterno.toLowerCase()}@empresa.cl`;
 
               try {
-                employee = await prisma.employee.create({
-                  data: {
-                    rut: normalizedRut,
-                    nombres,
-                    apellidoPaterno,
-                    apellidoMaterno,
-                    correo: correoFinal,
-                    cargo,
-                    jefatura,
-                    supervisor,
-                    ubicacion: comuna,
-                    tipoContrato: "planta",
-                    estado: "activo",
-                  },
-                  select: { id: true },
-                });
-              } catch (employeeError) {
-                if (employeeError instanceof Error && employeeError.message.includes("correo")) {
-                  const uniqueCorreo = `${nombres.toLowerCase().replace(/\s+/g, ".")}.${apellidoPaterno.toLowerCase()}.${Date.now()}@empresa.cl`;
-                  employee = await prisma.employee.create({
+                employee = await prisma.$transaction(async (tx) => {
+                  const created = await tx.employee.create({
                     data: {
                       rut: normalizedRut,
                       nombres,
                       apellidoPaterno,
                       apellidoMaterno,
-                      correo: uniqueCorreo,
+                      correo: correoFinal,
                       cargo,
                       jefatura,
                       supervisor,
@@ -191,7 +174,39 @@ export async function POST(request: NextRequest) {
                       tipoContrato: "planta",
                       estado: "activo",
                     },
-                    select: { id: true },
+                  });
+                  await employeeHistoryService.registrarCreacion(
+                    created,
+                    session.user?.email || 'Sistema',
+                    tx
+                  );
+                  return { id: created.id };
+                });
+              } catch (employeeError) {
+                if (employeeError instanceof Error && employeeError.message.includes("correo")) {
+                  const uniqueCorreo = `${nombres.toLowerCase().replace(/\s+/g, ".")}.${apellidoPaterno.toLowerCase()}.${Date.now()}@empresa.cl`;
+                  employee = await prisma.$transaction(async (tx) => {
+                    const created = await tx.employee.create({
+                      data: {
+                        rut: normalizedRut,
+                        nombres,
+                        apellidoPaterno,
+                        apellidoMaterno,
+                        correo: uniqueCorreo,
+                        cargo,
+                        jefatura,
+                        supervisor,
+                        ubicacion: comuna,
+                        tipoContrato: "planta",
+                        estado: "activo",
+                      },
+                    });
+                    await employeeHistoryService.registrarCreacion(
+                      created,
+                      session.user?.email || 'Sistema',
+                      tx
+                    );
+                    return { id: created.id };
                   });
                 } else {
                   throw employeeError;

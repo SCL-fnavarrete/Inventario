@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createTerminationSchema, terminationFiltersSchema } from "@/lib/validations/termination";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { employeeHistoryService } from '@/lib/services/employeeHistoryService';
 
 // GET /api/desvinculaciones - Listar desvinculaciones con filtros
 export async function GET(request: NextRequest) {
@@ -112,7 +113,7 @@ export async function GET(request: NextRequest) {
 // POST /api/desvinculaciones - Crear nueva desvinculación
 export async function POST(request: NextRequest) {
   try {
-    await requirePermission('desvinculaciones', 'write');
+    const session = await requirePermission('desvinculaciones', 'write');
     const body = await request.json();
 
     const validationResult = createTerminationSchema.safeParse(body);
@@ -204,13 +205,20 @@ export async function POST(request: NextRequest) {
       });
 
       // Actualizar estado del empleado a desvinculado
-      await tx.employee.update({
+      const updatedEmployee = await tx.employee.update({
         where: { id: data.employeeId },
         data: {
           estado: "desvinculado",
           fechaTermino: data.fechaDesvinculacion,
         },
       });
+
+      await employeeHistoryService.registrarCambio(
+        employee,
+        updatedEmployee,
+        session.user.email || 'Sistema',
+        tx
+      );
 
       return newTermination;
     });

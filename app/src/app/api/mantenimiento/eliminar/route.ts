@@ -44,23 +44,13 @@ export async function POST(request: NextRequest) {
         break;
 
       case "empleados":
-        // Eliminar en orden
-        // Eliminar asignaciones de kit
-        await prisma.kitAssignment.deleteMany({});
-        // Eliminar desvinculaciones
-        await prisma.termination.deleteMany({});
-        // Eliminar asignaciones
-        await prisma.assignment.deleteMany({});
-        // Actualizar activos para quitar referencia a empleado
-        await prisma.asset.updateMany({
-          where: { empleadoActualId: { not: null } },
-          data: { empleadoActualId: null, estado: "disponible" },
-        });
-        // Finalmente eliminar empleados
-        const empleadosResult = await prisma.employee.deleteMany({});
-        deletedCount = empleadosResult.count;
-        message = `Se eliminaron ${deletedCount} empleados y sus datos relacionados.`;
-        break;
+        return NextResponse.json(
+          {
+            error:
+              'La eliminación masiva de empleados está deshabilitada para conservar su historial. Use la baja lógica individual.',
+          },
+          { status: 409 }
+        );
 
       case "asignaciones":
         // Actualizar activos para cambiar estado a disponible

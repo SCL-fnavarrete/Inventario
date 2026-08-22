@@ -3,7 +3,7 @@
  */
 
 jest.mock('@/lib/auth/guard', () => ({
-  requirePermission: jest.fn().mockResolvedValue({}),
+  requirePermission: jest.fn().mockResolvedValue({ user: { email: 'tecnico@example.com' } }),
   handleApiError: jest.requireActual('@/lib/auth/guard').handleApiError,
 }));
 
@@ -30,8 +30,27 @@ function request() {
 }
 
 function configureEmployee(nombre: string, tipoDevolucion: string) {
-  (prisma.employee.findUnique as jest.Mock).mockResolvedValue({
+  const employee = {
     id: employeeId,
+    rut: null,
+    nombres: 'Ada',
+    apellidoPaterno: 'Lovelace',
+    apellidoMaterno: null,
+    correo: 'ada@example.com',
+    cargo: null,
+    jefatura: null,
+    supervisor: null,
+    ubicacion: null,
+    tipoContrato: 'externo',
+    fechaIngreso: null,
+    fechaTermino: null,
+    estado: 'activo',
+    telefonoContacto: null,
+    origenMicrosoft: false,
+    microsoftId: null,
+    fechaEntregaEpp: null,
+    fechaEntregaKit: null,
+    proximaMantencionEpp: null,
     assignments: [
       {
         asset: {
@@ -39,7 +58,8 @@ function configureEmployee(nombre: string, tipoDevolucion: string) {
         },
       },
     ],
-  });
+  };
+  (prisma.employee.findUnique as jest.Mock).mockResolvedValue(employee);
   (prisma.termination.findFirst as jest.Mock).mockResolvedValue(null);
   (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
     const tx = {
@@ -48,7 +68,8 @@ function configureEmployee(nombre: string, tipoDevolucion: string) {
           .fn()
           .mockImplementation(async ({ data }) => ({ id: 'termination-1', ...data })),
       },
-      employee: { update: jest.fn().mockResolvedValue({}) },
+      employee: { update: jest.fn().mockResolvedValue({ ...employee, estado: 'desvinculado' }) },
+      employeeHistory: { create: jest.fn().mockResolvedValue({ id: 'history-1' }) },
     };
     return callback(tx);
   });

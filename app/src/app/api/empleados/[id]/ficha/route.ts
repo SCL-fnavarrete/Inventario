@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { sanitizarSnapshotEmpleado } from '@/lib/services/employeeHistoryService';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -41,6 +42,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             categoria: true,
           },
         },
+        historial: {
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 
@@ -73,6 +77,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             include: {
               categoria: true,
             },
+          },
+          historial: {
+            orderBy: { createdAt: 'desc' },
           },
         },
       });
@@ -217,6 +224,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         kitBienvenidaEntregado: kitEntregado,
         eppEntregado: eppEntregado,
       },
+
+      historial: employee.historial.map((evento) => ({
+        id: evento.id,
+        tipoEvento: evento.tipoEvento,
+        descripcion: evento.descripcion,
+        usuarioSistema: evento.usuarioSistema,
+        createdAt: evento.createdAt,
+        datosAnteriores: sanitizarSnapshotEmpleado(evento.datosAnteriores),
+        datosNuevos: sanitizarSnapshotEmpleado(evento.datosNuevos),
+      })),
     };
 
     return NextResponse.json(ficha);

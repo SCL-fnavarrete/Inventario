@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updateTerminationSchema, registerReturnSchema } from "@/lib/validations/termination";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { employeeHistoryService } from '@/lib/services/employeeHistoryService';
 
 // GET /api/desvinculaciones/[id] - Obtener detalle de desvinculación
 export async function GET(
@@ -139,7 +140,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requirePermission('desvinculaciones', 'delete');
+    const session = await requirePermission('desvinculaciones', 'delete');
     const { id } = await params;
 
     const termination = await prisma.termination.findUnique({
@@ -170,13 +171,20 @@ export async function DELETE(
 
     await prisma.$transaction(async (tx) => {
       // Restaurar estado del empleado
-      await tx.employee.update({
+      const updatedEmployee = await tx.employee.update({
         where: { id: termination.employeeId },
         data: {
           estado: "activo",
           fechaTermino: null,
         },
       });
+
+      await employeeHistoryService.registrarCambio(
+        termination.employee,
+        updatedEmployee,
+        session.user.email || 'Sistema',
+        tx
+      );
 
       // Eliminar desvinculación
       await tx.termination.delete({

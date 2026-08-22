@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import { convertExcelDateValue, parseDDMMYYYYToDate } from "@/lib/excel-utils";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { getCategorySpecialFields, parseCategoryBoolean } from '@/lib/assetImportCategoryFields';
+import { employeeHistoryService } from '@/lib/services/employeeHistoryService';
 
 // Filas de inicio conocidas por categoría
 // Todas las categorías usan fila 0 (primera fila) como encabezado por defecto
@@ -283,21 +284,28 @@ export async function POST(request: NextRequest) {
                 `${nombres.toLowerCase().replace(/\s+/g, '.')}.${apellidoPaterno.toLowerCase()}@empresa.cl`;
 
               try {
-                employee = await prisma.employee.create({
-                  data: {
-                    rut: normalizedRut,
-                    nombres,
-                    apellidoPaterno,
-                    apellidoMaterno,
-                    correo: correoFinal,
-                    cargo,
-                    jefatura,
-                    supervisor,
-                    ubicacion: comuna,
-                    tipoContrato: "planta", // Default, puede ajustarse
-                    estado: "activo",
-                  },
-                  select: { id: true },
+                employee = await prisma.$transaction(async (tx) => {
+                  const created = await tx.employee.create({
+                    data: {
+                      rut: normalizedRut,
+                      nombres,
+                      apellidoPaterno,
+                      apellidoMaterno,
+                      correo: correoFinal,
+                      cargo,
+                      jefatura,
+                      supervisor,
+                      ubicacion: comuna,
+                      tipoContrato: "planta", // Default, puede ajustarse
+                      estado: "activo",
+                    },
+                  });
+                  await employeeHistoryService.registrarCreacion(
+                    created,
+                    session.user?.email || 'Sistema',
+                    tx
+                  );
+                  return { id: created.id };
                 });
 
                 logger.log(`Empleado creado: ${nombres} ${apellidoPaterno}`);
@@ -305,21 +313,28 @@ export async function POST(request: NextRequest) {
                 // Si falla por correo duplicado, intentar con un correo único
                 if (employeeError instanceof Error && employeeError.message.includes("correo")) {
                   const uniqueCorreo = `${nombres.toLowerCase().replace(/\s+/g, '.')}.${apellidoPaterno.toLowerCase()}.${Date.now()}@empresa.cl`;
-                  employee = await prisma.employee.create({
-                    data: {
-                      rut: normalizedRut,
-                      nombres,
-                      apellidoPaterno,
-                      apellidoMaterno,
-                      correo: uniqueCorreo,
-                      cargo,
-                      jefatura,
-                      supervisor,
-                      ubicacion: comuna,
-                      tipoContrato: "planta",
-                      estado: "activo",
-                    },
-                    select: { id: true },
+                  employee = await prisma.$transaction(async (tx) => {
+                    const created = await tx.employee.create({
+                      data: {
+                        rut: normalizedRut,
+                        nombres,
+                        apellidoPaterno,
+                        apellidoMaterno,
+                        correo: uniqueCorreo,
+                        cargo,
+                        jefatura,
+                        supervisor,
+                        ubicacion: comuna,
+                        tipoContrato: "planta",
+                        estado: "activo",
+                      },
+                    });
+                    await employeeHistoryService.registrarCreacion(
+                      created,
+                      session.user?.email || 'Sistema',
+                      tx
+                    );
+                    return { id: created.id };
                   });
                 } else {
                   throw employeeError;

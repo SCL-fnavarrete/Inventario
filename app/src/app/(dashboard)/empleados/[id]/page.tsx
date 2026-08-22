@@ -24,6 +24,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReturnAssetModal, { ReturnAssetData } from "@/components/ReturnAssetModal";
+import EmployeeHistoryTimeline, {
+  EmployeeHistoryEvent,
+} from '@/components/empleados/EmployeeHistoryTimeline';
 
 type NotebookAsignado = {
   asignacionId: string;
@@ -127,6 +130,7 @@ type Ficha = {
     kitBienvenidaEntregado: boolean;
     eppEntregado: boolean;
   };
+  historial: EmployeeHistoryEvent[];
 };
 
 const estadoColors: Record<string, string> = {
@@ -152,6 +156,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [returnModalOpen, setReturnModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'resumen' | 'historial'>('resumen');
   const [selectedAsset, setSelectedAsset] = useState<{
     asignacionId: string;
     categoria: string;
@@ -332,6 +337,48 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
+      <div className="border-b border-gray-200" role="tablist" aria-label="Secciones de ficha">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'resumen'}
+          onClick={() => setActiveTab('resumen')}
+          className={cn(
+            'border-b-2 px-4 py-3 text-sm font-medium',
+            activeTab === 'resumen'
+              ? 'border-blue-600 text-blue-700'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          )}
+        >
+          Resumen
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'historial'}
+          onClick={() => setActiveTab('historial')}
+          className={cn(
+            'border-b-2 px-4 py-3 text-sm font-medium',
+            activeTab === 'historial'
+              ? 'border-blue-600 text-blue-700'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          )}
+        >
+          Historial
+        </button>
+      </div>
+
+      {activeTab === 'historial' && (
+        <section aria-labelledby="historial-title">
+          <h2 id="historial-title" className="mb-4 text-lg font-semibold text-gray-900">
+            Historial del empleado
+          </h2>
+          <EmployeeHistoryTimeline historial={ficha.historial} />
+        </section>
+      )}
+
+      {activeTab === 'resumen' && (
+        <>
       {/* Resumen de equipos */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className={cn(
@@ -763,6 +810,8 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
           onConfirm={handleReturnAssetConfirm}
           assetInfo={selectedAsset}
         />
+      )}
+        </>
       )}
     </div>
   );

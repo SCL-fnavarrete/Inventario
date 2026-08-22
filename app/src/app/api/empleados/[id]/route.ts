@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updateEmployeeSchema } from "@/lib/validations/employee";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { employeeHistoryService } from '@/lib/services/employeeHistoryService';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // PUT /api/empleados/[id] - Actualizar empleado
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('empleados', 'write');
+    const session = await requirePermission('empleados', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -147,28 +148,38 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Actualizar empleado
-    const employee = await prisma.employee.update({
-      where: { id },
-      data: {
-        ...(data.rut && { rut: data.rut }),
-        ...(data.nombres && { nombres: data.nombres }),
-        ...(data.apellidoPaterno && { apellidoPaterno: data.apellidoPaterno }),
-        ...(data.apellidoMaterno !== undefined && { apellidoMaterno: data.apellidoMaterno }),
-        ...(data.correo && { correo: data.correo }),
-        ...(data.cargo !== undefined && { cargo: data.cargo }),
-        ...(data.jefatura !== undefined && { jefatura: data.jefatura }),
-        ...(data.supervisor !== undefined && { supervisor: data.supervisor }),
-        ...(data.ubicacion !== undefined && { ubicacion: data.ubicacion }),
-        ...(data.tipoContrato && { tipoContrato: data.tipoContrato }),
-        ...(data.fechaIngreso !== undefined && { fechaIngreso: data.fechaIngreso }),
-        ...(data.fechaTermino !== undefined && { fechaTermino: data.fechaTermino }),
-        ...(data.estado && { estado: data.estado }),
-        ...(data.telefonoContacto !== undefined && { telefonoContacto: data.telefonoContacto }),
-        ...(data.fechaEntregaKit !== undefined && { fechaEntregaKit: data.fechaEntregaKit }),
-        ...(data.fechaEntregaEpp !== undefined && { fechaEntregaEpp: data.fechaEntregaEpp }),
-        ...(data.proximaMantencionEpp !== undefined && { proximaMantencionEpp: data.proximaMantencionEpp }),
-      },
+    const employee = await prisma.$transaction(async (tx) => {
+      const updated = await tx.employee.update({
+        where: { id },
+        data: {
+          ...(data.rut && { rut: data.rut }),
+          ...(data.nombres && { nombres: data.nombres }),
+          ...(data.apellidoPaterno && { apellidoPaterno: data.apellidoPaterno }),
+          ...(data.apellidoMaterno !== undefined && { apellidoMaterno: data.apellidoMaterno }),
+          ...(data.correo && { correo: data.correo }),
+          ...(data.cargo !== undefined && { cargo: data.cargo }),
+          ...(data.jefatura !== undefined && { jefatura: data.jefatura }),
+          ...(data.supervisor !== undefined && { supervisor: data.supervisor }),
+          ...(data.ubicacion !== undefined && { ubicacion: data.ubicacion }),
+          ...(data.tipoContrato && { tipoContrato: data.tipoContrato }),
+          ...(data.fechaIngreso !== undefined && { fechaIngreso: data.fechaIngreso }),
+          ...(data.fechaTermino !== undefined && { fechaTermino: data.fechaTermino }),
+          ...(data.estado && { estado: data.estado }),
+          ...(data.telefonoContacto !== undefined && { telefonoContacto: data.telefonoContacto }),
+          ...(data.fechaEntregaKit !== undefined && { fechaEntregaKit: data.fechaEntregaKit }),
+          ...(data.fechaEntregaEpp !== undefined && { fechaEntregaEpp: data.fechaEntregaEpp }),
+          ...(data.proximaMantencionEpp !== undefined && { proximaMantencionEpp: data.proximaMantencionEpp }),
+        },
+      });
+
+      await employeeHistoryService.registrarCambio(
+        existingEmployee,
+        updated,
+        session.user.email || 'Sistema',
+        tx
+      );
+
+      return updated;
     });
 
     return NextResponse.json(employee);
@@ -180,7 +191,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/empleados/[id] - Eliminar empleado (soft delete cambiando estado)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('empleados', 'delete');
+    const session = await requirePermission('empleados', 'delete');
     const { id } = await params;
 
     // Verificar que el empleado existe
@@ -208,12 +219,22 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Soft delete - cambiar estado a desvinculado
-    const employee = await prisma.employee.update({
-      where: { id },
-      data: {
-        estado: "desvinculado",
-      },
+    const employee = await prisma.$transaction(async (tx) => {
+      const updated = await tx.employee.update({
+        where: { id },
+        data: {
+          estado: "desvinculado",
+        },
+      });
+
+      await employeeHistoryService.registrarCambio(
+        existingEmployee,
+        updated,
+        session.user.email || 'Sistema',
+        tx
+      );
+
+      return updated;
     });
 
     return NextResponse.json({
