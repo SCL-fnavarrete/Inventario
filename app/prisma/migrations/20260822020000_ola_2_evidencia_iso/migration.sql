@@ -1,0 +1,163 @@
+-- Ola 2 — evidencia ISO: categorías estables, historial, documentos y notificaciones.
+-- La columna de categorías se agrega nullable, se clasifica de forma conservadora
+-- por nombre normalizado y solo entonces se endurece al contrato final.
+
+-- CreateEnum
+CREATE TYPE "TipoDevolucion" AS ENUM ('notebook', 'celular', 'monitor', 'kit', 'otro');
+
+-- CreateEnum
+CREATE TYPE "TipoEventoEmpleado" AS ENUM ('creacion', 'actualizacion', 'sync_microsoft', 'cambio_estado', 'desvinculacion', 'reactivacion');
+
+-- CreateEnum
+CREATE TYPE "TipoDocumento" AS ENUM ('anexo_entrega', 'comprobante_entrega', 'comprobante_cambio', 'acta_devolucion');
+
+-- CreateEnum
+CREATE TYPE "EstadoArchivoDocumento" AS ENUM ('pendiente', 'archivado', 'fallido');
+
+-- CreateEnum
+CREATE TYPE "TipoNotificacion" AS ENUM ('cierre_onboarding', 'cierre_desvinculacion', 'alerta_equipos_pendientes');
+
+-- CreateEnum
+CREATE TYPE "EstadoNotificacion" AS ENUM ('pendiente', 'enviada', 'fallida');
+
+-- AlterTable
+ALTER TABLE "asset_categories" ADD COLUMN "tipo_devolucion" "TipoDevolucion";
+
+-- Solo se clasifican equivalencias exactas tras normalizar espacios, guiones y
+-- puntuación. No se infieren categorías por coincidencias parciales; todo lo
+-- demás queda en `otro` y `kit` se reserva para KitAssignment.
+UPDATE "asset_categories"
+SET "tipo_devolucion" = CASE regexp_replace(lower(trim("nombre")), '[^[:alnum:]]', '', 'g')
+    WHEN 'notebook' THEN 'notebook'::"TipoDevolucion"
+    WHEN 'celular' THEN 'celular'::"TipoDevolucion"
+    WHEN 'monitor' THEN 'monitor'::"TipoDevolucion"
+    ELSE 'otro'::"TipoDevolucion"
+END;
+
+ALTER TABLE "asset_categories"
+  ALTER COLUMN "tipo_devolucion" SET DEFAULT 'otro'::"TipoDevolucion",
+  ALTER COLUMN "tipo_devolucion" SET NOT NULL;
+
+-- AlterTable
+ALTER TABLE "assignments"
+  ADD COLUMN "firma_empleado_entrega_en" TIMESTAMP(3),
+  ADD COLUMN "firma_empleado_devolucion_en" TIMESTAMP(3);
+
+-- CreateTable
+CREATE TABLE "employee_history" (
+    "id" TEXT NOT NULL,
+    "employee_id" TEXT NOT NULL,
+    "tipo_evento" "TipoEventoEmpleado" NOT NULL,
+    "descripcion" TEXT NOT NULL,
+    "datos_anteriores" JSONB,
+    "datos_nuevos" JSONB,
+    "usuario_sistema" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "employee_history_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "documentos_emitidos" (
+    "id" TEXT NOT NULL,
+    "numero" TEXT NOT NULL,
+    "tipo" "TipoDocumento" NOT NULL,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "contenido_snapshot" JSONB NOT NULL,
+    "hash_sha256" TEXT NOT NULL,
+    "sharepoint_item_id" TEXT,
+    "sharepoint_url" TEXT,
+    "archivo_estado" "EstadoArchivoDocumento" NOT NULL DEFAULT 'pendiente',
+    "archivo_error" TEXT,
+    "intentos_archivo" INTEGER NOT NULL DEFAULT 0,
+    "emitido_por" TEXT NOT NULL,
+    "emitido_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "firma_empleado" TEXT,
+    "firma_empleado_en" TIMESTAMP(3),
+    "motivo_reemision" TEXT,
+    "employee_id" TEXT NOT NULL,
+    "request_id" TEXT,
+    "assignment_id" TEXT,
+    "termination_id" TEXT,
+
+    CONSTRAINT "documentos_emitidos_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "notificaciones_enviadas" (
+    "id" TEXT NOT NULL,
+    "tipo" "TipoNotificacion" NOT NULL,
+    "destinatarios" TEXT[],
+    "asunto" TEXT NOT NULL,
+    "cuerpo" TEXT NOT NULL,
+    "documento_ids" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "estado" "EstadoNotificacion" NOT NULL DEFAULT 'pendiente',
+    "mensaje_error" TEXT,
+    "enviada_por" TEXT NOT NULL,
+    "aceptada_en" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "request_id" TEXT,
+    "termination_id" TEXT,
+
+    CONSTRAINT "notificaciones_enviadas_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "asset_categories_tipo_devolucion_idx" ON "asset_categories"("tipo_devolucion");
+
+-- CreateIndex
+CREATE INDEX "employee_history_employee_id_created_at_idx" ON "employee_history"("employee_id", "created_at");
+
+-- CreateIndex
+CREATE INDEX "employee_history_employee_id_tipo_evento_created_at_idx" ON "employee_history"("employee_id", "tipo_evento", "created_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "documentos_emitidos_numero_version_key" ON "documentos_emitidos"("numero", "version");
+
+-- CreateIndex
+CREATE INDEX "documentos_emitidos_employee_id_emitido_en_idx" ON "documentos_emitidos"("employee_id", "emitido_en");
+
+-- CreateIndex
+CREATE INDEX "documentos_emitidos_archivo_estado_emitido_en_idx" ON "documentos_emitidos"("archivo_estado", "emitido_en");
+
+-- CreateIndex
+CREATE INDEX "documentos_emitidos_request_id_idx" ON "documentos_emitidos"("request_id");
+
+-- CreateIndex
+CREATE INDEX "documentos_emitidos_assignment_id_idx" ON "documentos_emitidos"("assignment_id");
+
+-- CreateIndex
+CREATE INDEX "documentos_emitidos_termination_id_idx" ON "documentos_emitidos"("termination_id");
+
+-- CreateIndex
+CREATE INDEX "notificaciones_enviadas_estado_created_at_idx" ON "notificaciones_enviadas"("estado", "created_at");
+
+-- CreateIndex
+CREATE INDEX "notificaciones_enviadas_tipo_created_at_idx" ON "notificaciones_enviadas"("tipo", "created_at");
+
+-- CreateIndex
+CREATE INDEX "notificaciones_enviadas_request_id_idx" ON "notificaciones_enviadas"("request_id");
+
+-- CreateIndex
+CREATE INDEX "notificaciones_enviadas_termination_id_idx" ON "notificaciones_enviadas"("termination_id");
+
+-- AddForeignKey
+ALTER TABLE "employee_history" ADD CONSTRAINT "employee_history_employee_id_fkey" FOREIGN KEY ("employee_id") REFERENCES "employees"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "documentos_emitidos" ADD CONSTRAINT "documentos_emitidos_employee_id_fkey" FOREIGN KEY ("employee_id") REFERENCES "employees"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "documentos_emitidos" ADD CONSTRAINT "documentos_emitidos_request_id_fkey" FOREIGN KEY ("request_id") REFERENCES "workflow_requests"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "documentos_emitidos" ADD CONSTRAINT "documentos_emitidos_assignment_id_fkey" FOREIGN KEY ("assignment_id") REFERENCES "assignments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "documentos_emitidos" ADD CONSTRAINT "documentos_emitidos_termination_id_fkey" FOREIGN KEY ("termination_id") REFERENCES "terminations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "notificaciones_enviadas" ADD CONSTRAINT "notificaciones_enviadas_request_id_fkey" FOREIGN KEY ("request_id") REFERENCES "workflow_requests"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "notificaciones_enviadas" ADD CONSTRAINT "notificaciones_enviadas_termination_id_fkey" FOREIGN KEY ("termination_id") REFERENCES "terminations"("id") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -19,43 +19,45 @@ model SystemUser {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  solicitudesCreadas  WorkflowRequest[] @relation("SolicitanteRelation")
-  solicitudesAsignadas WorkflowRequest[] @relation("ResponsableRelation")
-  workflowComments    WorkflowComment[]
-  workflowTransitions WorkflowTransition[]
+  solicitudesCreadas   WorkflowRequest[]    @relation("SolicitanteRelation")
+  solicitudesAsignadas WorkflowRequest[]    @relation("ResponsableRelation")
+  workflowComments     WorkflowComment[]
+  workflowTransitions  WorkflowTransition[]
 
   @@map("system_users")
 }
 
 model Employee {
-  id                   String          @id @default(uuid())
-  rut                  String?         @unique
-  nombres              String          @map("nombre")
-  apellidoPaterno      String          @map("apellido_paterno")
-  apellidoMaterno      String?         @map("apellido_materno")
-  correo               String          @unique
+  id                   String             @id @default(uuid())
+  rut                  String?            @unique
+  nombres              String             @map("nombre")
+  apellidoPaterno      String             @map("apellido_paterno")
+  apellidoMaterno      String?            @map("apellido_materno")
+  correo               String             @unique
   cargo                String?
   jefatura             String?
   supervisor           String?
   ubicacion            String?
-  tipoContrato         TipoContrato    @map("tipo_contrato")
-  fechaIngreso         DateTime?       @map("fecha_ingreso")
-  fechaTermino         DateTime?       @map("fecha_termino")
-  estado               EstadoEmpleado  @default(activo)
-  telefonoContacto     String?         @map("telefono_contacto")
-  microsoftId          String?         @unique @map("microsoft_id")
-  origenMicrosoft       Boolean         @default(false) @map("origen_microsoft")
-  createdAt            DateTime        @default(now()) @map("created_at")
-  updatedAt            DateTime        @updatedAt @map("updated_at")
-  fechaEntregaEpp      DateTime?       @map("fecha_entrega_epp")
-  fechaEntregaKit      DateTime?       @map("fecha_entrega_kit")
-  proximaMantencionEpp DateTime?       @map("proxima_mantencion_epp")
-  activosActuales      Asset[]         @relation("EmpleadoActual")
+  tipoContrato         TipoContrato       @map("tipo_contrato")
+  fechaIngreso         DateTime?          @map("fecha_ingreso")
+  fechaTermino         DateTime?          @map("fecha_termino")
+  estado               EstadoEmpleado     @default(activo)
+  telefonoContacto     String?            @map("telefono_contacto")
+  microsoftId          String?            @unique @map("microsoft_id")
+  origenMicrosoft      Boolean            @default(false) @map("origen_microsoft")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+  fechaEntregaEpp      DateTime?          @map("fecha_entrega_epp")
+  fechaEntregaKit      DateTime?          @map("fecha_entrega_kit")
+  proximaMantencionEpp DateTime?          @map("proxima_mantencion_epp")
+  activosActuales      Asset[]            @relation("EmpleadoActual")
   assignments          Assignment[]
   dispatchGuides       DispatchGuide[]
   kitAssignments       KitAssignment[]
   terminations         Termination[]
   workflowRequests     WorkflowRequest[]
+  historial            EmployeeHistory[]
+  documentosEmitidos   DocumentoEmitido[]
 
   @@index([estado])
   @@index([tipoContrato])
@@ -67,14 +69,16 @@ model Employee {
 }
 
 model AssetCategory {
-  id            String   @id @default(uuid())
-  nombre        String   @unique
-  descripcion   String?
-  requiereSerie Boolean  @default(true) @map("requiere_serie")
-  requiereImei  Boolean  @default(false) @map("requiere_imei")
-  createdAt     DateTime @default(now()) @map("created_at")
-  assets        Asset[]
+  id             String         @id @default(uuid())
+  nombre         String         @unique
+  descripcion    String?
+  requiereSerie  Boolean        @default(true) @map("requiere_serie")
+  requiereImei   Boolean        @default(false) @map("requiere_imei")
+  tipoDevolucion TipoDevolucion @default(otro) @map("tipo_devolucion")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  assets         Asset[]
 
+  @@index([tipoDevolucion])
   @@map("asset_categories")
 }
 
@@ -94,7 +98,7 @@ model Asset {
   numeroTelefono      String?             @map("numero_telefono")
   numeroActivacion    String?             @map("numero_activacion")
   tipoPlan            String?             @map("tipo_plan")
-  operador            String?             // Operador de celular (Entel, Movistar, etc)
+  operador            String? // Operador de celular (Entel, Movistar, etc)
   tieneCargador       Boolean             @default(true) @map("tiene_cargador")
   estado              EstadoActivo        @default(disponible)
   condicion           CondicionActivo     @default(nuevo)
@@ -102,8 +106,8 @@ model Asset {
   microsoft365        Boolean             @default(false) @map("microsoft_365")
   intuneEnrolled      Boolean             @default(false) @map("intune_enrolled")
   listaDistribucion   String?             @map("lista_distribucion")
-  antivirus           String?             // Software antivirus instalado
-  incidencia          String?             // Incidencias reportadas (robo, falla, etc)
+  antivirus           String? // Software antivirus instalado
+  incidencia          String? // Incidencias reportadas (robo, falla, etc)
   fechaCompra         DateTime?           @map("fecha_compra")
   fechaGarantiaFin    DateTime?           @map("fecha_garantia_fin")
   fechaBaja           DateTime?           @map("fecha_baja")
@@ -180,27 +184,30 @@ model PurchaseAsset {
 }
 
 model Assignment {
-  id                      String            @id @default(uuid())
-  assetId                 String            @map("asset_id")
-  employeeId              String            @map("employee_id")
-  fechaEntrega            DateTime          @map("fecha_entrega")
-  lugarEntrega            String?           @map("lugar_entrega")
-  entregadoPor            String?           @map("entregado_por")
-  tipoMovimiento          TipoMovimiento    @map("tipo_movimiento")
-  motivo                  String?
-  fechaDevolucion         DateTime?         @map("fecha_devolucion")
-  recibidoPor             String?           @map("recibido_por")
-  estadoDevolucion        EstadoDevolucion? @map("estado_devolucion")
-  observacionesDevolucion String?           @map("observaciones_devolucion")
-  activo                  Boolean           @default(true)
-  actaEntregaUrl          String?           @map("acta_entrega_url")
-  actaDevolucionUrl       String?           @map("acta_devolucion_url")
-  firmaEmpleadoEntrega    String?           @map("firma_empleado_entrega")
-  firmaEmpleadoDevolucion String?           @map("firma_empleado_devolucion")
-  createdAt               DateTime          @default(now()) @map("created_at")
-  updatedAt               DateTime          @updatedAt @map("updated_at")
-  asset                   Asset             @relation(fields: [assetId], references: [id])
-  employee                Employee          @relation(fields: [employeeId], references: [id])
+  id                        String             @id @default(uuid())
+  assetId                   String             @map("asset_id")
+  employeeId                String             @map("employee_id")
+  fechaEntrega              DateTime           @map("fecha_entrega")
+  lugarEntrega              String?            @map("lugar_entrega")
+  entregadoPor              String?            @map("entregado_por")
+  tipoMovimiento            TipoMovimiento     @map("tipo_movimiento")
+  motivo                    String?
+  fechaDevolucion           DateTime?          @map("fecha_devolucion")
+  recibidoPor               String?            @map("recibido_por")
+  estadoDevolucion          EstadoDevolucion?  @map("estado_devolucion")
+  observacionesDevolucion   String?            @map("observaciones_devolucion")
+  activo                    Boolean            @default(true)
+  actaEntregaUrl            String?            @map("acta_entrega_url")
+  actaDevolucionUrl         String?            @map("acta_devolucion_url")
+  firmaEmpleadoEntrega      String?            @map("firma_empleado_entrega")
+  firmaEmpleadoDevolucion   String?            @map("firma_empleado_devolucion")
+  firmaEmpleadoEntregaEn    DateTime?          @map("firma_empleado_entrega_en")
+  firmaEmpleadoDevolucionEn DateTime?          @map("firma_empleado_devolucion_en")
+  createdAt                 DateTime           @default(now()) @map("created_at")
+  updatedAt                 DateTime           @updatedAt @map("updated_at")
+  asset                     Asset              @relation(fields: [assetId], references: [id])
+  employee                  Employee           @relation(fields: [employeeId], references: [id])
+  documentosEmitidos        DocumentoEmitido[]
 
   @@index([assetId])
   @@index([employeeId])
@@ -275,33 +282,110 @@ model AssetHistory {
   @@map("asset_history")
 }
 
+model EmployeeHistory {
+  id              String             @id @default(uuid())
+  employeeId      String             @map("employee_id")
+  tipoEvento      TipoEventoEmpleado @map("tipo_evento")
+  descripcion     String
+  datosAnteriores Json?              @map("datos_anteriores")
+  datosNuevos     Json?              @map("datos_nuevos")
+  usuarioSistema  String             @map("usuario_sistema")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  employee        Employee           @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, createdAt])
+  @@index([employeeId, tipoEvento, createdAt])
+  @@map("employee_history")
+}
+
 model Termination {
-  id                     String               @id @default(uuid())
-  employeeId             String               @map("employee_id")
-  fechaDesvinculacion    DateTime             @map("fecha_desvinculacion")
-  fechaDevolucionEquipos DateTime?            @map("fecha_devolucion_equipos")
-  estadoNotebook         EstadoDevolucionTipo @default(pendiente) @map("estado_notebook")
-  estadoCelular          EstadoDevolucionTipo @default(pendiente) @map("estado_celular")
-  estadoMonitor          EstadoDevolucionTipo @default(pendiente) @map("estado_monitor")
-  estadoKit              EstadoDevolucionTipo @default(pendiente) @map("estado_kit")
-  numeroTelefonoCelular  String?              @map("numero_telefono_celular") // Nro telefono del celular devuelto
-  imeiCelular            String?              @map("imei_celular") // IMEI del celular devuelto
-  recibidoPor            String?              @map("recibido_por")
-  lugarDevolucion        String?              @map("lugar_devolucion")
-  requiereDescuento      Boolean              @default(false) @map("requiere_descuento")
-  montoDescuento         Decimal?             @map("monto_descuento") @db.Decimal(10, 2)
-  motivoDescuento        String?              @map("motivo_descuento")
-  notificadoRrhh         Boolean              @default(false) @map("notificado_rrhh")
-  fechaNotificacionRrhh  DateTime?            @map("fecha_notificacion_rrhh")
+  id                     String                @id @default(uuid())
+  employeeId             String                @map("employee_id")
+  fechaDesvinculacion    DateTime              @map("fecha_desvinculacion")
+  fechaDevolucionEquipos DateTime?             @map("fecha_devolucion_equipos")
+  estadoNotebook         EstadoDevolucionTipo  @default(pendiente) @map("estado_notebook")
+  estadoCelular          EstadoDevolucionTipo  @default(pendiente) @map("estado_celular")
+  estadoMonitor          EstadoDevolucionTipo  @default(pendiente) @map("estado_monitor")
+  estadoKit              EstadoDevolucionTipo  @default(pendiente) @map("estado_kit")
+  numeroTelefonoCelular  String?               @map("numero_telefono_celular") // Nro telefono del celular devuelto
+  imeiCelular            String?               @map("imei_celular") // IMEI del celular devuelto
+  recibidoPor            String?               @map("recibido_por")
+  lugarDevolucion        String?               @map("lugar_devolucion")
+  requiereDescuento      Boolean               @default(false) @map("requiere_descuento")
+  montoDescuento         Decimal?              @map("monto_descuento") @db.Decimal(10, 2)
+  motivoDescuento        String?               @map("motivo_descuento")
+  notificadoRrhh         Boolean               @default(false) @map("notificado_rrhh")
+  fechaNotificacionRrhh  DateTime?             @map("fecha_notificacion_rrhh")
   observaciones          String?
-  createdAt              DateTime             @default(now()) @map("created_at")
-  updatedAt              DateTime             @updatedAt @map("updated_at")
-  employee               Employee             @relation(fields: [employeeId], references: [id])
+  createdAt              DateTime              @default(now()) @map("created_at")
+  updatedAt              DateTime              @updatedAt @map("updated_at")
+  employee               Employee              @relation(fields: [employeeId], references: [id])
+  documentosEmitidos     DocumentoEmitido[]
+  notificacionesEnviadas NotificacionEnviada[]
 
   @@index([employeeId])
   @@index([notificadoRrhh])
   @@index([fechaDesvinculacion])
   @@map("terminations")
+}
+
+model DocumentoEmitido {
+  id                String                 @id @default(uuid())
+  numero            String
+  tipo              TipoDocumento
+  version           Int                    @default(1)
+  contenidoSnapshot Json                   @map("contenido_snapshot")
+  hashSha256        String                 @map("hash_sha256")
+  sharepointItemId  String?                @map("sharepoint_item_id")
+  sharepointUrl     String?                @map("sharepoint_url")
+  archivoEstado     EstadoArchivoDocumento @default(pendiente) @map("archivo_estado")
+  archivoError      String?                @map("archivo_error")
+  intentosArchivo   Int                    @default(0) @map("intentos_archivo")
+  emitidoPor        String                 @map("emitido_por")
+  emitidoEn         DateTime               @default(now()) @map("emitido_en")
+  firmaEmpleado     String?                @map("firma_empleado")
+  firmaEmpleadoEn   DateTime?              @map("firma_empleado_en")
+  motivoReemision   String?                @map("motivo_reemision")
+  employeeId        String                 @map("employee_id")
+  requestId         String?                @map("request_id")
+  assignmentId      String?                @map("assignment_id")
+  terminationId     String?                @map("termination_id")
+  employee          Employee               @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  request           WorkflowRequest?       @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  assignment        Assignment?            @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  termination       Termination?           @relation(fields: [terminationId], references: [id], onDelete: SetNull)
+
+  @@unique([numero, version])
+  @@index([employeeId, emitidoEn])
+  @@index([archivoEstado, emitidoEn])
+  @@index([requestId])
+  @@index([assignmentId])
+  @@index([terminationId])
+  @@map("documentos_emitidos")
+}
+
+model NotificacionEnviada {
+  id            String             @id @default(uuid())
+  tipo          TipoNotificacion
+  destinatarios String[]
+  asunto        String
+  cuerpo        String
+  documentoIds  String[]           @default([]) @map("documento_ids")
+  estado        EstadoNotificacion @default(pendiente)
+  mensajeError  String?            @map("mensaje_error")
+  enviadaPor    String             @map("enviada_por")
+  aceptadaEn    DateTime?          @map("aceptada_en")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  requestId     String?            @map("request_id")
+  terminationId String?            @map("termination_id")
+  request       WorkflowRequest?   @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  termination   Termination?       @relation(fields: [terminationId], references: [id], onDelete: SetNull)
+
+  @@index([estado, createdAt])
+  @@index([tipo, createdAt])
+  @@index([requestId])
+  @@index([terminationId])
+  @@map("notificaciones_enviadas")
 }
 
 model DispatchGuide {
@@ -346,45 +430,47 @@ model DispatchGuideItem {
 }
 
 model WorkflowRequest {
-  id                    String              @id @default(uuid())
-  numero                String              @unique
-  tipo                  TipoSolicitud
-  estado                EstadoSolicitud
-  prioridad             PrioridadSolicitud  @default(media)
-  employeeId            String              @map("employee_id")
-  solicitanteId         String              @map("solicitante_id")
-  responsableActualId   String?             @map("responsable_actual_id")
+  id                  String             @id @default(uuid())
+  numero              String             @unique
+  tipo                TipoSolicitud
+  estado              EstadoSolicitud
+  prioridad           PrioridadSolicitud @default(media)
+  employeeId          String             @map("employee_id")
+  solicitanteId       String             @map("solicitante_id")
+  responsableActualId String?            @map("responsable_actual_id")
   // Campos onboarding
-  fechaIngreso          DateTime?           @map("fecha_ingreso")
-  cargoSolicitado       String?             @map("cargo_solicitado")
-  ubicacionDestino      String?             @map("ubicacion_destino")
-  requiereNotebook      Boolean             @default(false) @map("requiere_notebook")
-  requiereCelular       Boolean             @default(false) @map("requiere_celular")
-  requiereMonitor       Boolean             @default(false) @map("requiere_monitor")
+  fechaIngreso        DateTime?          @map("fecha_ingreso")
+  cargoSolicitado     String?            @map("cargo_solicitado")
+  ubicacionDestino    String?            @map("ubicacion_destino")
+  requiereNotebook    Boolean            @default(false) @map("requiere_notebook")
+  requiereCelular     Boolean            @default(false) @map("requiere_celular")
+  requiereMonitor     Boolean            @default(false) @map("requiere_monitor")
   // Campos cambio equipo
-  ticketFreshdesk       String?             @map("ticket_freshdesk")
-  motivoCambio          String?             @map("motivo_cambio")
+  ticketFreshdesk     String?            @map("ticket_freshdesk")
+  motivoCambio        String?            @map("motivo_cambio")
   // Campos devolución
-  fechaDesvinculacion   DateTime?           @map("fecha_desvinculacion")
-  medioDevolucion       String?             @map("medio_devolucion")
-  otChilexpress         String?             @map("ot_chilexpress")
-  ciudadDevolucion      String?             @map("ciudad_devolucion")
+  fechaDesvinculacion DateTime?          @map("fecha_desvinculacion")
+  medioDevolucion     String?            @map("medio_devolucion")
+  otChilexpress       String?            @map("ot_chilexpress")
+  ciudadDevolucion    String?            @map("ciudad_devolucion")
   // Referencias a registros creados
-  assignmentIds         String[]            @map("assignment_ids")
-  terminationId         String?             @map("termination_id")
-  dispatchGuideId       String?             @map("dispatch_guide_id")
+  assignmentIds       String[]           @map("assignment_ids")
+  terminationId       String?            @map("termination_id")
+  dispatchGuideId     String?            @map("dispatch_guide_id")
   // General
-  observaciones         String?
-  fechaCierre           DateTime?           @map("fecha_cierre")
-  createdAt             DateTime            @default(now()) @map("created_at")
-  updatedAt             DateTime            @updatedAt @map("updated_at")
+  observaciones       String?
+  fechaCierre         DateTime?          @map("fecha_cierre")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
 
-  employee              Employee            @relation(fields: [employeeId], references: [id])
-  solicitante           SystemUser          @relation("SolicitanteRelation", fields: [solicitanteId], references: [id])
-  responsableActual     SystemUser?         @relation("ResponsableRelation", fields: [responsableActualId], references: [id])
-  comments              WorkflowComment[]
-  transitions           WorkflowTransition[]
-  pendientes            WorkflowPendiente[]
+  employee               Employee              @relation(fields: [employeeId], references: [id])
+  solicitante            SystemUser            @relation("SolicitanteRelation", fields: [solicitanteId], references: [id])
+  responsableActual      SystemUser?           @relation("ResponsableRelation", fields: [responsableActualId], references: [id])
+  comments               WorkflowComment[]
+  transitions            WorkflowTransition[]
+  pendientes             WorkflowPendiente[]
+  documentosEmitidos     DocumentoEmitido[]
+  notificacionesEnviadas NotificacionEnviada[]
 
   @@index([tipo])
   @@index([estado])
@@ -396,15 +482,15 @@ model WorkflowRequest {
 }
 
 model WorkflowComment {
-  id          String          @id @default(uuid())
-  requestId   String          @map("request_id")
-  autorId     String          @map("autor_id")
-  mensaje     String
-  esInterno   Boolean         @default(false) @map("es_interno")
-  createdAt   DateTime        @default(now()) @map("created_at")
+  id        String   @id @default(uuid())
+  requestId String   @map("request_id")
+  autorId   String   @map("autor_id")
+  mensaje   String
+  esInterno Boolean  @default(false) @map("es_interno")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  request     WorkflowRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  autor       SystemUser      @relation(fields: [autorId], references: [id])
+  request WorkflowRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  autor   SystemUser      @relation(fields: [autorId], references: [id])
 
   @@index([requestId])
   @@index([autorId])
@@ -412,17 +498,17 @@ model WorkflowComment {
 }
 
 model WorkflowTransition {
-  id              String          @id @default(uuid())
-  requestId       String          @map("request_id")
-  estadoAnterior  EstadoSolicitud @map("estado_anterior")
-  estadoNuevo     EstadoSolicitud @map("estado_nuevo")
-  ejecutadoPorId  String          @map("ejecutado_por_id")
-  comentario      String?
-  datosAccion     Json?           @map("datos_accion")
-  createdAt       DateTime        @default(now()) @map("created_at")
+  id             String          @id @default(uuid())
+  requestId      String          @map("request_id")
+  estadoAnterior EstadoSolicitud @map("estado_anterior")
+  estadoNuevo    EstadoSolicitud @map("estado_nuevo")
+  ejecutadoPorId String          @map("ejecutado_por_id")
+  comentario     String?
+  datosAccion    Json?           @map("datos_accion")
+  createdAt      DateTime        @default(now()) @map("created_at")
 
-  request         WorkflowRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  ejecutadoPor    SystemUser      @relation(fields: [ejecutadoPorId], references: [id])
+  request      WorkflowRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  ejecutadoPor SystemUser      @relation(fields: [ejecutadoPorId], references: [id])
 
   @@index([requestId])
   @@index([createdAt])
@@ -430,16 +516,16 @@ model WorkflowTransition {
 }
 
 model WorkflowPendiente {
-  id              String          @id @default(uuid())
-  requestId       String          @map("request_id")
-  tipo            TipoPendiente
-  estado          EstadoPendiente @default(pendiente)
-  descripcion     String?
-  actualizadoPor  String?         @map("actualizado_por")
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
+  id             String          @id @default(uuid())
+  requestId      String          @map("request_id")
+  tipo           TipoPendiente
+  estado         EstadoPendiente @default(pendiente)
+  descripcion    String?
+  actualizadoPor String?         @map("actualizado_por")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
 
-  request         WorkflowRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  request WorkflowRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
   @@index([requestId])
   @@index([estado])
@@ -618,4 +704,46 @@ enum EstadoGuia {
   despachado
   recibido
   anulado
+}
+
+enum TipoDevolucion {
+  notebook
+  celular
+  monitor
+  kit
+  otro
+}
+
+enum TipoEventoEmpleado {
+  creacion
+  actualizacion
+  sync_microsoft
+  cambio_estado
+  desvinculacion
+  reactivacion
+}
+
+enum TipoDocumento {
+  anexo_entrega
+  comprobante_entrega
+  comprobante_cambio
+  acta_devolucion
+}
+
+enum EstadoArchivoDocumento {
+  pendiente
+  archivado
+  fallido
+}
+
+enum TipoNotificacion {
+  cierre_onboarding
+  cierre_desvinculacion
+  alerta_equipos_pendientes
+}
+
+enum EstadoNotificacion {
+  pendiente
+  enviada
+  fallida
 }

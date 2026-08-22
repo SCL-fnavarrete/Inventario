@@ -125,9 +125,17 @@ CREATE TABLE asset_categories (
     descripcion TEXT,
     requiere_serie BOOLEAN DEFAULT true,
     requiere_imei BOOLEAN DEFAULT false,
+    tipo_devolucion ENUM('notebook', 'celular', 'monitor', 'kit', 'otro') DEFAULT 'otro',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
+
+`tipo_devolucion` es la clasificación estable que usa el cierre de devolución;
+no se deriva de `nombre`, porque la categoría puede renombrarse desde
+configuración. La migración normaliza exclusivamente los nombres existentes
+`notebook`, `celular` y `monitor`; toda otra categoría queda como `otro`.
+`kit` queda reservado: su estado de devolución sigue viniendo de
+`kit_assignments`, no de `asset_categories`.
 
 ### ACTIVOS (assets)
 ```sql
@@ -257,6 +265,8 @@ CREATE TABLE assignments (
     acta_devolucion_url VARCHAR(500),
     firma_empleado_entrega TEXT,               -- Base64 de firma digital
     firma_empleado_devolucion TEXT,
+    firma_empleado_entrega_en TIMESTAMP,       -- Marca de servidor, nunca del cliente
+    firma_empleado_devolucion_en TIMESTAMP,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -515,6 +525,72 @@ CREATE TABLE dispatch_guide_items (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
+
+### 2.1 ter — Evidencia ISO de documentos, historial y notificaciones
+
+Esta sección convierte los registros operativos en evidencia conservable. Los
+campos con fecha de emisión, firma, aceptación y envío se asignan en el
+servidor. Las plantillas y los PDF se generan desde el snapshot almacenado y su
+timestamp de servidor: **una descarga posterior nunca usa `new Date()` ni datos
+vivos para reconstruir un documento ya emitido**.
+
+#### HISTORIAL DE EMPLEADOS (employee_history)
+
+`EmployeeHistory` registra cada cambio relevante del maestro de empleados. Sus
+campos son `id` UUID, `employee_id` requerido, `tipo_evento`, `descripcion`,
+`datos_anteriores` JSON opcional, `datos_nuevos` JSON opcional,
+`usuario_sistema` requerido y `created_at` de servidor. `tipo_evento` admite:
+`creacion`, `actualizacion`, `sync_microsoft`, `cambio_estado`,
+`desvinculacion` y `reactivacion`.
+
+La relación con `employees` es requerida y `RESTRICT`: un empleado con
+historial no puede eliminarse en cascada. Se indexa por empleado, tipo y fecha
+para reconstruir su expediente de auditoría.
+
+#### DOCUMENTOS EMITIDOS INMUTABLES (documentos_emitidos)
+
+`DocumentoEmitido` es la evidencia de cada acta emitida. Tiene `id` UUID,
+`numero`, `tipo` (`anexo_entrega`, `comprobante_entrega`,
+`comprobante_cambio`, `acta_devolucion`), `version` (por defecto 1),
+`contenido_snapshot` JSON requerido e inmutable y `hash_sha256` requerido del
+PDF. La combinación `(numero, version)` es única; una reemisión crea otra
+versión y registra `motivo_reemision`, nunca reemplaza la evidencia anterior.
+
+El archivo externo se maneja en etapas mediante `archivo_estado`:
+`pendiente`, `archivado` o `fallido`, junto con `sharepoint_item_id`,
+`sharepoint_url`, `archivo_error` e `intentos_archivo`. `emitido_por` y
+`emitido_en` son requeridos; este último se establece con la hora del servidor.
+La firma es opcional (`firma_empleado`, `firma_empleado_en`) y su marca también
+es de servidor. La aceptación de la política de uso se guarda dentro de
+`contenido_snapshot`, vinculada a esa versión inmutable y no como un flag
+editable separado.
+
+Todo documento requiere `employee_id` y lo protege con `RESTRICT`. Sus contextos
+operativos `request_id`, `assignment_id` y `termination_id` son opcionales y
+usan `ON DELETE SET NULL`: borrar un contexto operativo jamás borra un documento
+emitido. Se indexan empleado/fecha, estado de archivo/fecha y cada contexto.
+
+#### NOTIFICACIONES ENVIADAS (notificaciones_enviadas)
+
+`NotificacionEnviada` deja evidencia del intento de correo Graph: `id` UUID,
+`tipo` (`cierre_onboarding`, `cierre_desvinculacion`,
+`alerta_equipos_pendientes`), `destinatarios` (arreglo), `asunto`, `cuerpo`,
+`documento_ids` (arreglo), `estado`, `mensaje_error`, `enviada_por`,
+`aceptada_en` y `created_at`. El estado se inicia en `pendiente` y solo puede
+ser `pendiente`, `enviada` o `fallida`.
+
+`enviada` significa que Microsoft Graph aceptó la solicitud, no que una persona
+la leyó o recibió humanamente. `aceptada_en` se toma del servidor. Los contextos
+opcionales `request_id` y `termination_id` usan `ON DELETE SET NULL`, por lo que
+la evidencia de notificación se conserva; se indexa por estado/fecha, tipo/fecha
+y contexto.
+
+#### Reglas de conservación y relaciones inversas
+
+`Employee` expone su historial y documentos emitidos; `WorkflowRequest` expone
+sus documentos y notificaciones; `Assignment` expone sus documentos; y
+`Termination` expone sus documentos y notificaciones. Ninguna de estas
+relaciones de evidencia usa borrado en cascada.
 
 ---
 
@@ -1474,8 +1550,8 @@ Ubicación | Tipo Contrato | Fecha Ingreso
 
 # FIN DEL DOCUMENTO DE ESPECIFICACIONES
 
-Versión: 1.2
-Fecha: 2026-04-07
+Versión: 1.4
+Fecha: 2026-08-21
 Metodología: BMAD + SDD (Spec Driven Design)
 Autor: Arquitectura generada para desarrollo por IA
 ```
@@ -1525,6 +1601,12 @@ nunca debió existir como fila separada.
 
 ## Changelog SPEC
 
+- **v1.4 (2026-08-21):**
+  - Sección 2.1: `asset_categories.tipo_devolucion` estabiliza el tipo de devolución y se reserva `kit` para `kit_assignments`; la migración normaliza notebook/celular/monitor y clasifica el resto como `otro`.
+  - Sección 2.1: `assignments` agrega las marcas de tiempo de servidor para firma de entrega y devolución.
+  - Sección 2.1 ter: se agregan `EmployeeHistory`, `DocumentoEmitido` y `NotificacionEnviada`, con snapshots inmutables, hash, versionado, estados staged de SharePoint y correo Graph, e índices de evidencia.
+  - Sección 2.1 ter: los documentos e historial requieren empleado y se retienen con `RESTRICT`; los contextos operativos opcionales usan `SET NULL`, nunca cascade.
+  - Sección 2.1 ter: PDFs y plantillas usan el timestamp del snapshot de servidor; una descarga no regenera ni modifica la evidencia. La aceptación de política queda en el snapshot firmado.
 - **v1.0 (2025):** Versión inicial — 12 modelos, stack definido, metodología BMAD.
 - **v1.3 (2026-08-21):**
   - Sección 1.3.1: matriz de permisos ejecutable (13 recursos × 3 acciones × 5 roles) como único punto de verdad de la autorización, consumida por la API y por la UI.

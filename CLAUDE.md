@@ -21,7 +21,7 @@ npm run format:check     # Prettier check
 npm run typecheck        # TypeScript type checking
 npm run test             # Jest tests
 npm run test:watch       # Jest in watch mode
-npm run test:coverage    # Jest with coverage (70% threshold)
+npm run test:coverage    # Jest con umbrales de cobertura vigentes (ver jest.config.ts)
 npm run db:migrate       # Prisma dev migration (unica via para cambiar el schema)
 npm run db:migrate:prod  # prisma migrate deploy (produccion)
 npm run db:status        # prisma migrate status - verificar deriva
@@ -214,7 +214,7 @@ El SPEC mantiene un `## Changelog SPEC` al final. Cada actualización significat
 - v1.x (YYYY-MM-DD): descripción concisa del cambio
 ```
 
-La versión actual es **v1.1 (2026-04-07)**.
+La versión actual es **v1.4 (2026-08-21)**.
 
 ### Checklist antes de implementar un cambio de modelo
 
