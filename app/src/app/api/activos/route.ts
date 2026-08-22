@@ -4,6 +4,7 @@ import { createAssetSchema } from "@/lib/validations/asset";
 import { assetHistoryService } from "@/lib/services/assetHistoryService";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { getCategorySpecialFields } from '@/lib/assetImportCategoryFields';
 
 export async function GET(request: NextRequest) {
   try {
@@ -88,6 +89,14 @@ export async function POST(request: NextRequest) {
     // Validar datos con Zod
     const validatedData = createAssetSchema.parse(body);
 
+    const category = await prisma.assetCategory.findUnique({
+      where: { id: validatedData.categoriaId },
+    });
+
+    if (!category) {
+      return NextResponse.json({ error: 'Categoría no encontrada' }, { status: 404 });
+    }
+
     // Verificar si el número de serie ya existe (solo si se proporciona)
     if (validatedData.numeroSerie) {
       const existingAsset = await prisma.asset.findUnique({
@@ -102,6 +111,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const specialFields = getCategorySpecialFields(category.tipoDevolucion, {
+      procesador: validatedData.procesador || null,
+      ram: validatedData.ram || null,
+      discoDuro: validatedData.discoDuro || null,
+      sistemaOperativo: validatedData.sistemaOperativo || null,
+      imei: validatedData.imei || null,
+      numeroTelefono: validatedData.numeroTelefono || null,
+      pulgadas: validatedData.pulgadas ?? null,
+      microsoft365: validatedData.microsoft365 ?? false,
+    });
+
     const asset = await prisma.asset.create({
       data: {
         categoriaId: validatedData.categoriaId,
@@ -114,18 +134,11 @@ export async function POST(request: NextRequest) {
         fechaCompra: validatedData.fechaCompra ? new Date(validatedData.fechaCompra) : null,
         fechaGarantiaFin: validatedData.fechaGarantiaFin ? new Date(validatedData.fechaGarantiaFin) : null,
         fechaBaja: validatedData.fechaBaja ? new Date(validatedData.fechaBaja) : null,
-        procesador: validatedData.procesador || null,
-        ram: validatedData.ram || null,
-        discoDuro: validatedData.discoDuro || null,
-        sistemaOperativo: validatedData.sistemaOperativo || null,
-        imei: validatedData.imei || null,
-        numeroTelefono: validatedData.numeroTelefono || null,
+        ...specialFields,
         numeroActivacion: validatedData.numeroActivacion || null,
         tipoPlan: validatedData.tipoPlan || null,
         tieneCargador: validatedData.tieneCargador || false,
-        pulgadas: validatedData.pulgadas || null,
         ubicacionFisica: validatedData.ubicacionFisica || null,
-        microsoft365: validatedData.microsoft365 || false,
         intuneEnrolled: validatedData.intuneEnrolled || false,
         listaDistribucion: validatedData.listaDistribucion || null,
         observaciones: validatedData.observaciones || null,

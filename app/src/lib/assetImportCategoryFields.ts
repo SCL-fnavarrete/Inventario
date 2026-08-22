@@ -1,6 +1,6 @@
 import type { TipoDevolucion } from '@prisma/client';
 
-type ImportSpecialFieldValues = {
+export type AssetCategorySpecialFields = {
   procesador: string | null;
   ram: string | null;
   discoDuro: string | null;
@@ -12,14 +12,14 @@ type ImportSpecialFieldValues = {
 };
 
 /**
- * Mantiene la importación alineada con el contrato estable de la categoría.
+ * Mantiene activos e importación alineados con el contrato estable de la categoría.
  * El nombre se conserva solo para mostrarlo al usuario, nunca para decidir
  * qué especificaciones pertenecen al activo.
  */
-export function getImportSpecialFields(
+export function getCategorySpecialFields(
   tipoDevolucion: TipoDevolucion,
-  values: ImportSpecialFieldValues
-): ImportSpecialFieldValues {
+  values: AssetCategorySpecialFields
+): AssetCategorySpecialFields {
   return {
     procesador: tipoDevolucion === 'notebook' ? values.procesador : null,
     ram: tipoDevolucion === 'notebook' ? values.ram : null,

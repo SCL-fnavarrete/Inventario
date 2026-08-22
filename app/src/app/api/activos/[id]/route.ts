@@ -12,6 +12,7 @@ import {
   ValidationError,
 } from '@/lib/auth/guard';
 import { logger } from '@/lib/logger';
+import { getCategorySpecialFields } from '@/lib/assetImportCategoryFields';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -59,6 +60,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
     }
 
+    const categoriaIdEfectiva = validatedData.categoriaId ?? existingAsset.categoriaId;
+    const category = await prisma.assetCategory.findUnique({
+      where: { id: categoriaIdEfectiva },
+    });
+
+    if (!category) {
+      return NextResponse.json({ error: 'Categoría no encontrada' }, { status: 404 });
+    }
+
     // Verificar si el número de serie ya existe (si se cambió y se proporciona)
     if (validatedData.numeroSerie && validatedData.numeroSerie !== existingAsset.numeroSerie) {
       const duplicateSerie = await prisma.asset.findUnique({
@@ -103,26 +113,65 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       cambioEstado = { desde: existingAsset.estado, hasta: validatedData.estado };
     }
 
-    // Registrar cambios en especificaciones técnicas
-    const specsFields = ['procesador', 'ram', 'discoDuro', 'sistemaOperativo', 'pulgadas'] as const;
+    // Helper para convertir pulgadas a número o null
+    const parsePulgadas = (value: unknown): number | null => {
+      if (value === undefined || value === null || value === '') return null;
+      const num = typeof value === 'number' ? value : Number(value);
+      return Number.isFinite(num) ? num : null;
+    };
+
+    const specialFields = getCategorySpecialFields(category.tipoDevolucion, {
+      procesador:
+        validatedData.procesador !== undefined
+          ? validatedData.procesador || null
+          : existingAsset.procesador,
+      ram: validatedData.ram !== undefined ? validatedData.ram || null : existingAsset.ram,
+      discoDuro:
+        validatedData.discoDuro !== undefined
+          ? validatedData.discoDuro || null
+          : existingAsset.discoDuro,
+      sistemaOperativo:
+        validatedData.sistemaOperativo !== undefined
+          ? validatedData.sistemaOperativo || null
+          : existingAsset.sistemaOperativo,
+      imei: validatedData.imei !== undefined ? validatedData.imei || null : existingAsset.imei,
+      numeroTelefono:
+        validatedData.numeroTelefono !== undefined
+          ? validatedData.numeroTelefono || null
+          : existingAsset.numeroTelefono,
+      pulgadas:
+        validatedData.pulgadas !== undefined
+          ? parsePulgadas(validatedData.pulgadas)
+          : parsePulgadas(existingAsset.pulgadas),
+      microsoft365:
+        validatedData.microsoft365 !== undefined
+          ? validatedData.microsoft365
+          : existingAsset.microsoft365,
+    });
+
+    // Registrar cambios en especificaciones técnicas, incluidos los campos
+    // limpiados automáticamente al cambiar la categoría efectiva.
+    const specsFields = [
+      'procesador',
+      'ram',
+      'discoDuro',
+      'sistemaOperativo',
+      'pulgadas',
+      'microsoft365',
+    ] as const;
     const specsAnteriores: Record<string, unknown> = {};
     const specsNuevos: Record<string, unknown> = {};
     let hasSpecChanges = false;
 
     for (const field of specsFields) {
-      if (validatedData[field] !== undefined && validatedData[field] !== existingAsset[field]) {
-        specsAnteriores[field] = existingAsset[field];
-        specsNuevos[field] = validatedData[field];
+      const previousValue =
+        field === 'pulgadas' ? parsePulgadas(existingAsset.pulgadas) : existingAsset[field];
+      if (specialFields[field] !== previousValue) {
+        specsAnteriores[field] = previousValue;
+        specsNuevos[field] = specialFields[field];
         hasSpecChanges = true;
       }
     }
-
-    // Helper para convertir pulgadas a número o null
-    const parsePulgadas = (value: string | number | null | undefined): number | null => {
-      if (value === undefined || value === null || value === '') return null;
-      const num = typeof value === 'number' ? value : parseFloat(value);
-      return isNaN(num) ? null : num;
-    };
 
     // Las tres escrituras -- historial de estado, historial de specs y el
     // update -- corren en una sola transacción. Antes eran secuenciales: si el
@@ -153,7 +202,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return tx.asset.update({
         where: { id },
         data: {
-          ...(validatedData.categoriaId && { categoriaId: validatedData.categoriaId }),
+          categoriaId: categoriaIdEfectiva,
           ...(validatedData.marca && { marca: validatedData.marca }),
           ...(validatedData.modelo && { modelo: validatedData.modelo }),
           ...(validatedData.numeroSerie !== undefined && {
@@ -175,20 +224,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           ...(validatedData.fechaBaja !== undefined && {
             fechaBaja: validatedData.fechaBaja ? new Date(validatedData.fechaBaja) : null,
           }),
-          ...(validatedData.procesador !== undefined && {
-            procesador: validatedData.procesador || null,
-          }),
-          ...(validatedData.ram !== undefined && { ram: validatedData.ram || null }),
-          ...(validatedData.discoDuro !== undefined && {
-            discoDuro: validatedData.discoDuro || null,
-          }),
-          ...(validatedData.sistemaOperativo !== undefined && {
-            sistemaOperativo: validatedData.sistemaOperativo || null,
-          }),
-          ...(validatedData.imei !== undefined && { imei: validatedData.imei || null }),
-          ...(validatedData.numeroTelefono !== undefined && {
-            numeroTelefono: validatedData.numeroTelefono || null,
-          }),
+          ...specialFields,
           ...(validatedData.numeroActivacion !== undefined && {
             numeroActivacion: validatedData.numeroActivacion || null,
           }),
@@ -196,14 +232,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           ...(validatedData.tieneCargador !== undefined && {
             tieneCargador: validatedData.tieneCargador,
           }),
-          ...(validatedData.pulgadas !== undefined && {
-            pulgadas: parsePulgadas(validatedData.pulgadas),
-          }),
           ...(validatedData.ubicacionFisica !== undefined && {
             ubicacionFisica: validatedData.ubicacionFisica || null,
-          }),
-          ...(validatedData.microsoft365 !== undefined && {
-            microsoft365: validatedData.microsoft365,
           }),
           ...(validatedData.intuneEnrolled !== undefined && {
             intuneEnrolled: validatedData.intuneEnrolled,

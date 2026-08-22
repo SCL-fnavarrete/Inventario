@@ -13,7 +13,7 @@ const mockFetch = global.fetch as jest.Mock;
 type Category = {
   id: string;
   nombre: string;
-  tipoDevolucion: 'notebook' | 'otro';
+  tipoDevolucion: 'notebook' | 'monitor' | 'otro';
 };
 
 function mockCategoryResponses(category: Category, categoriaId = category.id) {
@@ -85,5 +85,92 @@ describe('formularios de activo — categoría estable', () => {
     expect(
       screen.queryByRole('heading', { name: 'Especificaciones Tecnicas - Notebook' })
     ).not.toBeInTheDocument();
+  });
+
+  test('alta limpia especificaciones notebook ocultas al cambiar la categoría a monitor', async () => {
+    const categories: Category[] = [
+      { id: 'cat-laptop', nombre: 'Laptop', tipoDevolucion: 'notebook' },
+      { id: 'cat-monitor', nombre: 'Monitor', tipoDevolucion: 'monitor' },
+    ];
+    mockFetch.mockImplementation((url: string) => {
+      if (url === '/api/categorias') {
+        return Promise.resolve({ ok: true, json: async () => categories });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ id: 'asset-1' }) });
+    });
+    const { container } = render(<NuevoActivoPage />);
+
+    await waitFor(() => expect(categorySelect(container).options).toHaveLength(3));
+    fireEvent.change(categorySelect(container), { target: { value: 'cat-laptop' } });
+    fireEvent.change(container.querySelector('input[name="procesador"]')!, {
+      target: { value: 'Intel Core Ultra' },
+    });
+    fireEvent.change(categorySelect(container), { target: { value: 'cat-monitor' } });
+    fireEvent.change(container.querySelector('input[name="marca"]')!, { target: { value: 'Dell' } });
+    fireEvent.change(container.querySelector('input[name="modelo"]')!, { target: { value: 'P2723' } });
+    fireEvent.submit(container.querySelector('form')!);
+
+    await waitFor(() =>
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/activos',
+        expect.objectContaining({ method: 'POST' })
+      )
+    );
+    const createCall = mockFetch.mock.calls.find(([url]) => url === '/api/activos');
+    expect(JSON.parse(createCall?.[1]?.body)).toMatchObject({
+      categoriaId: 'cat-monitor',
+      procesador: null,
+      ram: null,
+      discoDuro: null,
+      sistemaOperativo: null,
+    });
+  });
+
+  test('edición limpia especificaciones notebook ocultas al cambiar la categoría a monitor', async () => {
+    const categories: Category[] = [
+      { id: 'cat-laptop', nombre: 'Laptop', tipoDevolucion: 'notebook' },
+      { id: 'cat-monitor', nombre: 'Monitor', tipoDevolucion: 'monitor' },
+    ];
+    mockFetch.mockImplementation((url: string) => {
+      if (url === '/api/categorias') {
+        return Promise.resolve({ ok: true, json: async () => categories });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          categoriaId: 'cat-laptop',
+          marca: 'Lenovo',
+          modelo: 'T14',
+          estado: 'disponible',
+          condicion: 'nuevo',
+          procesador: 'Intel Core Ultra',
+          ram: '32 GB',
+          discoDuro: '1 TB',
+          sistemaOperativo: 'Windows 11',
+        }),
+      });
+    });
+    const { container } = render(<EditarActivoPage params={Promise.resolve({ id: 'asset-1' })} />);
+
+    await screen.findByRole('heading', { name: 'Especificaciones Tecnicas - Notebook' });
+    fireEvent.change(categorySelect(container), { target: { value: 'cat-monitor' } });
+    fireEvent.submit(container.querySelector('form')!);
+
+    await waitFor(() =>
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/activos/asset-1',
+        expect.objectContaining({ method: 'PUT' })
+      )
+    );
+    const updateCall = mockFetch.mock.calls.find(
+      ([url, options]) => url === '/api/activos/asset-1' && options?.method === 'PUT'
+    );
+    expect(JSON.parse(updateCall?.[1]?.body)).toMatchObject({
+      categoriaId: 'cat-monitor',
+      procesador: null,
+      ram: null,
+      discoDuro: null,
+      sistemaOperativo: null,
+    });
   });
 });

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { parseDDMMYYYYToDate } from "@/lib/excel-utils";
 import type { CorrectedRow, ImportRowStatus, ImportBatchResult } from "@/types/import";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { getImportSpecialFields } from '@/lib/assetImportCategoryFields';
+import { getCategorySpecialFields } from '@/lib/assetImportCategoryFields';
 
 // Mapeo de estados del Excel a estados del sistema
 const ESTADO_MAP: Record<string, string> = {
@@ -227,7 +227,7 @@ export async function POST(request: NextRequest) {
         const fechaCompraStr = row.data.fechaEntrega || "";
         const fechaCompra = fechaCompraStr ? parseDDMMYYYYToDate(fechaCompraStr) : null;
 
-        const specialFields = getImportSpecialFields(categoryRecord.tipoDevolucion, {
+        const specialFields = getCategorySpecialFields(categoryRecord.tipoDevolucion, {
           procesador,
           ram,
           discoDuro,

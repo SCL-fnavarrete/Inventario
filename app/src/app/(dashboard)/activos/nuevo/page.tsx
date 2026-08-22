@@ -57,6 +57,30 @@ export default function NuevoActivoPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) {
     const { name, value } = e.target;
+
+    if (name === "categoriaId") {
+      const tipoDevolucion = categories.find((category) => category.id === value)?.tipoDevolucion;
+      setFormData((prev) => ({
+        ...prev,
+        categoriaId: value,
+        ...(tipoDevolucion !== "notebook" && {
+          procesador: "",
+          ram: "",
+          almacenamiento: "",
+          sistemaOperativo: "",
+          antivirus: "",
+          nombreEquipo: "",
+        }),
+        ...(tipoDevolucion !== "celular" && {
+          imei: "",
+          numeroTelefono: "",
+          operador: "",
+        }),
+        ...(tipoDevolucion !== "monitor" && { pulgadas: "" }),
+      }));
+      return;
+    }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
   }
 

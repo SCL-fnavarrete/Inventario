@@ -4,7 +4,7 @@ import { logger } from "@/lib/logger";
 import * as XLSX from "xlsx";
 import { convertExcelDateValue, parseDDMMYYYYToDate } from "@/lib/excel-utils";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { getImportSpecialFields } from '@/lib/assetImportCategoryFields';
+import { getCategorySpecialFields } from '@/lib/assetImportCategoryFields';
 
 // Filas de inicio conocidas por categoría
 // Todas las categorías usan fila 0 (primera fila) como encabezado por defecto
@@ -357,7 +357,7 @@ export async function POST(request: NextRequest) {
         const fechaCompraStr = getValue("fechaEntrega");
         const fechaCompra = fechaCompraStr ? parseDDMMYYYYToDate(fechaCompraStr) : null;
 
-        const specialFields = getImportSpecialFields(categoryRecord.tipoDevolucion, {
+        const specialFields = getCategorySpecialFields(categoryRecord.tipoDevolucion, {
           procesador,
           ram,
           discoDuro,

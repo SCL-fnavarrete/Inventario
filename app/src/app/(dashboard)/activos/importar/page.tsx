@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -59,11 +59,33 @@ export default function ImportarActivosPage() {
   const [loading, setLoading] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [preview, setPreview] = useState<PreviewData | null>(null);
+  const [previewCategoriaId, setPreviewCategoriaId] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState("");
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [showErrorReview, setShowErrorReview] = useState(false);
   const [reimportingCorrected, setReimportingCorrected] = useState(false);
+  const categoriaIdRef = useRef(categoriaId);
+
+  function resetCategoryDerivedState() {
+    setPreview(null);
+    setPreviewCategoriaId(null);
+    setColumnMapping({});
+    setResult(null);
+    setError("");
+    setShowErrorReview(false);
+    setReimportingCorrected(false);
+    setLoading(false);
+    setParsing(false);
+  }
+
+  function handleCategoryChange(nextCategoriaId: string) {
+    if (nextCategoriaId === categoriaIdRef.current) return;
+
+    categoriaIdRef.current = nextCategoriaId;
+    setCategoriaId(nextCategoriaId);
+    resetCategoryDerivedState();
+  }
 
   // Cargar categorías desde la API
   useEffect(() => {
@@ -165,10 +187,7 @@ export default function ImportarActivosPage() {
       if (!selectedFile) return;
 
       setFile(selectedFile);
-      setError("");
-      setPreview(null);
-      setResult(null);
-      setColumnMapping({});
+      resetCategoryDerivedState();
       setParsing(true);
 
       try {
@@ -204,6 +223,7 @@ export default function ImportarActivosPage() {
       return;
     }
 
+    const requestCategoriaId = categoriaId;
     setParsing(true);
     setError("");
 
@@ -211,7 +231,7 @@ export default function ImportarActivosPage() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("sheetName", sheetName);
-      formData.append("categoriaId", categoriaId);
+      formData.append("categoriaId", requestCategoriaId);
 
       const res = await fetch("/api/activos/importar/preview", {
         method: "POST",
@@ -224,7 +244,9 @@ export default function ImportarActivosPage() {
       }
 
       const data = await res.json();
+      if (categoriaIdRef.current !== requestCategoriaId) return;
       setPreview(data);
+      setPreviewCategoriaId(requestCategoriaId);
 
       // Auto-detectar mapeo de columnas
       const autoMapping: Record<string, string> = {};
@@ -284,17 +306,23 @@ export default function ImportarActivosPage() {
 
       setColumnMapping(autoMapping);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al previsualizar");
+      if (categoriaIdRef.current === requestCategoriaId) {
+        setError(err instanceof Error ? err.message : "Error al previsualizar");
+      }
     } finally {
-      setParsing(false);
+      if (categoriaIdRef.current === requestCategoriaId) {
+        setParsing(false);
+      }
     }
   }
 
   async function handleImport() {
-    if (!file || !sheetName || !categoriaId) {
+    if (!file || !sheetName || !categoriaId || !preview || previewCategoriaId !== categoriaId) {
       setError("Datos incompletos");
       return;
     }
+
+    const requestCategoriaId = categoriaId;
 
     // Validar campos requeridos
     const missingRequired = requiredFields.filter(
@@ -314,7 +342,7 @@ export default function ImportarActivosPage() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("sheetName", sheetName);
-      formData.append("categoriaId", categoriaId);
+      formData.append("categoriaId", requestCategoriaId);
       formData.append("mapping", JSON.stringify(columnMapping));
 
       const res = await fetch("/api/activos/importar", {
@@ -328,11 +356,16 @@ export default function ImportarActivosPage() {
         throw new Error(data.error || "Error al importar");
       }
 
+      if (categoriaIdRef.current !== requestCategoriaId) return;
       setResult(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al importar");
+      if (categoriaIdRef.current === requestCategoriaId) {
+        setError(err instanceof Error ? err.message : "Error al importar");
+      }
     } finally {
-      setLoading(false);
+      if (categoriaIdRef.current === requestCategoriaId) {
+        setLoading(false);
+      }
     }
   }
 
@@ -346,7 +379,12 @@ export default function ImportarActivosPage() {
   // Función para reimportar registros corregidos
   async function handleReimportCorrected(correctedRows: CorrectedRow[]) {
     if (correctedRows.length === 0) return;
+    if (!preview || previewCategoriaId !== categoriaId) {
+      setError("Genera una nueva vista previa antes de reimportar");
+      return;
+    }
 
+    const requestCategoriaId = categoriaId;
     setReimportingCorrected(true);
     setError("");
 
@@ -355,7 +393,7 @@ export default function ImportarActivosPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          categoriaId,
+          categoriaId: requestCategoriaId,
           rows: correctedRows,
         }),
       });
@@ -366,6 +404,7 @@ export default function ImportarActivosPage() {
         throw new Error(data.error || "Error al reimportar");
       }
 
+      if (categoriaIdRef.current !== requestCategoriaId) return;
       // Actualizar el resultado con los nuevos importados
       if (result) {
         setResult({
@@ -382,9 +421,13 @@ export default function ImportarActivosPage() {
         setShowErrorReview(false);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al reimportar");
+      if (categoriaIdRef.current === requestCategoriaId) {
+        setError(err instanceof Error ? err.message : "Error al reimportar");
+      }
     } finally {
-      setReimportingCorrected(false);
+      if (categoriaIdRef.current === requestCategoriaId) {
+        setReimportingCorrected(false);
+      }
     }
   }
 
@@ -572,8 +615,7 @@ export default function ImportarActivosPage() {
                       e.preventDefault();
                       setFile(null);
                       setAvailableSheets([]);
-                      setPreview(null);
-                      setResult(null);
+                      resetCategoryDerivedState();
                     }}
                     className="p-1 hover:bg-green-100 rounded"
                   >
@@ -622,7 +664,7 @@ export default function ImportarActivosPage() {
                 </label>
                 <select
                   value={categoriaId}
-                  onChange={(e) => setCategoriaId(e.target.value)}
+                  onChange={(e) => handleCategoryChange(e.target.value)}
                   disabled={loadingCategories}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
                 >
