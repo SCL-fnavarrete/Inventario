@@ -406,9 +406,6 @@ export default function ImportarActivosPage() {
   }
 
   function handleMappingChange(field: string, value: string) {
-    // Si había una importación en vuelo con otro mapping, su respuesta ya no
-    // pertenece a la configuración visible.
-    importSessionEpochRef.current += 1;
     setColumnMapping((prev) => ({
       ...prev,
       [field]: value,
@@ -775,6 +772,7 @@ export default function ImportarActivosPage() {
                     <select
                       value={columnMapping[field.key] || ""}
                       onChange={(e) => handleMappingChange(field.key, e.target.value)}
+                      disabled={loading || reimportingCorrected}
                       className={cn(
                         "w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
                         field.required && !columnMapping[field.key]
@@ -811,6 +809,7 @@ export default function ImportarActivosPage() {
                     <select
                       value={columnMapping[field.key] || ""}
                       onChange={(e) => handleMappingChange(field.key, e.target.value)}
+                      disabled={loading || reimportingCorrected}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">No mapear</option>
@@ -839,6 +838,7 @@ export default function ImportarActivosPage() {
                     <select
                       value={columnMapping[field.key] || ""}
                       onChange={(e) => handleMappingChange(field.key, e.target.value)}
+                      disabled={loading || reimportingCorrected}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">No mapear</option>
@@ -914,8 +914,8 @@ export default function ImportarActivosPage() {
         <div className="flex justify-end gap-4">
           <button
             onClick={() => {
-              setPreview(null);
-              setColumnMapping({});
+              importSessionEpochRef.current += 1;
+              resetCategoryDerivedState();
             }}
             className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
           >
