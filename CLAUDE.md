@@ -22,8 +22,10 @@ npm run typecheck        # TypeScript type checking
 npm run test             # Jest tests
 npm run test:watch       # Jest in watch mode
 npm run test:coverage    # Jest with coverage (70% threshold)
-npm run db:migrate       # Prisma dev migration
-npm run db:push          # Push schema to DB
+npm run db:migrate       # Prisma dev migration (unica via para cambiar el schema)
+npm run db:migrate:prod  # prisma migrate deploy (produccion)
+npm run db:status        # prisma migrate status - verificar deriva
+npm run db:push          # DESHABILITADO a proposito (ver "Migraciones")
 npm run db:seed          # Seed default users + categories
 npm run db:studio        # Prisma Studio GUI
 ```
@@ -142,6 +144,26 @@ Every API route follows this sequence:
 ### Database Connections
 
 Uses both pooled (`DATABASE_URL`) and unpooled (`DATABASE_URL_UNPOOLED`) Neon connections. The `directUrl` in schema.prisma is required for migrations on Neon.
+
+### Migraciones
+
+**Toda modificacion del schema pasa por una migracion versionada. `db:push` esta deshabilitado.**
+
+Hasta la Ola 0 solo existia `20251211_init` (tabla `system_users`); los otros 18 modelos se
+habian creado con `prisma db push`, sin dejar rastro. `20260821000000_baseline` captura ese
+estado y esta marcada como aplicada en Neon con `prisma migrate resolve --applied`. El
+baseline omite a proposito el enum `SystemRole`, la tabla `system_users` y su indice unico,
+porque `20251211_init` ya los crea: asi `prisma migrate deploy` reproduce el schema completo
+desde cero sin colisiones.
+
+Flujo para cambiar el schema:
+
+1. Editar `prisma/schema.prisma` **y** `SPEC_SISTEMA_INVENTARIO_IT.md` en el mismo commit.
+2. `npm run db:migrate` -- genera la migracion con nombre descriptivo.
+3. `npm run db:status` -- debe reportar la base al dia, sin deriva.
+4. Commitear el directorio de `prisma/migrations/` junto al cambio.
+
+En produccion (Vercel) se aplica con `npm run db:migrate:prod`.
 
 ## Conventions
 
