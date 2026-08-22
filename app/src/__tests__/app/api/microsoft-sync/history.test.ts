@@ -71,6 +71,7 @@ function configureTx(updated = employee) {
 describe('POST /api/microsoft-sync — historial por empleado', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (prisma.employee.findUnique as jest.Mock).mockReset();
   });
 
   test('crea desde Microsoft y deja evento de creación dentro del tx', async () => {
@@ -148,6 +149,103 @@ describe('POST /api/microsoft-sync — historial por empleado', () => {
     expect(historyCreate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ tipoEvento: 'desvinculacion' }) })
     );
+  });
+
+  test('desvincula y relinka por correo una cuenta Graph deshabilitada en el mismo tx', async () => {
+    const microsoftIdNuevo = 'entra-disabled-new-id';
+    (fetchMicrosoftUsers as jest.Mock).mockResolvedValue([
+      { ...microsoftUser, microsoftId: microsoftIdNuevo, accountEnabled: false },
+    ]);
+    (prisma.employee.findUnique as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(employee);
+    const { tx, historyCreate } = configureTx({
+      ...employee,
+      microsoftId: microsoftIdNuevo,
+      estado: 'desvinculado',
+    });
+
+    const response = await POST();
+
+    expect(await response.json()).toMatchObject({ desactivados: 1 });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.employee.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          microsoftId: microsoftIdNuevo,
+          origenMicrosoft: true,
+          estado: 'desvinculado',
+        }),
+      })
+    );
+    expect(historyCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ tipoEvento: 'desvinculacion' }) })
+    );
+
+    const eventData = historyCreate.mock.calls[0][0].data;
+    expect(JSON.stringify(eventData)).not.toContain(microsoftUser.microsoftId);
+    expect(JSON.stringify(eventData)).not.toContain(microsoftIdNuevo);
+  });
+
+  test('no abre transacción para fallback por correo ya desvinculado sin cambios', async () => {
+    (fetchMicrosoftUsers as jest.Mock).mockResolvedValue([
+      { ...microsoftUser, accountEnabled: false },
+    ]);
+    (prisma.employee.findUnique as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ...employee, estado: 'desvinculado' });
+    configureTx();
+
+    const response = await POST();
+
+    expect(await response.json()).toMatchObject({ desactivados: 0, actualizados: 0 });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  test('no crea empleados nuevos cuando Graph informa una cuenta deshabilitada', async () => {
+    (fetchMicrosoftUsers as jest.Mock).mockResolvedValue([
+      { ...microsoftUser, accountEnabled: false },
+    ]);
+    (prisma.employee.findUnique as jest.Mock).mockResolvedValue(null);
+    const { tx } = configureTx();
+
+    const response = await POST();
+
+    expect(await response.json()).toMatchObject({ creados: 0 });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(tx.employee.create).not.toHaveBeenCalled();
+  });
+
+  test('audita como sync el relink por correo de una cuenta ya desvinculada', async () => {
+    const microsoftIdNuevo = 'entra-disabled-relink-id';
+    const employeeDesvinculado = { ...employee, estado: 'desvinculado' };
+    (fetchMicrosoftUsers as jest.Mock).mockResolvedValue([
+      { ...microsoftUser, microsoftId: microsoftIdNuevo, accountEnabled: false },
+    ]);
+    (prisma.employee.findUnique as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(employeeDesvinculado);
+    const { tx, historyCreate } = configureTx({
+      ...employeeDesvinculado,
+      microsoftId: microsoftIdNuevo,
+    });
+
+    const response = await POST();
+
+    expect(await response.json()).toMatchObject({ actualizados: 1, desactivados: 0 });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.employee.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ microsoftId: microsoftIdNuevo, origenMicrosoft: true }),
+      })
+    );
+    expect(historyCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ tipoEvento: 'sync_microsoft' }) })
+    );
+
+    const eventData = historyCreate.mock.calls[0][0].data;
+    expect(JSON.stringify(eventData)).not.toContain(microsoftUser.microsoftId);
+    expect(JSON.stringify(eventData)).not.toContain(microsoftIdNuevo);
   });
 
   test('reactiva una cuenta Microsoft habilitada que estaba desvinculada', async () => {

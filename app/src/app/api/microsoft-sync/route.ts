@@ -119,50 +119,97 @@ export async function POST() {
               resultado.actualizados++;
             }
           }
-        } else if (accountEnabled) {
-          // Buscar por correo para vincular
+        } else {
+          // Buscar por correo para vincular, incluso si la cuenta Graph fue
+          // deshabilitada: el vínculo y la baja deben confirmar juntos.
           employee = await prisma.employee.findUnique({
             where: { correo: validated.correo },
             include: { activosActuales: true },
           });
 
           if (employee) {
-            const reactivado = employee.estado === 'desvinculado';
-            const soloReenlaceMicrosoft =
-              employee.origenMicrosoft &&
-              employee.microsoftId !== msUser.microsoftId &&
-              !hayCambiosSincronizados(employee, datosSincronizados) &&
-              !reactivado;
-            const requiereActualizacion =
-              hayCambiosSincronizados(employee, datosSincronizados) ||
-              employee.microsoftId !== msUser.microsoftId ||
-              !employee.origenMicrosoft ||
-              reactivado;
+            if (!accountEnabled) {
+              const cambiaEstado = employee.estado !== 'desvinculado';
+              const soloReenlaceMicrosoft =
+                employee.origenMicrosoft &&
+                employee.microsoftId !== msUser.microsoftId &&
+                !hayCambiosSincronizados(employee, datosSincronizados) &&
+                !cambiaEstado;
+              const requiereActualizacion =
+                hayCambiosSincronizados(employee, datosSincronizados) ||
+                employee.microsoftId !== msUser.microsoftId ||
+                !employee.origenMicrosoft ||
+                cambiaEstado;
 
-            if (!requiereActualizacion) continue;
+              if (!requiereActualizacion) continue;
 
-            await prisma.$transaction(async (tx) => {
-              const updated = await tx.employee.update({
-                where: { id: employee!.id },
-                data: {
-                  ...datosSincronizados,
-                  microsoftId: msUser.microsoftId,
-                  origenMicrosoft: true,
-                  ...(reactivado && { estado: 'activo' }),
-                },
+              await prisma.$transaction(async (tx) => {
+                const updated = await tx.employee.update({
+                  where: { id: employee!.id },
+                  data: {
+                    ...datosSincronizados,
+                    microsoftId: msUser.microsoftId,
+                    origenMicrosoft: true,
+                    ...(cambiaEstado && { estado: 'desvinculado' }),
+                  },
+                });
+                if (soloReenlaceMicrosoft) {
+                  await employeeHistoryService.registrarReenlaceMicrosoft(updated, actor, tx);
+                } else {
+                  await employeeHistoryService.registrarCambio(employee!, updated, actor, tx, 'microsoft');
+                }
               });
-              if (soloReenlaceMicrosoft) {
-                await employeeHistoryService.registrarReenlaceMicrosoft(updated, actor, tx);
+
+              if (cambiaEstado) {
+                resultado.desactivados++;
+                if (employee.activosActuales.length > 0) {
+                  resultado.alertas.push({
+                    tipo: 'equipos_pendientes',
+                    empleado: `${employee.nombres} ${employee.apellidoPaterno}`,
+                    equipos: employee.activosActuales.length,
+                  });
+                }
               } else {
-                await employeeHistoryService.registrarCambio(employee!, updated, actor, tx, 'microsoft');
+                resultado.actualizados++;
               }
-            });
-            if (reactivado) {
-              resultado.reactivados++;
             } else {
-              resultado.actualizados++;
+              const reactivado = employee.estado === 'desvinculado';
+              const soloReenlaceMicrosoft =
+                employee.origenMicrosoft &&
+                employee.microsoftId !== msUser.microsoftId &&
+                !hayCambiosSincronizados(employee, datosSincronizados) &&
+                !reactivado;
+              const requiereActualizacion =
+                hayCambiosSincronizados(employee, datosSincronizados) ||
+                employee.microsoftId !== msUser.microsoftId ||
+                !employee.origenMicrosoft ||
+                reactivado;
+
+              if (!requiereActualizacion) continue;
+
+              await prisma.$transaction(async (tx) => {
+                const updated = await tx.employee.update({
+                  where: { id: employee!.id },
+                  data: {
+                    ...datosSincronizados,
+                    microsoftId: msUser.microsoftId,
+                    origenMicrosoft: true,
+                    ...(reactivado && { estado: 'activo' }),
+                  },
+                });
+                if (soloReenlaceMicrosoft) {
+                  await employeeHistoryService.registrarReenlaceMicrosoft(updated, actor, tx);
+                } else {
+                  await employeeHistoryService.registrarCambio(employee!, updated, actor, tx, 'microsoft');
+                }
+              });
+              if (reactivado) {
+                resultado.reactivados++;
+              } else {
+                resultado.actualizados++;
+              }
             }
-          } else {
+          } else if (accountEnabled) {
             await prisma.$transaction(async (tx) => {
               const created = await tx.employee.create({
                 data: {
