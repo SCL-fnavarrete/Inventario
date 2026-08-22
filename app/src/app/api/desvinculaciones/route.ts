@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createTerminationSchema, terminationFiltersSchema } from "@/lib/validations/termination";
 import { Prisma } from "@prisma/client";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // GET /api/desvinculaciones - Listar desvinculaciones con filtros
 export async function GET(request: NextRequest) {
   try {
+    await requirePermission('desvinculaciones', 'read');
     const searchParams = request.nextUrl.searchParams;
 
     const filtersResult = terminationFiltersSchema.safeParse({
@@ -103,17 +105,14 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error fetching terminations:", error);
-    return NextResponse.json(
-      { error: "Error al obtener desvinculaciones" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener desvinculaciones');
   }
 }
 
 // POST /api/desvinculaciones - Crear nueva desvinculación
 export async function POST(request: NextRequest) {
   try {
+    await requirePermission('desvinculaciones', 'write');
     const body = await request.json();
 
     const validationResult = createTerminationSchema.safeParse(body);
@@ -218,10 +217,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(termination, { status: 201 });
   } catch (error) {
-    console.error("Error creating termination:", error);
-    return NextResponse.json(
-      { error: "Error al crear desvinculación" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al crear desvinculación');
   }
 }

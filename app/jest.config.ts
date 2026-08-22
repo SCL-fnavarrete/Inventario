@@ -51,6 +51,10 @@ const config: Config = {
     '!src/lib/templates/**',
   ],
   coverageThreshold: {
+    // Matriz de permisos: logica pura y unico punto de verdad de la
+    // autorizacion. Hoy 100%.
+    './src/lib/auth/permissions.ts': LOGICA_PURA,
+
     // Maquinas de estado: hoy 100% en las cuatro metricas.
     './src/lib/services/assetStateMachine.ts': LOGICA_PURA,
     './src/lib/services/workflowStateMachine.ts': LOGICA_PURA,

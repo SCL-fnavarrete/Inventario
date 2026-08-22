@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // Roles válidos del sistema
 const VALID_ROLES = ["admin", "tecnico", "supervisor", "rrhh", "auditor"] as const;
@@ -10,16 +9,7 @@ type SystemRole = typeof VALID_ROLES[number];
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
-    // Solo admin puede ver usuarios
-    const userRole = session.user.role;
-    if (userRole !== "admin") {
-      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
-    }
+    await requirePermission('usuarios', 'read');
 
     const users = await prisma.systemUser.findMany({
       orderBy: { nombre: "asc" },
@@ -36,26 +26,13 @@ export async function GET() {
 
     return NextResponse.json(users);
   } catch (error) {
-    console.error("Error fetching users:", error);
-    return NextResponse.json(
-      { error: "Error al obtener usuarios" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener usuarios');
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
-    // Solo admin puede crear usuarios
-    const userRole = session.user.role;
-    if (userRole !== "admin") {
-      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
-    }
+    await requirePermission('usuarios', 'write');
 
     const body = await request.json();
     const { email, nombre, rol, password, activo } = body;
@@ -136,10 +113,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(user, { status: 201 });
   } catch (error) {
-    console.error("Error creating user:", error);
-    return NextResponse.json(
-      { error: "Error al crear usuario" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al crear usuario');
   }
 }

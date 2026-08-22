@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatearRut, limpiarRut, validarDigitoVerificador } from "@/lib/validations/rut";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // GET /api/empleados/buscar?rut=21.523.308-1 - Buscar empleado por RUT
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('empleados', 'read');
 
     const searchParams = request.nextUrl.searchParams;
     const rut = searchParams.get("rut");
@@ -77,10 +73,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(employee);
   } catch (error) {
-    console.error("Error searching employee by RUT:", error);
-    return NextResponse.json(
-      { error: "Error al buscar empleado" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al buscar empleado');
   }
 }

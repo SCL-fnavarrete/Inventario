@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createMaintenanceSchema, maintenanceFiltersSchema } from "@/lib/validations/maintenance";
 import { Prisma } from "@prisma/client";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // GET /api/mantenciones - Listar mantenciones con filtros
 export async function GET(request: NextRequest) {
   try {
+    await requirePermission('mantenciones', 'read');
     const searchParams = request.nextUrl.searchParams;
 
     const filtersResult = maintenanceFiltersSchema.safeParse({
@@ -120,17 +122,14 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error fetching maintenances:", error);
-    return NextResponse.json(
-      { error: "Error al obtener mantenciones" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener mantenciones');
   }
 }
 
 // POST /api/mantenciones - Crear nueva mantención
 export async function POST(request: NextRequest) {
   try {
+    await requirePermission('mantenciones', 'write');
     const body = await request.json();
 
     const validationResult = createMaintenanceSchema.safeParse(body);
@@ -204,10 +203,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    console.error("Error creating maintenance:", error);
-    return NextResponse.json(
-      { error: "Error al crear mantención" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al crear mantención');
   }
 }

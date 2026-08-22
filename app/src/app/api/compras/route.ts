@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   createPurchaseWithAssetsSchema,
   purchaseFiltersSchema,
 } from "@/lib/validations/purchase";
 import { Prisma } from "@prisma/client";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // GET /api/compras - Listar compras/facturas con filtros y paginación
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('compras', 'read');
 
     const searchParams = request.nextUrl.searchParams;
 
@@ -141,21 +137,14 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error fetching purchases:", error);
-    return NextResponse.json(
-      { error: "Error al obtener compras" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener compras');
   }
 }
 
 // POST /api/compras - Crear nueva compra/factura con activos opcionales
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('compras', 'write');
 
     const body = await request.json();
 
@@ -269,10 +258,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(purchase, { status: 201 });
   } catch (error) {
-    console.error("Error creating purchase:", error);
-    return NextResponse.json(
-      { error: "Error al crear compra" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al crear compra');
   }
 }

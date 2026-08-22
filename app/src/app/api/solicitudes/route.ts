@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createWorkflowRequestSchema, workflowFiltersSchema } from '@/lib/validations/workflow';
 import { getInitialState } from '@/lib/services/workflowStateMachine';
 import { Prisma } from '@prisma/client';
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 async function generateNumero(): Promise<string> {
   const year = new Date().getFullYear();
@@ -18,12 +17,9 @@ async function generateNumero(): Promise<string> {
 
 // GET /api/solicitudes - List with filters
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
 
   try {
+    await requirePermission('solicitudes', 'read');
     const searchParams = request.nextUrl.searchParams;
     const filtersResult = workflowFiltersSchema.safeParse({
       search: searchParams.get('search') || undefined,
@@ -108,19 +104,15 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error fetching workflow requests:', error);
-    return NextResponse.json({ error: 'Error al obtener solicitudes' }, { status: 500 });
+    return handleApiError(error, 'Error al obtener solicitudes');
   }
 }
 
 // POST /api/solicitudes - Create new request
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
 
   try {
+    const session = await requirePermission('solicitudes', 'write');
     const body = await request.json();
     const validationResult = createWorkflowRequestSchema.safeParse(body);
 
@@ -220,7 +212,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    console.error('Error creating workflow request:', error);
-    return NextResponse.json({ error: 'Error al crear solicitud' }, { status: 500 });
+    return handleApiError(error, 'Error al crear solicitud');
   }
 }

@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import {
   generateAnexoEntrega,
@@ -8,6 +6,7 @@ import {
   generateComprobanteCambio,
   generateActaDevolucion,
 } from '@/lib/services/documentGeneratorService';
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 const VALID_TIPOS = [
   'anexo-entrega',
@@ -30,12 +29,9 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string; tipo: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
 
   try {
+    await requirePermission('solicitudes', 'read');
     const { id, tipo } = await params;
 
     if (!VALID_TIPOS.includes(tipo as DocTipo)) {
@@ -83,8 +79,6 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('Error generating document:', error);
-    const message = error instanceof Error ? error.message : 'Error al generar documento';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleApiError(error, 'Error al generar documento');
   }
 }

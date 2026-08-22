@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // GET /api/mantenciones/pendientes - Obtener mantenciones pendientes y próximas
 export async function GET(request: NextRequest) {
   try {
+    await requirePermission('mantenciones', 'read');
     const searchParams = request.nextUrl.searchParams;
     const dias = parseInt(searchParams.get("dias") || "30", 10);
 
@@ -118,10 +120,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error fetching pending maintenances:", error);
-    return NextResponse.json(
-      { error: "Error al obtener mantenciones pendientes" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener mantenciones pendientes');
   }
 }

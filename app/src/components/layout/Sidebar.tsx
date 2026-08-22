@@ -22,24 +22,36 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/usePermissions";
+import type { Recurso } from "@/lib/auth/permissions";
+import type { LucideIcon } from "lucide-react";
 
-const menuItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/activos", label: "Activos", icon: Laptop },
-  { href: "/empleados", label: "Empleados", icon: Users },
-  { href: "/asignaciones", label: "Asignaciones", icon: ArrowLeftRight },
-  { href: "/solicitudes", label: "Solicitudes", icon: ClipboardList },
-  { href: "/guias-despacho", label: "Guias de Despacho", icon: FileText },
-  { href: "/desvinculaciones", label: "Desvinculaciones", icon: UserMinus },
-  { href: "/mantenciones", label: "Mantenciones", icon: Wrench },
-  { href: "/compras", label: "Compras", icon: ShoppingCart },
-  { href: "/reportes", label: "Reportes", icon: BarChart3 },
-  { href: "/configuracion", label: "Configuracion", icon: Settings, roles: ["admin"] as string[] },
+// Cada entrada declara el recurso de la matriz de permisos que representa, en
+// vez de una lista de roles propia. Asi el menu y la API salen de la misma
+// fuente: si aqui aparece "Compras", GET /api/compras no va a responder 403.
+const menuItems: Array<{
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  recurso: Recurso;
+}> = [
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, recurso: "reportes" },
+  { href: "/activos", label: "Activos", icon: Laptop, recurso: "activos" },
+  { href: "/empleados", label: "Empleados", icon: Users, recurso: "empleados" },
+  { href: "/asignaciones", label: "Asignaciones", icon: ArrowLeftRight, recurso: "asignaciones" },
+  { href: "/solicitudes", label: "Solicitudes", icon: ClipboardList, recurso: "solicitudes" },
+  { href: "/guias-despacho", label: "Guias de Despacho", icon: FileText, recurso: "guias" },
+  { href: "/desvinculaciones", label: "Desvinculaciones", icon: UserMinus, recurso: "desvinculaciones" },
+  { href: "/mantenciones", label: "Mantenciones", icon: Wrench, recurso: "mantenciones" },
+  { href: "/compras", label: "Compras", icon: ShoppingCart, recurso: "compras" },
+  { href: "/reportes", label: "Reportes", icon: BarChart3, recurso: "reportes" },
+  { href: "/configuracion", label: "Configuracion", icon: Settings, recurso: "configuracion" },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { puedeVer } = usePermissions();
   const [isOpen, setIsOpen] = useState(false);
 
   const userRole = session?.user?.role || "user";
@@ -86,7 +98,7 @@ export function Sidebar() {
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             {menuItems
-              .filter((item) => !item.roles || item.roles.includes(userRole))
+              .filter((item) => puedeVer(item.recurso))
               .map((item) => {
               const isActive = pathname === item.href ||
                 (item.href !== "/" && pathname.startsWith(item.href));

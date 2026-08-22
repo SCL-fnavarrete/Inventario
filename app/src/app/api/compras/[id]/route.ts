@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updatePurchaseSchema } from "@/lib/validations/purchase";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -11,10 +10,7 @@ interface RouteParams {
 // GET /api/compras/[id] - Obtener compra por ID con sus activos
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('compras', 'read');
 
     const { id } = await params;
 
@@ -63,21 +59,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       stats,
     });
   } catch (error) {
-    console.error("Error fetching purchase:", error);
-    return NextResponse.json(
-      { error: "Error al obtener compra" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener compra');
   }
 }
 
 // PUT /api/compras/[id] - Actualizar compra
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('compras', 'write');
 
     const { id } = await params;
     const body = await request.json();
@@ -153,21 +142,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(purchase);
   } catch (error) {
-    console.error("Error updating purchase:", error);
-    return NextResponse.json(
-      { error: "Error al actualizar compra" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al actualizar compra');
   }
 }
 
 // DELETE /api/compras/[id] - Eliminar compra
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('compras', 'delete');
 
     const { id } = await params;
 
@@ -203,10 +185,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ message: "Compra eliminada exitosamente" });
   } catch (error) {
-    console.error("Error deleting purchase:", error);
-    return NextResponse.json(
-      { error: "Error al eliminar compra" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al eliminar compra');
   }
 }

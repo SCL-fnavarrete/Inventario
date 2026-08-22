@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAssetSchema } from "@/lib/validations/asset";
 import { assetHistoryService } from "@/lib/services/assetHistoryService";
-import { ZodError } from "zod";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('activos', 'read');
 
     const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get("page") || "1");
@@ -78,20 +73,13 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error fetching assets:", error);
-    return NextResponse.json(
-      { error: "Error al obtener activos" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener activos');
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    const session = await requirePermission('activos', 'write');
 
     const body = await request.json();
 
@@ -154,22 +142,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(asset, { status: 201 });
   } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json(
-        {
-          error: "Error de validacion",
-          errors: error.issues.map((e) => ({
-            field: String(e.path.join('.')),
-            message: e.message
-          }))
-        },
-        { status: 400 }
-      );
-    }
-    console.error("Error creating asset:", error);
-    return NextResponse.json(
-      { error: "Error al crear activo" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al crear activo');
   }
 }

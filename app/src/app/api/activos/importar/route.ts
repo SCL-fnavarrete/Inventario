@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import * as XLSX from "xlsx";
 import { convertExcelDateValue, parseDDMMYYYYToDate } from "@/lib/excel-utils";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // Filas de inicio conocidas por categoría
 // Todas las categorías usan fila 0 (primera fila) como encabezado por defecto
@@ -51,24 +50,9 @@ const ALLOWED_MIME_TYPES = [
   "application/octet-stream", // Algunos navegadores envían este tipo
 ];
 
-// Roles que pueden importar activos
-const IMPORT_ALLOWED_ROLES = ["admin", "supervisor"];
-
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
-    // Verificar que el usuario tenga rol permitido para importar
-    const userRole = session.user.role;
-    if (!IMPORT_ALLOWED_ROLES.includes(userRole)) {
-      return NextResponse.json(
-        { error: "No tiene permisos para importar activos" },
-        { status: 403 }
-      );
-    }
+    const session = await requirePermission('activos', 'write');
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -559,10 +543,6 @@ export async function POST(request: NextRequest) {
       errors: results.errors,
     });
   } catch (error) {
-    logger.error("Error importing assets:", error);
-    return NextResponse.json(
-      { error: "Error al importar activos" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al importar activos');
   }
 }

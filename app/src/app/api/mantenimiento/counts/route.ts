@@ -1,22 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('configuracion', 'read');
 
     // Solo admin puede acceder
-    const userRole = (session.user as { role?: string; rol?: string }).role ||
-                     (session.user as { role?: string; rol?: string }).rol;
-    if (userRole !== "admin") {
-      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
-    }
-
     // Obtener conteos de todas las tablas
     const [
       activos,
@@ -46,10 +36,6 @@ export async function GET() {
       desvinculaciones,
     });
   } catch (error) {
-    console.error("Error fetching counts:", error);
-    return NextResponse.json(
-      { error: "Error al obtener conteos" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener conteos');
   }
 }

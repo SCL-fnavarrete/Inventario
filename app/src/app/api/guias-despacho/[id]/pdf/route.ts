@@ -5,6 +5,7 @@ import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
 import * as fs from "fs";
 import * as path from "path";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // Extender tipos de jsPDF para lastAutoTable
 declare module "jspdf" {
@@ -325,6 +326,7 @@ async function getGuideData(id: string) {
 // GET /api/guias-despacho/[id]/pdf - Generar PDF de guía de despacho
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('guias', 'read');
     const { id } = await params;
 
     const guide = await getGuideData(id);
@@ -382,10 +384,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       },
     });
   } catch (error) {
-    console.error("Error generating dispatch guide PDF:", error);
-    return NextResponse.json(
-      { error: "Error al generar PDF de guía de despacho" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al generar PDF de guía de despacho');
   }
 }

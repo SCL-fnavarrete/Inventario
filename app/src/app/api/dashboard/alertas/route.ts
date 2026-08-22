@@ -1,14 +1,10 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('reportes', 'read');
 
     const today = new Date();
     const nextWeek = new Date();
@@ -214,10 +210,6 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error("Error fetching alerts:", error);
-    return NextResponse.json(
-      { error: "Error al obtener alertas" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener alertas');
   }
 }

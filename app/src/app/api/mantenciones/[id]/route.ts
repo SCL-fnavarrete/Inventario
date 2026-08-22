@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updateMaintenanceSchema, completeMaintenanceSchema } from "@/lib/validations/maintenance";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -9,6 +10,7 @@ interface RouteParams {
 // GET /api/mantenciones/[id] - Obtener detalle de mantención
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('mantenciones', 'read');
     const { id } = await params;
 
     const maintenance = await prisma.maintenance.findUnique({
@@ -42,17 +44,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(maintenance);
   } catch (error) {
-    console.error("Error fetching maintenance:", error);
-    return NextResponse.json(
-      { error: "Error al obtener mantención" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener mantención');
   }
 }
 
 // PUT /api/mantenciones/[id] - Actualizar mantención
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('mantenciones', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -167,17 +166,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Error updating maintenance:", error);
-    return NextResponse.json(
-      { error: "Error al actualizar mantención" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al actualizar mantención');
   }
 }
 
 // DELETE /api/mantenciones/[id] - Eliminar mantención
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('mantenciones', 'delete');
     const { id } = await params;
 
     const maintenance = await prisma.maintenance.findUnique({
@@ -220,10 +216,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting maintenance:", error);
-    return NextResponse.json(
-      { error: "Error al eliminar mantención" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al eliminar mantención');
   }
 }

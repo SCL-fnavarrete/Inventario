@@ -1,16 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // GET /api/solicitudes/stats - Dashboard stats
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
 
   try {
+    await requirePermission('solicitudes', 'read');
     const [byType, byStatus, total, abiertas] = await Promise.all([
       prisma.workflowRequest.groupBy({
         by: ['tipo'],
@@ -34,7 +30,6 @@ export async function GET() {
       porEstado: byStatus.map((s) => ({ estado: s.estado, count: s._count.id })),
     });
   } catch (error) {
-    console.error('Error fetching workflow stats:', error);
-    return NextResponse.json({ error: 'Error al obtener estadísticas' }, { status: 500 });
+    return handleApiError(error, 'Error al obtener estadísticas');
   }
 }

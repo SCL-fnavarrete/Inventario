@@ -22,6 +22,7 @@ import {
   Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Can } from "@/components/auth/Can";
 
 type Assignment = {
   id: string;
@@ -178,13 +179,15 @@ export default function DesvinculacionesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Desvinculaciones</h1>
           <p className="text-gray-600">Gestión de devolución de equipos por desvinculación</p>
         </div>
-        <Link
-          href="/desvinculaciones/nueva"
-          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-        >
-          <Plus size={20} />
-          <span>Nueva Desvinculación</span>
-        </Link>
+        <Can recurso="desvinculaciones">
+          <Link
+            href="/desvinculaciones/nueva"
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            <Plus size={20} />
+            <span>Nueva Desvinculación</span>
+          </Link>
+        </Can>
       </div>
 
       {/* Stats */}

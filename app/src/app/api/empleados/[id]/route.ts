@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updateEmployeeSchema } from "@/lib/validations/employee";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -9,6 +10,7 @@ interface RouteParams {
 // GET /api/empleados/[id] - Obtener empleado por ID o RUT
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('empleados', 'read');
     const { id } = await params;
 
     // Intentar buscar por UUID primero, luego por RUT
@@ -82,17 +84,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(employee);
   } catch (error) {
-    console.error("Error fetching employee:", error);
-    return NextResponse.json(
-      { error: "Error al obtener empleado" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener empleado');
   }
 }
 
 // PUT /api/empleados/[id] - Actualizar empleado
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('empleados', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -174,17 +173,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(employee);
   } catch (error) {
-    console.error("Error updating employee:", error);
-    return NextResponse.json(
-      { error: "Error al actualizar empleado" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al actualizar empleado');
   }
 }
 
 // DELETE /api/empleados/[id] - Eliminar empleado (soft delete cambiando estado)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('empleados', 'delete');
     const { id } = await params;
 
     // Verificar que el empleado existe
@@ -225,10 +221,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       employee,
     });
   } catch (error) {
-    console.error("Error deleting employee:", error);
-    return NextResponse.json(
-      { error: "Error al eliminar empleado" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al eliminar empleado');
   }
 }

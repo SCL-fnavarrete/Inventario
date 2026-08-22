@@ -26,6 +26,58 @@ Una empresa de servicios IT necesita gestionar el ciclo de vida completo de acti
 | RRHH | Solo lectura de fichas de empleados y estados de devolución |
 | Auditor | Solo lectura de todo el sistema |
 
+### 1.3.1 Matriz de permisos (implementación)
+
+La tabla anterior describe la intención; esta matriz es su forma ejecutable.
+Vive en `app/src/lib/auth/permissions.ts` y es el **único** punto de verdad de
+la autorización: la consumen tanto las rutas de API (`requirePermission`) como
+la interfaz (`usePermissions` y el componente `<Can>`), de modo que ambas no
+puedan discrepar.
+
+Lectura (R) · Escritura (W) · Borrado (D).
+
+| Recurso | Admin | Técnico | Supervisor | RRHH | Auditor |
+|---|---|---|---|---|---|
+| activos | RWD | RW | R | R | R |
+| empleados | RWD | RW | R | R | R |
+| asignaciones | RWD | RW | R | R | R |
+| solicitudes | RWD | RW | RW | R | R |
+| mantenciones | RWD | RW | R | — | R |
+| desvinculaciones | RWD | RW | R | R | R |
+| guias | RWD | RW | R | — | R |
+| compras | RWD | — | R | — | R |
+| proveedores | RWD | R | R | — | R |
+| categorias | RWD | R | R | — | R |
+| usuarios | RWD | — | — | — | — |
+| reportes | R | R | R | R | R |
+| configuracion | RWD | — | — | — | — |
+
+**Reglas que la matriz hace cumplir:**
+
+1. **`rrhh` y `auditor` no escriben ni borran en ningún recurso.** Es la
+   traducción literal de "solo lectura" de la tabla de roles.
+2. **El borrado es exclusivo de `admin`.** El técnico opera el parque, no lo
+   destruye. Para activos con historial el borrado además está prohibido por
+   completo (ver 2.7.7).
+3. **`compras`, `usuarios` y `configuracion` quedan fuera del alcance del
+   técnico**: son información financiera, de identidad y de sistema.
+4. **`reportes` no tiene escritura para nadie**: un reporte se deriva de los
+   datos, no se edita.
+5. **Las transiciones del workflow no se autorizan con esta matriz.** La regla
+   de qué rol puede ejecutar cada transición vive en la máquina de estados de
+   solicitudes (sección 2.5) y es la única fuente de esa decisión. Por eso
+   `rrhh` no tiene `write` sobre `solicitudes` y aun así puede ejecutar las
+   transiciones de confirmación que le corresponden: la ruta de transición
+   sólo exige poder **leer** la solicitud y delega la autorización real en la
+   máquina de estados.
+
+**Consecuencia del punto 1 sobre la importación masiva.** Antes de la v1.3 el
+código permitía importar activos a `supervisor` y empleados a `supervisor` y
+`rrhh`, en contradicción directa con "solo lectura". La matriz corrige esa
+divergencia a favor del SPEC: **importar activos y empleados requiere `admin`
+o `tecnico`**. Si el negocio necesita que RRHH cargue el maestro de empleados,
+el cambio se hace en esta matriz y en esta sección, no en la ruta.
+
 ---
 
 # PARTE 2: MODELO DE DATOS (MODEL)

@@ -1,22 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { updateAssetSchema } from "@/lib/validations/asset";
 import { assetHistoryService } from "@/lib/services/assetHistoryService";
 import { validateTransition } from "@/lib/services/assetStateMachine";
-import { ZodError } from "zod";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('activos', 'read');
 
     const { id } = await params;
 
@@ -39,11 +34,7 @@ export async function GET(
 
     return NextResponse.json(asset);
   } catch (error) {
-    console.error("Error fetching asset:", error);
-    return NextResponse.json(
-      { error: "Error al obtener activo" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener activo');
   }
 }
 
@@ -52,10 +43,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    const session = await requirePermission('activos', 'write');
 
     const { id } = await params;
     const body = await request.json();
@@ -194,32 +182,7 @@ export async function PUT(
 
     return NextResponse.json(asset);
   } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json(
-        {
-          error: "Error de validacion",
-          errors: error.issues.map((e) => ({
-            field: String(e.path.join('.')),
-            message: e.message
-          }))
-        },
-        { status: 400 }
-      );
-    }
-
-    // Log detallado del error para debugging
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    const errorStack = error instanceof Error ? error.stack : "";
-    console.error("Error updating asset:", {
-      message: errorMessage,
-      stack: errorStack,
-      error
-    });
-
-    return NextResponse.json(
-      { error: "Error al actualizar activo", details: errorMessage },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al actualizar activo');
   }
 }
 
@@ -228,18 +191,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
-    // Solo admin puede eliminar
-    if (session.user.role !== "admin") {
-      return NextResponse.json(
-        { error: "No tienes permisos para eliminar activos" },
-        { status: 403 }
-      );
-    }
+    await requirePermission('activos', 'delete');
 
     const { id } = await params;
 
@@ -272,10 +224,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting asset:", error);
-    return NextResponse.json(
-      { error: "Error al eliminar activo" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al eliminar activo');
   }
 }

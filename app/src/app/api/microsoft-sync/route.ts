@@ -1,27 +1,16 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { microsoftSyncEmployeeSchema } from '@/lib/validations/employee';
 import {
   checkConfiguration,
   fetchMicrosoftUsers,
 } from '@/lib/services/microsoftGraphService';
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // POST /api/microsoft-sync - Ejecutar sincronizacion de empleados
 export async function POST() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
-    if (session.user.role !== 'admin') {
-      return NextResponse.json(
-        { error: 'Solo administradores pueden ejecutar la sincronización' },
-        { status: 403 }
-      );
-    }
+    await requirePermission('configuracion', 'write');
 
     const config = checkConfiguration();
     if (!config.configured) {
@@ -142,10 +131,6 @@ export async function POST() {
 
     return NextResponse.json(resultado);
   } catch (error) {
-    console.error('Error en sincronización Microsoft:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Error al sincronizar con Microsoft' },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al sincronizar con Microsoft');
   }
 }

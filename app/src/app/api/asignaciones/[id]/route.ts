@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { returnAssignmentSchema } from "@/lib/validations/assignment";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -9,6 +10,7 @@ interface RouteParams {
 // GET /api/asignaciones/[id] - Obtener asignación por ID
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('asignaciones', 'read');
     const { id } = await params;
 
     const assignment = await prisma.assignment.findUnique({
@@ -36,17 +38,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(assignment);
   } catch (error) {
-    console.error("Error fetching assignment:", error);
-    return NextResponse.json(
-      { error: "Error al obtener asignación" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener asignación');
   }
 }
 
 // PUT /api/asignaciones/[id] - Registrar devolución
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('asignaciones', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -147,17 +146,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Error updating assignment:", error);
-    return NextResponse.json(
-      { error: "Error al registrar devolución" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al registrar devolución');
   }
 }
 
 // DELETE /api/asignaciones/[id] - Cancelar asignación (solo si no ha sido devuelta)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('asignaciones', 'delete');
     const { id } = await params;
 
     const assignment = await prisma.assignment.findUnique({
@@ -219,10 +215,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ message: "Asignación cancelada correctamente" });
   } catch (error) {
-    console.error("Error deleting assignment:", error);
-    return NextResponse.json(
-      { error: "Error al cancelar asignación" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al cancelar asignación');
   }
 }

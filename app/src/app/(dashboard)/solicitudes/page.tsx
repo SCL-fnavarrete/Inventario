@@ -14,6 +14,7 @@ import {
   List,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Can } from "@/components/auth/Can";
 
 type WorkflowRequest = {
   id: string;
@@ -146,13 +147,15 @@ export default function SolicitudesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Solicitudes</h1>
           <p className="text-gray-600">Gestión de solicitudes de equipos y workflows</p>
         </div>
-        <Link
-          href="/solicitudes/nueva"
-          className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Nueva Solicitud
-        </Link>
+        <Can recurso="solicitudes">
+          <Link
+            href="/solicitudes/nueva"
+            className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Nueva Solicitud
+          </Link>
+        </Can>
       </div>
 
       {/* Search and Filters */}

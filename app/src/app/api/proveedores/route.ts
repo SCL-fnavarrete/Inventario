@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   createSupplierSchema,
   supplierFiltersSchema,
 } from "@/lib/validations/supplier";
 import { Prisma } from "@prisma/client";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // GET /api/proveedores - Listar proveedores con filtros y paginación
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('proveedores', 'read');
 
     const searchParams = request.nextUrl.searchParams;
 
@@ -74,21 +70,14 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error fetching suppliers:", error);
-    return NextResponse.json(
-      { error: "Error al obtener proveedores" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener proveedores');
   }
 }
 
 // POST /api/proveedores - Crear nuevo proveedor
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('proveedores', 'write');
 
     const body = await request.json();
 
@@ -136,10 +125,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(supplier, { status: 201 });
   } catch (error) {
-    console.error("Error creating supplier:", error);
-    return NextResponse.json(
-      { error: "Error al crear proveedor" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al crear proveedor');
   }
 }
