@@ -91,6 +91,61 @@ describe('employeeHistoryService', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  test('rechaza instancias que ocultan claves sensibles mediante toJSON', async () => {
+    class SnapshotEnganoso {
+      toJSON() {
+        return { microsoftId: 'entra-private-id' };
+      }
+    }
+
+    const create = jest.fn();
+    const tx = { employeeHistory: { create } } as unknown as Prisma.TransactionClient;
+
+    await expect(
+      employeeHistoryService.registrar(
+        {
+          employeeId: employee.id,
+          tipoEvento: 'sync_microsoft',
+          descripcion: 'Intento con serialización personalizada',
+          datosNuevos: new SnapshotEnganoso() as unknown as Prisma.InputJsonValue,
+          usuarioSistema: 'admin@example.com',
+        },
+        tx
+      )
+    ).rejects.toThrow(/snapshot|objeto plano/i);
+
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  test('copia valores permitidos y no entrega getters mutables a Prisma', async () => {
+    let lecturas = 0;
+    const snapshot = Object.defineProperty({}, 'correo', {
+      enumerable: true,
+      get() {
+        lecturas++;
+        return lecturas === 1 ? 'ada@example.com' : 'valor-mutado@example.com';
+      },
+    });
+    const create = jest.fn().mockResolvedValue({ id: 'history-safe-copy' });
+    const tx = { employeeHistory: { create } } as unknown as Prisma.TransactionClient;
+
+    await employeeHistoryService.registrar(
+      {
+        employeeId: employee.id,
+        tipoEvento: 'actualizacion',
+        descripcion: 'Snapshot con getter permitido',
+        datosNuevos: snapshot as Prisma.InputJsonObject,
+        usuarioSistema: 'admin@example.com',
+      },
+      tx
+    );
+
+    const persisted = create.mock.calls[0][0].data.datosNuevos;
+    expect(persisted).not.toBe(snapshot);
+    expect(persisted).toEqual({ correo: 'ada@example.com' });
+    expect(lecturas).toBe(1);
+  });
+
   test('obtiene el historial más reciente primero', async () => {
     (prisma.employeeHistory.findMany as jest.Mock).mockResolvedValue([]);
 

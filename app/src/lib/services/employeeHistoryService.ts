@@ -95,6 +95,13 @@ function validarSnapshotEmpleadoSeguro(
     throw new Error(`El snapshot ${campo} debe ser un objeto seguro de empleado`);
   }
 
+  const prototype = Object.getPrototypeOf(snapshot);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new Error(`El snapshot ${campo} debe ser un objeto plano seguro de empleado`);
+  }
+
+  const seguro: Record<string, string | number | boolean | null> = {};
+
   for (const [key, value] of Object.entries(snapshot)) {
     if (!SNAPSHOT_KEY_SET.has(key)) {
       throw new Error(`La clave "${key}" no está permitida en snapshots de empleados`);
@@ -108,9 +115,13 @@ function validarSnapshotEmpleadoSeguro(
     ) {
       throw new Error(`El valor de "${key}" no es válido en snapshots de empleados`);
     }
+
+    seguro[key] = value;
   }
 
-  return snapshot as Prisma.InputJsonObject;
+  // Prisma recibe una copia plana ya materializada. Así, getters, proxies o
+  // mutaciones posteriores no pueden cambiar lo que se validó en esta frontera.
+  return seguro as Prisma.InputJsonObject;
 }
 
 /**
