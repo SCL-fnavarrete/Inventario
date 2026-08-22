@@ -22,6 +22,8 @@ jobs:
       # debe alcanzar una base real.
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       DATABASE_URL_UNPOOLED: postgresql://ci:ci@localhost:5432/ci
+      NEXTAUTH_SECRET: ci-no-es-un-secreto
+      NEXTAUTH_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
 
@@ -47,6 +49,14 @@ jobs:
       # umbrales de jest.config.ts bloqueen de verdad.
       - name: Tests + umbrales de cobertura
         run: npm run test:coverage -- --ci
+
+      # El build detecta lo que `tsc` no ve: violaciones de la frontera
+      # cliente/servidor, imports que no resuelven en el bundler, y errores de
+      # generacion de rutas. Es ademas lo que corre Vercel al desplegar.
+      # Todas las paginas del dashboard son dinamicas, asi que el build no
+      # consulta la base y las variables ficticias de arriba alcanzan.
+      - name: Build
+        run: npm run build
 
   spec-guard:
     name: SPEC primero
