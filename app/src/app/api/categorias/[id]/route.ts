@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { updateCategorySchema } from '@/lib/validations/category';
 
 export async function GET(
   request: NextRequest,
@@ -41,15 +42,7 @@ export async function PUT(
     await requirePermission('categorias', 'write');
 
     const { id } = await params;
-    const body = await request.json();
-    const { nombre, descripcion, requiereSerie, requiereImei } = body;
-
-    if (!nombre || !nombre.trim()) {
-      return NextResponse.json(
-        { error: "El nombre es requerido" },
-        { status: 400 }
-      );
-    }
+    const data = updateCategorySchema.parse(await request.json());
 
     // Verificar que existe
     const existing = await prisma.assetCategory.findUnique({
@@ -64,28 +57,25 @@ export async function PUT(
     }
 
     // Verificar nombre duplicado (excepto la misma categoría)
-    const duplicate = await prisma.assetCategory.findFirst({
-      where: {
-        nombre: { equals: nombre, mode: "insensitive" },
-        NOT: { id },
-      },
-    });
+    if (data.nombre) {
+      const duplicate = await prisma.assetCategory.findFirst({
+        where: {
+          nombre: { equals: data.nombre, mode: "insensitive" },
+          NOT: { id },
+        },
+      });
 
-    if (duplicate) {
-      return NextResponse.json(
-        { error: "Ya existe una categoría con ese nombre" },
-        { status: 400 }
-      );
+      if (duplicate) {
+        return NextResponse.json(
+          { error: "Ya existe una categoría con ese nombre" },
+          { status: 400 }
+        );
+      }
     }
 
     const category = await prisma.assetCategory.update({
       where: { id },
-      data: {
-        nombre: nombre.trim(),
-        descripcion: descripcion?.trim() || null,
-        requiereSerie: requiereSerie ?? existing.requiereSerie,
-        requiereImei: requiereImei ?? existing.requiereImei,
-      },
+      data,
     });
 
     return NextResponse.json(category);

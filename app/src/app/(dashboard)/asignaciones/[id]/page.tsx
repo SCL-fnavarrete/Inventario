@@ -54,6 +54,7 @@ type Assignment = {
     categoria: {
       id: string;
       nombre: string;
+      tipoDevolucion: "notebook" | "celular" | "monitor" | "kit" | "otro";
     };
     history: Array<{
       id: string;
@@ -344,7 +345,7 @@ export default function AsignacionDetailPage({
               </div>
 
               {/* Campos específicos según categoría */}
-              {assignment.asset.categoria.nombre.toLowerCase() === "notebook" && (
+              {assignment.asset.categoria.tipoDevolucion === "notebook" && (
                 <>
                   {assignment.asset.procesador && (
                     <div>
@@ -373,7 +374,7 @@ export default function AsignacionDetailPage({
                 </>
               )}
 
-              {assignment.asset.categoria.nombre.toLowerCase() === "celular" && (
+              {assignment.asset.categoria.tipoDevolucion === "celular" && (
                 <>
                   {assignment.asset.imei && (
                     <div>

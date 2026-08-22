@@ -176,17 +176,17 @@ async function generatePage(
   // Preparar datos de la tabla
   const tableData = guide.items.map((item, index) => {
     const asset = item.asset;
-    const categoria = asset.categoria.nombre.toLowerCase();
+    const tipoDevolucion = asset.categoria.tipoDevolucion;
 
     let specs = "";
-    if (categoria === "notebook") {
+    if (tipoDevolucion === "notebook") {
       const specParts = [];
       if (asset.procesador) specParts.push(`Proc: ${asset.procesador}`);
       if (asset.ram) specParts.push(`RAM: ${asset.ram}`);
       if (asset.discoDuro) specParts.push(`Disco: ${asset.discoDuro}`);
       if (asset.sistemaOperativo) specParts.push(`SO: ${asset.sistemaOperativo}`);
       specs = specParts.join(" | ");
-    } else if (categoria === "celular") {
+    } else if (tipoDevolucion === "celular") {
       const specParts = [];
       if (asset.numeroTelefono) specParts.push(`Tel: ${asset.numeroTelefono}`);
       if (asset.tipoPlan) specParts.push(`Plan: ${asset.tipoPlan}`);

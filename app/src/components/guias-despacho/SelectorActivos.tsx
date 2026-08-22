@@ -31,6 +31,7 @@ type Asset = {
   categoria: {
     id: string;
     nombre: string;
+    tipoDevolucion: "notebook" | "celular" | "monitor" | "kit" | "otro";
   };
 };
 
@@ -39,9 +40,9 @@ interface SelectorActivosProps {
   onSelectionChange: (assets: Asset[]) => void;
 }
 
-function getCategoryIcon(categoryName: string) {
+function getCategoryIcon(tipoDevolucion: Asset["categoria"]["tipoDevolucion"]) {
   const iconClass = "h-4 w-4";
-  switch (categoryName.toLowerCase()) {
+  switch (tipoDevolucion) {
     case "notebook":
       return <Laptop className={iconClass} />;
     case "celular":
@@ -214,7 +215,7 @@ export function SelectorActivos({
                 key={asset.id}
                 className="inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-blue-200 text-blue-800 rounded text-xs"
               >
-                {getCategoryIcon(asset.categoria.nombre)}
+                {getCategoryIcon(asset.categoria.tipoDevolucion)}
                 <span className="font-medium">{asset.marca} {asset.modelo}</span>
                 {asset.numeroSerie && (
                   <span className="text-blue-600">({asset.numeroSerie})</span>
@@ -274,13 +275,13 @@ export function SelectorActivos({
           <div className="max-h-[400px] overflow-y-auto divide-y divide-gray-100">
             {filteredAssets.map((asset) => {
               const isSelected = selectedAssets.some((a) => a.id === asset.id);
-              const categoria = asset.categoria.nombre.toLowerCase();
+              const tipoDevolucion = asset.categoria.tipoDevolucion;
 
               // Info adicional según categoría
               let extraInfo = "";
-              if (categoria === "notebook" && asset.procesador) {
+              if (tipoDevolucion === "notebook" && asset.procesador) {
                 extraInfo = `${asset.ram || ""} ${asset.discoDuro || ""}`.trim();
-              } else if (categoria === "celular" && asset.numeroTelefono) {
+              } else if (tipoDevolucion === "celular" && asset.numeroTelefono) {
                 extraInfo = asset.numeroTelefono;
               }
 
@@ -314,7 +315,7 @@ export function SelectorActivos({
                     "w-8 flex justify-center",
                     isSelected ? "text-blue-600" : "text-gray-500"
                   )}>
-                    {getCategoryIcon(asset.categoria.nombre)}
+                    {getCategoryIcon(asset.categoria.tipoDevolucion)}
                   </div>
 
                   {/* Equipo */}

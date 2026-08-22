@@ -137,14 +137,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     ];
 
     // Agregar campos específicos según categoría
-    if (assignment.asset.categoria.nombre.toLowerCase() === "notebook") {
+    if (assignment.asset.categoria.tipoDevolucion === "notebook") {
       equipoData.push(
         ["Procesador:", assignment.asset.procesador || "-"],
         ["RAM:", assignment.asset.ram || "-"],
         ["Disco:", assignment.asset.discoDuro || "-"],
         ["S.O.:", assignment.asset.sistemaOperativo || "-"]
       );
-    } else if (assignment.asset.categoria.nombre.toLowerCase() === "celular") {
+    } else if (assignment.asset.categoria.tipoDevolucion === "celular") {
       equipoData.push(
         ["IMEI:", assignment.asset.imei || "-"],
         ["N° Teléfono:", assignment.asset.numeroTelefono || "-"],

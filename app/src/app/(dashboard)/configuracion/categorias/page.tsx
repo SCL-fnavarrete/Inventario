@@ -9,7 +9,26 @@ type Category = {
   descripcion: string | null;
   requiereSerie: boolean;
   requiereImei: boolean;
+  tipoDevolucion: TipoDevolucion;
   _count?: { assets: number };
+};
+
+type TipoDevolucion = "notebook" | "celular" | "monitor" | "kit" | "otro";
+
+const TIPO_DEVOLUCION_LABELS: Record<TipoDevolucion, string> = {
+  notebook: "Notebook",
+  celular: "Celular",
+  monitor: "Monitor",
+  kit: "Kit",
+  otro: "Otro",
+};
+
+const initialFormData = {
+  nombre: "",
+  descripcion: "",
+  requiereSerie: true,
+  requiereImei: false,
+  tipoDevolucion: "otro" as TipoDevolucion,
 };
 
 export default function CategoriasPage() {
@@ -17,12 +36,7 @@ export default function CategoriasPage() {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [formData, setFormData] = useState({
-    nombre: "",
-    descripcion: "",
-    requiereSerie: true,
-    requiereImei: false,
-  });
+  const [formData, setFormData] = useState(initialFormData);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -59,7 +73,7 @@ export default function CategoriasPage() {
       if (res.ok) {
         await fetchCategories();
         setIsCreating(false);
-        setFormData({ nombre: "", descripcion: "", requiereSerie: true, requiereImei: false });
+        setFormData(initialFormData);
         setError("");
       } else {
         const data = await res.json();
@@ -87,7 +101,7 @@ export default function CategoriasPage() {
       if (res.ok) {
         await fetchCategories();
         setEditingId(null);
-        setFormData({ nombre: "", descripcion: "", requiereSerie: true, requiereImei: false });
+        setFormData(initialFormData);
         setError("");
       } else {
         const data = await res.json();
@@ -126,6 +140,7 @@ export default function CategoriasPage() {
       descripcion: category.descripcion || "",
       requiereSerie: category.requiereSerie,
       requiereImei: category.requiereImei,
+      tipoDevolucion: category.tipoDevolucion,
     });
     setIsCreating(false);
     setError("");
@@ -134,7 +149,7 @@ export default function CategoriasPage() {
   const cancelEdit = () => {
     setEditingId(null);
     setIsCreating(false);
-    setFormData({ nombre: "", descripcion: "", requiereSerie: true, requiereImei: false });
+    setFormData(initialFormData);
     setError("");
   };
 
@@ -157,7 +172,7 @@ export default function CategoriasPage() {
           <button
             onClick={() => {
               setIsCreating(true);
-              setFormData({ nombre: "", descripcion: "", requiereSerie: true, requiereImei: false });
+              setFormData(initialFormData);
             }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
@@ -201,6 +216,24 @@ export default function CategoriasPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Descripción de la categoría"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tipo de devolución
+              </label>
+              <select
+                value={formData.tipoDevolucion}
+                onChange={(e) =>
+                  setFormData({ ...formData, tipoDevolucion: e.target.value as TipoDevolucion })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                {Object.entries(TIPO_DEVOLUCION_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="flex items-center gap-6">
               <label className="flex items-center gap-2">
@@ -252,6 +285,9 @@ export default function CategoriasPage() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Descripción
               </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Tipo devolución
+              </th>
               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Req. Serie
               </th>
@@ -278,6 +314,24 @@ export default function CategoriasPage() {
                         onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
                         className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
                       />
+                    </td>
+                    <td className="px-6 py-4">
+                      <select
+                        value={formData.tipoDevolucion}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            tipoDevolucion: e.target.value as TipoDevolucion,
+                          })
+                        }
+                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                      >
+                        {Object.entries(TIPO_DEVOLUCION_LABELS).map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-6 py-4">
                       <input
@@ -333,6 +387,9 @@ export default function CategoriasPage() {
                     <td className="px-6 py-4 text-gray-500">
                       {category.descripcion || "-"}
                     </td>
+                    <td className="px-6 py-4 text-gray-500">
+                      {TIPO_DEVOLUCION_LABELS[category.tipoDevolucion]}
+                    </td>
                     <td className="px-6 py-4 text-center">
                       <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
                         category.requiereSerie
@@ -379,7 +436,7 @@ export default function CategoriasPage() {
             ))}
             {categories.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                   No hay categorías registradas
                 </td>
               </tr>

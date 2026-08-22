@@ -26,13 +26,13 @@ export async function GET() {
 
     const data = empleados.map((emp) => {
       const notebook = emp.assignments.find(
-        (a) => a.asset.categoria?.nombre === "Notebook"
+        (a) => a.asset.categoria?.tipoDevolucion === "notebook"
       );
       const celular = emp.assignments.find(
-        (a) => a.asset.categoria?.nombre === "Celular"
+        (a) => a.asset.categoria?.tipoDevolucion === "celular"
       );
       const monitor = emp.assignments.find(
-        (a) => a.asset.categoria?.nombre === "Monitor"
+        (a) => a.asset.categoria?.tipoDevolucion === "monitor"
       );
 
       return {

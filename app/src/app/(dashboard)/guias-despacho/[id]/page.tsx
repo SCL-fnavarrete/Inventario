@@ -46,8 +46,8 @@ function formatDateTime(date: Date | string | null): string {
   });
 }
 
-function getCategoryIcon(categoryName: string) {
-  switch (categoryName.toLowerCase()) {
+function getCategoryIcon(tipoDevolucion: DispatchGuideDetail["items"][number]["asset"]["categoria"]["tipoDevolucion"]) {
+  switch (tipoDevolucion) {
     case "notebook":
       return <Laptop className="h-5 w-5" />;
     case "celular":
@@ -400,17 +400,17 @@ export default function GuiaDespachoDetailPage({
             <tbody className="divide-y divide-gray-200">
               {guide.items.map((item) => {
                 const asset = item.asset;
-                const categoria = asset.categoria.nombre.toLowerCase();
+                const tipoDevolucion = asset.categoria.tipoDevolucion;
 
                 let specs = "-";
-                if (categoria === "notebook") {
+                if (tipoDevolucion === "notebook") {
                   const parts = [];
                   if (asset.procesador) parts.push(`Proc: ${asset.procesador}`);
                   if (asset.ram) parts.push(`RAM: ${asset.ram}`);
                   if (asset.discoDuro) parts.push(`Disco: ${asset.discoDuro}`);
                   if (asset.sistemaOperativo) parts.push(`SO: ${asset.sistemaOperativo}`);
                   specs = parts.join(" | ") || "-";
-                } else if (categoria === "celular") {
+                } else if (tipoDevolucion === "celular") {
                   const parts = [];
                   if (asset.numeroTelefono) parts.push(`Tel: ${asset.numeroTelefono}`);
                   if (asset.tipoPlan) parts.push(`Plan: ${asset.tipoPlan}`);
@@ -422,7 +422,7 @@ export default function GuiaDespachoDetailPage({
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="p-1.5 bg-gray-100 rounded">
-                          {getCategoryIcon(asset.categoria.nombre)}
+                          {getCategoryIcon(asset.categoria.tipoDevolucion)}
                         </div>
                         <span className="text-sm">{asset.categoria.nombre}</span>
                       </div>

@@ -18,6 +18,7 @@ type Assignment = {
     categoria: {
       id: string;
       nombre: string;
+      tipoDevolucion: 'notebook' | 'celular' | 'monitor' | 'kit' | 'otro';
     } | null;
   };
 };
@@ -66,11 +67,6 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
 
         // Buscar en número telefónico del celular
         if (asset.numeroTelefono?.toLowerCase().includes(searchLower)) return true;
-
-        // Buscar en número de serie del monitor (todos los activos tienen numeroSerie)
-        // pero específicamente para monitores
-        if (asset.categoria?.nombre === 'Monitor' &&
-            asset.numeroSerie?.toLowerCase().includes(searchLower)) return true;
 
         return false;
       });
@@ -180,18 +176,18 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
           <div className="divide-y divide-gray-200">
             {empleadosConEquipos.map((empleado) => {
               const notebook = empleado.assignments.find(
-                (a) => a.asset.categoria?.nombre === "Notebook"
+                (a) => a.asset.categoria?.tipoDevolucion === "notebook"
               );
               const celular = empleado.assignments.find(
-                (a) => a.asset.categoria?.nombre === "Celular"
+                (a) => a.asset.categoria?.tipoDevolucion === "celular"
               );
               const monitor = empleado.assignments.find(
-                (a) => a.asset.categoria?.nombre === "Monitor"
+                (a) => a.asset.categoria?.tipoDevolucion === "monitor"
               );
               const otros = empleado.assignments.filter(
                 (a) =>
-                  !["Notebook", "Celular", "Monitor"].includes(
-                    a.asset.categoria?.nombre || ""
+                  !["notebook", "celular", "monitor"].includes(
+                    a.asset.categoria?.tipoDevolucion || "otro"
                   )
               );
 

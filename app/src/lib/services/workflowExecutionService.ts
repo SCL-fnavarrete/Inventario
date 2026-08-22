@@ -196,14 +196,14 @@ export async function executeTerminationReturn(
   });
 
   for (const assignment of termination.employee.assignments) {
-    const categoryName = assignment.asset.categoria.nombre.toLowerCase();
+    const tipoDevolucion = assignment.asset.categoria.tipoDevolucion;
     let estadoDevolucion: 'ok' | 'danado' | 'incompleto' = 'ok';
 
-    if (categoryName === 'notebook') {
+    if (tipoDevolucion === 'notebook') {
       estadoDevolucion = params.estadoNotebook === 'danado' ? 'danado' : 'ok';
-    } else if (categoryName === 'celular') {
+    } else if (tipoDevolucion === 'celular') {
       estadoDevolucion = params.estadoCelular === 'danado' ? 'danado' : 'ok';
-    } else if (categoryName === 'monitor') {
+    } else if (tipoDevolucion === 'monitor') {
       estadoDevolucion = params.estadoMonitor === 'danado' ? 'danado' : 'ok';
     }
 

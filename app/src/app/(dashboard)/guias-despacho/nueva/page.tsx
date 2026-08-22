@@ -48,6 +48,7 @@ type Asset = {
   categoria: {
     id: string;
     nombre: string;
+    tipoDevolucion: "notebook" | "celular" | "monitor" | "kit" | "otro";
   };
 };
 

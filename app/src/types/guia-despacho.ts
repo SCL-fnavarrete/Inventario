@@ -1,4 +1,4 @@
-import { TipoDespacho, EstadoGuia, CondicionActivo } from "@prisma/client";
+import { TipoDespacho, EstadoGuia, CondicionActivo, TipoDevolucion } from "@prisma/client";
 
 // Tipos para crear/editar guías
 export interface CreateDispatchGuideInput {
@@ -38,6 +38,7 @@ export interface DispatchGuideAsset {
   categoria: {
     id: string;
     nombre: string;
+    tipoDevolucion: TipoDevolucion;
   };
 }
 

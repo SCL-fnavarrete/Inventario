@@ -90,19 +90,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Separar por categoría - Soportar múltiples equipos por categoría
     const notebooks = activeAssignments.filter(
-      (a) => a.asset.categoria.nombre.toLowerCase() === "notebook"
+      (a) => a.asset.categoria.tipoDevolucion === "notebook"
     );
     const celulares = activeAssignments.filter(
-      (a) => a.asset.categoria.nombre.toLowerCase() === "celular"
+      (a) => a.asset.categoria.tipoDevolucion === "celular"
     );
     const monitores = activeAssignments.filter(
-      (a) => a.asset.categoria.nombre.toLowerCase() === "monitor"
+      (a) => a.asset.categoria.tipoDevolucion === "monitor"
     );
     const otrosEquipos = activeAssignments.filter(
-      (a) =>
-        !["notebook", "celular", "monitor"].includes(
-          a.asset.categoria.nombre.toLowerCase()
-        )
+      (a) => !["notebook", "celular", "monitor"].includes(a.asset.categoria.tipoDevolucion)
     );
 
     // Kit de bienvenida y EPP - Simplificado con fechas

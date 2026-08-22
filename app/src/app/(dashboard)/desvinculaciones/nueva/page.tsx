@@ -32,6 +32,7 @@ type Assignment = {
     modelo: string;
     categoria: {
       nombre: string;
+      tipoDevolucion: "notebook" | "celular" | "monitor" | "kit" | "otro";
     };
   };
 };
@@ -209,13 +210,13 @@ export default function NuevaDesvinculacionPage() {
 
   const activeAssignments = employee?.assignments || [];
   const hasNotebook = activeAssignments.some(
-    (a) => a.asset.categoria.nombre.toLowerCase() === "notebook"
+    (a) => a.asset.categoria.tipoDevolucion === "notebook"
   );
   const hasCelular = activeAssignments.some(
-    (a) => a.asset.categoria.nombre.toLowerCase() === "celular"
+    (a) => a.asset.categoria.tipoDevolucion === "celular"
   );
   const hasMonitor = activeAssignments.some(
-    (a) => a.asset.categoria.nombre.toLowerCase() === "monitor"
+    (a) => a.asset.categoria.tipoDevolucion === "monitor"
   );
 
   return (

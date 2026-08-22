@@ -1,4 +1,12 @@
-import { PrismaClient, SystemRole, CategoriaKit, TipoContrato, EstadoActivo, CondicionActivo } from "@prisma/client";
+import {
+  PrismaClient,
+  SystemRole,
+  CategoriaKit,
+  TipoContrato,
+  EstadoActivo,
+  CondicionActivo,
+  TipoDevolucion,
+} from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -38,21 +46,21 @@ async function main() {
 
   // 2. Crear categorías de activos
   const categorias = [
-    { nombre: "Notebook", descripcion: "Computadores portátiles", requiereSerie: true, requiereImei: false },
-    { nombre: "Celular", descripcion: "Teléfonos móviles corporativos", requiereSerie: true, requiereImei: true },
-    { nombre: "Monitor", descripcion: "Pantallas y monitores", requiereSerie: true, requiereImei: false },
-    { nombre: "Impresora", descripcion: "Impresoras y multifuncionales", requiereSerie: true, requiereImei: false },
-    { nombre: "Mouse", descripcion: "Mouse y dispositivos de entrada", requiereSerie: false, requiereImei: false },
-    { nombre: "Teclado", descripcion: "Teclados", requiereSerie: false, requiereImei: false },
-    { nombre: "Docking Station", descripcion: "Estaciones de acoplamiento", requiereSerie: true, requiereImei: false },
-    { nombre: "Webcam", descripcion: "Cámaras web", requiereSerie: true, requiereImei: false },
-    { nombre: "Audífonos", descripcion: "Audífonos y headsets", requiereSerie: false, requiereImei: false },
+    { nombre: "Notebook", descripcion: "Computadores portátiles", requiereSerie: true, requiereImei: false, tipoDevolucion: TipoDevolucion.notebook },
+    { nombre: "Celular", descripcion: "Teléfonos móviles corporativos", requiereSerie: true, requiereImei: true, tipoDevolucion: TipoDevolucion.celular },
+    { nombre: "Monitor", descripcion: "Pantallas y monitores", requiereSerie: true, requiereImei: false, tipoDevolucion: TipoDevolucion.monitor },
+    { nombre: "Impresora", descripcion: "Impresoras y multifuncionales", requiereSerie: true, requiereImei: false, tipoDevolucion: TipoDevolucion.otro },
+    { nombre: "Mouse", descripcion: "Mouse y dispositivos de entrada", requiereSerie: false, requiereImei: false, tipoDevolucion: TipoDevolucion.otro },
+    { nombre: "Teclado", descripcion: "Teclados", requiereSerie: false, requiereImei: false, tipoDevolucion: TipoDevolucion.otro },
+    { nombre: "Docking Station", descripcion: "Estaciones de acoplamiento", requiereSerie: true, requiereImei: false, tipoDevolucion: TipoDevolucion.otro },
+    { nombre: "Webcam", descripcion: "Cámaras web", requiereSerie: true, requiereImei: false, tipoDevolucion: TipoDevolucion.otro },
+    { nombre: "Audífonos", descripcion: "Audífonos y headsets", requiereSerie: false, requiereImei: false, tipoDevolucion: TipoDevolucion.otro },
   ];
 
   for (const cat of categorias) {
     await prisma.assetCategory.upsert({
       where: { nombre: cat.nombre },
-      update: {},
+      update: { tipoDevolucion: cat.tipoDevolucion },
       create: cat,
     });
   }

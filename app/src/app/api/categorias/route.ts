@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { createCategorySchema } from '@/lib/validations/category';
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,19 +31,11 @@ export async function POST(request: NextRequest) {
   try {
     await requirePermission('categorias', 'write');
 
-    const body = await request.json();
-    const { nombre, descripcion, requiereSerie, requiereImei } = body;
-
-    if (!nombre || !nombre.trim()) {
-      return NextResponse.json(
-        { error: "El nombre es requerido" },
-        { status: 400 }
-      );
-    }
+    const data = createCategorySchema.parse(await request.json());
 
     // Verificar si ya existe
     const existing = await prisma.assetCategory.findFirst({
-      where: { nombre: { equals: nombre, mode: "insensitive" } },
+      where: { nombre: { equals: data.nombre, mode: "insensitive" } },
     });
 
     if (existing) {
@@ -53,12 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     const category = await prisma.assetCategory.create({
-      data: {
-        nombre: nombre.trim(),
-        descripcion: descripcion?.trim() || null,
-        requiereSerie: requiereSerie ?? true,
-        requiereImei: requiereImei ?? false,
-      },
+      data,
     });
 
     return NextResponse.json(category, { status: 201 });

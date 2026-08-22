@@ -162,13 +162,13 @@ export async function POST(request: NextRequest) {
 
     // Determinar estados iniciales basados en equipos asignados
     const hasNotebook = employee.assignments.some(
-      (a) => a.asset.categoria.nombre.toLowerCase() === "notebook"
+      (a) => a.asset.categoria.tipoDevolucion === "notebook"
     );
     const hasCelular = employee.assignments.some(
-      (a) => a.asset.categoria.nombre.toLowerCase() === "celular"
+      (a) => a.asset.categoria.tipoDevolucion === "celular"
     );
     const hasMonitor = employee.assignments.some(
-      (a) => a.asset.categoria.nombre.toLowerCase() === "monitor"
+      (a) => a.asset.categoria.tipoDevolucion === "monitor"
     );
 
     // Crear desvinculación

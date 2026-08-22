@@ -26,6 +26,7 @@ type Asset = {
   categoria: {
     id: string;
     nombre: string;
+    tipoDevolucion: "notebook" | "celular" | "monitor" | "kit" | "otro";
   };
 };
 
@@ -76,8 +77,8 @@ const CONDICION_LABELS: Record<string, string> = {
   danado: "Dañado",
 };
 
-function getCategoryIcon(categoryName: string) {
-  switch (categoryName.toLowerCase()) {
+function getCategoryIcon(tipoDevolucion: Asset["categoria"]["tipoDevolucion"]) {
+  switch (tipoDevolucion) {
     case "notebook":
       return <Laptop className="h-4 w-4" />;
     case "celular":
@@ -230,20 +231,20 @@ export function GuiaDespachoPreview({
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {assets.map((asset, index) => {
-                  const categoria = asset.categoria.nombre.toLowerCase();
+                  const tipoDevolucion = asset.categoria.tipoDevolucion;
                   return (
                     <tr key={asset.id} className="hover:bg-gray-50">
                       <td className="px-2 py-2 text-gray-600">{index + 1}</td>
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-1">
-                          {getCategoryIcon(asset.categoria.nombre)}
+                          {getCategoryIcon(asset.categoria.tipoDevolucion)}
                           <span>{asset.categoria.nombre}</span>
                         </div>
                       </td>
                       <td className="px-2 py-2">
                         <div>
                           <p className="font-medium">{asset.marca} {asset.modelo}</p>
-                          {categoria === "notebook" && asset.procesador && (
+                          {tipoDevolucion === "notebook" && asset.procesador && (
                             <p className="text-xs text-gray-500">
                               {asset.procesador} | {asset.ram} | {asset.discoDuro}
                             </p>
@@ -254,7 +255,7 @@ export function GuiaDespachoPreview({
                         {asset.numeroSerie || "-"}
                       </td>
                       <td className="px-2 py-2 font-mono text-xs">
-                        {categoria === "celular" ? (
+                        {tipoDevolucion === "celular" ? (
                           <div>
                             {asset.numeroTelefono && <p>{asset.numeroTelefono}</p>}
                             {asset.imei && <p className="text-gray-500">{asset.imei}</p>}
