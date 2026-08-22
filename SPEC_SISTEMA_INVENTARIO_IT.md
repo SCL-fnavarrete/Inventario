@@ -78,6 +78,32 @@ divergencia a favor del SPEC: **importar activos y empleados requiere `admin`
 o `tecnico`**. Si el negocio necesita que RRHH cargue el maestro de empleados,
 el cambio se hace en esta matriz y en esta sección, no en la ruta.
 
+### 1.3.2 Respuesta a una petición sin sesión
+
+La matriz de 1.3.1 decide **qué** puede hacer un rol. Esta sección fija **cómo**
+se contesta a quien todavía no tiene sesión. Lo resuelve el middleware
+(`app/src/middleware.ts`), que elige el formato según el tipo de ruta:
+
+| Ruta | Sin sesión | Con sesión |
+|---|---|---|
+| `/api/**` | `401` con `{ error: "No autorizado" }` | pasa al handler, que aplica la matriz de 1.3.1 |
+| `/login` | se sirve el login | redirige a `/` |
+| Cualquier otra página | redirige a `/login`, en un solo salto | se sirve la página |
+| `/api/auth/**` | pública (la gestiona NextAuth) | pública |
+
+**Por qué queda fijado aquí.** `withAuth` de NextAuth contesta a lo no
+autorizado con un redirect a su página de signIn, y ese redirect es HTML
+también para `/api/**`. El `fetch()` del cliente lo sigue, recibe la página de
+login y falla al parsearla: `Unexpected token '<', "<!DOCTYPE "... is not valid
+JSON`. El usuario ve un error de parseo donde debería leer "tu sesión expiró", y
+en la consola es indistinguible del `CLIENT_FETCH_ERROR` que NextAuth emite
+cuando `/api/auth/session` falla de verdad.
+
+Por eso la decisión no puede quedar en el callback `authorized` —que sólo sabe
+decir sí o no—, sino en el middleware, que sí distingue una API de una página.
+El 401 usa el mismo formato de error que el resto de la API (`{ error }`, ver
+`src/lib/auth/guard.ts`), de modo que el cliente lee siempre la misma clave.
+
 ---
 
 # PARTE 2: MODELO DE DATOS (MODEL)
@@ -1609,6 +1635,9 @@ nunca debió existir como fila separada.
 
 ## Changelog SPEC
 
+- **v1.5 (2026-08-22):**
+  - Sección 1.3.2: una petición sin sesión a `/api/**` responde `401` con el formato de error unificado, no un redirect a la página de login. El redirect devolvía HTML a los `fetch()` del cliente, que fallaban con `Unexpected token '<'` en vez de informar que la sesión expiró.
+  - Sección 1.3.2: las páginas sin sesión van a `/login` en un solo salto. Antes rebotaban por `/api/auth/signin`, porque el redirect lo emitía `withAuth` y no el middleware.
 - **v1.4 (2026-08-21):**
   - Sección 2.1: `asset_categories.tipo_devolucion` estabiliza el tipo de devolución y se reserva `kit` para `kit_assignments`; la migración normaliza notebook/celular/monitor y clasifica el resto como `otro`.
   - Sección 2.1: `assignments` agrega las marcas de tiempo de servidor para firma de entrega y devolución.
