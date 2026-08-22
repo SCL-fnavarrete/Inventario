@@ -158,7 +158,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No se encontraron resultados</h3>
           <p className="text-gray-500">
-            No se encontraron empleados que coincidan con "{searchTerm}"
+            No se encontraron empleados que coincidan con &quot;{searchTerm}&quot;
           </p>
           <button
             onClick={() => setSearchTerm('')}

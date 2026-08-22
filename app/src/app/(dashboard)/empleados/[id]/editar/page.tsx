@@ -212,7 +212,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
             </h3>
             <p className="text-gray-600 mb-4">
               ¿Está seguro que desea marcar a este empleado como desvinculado?
-              Esta acción cambiará su estado a "desvinculado".
+              Esta acción cambiará su estado a &quot;desvinculado&quot;.
             </p>
             <div className="flex justify-end gap-3">
               <button

@@ -833,7 +833,7 @@ export default function ImportarActivosPage() {
           </li>
           <li>
             <strong>Activos DISPONIBLES:</strong> No requieren información de empleado (RUT, Nombre, Apellidos).
-            Simplemente incluye el campo "Estado" con valor "DISPONIBLE"
+            Simplemente incluye el campo &quot;Estado&quot; con valor &quot;DISPONIBLE&quot;
           </li>
           <li>
             <strong>Activos ASIGNADOS:</strong> Si incluyes RUT, Nombre y Apellidos, el sistema automáticamente

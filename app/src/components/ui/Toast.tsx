@@ -5,7 +5,7 @@ import {
   useContext,
   useState,
   useCallback,
-  useEffect,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -45,6 +45,9 @@ export function useToast() {
   return context;
 }
 
+// El valor nunca cambia despues de la hidratacion, asi que no hay a que suscribirse.
+const subscribeNoop = () => () => {};
+
 // Provider
 interface ToastProviderProps {
   children: ReactNode;
@@ -58,11 +61,9 @@ export function ToastProvider({
   maxToasts = 5,
 }: ToastProviderProps) {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // El portal solo puede montarse en el cliente. `useSyncExternalStore` da esa
+  // senal sin un setState dentro de un efecto, que provoca un render en cascada.
+  const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false);
 
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));

@@ -15,6 +15,7 @@ import {
   Eye,
   Edit2
 } from "lucide-react";
+import { createElement } from "react";
 import { Badge, AssetStatusBadge } from "@/components/ui/Badge";
 import Link from "next/link";
 
@@ -63,12 +64,21 @@ const categoryIcons: Record<string, React.ComponentType<{ className?: string }>>
 
 function getCategoryIcon(categoryName: string): React.ComponentType<{ className?: string }> {
   const lowerName = categoryName.toLowerCase();
-  for (const [key, Icon] of Object.entries(categoryIcons)) {
+  for (const [key, icon] of Object.entries(categoryIcons)) {
     if (lowerName.includes(key)) {
-      return Icon;
+      return icon;
     }
   }
   return Package;
+}
+
+/**
+ * Envuelve la seleccion del icono de categoria. El icono sale siempre de
+ * `categoryIcons`, un mapa de modulo, asi que la referencia es estable entre
+ * renders; envolverlo aqui se lo hace explicito al compilador de React.
+ */
+function CategoryIcon({ categoria, className }: { categoria: string; className?: string }) {
+  return createElement(getCategoryIcon(categoria), { className });
 }
 
 const conditionColors: Record<string, string> = {
@@ -86,7 +96,6 @@ const conditionLabels: Record<string, string> = {
 };
 
 export function AssetCard({ asset, compact = false }: AssetCardProps) {
-  const Icon = getCategoryIcon(asset.categoria.nombre);
   const hasSpecs = asset.procesador || asset.ram || asset.discoDuro;
   const displayCode = asset.numeroActivoInterno || asset.numeroSerie || "Sin c\u00f3digo";
 
@@ -95,7 +104,7 @@ export function AssetCard({ asset, compact = false }: AssetCardProps) {
       <div className="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md transition-shadow">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-gray-100 rounded-lg">
-            <Icon className="w-5 h-5 text-gray-600" />
+            <CategoryIcon categoria={asset.categoria.nombre} className="w-5 h-5 text-gray-600" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm text-gray-900 truncate">
@@ -116,7 +125,7 @@ export function AssetCard({ asset, compact = false }: AssetCardProps) {
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl">
-              <Icon className="w-6 h-6 text-blue-600" />
+              <CategoryIcon categoria={asset.categoria.nombre} className="w-6 h-6 text-blue-600" />
             </div>
             <div>
               <p className="font-semibold text-gray-900">
