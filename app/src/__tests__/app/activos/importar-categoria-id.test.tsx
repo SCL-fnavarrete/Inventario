@@ -195,4 +195,136 @@ describe('importación de activos — categoría estable', () => {
     expect(screen.getByDisplayValue('Hoja B')).toBeInTheDocument();
     expect(screen.queryByDisplayValue('Hoja A')).not.toBeInTheDocument();
   });
+
+  test('descarta la vista previa tardía de un archivo reemplazado con la misma categoría', async () => {
+    let resolvePreviewA:
+      | ((value: { ok: boolean; json: () => Promise<unknown> }) => void)
+      | undefined;
+    const previewA = new Promise<{ ok: boolean; json: () => Promise<unknown> }>((resolve) => {
+      resolvePreviewA = resolve;
+    });
+    let sheetsRequestCount = 0;
+
+    mockFetch.mockImplementation((url: string) => {
+      if (url === '/api/categorias') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            {
+              id: 'cat-laptop',
+              nombre: 'Laptop',
+              descripcion: null,
+              requiereSerie: true,
+              requiereImei: false,
+              tipoDevolucion: 'notebook',
+            },
+          ],
+        });
+      }
+      if (url === '/api/activos/importar/sheets') {
+        sheetsRequestCount += 1;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ sheets: [sheetsRequestCount === 1 ? 'Hoja A' : 'Hoja B'] }),
+        });
+      }
+      if (url === '/api/activos/importar/preview') return previewA;
+      throw new Error(`Fetch inesperado: ${url}`);
+    });
+
+    const { container } = render(<ImportarActivosPage />);
+    const fileInput = container.querySelector('input[type="file"]');
+    if (!fileInput) throw new Error('Input de archivo no encontrado');
+
+    fireEvent.change(fileInput, { target: { files: [new File(['A'], 'a.xlsx')] } });
+    await screen.findByDisplayValue('Hoja A');
+    fireEvent.change(screen.getAllByRole('combobox')[1], {
+      target: { value: 'cat-laptop' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Vista previa' }));
+
+    fireEvent.change(fileInput, { target: { files: [new File(['B'], 'b.xlsx')] } });
+    await screen.findByDisplayValue('Hoja B');
+
+    await act(async () => {
+      resolvePreviewA?.({
+        ok: true,
+        json: async () => ({ headers: ['Marca', 'Modelo', 'Serie'], rows: [], totalRows: 1 }),
+      });
+      await previewA;
+    });
+
+    expect(screen.queryByText('Paso 2: Mapeo de Columnas')).not.toBeInTheDocument();
+    expect(screen.getByText('b.xlsx')).toBeInTheDocument();
+  });
+
+  test('descarta el resultado tardío de una importación si se reemplaza el archivo', async () => {
+    let resolveImportA:
+      | ((value: { ok: boolean; json: () => Promise<unknown> }) => void)
+      | undefined;
+    const importA = new Promise<{ ok: boolean; json: () => Promise<unknown> }>((resolve) => {
+      resolveImportA = resolve;
+    });
+    let sheetsRequestCount = 0;
+
+    mockFetch.mockImplementation((url: string) => {
+      if (url === '/api/categorias') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            {
+              id: 'cat-laptop',
+              nombre: 'Laptop',
+              descripcion: null,
+              requiereSerie: true,
+              requiereImei: false,
+              tipoDevolucion: 'notebook',
+            },
+          ],
+        });
+      }
+      if (url === '/api/activos/importar/sheets') {
+        sheetsRequestCount += 1;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ sheets: [sheetsRequestCount === 1 ? 'Hoja A' : 'Hoja B'] }),
+        });
+      }
+      if (url === '/api/activos/importar/preview') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ headers: ['Marca', 'Modelo', 'Serie'], rows: [], totalRows: 1 }),
+        });
+      }
+      if (url === '/api/activos/importar') return importA;
+      throw new Error(`Fetch inesperado: ${url}`);
+    });
+
+    const { container } = render(<ImportarActivosPage />);
+    const fileInput = container.querySelector('input[type="file"]');
+    if (!fileInput) throw new Error('Input de archivo no encontrado');
+
+    fireEvent.change(fileInput, { target: { files: [new File(['A'], 'a.xlsx')] } });
+    await screen.findByDisplayValue('Hoja A');
+    fireEvent.change(screen.getAllByRole('combobox')[1], {
+      target: { value: 'cat-laptop' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Vista previa' }));
+    await screen.findByText('Paso 2: Mapeo de Columnas');
+    fireEvent.click(screen.getByRole('button', { name: 'Importar 1 activos' }));
+
+    fireEvent.change(fileInput, { target: { files: [new File(['B'], 'b.xlsx')] } });
+    await screen.findByDisplayValue('Hoja B');
+
+    await act(async () => {
+      resolveImportA?.({
+        ok: true,
+        json: async () => ({ success: true, imported: 1, skipped: 0, errors: [] }),
+      });
+      await importA;
+    });
+
+    expect(screen.queryByText('Importacion completada')).not.toBeInTheDocument();
+    expect(screen.getByText('b.xlsx')).toBeInTheDocument();
+  });
 });

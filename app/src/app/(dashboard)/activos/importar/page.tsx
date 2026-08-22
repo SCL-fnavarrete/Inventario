@@ -66,7 +66,9 @@ export default function ImportarActivosPage() {
   const [showErrorReview, setShowErrorReview] = useState(false);
   const [reimportingCorrected, setReimportingCorrected] = useState(false);
   const categoriaIdRef = useRef(categoriaId);
-  const sheetRequestVersionRef = useRef(0);
+  // Un único epoch invalida cualquier respuesta asíncrona de una sesión
+  // anterior (hojas, preview, importación o reimportación).
+  const importSessionEpochRef = useRef(0);
 
   function resetCategoryDerivedState() {
     setPreview(null);
@@ -83,6 +85,7 @@ export default function ImportarActivosPage() {
   function handleCategoryChange(nextCategoriaId: string) {
     if (nextCategoriaId === categoriaIdRef.current) return;
 
+    importSessionEpochRef.current += 1;
     categoriaIdRef.current = nextCategoriaId;
     setCategoriaId(nextCategoriaId);
     resetCategoryDerivedState();
@@ -188,7 +191,7 @@ export default function ImportarActivosPage() {
       const selectedFile = e.target.files?.[0];
       if (!selectedFile) return;
 
-      const requestVersion = ++sheetRequestVersionRef.current;
+      const requestEpoch = ++importSessionEpochRef.current;
       setFile(selectedFile);
       setAvailableSheets([]);
       setSheetName("");
@@ -209,17 +212,17 @@ export default function ImportarActivosPage() {
         }
 
         const data = await res.json();
-        if (sheetRequestVersionRef.current !== requestVersion) return;
+        if (importSessionEpochRef.current !== requestEpoch) return;
         setAvailableSheets(data.sheets);
         if (data.sheets.length === 1) {
           setSheetName(data.sheets[0]);
         }
       } catch (err) {
-        if (sheetRequestVersionRef.current === requestVersion) {
+        if (importSessionEpochRef.current === requestEpoch) {
           setError(err instanceof Error ? err.message : "Error al procesar archivo");
         }
       } finally {
-        if (sheetRequestVersionRef.current === requestVersion) {
+        if (importSessionEpochRef.current === requestEpoch) {
           setParsing(false);
         }
       }
@@ -234,6 +237,7 @@ export default function ImportarActivosPage() {
     }
 
     const requestCategoriaId = categoriaId;
+    const requestEpoch = importSessionEpochRef.current;
     setParsing(true);
     setError("");
 
@@ -254,7 +258,11 @@ export default function ImportarActivosPage() {
       }
 
       const data = await res.json();
-      if (categoriaIdRef.current !== requestCategoriaId) return;
+      if (
+        importSessionEpochRef.current !== requestEpoch ||
+        categoriaIdRef.current !== requestCategoriaId
+      )
+        return;
       setPreview(data);
       setPreviewCategoriaId(requestCategoriaId);
 
@@ -317,11 +325,17 @@ export default function ImportarActivosPage() {
 
       setColumnMapping(autoMapping);
     } catch (err) {
-      if (categoriaIdRef.current === requestCategoriaId) {
+      if (
+        importSessionEpochRef.current === requestEpoch &&
+        categoriaIdRef.current === requestCategoriaId
+      ) {
         setError(err instanceof Error ? err.message : "Error al previsualizar");
       }
     } finally {
-      if (categoriaIdRef.current === requestCategoriaId) {
+      if (
+        importSessionEpochRef.current === requestEpoch &&
+        categoriaIdRef.current === requestCategoriaId
+      ) {
         setParsing(false);
       }
     }
@@ -334,6 +348,7 @@ export default function ImportarActivosPage() {
     }
 
     const requestCategoriaId = categoriaId;
+    const requestEpoch = importSessionEpochRef.current;
 
     // Validar campos requeridos
     const missingRequired = requiredFields.filter(
@@ -367,20 +382,33 @@ export default function ImportarActivosPage() {
         throw new Error(data.error || "Error al importar");
       }
 
-      if (categoriaIdRef.current !== requestCategoriaId) return;
+      if (
+        importSessionEpochRef.current !== requestEpoch ||
+        categoriaIdRef.current !== requestCategoriaId
+      )
+        return;
       setResult(data);
     } catch (err) {
-      if (categoriaIdRef.current === requestCategoriaId) {
+      if (
+        importSessionEpochRef.current === requestEpoch &&
+        categoriaIdRef.current === requestCategoriaId
+      ) {
         setError(err instanceof Error ? err.message : "Error al importar");
       }
     } finally {
-      if (categoriaIdRef.current === requestCategoriaId) {
+      if (
+        importSessionEpochRef.current === requestEpoch &&
+        categoriaIdRef.current === requestCategoriaId
+      ) {
         setLoading(false);
       }
     }
   }
 
   function handleMappingChange(field: string, value: string) {
+    // Si había una importación en vuelo con otro mapping, su respuesta ya no
+    // pertenece a la configuración visible.
+    importSessionEpochRef.current += 1;
     setColumnMapping((prev) => ({
       ...prev,
       [field]: value,
@@ -396,6 +424,7 @@ export default function ImportarActivosPage() {
     }
 
     const requestCategoriaId = categoriaId;
+    const requestEpoch = importSessionEpochRef.current;
     setReimportingCorrected(true);
     setError("");
 
@@ -415,7 +444,11 @@ export default function ImportarActivosPage() {
         throw new Error(data.error || "Error al reimportar");
       }
 
-      if (categoriaIdRef.current !== requestCategoriaId) return;
+      if (
+        importSessionEpochRef.current !== requestEpoch ||
+        categoriaIdRef.current !== requestCategoriaId
+      )
+        return;
       // Actualizar el resultado con los nuevos importados
       if (result) {
         setResult({
@@ -432,11 +465,17 @@ export default function ImportarActivosPage() {
         setShowErrorReview(false);
       }
     } catch (err) {
-      if (categoriaIdRef.current === requestCategoriaId) {
+      if (
+        importSessionEpochRef.current === requestEpoch &&
+        categoriaIdRef.current === requestCategoriaId
+      ) {
         setError(err instanceof Error ? err.message : "Error al reimportar");
       }
     } finally {
-      if (categoriaIdRef.current === requestCategoriaId) {
+      if (
+        importSessionEpochRef.current === requestEpoch &&
+        categoriaIdRef.current === requestCategoriaId
+      ) {
         setReimportingCorrected(false);
       }
     }
@@ -624,7 +663,7 @@ export default function ImportarActivosPage() {
                   <button
                     onClick={(e) => {
                       e.preventDefault();
-                      sheetRequestVersionRef.current += 1;
+                      importSessionEpochRef.current += 1;
                       setFile(null);
                       setAvailableSheets([]);
                       setSheetName("");
@@ -660,7 +699,11 @@ export default function ImportarActivosPage() {
                 </label>
                 <select
                   value={sheetName}
-                  onChange={(e) => setSheetName(e.target.value)}
+                  onChange={(e) => {
+                    importSessionEpochRef.current += 1;
+                    setSheetName(e.target.value);
+                    resetCategoryDerivedState();
+                  }}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">Seleccionar hoja</option>
