@@ -50,7 +50,8 @@ export async function GET() {
       prisma.assetCategory.findMany({
         include: {
           _count: {
-            select: { assets: true },
+            // Excluye los registros descartados (SPEC 2.7.7).
+            select: { assets: { where: ACTIVOS_VIGENTES } },
           },
         },
       }),

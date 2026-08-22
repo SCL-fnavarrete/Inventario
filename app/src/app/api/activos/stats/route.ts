@@ -39,8 +39,9 @@ export async function GET() {
         id: true,
         nombre: true,
         _count: {
+          // El conteo excluye los registros descartados (SPEC 2.7.7).
           select: {
-            assets: true,
+            assets: { where: ACTIVOS_VIGENTES },
           },
         },
       },
