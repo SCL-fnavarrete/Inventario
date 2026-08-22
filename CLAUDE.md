@@ -243,11 +243,44 @@ La versión actual es **v1.1 (2026-04-07)**.
 
 ---
 
-## Bugs Pendientes
+## Autorizacion (Ola 1)
 
-### Bug: "Error al actualizar activo" al editar activos (detectado en Audifonos)
-- **Archivos afectados:**
-  - `src/app/(dashboard)/activos/[id]/editar/page.tsx` (linea 164) — cliente lee `error.details` y `error.message` pero servidor envia key `error`
-  - `src/app/api/activos/[id]/route.ts` — respuestas 401/404 usan key `error`, 400/500 usan `message`/`details` (formato inconsistente)
-- **Causa raiz:** El cliente no extrae correctamente el error del servidor. Para 401/404 ambas keys `details` y `message` son undefined, cae al fallback generico y no muestra el error real.
-- **Fix necesario:** Unificar formato de respuestas de error en el API y mejorar extraccion en el cliente (`error.error || error.details || error.message || fallback`)
+**Toda ruta de `src/app/api/**` abre con `requirePermission` y cierra con
+`handleApiError`.** No hay excepciones salvo `api/auth/[...nextauth]`, que es
+publica. Un test de auditoria (`src/__tests__/lib/auth/rutas-protegidas.test.ts`)
+lo verifica en cada corrida: si agregas una ruta y te olvidas, el CI falla.
+
+```ts
+export async function POST(request: NextRequest) {
+  try {
+    const session = await requirePermission('activos', 'write');
+    // ...
+  } catch (error) {
+    return handleApiError(error, 'Error al crear activo');
+  }
+}
+```
+
+- **La matriz manda.** `src/lib/auth/permissions.ts` es el unico punto de verdad
+  (SPEC 1.3.1). No verifiques roles a mano dentro de una ruta: si el permiso
+  que necesitas no existe, se cambia la matriz y el SPEC, no la ruta.
+- **La UI usa la misma matriz** via `usePermissions()` y `<Can recurso=... accion=...>`.
+  Asi un boton visible nunca lleva a un 403.
+- **Las transiciones de workflow no pasan por la matriz.** Las autoriza
+  `workflowStateMachine.canTransition`, que ya conoce el rol de cada
+  transicion. La ruta de transicion solo exige `solicitudes/read`.
+- **Formato de error unificado:** `{ error: string, details?: unknown }`.
+  `handleApiError` traduce ApiError, ZodError y los codigos de Prisma
+  (P2002/P2003/P2025), y acepta un segundo argumento con el mensaje generico de
+  la ruta. En el cliente, leer siempre `err.error` primero.
+  *(Esto cerro el bug de "Error al actualizar activo": el servidor mandaba
+  `error` y el cliente leia `details`/`message`.)*
+
+## Borrado de activos
+
+Un activo con historial o asignaciones **no se borra** (SPEC 2.7.7): su
+registro es evidencia de auditoria. `DELETE /api/activos/[id]` responde 409 y
+apunta a `/baja`. Para duplicados de importacion existe
+`DELETE /api/activos/[id]?descartar=true&motivo=...`, que marca `deletedAt` y
+deja el evento en el historial. Los listados y reportes filtran con
+`ACTIVOS_VIGENTES` de `src/lib/queries/activos.ts`.

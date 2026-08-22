@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 export async function GET() {
   try {
     await requirePermission('activos', 'read');
 
     // Obtener total de activos
-    const total = await prisma.asset.count();
+    const total = await prisma.asset.count({ where: ACTIVOS_VIGENTES });
 
     // Obtener conteo por estado
     const byStatusRaw = await prisma.asset.groupBy({
       by: ["estado"],
+      where: ACTIVOS_VIGENTES,
       _count: {
         estado: true,
       },

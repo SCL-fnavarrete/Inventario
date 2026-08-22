@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 export async function GET() {
   try {
@@ -11,7 +12,7 @@ export async function GET() {
       include: {
         categoria: true,
         assignments: {
-          where: { activo: true },
+          where: { ...ACTIVOS_VIGENTES, activo: true },
           include: {
             employee: {
               select: {

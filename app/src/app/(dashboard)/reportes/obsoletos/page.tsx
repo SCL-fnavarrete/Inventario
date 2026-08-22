@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { ArrowLeft, FileSpreadsheet, AlertTriangle, Calendar, Monitor } from "lucide-react";
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 async function getActivosObsoletos() {
   const cincoAnosAtras = new Date();
@@ -8,6 +9,7 @@ async function getActivosObsoletos() {
 
   const activos = await prisma.asset.findMany({
     where: {
+      ...ACTIVOS_VIGENTES,
       estado: { not: "baja" },
       OR: [
         { sistemaOperativo: { contains: "Windows 10", mode: "insensitive" } },

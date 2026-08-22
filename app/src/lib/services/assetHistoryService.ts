@@ -1,6 +1,24 @@
 import { prisma } from '@/lib/prisma'
 import { TipoEvento, Asset, Prisma } from '@prisma/client'
 
+/**
+ * Cliente dentro de una `prisma.$transaction`. Mismo alias que usa
+ * `workflowExecutionService`.
+ */
+export type PrismaTx = Prisma.TransactionClient
+
+/**
+ * Los metodos aceptan un `tx` opcional como ultimo parametro. Sin el, escriben
+ * con el cliente global, que es como los llama la mayoria del codigo. Con el,
+ * la entrada de historial se confirma o se descarta junto con el cambio que
+ * documenta: un historial que sobrevive a una escritura fallida es peor que no
+ * tenerlo, porque miente.
+ *
+ * Va al final y no al principio -- a diferencia de workflowExecutionService,
+ * donde el `tx` es obligatorio -- porque un parametro opcional no puede ir
+ * primero sin romper las llamadas existentes.
+ */
+
 export type AssetHistoryData = {
   assetId: string
   tipoEvento: TipoEvento
@@ -18,8 +36,8 @@ export const assetHistoryService = {
   /**
    * Registra un evento en el historial del activo
    */
-  async registrar(data: AssetHistoryData) {
-    return prisma.assetHistory.create({
+  async registrar(data: AssetHistoryData, tx?: PrismaTx) {
+    return (tx ?? prisma).assetHistory.create({
       data: {
         assetId: data.assetId,
         tipoEvento: data.tipoEvento,
@@ -110,7 +128,8 @@ export const assetHistoryService = {
     estadoAnterior: string,
     estadoNuevo: string,
     motivo?: string,
-    usuario?: string
+    usuario?: string,
+    tx?: PrismaTx
   ) {
     return this.registrar({
       assetId,
@@ -119,7 +138,7 @@ export const assetHistoryService = {
       datosAnteriores: { estado: estadoAnterior },
       datosNuevos: { estado: estadoNuevo, motivo },
       usuarioSistema: usuario,
-    })
+    }, tx)
   },
 
   /**
@@ -155,7 +174,8 @@ export const assetHistoryService = {
     assetId: string,
     datosAnteriores: Prisma.InputJsonValue,
     datosNuevos: Prisma.InputJsonValue,
-    usuario?: string
+    usuario?: string,
+    tx?: PrismaTx
   ) {
     const anteriores = datosAnteriores as Record<string, unknown>;
     const nuevos = datosNuevos as Record<string, unknown>;
@@ -171,7 +191,7 @@ export const assetHistoryService = {
       datosAnteriores,
       datosNuevos,
       usuarioSistema: usuario,
-    })
+    }, tx)
   },
 
   /**

@@ -6,6 +6,7 @@ import {
 } from "@/lib/validations/purchase";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 // GET /api/compras - Listar compras/facturas con filtros y paginación
 export async function GET(request: NextRequest) {
@@ -177,7 +178,7 @@ export async function POST(request: NextRequest) {
     if (data.assets && data.assets.length > 0) {
       const assetIds = data.assets.map((a) => a.assetId);
       const existingAssets = await prisma.asset.findMany({
-        where: { id: { in: assetIds } },
+        where: { ...ACTIVOS_VIGENTES, id: { in: assetIds } },
         select: { id: true },
       });
 

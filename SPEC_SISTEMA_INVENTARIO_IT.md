@@ -1482,9 +1482,55 @@ Autor: Arquitectura generada para desarrollo por IA
 
 ---
 
+### 2.7.7 Borrado de activos: el historial no se destruye
+
+Un activo con historial o con asignaciones **no se elimina**. El registro de
+auditoría es evidencia (ISO 9001, 7.5.3) y borrarlo junto con el activo destruye
+justamente lo que da fe de lo ocurrido.
+
+`DELETE /api/activos/{id}` se comporta así:
+
+| Situación del activo | Respuesta |
+|---|---|
+| Tiene historial o asignaciones | **409**, indicando que corresponde darlo de baja con `POST /api/activos/{id}/baja` |
+| Está asignado a alguien (`estado = asignado`) | **409**: primero se devuelve el equipo |
+| Sin historial ni asignaciones (creado por error) | Borrado físico permitido |
+
+**Campo nuevo `deletedAt` (`deleted_at`, `DateTime?`, nullable).** Marca un
+activo como retirado de los listados sin borrar su fila ni su historial. Su
+razón de ser es el caso concreto que hoy se resuelve borrando: los duplicados
+que deja una importación. Reglas:
+
+- `deletedAt = null` es un activo vigente. Es el valor por defecto.
+- Un activo con `deletedAt` no aparece en listados, búsquedas, reportes ni
+  estadísticas, y no puede asignarse.
+- Su ficha y su historial siguen siendo accesibles por id: la trazabilidad no
+  se pierde.
+- Marcar un activo con `deletedAt` deja un evento `baja` en `AssetHistory`, con
+  el motivo y el usuario que lo hizo.
+- Sólo `admin` puede marcarlo (acción `delete` sobre el recurso `activos`,
+  sección 1.3.1).
+
+**Cómo se marca.** `DELETE /api/activos/{id}?descartar=true&motivo=...`. El
+motivo es obligatorio: descartar sin decir por qué deja el mismo vacío de
+evidencia que se está corrigiendo. La operación escribe el evento en
+`AssetHistory` y marca `deletedAt` en una sola transacción.
+
+`deletedAt` **no reemplaza** al estado `baja`. Son cosas distintas: `baja` es un
+estado del ciclo de vida del equipo, con fecha y motivo, y el activo sigue
+apareciendo en el inventario como dado de baja. `deletedAt` dice que el registro
+nunca debió existir como fila separada.
+
+---
+
 ## Changelog SPEC
 
 - **v1.0 (2025):** Versión inicial — 12 modelos, stack definido, metodología BMAD.
+- **v1.3 (2026-08-21):**
+  - Sección 1.3.1: matriz de permisos ejecutable (13 recursos × 3 acciones × 5 roles) como único punto de verdad de la autorización, consumida por la API y por la UI.
+  - Sección 1.3.1: se corrige la divergencia en importación masiva — importar activos y empleados exige `admin` o `tecnico`; el código lo permitía a `supervisor` y `rrhh`, contra el "solo lectura" del SPEC.
+  - Sección 2.7.7: borrado de activos con historial prohibido (409, corresponde baja) y campo `deletedAt` para retirar duplicados de importación sin destruir la auditoría.
+  - Atomicidad: la actualización de un activo escribe historial y activo en una sola transacción.
 - **v1.2 (2026-04-07):**
   - Sección 2.7: Máquina de estados del ciclo de vida de activos con 12 transiciones válidas, precondiciones y efectos.
   - Sección 2.7.3: Proceso de baja con motivos y condición final.

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { linkAssetsToPurchaseSchema, purchaseAssetSchema } from "@/lib/validations/purchase";
 import { z } from "zod";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Verificar que los activos existen
     const existingAssets = await prisma.asset.findMany({
-      where: { id: { in: data.assetIds } },
+      where: { ...ACTIVOS_VIGENTES, id: { in: data.assetIds } },
       select: { id: true, numeroSerie: true },
     });
 

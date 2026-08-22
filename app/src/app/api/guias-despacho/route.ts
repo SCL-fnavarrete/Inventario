@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { EstadoGuia, TipoDespacho } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 // GET /api/guias-despacho - Listar guías de despacho
 export async function GET(request: NextRequest) {
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
 
     // Verificar que los activos existen
     const assets = await prisma.asset.findMany({
-      where: { id: { in: assetIds } },
+      where: { ...ACTIVOS_VIGENTES, id: { in: assetIds } },
     });
 
     if (assets.length !== assetIds.length) {

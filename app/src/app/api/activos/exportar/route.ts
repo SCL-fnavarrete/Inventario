@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 // Mapeo de estados para mostrar en español
 const ESTADO_LABELS: Record<string, string> = {
@@ -28,7 +29,8 @@ export async function GET(request: NextRequest) {
     const categoriaId = searchParams.get("categoriaId") || "";
 
     // Construir filtros
-    const where: Record<string, unknown> = {};
+    // Los registros descartados no se exportan (SPEC 2.7.7).
+    const where: Record<string, unknown> = { ...ACTIVOS_VIGENTES };
     if (estado) {
       where.estado = estado;
     }

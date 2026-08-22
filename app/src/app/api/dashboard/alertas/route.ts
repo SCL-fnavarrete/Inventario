@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 export async function GET() {
   try {
@@ -75,6 +76,7 @@ export async function GET() {
     // Activos danados sin mantenimiento programado
     const activosDanados = await prisma.asset.findMany({
       where: {
+        ...ACTIVOS_VIGENTES,
         condicion: "danado",
         NOT: {
           maintenances: {
@@ -106,6 +108,7 @@ export async function GET() {
     nextMonth.setDate(nextMonth.getDate() + 30);
     const garantiaPorVencer = await prisma.asset.findMany({
       where: {
+        ...ACTIVOS_VIGENTES,
         fechaGarantiaFin: {
           gte: today,
           lte: nextMonth,

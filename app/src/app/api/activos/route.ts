@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createAssetSchema } from "@/lib/validations/asset";
 import { assetHistoryService } from "@/lib/services/assetHistoryService";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,7 +17,8 @@ export async function GET(request: NextRequest) {
     const categoriaId = searchParams.get("categoriaId") || "";
     const empleadoActualId = searchParams.get("empleadoActualId") || "";
 
-    const where: Record<string, unknown> = {};
+    // Los registros descartados no aparecen en el listado (SPEC 2.7.7).
+    const where: Record<string, unknown> = { ...ACTIVOS_VIGENTES };
 
     if (search) {
       where.OR = [
