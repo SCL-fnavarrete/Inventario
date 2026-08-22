@@ -3,6 +3,9 @@ import { executeAssignment } from '@/lib/services/workflowExecutionService';
 
 describe('executeAssignment', () => {
   test('rechaza un activo descartado como si no existiera', async () => {
+    const assignmentCreate = jest.fn().mockResolvedValue({ id: 'assignment-1' });
+    const assetUpdate = jest.fn().mockResolvedValue({});
+    const assetHistoryCreate = jest.fn().mockResolvedValue({});
     const tx = {
       asset: {
         findUnique: jest.fn().mockResolvedValue({
@@ -11,7 +14,7 @@ describe('executeAssignment', () => {
           deletedAt: new Date('2026-08-20T00:00:00.000Z'),
           empleadoActualId: null,
         }),
-        update: jest.fn().mockResolvedValue({}),
+        update: assetUpdate,
       },
       employee: {
         findUnique: jest.fn().mockResolvedValue({
@@ -23,10 +26,10 @@ describe('executeAssignment', () => {
         }),
       },
       assignment: {
-        create: jest.fn().mockResolvedValue({ id: 'assignment-1' }),
+        create: assignmentCreate,
       },
       assetHistory: {
-        create: jest.fn().mockResolvedValue({}),
+        create: assetHistoryCreate,
       },
     } as unknown as Prisma.TransactionClient;
 
@@ -38,5 +41,9 @@ describe('executeAssignment', () => {
         tipoMovimiento: 'ingreso',
       })
     ).rejects.toThrow('Activo no encontrado');
+
+    expect(assignmentCreate).not.toHaveBeenCalled();
+    expect(assetUpdate).not.toHaveBeenCalled();
+    expect(assetHistoryCreate).not.toHaveBeenCalled();
   });
 });
