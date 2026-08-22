@@ -55,6 +55,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    const evidenciaOficial = tipo === 'entrega'
+      ? assignment.firmaEmpleadoEntrega && assignment.firmaEmpleadoEntregaEn
+      : assignment.firmaEmpleadoDevolucion && assignment.firmaEmpleadoDevolucionEn;
+    if (!evidenciaOficial) {
+      return NextResponse.json(
+        { error: `No existe evidencia oficial de ${tipo === 'entrega' ? 'entrega' : 'devolución'} para esta asignación` },
+        { status: 409 }
+      );
+    }
+
     // Crear PDF
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X, Package, AlertCircle } from "lucide-react";
 import OfficialEvidenceFields from '@/components/ui/OfficialEvidenceFields';
 
@@ -25,6 +25,13 @@ export interface ReturnAssetData {
   aceptaPoliticaUso: boolean;
 }
 
+function initialReturnAssetData(): ReturnAssetData {
+  return {
+    fechaDevolucion: new Date().toISOString().split("T")[0], recibidoPor: "", estadoDevolucion: "ok",
+    observacionesDevolucion: "", firmaEmpleadoDevolucion: null, aceptaPoliticaUso: false,
+  };
+}
+
 export default function ReturnAssetModal({
   isOpen,
   onClose,
@@ -33,14 +40,14 @@ export default function ReturnAssetModal({
 }: ReturnAssetModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [formData, setFormData] = useState<ReturnAssetData>({
-    fechaDevolucion: new Date().toISOString().split("T")[0],
-    recibidoPor: "",
-    estadoDevolucion: "ok",
-    observacionesDevolucion: "",
-    firmaEmpleadoDevolucion: null,
-    aceptaPoliticaUso: false,
-  });
+  const [formData, setFormData] = useState<ReturnAssetData>(initialReturnAssetData);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setFormData(initialReturnAssetData());
+      setError(null);
+    }
+  }, [isOpen, assetInfo.marca, assetInfo.modelo, assetInfo.numeroSerie]);
 
   if (!isOpen) return null;
 
@@ -65,14 +72,7 @@ export default function ReturnAssetModal({
 
   const handleClose = () => {
     if (!loading) {
-      setFormData({
-        fechaDevolucion: new Date().toISOString().split("T")[0],
-        recibidoPor: "",
-        estadoDevolucion: "ok",
-        observacionesDevolucion: "",
-        firmaEmpleadoDevolucion: null,
-        aceptaPoliticaUso: false,
-      });
+      setFormData(initialReturnAssetData());
       setError(null);
       onClose();
     }

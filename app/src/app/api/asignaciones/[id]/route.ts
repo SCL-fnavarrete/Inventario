@@ -50,29 +50,6 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const body = await request.json();
 
-    // Verificar que la asignación existe y está activa
-    const existingAssignment = await prisma.assignment.findUnique({
-      where: { id },
-      include: {
-        asset: true,
-        employee: true,
-      },
-    });
-
-    if (!existingAssignment) {
-      return NextResponse.json(
-        { error: "Asignación no encontrada" },
-        { status: 404 }
-      );
-    }
-
-    if (!existingAssignment.activo) {
-      return NextResponse.json(
-        { error: "Esta asignación ya fue devuelta" },
-        { status: 400 }
-      );
-    }
-
     // Validar datos de devolución
     const validationResult = returnAssignmentSchema.safeParse(body);
 
@@ -87,6 +64,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // La misma operación que usa el workflow evita un bypass de firma/política.
     const result = await prisma.$transaction(async (tx) => {
+      const eventTimestamp = new Date();
       return executeReturn(tx, {
         assignmentId: id,
         fechaDevolucion: data.fechaDevolucion,
@@ -95,7 +73,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         observacionesDevolucion: data.observacionesDevolucion,
         firmaEmpleadoDevolucion: data.firmaEmpleadoDevolucion,
         aceptaPoliticaUso: data.aceptaPoliticaUso,
-      });
+      }, { eventTimestamp });
     });
 
     return NextResponse.json(result);

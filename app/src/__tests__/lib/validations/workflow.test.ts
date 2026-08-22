@@ -199,7 +199,6 @@ describe('transitionSchema', () => {
     const result = transitionSchema.safeParse({
       nuevoEstado: 'consolidacion_cierre',
       datosAccion: {
-        terminationId: '550e8400-e29b-41d4-a716-446655440000',
         estadoNotebook: 'ok', estadoCelular: 'no_aplica', estadoMonitor: 'no_aplica', estadoKit: 'no_aplica',
         lugarDevolucion: 'Santiago',
         firmaEmpleadoDevolucion:
@@ -244,6 +243,20 @@ describe('transitionSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  test('exige datos de coordinación y rechaza espacios en campos operativos', () => {
+    expect(transitionSchema.safeParse({ nuevoEstado: 'equipo_recibido' }).success).toBe(false);
+    expect(transitionSchema.safeParse({
+      nuevoEstado: 'equipos_entregados',
+      datosAccion: {
+        assetIds: ['550e8400-e29b-41d4-a716-446655440000'],
+        lugarEntrega: '   ', firmaEmpleadoEntrega: firmaPng, aceptaPoliticaUso: true,
+      },
+    }).success).toBe(false);
+    expect(transitionSchema.safeParse({
+      nuevoEstado: 'equipo_recibido', datosAccion: { medioDevolucion: '   ' },
+    }).success).toBe(false);
+  });
+
   test('rechaza la entrega oficial sin aceptación literal de política', () => {
     expect(
       transitionSchema.safeParse({
@@ -278,7 +291,6 @@ describe('transitionSchema', () => {
       transitionSchema.safeParse({
         nuevoEstado: 'consolidacion_cierre',
         datosAccion: {
-          terminationId: '550e8400-e29b-41d4-a716-446655440000',
           estadoNotebook: 'ok',
           estadoCelular: 'no_aplica',
           estadoMonitor: 'no_aplica',

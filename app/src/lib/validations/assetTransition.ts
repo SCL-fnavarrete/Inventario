@@ -70,14 +70,14 @@ export const assetReassignmentSchema = z.object({
   assignmentId: z.string().uuid('ID de asignación inválido'),
   newEmployeeId: z.string().uuid('ID de empleado inválido'),
   estadoDevolucion: z.enum(['ok', 'incompleto']),
-  motivoReasignacion: z.string().min(1, 'El motivo de reasignación es requerido').max(500),
+  motivoReasignacion: z.string().trim().min(1, 'El motivo de reasignación es requerido').max(500),
   fechaReasignacion: z.string().min(1).transform((val) => {
     const date = new Date(val);
     if (isNaN(date.getTime())) throw new Error('Fecha inválida');
     return date;
   }),
-  lugarEntrega: z.string().min(1, 'Lugar de entrega requerido').max(100),
-  entregadoPor: z.string().max(100).optional().nullable(),
+  lugarEntrega: z.string().trim().min(1, 'Lugar de entrega requerido').max(100),
+  entregadoPor: z.string().trim().min(1).max(100).optional().nullable(),
   firmaEmpleadoDevolucion: pngSignatureSchema,
   aceptaPoliticaUsoDevolucion: policyAcceptanceSchema,
   firmaEmpleadoEntrega: pngSignatureSchema,

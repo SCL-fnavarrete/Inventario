@@ -315,6 +315,8 @@ export default function DesvinculacionDetallePage({
         montoDescuento: data.montoDescuento?.toString() || "",
         motivoDescuento: data.motivoDescuento || "",
         observaciones: data.observaciones || "",
+        firmaEmpleadoDevolucion: null,
+        aceptaPoliticaUso: false,
       }));
     } catch (err) {
       console.error("Error fetching termination:", err);

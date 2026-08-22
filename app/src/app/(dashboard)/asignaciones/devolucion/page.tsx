@@ -75,6 +75,17 @@ function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("es-CL");
 }
 
+function initialReturnData() {
+  return {
+    fechaDevolucion: new Date().toISOString().split("T")[0],
+    recibidoPor: "",
+    estadoDevolucion: "ok",
+    observacionesDevolucion: "",
+    firmaEmpleadoDevolucion: null as string | null,
+    aceptaPoliticaUso: false,
+  };
+}
+
 export default function DevolucionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -86,20 +97,14 @@ export default function DevolucionPage() {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedAssignments, setSelectedAssignments] = useState<string[]>([]);
-  const [returnData, setReturnData] = useState({
-    fechaDevolucion: new Date().toISOString().split("T")[0],
-    recibidoPor: "",
-    estadoDevolucion: "ok",
-    observacionesDevolucion: "",
-    firmaEmpleadoDevolucion: null as string | null,
-    aceptaPoliticaUso: false,
-  });
+  const [returnData, setReturnData] = useState(initialReturnData);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
   // Si viene con ID preseleccionado, cargar esa asignación
   useEffect(() => {
+    setReturnData(initialReturnData());
     if (preselectedId) {
       loadAssignmentById(preselectedId);
     }
@@ -119,6 +124,7 @@ export default function DevolucionPage() {
       setEmployee(assignment.employee);
       setAssignments([assignment]);
       setSelectedAssignments([assignment.id]);
+      setReturnData(initialReturnData());
       setStep(2);
     } catch (err) {
       setError("Error al cargar la asignación");
@@ -132,6 +138,7 @@ export default function DevolucionPage() {
     setError("");
     setEmployee(null);
     setAssignments([]);
+    setReturnData(initialReturnData());
 
     try {
       // Buscar empleado por RUT
@@ -194,18 +201,18 @@ export default function DevolucionPage() {
     setError("");
 
     try {
-      // Procesar cada devolución
-      for (const assignmentId of selectedAssignments) {
-        const res = await fetch(`/api/asignaciones/${assignmentId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(returnData),
-        });
-
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || "Error al procesar devolución");
-        }
+      const res = await fetch('/api/asignaciones/devolucion-lote', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...returnData,
+          assignmentIds: selectedAssignments,
+          employeeId: employee?.id,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Error al procesar devolución");
       }
 
       setSuccess(true);
@@ -347,6 +354,7 @@ export default function DevolucionPage() {
                   setEmployee(null);
                   setAssignments([]);
                   setSelectedAssignments([]);
+                  setReturnData(initialReturnData());
                 }}
                 className="ml-auto text-sm text-orange-600 hover:underline"
               >
@@ -417,6 +425,7 @@ export default function DevolucionPage() {
                   setEmployee(null);
                   setAssignments([]);
                   setSelectedAssignments([]);
+                  setReturnData(initialReturnData());
                 }}
                 className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
               >
@@ -599,7 +608,10 @@ export default function DevolucionPage() {
             <div className="flex justify-between">
               <button
                 type="button"
-                onClick={() => setStep(2)}
+                onClick={() => {
+                  setStep(2);
+                  setReturnData(initialReturnData());
+                }}
                 className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 Atrás
@@ -676,14 +688,7 @@ export default function DevolucionPage() {
                 setAssignments([]);
                 setSelectedAssignments([]);
                 setSuccess(false);
-    setReturnData({
-      fechaDevolucion: new Date().toISOString().split("T")[0],
-      recibidoPor: "",
-      estadoDevolucion: "ok",
-      observacionesDevolucion: "",
-      firmaEmpleadoDevolucion: null,
-      aceptaPoliticaUso: false,
-    });
+                setReturnData(initialReturnData());
               }}
               className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
             >

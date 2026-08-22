@@ -53,7 +53,17 @@ export default function ReasignarActivoPage() {
   const [firmaEmpleadoEntrega, setFirmaEmpleadoEntrega] = useState<string | null>(null);
   const [aceptaPoliticaUsoEntrega, setAceptaPoliticaUsoEntrega] = useState(false);
 
+  const resetEvidence = () => {
+    setLugarEntrega('');
+    setEntregadoPor('');
+    setFirmaEmpleadoDevolucion(null);
+    setAceptaPoliticaUsoDevolucion(false);
+    setFirmaEmpleadoEntrega(null);
+    setAceptaPoliticaUsoEntrega(false);
+  };
+
   useEffect(() => {
+    resetEvidence();
     fetch(`/api/activos/${id}`)
       .then((res) => res.json())
       .then((data) => {
@@ -234,7 +244,7 @@ export default function ReasignarActivoPage() {
                     .map((emp) => (
                       <button
                         key={emp.id}
-                        onClick={() => setSelectedEmployee(emp)}
+                        onClick={() => { setSelectedEmployee(emp); resetEvidence(); }}
                         className={`w-full text-left p-3 text-sm hover:bg-gray-50 ${
                           selectedEmployee?.id === emp.id ? 'bg-indigo-50' : ''
                         }`}
@@ -264,11 +274,11 @@ export default function ReasignarActivoPage() {
               </div>
 
               <div className="flex justify-between">
-                <button onClick={() => setStep(1)} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+                <button onClick={() => { setStep(1); resetEvidence(); }} className="px-4 py-2 text-gray-600 hover:text-gray-800">
                   ← Volver
                 </button>
                 <button
-                  onClick={() => setStep(3)}
+                  onClick={() => { resetEvidence(); setStep(3); }}
                   disabled={!selectedEmployee || !motivoReasignacion}
                   className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                 >
@@ -341,7 +351,7 @@ export default function ReasignarActivoPage() {
               />
 
               <div className="flex justify-between pt-4">
-                <button onClick={() => setStep(2)} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+                <button onClick={() => { resetEvidence(); setStep(2); }} className="px-4 py-2 text-gray-600 hover:text-gray-800">
                   ← Volver
                 </button>
                 <button

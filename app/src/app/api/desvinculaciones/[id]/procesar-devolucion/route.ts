@@ -25,20 +25,9 @@ export async function POST(
 
     const data = validationResult.data;
 
-    // Verificar que existe la desvinculación
-    const termination = await prisma.termination.findUnique({
-      where: { id },
-    });
-
-    if (!termination) {
-      return NextResponse.json(
-        { error: "Desvinculación no encontrada" },
-        { status: 404 }
-      );
-    }
-
     // Procesar devolución en transacción usando servicio compartido
-    await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
+      const eventTimestamp = new Date();
       return executeTerminationReturn(tx, {
         terminationId: id,
         fechaDevolucionEquipos: data.fechaDevolucionEquipos,
@@ -54,27 +43,10 @@ export async function POST(
         observaciones: data.observaciones,
         firmaEmpleadoDevolucion: data.firmaEmpleadoDevolucion,
         aceptaPoliticaUso: data.aceptaPoliticaUso,
-      });
+      }, { eventTimestamp });
     });
 
-    // Recargar con todas las relaciones
-    const finalTermination = await prisma.termination.findUnique({
-      where: { id },
-      include: {
-        employee: {
-          include: {
-            assignments: {
-              include: {
-                asset: { include: { categoria: true } },
-              },
-              orderBy: { fechaEntrega: "desc" },
-            },
-          },
-        },
-      },
-    });
-
-    return NextResponse.json(finalTermination);
+    return NextResponse.json(result);
   } catch (error) {
     return handleApiError(error, 'Error al procesar devolución');
   }

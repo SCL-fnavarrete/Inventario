@@ -5,6 +5,7 @@ import { ZodError } from 'zod';
 import { authOptions } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { can, type Accion, type Recurso } from './permissions';
+import { ServiceOperationError } from '@/lib/errors/serviceOperationError';
 
 /**
  * Guard de autorizacion y traductor unico de errores para las rutas de API.
@@ -124,6 +125,10 @@ export function handleApiError(
         : { error: error.message, details: error.details },
       { status: error.status }
     );
+  }
+
+  if (error instanceof ServiceOperationError) {
+    return NextResponse.json({ error: error.message }, { status: error.status });
   }
 
   if (error instanceof ZodError) {

@@ -141,6 +141,15 @@ function getStatesForType(tipo: string): string[] {
   return map[tipo] || [];
 }
 
+function initialActionData() {
+  return {
+    assetIds: [] as string[], lugarEntrega: '', oldAssignmentId: '', newAssetId: '', estadoDevolucion: 'ok',
+    estadoNotebook: 'no_aplica', estadoCelular: 'no_aplica', estadoMonitor: 'no_aplica', estadoKit: 'no_aplica',
+    lugarDevolucion: '', medioDevolucion: '', otChilexpress: '',
+    firmaEmpleadoEntrega: null as string | null, firmaEmpleadoDevolucion: null as string | null, aceptaPoliticaUso: false,
+  };
+}
+
 export default function SolicitudDetailPage() {
   const params = useParams();
   const id = params.id as string;
@@ -154,24 +163,7 @@ export default function SolicitudDetailPage() {
   const [error, setError] = useState('');
   const [transitionFormOpen, setTransitionFormOpen] = useState(false);
   const [availableAssets, setAvailableAssets] = useState<AvailableAsset[]>([]);
-  const [actionData, setActionData] = useState({
-    assetIds: [] as string[],
-    lugarEntrega: '',
-    oldAssignmentId: '',
-    newAssetId: '',
-    estadoDevolucion: 'ok',
-    estadoNotebook: 'no_aplica',
-    estadoCelular: 'no_aplica',
-    estadoMonitor: 'no_aplica',
-    estadoKit: 'no_aplica',
-    terminationId: '',
-    lugarDevolucion: '',
-    medioDevolucion: '',
-    otChilexpress: '',
-    firmaEmpleadoEntrega: null as string | null,
-    firmaEmpleadoDevolucion: null as string | null,
-    aceptaPoliticaUso: false,
-  });
+  const [actionData, setActionData] = useState(initialActionData);
 
   const fetchData = useCallback(async () => {
     try {
@@ -188,6 +180,11 @@ export default function SolicitudDetailPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    setTransitionFormOpen(false);
+    setActionData(initialActionData());
+  }, [id, data?.estado]);
 
   const handleAddComment = async () => {
     if (!commentText.trim()) return;
@@ -244,10 +241,7 @@ export default function SolicitudDetailPage() {
       return;
     }
     setError('');
-    setActionData((previous) => ({
-      ...previous,
-      terminationId: data?.terminationId || previous.terminationId,
-    }));
+    setActionData(initialActionData());
     setTransitionFormOpen(true);
     if (nuevoEstado === 'equipos_entregados' || nuevoEstado === 'cambio_ejecutado') {
       try {
@@ -297,12 +291,11 @@ export default function SolicitudDetailPage() {
         aceptaPoliticaUso: true,
       };
     } else if (nuevoEstado === 'consolidacion_cierre') {
-      if (!actionData.terminationId || !actionData.lugarDevolucion || !actionData.firmaEmpleadoDevolucion || !actionData.aceptaPoliticaUso) {
-        setError('La devolución final requiere desvinculación, lugar, firma y aceptación de política.');
+      if (!actionData.lugarDevolucion.trim() || !actionData.firmaEmpleadoDevolucion || !actionData.aceptaPoliticaUso) {
+        setError('La devolución final requiere lugar, firma y aceptación de política.');
         return;
       }
       datosAccion = {
-        terminationId: actionData.terminationId,
         estadoNotebook: actionData.estadoNotebook,
         estadoCelular: actionData.estadoCelular,
         estadoMonitor: actionData.estadoMonitor,
@@ -324,6 +317,7 @@ export default function SolicitudDetailPage() {
 
     if (await handleTransition(nuevoEstado, datosAccion)) {
       setTransitionFormOpen(false);
+      setActionData(initialActionData());
     }
   };
 
@@ -478,6 +472,8 @@ export default function SolicitudDetailPage() {
                                   assetIds: event.target.checked
                                     ? [...previous.assetIds, asset.id]
                                     : previous.assetIds.filter((id) => id !== asset.id),
+                                  firmaEmpleadoEntrega: null,
+                                  aceptaPoliticaUso: false,
                                 }))
                               }
                             />
@@ -494,15 +490,15 @@ export default function SolicitudDetailPage() {
                     <>
                       <h4 className="mb-3 font-medium text-gray-900">Evidencia del cambio de equipo</h4>
                       <label className="block text-sm font-medium" htmlFor="asignacion-anterior">Asignación anterior a devolver</label>
-                      <select id="asignacion-anterior" value={actionData.oldAssignmentId} onChange={(event) => setActionData((previous) => ({ ...previous, oldAssignmentId: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2"><option value="">No se devuelve asignación</option>{data.employee.assignments.filter((assignment) => assignment.activo).map((assignment) => <option key={assignment.id} value={assignment.id}>{assignment.asset.marca} {assignment.asset.modelo}</option>)}</select>
+                      <select id="asignacion-anterior" value={actionData.oldAssignmentId} onChange={(event) => setActionData((previous) => ({ ...previous, oldAssignmentId: event.target.value, firmaEmpleadoDevolucion: null, firmaEmpleadoEntrega: null, aceptaPoliticaUso: false }))} className="mt-1 w-full rounded border border-gray-300 p-2"><option value="">No se devuelve asignación</option>{data.employee.assignments.filter((assignment) => assignment.activo).map((assignment) => <option key={assignment.id} value={assignment.id}>{assignment.asset.marca} {assignment.asset.modelo}</option>)}</select>
                       {actionData.oldAssignmentId && <><label className="mt-3 block text-sm font-medium" htmlFor="estado-devolucion">Estado de devolución</label><select id="estado-devolucion" value={actionData.estadoDevolucion} onChange={(event) => setActionData((previous) => ({ ...previous, estadoDevolucion: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2"><option value="ok">OK</option><option value="danado">Dañado</option><option value="incompleto">Incompleto</option></select><div className="mt-3"><OfficialEvidenceFields kind="devolucion" suffix=" anterior" signature={actionData.firmaEmpleadoDevolucion} onSignatureChange={(firmaEmpleadoDevolucion) => setActionData((previous) => ({ ...previous, firmaEmpleadoDevolucion }))} accepted={actionData.aceptaPoliticaUso} onAcceptedChange={(aceptaPoliticaUso) => setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))} /></div></>}
-                      <label className="mt-3 block text-sm font-medium" htmlFor="activo-nuevo">Activo nuevo a entregar</label><select id="activo-nuevo" value={actionData.newAssetId} onChange={(event) => setActionData((previous) => ({ ...previous, newAssetId: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2"><option value="">No se entrega activo</option>{availableAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.marca} {asset.modelo}</option>)}</select>
+                      <label className="mt-3 block text-sm font-medium" htmlFor="activo-nuevo">Activo nuevo a entregar</label><select id="activo-nuevo" value={actionData.newAssetId} onChange={(event) => setActionData((previous) => ({ ...previous, newAssetId: event.target.value, firmaEmpleadoDevolucion: null, firmaEmpleadoEntrega: null, aceptaPoliticaUso: false }))} className="mt-1 w-full rounded border border-gray-300 p-2"><option value="">No se entrega activo</option>{availableAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.marca} {asset.modelo}</option>)}</select>
                       {actionData.newAssetId && <><label className="mt-3 block text-sm font-medium" htmlFor="lugar-cambio">Lugar de entrega</label><input id="lugar-cambio" value={actionData.lugarEntrega} onChange={(event) => setActionData((previous) => ({ ...previous, lugarEntrega: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" /><div className="mt-3"><OfficialEvidenceFields kind="entrega" suffix=" nueva" signature={actionData.firmaEmpleadoEntrega} onSignatureChange={(firmaEmpleadoEntrega) => setActionData((previous) => ({ ...previous, firmaEmpleadoEntrega }))} accepted={actionData.aceptaPoliticaUso} onAcceptedChange={(aceptaPoliticaUso) => setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))} /></div></>}
                     </>
                   )}
                   {nextState === 'equipo_recibido' && <><h4 className="mb-3 font-medium text-gray-900">Coordinación de devolución</h4><label className="block text-sm font-medium" htmlFor="medio-devolucion">Medio de devolución</label><input id="medio-devolucion" value={actionData.medioDevolucion} onChange={(event) => setActionData((previous) => ({ ...previous, medioDevolucion: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" /><label className="mt-3 block text-sm font-medium" htmlFor="ot-chilexpress">Orden de transporte</label><input id="ot-chilexpress" value={actionData.otChilexpress} onChange={(event) => setActionData((previous) => ({ ...previous, otChilexpress: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" /></>}
-                  {nextState === 'consolidacion_cierre' && <><h4 className="mb-3 font-medium text-gray-900">Registrar devolución final</h4><label className="block text-sm font-medium" htmlFor="termination-id">ID de desvinculación</label><input id="termination-id" value={actionData.terminationId} onChange={(event) => setActionData((previous) => ({ ...previous, terminationId: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" />{(['Notebook', 'Celular', 'Monitor', 'Kit'] as const).map((tipo) => { const key = `estado${tipo}` as 'estadoNotebook' | 'estadoCelular' | 'estadoMonitor' | 'estadoKit'; return <label key={key} className="mt-3 block text-sm font-medium">Estado {tipo}<select value={actionData[key]} onChange={(event) => setActionData((previous) => ({ ...previous, [key]: event.target.value }))} className="mt-1 block w-full rounded border border-gray-300 p-2"><option value="ok">OK</option><option value="danado">Dañado</option><option value="no_aplica">No aplica</option><option value="pendiente">Pendiente</option></select></label>; })}<label className="mt-3 block text-sm font-medium" htmlFor="lugar-devolucion">Lugar de devolución</label><input id="lugar-devolucion" value={actionData.lugarDevolucion} onChange={(event) => setActionData((previous) => ({ ...previous, lugarDevolucion: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" /><div className="mt-3"><OfficialEvidenceFields kind="devolucion" signature={actionData.firmaEmpleadoDevolucion} onSignatureChange={(firmaEmpleadoDevolucion) => setActionData((previous) => ({ ...previous, firmaEmpleadoDevolucion }))} accepted={actionData.aceptaPoliticaUso} onAcceptedChange={(aceptaPoliticaUso) => setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))} /></div></>}
-                  <div className="mt-4 flex gap-2"><button type="button" onClick={() => setTransitionFormOpen(false)} disabled={transitioning} className="rounded border border-gray-300 px-3 py-2 text-sm">Cancelar</button><button type="button" onClick={() => submitTransitionEvidence(nextState)} disabled={transitioning} className="rounded bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50">{transitioning ? 'Guardando...' : nextState === 'equipos_entregados' ? 'Confirmar entrega' : 'Confirmar transición'}</button></div>
+                  {nextState === 'consolidacion_cierre' && <><h4 className="mb-3 font-medium text-gray-900">Registrar devolución final</h4>{(['Notebook', 'Celular', 'Monitor', 'Kit'] as const).map((tipo) => { const key = `estado${tipo}` as 'estadoNotebook' | 'estadoCelular' | 'estadoMonitor' | 'estadoKit'; return <label key={key} className="mt-3 block text-sm font-medium">Estado {tipo}<select value={actionData[key]} onChange={(event) => setActionData((previous) => ({ ...previous, [key]: event.target.value }))} className="mt-1 block w-full rounded border border-gray-300 p-2"><option value="ok">OK</option><option value="danado">Dañado</option><option value="no_aplica">No aplica</option><option value="pendiente">Pendiente</option></select></label>; })}<label className="mt-3 block text-sm font-medium" htmlFor="lugar-devolucion">Lugar de devolución</label><input id="lugar-devolucion" value={actionData.lugarDevolucion} onChange={(event) => setActionData((previous) => ({ ...previous, lugarDevolucion: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" /><div className="mt-3"><OfficialEvidenceFields kind="devolucion" signature={actionData.firmaEmpleadoDevolucion} onSignatureChange={(firmaEmpleadoDevolucion) => setActionData((previous) => ({ ...previous, firmaEmpleadoDevolucion }))} accepted={actionData.aceptaPoliticaUso} onAcceptedChange={(aceptaPoliticaUso) => setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))} /></div></>}
+                  <div className="mt-4 flex gap-2"><button type="button" onClick={() => { setTransitionFormOpen(false); setActionData(initialActionData()); }} disabled={transitioning} className="rounded border border-gray-300 px-3 py-2 text-sm">Cancelar</button><button type="button" onClick={() => submitTransitionEvidence(nextState)} disabled={transitioning} className="rounded bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50">{transitioning ? 'Guardando...' : nextState === 'equipos_entregados' ? 'Confirmar entrega' : 'Confirmar transición'}</button></div>
                 </div>
               )}
             </div>

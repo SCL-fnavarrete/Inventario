@@ -102,7 +102,7 @@ const estadoDevolucionTermino = z.enum(['ok', 'danado', 'no_aplica', 'pendiente'
 const deliveryActionSchema = z
   .object({
     assetIds: z.array(uuid).min(1, 'Debe seleccionar al menos un activo'),
-    lugarEntrega: z.string().min(1, 'Lugar de entrega requerido').max(100),
+    lugarEntrega: z.string().trim().min(1, 'Lugar de entrega requerido').max(100),
     firmaEmpleadoEntrega: pngSignatureSchema,
     aceptaPoliticaUso: policyAcceptanceSchema,
   })
@@ -110,12 +110,11 @@ const deliveryActionSchema = z
 
 const returnActionSchema = z
   .object({
-    terminationId: uuid,
     estadoNotebook: estadoDevolucionTermino,
     estadoCelular: estadoDevolucionTermino,
     estadoMonitor: estadoDevolucionTermino,
     estadoKit: estadoDevolucionTermino,
-    lugarDevolucion: z.string().min(1, 'Lugar de devolución requerido').max(100),
+    lugarDevolucion: z.string().trim().min(1, 'Lugar de devolución requerido').max(100),
     firmaEmpleadoDevolucion: pngSignatureSchema,
     aceptaPoliticaUso: policyAcceptanceSchema,
   })
@@ -126,7 +125,7 @@ const changeActionSchema = z
     oldAssignmentId: uuid.optional(),
     estadoDevolucion: estadoDevolucion.optional(),
     newAssetId: uuid.optional(),
-    lugarEntrega: z.string().min(1).max(100).optional(),
+    lugarEntrega: z.string().trim().min(1).max(100).optional(),
     firmaEmpleadoEntrega: pngSignatureSchema.optional(),
     firmaEmpleadoDevolucion: pngSignatureSchema.optional(),
     aceptaPoliticaUso: policyAcceptanceSchema,
@@ -154,8 +153,8 @@ const changeActionSchema = z
 
 const logisticsActionSchema = z
   .object({
-    medioDevolucion: z.string().min(1).max(100).optional(),
-    otChilexpress: z.string().min(1).max(100).optional(),
+    medioDevolucion: z.string().trim().min(1).max(100).optional(),
+    otChilexpress: z.string().trim().min(1).max(100).optional(),
   })
   .strict()
   .refine((data) => data.medioDevolucion || data.otChilexpress, {
@@ -191,7 +190,7 @@ export const transitionSchema = z.discriminatedUnion('nuevoEstado', [
     .object({
       nuevoEstado: z.literal('equipo_recibido'),
       ...commonTransitionFields,
-      datosAccion: logisticsActionSchema.optional(),
+      datosAccion: logisticsActionSchema,
     })
     .strict(),
   z

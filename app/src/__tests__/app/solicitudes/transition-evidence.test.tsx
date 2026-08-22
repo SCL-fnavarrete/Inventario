@@ -86,7 +86,8 @@ describe('detalle de solicitud — evidencia de transición', () => {
     fireEvent.change(screen.getByLabelText('Lugar de entrega'), { target: { value: 'Santiago' } });
     const canvas = screen.getByLabelText('Firma de entrega');
     fireEvent.pointerDown(canvas, { clientX: 20, clientY: 20, pointerId: 1 });
-    fireEvent.pointerUp(canvas, { clientX: 20, clientY: 20, pointerId: 1 });
+    fireEvent.pointerMove(canvas, { clientX: 22, clientY: 22, pointerId: 1 });
+    fireEvent.pointerUp(canvas, { clientX: 22, clientY: 22, pointerId: 1 });
     fireEvent.click(screen.getByLabelText(/Acepto la política de uso/i));
     fireEvent.click(screen.getByRole('button', { name: /Confirmar entrega/i }));
 
@@ -106,5 +107,23 @@ describe('detalle de solicitud — evidencia de transición', () => {
         aceptaPoliticaUso: true,
       },
     });
+  });
+
+  test('limpia firma y aceptación al cancelar y reabrir el acto de entrega', async () => {
+    render(<SolicitudDetailPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /Avanzar a Equipos Entregados/i }));
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledWith('/api/activos?estado=disponible&limit=100'));
+    const canvas = screen.getByLabelText('Firma de entrega');
+    fireEvent.pointerDown(canvas, { clientX: 20, clientY: 20, pointerId: 1 });
+    fireEvent.pointerMove(canvas, { clientX: 22, clientY: 22, pointerId: 1 });
+    fireEvent.pointerUp(canvas, { clientX: 22, clientY: 22, pointerId: 1 });
+    fireEvent.click(screen.getByLabelText(/Acepto la política de uso/i));
+    expect(screen.getByText('Firma capturada.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    fireEvent.click(screen.getByRole('button', { name: /Avanzar a Equipos Entregados/i }));
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
+    expect(screen.queryByText('Firma capturada.')).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Acepto la política de uso/i)).not.toBeChecked();
   });
 });

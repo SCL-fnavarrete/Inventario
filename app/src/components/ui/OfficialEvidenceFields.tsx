@@ -28,7 +28,7 @@ export default function OfficialEvidenceFields({
   return (
     <fieldset className="space-y-3 rounded-lg border border-gray-200 p-4">
       <legend className="px-1 text-sm font-medium text-gray-900">{title}</legend>
-      <SignaturePad label={signatureLabel} onChange={onSignatureChange} disabled={disabled} />
+      <SignaturePad label={signatureLabel} value={signature} onChange={onSignatureChange} disabled={disabled} />
       <label htmlFor={policyId} className="flex items-start gap-2 text-sm text-gray-700">
         <input
           id={policyId}

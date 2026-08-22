@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma, SystemRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { transitionSchema } from '@/lib/validations/workflow';
 import { canTransition, isFinalState } from '@/lib/services/workflowStateMachine';
@@ -6,183 +7,166 @@ import {
   executeAssignment,
   executeReturn,
   executeTerminationReturn,
+  type AssignmentEvidenceForDocument,
 } from '@/lib/services/workflowExecutionService';
-import { SystemRole } from '@prisma/client';
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { ConflictError, ForbiddenError, NotFoundError, requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // POST /api/solicitudes/[id]/transicion - Advance workflow state
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-
   try {
     const session = await requirePermission('solicitudes', 'read');
     const { id } = await params;
-    const body = await request.json();
-
-    const validationResult = transitionSchema.safeParse(body);
+    const validationResult = transitionSchema.safeParse(await request.json());
     if (!validationResult.success) {
       return NextResponse.json(
         { error: 'Datos inválidos', details: validationResult.error.issues },
         { status: 400 }
       );
     }
+    const input = validationResult.data;
 
-    const { nuevoEstado, comentario } = validationResult.data;
-    const datosAccion =
-      'datosAccion' in validationResult.data ? validationResult.data.datosAccion : undefined;
-    const datosAccionRecord = datosAccion as Record<string, unknown> | undefined;
-
-    // Find system user
     const systemUser = await prisma.systemUser.findUnique({
       where: { email: session.user?.email || '' },
     });
-    if (!systemUser) {
-      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
-    }
-
-    // Find the request
-    const workflowRequest = await prisma.workflowRequest.findUnique({
-      where: { id },
-      include: { employee: true },
-    });
-    if (!workflowRequest) {
-      return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
-    }
-
-    // Validate transition
-    if (
-      !canTransition(
-        workflowRequest.tipo,
-        workflowRequest.estado,
-        nuevoEstado,
-        systemUser.rol as SystemRole
-      )
-    ) {
-      return NextResponse.json(
-        {
-          error: `Transición no permitida de ${workflowRequest.estado} a ${nuevoEstado} para rol ${systemUser.rol}`,
-        },
-        { status: 403 }
-      );
-    }
+    if (!systemUser) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
 
     const result = await prisma.$transaction(async (tx) => {
-      const assignmentIds: string[] = [...workflowRequest.assignmentIds];
-
-      // Execute side effects based on transition
-      if (
-        workflowRequest.tipo === 'onboarding' &&
-        workflowRequest.estado === 'gestion_ti' &&
-        nuevoEstado === 'equipos_entregados'
-      ) {
-        // Create assignments for selected assets
-        const assets = (datosAccionRecord?.assetIds as string[]) || [];
-        for (const assetId of assets) {
-          const assignment = await executeAssignment(tx, {
-            assetId,
-            employeeId: workflowRequest.employeeId,
-            fechaEntrega: new Date(),
-            lugarEntrega: (datosAccionRecord?.lugarEntrega as string) || null,
-            entregadoPor: systemUser.nombre,
-            tipoMovimiento: 'ingreso',
-            motivo: `Onboarding - ${workflowRequest.numero}`,
-            firmaEmpleadoEntrega: datosAccionRecord?.firmaEmpleadoEntrega as string,
-            aceptaPoliticaUso: datosAccionRecord?.aceptaPoliticaUso as true,
-          });
-          assignmentIds.push(assignment.id);
-        }
+      const eventTimestamp = new Date();
+      // Authoritative read and state claim live in the same transaction. A second
+      // request observing the previous state gets a 409 before any effect runs.
+      const workflowRequest = await tx.workflowRequest.findUnique({
+        where: { id },
+        include: { employee: true },
+      });
+      if (!workflowRequest) throw new NotFoundError('Solicitud no encontrada');
+      if (!canTransition(workflowRequest.tipo, workflowRequest.estado, input.nuevoEstado, systemUser.rol as SystemRole)) {
+        throw new ForbiddenError(
+          `Transición no permitida de ${workflowRequest.estado} a ${input.nuevoEstado} para rol ${systemUser.rol}`
+        );
+      }
+      const claimed = await tx.workflowRequest.updateMany({
+        where: { id, estado: workflowRequest.estado },
+        data: { updatedAt: eventTimestamp },
+      });
+      if (claimed.count !== 1) {
+        throw new ConflictError('La solicitud cambió antes de procesarla; actualice e intente nuevamente');
       }
 
-      if (
-        workflowRequest.tipo === 'cambio_equipo' &&
-        workflowRequest.estado === 'incidencia_detectada' &&
-        nuevoEstado === 'cambio_ejecutado'
-      ) {
-        // Return old asset and assign new one
-        const oldAssignmentId = datosAccionRecord?.oldAssignmentId as string | undefined;
-        const newAssetId = datosAccionRecord?.newAssetId as string | undefined;
+      const assignmentIds = [...workflowRequest.assignmentIds];
+      const evidenciasParaDocumento: AssignmentEvidenceForDocument[] = [];
 
-        if (oldAssignmentId) {
-          await executeReturn(tx, {
-            assignmentId: oldAssignmentId,
-            fechaDevolucion: new Date(),
-            recibidoPor: systemUser.nombre,
-            estadoDevolucion: (datosAccionRecord?.estadoDevolucion as 'ok' | 'danado' | 'incompleto') || 'ok',
-            observacionesDevolucion: `Cambio de equipo - ${workflowRequest.numero}`,
-            firmaEmpleadoDevolucion: datosAccionRecord?.firmaEmpleadoDevolucion as string,
-            aceptaPoliticaUso: datosAccionRecord?.aceptaPoliticaUso as true,
-          });
+      switch (input.nuevoEstado) {
+        case 'equipos_entregados': {
+          if (workflowRequest.tipo === 'onboarding' && workflowRequest.estado === 'gestion_ti') {
+            for (const assetId of input.datosAccion.assetIds) {
+              const delivery = await executeAssignment(tx, {
+                assetId,
+                employeeId: workflowRequest.employeeId,
+                fechaEntrega: eventTimestamp,
+                lugarEntrega: input.datosAccion.lugarEntrega,
+                entregadoPor: systemUser.nombre,
+                tipoMovimiento: 'ingreso',
+                motivo: `Onboarding - ${workflowRequest.numero}`,
+                firmaEmpleadoEntrega: input.datosAccion.firmaEmpleadoEntrega,
+                aceptaPoliticaUso: input.datosAccion.aceptaPoliticaUso,
+              }, { eventTimestamp, expectedEmployeeId: workflowRequest.employeeId });
+              assignmentIds.push(delivery.assignment.id);
+              evidenciasParaDocumento.push(delivery.evidenciaParaDocumento);
+            }
+          }
+          break;
         }
-
-        if (newAssetId) {
-          const assignment = await executeAssignment(tx, {
-            assetId: newAssetId,
-            employeeId: workflowRequest.employeeId,
-            fechaEntrega: new Date(),
-            lugarEntrega: (datosAccionRecord?.lugarEntrega as string) || null,
-            entregadoPor: systemUser.nombre,
-            tipoMovimiento: 'cambio',
-            motivo: workflowRequest.motivoCambio || `Cambio - ${workflowRequest.numero}`,
-            firmaEmpleadoEntrega: datosAccionRecord?.firmaEmpleadoEntrega as string,
-            aceptaPoliticaUso: datosAccionRecord?.aceptaPoliticaUso as true,
-          });
-          assignmentIds.push(assignment.id);
+        case 'cambio_ejecutado': {
+          if (workflowRequest.tipo === 'cambio_equipo' && workflowRequest.estado === 'incidencia_detectada') {
+            const action = input.datosAccion;
+            if (action.oldAssignmentId) {
+              const returned = await executeReturn(tx, {
+                assignmentId: action.oldAssignmentId,
+                fechaDevolucion: eventTimestamp,
+                recibidoPor: systemUser.nombre,
+                estadoDevolucion: action.estadoDevolucion!,
+                observacionesDevolucion: `Cambio de equipo - ${workflowRequest.numero}`,
+                firmaEmpleadoDevolucion: action.firmaEmpleadoDevolucion!,
+                aceptaPoliticaUso: action.aceptaPoliticaUso,
+              }, { eventTimestamp, expectedEmployeeId: workflowRequest.employeeId });
+              evidenciasParaDocumento.push(returned.evidenciaParaDocumento);
+            }
+            if (action.newAssetId) {
+              const delivery = await executeAssignment(tx, {
+                assetId: action.newAssetId,
+                employeeId: workflowRequest.employeeId,
+                fechaEntrega: eventTimestamp,
+                lugarEntrega: action.lugarEntrega!,
+                entregadoPor: systemUser.nombre,
+                tipoMovimiento: 'cambio',
+                motivo: workflowRequest.motivoCambio || `Cambio - ${workflowRequest.numero}`,
+                firmaEmpleadoEntrega: action.firmaEmpleadoEntrega!,
+                aceptaPoliticaUso: action.aceptaPoliticaUso,
+              }, { eventTimestamp, expectedEmployeeId: workflowRequest.employeeId });
+              assignmentIds.push(delivery.assignment.id);
+              evidenciasParaDocumento.push(delivery.evidenciaParaDocumento);
+            }
+          }
+          break;
         }
+        case 'equipo_recibido': {
+          if (workflowRequest.tipo === 'devolucion_termino' && workflowRequest.estado === 'coordinacion_en_curso') {
+            await tx.workflowRequest.update({
+              where: { id },
+              data: {
+                medioDevolucion: input.datosAccion.medioDevolucion,
+                otChilexpress: input.datosAccion.otChilexpress,
+              },
+            });
+          }
+          break;
+        }
+        case 'consolidacion_cierre': {
+          if (workflowRequest.tipo === 'devolucion_termino' && workflowRequest.estado === 'equipo_recibido') {
+            const termination = workflowRequest.terminationId
+              ? await tx.termination.findUnique({ where: { id: workflowRequest.terminationId } })
+              : await tx.termination.findFirst({
+                  where: { employeeId: workflowRequest.employeeId },
+                  orderBy: { createdAt: 'desc' },
+                });
+            if (!termination) throw new NotFoundError('No existe una desvinculación para el empleado de esta solicitud');
+            if (termination.employeeId !== workflowRequest.employeeId) {
+              throw new ConflictError('La desvinculación no pertenece al empleado de la solicitud');
+            }
+            const returned = await executeTerminationReturn(tx, {
+              terminationId: termination.id,
+              fechaDevolucionEquipos: eventTimestamp,
+              estadoNotebook: input.datosAccion.estadoNotebook,
+              estadoCelular: input.datosAccion.estadoCelular,
+              estadoMonitor: input.datosAccion.estadoMonitor,
+              estadoKit: input.datosAccion.estadoKit,
+              recibidoPor: systemUser.nombre,
+              lugarDevolucion: input.datosAccion.lugarDevolucion,
+              observaciones: input.comentario || undefined,
+              firmaEmpleadoDevolucion: input.datosAccion.firmaEmpleadoDevolucion,
+              aceptaPoliticaUso: input.datosAccion.aceptaPoliticaUso,
+            }, { eventTimestamp, expectedEmployeeId: workflowRequest.employeeId });
+            evidenciasParaDocumento.push(...returned.evidenciasParaDocumento);
+            if (!workflowRequest.terminationId) {
+              await tx.workflowRequest.update({ where: { id }, data: { terminationId: termination.id } });
+            }
+          }
+          break;
+        }
+        default:
+          break;
       }
 
-      if (
-        workflowRequest.tipo === 'devolucion_termino' &&
-        workflowRequest.estado === 'coordinacion_en_curso' &&
-        nuevoEstado === 'equipo_recibido'
-      ) {
-        // Update devolucion details
-        await tx.workflowRequest.update({
-          where: { id },
-          data: {
-            medioDevolucion: (datosAccionRecord?.medioDevolucion as string) || undefined,
-            otChilexpress: (datosAccionRecord?.otChilexpress as string) || undefined,
-          },
-        });
-      }
-
-      if (
-        workflowRequest.tipo === 'devolucion_termino' &&
-        workflowRequest.estado === 'equipo_recibido' &&
-        nuevoEstado === 'consolidacion_cierre'
-      ) {
-        // Execute termination return if data provided
-        const terminationData = datosAccionRecord;
-        if (terminationData?.terminationId) {
-          const updatedTermination = await executeTerminationReturn(tx, {
-            terminationId: terminationData.terminationId as string,
-            fechaDevolucionEquipos: new Date(),
-            estadoNotebook: (terminationData.estadoNotebook as 'ok' | 'danado' | 'no_aplica' | 'pendiente') || 'no_aplica',
-            estadoCelular: (terminationData.estadoCelular as 'ok' | 'danado' | 'no_aplica' | 'pendiente') || 'no_aplica',
-            estadoMonitor: (terminationData.estadoMonitor as 'ok' | 'danado' | 'no_aplica' | 'pendiente') || 'no_aplica',
-            estadoKit: (terminationData.estadoKit as 'ok' | 'danado' | 'no_aplica' | 'pendiente') || 'no_aplica',
-            recibidoPor: systemUser.nombre,
-            lugarDevolucion: (terminationData.lugarDevolucion as string) || 'Oficina',
-            observaciones: comentario || undefined,
-            firmaEmpleadoDevolucion: terminationData.firmaEmpleadoDevolucion as string,
-            aceptaPoliticaUso: terminationData.aceptaPoliticaUso as true,
-          });
-          await tx.workflowRequest.update({
-            where: { id },
-            data: { terminationId: updatedTermination.id },
-          });
-        }
-      }
-
-      // Update the request state
-      const isFinal = isFinalState(workflowRequest.tipo, nuevoEstado);
+      const isFinal = isFinalState(workflowRequest.tipo, input.nuevoEstado);
       const updated = await tx.workflowRequest.update({
         where: { id },
         data: {
-          estado: nuevoEstado,
+          estado: input.nuevoEstado,
           assignmentIds,
-          ...(isFinal && { fechaCierre: new Date() }),
+          ...(isFinal && { fechaCierre: eventTimestamp }),
         },
         include: {
           employee: true,
@@ -190,20 +174,18 @@ export async function POST(
           responsableActual: { select: { id: true, nombre: true, rol: true } },
         },
       });
-
-      // Log the transition
+      const datosAccion = 'datosAccion' in input ? input.datosAccion : undefined;
       await tx.workflowTransition.create({
         data: {
           requestId: id,
           estadoAnterior: workflowRequest.estado,
-          estadoNuevo: nuevoEstado,
+          estadoNuevo: input.nuevoEstado,
           ejecutadoPorId: systemUser.id,
-          comentario,
-          datosAccion: datosAccion ? (datosAccion as Record<string, string | number | boolean | null>) : undefined,
+          comentario: input.comentario,
+          datosAccion: datosAccion as Prisma.InputJsonValue | undefined,
         },
       });
-
-      return updated;
+      return { workflowRequest: updated, evidenciasParaDocumento };
     });
 
     return NextResponse.json(result);

@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { ServiceConflictError, ServiceNotFoundError } from '@/lib/errors/serviceOperationError';
 import {
   OfficialDeliveryEvidence,
   OfficialReturnEvidence,
@@ -7,6 +8,13 @@ import {
 } from '@/lib/validations/signature';
 
 type PrismaTx = Prisma.TransactionClient;
+
+/** Created by an API transaction, never parsed from client input. */
+export type ServerEvidenceContext = {
+  eventTimestamp?: Date;
+  expectedEmployeeId?: string;
+  terminationId?: string;
+};
 
 export type ExecuteAssignmentParams = {
   assetId: string;
@@ -44,12 +52,17 @@ export type ExecuteTerminationReturnParams = {
 export type AssignmentEvidenceForDocument =
   | {
       tipo: 'entrega';
+      assignmentId: string;
+      employeeId: string;
       firmaEmpleado: string;
       firmaEmpleadoEn: Date;
       aceptaPoliticaUso: true;
     }
   | {
       tipo: 'devolucion';
+      assignmentId: string;
+      employeeId: string;
+      terminationId?: string;
       firmaEmpleado: string;
       firmaEmpleadoEn: Date;
       aceptaPoliticaUso: true;
@@ -61,36 +74,51 @@ function assertOfficialEvidence(
   tipo: 'entrega' | 'devolucion'
 ) {
   if (!pngSignatureSchema.safeParse(firma).success || !policyAcceptanceSchema.safeParse(aceptaPoliticaUso).success) {
-    throw new Error(`La ${tipo} requiere firma PNG y aceptación explícita de política`);
+    throw new ServiceConflictError(`La ${tipo} requiere firma PNG y aceptación explícita de política`);
   }
 }
 
+function eventTimestamp(context?: ServerEvidenceContext) {
+  return context?.eventTimestamp ?? new Date();
+}
+
+function employeeName(employee: { nombres?: string; apellidoPaterno?: string; rut?: string | null }) {
+  return `${employee.nombres || 'Empleado'} ${employee.apellidoPaterno || ''}`.trim();
+}
+
 /**
- * Creates an assignment and updates the asset state. Reusable from both
- * the direct POST /api/asignaciones route and the workflow transition endpoint.
+ * Creates an assignment after atomically claiming the available asset. The
+ * asset CAS is intentionally before Assignment.create so concurrent deliveries
+ * cannot create two active assignments for the same asset.
  */
 export async function executeAssignment(
   tx: PrismaTx,
-  params: ExecuteAssignmentParams
+  params: ExecuteAssignmentParams,
+  context?: ServerEvidenceContext
 ) {
   assertOfficialEvidence(params.firmaEmpleadoEntrega, params.aceptaPoliticaUso, 'entrega');
-  const firmaEmpleadoEntregaEn = new Date();
+  const firmaEmpleadoEntregaEn = eventTimestamp(context);
   const asset = await tx.asset.findUnique({
     where: { id: params.assetId },
     include: { categoria: true },
   });
+  if (!asset || asset.deletedAt) throw new ServiceNotFoundError('Activo no encontrado');
 
-  if (!asset || asset.deletedAt) throw new Error('Activo no encontrado');
-  if (asset.estado !== 'disponible' && asset.estado !== 'reutilizable') {
-    throw new Error(`El activo no está disponible. Estado actual: ${asset.estado}`);
-  }
+  const employee = await tx.employee.findUnique({ where: { id: params.employeeId } });
+  if (!employee) throw new ServiceNotFoundError('Empleado no encontrado');
+  if (employee.estado !== 'activo') throw new ServiceConflictError('El empleado no está activo');
 
-  const employee = await tx.employee.findUnique({
-    where: { id: params.employeeId },
+  const claimed = await tx.asset.updateMany({
+    where: {
+      id: params.assetId,
+      deletedAt: null,
+      estado: { in: ['disponible', 'reutilizable'] },
+    },
+    data: { estado: 'asignado', empleadoActualId: params.employeeId },
   });
-
-  if (!employee) throw new Error('Empleado no encontrado');
-  if (employee.estado !== 'activo') throw new Error('El empleado no está activo');
+  if (claimed.count !== 1) {
+    throw new ServiceConflictError('El activo cambió antes de asignarlo; actualice e intente nuevamente');
+  }
 
   const assignment = await tx.assignment.create({
     data: {
@@ -105,25 +133,14 @@ export async function executeAssignment(
       firmaEmpleadoEntregaEn,
       activo: true,
     },
-    include: {
-      asset: { include: { categoria: true } },
-      employee: true,
-    },
-  });
-
-  await tx.asset.update({
-    where: { id: params.assetId },
-    data: {
-      estado: 'asignado',
-      empleadoActualId: params.employeeId,
-    },
+    include: { asset: { include: { categoria: true } }, employee: true },
   });
 
   await tx.assetHistory.create({
     data: {
       assetId: params.assetId,
       tipoEvento: 'asignacion',
-      descripcion: `Asignado a ${employee.nombres} ${employee.apellidoPaterno} (${employee.rut || '—'})`,
+      descripcion: `Asignado a ${employeeName(employee)} (${employee.rut || '—'})`,
       datosAnteriores: { estado: asset.estado, empleadoActualId: asset.empleadoActualId },
       datosNuevos: { estado: 'asignado', empleadoActualId: params.employeeId },
       usuarioSistema: params.entregadoPor || 'Sistema',
@@ -131,9 +148,11 @@ export async function executeAssignment(
   });
 
   return {
-    ...assignment,
+    assignment,
     evidenciaParaDocumento: {
       tipo: 'entrega' as const,
+      assignmentId: assignment.id,
+      employeeId: params.employeeId,
       firmaEmpleado: params.firmaEmpleadoEntrega,
       firmaEmpleadoEn: firmaEmpleadoEntregaEn,
       aceptaPoliticaUso: true as const,
@@ -141,21 +160,40 @@ export async function executeAssignment(
   };
 }
 
-/**
- * Processes a single assignment return.
- */
-export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
+/** Processes a single return with assignment and asset compare-and-set guards. */
+export async function executeReturn(
+  tx: PrismaTx,
+  params: ExecuteReturnParams,
+  context?: ServerEvidenceContext
+) {
   assertOfficialEvidence(params.firmaEmpleadoDevolucion, params.aceptaPoliticaUso, 'devolucion');
-  const firmaEmpleadoDevolucionEn = new Date();
+  const firmaEmpleadoDevolucionEn = eventTimestamp(context);
   const assignment = await tx.assignment.findUnique({
     where: { id: params.assignmentId },
     include: { asset: true, employee: true },
   });
+  if (!assignment) throw new ServiceNotFoundError('Asignación no encontrada');
 
-  if (!assignment) throw new Error('Asignación no encontrada');
+  const expectedEmployeeId = context?.expectedEmployeeId ?? assignment.employeeId;
+  if (assignment.employeeId !== expectedEmployeeId) {
+    throw new ServiceConflictError('La asignación no pertenece al empleado de este acto');
+  }
+  if (!assignment.activo) throw new ServiceConflictError('La asignación ya no está activa');
+  if (
+    assignment.asset.deletedAt ||
+    assignment.asset.estado !== 'asignado' ||
+    assignment.asset.empleadoActualId !== expectedEmployeeId
+  ) {
+    throw new ServiceConflictError('El activo ya no está vinculado a esta asignación activa');
+  }
 
-  const returnedAssignment = await tx.assignment.update({
-    where: { id: params.assignmentId },
+  const closed = await tx.assignment.updateMany({
+    where: {
+      id: params.assignmentId,
+      activo: true,
+      employeeId: expectedEmployeeId,
+      assetId: assignment.assetId,
+    },
     data: {
       activo: false,
       fechaDevolucion: params.fechaDevolucion,
@@ -166,38 +204,49 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       firmaEmpleadoDevolucionEn,
     },
   });
+  if (closed.count !== 1) throw new ServiceConflictError('La asignación cambió antes de devolverla; actualice e intente nuevamente');
 
-  let nuevoEstado: 'reutilizable' | 'baja' = 'reutilizable';
-  if (params.estadoDevolucion === 'danado') nuevoEstado = 'baja';
-
-  await tx.asset.update({
-    where: { id: assignment.assetId },
+  const nuevoEstado = params.estadoDevolucion === 'danado' ? 'baja' : 'reutilizable';
+  const released = await tx.asset.updateMany({
+    where: {
+      id: assignment.assetId,
+      deletedAt: null,
+      estado: 'asignado',
+      empleadoActualId: expectedEmployeeId,
+    },
     data: {
       estado: nuevoEstado,
       condicion: params.estadoDevolucion === 'danado' ? 'danado' : 'usado',
       empleadoActualId: null,
-      ...(nuevoEstado === 'baja' && { fechaBaja: new Date() }),
+      ...(nuevoEstado === 'baja' && { fechaBaja: firmaEmpleadoDevolucionEn }),
     },
   });
+  if (released.count !== 1) throw new ServiceConflictError('El activo cambió antes de devolverlo; actualice e intente nuevamente');
 
   await tx.assetHistory.create({
     data: {
       assetId: assignment.assetId,
       tipoEvento: 'devolucion',
-      descripcion: `Devuelto por ${assignment.employee.nombres} ${assignment.employee.apellidoPaterno}. Estado: ${params.estadoDevolucion}`,
-      datosAnteriores: {
-        estado: assignment.asset.estado,
-        empleadoActualId: assignment.asset.empleadoActualId,
-      },
+      descripcion: `Devuelto por ${employeeName(assignment.employee)}. Estado: ${params.estadoDevolucion}`,
+      datosAnteriores: { estado: assignment.asset.estado, empleadoActualId: assignment.asset.empleadoActualId },
       datosNuevos: { estado: nuevoEstado, empleadoActualId: null },
       usuarioSistema: params.recibidoPor || 'Sistema',
     },
   });
 
   return {
-    ...returnedAssignment,
+    assignment: {
+      ...assignment,
+      activo: false,
+      fechaDevolucion: params.fechaDevolucion,
+      firmaEmpleadoDevolucion: params.firmaEmpleadoDevolucion,
+      firmaEmpleadoDevolucionEn,
+    },
     evidenciaParaDocumento: {
       tipo: 'devolucion' as const,
+      assignmentId: assignment.id,
+      employeeId: expectedEmployeeId,
+      ...(context?.terminationId && { terminationId: context.terminationId }),
       firmaEmpleado: params.firmaEmpleadoDevolucion,
       firmaEmpleadoEn: firmaEmpleadoDevolucionEn,
       aceptaPoliticaUso: true as const,
@@ -205,15 +254,39 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
   };
 }
 
-/**
- * Processes a full termination return (all equipment for a terminated employee).
- */
-export async function executeTerminationReturn(
-  tx: PrismaTx,
+type TerminationAssetType = 'notebook' | 'celular' | 'monitor';
+
+function assertTerminationCategoryStates(
+  assignments: Array<{ asset: { categoria: { tipoDevolucion: string } } }>,
   params: ExecuteTerminationReturnParams
 ) {
+  if (params.estadoKit === 'pendiente') {
+    throw new ServiceConflictError('No se puede cerrar una devolución con estado pendiente');
+  }
+  const states: Array<[TerminationAssetType, ExecuteTerminationReturnParams['estadoNotebook']]> = [
+    ['notebook', params.estadoNotebook],
+    ['celular', params.estadoCelular],
+    ['monitor', params.estadoMonitor],
+  ];
+  for (const [category, state] of states) {
+    const hasActiveAsset = assignments.some((assignment) => assignment.asset.categoria.tipoDevolucion === category);
+    if (hasActiveAsset && (state === 'pendiente' || state === 'no_aplica')) {
+      throw new ServiceConflictError(`No se puede cerrar: existe ${category} activo con estado ${state}`);
+    }
+    if (!hasActiveAsset && state !== 'no_aplica') {
+      throw new ServiceConflictError(`No existe ${category} activo: debe indicar no_aplica`);
+    }
+  }
+}
+
+/** Processes all active assignments of one employee during termination. */
+export async function executeTerminationReturn(
+  tx: PrismaTx,
+  params: ExecuteTerminationReturnParams,
+  context?: ServerEvidenceContext
+) {
   assertOfficialEvidence(params.firmaEmpleadoDevolucion, params.aceptaPoliticaUso, 'devolucion');
-  const firmaEmpleadoDevolucionEn = new Date();
+  const returnTimestamp = eventTimestamp(context);
   const termination = await tx.termination.findUnique({
     where: { id: params.terminationId },
     include: {
@@ -227,14 +300,27 @@ export async function executeTerminationReturn(
       },
     },
   });
+  if (!termination) throw new ServiceNotFoundError('Desvinculación no encontrada');
 
-  if (!termination) throw new Error('Desvinculación no encontrada');
+  const expectedEmployeeId = context?.expectedEmployeeId ?? termination.employeeId;
+  if (termination.employeeId !== expectedEmployeeId) {
+    throw new ServiceConflictError('La desvinculación no pertenece al empleado de este acto');
+  }
+  const assignments = termination.employee.assignments;
+  assertTerminationCategoryStates(assignments, params);
+  for (const assignment of assignments) {
+    if (
+      assignment.employeeId !== expectedEmployeeId ||
+      !assignment.activo ||
+      assignment.asset.deletedAt ||
+      assignment.asset.estado !== 'asignado' ||
+      assignment.asset.empleadoActualId !== expectedEmployeeId
+    ) {
+      throw new ServiceConflictError('Una asignación de la desvinculación ya no está vinculada al empleado');
+    }
+  }
 
-  const hayDanos =
-    params.estadoNotebook === 'danado' ||
-    params.estadoCelular === 'danado' ||
-    params.estadoMonitor === 'danado';
-
+  const hayDanos = [params.estadoNotebook, params.estadoCelular, params.estadoMonitor].includes('danado');
   const updatedTermination = await tx.termination.update({
     where: { id: params.terminationId },
     data: {
@@ -252,66 +338,34 @@ export async function executeTerminationReturn(
     },
   });
 
-  for (const assignment of termination.employee.assignments) {
-    const tipoDevolucion = assignment.asset.categoria.tipoDevolucion;
-    let estadoDevolucion: 'ok' | 'danado' | 'incompleto' = 'ok';
-
-    if (tipoDevolucion === 'notebook') {
-      estadoDevolucion = params.estadoNotebook === 'danado' ? 'danado' : 'ok';
-    } else if (tipoDevolucion === 'celular') {
-      estadoDevolucion = params.estadoCelular === 'danado' ? 'danado' : 'ok';
-    } else if (tipoDevolucion === 'monitor') {
-      estadoDevolucion = params.estadoMonitor === 'danado' ? 'danado' : 'ok';
-    }
-
-    await tx.assignment.update({
-      where: { id: assignment.id },
-      data: {
-        activo: false,
-        fechaDevolucion: params.fechaDevolucionEquipos,
-        recibidoPor: params.recibidoPor,
-        estadoDevolucion,
-        observacionesDevolucion:
-          `Devolución por desvinculación. ${params.observaciones || ''}`.trim(),
-        firmaEmpleadoDevolucion: params.firmaEmpleadoDevolucion,
-        firmaEmpleadoDevolucionEn,
-      },
+  const results = [];
+  for (const assignment of assignments) {
+    const type = assignment.asset.categoria.tipoDevolucion;
+    const categoryState = type === 'notebook'
+      ? params.estadoNotebook
+      : type === 'celular'
+        ? params.estadoCelular
+        : type === 'monitor'
+          ? params.estadoMonitor
+          : 'ok';
+    const result = await executeReturn(tx, {
+      assignmentId: assignment.id,
+      fechaDevolucion: params.fechaDevolucionEquipos,
+      recibidoPor: params.recibidoPor,
+      estadoDevolucion: categoryState === 'danado' ? 'danado' : 'ok',
+      observacionesDevolucion: `Devolución por desvinculación. ${params.observaciones || ''}`.trim(),
+      firmaEmpleadoDevolucion: params.firmaEmpleadoDevolucion,
+      aceptaPoliticaUso: true,
+    }, {
+      eventTimestamp: returnTimestamp,
+      expectedEmployeeId,
+      terminationId: termination.id,
     });
-
-    let nuevoEstadoActivo: 'disponible' | 'reutilizable' | 'baja' = 'reutilizable';
-    if (estadoDevolucion === 'danado') nuevoEstadoActivo = 'baja';
-
-    await tx.asset.update({
-      where: { id: assignment.asset.id },
-      data: {
-        estado: nuevoEstadoActivo,
-        condicion: estadoDevolucion === 'danado' ? 'danado' : 'usado',
-        empleadoActualId: null,
-      },
-    });
-
-    await tx.assetHistory.create({
-      data: {
-        assetId: assignment.asset.id,
-        tipoEvento: 'devolucion',
-        descripcion: `Devuelto por desvinculación de ${termination.employee.nombres} ${termination.employee.apellidoPaterno}. Estado: ${estadoDevolucion}`,
-        datosAnteriores: {
-          estado: assignment.asset.estado,
-          empleadoActualId: assignment.asset.empleadoActualId,
-        },
-        datosNuevos: { estado: nuevoEstadoActivo, empleadoActualId: null },
-        usuarioSistema: params.recibidoPor,
-      },
-    });
+    results.push(result);
   }
 
   return {
-    ...updatedTermination,
-    evidenciaParaDocumento: {
-      tipo: 'devolucion' as const,
-      firmaEmpleado: params.firmaEmpleadoDevolucion,
-      firmaEmpleadoEn: firmaEmpleadoDevolucionEn,
-      aceptaPoliticaUso: true as const,
-    } satisfies AssignmentEvidenceForDocument,
+    termination: updatedTermination,
+    evidenciasParaDocumento: results.map((result) => result.evidenciaParaDocumento),
   };
 }

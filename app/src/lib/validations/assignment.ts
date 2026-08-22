@@ -41,6 +41,18 @@ export const returnAssignmentSchema = z.object({
   aceptaPoliticaUso: policyAcceptanceSchema,
 }).strict();
 
+/** A single official act for several assignments; client timestamps are not part of this shape. */
+export const returnMultipleAssignmentsSchema = z.object({
+  assignmentIds: z.array(z.string().uuid('ID de asignación inválido')).min(1).max(100),
+  employeeId: z.string().uuid('ID de empleado inválido').optional(),
+  fechaDevolucion: z.string().transform((val) => new Date(val)),
+  recibidoPor: z.string().trim().min(1, 'Recibido por es requerido').max(100),
+  estadoDevolucion: EstadoDevolucionEnum,
+  observacionesDevolucion: z.string().optional().nullable(),
+  firmaEmpleadoDevolucion: pngSignatureSchema,
+  aceptaPoliticaUso: policyAcceptanceSchema,
+}).strict();
+
 // Schema para filtros de búsqueda
 export const assignmentFiltersSchema = z.object({
   search: z.string().optional(),
@@ -60,4 +72,5 @@ export const assignmentFiltersSchema = z.object({
 export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;
 export type CreateMultipleAssignmentsInput = z.infer<typeof createMultipleAssignmentsSchema>;
 export type ReturnAssignmentInput = z.infer<typeof returnAssignmentSchema>;
+export type ReturnMultipleAssignmentsInput = z.infer<typeof returnMultipleAssignmentsSchema>;
 export type AssignmentFilters = z.infer<typeof assignmentFiltersSchema>;
