@@ -8,6 +8,7 @@ import {
   TipoDevolucion,
 } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
+import { seedEmployees } from "./seedEmployees";
 
 const prisma = new PrismaClient();
 
@@ -143,14 +144,8 @@ async function main() {
     },
   ];
 
-  for (const emp of empleados) {
-    await prisma.employee.upsert({
-      where: { rut: emp.rut },
-      update: {},
-      create: emp,
-    });
-  }
-  console.log("Empleados creados:", empleados.length);
+  const empleadosCreados = await seedEmployees(prisma, empleados);
+  console.log("Empleados creados:", empleadosCreados);
 
   // 5. Obtener categorías para crear activos
   const catNotebook = await prisma.assetCategory.findUnique({ where: { nombre: "Notebook" } });

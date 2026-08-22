@@ -1,3 +1,7 @@
+throw new Error(
+  'MIGRACIÓN LEGACY BLOQUEADA: use la importación soportada de la aplicación, que conserva evidencia auditable.'
+);
+
 /**
  * Migración de datos Excel Febrero 2026 a Producción
  *

@@ -6,6 +6,10 @@ Autor: Sistema de Migración
 Fecha: 2025-12-27
 """
 
+raise SystemExit(
+    "MIGRADOR LEGACY BLOQUEADO: use la importación soportada de la aplicación, con evidencia auditable."
+)
+
 import pandas as pd
 import psycopg2
 from psycopg2.extras import execute_batch

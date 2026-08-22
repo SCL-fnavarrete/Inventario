@@ -3,6 +3,10 @@ Script de Migracion de Datos v2 - Corregido
 Sistema de Inventario de Equipos
 """
 
+raise SystemExit(
+    "MIGRADOR LEGACY BLOQUEADO: use la importación soportada de la aplicación, con evidencia auditable."
+)
+
 import pandas as pd
 import psycopg2
 from datetime import datetime
