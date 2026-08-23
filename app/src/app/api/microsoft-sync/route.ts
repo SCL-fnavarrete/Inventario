@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { microsoftSyncEmployeeSchema } from '@/lib/validations/employee';
-import {
-  checkConfiguration,
-  fetchMicrosoftUsers,
-} from '@/lib/services/microsoftGraphService';
+import { checkConfiguration, fetchMicrosoftUsers } from '@/lib/services/microsoftGraphService';
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { employeeHistoryService } from '@/lib/services/employeeHistoryService';
+import { contenidoAlertaEquiposPendientes } from '@/lib/documents/notificationContent';
+import {
+  enviarNotificacion,
+  prepararNotificacion,
+  type NotificacionPreparada,
+} from '@/lib/services/notificationService';
 
 type DatosSincronizados = {
   nombres: string;
@@ -20,10 +24,7 @@ type DatosSincronizados = {
   supervisor: string | null;
 };
 
-function hayCambiosSincronizados(
-  employee: DatosSincronizados,
-  datos: DatosSincronizados
-): boolean {
+function hayCambiosSincronizados(employee: DatosSincronizados, datos: DatosSincronizados): boolean {
   return (
     employee.nombres !== datos.nombres ||
     employee.apellidoPaterno !== datos.apellidoPaterno ||
@@ -59,8 +60,59 @@ export async function POST() {
       desactivados: 0,
       reactivados: 0,
       errores: [] as { usuario: string; error: string }[],
-      alertas: [] as { tipo: string; empleado: string; equipos: number }[],
+      alertas: [] as {
+        tipo: string;
+        empleado: string;
+        equipos: number;
+        notificacion: { notificacionId: string; estado: string; error: string | null } | null;
+      }[],
     };
+    /**
+     * Cuando Entra ID deshabilita una cuenta y la persona todavia tiene
+     * equipos, el activo se queda afuera. La alerta existia como una entrada
+     * en el JSON de respuesta: la veia quien apretaba el boton, y nadie mas.
+     *
+     * Ahora deja evidencia y sale por correo, con la semantica staged de la
+     * Ola 2: la fila `pendiente` se crea dentro de la transaccion del empleado
+     * —junto con el cambio de estado y su historial— y el correo sale despues
+     * del commit, fuera del ciclo de sincronizacion.
+     */
+    const alertasPendientes: Array<{ notificacion: NotificacionPreparada; indice: number }> = [];
+
+    async function prepararAlertaEquipos(
+      tx: Prisma.TransactionClient,
+      empleadoDeAlerta: {
+        nombres: string;
+        apellidoPaterno: string;
+        rut: string | null;
+        correo: string;
+      },
+      equipos: number
+    ) {
+      const nombre = `${empleadoDeAlerta.nombres} ${empleadoDeAlerta.apellidoPaterno}`.trim();
+      const { asunto, cuerpo } = contenidoAlertaEquiposPendientes({
+        empleado: nombre,
+        rut: empleadoDeAlerta.rut,
+        correo: empleadoDeAlerta.correo,
+        equipos,
+      });
+      const notificacion = await prepararNotificacion(tx, {
+        tipo: 'alerta_equipos_pendientes',
+        asunto,
+        cuerpo,
+        documentoIds: [],
+        enviadaPor: actor,
+        contexto: {},
+      });
+      const indice =
+        resultado.alertas.push({
+          tipo: 'equipos_pendientes',
+          empleado: nombre,
+          equipos,
+          notificacion: null,
+        }) - 1;
+      alertasPendientes.push({ notificacion, indice });
+    }
 
     for (const msUser of msUsers) {
       try {
@@ -91,17 +143,23 @@ export async function POST() {
                 where: { id: employee!.id },
                 data: { estado: 'desvinculado' },
               });
-              await employeeHistoryService.registrarCambio(employee!, updated, actor, tx, 'microsoft');
+              await employeeHistoryService.registrarCambio(
+                employee!,
+                updated,
+                actor,
+                tx,
+                'microsoft'
+              );
+              if (employee!.activosActuales.length > 0) {
+                await prepararAlertaEquipos(tx, employee!, employee!.activosActuales.length);
+              }
             });
             resultado.desactivados++;
-            if (employee.activosActuales.length > 0) {
-              resultado.alertas.push({
-                tipo: 'equipos_pendientes',
-                empleado: `${employee.nombres} ${employee.apellidoPaterno}`,
-                equipos: employee.activosActuales.length,
-              });
-            }
-          } else if (accountEnabled && (hayCambiosSincronizados(employee, datosSincronizados) || employee.estado === 'desvinculado')) {
+          } else if (
+            accountEnabled &&
+            (hayCambiosSincronizados(employee, datosSincronizados) ||
+              employee.estado === 'desvinculado')
+          ) {
             const reactivado = employee.estado === 'desvinculado';
             await prisma.$transaction(async (tx) => {
               const updated = await tx.employee.update({
@@ -111,7 +169,13 @@ export async function POST() {
                   ...(reactivado && { estado: 'activo' }),
                 },
               });
-              await employeeHistoryService.registrarCambio(employee!, updated, actor, tx, 'microsoft');
+              await employeeHistoryService.registrarCambio(
+                employee!,
+                updated,
+                actor,
+                tx,
+                'microsoft'
+              );
             });
             if (reactivado) {
               resultado.reactivados++;
@@ -156,19 +220,21 @@ export async function POST() {
                 if (soloReenlaceMicrosoft) {
                   await employeeHistoryService.registrarReenlaceMicrosoft(updated, actor, tx);
                 } else {
-                  await employeeHistoryService.registrarCambio(employee!, updated, actor, tx, 'microsoft');
+                  await employeeHistoryService.registrarCambio(
+                    employee!,
+                    updated,
+                    actor,
+                    tx,
+                    'microsoft'
+                  );
+                }
+                if (cambiaEstado && employee!.activosActuales.length > 0) {
+                  await prepararAlertaEquipos(tx, employee!, employee!.activosActuales.length);
                 }
               });
 
               if (cambiaEstado) {
                 resultado.desactivados++;
-                if (employee.activosActuales.length > 0) {
-                  resultado.alertas.push({
-                    tipo: 'equipos_pendientes',
-                    empleado: `${employee.nombres} ${employee.apellidoPaterno}`,
-                    equipos: employee.activosActuales.length,
-                  });
-                }
               } else {
                 resultado.actualizados++;
               }
@@ -200,7 +266,13 @@ export async function POST() {
                 if (soloReenlaceMicrosoft) {
                   await employeeHistoryService.registrarReenlaceMicrosoft(updated, actor, tx);
                 } else {
-                  await employeeHistoryService.registrarCambio(employee!, updated, actor, tx, 'microsoft');
+                  await employeeHistoryService.registrarCambio(
+                    employee!,
+                    updated,
+                    actor,
+                    tx,
+                    'microsoft'
+                  );
                 }
               });
               if (reactivado) {
@@ -230,6 +302,25 @@ export async function POST() {
           usuario: msUser.nombres || msUser.microsoftId,
           error: error instanceof Error ? error.message : 'Error desconocido',
         });
+      }
+    }
+
+    // El correo sale al final: un tenant lento o caido no puede alargar ni
+    // romper una sincronizacion que ya confirmo sus cambios.
+    for (const { notificacion, indice } of alertasPendientes) {
+      try {
+        const envio = await enviarNotificacion(notificacion.notificacionId);
+        resultado.alertas[indice].notificacion = {
+          notificacionId: envio.notificacionId,
+          estado: envio.estado,
+          error: envio.error,
+        };
+      } catch (error) {
+        resultado.alertas[indice].notificacion = {
+          notificacionId: notificacion.notificacionId,
+          estado: 'fallida',
+          error: error instanceof Error ? error.message.slice(0, 500) : 'Error al notificar',
+        };
       }
     }
 

@@ -30,6 +30,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import OfficialEvidenceFields from '@/components/ui/OfficialEvidenceFields';
+import NotificationTimeline, {
+  type NotificacionEvidencia,
+} from '@/components/desvinculaciones/NotificationTimeline';
+import { usePermissions } from '@/hooks/usePermissions';
 
 type Assignment = {
   id: string;
@@ -94,6 +98,7 @@ type Termination = {
   fechaNotificacionRrhh: string | null;
   observaciones: string | null;
   employee: Employee;
+  notificacionesEnviadas: NotificacionEvidencia[];
 };
 
 const estadoOptions = [
@@ -174,6 +179,8 @@ export default function DesvinculacionDetallePage({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [reintentando, setReintentando] = useState<string | null>(null);
+  const { can } = usePermissions();
 
   // Form state for return processing
   const [returnForm, setReturnForm] = useState({
@@ -427,6 +434,25 @@ export default function DesvinculacionDetallePage({
     }
   }
 
+  /**
+   * Reintenta el aviso a RRHH. El servidor decide si corresponde: aqui no se
+   * pueden elegir destinatarios ni marcar nada como notificado.
+   */
+  async function handleReintentarNotificacion(notificacionId: string) {
+    setReintentando(notificacionId);
+    setError("");
+    try {
+      const res = await fetch(`/api/desvinculaciones/${id}/notificar`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo reintentar el aviso");
+      await fetchTermination();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo reintentar el aviso");
+    } finally {
+      setReintentando(null);
+    }
+  }
+
   async function handleDelete() {
     if (!termination) return;
 
@@ -553,10 +579,15 @@ export default function DesvinculacionDetallePage({
             </p>
           </div>
         </div>
+        {/*
+          El badge decia "RRHH Notificado" y nada mas: ni a quien, ni cuando,
+          ni si el correo salio. Ahora resume, y el detalle con su evidencia
+          esta en la linea de tiempo de mas abajo.
+        */}
         {termination.notificadoRrhh && (
           <span className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
             <Bell size={16} />
-            RRHH Notificado
+            RRHH notificado el {formatDate(termination.fechaNotificacionRrhh)}
           </span>
         )}
       </div>
@@ -1380,6 +1411,20 @@ export default function DesvinculacionDetallePage({
               </div>
             )}
           </form>
+
+          {/* Evidencia de los avisos a RRHH */}
+          <div className="mt-6 bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Avisos a RRHH
+            </h2>
+            <NotificationTimeline
+              notificaciones={termination.notificacionesEnviadas || []}
+              puedeReintentar={can("desvinculaciones", "write")}
+              onReintentar={handleReintentarNotificacion}
+              reintentando={reintentando}
+            />
+          </div>
 
           {/* Summary Card (shown after processing) */}
           {allProcessed && (

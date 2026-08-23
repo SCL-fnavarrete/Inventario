@@ -68,6 +68,8 @@ npm run db:studio        # Prisma Studio GUI
 | `src/lib/services/documentEmissionService.ts` | Emisión staged: numera, hashea, crea evidencia `pendiente` y archiva tras el commit |
 | `src/lib/services/graphClient.ts` | Cliente único de Microsoft Graph: token cacheado, tiempos y errores saneados |
 | `src/lib/services/sharepointService.ts` | Sube y descarga los bytes exactos del documento archivado |
+| `src/lib/services/notificationService.ts` | Aviso a RRHH por Graph: fila `pendiente`, envío tras el commit, `enviada` = Graph aceptó |
+| `src/lib/documents/notificationContent.ts` | Asunto y cuerpo (texto plano) de cada tipo de aviso |
 | `src/lib/services/assetStateMachine.ts` | Máquina de estados de activos — valida transiciones, precondiciones, estados terminales |
 | `src/lib/validations/assetTransition.ts` | Zod schemas para transiciones de activos: baja, venta, mantención, reasignación |
 | `src/lib/validations/` | Zod schemas for all entities (asset, employee, assignment, workflow, etc.) |
@@ -219,6 +221,11 @@ MICROSOFT_CLIENT_SECRET=<azure-app-client-secret>
 SHAREPOINT_SITE_ID=<hostname,site-guid,web-guid>
 SHAREPOINT_DRIVE_ID=<drive-id>
 SHAREPOINT_FOLDER_PATH=Evidencia TI/Documentos emitidos
+
+# Notificaciones a RRHH (Ola 2) - permiso de aplicacion Mail.Send
+GRAPH_MAIL_SENDER=<buzon-de-servicio@dominio>
+RRHH_NOTIFICACION_DESTINATARIOS=<correo1,correo2>
+IT_NOTIFICACION_DESTINATARIOS=<correo1,correo2>
 ```
 
 ## Deployment
@@ -241,7 +248,7 @@ El SPEC mantiene un `## Changelog SPEC` al final. Cada actualización significat
 - v1.x (YYYY-MM-DD): descripción concisa del cambio
 ```
 
-La versión actual es **v1.7 (2026-08-22)**.
+La versión actual es **v1.8 (2026-08-22)**.
 
 ### Checklist antes de implementar un cambio de modelo
 

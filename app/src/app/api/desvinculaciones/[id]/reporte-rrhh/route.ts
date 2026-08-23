@@ -403,19 +403,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Marcar como notificado a RRHH si se genera el reporte
-    try {
-      await prisma.termination.update({
-        where: { id },
-        data: {
-          notificadoRrhh: true,
-          fechaNotificacionRrhh: new Date(),
-        },
-      });
-    } catch (dbError) {
-      console.error("Error updating termination record:", dbError);
-      // Continue anyway - the PDF was generated successfully
-    }
+    /**
+     * Descargar un reporte es una lectura.
+     *
+     * Aqui habia un `update` que marcaba la desvinculacion como notificada a
+     * RRHH: abrir el PDF para revisarlo bastaba para que el sistema afirmara
+     * que RRHH estaba informada, sin destinatario, sin fecha de aceptacion y
+     * sin correo. El aviso real vive en `POST .../notificar` y en el cierre de
+     * la solicitud (SPEC 2.1 septies).
+     */
 
     // Retornar PDF
     return new NextResponse(pdfBuffer as unknown as BodyInit, {

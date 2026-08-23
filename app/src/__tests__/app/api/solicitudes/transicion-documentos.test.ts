@@ -27,7 +27,17 @@ jest.mock('@/lib/services/workflowExecutionService', () => ({
 jest.mock('@/lib/services/documentEmissionService', () => ({
   prepararEmision: jest.fn(),
   archivarDocumento: jest.fn(),
+  documentoArchivadoDe: jest.fn(async () => null),
   TIMEOUT_TRANSACCION_EMISION_MS: 25000,
+}));
+// El aviso a RRHH tiene su propia suite (transicion-notificaciones).
+jest.mock('@/lib/services/notificationService', () => ({
+  prepararNotificacion: jest.fn(async () => ({
+    notificacionId: 'notificacion-1', destinatarios: ['rrhh@sclconsultores.com'],
+  })),
+  enviarNotificacion: jest.fn(async (notificacionId: string) => ({
+    notificacionId, estado: 'enviada', error: null,
+  })),
 }));
 jest.mock('@/lib/documents/snapshotBuilder', () => ({
   datosDeEntrega: jest.fn(async () => ({

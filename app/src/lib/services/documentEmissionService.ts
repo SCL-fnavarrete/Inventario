@@ -2,7 +2,6 @@ import { createHash } from 'crypto';
 import { Prisma, type EstadoArchivoDocumento, type TipoDocumento } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ServiceConflictError, ServiceNotFoundError } from '@/lib/errors/serviceOperationError';
-import { generarPdfDesdeSnapshot } from '@/lib/services/documentGeneratorService';
 import {
   descargarDocumento,
   rutaDeDocumento,
@@ -71,6 +70,18 @@ export type ResultadoArchivo = {
   error: string | null;
 };
 
+/**
+ * El renderizador se carga cuando hay que renderizar, no al importar.
+ *
+ * `@react-pdf/renderer` arrastra yoga (WebAssembly) y varios megas de parsers.
+ * Con el import estatico, cualquier ruta que tocara evidencia lo cargaba: la
+ * sincronizacion de empleados levantaba el motor de PDF para mandar un correo.
+ */
+async function renderizar(snapshot: DocumentoSnapshot): Promise<Buffer> {
+  const { generarPdfDesdeSnapshot } = await import('@/lib/services/documentGeneratorService');
+  return generarPdfDesdeSnapshot(snapshot);
+}
+
 function hashDe(contenido: Buffer): string {
   return createHash('sha256').update(contenido).digest('hex');
 }
@@ -109,7 +120,7 @@ async function crearEvidencia(
   }
 ): Promise<EmisionPreparada> {
   const snapshot = documentoSnapshotSchema.parse(params.snapshot);
-  const pdf = await generarPdfDesdeSnapshot(snapshot);
+  const pdf = await renderizar(snapshot);
   const hashSha256 = hashDe(pdf);
 
   const documento = await tx.documentoEmitido.create({
@@ -256,7 +267,7 @@ export async function archivarDocumento(documentoId: string): Promise<ResultadoA
 
   try {
     const snapshot = parseDocumentoSnapshot(documento.contenidoSnapshot);
-    const pdf = await generarPdfDesdeSnapshot(snapshot);
+    const pdf = await renderizar(snapshot);
 
     // El reintento re-renderiza, asi que hay que probar que produjo lo mismo
     // que se hasheo al emitir. Subir bytes distintos del hash almacenado
@@ -375,9 +386,17 @@ function whereDeContexto(contexto: ContextoBusqueda) {
   return where;
 }
 
-/** Ultima version archivada de un tipo de documento para un contexto. */
-export async function documentoArchivadoDe(contexto: ContextoBusqueda) {
-  return prisma.documentoEmitido.findFirst({
+/**
+ * Ultima version archivada de un tipo de documento para un contexto.
+ *
+ * Acepta un cliente porque la transicion la consulta **dentro** de su
+ * transaccion, al armar el aviso a RRHH con los documentos que ya existen.
+ */
+export async function documentoArchivadoDe(
+  contexto: ContextoBusqueda,
+  cliente: PrismaTx | typeof prisma = prisma
+) {
+  return cliente.documentoEmitido.findFirst({
     where: { ...whereDeContexto(contexto), archivoEstado: 'archivado' },
     orderBy: { version: 'desc' },
   });

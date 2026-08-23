@@ -161,6 +161,21 @@ export async function graphRequestJson<T>(url: string, opciones: OpcionesGraph =
   return (await response.json()) as T;
 }
 
+/**
+ * Peticion cuyo exito es el codigo, no el cuerpo.
+ *
+ * `sendMail` responde `202 Accepted` con el cuerpo vacio. Pedirle `.json()` a
+ * una respuesta sin cuerpo lanza, y el aviso quedaba marcado como fallido justo
+ * cuando Graph lo habia aceptado: el correo salia y el sistema decia que no.
+ */
+export async function graphRequestAceptado(
+  url: string,
+  opciones: OpcionesGraph = {}
+): Promise<number> {
+  const response = await graphFetch(url, opciones);
+  return response.status;
+}
+
 export async function graphRequestBinary(
   url: string,
   opciones: OpcionesGraph = {}

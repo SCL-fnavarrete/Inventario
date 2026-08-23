@@ -29,7 +29,12 @@ interface SyncResult {
   actualizados: number;
   desactivados: number;
   errores: { usuario: string; error: string }[];
-  alertas: { tipo: string; empleado: string; equipos: number }[];
+  alertas: {
+    tipo: string;
+    empleado: string;
+    equipos: number;
+    notificacion: { notificacionId: string; estado: string; error: string | null } | null;
+  }[];
 }
 
 export default function MicrosoftSyncPage() {
@@ -270,6 +275,19 @@ export default function MicrosoftSyncPage() {
                 {result.alertas.map((alerta, i) => (
                   <li key={i} className="text-red-700 text-sm">
                     • <strong>{alerta.empleado}</strong> tiene {alerta.equipos} equipo(s) asignado(s)
+                    {/*
+                      La alerta ademas sale por correo. Decir si el aviso salio
+                      importa: antes solo la veia quien apretaba el boton.
+                    */}
+                    {alerta.notificacion?.estado === 'enviada' && (
+                      <span className="text-red-600"> — aviso enviado a RRHH y TI</span>
+                    )}
+                    {alerta.notificacion?.estado === 'fallida' && (
+                      <span className="text-red-800 font-medium">
+                        {' '}
+                        — el aviso por correo falló: {alerta.notificacion.error}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

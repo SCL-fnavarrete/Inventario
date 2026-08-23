@@ -31,6 +31,7 @@ export async function GET(
             },
           },
         },
+        notificacionesEnviadas: { orderBy: { createdAt: "desc" } },
       },
     });
 
@@ -41,7 +42,37 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(termination);
+    /**
+     * Los adjuntos se resuelven aparte: `documento_ids` es un arreglo de ids,
+     * no una relación, para que borrar un documento operativo no arrastre la
+     * evidencia del aviso.
+     *
+     * El cuerpo del correo no viaja a la ficha: no aporta nada que el asunto y
+     * los adjuntos no digan, y puede ser largo.
+     */
+    const documentoIds = [
+      ...new Set(termination.notificacionesEnviadas.flatMap((n) => n.documentoIds)),
+    ];
+    const documentos = documentoIds.length
+      ? await prisma.documentoEmitido.findMany({
+          where: { id: { in: documentoIds } },
+          select: { id: true, numero: true, version: true, tipo: true },
+        })
+      : [];
+    const documentoPorId = new Map(documentos.map((documento) => [documento.id, documento]));
+
+    return NextResponse.json({
+      ...termination,
+      notificacionesEnviadas: termination.notificacionesEnviadas.map(({ cuerpo, ...notificacion }) => {
+        void cuerpo;
+        return {
+          ...notificacion,
+          documentos: notificacion.documentoIds
+            .map((documentoId) => documentoPorId.get(documentoId))
+            .filter((documento) => documento !== undefined),
+        };
+      }),
+    });
   } catch (error) {
     return handleApiError(error, 'Error al obtener desvinculación');
   }
@@ -108,10 +139,6 @@ export async function PUT(
         ...(data.requiereDescuento !== undefined && { requiereDescuento: data.requiereDescuento }),
         ...(data.montoDescuento !== undefined && { montoDescuento: data.montoDescuento }),
         ...(data.motivoDescuento !== undefined && { motivoDescuento: data.motivoDescuento }),
-        ...(data.notificadoRrhh !== undefined && {
-          notificadoRrhh: data.notificadoRrhh,
-          ...(data.notificadoRrhh && { fechaNotificacionRrhh: new Date() }),
-        }),
         ...(data.observaciones !== undefined && { observaciones: data.observaciones }),
       },
       include: {

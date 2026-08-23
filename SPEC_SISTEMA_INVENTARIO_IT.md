@@ -783,6 +783,83 @@ que es lo que Microsoft pide para investigar. El cuerpo importa: AAD devuelve
 el client secret dentro del mensaje `AADSTS7000215` cuando está mal
 configurado.
 
+### 2.1 septies — Aviso a RRHH: evidencia, no un checkbox
+
+"Notificado a RRHH" era un booleano que cualquiera podía escribir, y además se
+escribía solo: **descargar** el reporte RRHH marcaba la desvinculación como
+notificada. Bastaba abrir el PDF para revisarlo. No había destinatario, ni
+fecha de aceptación, ni correo.
+
+`Termination.notificado_rrhh` y `fecha_notificacion_rrhh` pasan a ser **campos
+de compatibilidad propiedad del servicio**: los escribe únicamente
+`notificationService`, y solo cuando Microsoft Graph acepta el correo. Salen de
+la validación Zod de actualización y del `PUT`; los listados y reportes pueden
+seguir filtrando por ellos, porque ahora dicen la verdad.
+
+**Qué significa cada estado.** `pendiente` es un aviso preparado que todavía no
+se intentó. `enviada` significa que Graph respondió aceptando la solicitud
+(HTTP 202) — no que una persona la haya recibido ni leído; la UI lo dice con
+esas palabras. `fallida` guarda el error saneado del intento.
+
+**Envío en dos etapas**, igual que el archivo de documentos:
+
+1. **Dentro** de la transacción del cierre se crea `NotificacionEnviada` como
+   `pendiente`, con el tipo, los destinatarios ya normalizados, el asunto, el
+   cuerpo, los ids de los documentos que va a adjuntar, el actor y su contexto.
+2. **Después del commit** —y después de archivar los documentos— se bajan los
+   adjuntos por `obtenerDocumento`, que exige que estén archivados y verifica
+   su hash; se llama a Graph `sendMail`; y solo si Graph acepta se marcan, en
+   una sola transacción, la notificación como `enviada` con su `aceptada_en` y
+   los flags de la desvinculación.
+
+Un fallo de correo no revierte el cierre. Queda `fallida` y reintentable.
+
+**Destinatarios y remitente salen del entorno del servidor.**
+`GRAPH_MAIL_SENDER` es el buzón de servicio;
+`RRHH_NOTIFICACION_DESTINATARIOS` e `IT_NOTIFICACION_DESTINATARIOS` son listas
+separadas por coma, normalizadas a minúsculas, validadas y deduplicadas.
+Aceptar una lista del navegador convertiría el buzón en un relay: cualquiera
+con permiso de cerrar una desvinculación podría mandar un correo firmado por la
+empresa, con adjuntos, a donde quisiera. El permiso de aplicación es
+`Mail.Send`.
+
+**Cuerpo en texto plano.** El mensaje lleva nombre, RUT y observaciones
+escritas por personas; en HTML cada uno de esos campos sería una inyección
+esperando ocurrir. Graph recibe `contentType: 'Text'`.
+
+**Límite de adjuntos.** `sendMail` admite un mensaje de hasta 4 MB y base64
+infla los bytes un tercio, así que el servicio corta en 3 MB de base64
+acumulado y lo dice con un mensaje accionable en vez de dejar que Graph
+responda un 413 opaco.
+
+**Disparadores.**
+
+| Evento | Tipo | Adjuntos |
+|--------|------|----------|
+| Onboarding cerrado (`registro_rrhh`) | `cierre_onboarding` | Anexo y comprobante de entrega ya archivados |
+| Devolución cerrada (`consolidacion_cierre`) | `cierre_desvinculacion` | Acta de devolución emitida en esa transición |
+| Sincronización Microsoft: cuenta deshabilitada con equipos asignados | `alerta_equipos_pendientes` | Ninguno |
+
+`POST /api/desvinculaciones/[id]/notificar` cubre la desvinculación directa
+—la que no nació de una solicitud— y el reintento. Exige que el acta de
+devolución esté archivada: sin ella no hay nada que adjuntar y responde `409`
+en vez de fabricar un PDF desde datos vivos. Un aviso que Graph ya aceptó no se
+reenvía desde ahí; para mandar otra copia hay que reemitir el documento y dejar
+constancia del motivo. El reintento reutiliza la misma fila: la evidencia de un
+aviso es una, con sus intentos, no una fila nueva por cada clic.
+
+*Riesgo conocido y aceptado:* si Graph acepta el mensaje pero la respuesta se
+pierde en el camino, la notificación queda `fallida` y un reintento manda un
+segundo correo. `sendMail` no ofrece un identificador de idempotencia, así que
+la alternativa sería dejar en duda si el aviso salió. Se prefiere un duplicado
+visible.
+
+**Carga perezosa del renderizador.** `documentEmissionService` importa el
+generador de PDF de forma dinámica. Con el import estático, cualquier ruta que
+tocara evidencia cargaba `@react-pdf/renderer` —yoga en WebAssembly y varios
+megas de parsers—: la sincronización de empleados levantaba el motor de PDF
+para mandar un correo.
+
 ---
 
 ## 2.5 Sistema de Solicitudes (Workflow)
@@ -1792,6 +1869,15 @@ nunca debió existir como fila separada.
 
 ## Changelog SPEC
 
+- **v1.8 (2026-08-22):**
+  - Sección 2.1 septies nueva: el aviso a RRHH pasa de checkbox a evidencia auditable por Microsoft Graph (Ola 2.7).
+  - `notificado_rrhh` y `fecha_notificacion_rrhh` son campos de compatibilidad propiedad de `notificationService`: salen de la validación Zod de actualización y del PUT, y solo se escriben cuando Graph acepta el correo.
+  - Descargar el reporte RRHH deja de marcar la desvinculación como notificada: era una escritura escondida en una lectura.
+  - Envío en dos etapas: fila `pendiente` dentro de la transacción del cierre, `sendMail` después del commit con los adjuntos verificados contra su hash. `enviada` significa aceptación de Graph, no recepción humana.
+  - Remitente y destinatarios salen del entorno del servidor, normalizados y deduplicados; el cliente no puede sustituirlos. Cuerpo en texto plano y tope de 3 MB de adjuntos en base64.
+  - Disparadores: `registro_rrhh`, `consolidacion_cierre` y la sincronización Microsoft cuando una cuenta deshabilitada conserva equipos. `POST /api/desvinculaciones/[id]/notificar` cubre la desvinculación directa y el reintento, exigiendo el acta archivada.
+  - La ficha de la desvinculación muestra la línea de tiempo de avisos con destinatarios, estado, aceptación o error y acción de reintento.
+  - `documentEmissionService` carga el renderizador de PDF de forma dinámica: el import estático hacía que sincronizar empleados levantara `@react-pdf/renderer`.
 - **v1.7 (2026-08-22):**
   - Sección 2.1 sexies nueva: emisión, archivo staged y recuperación de un documento inmutable (Ola 2.6).
   - Los cuatro generadores reciben un snapshot explícito y no consultan la base ni leen el reloj: una descarga posterior ya no reconstruye el documento con datos vivos.

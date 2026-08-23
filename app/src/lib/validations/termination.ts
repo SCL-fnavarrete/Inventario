@@ -34,7 +34,10 @@ export const updateTerminationSchema = z.object({
   requiereDescuento: z.boolean().optional(),
   montoDescuento: z.number().positive("El monto debe ser positivo").optional().nullable(),
   motivoDescuento: z.string().optional().nullable(),
-  notificadoRrhh: z.boolean().optional(),
+  // `notificadoRrhh` y `fechaNotificacionRrhh` NO estan aqui a proposito: son
+  // propiedad de `notificationService` y solo se escriben cuando Microsoft
+  // Graph acepta el correo (SPEC 2.1 septies). Eran editables desde el cliente,
+  // asi que "RRHH notificada" podia ser cierto sin que nadie hubiera avisado.
   observaciones: z.string().optional().nullable(),
 });
 

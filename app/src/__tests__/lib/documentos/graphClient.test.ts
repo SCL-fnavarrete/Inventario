@@ -159,3 +159,51 @@ describe('graphRequestBinary', () => {
     expect(Buffer.compare(recibido, bytes)).toBe(0);
   });
 });
+
+/**
+ * `sendMail` responde `202 Accepted` con el cuerpo vacío. Pedirle `.json()` a
+ * una respuesta sin cuerpo lanza, así que el aviso quedaba `fallida` justo
+ * cuando Graph lo había aceptado: el peor error posible aquí, porque el correo
+ * sí salió y el sistema decía que no.
+ */
+describe('graphRequestAceptado', () => {
+  test('acepta un 202 sin cuerpo y devuelve su codigo', async () => {
+    fetchMock.mockResolvedValueOnce(respuestaToken()).mockResolvedValueOnce({
+      ok: true,
+      status: 202,
+      json: async () => {
+        throw new SyntaxError('Unexpected end of JSON input');
+      },
+      text: async () => '',
+      headers: new Headers(),
+    });
+
+    const { graphRequestAceptado } = await import('@/lib/services/graphClient');
+    const status = await graphRequestAceptado('https://graph.microsoft.com/v1.0/users/x/sendMail', {
+      method: 'POST',
+      body: '{}',
+      contentType: 'application/json',
+    });
+
+    expect(status).toBe(202);
+  });
+
+  test('sigue traduciendo el fallo de Graph sin volcar el cuerpo', async () => {
+    fetchMock.mockResolvedValueOnce(respuestaToken()).mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      text: async () => '{"error":{"message":"Access denied"}}',
+      json: async () => ({}),
+      headers: new Headers({ 'request-id': 'req-42' }),
+    });
+
+    const { graphRequestAceptado } = await import('@/lib/services/graphClient');
+    const error = await graphRequestAceptado('https://graph.microsoft.com/v1.0/users/x/sendMail', {
+      method: 'POST',
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(GraphError);
+    expect((error as GraphError).message).not.toContain('Access denied');
+    expect((error as GraphError).message).toContain('req-42');
+  });
+});
