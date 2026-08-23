@@ -1,6 +1,13 @@
 import React from 'react';
 import { Document, Page, Text, View } from '@react-pdf/renderer';
 import { styles, EMPRESA } from './pdfStyles';
+import {
+  DeclaracionPolitica,
+  FirmaEmpleado,
+  PieEvidencia,
+  propsDocumento,
+  type EvidenciaDocumento,
+} from './evidencia';
 
 type AssetInfo = {
   tipo: string;
@@ -11,6 +18,7 @@ type AssetInfo = {
 };
 
 type Props = {
+  evidencia: EvidenciaDocumento;
   empleadoNombre: string;
   empleadoRut: string;
   fechaInicio: string;
@@ -22,6 +30,7 @@ type Props = {
 };
 
 export function ActaDevolucionTemplate({
+  evidencia,
   empleadoNombre,
   empleadoRut,
   fechaInicio,
@@ -32,7 +41,7 @@ export function ActaDevolucionTemplate({
   recibidoPor,
 }: Props) {
   return (
-    <Document>
+    <Document {...propsDocumento(evidencia)}>
       <Page size="LETTER" style={styles.page}>
         <View style={styles.header}>
           <View>
@@ -106,7 +115,7 @@ export function ActaDevolucionTemplate({
 
         <View style={styles.signatureSection}>
           <View style={styles.signatureBlock}>
-            <View style={styles.signatureLine} />
+            <FirmaEmpleado evidencia={evidencia} />
             <Text style={styles.signatureLabel}>{empleadoNombre}</Text>
             <Text style={styles.signatureLabel}>RUT: {empleadoRut}</Text>
             <Text style={styles.signatureLabel}>Trabajador</Text>
@@ -119,10 +128,9 @@ export function ActaDevolucionTemplate({
           </View>
         </View>
 
-        <Text style={styles.footer}>
-          {EMPRESA.nombre} — {EMPRESA.rut} — Documento generado el{' '}
-          {new Date().toLocaleDateString('es-CL')}
-        </Text>
+        <DeclaracionPolitica evidencia={evidencia} />
+
+        <PieEvidencia evidencia={evidencia} />
       </Page>
     </Document>
   );

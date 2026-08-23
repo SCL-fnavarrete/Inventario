@@ -1,84 +1,173 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { TipoDocumento } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import {
-  generateAnexoEntrega,
-  generateComprobanteEntrega,
-  generateComprobanteCambio,
-  generateActaDevolucion,
-} from '@/lib/services/documentGeneratorService';
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+  archivarDocumento,
+  documentoArchivadoDe,
+  obtenerDocumento,
+  reemitir,
+  ultimoDocumentoDe,
+} from '@/lib/services/documentEmissionService';
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+  handleApiError,
+  requirePermission,
+} from '@/lib/auth/guard';
 
-const VALID_TIPOS = [
-  'anexo-entrega',
-  'comprobante-entrega',
-  'comprobante-cambio',
-  'acta-devolucion',
-] as const;
+/**
+ * Documentos de una solicitud: se entregan, no se generan.
+ *
+ * Esta ruta renderizaba el PDF en cada descarga consultando datos vivos. El
+ * "acta" de una entrega de marzo listaba los equipos que la persona tuviera el
+ * dia de la descarga —una devolucion posterior la vaciaba—, la fecha del pie
+ * era la del clic, y dos descargas del mismo documento eran dos documentos
+ * distintos. Nada de eso sirve como evidencia.
+ *
+ * Ahora GET devuelve los bytes archivados del documento inmutable, verificados
+ * contra su hash. Si no existe, lo dice: el documento se emite con la
+ * transicion que ejecuta el acto (SPEC 2.1 sexies), no al pedirlo.
+ *
+ * Esta ruta jamas marca a RRHH como notificada: eso es de la Ola 3.
+ */
 
-type DocTipo = (typeof VALID_TIPOS)[number];
-
-const docNames: Record<DocTipo, string> = {
-  'anexo-entrega': 'Anexo_Entrega_Equipos',
-  'comprobante-entrega': 'Comprobante_Entrega',
-  'comprobante-cambio': 'Comprobante_Cambio',
-  'acta-devolucion': 'Acta_Devolucion',
+const TIPOS: Record<string, { enumerado: TipoDocumento; archivo: string }> = {
+  'anexo-entrega': { enumerado: 'anexo_entrega', archivo: 'Anexo_Entrega_Equipos' },
+  'comprobante-entrega': { enumerado: 'comprobante_entrega', archivo: 'Comprobante_Entrega' },
+  'comprobante-cambio': { enumerado: 'comprobante_cambio', archivo: 'Comprobante_Cambio' },
+  'acta-devolucion': { enumerado: 'acta_devolucion', archivo: 'Acta_Devolucion' },
 };
 
-// GET /api/solicitudes/[id]/documento/[tipo] - Generate and download PDF
+async function resolverContexto(params: Promise<{ id: string; tipo: string }>) {
+  const { id, tipo } = await params;
+  const definicion = TIPOS[tipo];
+  if (!definicion) {
+    throw new ValidationError(
+      `Tipo de documento inválido. Opciones: ${Object.keys(TIPOS).join(', ')}`
+    );
+  }
+
+  const solicitud = await prisma.workflowRequest.findUnique({
+    where: { id },
+    select: { id: true, numero: true, tipo: true, estado: true },
+  });
+  if (!solicitud) throw new NotFoundError('Solicitud no encontrada');
+
+  return { solicitud, definicion, contexto: { requestId: id, tipo: definicion.enumerado } };
+}
+
+// GET /api/solicitudes/[id]/documento/[tipo] — descarga el archivo inmutable
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string; tipo: string }> }
 ) {
-
   try {
     await requirePermission('solicitudes', 'read');
-    const { id, tipo } = await params;
+    const { definicion, contexto } = await resolverContexto(params);
 
-    if (!VALID_TIPOS.includes(tipo as DocTipo)) {
+    const archivado = await documentoArchivadoDe(contexto);
+    if (!archivado) {
+      // La diferencia importa: "nunca se emitio" es un 404; "se emitio pero el
+      // archivo no llego a SharePoint" es un estado reintentable, no una
+      // ausencia.
+      const pendiente = await ultimoDocumentoDe(contexto);
+      if (!pendiente) {
+        return NextResponse.json(
+          {
+            error:
+              'No se ha emitido un documento oficial de este tipo para la solicitud. Se emite al ejecutar la transición correspondiente.',
+          },
+          { status: 404 }
+        );
+      }
       return NextResponse.json(
-        { error: `Tipo de documento inválido. Opciones: ${VALID_TIPOS.join(', ')}` },
-        { status: 400 }
+        {
+          error: `El documento ${pendiente.numero} v${pendiente.version} está ${pendiente.archivoEstado} de archivo y todavía no puede descargarse`,
+          details: {
+            documentoId: pendiente.id,
+            numero: pendiente.numero,
+            version: pendiente.version,
+            archivoEstado: pendiente.archivoEstado,
+            intentosArchivo: pendiente.intentosArchivo,
+          },
+        },
+        { status: 409 }
       );
     }
 
-    // Verify request exists
-    const solicitud = await prisma.workflowRequest.findUnique({
-      where: { id },
-      select: { id: true, numero: true, tipo: true, estado: true },
-    });
+    const documento = await obtenerDocumento(archivado.id);
+    const nombre = `${definicion.archivo}_${documento.numero}_v${documento.version}.pdf`;
 
-    if (!solicitud) {
-      return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
-    }
-
-    let pdfBuffer: Buffer;
-
-    switch (tipo as DocTipo) {
-      case 'anexo-entrega':
-        pdfBuffer = await generateAnexoEntrega(id);
-        break;
-      case 'comprobante-entrega':
-        pdfBuffer = await generateComprobanteEntrega(id);
-        break;
-      case 'comprobante-cambio':
-        pdfBuffer = await generateComprobanteCambio(id);
-        break;
-      case 'acta-devolucion':
-        pdfBuffer = await generateActaDevolucion(id);
-        break;
-      default:
-        return NextResponse.json({ error: 'Tipo no soportado' }, { status: 400 });
-    }
-
-    const fileName = `${docNames[tipo as DocTipo]}_${solicitud.numero}.pdf`;
-
-    return new NextResponse(new Uint8Array(pdfBuffer), {
+    return new NextResponse(new Uint8Array(documento.contenido), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Content-Disposition': `attachment; filename="${nombre}"`,
+        'X-Documento-Numero': documento.numero,
+        'X-Documento-Version': String(documento.version),
       },
     });
   } catch (error) {
-    return handleApiError(error, 'Error al generar documento');
+    return handleApiError(error, 'Error al obtener documento');
+  }
+}
+
+// POST /api/solicitudes/[id]/documento/[tipo] — reintenta el archivo o reemite
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; tipo: string }> }
+) {
+  try {
+    const session = await requirePermission('solicitudes', 'write');
+    const { contexto } = await resolverContexto(params);
+
+    const cuerpo = (await request.json().catch(() => ({}))) as {
+      reemitir?: boolean;
+      motivo?: string;
+    };
+
+    const documento = await ultimoDocumentoDe(contexto);
+    if (!documento) {
+      throw new ConflictError(
+        'No hay un documento emitido para reintentar. La evidencia se emite al ejecutar la transición del acto; un documento creado ahora no representaría lo que ocurrió entonces.'
+      );
+    }
+
+    const emisor = session.user?.name || session.user?.email || 'Sistema';
+
+    if (cuerpo.reemitir) {
+      const motivo = (cuerpo.motivo || '').trim();
+      if (!motivo) {
+        throw new ValidationError('La reemisión requiere un motivo');
+      }
+      const nueva = await reemitir({ documentoId: documento.id, motivo, emitidoPor: emisor });
+      const archivo = await archivarDocumento(nueva.documentoId);
+      return NextResponse.json({
+        documentoId: nueva.documentoId,
+        numero: nueva.numero,
+        version: nueva.version,
+        archivoEstado: archivo.archivoEstado,
+        sharepointUrl: archivo.sharepointUrl,
+        error: archivo.error,
+      });
+    }
+
+    if (documento.archivoEstado === 'archivado') {
+      throw new ConflictError(
+        `El documento ${documento.numero} v${documento.version} ya está archivado. Para generar una copia nueva, solicite una reemisión con motivo.`
+      );
+    }
+
+    const archivo = await archivarDocumento(documento.id);
+    return NextResponse.json({
+      documentoId: documento.id,
+      numero: documento.numero,
+      version: documento.version,
+      archivoEstado: archivo.archivoEstado,
+      sharepointUrl: archivo.sharepointUrl,
+      error: archivo.error,
+    });
+  } catch (error) {
+    return handleApiError(error, 'Error al emitir documento');
   }
 }

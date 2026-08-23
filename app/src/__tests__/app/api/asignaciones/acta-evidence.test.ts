@@ -8,11 +8,23 @@ jest.mock('@/lib/auth/guard', () => ({
 jest.mock('@/lib/prisma', () => ({
   prisma: { assignment: { findUnique: jest.fn() } },
 }));
+jest.mock('@/lib/services/documentEmissionService', () => ({
+  documentoArchivadoDeAsignacion: jest.fn(async () => null),
+  obtenerDocumento: jest.fn(),
+}));
 
 import { GET } from '@/app/api/asignaciones/[id]/acta/route';
 import { prisma } from '@/lib/prisma';
 import { NextRequest } from 'next/server';
 import { FIRMA_VALIDA } from '@/test-utils/signature';
+import {
+  documentoArchivadoDeAsignacion,
+  obtenerDocumento,
+} from '@/lib/services/documentEmissionService';
+
+beforeEach(() => {
+  (documentoArchivadoDeAsignacion as jest.Mock).mockResolvedValue(null);
+});
 
 /**
  * El acta declara qué evidencia respalda lo que afirma.
@@ -29,6 +41,7 @@ import { FIRMA_VALIDA } from '@/test-utils/signature';
 function assignmentBase(firmada: boolean) {
   return {
     id: 'assignment-1',
+    employeeId: 'employee-1',
     fechaEntrega: new Date('2026-08-01T00:00:00.000Z'),
     fechaDevolucion: null,
     lugarEntrega: 'Santiago',
@@ -91,6 +104,39 @@ describe('GET /api/asignaciones/[id]/acta — evidencia oficial', () => {
 
     // La imagen embebida es la única diferencia de peso entre los dos actos.
     expect(conFirma.length).toBeGreaterThan(sinFirma.length + 500);
+  });
+
+  /**
+   * Task 6: cuando existe el documento inmutable, es el que manda. El acta
+   * dibujada al vuelo sigue existiendo solo para el parque anterior al
+   * control, y ahora dice de dónde viene.
+   */
+  test('entrega el documento archivado cuando la asignación tiene evidencia emitida', async () => {
+    (prisma.assignment.findUnique as jest.Mock).mockResolvedValue(assignmentBase(true));
+    (documentoArchivadoDeAsignacion as jest.Mock).mockResolvedValue({
+      id: 'documento-1', numero: 'DOC-2026-0001', version: 1, tipo: 'comprobante_entrega',
+    });
+    (obtenerDocumento as jest.Mock).mockResolvedValue({
+      contenido: Buffer.from('%PDF-archivado'),
+      numero: 'DOC-2026-0001', version: 1, tipo: 'comprobante_entrega',
+      emitidoEn: new Date('2026-03-04T12:34:56.000Z'),
+    });
+
+    const response = await pedirActa();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-documento-origen')).toBe('emitido');
+    expect(response.headers.get('x-evidencia-oficial')).toBe('presente');
+    expect(response.headers.get('content-disposition')).toContain('DOC-2026-0001_v1.pdf');
+    expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('%PDF-archivado');
+  });
+
+  test('marca como no oficial el acta que dibuja para el parque histórico', async () => {
+    (prisma.assignment.findUnique as jest.Mock).mockResolvedValue(assignmentBase(false));
+
+    const response = await pedirActa();
+
+    expect(response.headers.get('x-documento-origen')).toBe('historico-no-oficial');
   });
 
   test('sigue respondiendo 404 cuando la asignación no existe', async () => {

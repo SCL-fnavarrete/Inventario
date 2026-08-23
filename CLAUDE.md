@@ -62,7 +62,12 @@ npm run db:studio        # Prisma Studio GUI
 | `src/lib/services/microsoftGraphService.ts` | Microsoft Entra ID (Azure AD) sync — fetches users via Graph API (read-only) |
 | `src/lib/services/workflowExecutionService.ts` | Ejecuta acciones de workflow: asignaciones, desvinculaciones, guias al hacer transiciones |
 | `src/lib/services/workflowStateMachine.ts` | Define estados válidos y transiciones permitidas por tipo de solicitud |
-| `src/lib/services/documentGeneratorService.ts` | Genera documentos (actas, reportes) asociados a solicitudes de workflow |
+| `src/lib/services/documentGeneratorService.ts` | Renderiza un PDF desde su snapshot inmutable — sin Prisma y sin `new Date()` |
+| `src/lib/documents/snapshot.ts` | Contrato Zod del snapshot de cada tipo de documento emitido |
+| `src/lib/documents/snapshotBuilder.ts` | Arma el snapshot desde la transacción del acto (asignaciones exactas) |
+| `src/lib/services/documentEmissionService.ts` | Emisión staged: numera, hashea, crea evidencia `pendiente` y archiva tras el commit |
+| `src/lib/services/graphClient.ts` | Cliente único de Microsoft Graph: token cacheado, tiempos y errores saneados |
+| `src/lib/services/sharepointService.ts` | Sube y descarga los bytes exactos del documento archivado |
 | `src/lib/services/assetStateMachine.ts` | Máquina de estados de activos — valida transiciones, precondiciones, estados terminales |
 | `src/lib/validations/assetTransition.ts` | Zod schemas para transiciones de activos: baja, venta, mantención, reasignación |
 | `src/lib/validations/` | Zod schemas for all entities (asset, employee, assignment, workflow, etc.) |
@@ -208,6 +213,12 @@ NEXTAUTH_URL=http://localhost:3000
 MICROSOFT_TENANT_ID=<azure-tenant-id>
 MICROSOFT_CLIENT_ID=<azure-app-client-id>
 MICROSOFT_CLIENT_SECRET=<azure-app-client-secret>
+
+# SharePoint - archivo de documentos emitidos (Ola 2)
+# Permiso de aplicacion: Sites.ReadWrite.All o, preferible, Sites.Selected
+SHAREPOINT_SITE_ID=<hostname,site-guid,web-guid>
+SHAREPOINT_DRIVE_ID=<drive-id>
+SHAREPOINT_FOLDER_PATH=Evidencia TI/Documentos emitidos
 ```
 
 ## Deployment
@@ -230,7 +241,7 @@ El SPEC mantiene un `## Changelog SPEC` al final. Cada actualización significat
 - v1.x (YYYY-MM-DD): descripción concisa del cambio
 ```
 
-La versión actual es **v1.4 (2026-08-21)**.
+La versión actual es **v1.7 (2026-08-22)**.
 
 ### Checklist antes de implementar un cambio de modelo
 

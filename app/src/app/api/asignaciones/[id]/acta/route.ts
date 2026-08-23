@@ -5,6 +5,21 @@ import autoTable from "jspdf-autotable";
 import * as fs from "fs";
 import * as path from "path";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import {
+  documentoArchivadoDeAsignacion,
+  obtenerDocumento,
+} from '@/lib/services/documentEmissionService';
+
+/**
+ * Qué documento emitido respalda cada acto de esta ruta.
+ *
+ * Un cambio de equipo aparece en las dos listas: su comprobante describe a la
+ * vez el equipo que salió y el que entró.
+ */
+const DOCUMENTOS_POR_ACTO = {
+  entrega: ['anexo_entrega', 'comprobante_entrega', 'comprobante_cambio'],
+  devolucion: ['acta_devolucion', 'comprobante_cambio'],
+} as const;
 
 // Extender tipos de jsPDF para lastAutoTable
 declare module "jspdf" {
@@ -56,11 +71,38 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     /**
-     * Las asignaciones anteriores al control de evidencia no tienen firma. Un
-     * 409 las dejaba sin acta —la función desaparecía para todo el parque ya
-     * cargado—, así que el acta se emite igual y declara lo que la respalda:
-     * la firma dibujada cuando existe, un sello de registro histórico cuando
-     * no. Task 6 la reemplaza por el documento inmutable y versionado.
+     * Si el acto tiene documento inmutable, es ese y no otro.
+     *
+     * Un PDF dibujado al vuelo desde datos vivos cambia con el inventario: no
+     * puede competir con la evidencia archivada del mismo acto. Se busca por
+     * el snapshot, que es lo que dice sin ambigüedad qué asignaciones
+     * participaron (SPEC 2.1 sexies).
+     */
+    const emitido = await documentoArchivadoDeAsignacion({
+      assignmentId: assignment.id,
+      employeeId: assignment.employeeId,
+      tipos: [...DOCUMENTOS_POR_ACTO[tipo === 'entrega' ? 'entrega' : 'devolucion']],
+    });
+
+    if (emitido) {
+      const documento = await obtenerDocumento(emitido.id);
+      return new NextResponse(new Uint8Array(documento.contenido), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'X-Evidencia-Oficial': 'presente',
+          'X-Documento-Origen': 'emitido',
+          'Content-Disposition': `attachment; filename="acta_${tipo}_${documento.numero}_v${documento.version}.pdf"`,
+        },
+      });
+    }
+
+    /**
+     * Sin documento emitido queda el parque anterior al control, que no tiene
+     * ninguno. Un 409 dejaba sin acta a todo el inventario ya cargado, así que
+     * se dibuja igual y el PDF declara lo que la respalda: la firma cuando
+     * existe, un sello de registro histórico cuando no. La cabecera
+     * `X-Documento-Origen` lo dice sin abrir el archivo.
      */
     const firmaOficial = tipo === 'entrega'
       ? assignment.firmaEmpleadoEntrega
@@ -289,6 +331,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       headers: {
         "Content-Type": "application/pdf",
         "X-Evidencia-Oficial": tieneEvidenciaOficial ? "presente" : "ausente",
+        "X-Documento-Origen": "historico-no-oficial",
         "Content-Disposition": `attachment; filename="acta_${tipo}${tieneEvidenciaOficial ? "" : "_historico"}_${(assignment.employee.rut || assignment.employee.id).replace(/\./g, "")}_${assignment.asset.numeroSerie || assignment.id}.pdf"`,
       },
     });

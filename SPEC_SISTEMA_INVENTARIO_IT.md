@@ -681,6 +681,108 @@ sus documentos y notificaciones; `Assignment` expone sus documentos; y
 `Termination` expone sus documentos y notificaciones. Ninguna de estas
 relaciones de evidencia usa borrado en cascada.
 
+### 2.1 sexies — Emisión, archivo staged y recuperación de un documento
+
+Un documento emitido **se entrega, no se genera**. Antes cada descarga volvía a
+consultar la base y a renderizar el PDF: el "acta" de una entrega de marzo
+listaba los equipos que la persona tuviera el día de la descarga —una
+devolución posterior la vaciaba—, la fecha del pie era la del clic, y dos
+descargas del mismo documento eran dos documentos distintos. Nada de eso sirve
+como evidencia.
+
+**El snapshot es el documento.** `contenido_snapshot` guarda todo lo que la
+plantilla necesita: identidad (`numero`, `version`, `emitido_en`,
+`emitido_por`), empleado, solicitud, aceptación de política, firma con su hora
+de servidor, y los activos con el nombre de categoría **observado al emitir**
+junto al `tipo_devolucion` estable. Las asignaciones se identifican por id: son
+exactamente las que participaron del acto, no las que estén activas después.
+Los generadores no consultan Prisma ni leen el reloj.
+
+**Los bytes del PDF son reproducibles.** El `<Document>` recibe
+`creationDate` = `emitido_en` del snapshot, más `producer`/`creator` fijos.
+`@react-pdf/renderer` escribe `/CreationDate` con la hora del proceso y deriva
+de ella el `/ID` del trailer, así que sin fijarla el mismo snapshot produce un
+hash distinto en cada render. Las fechas del documento se formatean en UTC a
+mano: `toLocaleDateString('es-CL')` depende del ICU y de la zona horaria del
+runtime, y bastaba para que el mismo snapshot diera bytes distintos en Vercel y
+en un equipo local.
+
+**Emisión en dos etapas.** PostgreSQL y Microsoft Graph no comparten
+transacción, así que la emisión se parte:
+
+1. **Dentro** de la transacción del hecho de negocio: se reserva el correlativo
+   `DOC-AAAA-NNNN`, se arma y valida el snapshot, se renderiza el PDF, se
+   calcula su `SHA-256` en minúsculas y se crea `DocumentoEmitido` con
+   `archivo_estado = pendiente`. Si el negocio se revierte, la evidencia se
+   revierte con él.
+2. **Después del commit**: se re-renderiza desde el snapshot guardado, se
+   verifica que el hash siga siendo el mismo y se suben los bytes a SharePoint.
+   El resultado se anota como `archivado` (con `sharepoint_item_id` y
+   `sharepoint_url`) o `fallido` (con `archivo_error` saneado), y en ambos casos
+   se incrementa `intentos_archivo`.
+
+Un fallo de archivo **no revierte** el acto: la entrega ya ocurrió físicamente
+y un tenant caído no puede deshacerla. Queda visible como `fallido` y
+reintentable. El reintento es idempotente: sube a la misma ruta
+(`DOC-AAAA-NNNN-vN.pdf`, con `conflictBehavior=replace`) y no crea otra fila.
+
+**El correlativo no se calcula con `count() + 1`.** Dos transiciones simultáneas
+leerían el mismo total. La reserva toma `pg_advisory_xact_lock` dentro de la
+transacción —se libera al confirmarla— y recién entonces lee el máximo del año,
+de modo que lectura e inserción quedan serializadas sin bloquear la tabla.
+
+**Recuperación.** `GET` descarga los bytes archivados y verifica el `SHA-256`
+almacenado. No existe camino de regeneración, a propósito:
+
+| Situación | Respuesta |
+|-----------|-----------|
+| Hay versión archivada e íntegra | `200` con el PDF y nombre `Tipo_DOC-AAAA-NNNN_vN.pdf` |
+| Nunca se emitió ese tipo para el contexto | `404`, indicando que se emite con la transición |
+| Emitido pero `pendiente` o `fallido` | `409` con `details` del estado e intentos |
+| El archivo no coincide con el hash | `409` de integridad |
+
+**Emisión por transición.** El acta la crea la transición que ejecuta el acto:
+`equipos_entregados` emite anexo y comprobante de entrega, `cambio_ejecutado`
+emite el comprobante de cambio, y `consolidacion_cierre` emite el acta de
+devolución. El acta de devolución **no** se emite en `equipo_recibido`: esa
+transición solo registra el medio de devolución, y el estado de cada equipo
+recién se declara al consolidar (sección 2.5.4). Un acta emitida antes
+afirmaría estados que nadie evaluó.
+
+`POST /api/solicitudes/[id]/documento/[tipo]` reintenta el archivo de un
+documento `pendiente`/`fallido`, o reemite con motivo obligatorio uno ya
+archivado. Si el contexto nunca emitió el documento responde `409`: crear hoy
+la evidencia de un acto de hace meses sería fabricarla. Esta ruta nunca marca a
+RRHH como notificada.
+
+**Reemisión.** Crea una versión nueva con el mismo `numero`, reproduce el
+contenido del snapshot anterior y registra `motivo_reemision`. Las filas y los
+archivos previos se conservan: una reemisión existe porque se extravió la
+copia, no para cambiar lo que el documento dijo.
+
+**Acta legacy de una asignación.** `GET /api/asignaciones/[id]/acta` deja de
+competir con la evidencia: si existe un documento archivado que menciona esa
+asignación en su snapshot, devuelve ese archivo con
+`X-Documento-Origen: emitido`. Solo cuando no hay ninguno —el parque anterior
+al control— dibuja el registro histórico de la sección 2.1 quinquies, ahora
+marcado con `X-Documento-Origen: historico-no-oficial`.
+
+**Configuración de SharePoint.** `SHAREPOINT_SITE_ID`, `SHAREPOINT_DRIVE_ID` y
+`SHAREPOINT_FOLDER_PATH`, sobre las mismas credenciales de aplicación que usa
+la sincronización de empleados. El permiso de aplicación puede ser
+`Sites.ReadWrite.All` o, preferible, `Sites.Selected` con el sitio de evidencia
+autorizado explícitamente. La subida usa el modo simple de Graph, que admite
+hasta 4 MB por archivo; un documento mayor se rechaza con un mensaje que lo
+dice, en vez de fallar de forma opaca.
+
+**Cliente Graph único.** `graphClient` concentra el token de aplicación
+—cacheado, renovado con margen de dos minutos—, el límite de tiempo de cada
+petición y la traducción de errores. Un error de Graph nunca lleva el token, el
+secreto ni el cuerpo de la respuesta: lleva el código HTTP y el `request-id`,
+que es lo que Microsoft pide para investigar. El cuerpo importa: AAD devuelve
+el client secret dentro del mensaje `AADSTS7000215` cuando está mal
+configurado.
+
 ---
 
 ## 2.5 Sistema de Solicitudes (Workflow)
@@ -1690,6 +1792,16 @@ nunca debió existir como fila separada.
 
 ## Changelog SPEC
 
+- **v1.7 (2026-08-22):**
+  - Sección 2.1 sexies nueva: emisión, archivo staged y recuperación de un documento inmutable (Ola 2.6).
+  - Los cuatro generadores reciben un snapshot explícito y no consultan la base ni leen el reloj: una descarga posterior ya no reconstruye el documento con datos vivos.
+  - El PDF es reproducible byte a byte: `creationDate` sale del snapshot y las fechas se formatean en UTC, porque `/CreationDate` y el ICU del runtime hacían variar el hash.
+  - Emisión en dos etapas: fila `pendiente` dentro de la transacción del acto, subida a SharePoint después del commit. Un fallo de archivo no revierte el hecho de negocio; queda `fallido` y reintentable de forma idempotente.
+  - El correlativo `DOC-AAAA-NNNN` se reserva con `pg_advisory_xact_lock`, no con `count() + 1`.
+  - `GET /api/solicitudes/[id]/documento/[tipo]` entrega el archivo verificado contra su hash y distingue 404 (nunca emitido) de 409 (pendiente, fallido o íntegro roto). `POST` reintenta o reemite con motivo, y nunca marca a RRHH como notificada.
+  - El acta de devolución se emite en `consolidacion_cierre`, no en `equipo_recibido`: es esa transición la que declara el estado de cada equipo.
+  - `GET /api/asignaciones/[id]/acta` entrega el documento archivado cuando existe; el registro histórico queda como último recurso, marcado con `X-Documento-Origen`.
+  - `graphClient` unifica token, tiempos y errores saneados de Microsoft Graph; `sharepointService` agrega la configuración de sitio, drive y carpeta.
 - **v1.6 (2026-08-22):**
   - Sección 2.1 quinquies nueva: reglas del acto oficial de entrega y devolución, comunes a todos los caminos que producen uno. Cierra los hallazgos de la revisión de la Ola 2.3.
   - `employee_id` obligatorio en la devolución por lote: era opcional y la verificación de pertenencia se comparaba consigo misma, así que un lote de varios empleados se cerraba con una sola firma.

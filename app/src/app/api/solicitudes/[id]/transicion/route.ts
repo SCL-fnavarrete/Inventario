@@ -9,7 +9,39 @@ import {
   executeTerminationReturn,
   type AssignmentEvidenceForDocument,
 } from '@/lib/services/workflowExecutionService';
+import {
+  archivarDocumento,
+  prepararEmision,
+  TIMEOUT_TRANSACCION_EMISION_MS,
+  type EmisionPreparada,
+} from '@/lib/services/documentEmissionService';
+import {
+  datosDeCambio,
+  datosDeDevolucion,
+  datosDeEntrega,
+} from '@/lib/documents/snapshotBuilder';
 import { ConflictError, ForbiddenError, NotFoundError, requirePermission, handleApiError } from '@/lib/auth/guard';
+
+/**
+ * La evidencia del acto se emite aqui, en dos etapas (SPEC 2.1 sexies).
+ *
+ * Dentro de la transaccion se numera el documento, se congela su snapshot y se
+ * crea la fila como `pendiente`: si el efecto de negocio se revierte, la
+ * evidencia se revierte con el. La subida a SharePoint ocurre despues del
+ * commit, porque Graph no participa de la transaccion; que falle no puede
+ * deshacer una entrega que ya ocurrio fisicamente, asi que queda `fallido` y
+ * reintentable desde `POST /api/solicitudes/[id]/documento/[tipo]`.
+ *
+ * El acta de devolucion se emite en `consolidacion_cierre` y no en
+ * `equipo_recibido`: es esa transicion la que cierra las asignaciones y fija
+ * el estado de cada equipo (SPEC 2.5.4). `equipo_recibido` solo registra el
+ * medio de devolucion, y un acta emitida ahi afirmaria estados que nadie
+ * declaro todavia.
+ */
+
+function solicitudDelActo(workflowRequest: { id: string; numero: string; tipo: string }) {
+  return { id: workflowRequest.id, numero: workflowRequest.numero, tipo: workflowRequest.tipo };
+}
 
 /**
  * La firma vive en `Assignment`, que es de donde el documento inmutable la
@@ -29,6 +61,14 @@ function datosAccionParaAuditoria(datosAccion: unknown) {
     ...(firmaEmpleadoEntrega ? { firmaEntregaRegistrada: true } : {}),
     ...(firmaEmpleadoDevolucion ? { firmaDevolucionRegistrada: true } : {}),
   };
+}
+
+/** La firma del acto es la que quedo en Assignment; el snapshot la sella. */
+function firmaDe(evidencias: AssignmentEvidenceForDocument[]) {
+  const evidencia = evidencias[0];
+  return evidencia
+    ? { imagenPng: evidencia.firmaEmpleado, firmadaEn: evidencia.firmaEmpleadoEn }
+    : { imagenPng: null, firmadaEn: null };
 }
 
 // POST /api/solicitudes/[id]/transicion - Advance workflow state
@@ -77,6 +117,7 @@ export async function POST(
 
       const assignmentIds = [...workflowRequest.assignmentIds];
       const evidenciasParaDocumento: AssignmentEvidenceForDocument[] = [];
+      const emisiones: EmisionPreparada[] = [];
 
       switch (input.nuevoEstado) {
         case 'equipos_entregados': {
@@ -95,6 +136,32 @@ export async function POST(
               }, { eventTimestamp, expectedEmployeeId: workflowRequest.employeeId });
               assignmentIds.push(delivery.assignment.id);
               evidenciasParaDocumento.push(delivery.evidenciaParaDocumento);
+            }
+
+            const entregadas = evidenciasParaDocumento.map((evidencia) => evidencia.assignmentId);
+            const { anexo, comprobante } = await datosDeEntrega(tx, {
+              employeeId: workflowRequest.employeeId,
+              assignmentIds: entregadas,
+              solicitud: solicitudDelActo(workflowRequest),
+              gestionadoPor: systemUser.nombre,
+              fechaEntrega: eventTimestamp,
+              lugarEntrega: input.datosAccion.lugarEntrega ?? null,
+              cargoSolicitado: workflowRequest.cargoSolicitado ?? null,
+              firma: firmaDe(evidenciasParaDocumento),
+            });
+            const contexto = {
+              employeeId: workflowRequest.employeeId,
+              requestId: workflowRequest.id,
+            };
+            for (const datos of [anexo, comprobante]) {
+              emisiones.push(
+                await prepararEmision(tx, {
+                  contexto,
+                  emitidoPor: systemUser.nombre,
+                  emitidoEn: eventTimestamp,
+                  datos,
+                })
+              );
             }
           }
           break;
@@ -129,6 +196,26 @@ export async function POST(
               assignmentIds.push(delivery.assignment.id);
               evidenciasParaDocumento.push(delivery.evidenciaParaDocumento);
             }
+
+            const devuelta = evidenciasParaDocumento.find((evidencia) => evidencia.tipo === 'devolucion');
+            const entregada = evidenciasParaDocumento.find((evidencia) => evidencia.tipo === 'entrega');
+            emisiones.push(
+              await prepararEmision(tx, {
+                contexto: { employeeId: workflowRequest.employeeId, requestId: workflowRequest.id },
+                emitidoPor: systemUser.nombre,
+                emitidoEn: eventTimestamp,
+                datos: await datosDeCambio(tx, {
+                  employeeId: workflowRequest.employeeId,
+                  solicitud: solicitudDelActo(workflowRequest),
+                  gestionadoPor: systemUser.nombre,
+                  fecha: eventTimestamp,
+                  motivoCambio: workflowRequest.motivoCambio || 'Cambio de equipo',
+                  assignmentAnteriorId: devuelta?.assignmentId ?? null,
+                  assignmentNuevoId: entregada?.assignmentId ?? null,
+                  firma: firmaDe(evidenciasParaDocumento),
+                }),
+              })
+            );
           }
           break;
         }
@@ -170,6 +257,28 @@ export async function POST(
               aceptaPoliticaUso: input.datosAccion.aceptaPoliticaUso,
             }, { eventTimestamp, expectedEmployeeId: workflowRequest.employeeId });
             evidenciasParaDocumento.push(...returned.evidenciasParaDocumento);
+            emisiones.push(
+              await prepararEmision(tx, {
+                contexto: {
+                  employeeId: workflowRequest.employeeId,
+                  requestId: workflowRequest.id,
+                  terminationId: termination.id,
+                },
+                emitidoPor: systemUser.nombre,
+                emitidoEn: eventTimestamp,
+                datos: await datosDeDevolucion(tx, {
+                  employeeId: workflowRequest.employeeId,
+                  solicitud: solicitudDelActo(workflowRequest),
+                  recibidoPor: systemUser.nombre,
+                  fechaDevolucion: eventTimestamp,
+                  fechaTermino: workflowRequest.fechaDesvinculacion ?? null,
+                  lugarDevolucion: input.datosAccion.lugarDevolucion ?? null,
+                  observaciones: input.comentario ?? null,
+                  assignmentIds: returned.evidenciasParaDocumento.map((e) => e.assignmentId),
+                  firma: firmaDe(returned.evidenciasParaDocumento),
+                }),
+              })
+            );
             if (!workflowRequest.terminationId) {
               await tx.workflowRequest.update({ where: { id }, data: { terminationId: termination.id } });
             }
@@ -205,10 +314,32 @@ export async function POST(
           datosAccion: datosAccion as Prisma.InputJsonValue | undefined,
         },
       });
-      return { workflowRequest: updated, evidenciasParaDocumento };
-    });
+      return { workflowRequest: updated, emisiones };
+    }, { timeout: TIMEOUT_TRANSACCION_EMISION_MS });
 
-    return NextResponse.json(result);
+    /**
+     * Fuera de la transaccion, y a proposito: la entrega ya esta confirmada en
+     * la base. `archivarDocumento` no lanza —anota `fallido` con su error
+     * saneado— para que un tenant caido no convierta un 200 en un 500.
+     */
+    const documentos = [];
+    for (const emision of result.emisiones) {
+      const archivo = await archivarDocumento(emision.documentoId);
+      documentos.push({
+        documentoId: emision.documentoId,
+        numero: emision.numero,
+        version: emision.version,
+        tipo: emision.tipo,
+        archivoEstado: archivo.archivoEstado,
+        sharepointUrl: archivo.sharepointUrl,
+        error: archivo.error,
+      });
+    }
+
+    // La firma no vuelve al cliente: vive en Assignment y sellada en el
+    // snapshot del documento. Devolverla en cada transicion la esparcia por
+    // logs y devtools de cualquiera que pueda avanzar una solicitud.
+    return NextResponse.json({ workflowRequest: result.workflowRequest, documentos });
   } catch (error) {
     return handleApiError(error, 'Error al avanzar solicitud');
   }

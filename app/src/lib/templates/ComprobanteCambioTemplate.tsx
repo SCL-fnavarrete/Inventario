@@ -1,6 +1,13 @@
 import React from 'react';
 import { Document, Page, Text, View } from '@react-pdf/renderer';
 import { styles, EMPRESA } from './pdfStyles';
+import {
+  DeclaracionPolitica,
+  FirmaEmpleado,
+  PieEvidencia,
+  propsDocumento,
+  type EvidenciaDocumento,
+} from './evidencia';
 
 type AssetInfo = {
   tipo: string;
@@ -11,6 +18,7 @@ type AssetInfo = {
 };
 
 type Props = {
+  evidencia: EvidenciaDocumento;
   empleadoNombre: string;
   empleadoRut: string;
   fecha: string;
@@ -21,6 +29,7 @@ type Props = {
 };
 
 export function ComprobanteCambioTemplate({
+  evidencia,
   empleadoNombre,
   empleadoRut,
   fecha,
@@ -52,7 +61,7 @@ export function ComprobanteCambioTemplate({
   );
 
   return (
-    <Document>
+    <Document {...propsDocumento(evidencia)}>
       <Page size="LETTER" style={styles.page}>
         <View style={styles.header}>
           <View>
@@ -89,7 +98,7 @@ export function ComprobanteCambioTemplate({
 
         <View style={styles.signatureSection}>
           <View style={styles.signatureBlock}>
-            <View style={styles.signatureLine} />
+            <FirmaEmpleado evidencia={evidencia} />
             <Text style={styles.signatureLabel}>{empleadoNombre}</Text>
             <Text style={styles.signatureLabel}>RUT: {empleadoRut}</Text>
             <Text style={styles.signatureLabel}>Trabajador</Text>
@@ -102,10 +111,9 @@ export function ComprobanteCambioTemplate({
           </View>
         </View>
 
-        <Text style={styles.footer}>
-          {EMPRESA.nombre} — {EMPRESA.rut} — Documento generado el{' '}
-          {new Date().toLocaleDateString('es-CL')}
-        </Text>
+        <DeclaracionPolitica evidencia={evidencia} />
+
+        <PieEvidencia evidencia={evidencia} />
       </Page>
     </Document>
   );

@@ -10,6 +10,25 @@ jest.mock('@/lib/prisma', () => ({
 jest.mock('@/lib/services/workflowExecutionService', () => ({
   executeAssignment: jest.fn(), executeReturn: jest.fn(), executeTerminationReturn: jest.fn(),
 }));
+// La emision de evidencia tiene su propia suite (transicion-documentos). Aqui
+// se dobla para no arrastrar el renderizador de PDF, que es ESM con WASM.
+jest.mock('@/lib/services/documentEmissionService', () => ({
+  prepararEmision: jest.fn(async () => ({
+    documentoId: 'documento-1', numero: 'DOC-2026-0001', version: 1,
+    tipo: 'anexo_entrega', hashSha256: 'a'.repeat(64),
+  })),
+  archivarDocumento: jest.fn(async (documentoId: string) => ({
+    documentoId, archivoEstado: 'archivado', sharepointUrl: 'https://x/y.pdf', error: null,
+  })),
+  TIMEOUT_TRANSACCION_EMISION_MS: 25000,
+}));
+jest.mock('@/lib/documents/snapshotBuilder', () => ({
+  datosDeEntrega: jest.fn(async () => ({
+    anexo: { tipo: 'anexo_entrega' }, comprobante: { tipo: 'comprobante_entrega' },
+  })),
+  datosDeCambio: jest.fn(async () => ({ tipo: 'comprobante_cambio' })),
+  datosDeDevolucion: jest.fn(async () => ({ tipo: 'acta_devolucion' })),
+}));
 
 import { POST } from '@/app/api/solicitudes/[id]/transicion/route';
 import { prisma } from '@/lib/prisma';

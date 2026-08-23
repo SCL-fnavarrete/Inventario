@@ -5,197 +5,193 @@ import { AnexoEntregaTemplate } from '@/lib/templates/AnexoEntregaTemplate';
 import { ComprobanteEntregaTemplate } from '@/lib/templates/ComprobanteEntregaTemplate';
 import { ComprobanteCambioTemplate } from '@/lib/templates/ComprobanteCambioTemplate';
 import { ActaDevolucionTemplate } from '@/lib/templates/ActaDevolucionTemplate';
-import { prisma } from '@/lib/prisma';
+import type { EvidenciaDocumento } from '@/lib/templates/evidencia';
+import type {
+  ActaDevolucionSnapshot,
+  ActivoSnapshot,
+  AnexoEntregaSnapshot,
+  ComprobanteCambioSnapshot,
+  ComprobanteEntregaSnapshot,
+  DocumentoSnapshot,
+} from '@/lib/documents/snapshot';
 
-// Helper to cast React.createElement result for @react-pdf/renderer
+/**
+ * Renderiza un documento emitido a partir de su snapshot, y de nada mas.
+ *
+ * Antes cada generador consultaba Prisma en el momento de la descarga y
+ * estampaba `new Date()` en el pie: dos descargas del mismo documento daban
+ * PDFs distintos y renombrar una categoria cambiaba un acta ya firmada. Ahora
+ * el modulo no importa Prisma ni lee el reloj, que es lo que permite hashear
+ * los bytes archivados y verificarlos despues (SPEC 2.1 sexies).
+ *
+ * El determinismo byte a byte depende de `creationDate`: `@react-pdf/renderer`
+ * escribe `/CreationDate` y deriva de el el `/ID` del trailer, asi que sin
+ * fijarlo el mismo snapshot produce hashes distintos.
+ */
+
 function renderPdf(element: React.ReactElement) {
   return renderToBuffer(element as React.ReactElement<DocumentProps>);
 }
 
-function formatDate(date: Date | string | null): string {
-  if (!date) return '—';
-  return new Date(date).toLocaleDateString('es-CL');
+/**
+ * Formato dd-mm-aaaa en UTC, calculado a mano.
+ *
+ * `toLocaleDateString('es-CL')` depende del ICU del runtime y de la zona
+ * horaria del proceso: el mismo snapshot renderizado en Vercel y en un equipo
+ * local daria bytes distintos, y el hash archivado dejaria de verificar.
+ */
+function formatearFecha(iso: string | null): string {
+  if (!iso) return '—';
+  const fecha = new Date(iso);
+  const dia = String(fecha.getUTCDate()).padStart(2, '0');
+  const mes = String(fecha.getUTCMonth() + 1).padStart(2, '0');
+  return `${dia}-${mes}-${fecha.getUTCFullYear()}`;
 }
 
-export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer> {
-  const solicitud = await prisma.workflowRequest.findUniqueOrThrow({
-    where: { id: solicitudId },
-    include: {
-      employee: {
-        include: {
-          assignments: {
-            where: { activo: true },
-            include: { asset: { include: { categoria: true } } },
-          },
-        },
-      },
-      solicitante: true,
-      responsableActual: true,
-    },
-  });
-
-  const assets = solicitud.employee.assignments.map((a) => ({
-    tipo: a.asset.categoria.nombre,
-    marca: a.asset.marca,
-    modelo: a.asset.modelo,
-    numeroSerie: a.asset.numeroSerie,
-    procesador: a.asset.procesador,
-    discoDuro: a.asset.discoDuro,
-    ram: a.asset.ram,
-    estado: a.asset.condicion,
-    imei: a.asset.imei,
-    numeroTelefono: a.asset.numeroTelefono,
-    operador: a.asset.operador,
-  }));
-
-  const element = React.createElement(AnexoEntregaTemplate, {
-    empleadoNombre: `${solicitud.employee.nombres} ${solicitud.employee.apellidoPaterno}`,
-    empleadoRut: solicitud.employee.rut || '—',
-    cargo: solicitud.cargoSolicitado || solicitud.employee.cargo || '—',
-    fechaContrato: formatDate(solicitud.employee.fechaIngreso),
-    fechaEntrega: formatDate(new Date()),
-    assets,
-    gestionadoPor: solicitud.responsableActual?.nombre || solicitud.solicitante.nombre,
-  });
-
-  return renderPdf(element);
+function evidenciaDe(snapshot: DocumentoSnapshot): EvidenciaDocumento {
+  return {
+    numero: snapshot.numero,
+    version: snapshot.version,
+    emitidoEnTexto: formatearFecha(snapshot.emitidoEn),
+    creationDate: new Date(snapshot.emitidoEn),
+    firmaPng: snapshot.firma.imagenPng,
+    firmadaEnTexto: snapshot.firma.firmadaEn ? formatearFecha(snapshot.firma.firmadaEn) : null,
+    aceptaPoliticaUso: snapshot.aceptaPoliticaUso,
+  };
 }
 
-export async function generateComprobanteEntrega(solicitudId: string): Promise<Buffer> {
-  const solicitud = await prisma.workflowRequest.findUniqueOrThrow({
-    where: { id: solicitudId },
-    include: {
-      employee: {
-        include: {
-          assignments: {
-            where: { activo: true },
-            include: { asset: { include: { categoria: true } } },
-          },
-        },
-      },
-      solicitante: true,
-      responsableActual: true,
-    },
-  });
-
-  const assets = solicitud.employee.assignments.map((a) => ({
-    tipo: a.asset.categoria.nombre,
-    marca: a.asset.marca,
-    modelo: a.asset.modelo,
-    numeroSerie: a.asset.numeroSerie,
-    estado: a.asset.condicion,
-    imei: a.asset.imei,
-    numeroTelefono: a.asset.numeroTelefono,
-    operador: a.asset.operador,
-  }));
-
-  const element = React.createElement(ComprobanteEntregaTemplate, {
-    empleadoNombre: `${solicitud.employee.nombres} ${solicitud.employee.apellidoPaterno}`,
-    empleadoRut: solicitud.employee.rut || '—',
-    fechaEntrega: formatDate(new Date()),
-    assets,
-    gestionadoPor: solicitud.responsableActual?.nombre || solicitud.solicitante.nombre,
-  });
-
-  return renderPdf(element);
+function activoDetallado(activo: ActivoSnapshot) {
+  return {
+    tipo: activo.categoriaNombre,
+    marca: activo.marca,
+    modelo: activo.modelo,
+    numeroSerie: activo.numeroSerie,
+    procesador: activo.procesador,
+    discoDuro: activo.discoDuro,
+    ram: activo.ram,
+    estado: activo.condicion,
+    imei: activo.imei,
+    numeroTelefono: activo.numeroTelefono,
+    operador: activo.operador,
+  };
 }
 
-export async function generateComprobanteCambio(solicitudId: string): Promise<Buffer> {
-  const solicitud = await prisma.workflowRequest.findUniqueOrThrow({
-    where: { id: solicitudId },
-    include: {
-      employee: true,
-      solicitante: true,
-      responsableActual: true,
-      transitions: {
-        where: { estadoNuevo: 'cambio_ejecutado' },
-        orderBy: { createdAt: 'desc' },
-        take: 1,
-      },
-    },
-  });
-
-  // Get the assignment IDs to find old and new assets
-  const assignments = await prisma.assignment.findMany({
-    where: { id: { in: solicitud.assignmentIds } },
-    include: { asset: { include: { categoria: true } } },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  const newAssignment = assignments[0];
-  const datosAccion = (solicitud.transitions[0]?.datosAccion as Record<string, unknown>) || {};
-
-  // Try to find the old asset from transition data
-  let oldAsset = null;
-  if (datosAccion.oldAssignmentId) {
-    const oldAssignment = await prisma.assignment.findUnique({
-      where: { id: datosAccion.oldAssignmentId as string },
-      include: { asset: { include: { categoria: true } } },
-    });
-    if (oldAssignment) oldAsset = oldAssignment.asset;
-  }
-
-  const toAssetInfo = (asset: typeof newAssignment.asset) => ({
-    tipo: asset.categoria.nombre,
-    marca: asset.marca,
-    modelo: asset.modelo,
-    numeroSerie: asset.numeroSerie,
-    estado: asset.condicion,
-  });
-
-  const element = React.createElement(ComprobanteCambioTemplate, {
-    empleadoNombre: `${solicitud.employee.nombres} ${solicitud.employee.apellidoPaterno}`,
-    empleadoRut: solicitud.employee.rut || '—',
-    fecha: formatDate(new Date()),
-    motivoCambio: solicitud.motivoCambio || '—',
-    equipoNuevo: newAssignment ? toAssetInfo(newAssignment.asset) : { tipo: '—', marca: '—', modelo: '—', numeroSerie: null, estado: '—' },
-    equipoAnterior: oldAsset ? toAssetInfo(oldAsset) : { tipo: '—', marca: '—', modelo: '—', numeroSerie: null, estado: '—' },
-    gestionadoPor: solicitud.responsableActual?.nombre || solicitud.solicitante.nombre,
-  });
-
-  return renderPdf(element);
+function activoResumido(activo: ActivoSnapshot) {
+  return {
+    tipo: activo.categoriaNombre,
+    marca: activo.marca,
+    modelo: activo.modelo,
+    numeroSerie: activo.numeroSerie,
+    estado: activo.condicion,
+    imei: activo.imei,
+    numeroTelefono: activo.numeroTelefono,
+    operador: activo.operador,
+  };
 }
 
-export async function generateActaDevolucion(solicitudId: string): Promise<Buffer> {
-  const solicitud = await prisma.workflowRequest.findUniqueOrThrow({
-    where: { id: solicitudId },
-    include: {
-      employee: {
-        include: {
-          assignments: {
-            include: { asset: { include: { categoria: true } } },
-            orderBy: { fechaEntrega: 'desc' },
-          },
-        },
-      },
-      solicitante: true,
-      responsableActual: true,
-    },
-  });
+const EQUIPO_AUSENTE = {
+  tipo: '—',
+  marca: '—',
+  modelo: '—',
+  numeroSerie: null,
+  estado: '—',
+};
 
-  // Get recently returned assignments
-  const returnedAssignments = solicitud.employee.assignments.filter(
-    (a) => !a.activo && a.fechaDevolucion
+export function generateAnexoEntrega(snapshot: AnexoEntregaSnapshot): Promise<Buffer> {
+  return renderPdf(
+    React.createElement(AnexoEntregaTemplate, {
+      evidencia: evidenciaDe(snapshot),
+      empleadoNombre: snapshot.empleado.nombreCompleto,
+      empleadoRut: snapshot.empleado.rut || '—',
+      cargo: snapshot.empleado.cargo || '—',
+      fechaContrato: formatearFecha(snapshot.empleado.fechaIngreso),
+      fechaEntrega: formatearFecha(snapshot.fechaEntrega),
+      assets: snapshot.activos.map(activoDetallado),
+      gestionadoPor: snapshot.gestionadoPor,
+    })
   );
+}
 
-  const assets = returnedAssignments.map((a) => ({
-    tipo: a.asset.categoria.nombre,
-    marca: a.asset.marca,
-    modelo: a.asset.modelo,
-    numeroSerie: a.asset.numeroSerie,
-    estadoDevolucion: a.estadoDevolucion || 'ok',
-  }));
+export function generateComprobanteEntrega(snapshot: ComprobanteEntregaSnapshot): Promise<Buffer> {
+  return renderPdf(
+    React.createElement(ComprobanteEntregaTemplate, {
+      evidencia: evidenciaDe(snapshot),
+      empleadoNombre: snapshot.empleado.nombreCompleto,
+      empleadoRut: snapshot.empleado.rut || '—',
+      fechaEntrega: formatearFecha(snapshot.fechaEntrega),
+      assets: snapshot.activos.map(activoResumido),
+      gestionadoPor: snapshot.gestionadoPor,
+    })
+  );
+}
 
-  const element = React.createElement(ActaDevolucionTemplate, {
-    empleadoNombre: `${solicitud.employee.nombres} ${solicitud.employee.apellidoPaterno}`,
-    empleadoRut: solicitud.employee.rut || '—',
-    fechaInicio: formatDate(solicitud.employee.fechaIngreso),
-    fechaTermino: formatDate(solicitud.fechaDesvinculacion),
-    fechaDevolucion: formatDate(new Date()),
-    assets,
-    observaciones: solicitud.observaciones,
-    recibidoPor: solicitud.responsableActual?.nombre || solicitud.solicitante.nombre,
-  });
+export function generateComprobanteCambio(snapshot: ComprobanteCambioSnapshot): Promise<Buffer> {
+  return renderPdf(
+    React.createElement(ComprobanteCambioTemplate, {
+      evidencia: evidenciaDe(snapshot),
+      empleadoNombre: snapshot.empleado.nombreCompleto,
+      empleadoRut: snapshot.empleado.rut || '—',
+      fecha: formatearFecha(snapshot.fecha),
+      motivoCambio: snapshot.motivoCambio,
+      equipoNuevo: snapshot.equipoNuevo
+        ? {
+            tipo: snapshot.equipoNuevo.categoriaNombre,
+            marca: snapshot.equipoNuevo.marca,
+            modelo: snapshot.equipoNuevo.modelo,
+            numeroSerie: snapshot.equipoNuevo.numeroSerie,
+            estado: snapshot.equipoNuevo.condicion,
+          }
+        : EQUIPO_AUSENTE,
+      equipoAnterior: snapshot.equipoAnterior
+        ? {
+            tipo: snapshot.equipoAnterior.categoriaNombre,
+            marca: snapshot.equipoAnterior.marca,
+            modelo: snapshot.equipoAnterior.modelo,
+            numeroSerie: snapshot.equipoAnterior.numeroSerie,
+            estado: snapshot.equipoAnterior.condicion,
+          }
+        : EQUIPO_AUSENTE,
+      gestionadoPor: snapshot.gestionadoPor,
+    })
+  );
+}
 
-  return renderPdf(element);
+export function generateActaDevolucion(snapshot: ActaDevolucionSnapshot): Promise<Buffer> {
+  return renderPdf(
+    React.createElement(ActaDevolucionTemplate, {
+      evidencia: evidenciaDe(snapshot),
+      empleadoNombre: snapshot.empleado.nombreCompleto,
+      empleadoRut: snapshot.empleado.rut || '—',
+      fechaInicio: formatearFecha(snapshot.fechaInicio),
+      fechaTermino: formatearFecha(snapshot.fechaTermino),
+      fechaDevolucion: formatearFecha(snapshot.fechaDevolucion),
+      assets: snapshot.activos.map((activo) => ({
+        tipo: activo.categoriaNombre,
+        marca: activo.marca,
+        modelo: activo.modelo,
+        numeroSerie: activo.numeroSerie,
+        estadoDevolucion: activo.estadoDevolucion,
+      })),
+      observaciones: snapshot.observaciones,
+      recibidoPor: snapshot.recibidoPor,
+    })
+  );
+}
+
+/** Punto de entrada unico: el tipo del snapshot elige la plantilla. */
+export function generarPdfDesdeSnapshot(snapshot: DocumentoSnapshot): Promise<Buffer> {
+  switch (snapshot.tipo) {
+    case 'anexo_entrega':
+      return generateAnexoEntrega(snapshot);
+    case 'comprobante_entrega':
+      return generateComprobanteEntrega(snapshot);
+    case 'comprobante_cambio':
+      return generateComprobanteCambio(snapshot);
+    case 'acta_devolucion':
+      return generateActaDevolucion(snapshot);
+    default: {
+      const tipo = (snapshot as { tipo: string }).tipo;
+      return Promise.reject(new Error(`Tipo de documento no soportado: ${tipo}`));
+    }
+  }
 }
