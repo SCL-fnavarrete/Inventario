@@ -34,7 +34,8 @@ import { crearStoreNotificaciones } from '@/test-utils/notificacionStore';
 
 const CONFIG = {
   GRAPH_MAIL_SENDER: 'inventario-it@sclconsultores.com',
-  RRHH_NOTIFICACION_DESTINATARIOS: 'rrhh@sclconsultores.com, RRHH@sclconsultores.com ,jefatura@sclconsultores.com',
+  RRHH_NOTIFICACION_DESTINATARIOS:
+    'rrhh@sclconsultores.com, RRHH@sclconsultores.com ,jefatura@sclconsultores.com',
   IT_NOTIFICACION_DESTINATARIOS: 'ti@sclconsultores.com',
 };
 
@@ -151,6 +152,45 @@ describe('enviarNotificacion — después del commit', () => {
     expect(store.transaccionesConfirmadas).toBe(1);
   });
 
+  test('si Graph aceptó y falla el registro posterior, la notificación no queda fallida', async () => {
+    // Es el peor error posible aquí, y es el mismo que se acababa de corregir un
+    // nivel más abajo en `graphRequestAceptado`: el correo sale y el sistema
+    // dice que no. Alguien ve "fallida", aprieta reintentar, y RRHH recibe el
+    // acta dos veces. Un `SET NULL` sobre la desvinculación, o un corte de
+    // conexión a Neon entre el 202 y el commit, bastan para provocarlo.
+    const { notificacionId } = await prepararCierre();
+    pedirGraph.mockResolvedValue(202);
+    store.termination.update = async () => {
+      throw new Error('Connection terminated unexpectedly');
+    };
+
+    const resultado = await enviarNotificacion(notificacionId);
+
+    expect(store.filas[0].estado).not.toBe('fallida');
+    expect(resultado.estado).not.toBe('fallida');
+    // Y el fallo no se pierde: queda dicho que Graph aceptó pero no se pudo
+    // registrar, que es un estado que alguien tiene que poder ver.
+    expect(store.filas[0].mensajeError).toMatch(/Connection terminated/);
+  });
+
+  test('un intento que falla no rebaja una notificación que otro ya dejó enviada', async () => {
+    const { notificacionId } = await prepararCierre();
+    // El `update` del catch no filtraba por estado: un intento perdedor pisaba
+    // el resultado del que sí había salido. La evidencia no solo se perdía, se
+    // contradecía.
+    pedirGraph.mockImplementation(async () => {
+      await store.notificacionEnviada.update({
+        where: { id: notificacionId },
+        data: { estado: 'enviada', aceptadaEn: new Date('2026-03-04T13:00:00.000Z') },
+      });
+      throw new Error('Graph 500');
+    });
+
+    await enviarNotificacion(notificacionId);
+
+    expect(store.filas[0].estado).toBe('enviada');
+  });
+
   test('envía por el buzón de servicio con los adjuntos verificados', async () => {
     const { notificacionId } = await prepararCierre();
     pedirGraph.mockResolvedValue(202);
@@ -162,10 +202,11 @@ describe('enviarNotificacion — después del commit', () => {
       'https://graph.microsoft.com/v1.0/users/inventario-it%40sclconsultores.com/sendMail'
     );
     const payload = JSON.parse(opciones.body as string);
-    expect(payload.message.toRecipients.map((r: { emailAddress: { address: string } }) => r.emailAddress.address)).toEqual([
-      'rrhh@sclconsultores.com',
-      'jefatura@sclconsultores.com',
-    ]);
+    expect(
+      payload.message.toRecipients.map(
+        (r: { emailAddress: { address: string } }) => r.emailAddress.address
+      )
+    ).toEqual(['rrhh@sclconsultores.com', 'jefatura@sclconsultores.com']);
     // Texto plano: el cuerpo lleva datos del empleado y no hay HTML que
     // escapar mal.
     expect(payload.message.body.contentType).toBe('Text');
@@ -183,7 +224,9 @@ describe('enviarNotificacion — después del commit', () => {
     const { notificacionId } = await prepararCierre();
     const { ServiceConflictError } = jest.requireActual('@/lib/errors/serviceOperationError');
     traerDocumento.mockRejectedValue(
-      new ServiceConflictError('Integridad comprometida: el archivo no coincide con el hash emitido')
+      new ServiceConflictError(
+        'Integridad comprometida: el archivo no coincide con el hash emitido'
+      )
     );
 
     const resultado = await enviarNotificacion(notificacionId);
@@ -196,7 +239,9 @@ describe('enviarNotificacion — después del commit', () => {
 
   test('un fallo de Graph deja fallida y la desvinculación sin notificar', async () => {
     const { notificacionId } = await prepararCierre();
-    pedirGraph.mockRejectedValue(new Error('sendMail: Microsoft Graph respondio 403 (request-id req-3)'));
+    pedirGraph.mockRejectedValue(
+      new Error('sendMail: Microsoft Graph respondio 403 (request-id req-3)')
+    );
 
     const resultado = await enviarNotificacion(notificacionId);
 

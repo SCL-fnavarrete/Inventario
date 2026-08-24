@@ -142,6 +142,38 @@ function errorSaneado(error: unknown): string {
   return mensaje.slice(0, LIMITE_ERROR);
 }
 
+/**
+ * Deja la notificacion `fallida`. Solo se llama por errores ocurridos **antes**
+ * de que Graph acepte: desde el 202 el correo salio y marcarlo como fallido es
+ * lo que hace que alguien reintente y lo duplique.
+ *
+ * El filtro de estado importa: sin el, un intento perdedor pisaba el resultado
+ * de otro que si habia salido, y la evidencia se contradecia.
+ */
+async function degradarAFallida(notificacionId: string, error: unknown): Promise<string> {
+  const mensajeError = errorSaneado(error);
+  await prisma.notificacionEnviada.updateMany({
+    where: { id: notificacionId, estado: { not: 'enviada' } },
+    data: { estado: 'fallida', mensajeError },
+  });
+  return mensajeError;
+}
+
+/**
+ * Anota un error **sin** tocar el estado. Es el caso de un fallo posterior al
+ * 202: el correo salio, asi que el estado no puede decir que no, pero el fallo
+ * tampoco puede desaparecer -- alguien tiene que poder ver que Graph acepto y
+ * no se alcanzo a registrar.
+ */
+async function anotarErrorSinDegradar(notificacionId: string, error: unknown): Promise<string> {
+  const mensajeError = errorSaneado(error);
+  await prisma.notificacionEnviada.updateMany({
+    where: { id: notificacionId, estado: { not: 'enviada' } },
+    data: { mensajeError },
+  });
+  return mensajeError;
+}
+
 async function adjuntosDe(documentoIds: string[]) {
   const adjuntos = [];
   let total = 0;
@@ -174,11 +206,18 @@ async function adjuntosDe(documentoIds: string[]) {
  * No lanza: un fallo de correo no puede tumbar la respuesta de un cierre que
  * ya ocurrio. Deja `fallida` con su error saneado, y el reintento es explicito.
  *
+ * **El envio esta partido en tres etapas, y solo las dos primeras degradan a
+ * `fallida`.** Preparar y enviar ocurren antes de que Graph acepte, asi que un
+ * fallo ahi significa que no salio nada. Registrar ocurre despues del 202: el
+ * correo salio, y marcarlo como fallido es lo que hace que alguien reintente y
+ * RRHH reciba el acta dos veces. Un fallo en la etapa 3 se anota sin tocar el
+ * estado.
+ *
  * *Riesgo conocido:* si Graph acepta el mensaje pero la respuesta se pierde en
- * el camino, la notificacion queda `fallida` y un reintento manda un segundo
- * correo. No hay forma de evitarlo sin un identificador de idempotencia que
- * `sendMail` no ofrece; se prefiere un duplicado visible a una notificacion
- * que nadie sabe si salio.
+ * el camino -- antes de llegar aqui--, el intento queda sin confirmar y un
+ * reintento manda un segundo correo. No hay forma de evitarlo sin un
+ * identificador de idempotencia que `sendMail` no ofrece; se prefiere un
+ * duplicado visible a una notificacion que nadie sabe si salio.
  */
 export async function enviarNotificacion(notificacionId: string): Promise<ResultadoEnvio> {
   const notificacion = await prisma.notificacionEnviada.findUnique({
@@ -193,6 +232,9 @@ export async function enviarNotificacion(notificacionId: string): Promise<Result
     return { notificacionId, estado: 'enviada', error: null };
   }
 
+  // --- Etapa 1: preparar. Nada salio todavia, asi que un fallo aqui si degrada.
+  let attachments: Awaited<ReturnType<typeof adjuntosDe>>;
+  let remitente: string;
   try {
     const { configured, missing } = checkNotificationConfiguration();
     if (!configured) {
@@ -204,9 +246,18 @@ export async function enviarNotificacion(notificacionId: string): Promise<Result
       throw new Error('La notificacion no tiene destinatarios validos configurados');
     }
 
-    const attachments = await adjuntosDe(notificacion.documentoIds);
-    const remitente = process.env.GRAPH_MAIL_SENDER as string;
+    attachments = await adjuntosDe(notificacion.documentoIds);
+    remitente = process.env.GRAPH_MAIL_SENDER as string;
+  } catch (error) {
+    return {
+      notificacionId,
+      estado: 'fallida',
+      error: await degradarAFallida(notificacionId, error),
+    };
+  }
 
+  // --- Etapa 2: enviar. Es el ultimo punto donde degradar sigue siendo correcto.
+  try {
     await graphRequestAceptado(
       `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(remitente)}/sendMail`,
       {
@@ -229,15 +280,31 @@ export async function enviarNotificacion(notificacionId: string): Promise<Result
         }),
       }
     );
+  } catch (error) {
+    return {
+      notificacionId,
+      estado: 'fallida',
+      error: await degradarAFallida(notificacionId, error),
+    };
+  }
 
-    const aceptadaEn = new Date();
+  // --- Etapa 3: registrar. Graph acepto: el correo salio. Desde aqui ningun
+  // error puede escribir `fallida`, porque eso es exactamente lo que hace que
+  // alguien reintente y RRHH reciba el acta dos veces.
+  const aceptadaEn = new Date();
+  try {
     await prisma.$transaction(async (tx) => {
-      // El `updateMany` con el filtro de estado evita que dos envios
-      // simultaneos marquen la misma fila dos veces.
-      await tx.notificacionEnviada.updateMany({
+      // El filtro de estado evita que dos envios simultaneos marquen la misma
+      // fila dos veces.
+      const reclamada = await tx.notificacionEnviada.updateMany({
         where: { id: notificacionId, estado: { not: 'enviada' } },
         data: { estado: 'enviada', aceptadaEn, mensajeError: null },
       });
+
+      // Si otro intento gano la carrera, su `aceptadaEn` es el que vale: pisar
+      // los flags con la marca de este intento los desalinearia de la evidencia
+      // que deben respaldar.
+      if (reclamada.count === 0) return;
 
       // Los flags de `terminations` son de compatibilidad y los escribe solo
       // este servicio, junto con la evidencia que los respalda.
@@ -251,12 +318,14 @@ export async function enviarNotificacion(notificacionId: string): Promise<Result
 
     return { notificacionId, estado: 'enviada', error: null };
   } catch (error) {
-    const mensajeError = errorSaneado(error);
-    await prisma.notificacionEnviada.update({
+    // El correo salio pero no se pudo registrar. Se anota el error y se
+    // devuelve el estado que la fila tiene de verdad, sin inventar uno.
+    const mensajeError = await anotarErrorSinDegradar(notificacionId, error);
+    const actual = await prisma.notificacionEnviada.findUnique({
       where: { id: notificacionId },
-      data: { estado: 'fallida', mensajeError },
+      select: { estado: true },
     });
-    return { notificacionId, estado: 'fallida', error: mensajeError };
+    return { notificacionId, estado: actual?.estado ?? notificacion.estado, error: mensajeError };
   }
 }
 
