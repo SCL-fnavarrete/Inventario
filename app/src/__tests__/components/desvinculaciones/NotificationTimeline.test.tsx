@@ -31,9 +31,32 @@ const FALLIDA = {
   mensajeError: 'sendMail: La aplicacion no tiene el permiso Graph necesario (request-id req-9)',
 };
 
+const ENVIANDO = {
+  ...ENVIADA,
+  id: 'notificacion-3',
+  estado: 'enviando' as const,
+  aceptadaEn: null,
+  mensajeError: null,
+};
+
 describe('NotificationTimeline', () => {
+  test('un aviso en curso no ofrece reintento y dice por qué', () => {
+    // El botón aparecía para cualquier estado distinto de `enviada`, incluido el
+    // de un envío en vuelo: dos pestañas, o la transición todavía subiendo,
+    // bastaban para que RRHH recibiera el acta dos veces. `enviando` significa
+    // "no sabemos si salió", y reintentarlo por si acaso es cómo se duplica.
+    render(
+      <NotificationTimeline notificaciones={[ENVIANDO]} puedeReintentar onReintentar={jest.fn()} />
+    );
+
+    expect(screen.queryByRole('button', { name: /reintentar/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/no se pudo confirmar|en curso/i)).toBeInTheDocument();
+  });
+
   test('muestra destinatarios, asunto, actor y la hora en que Graph aceptó', () => {
-    render(<NotificationTimeline notificaciones={[ENVIADA]} puedeReintentar onReintentar={jest.fn()} />);
+    render(
+      <NotificationTimeline notificaciones={[ENVIADA]} puedeReintentar onReintentar={jest.fn()} />
+    );
 
     expect(screen.getByText('Cierre de desvinculación')).toBeInTheDocument();
     expect(screen.getByText(/rrhh@sclconsultores.com/)).toBeInTheDocument();
@@ -44,7 +67,9 @@ describe('NotificationTimeline', () => {
   });
 
   test('dice qué significa "enviada": Graph la aceptó, no que alguien la leyó', () => {
-    render(<NotificationTimeline notificaciones={[ENVIADA]} puedeReintentar onReintentar={jest.fn()} />);
+    render(
+      <NotificationTimeline notificaciones={[ENVIADA]} puedeReintentar onReintentar={jest.fn()} />
+    );
 
     expect(screen.getByText(/aceptada por Microsoft Graph/i)).toBeInTheDocument();
   });
@@ -73,7 +98,9 @@ describe('NotificationTimeline', () => {
   });
 
   test('un aviso ya aceptado no ofrece reintento', () => {
-    render(<NotificationTimeline notificaciones={[ENVIADA]} puedeReintentar onReintentar={jest.fn()} />);
+    render(
+      <NotificationTimeline notificaciones={[ENVIADA]} puedeReintentar onReintentar={jest.fn()} />
+    );
 
     expect(screen.queryByRole('button', { name: /reintentar/i })).not.toBeInTheDocument();
   });

@@ -184,6 +184,24 @@ describe('POST /api/desvinculaciones/[id]/notificar', () => {
     expect(enviarNotificacion).not.toHaveBeenCalled();
   });
 
+  test('un aviso sin confirmar no se reintenta a ciegas: avisa que puede duplicar', async () => {
+    // `enviando` es un intento que reclamó la fila y no se pudo confirmar: el
+    // correo pudo haber salido. `sendMail` no ofrece clave de idempotencia, así
+    // que reintentar por si acaso es exactamente cómo RRHH recibe el acta dos
+    // veces. La decisión es de una persona, después de mirar el buzón.
+    (prisma.notificacionEnviada.findFirst as jest.Mock).mockResolvedValue({
+      id: 'notificacion-previa',
+      estado: 'enviando',
+      aceptadaEn: null,
+    });
+
+    const response = await pedirNotificar();
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toMatch(/sin confirmar|segunda copia/i);
+    expect(enviarNotificacion).not.toHaveBeenCalled();
+  });
+
   test('404 cuando la desvinculación no existe', async () => {
     (prisma.termination.findUnique as jest.Mock).mockResolvedValue(null);
 

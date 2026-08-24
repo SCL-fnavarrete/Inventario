@@ -232,6 +232,31 @@ export async function enviarNotificacion(notificacionId: string): Promise<Result
     return { notificacionId, estado: 'enviada', error: null };
   }
 
+  // Reclamar la fila ANTES de cualquier efecto irreversible.
+  //
+  // Filtrar el estado en la escritura final no alcanza: para cuando esa
+  // escritura actua, los dos intentos concurrentes ya pasaron por `sendMail` y
+  // RRHH recibio el acta dos veces. El filtro protegia el registro, no el envio.
+  //
+  // Solo se reclama desde `pendiente` o `fallida`. Una fila en `enviando` es un
+  // intento del que no sabemos si salio, y reintentarlo por si acaso es
+  // exactamente como se duplica un aviso: hace falta una decision humana.
+  const reclamada = await prisma.notificacionEnviada.updateMany({
+    where: { id: notificacionId, estado: { in: ['pendiente', 'fallida'] } },
+    data: { estado: 'enviando' },
+  });
+  if (reclamada.count === 0) {
+    const actual = await prisma.notificacionEnviada.findUnique({
+      where: { id: notificacionId },
+      select: { estado: true, mensajeError: true },
+    });
+    return {
+      notificacionId,
+      estado: actual?.estado ?? notificacion.estado,
+      error: actual?.mensajeError ?? null,
+    };
+  }
+
   // --- Etapa 1: preparar. Nada salio todavia, asi que un fallo aqui si degrada.
   let attachments: Awaited<ReturnType<typeof adjuntosDe>>;
   let remitente: string;

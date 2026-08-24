@@ -152,6 +152,52 @@ describe('enviarNotificacion — después del commit', () => {
     expect(store.transaccionesConfirmadas).toBe(1);
   });
 
+  test('reclama la fila antes de llamar a Graph, no después', async () => {
+    // El guard viejo filtraba la escritura final, y eso llega tarde: dos
+    // intentos concurrentes leían `pendiente`, los dos pasaban por sendMail, y
+    // el filtro recién impedía que el segundo *anotara* lo que ya había hecho.
+    // RRHH recibía el acta dos veces.
+    const { notificacionId } = await prepararCierre();
+    let estadoAlEnviar: string | undefined;
+    pedirGraph.mockImplementation(async () => {
+      estadoAlEnviar = store.filas[0].estado;
+      return 202;
+    });
+
+    await enviarNotificacion(notificacionId);
+
+    expect(estadoAlEnviar).toBe('enviando');
+    expect(store.filas[0].estado).toBe('enviada');
+  });
+
+  test('un segundo intento sobre una fila ya reclamada no manda un segundo correo', async () => {
+    const { notificacionId } = await prepararCierre();
+    // `enviando` significa "se intentó y no sabemos si salió". Reintentarlo solo
+    // por si acaso es exactamente cómo se duplica un aviso.
+    await store.notificacionEnviada.update({
+      where: { id: notificacionId },
+      data: { estado: 'enviando' },
+    });
+
+    const resultado = await enviarNotificacion(notificacionId);
+
+    expect(pedirGraph).not.toHaveBeenCalled();
+    expect(resultado.estado).toBe('enviando');
+    expect(store.filas[0].estado).toBe('enviando');
+  });
+
+  test('una fallida sí se puede reclamar de nuevo', async () => {
+    const { notificacionId } = await prepararCierre();
+    pedirGraph.mockRejectedValueOnce(new Error('Graph 503'));
+    await enviarNotificacion(notificacionId);
+    expect(store.filas[0].estado).toBe('fallida');
+
+    pedirGraph.mockResolvedValue(202);
+    const resultado = await enviarNotificacion(notificacionId);
+
+    expect(resultado.estado).toBe('enviada');
+  });
+
   test('si Graph aceptó y falla el registro posterior, la notificación no queda fallida', async () => {
     // Es el peor error posible aquí, y es el mismo que se acababa de corregir un
     // nivel más abajo en `graphRequestAceptado`: el correo sale y el sistema

@@ -63,7 +63,12 @@ export function crearStoreNotificaciones() {
       Object.assign(fila, data);
       return { ...fila };
     },
-    /** El guard contra doble envío: solo avanza una fila que no esté enviada. */
+    /**
+     * El guard contra el doble envío. Soporta las tres formas del filtro que
+     * usa el servicio: estado exacto, `{ not }` y `{ in }` — esta última es la
+     * que reclama la fila antes de llamar a Graph, y si el doble la ignorara
+     * dejaría pasar justo el envío que el guard existe para impedir.
+     */
     updateMany: async ({
       where,
       data,
@@ -73,10 +78,11 @@ export function crearStoreNotificaciones() {
     }) => {
       const fila = filas.find((candidata) => candidata.id === where.id);
       if (!fila) return { count: 0 };
-      const filtroEstado = where.estado as { not?: string } | string | undefined;
+      const filtroEstado = where.estado as { not?: string; in?: string[] } | string | undefined;
       if (typeof filtroEstado === 'string' && fila.estado !== filtroEstado) return { count: 0 };
-      if (filtroEstado && typeof filtroEstado === 'object' && filtroEstado.not === fila.estado) {
-        return { count: 0 };
+      if (filtroEstado && typeof filtroEstado === 'object') {
+        if ('not' in filtroEstado && filtroEstado.not === fila.estado) return { count: 0 };
+        if ('in' in filtroEstado && !filtroEstado.in!.includes(fila.estado)) return { count: 0 };
       }
       Object.assign(fila, data);
       return { count: 1 };

@@ -41,6 +41,16 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       );
     }
 
+    // Un aviso en curso no se reintenta desde aquí. `enviando` significa que un
+    // intento reclamó la fila y no se pudo confirmar: el correo pudo haber
+    // salido, y `sendMail` no ofrece clave de idempotencia, así que reintentar
+    // "por si acaso" es exactamente cómo RRHH recibe el acta dos veces.
+    if (previa?.estado === 'enviando') {
+      throw new ConflictError(
+        'Hay un envío de esta notificación en curso o sin confirmar. Revise el buzón de destino antes de reintentar: un reintento puede enviar una segunda copia.'
+      );
+    }
+
     const acta = await documentoArchivadoDe({ terminationId: id, tipo: 'acta_devolucion' });
     if (!acta) {
       throw new ConflictError(

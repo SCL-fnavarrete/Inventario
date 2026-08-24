@@ -1,6 +1,14 @@
 'use client';
 
-import { AlertCircle, CheckCircle, Clock, Mail, Paperclip, RefreshCw } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  HelpCircle,
+  Mail,
+  Paperclip,
+  RefreshCw,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -16,7 +24,7 @@ export type NotificacionEvidencia = {
   tipo: string;
   destinatarios: string[];
   asunto: string;
-  estado: 'pendiente' | 'enviada' | 'fallida';
+  estado: 'pendiente' | 'enviando' | 'enviada' | 'fallida';
   mensajeError: string | null;
   enviadaPor: string;
   aceptadaEn: string | null;
@@ -34,7 +42,17 @@ const ESTILO_ESTADO = {
   enviada: { icono: CheckCircle, clase: 'text-green-700 bg-green-50 border-green-200' },
   fallida: { icono: AlertCircle, clase: 'text-red-700 bg-red-50 border-red-200' },
   pendiente: { icono: Clock, clase: 'text-orange-700 bg-orange-50 border-orange-200' },
+  enviando: { icono: HelpCircle, clase: 'text-amber-800 bg-amber-50 border-amber-300' },
 } as const;
+
+/**
+ * Un aviso `enviando` es un intento que reclamo la fila y no se pudo confirmar:
+ * puede haber salido o no. No se ofrece reintento porque `sendMail` no tiene
+ * clave de idempotencia, asi que reintentar "por si acaso" es justamente como
+ * RRHH termina recibiendo el acta dos veces. Hace falta comprobar el buzon.
+ */
+const AVISO_EN_CURSO =
+  'No se pudo confirmar si este correo salió. Antes de reintentar, revise el buzón de destino: un reintento puede enviar una segunda copia.';
 
 function formatearFechaHora(iso: string): string {
   const fecha = new Date(iso);
@@ -79,17 +97,19 @@ export default function NotificationTimeline({
                 </p>
               </div>
 
-              {notificacion.estado !== 'enviada' && puedeReintentar && (
-                <button
-                  type="button"
-                  onClick={() => onReintentar(notificacion.id)}
-                  disabled={reintentando === notificacion.id}
-                  className="flex shrink-0 items-center gap-1 rounded border border-current px-2 py-1 text-xs font-medium disabled:opacity-50"
-                >
-                  <RefreshCw size={12} />
-                  Reintentar
-                </button>
-              )}
+              {notificacion.estado !== 'enviada' &&
+                notificacion.estado !== 'enviando' &&
+                puedeReintentar && (
+                  <button
+                    type="button"
+                    onClick={() => onReintentar(notificacion.id)}
+                    disabled={reintentando === notificacion.id}
+                    className="flex shrink-0 items-center gap-1 rounded border border-current px-2 py-1 text-xs font-medium disabled:opacity-50"
+                  >
+                    <RefreshCw size={12} />
+                    Reintentar
+                  </button>
+                )}
             </div>
 
             <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
@@ -116,6 +136,10 @@ export default function NotificationTimeline({
                   .map((documento) => `${documento.numero} v${documento.version}`)
                   .join(' · ')}
               </p>
+            )}
+
+            {notificacion.estado === 'enviando' && (
+              <p className="mt-2 text-xs font-medium">{AVISO_EN_CURSO}</p>
             )}
 
             {notificacion.mensajeError && (
