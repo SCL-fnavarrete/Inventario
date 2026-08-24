@@ -89,13 +89,31 @@ function activoResumido(activo: ActivoSnapshot) {
   };
 }
 
-const EQUIPO_AUSENTE = {
-  tipo: '—',
-  marca: '—',
-  modelo: '—',
-  numeroSerie: null,
-  estado: '—',
+/**
+ * Etiquetas de la condicion en que se entrega un equipo.
+ *
+ * El ternario anterior colapsaba `danado` en "Usado": el enum tiene tres
+ * valores, y el documento hacia desaparecer justo el que despues se disputa.
+ */
+const ETIQUETA_CONDICION: Record<string, string> = {
+  nuevo: 'Nuevo',
+  usado: 'Usado',
+  danado: 'Dañado',
 };
+
+/** Etiquetas del estado con que vuelve un equipo (`EstadoDevolucion`). */
+const ETIQUETA_DEVOLUCION: Record<string, string> = {
+  ok: 'OK',
+  danado: 'Dañado',
+  incompleto: 'Incompleto',
+};
+
+function etiqueta(mapa: Record<string, string>, valor: string | null): string {
+  if (!valor) return '—';
+  // Se imprime el valor crudo si no esta mapeado, nunca una etiqueta inventada:
+  // es mejor un `incompleto` en minuscula que un "OK" que nadie declaro.
+  return mapa[valor] ?? valor;
+}
 
 export function generateAnexoEntrega(snapshot: AnexoEntregaSnapshot): Promise<Buffer> {
   return renderPdf(
@@ -133,24 +151,27 @@ export function generateComprobanteCambio(snapshot: ComprobanteCambioSnapshot): 
       empleadoRut: snapshot.empleado.rut || '—',
       fecha: formatearFecha(snapshot.fecha),
       motivoCambio: snapshot.motivoCambio,
+      // `null` viaja como `null`: el builder distingue bien un cambio sin equipo
+      // anterior, y rellenarlo con guiones hacia que el documento dibujara una
+      // tabla de devolucion que nunca ocurrio.
       equipoNuevo: snapshot.equipoNuevo
         ? {
             tipo: snapshot.equipoNuevo.categoriaNombre,
             marca: snapshot.equipoNuevo.marca,
             modelo: snapshot.equipoNuevo.modelo,
             numeroSerie: snapshot.equipoNuevo.numeroSerie,
-            estado: snapshot.equipoNuevo.condicion,
+            estado: etiqueta(ETIQUETA_CONDICION, snapshot.equipoNuevo.condicion),
           }
-        : EQUIPO_AUSENTE,
+        : null,
       equipoAnterior: snapshot.equipoAnterior
         ? {
             tipo: snapshot.equipoAnterior.categoriaNombre,
             marca: snapshot.equipoAnterior.marca,
             modelo: snapshot.equipoAnterior.modelo,
             numeroSerie: snapshot.equipoAnterior.numeroSerie,
-            estado: snapshot.equipoAnterior.condicion,
+            estado: etiqueta(ETIQUETA_DEVOLUCION, snapshot.equipoAnterior.estadoDevolucion),
           }
-        : EQUIPO_AUSENTE,
+        : null,
       gestionadoPor: snapshot.gestionadoPor,
     })
   );

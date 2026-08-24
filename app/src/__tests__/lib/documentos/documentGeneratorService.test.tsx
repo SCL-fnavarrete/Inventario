@@ -70,7 +70,10 @@ function resolver(nodo: Nodo): Nodo {
     return resolver((elemento.type as (p: unknown) => Nodo)(elemento.props));
   }
   if (!elemento.props) return nodo;
-  return { type: elemento.type, props: { ...elemento.props, children: resolver(elemento.props.children) } };
+  return {
+    type: elemento.type,
+    props: { ...elemento.props, children: resolver(elemento.props.children) },
+  };
 }
 
 function arbolRenderizado() {
@@ -88,6 +91,36 @@ function textoPlano(nodo: Nodo): string {
 
 beforeEach(() => {
   render.mockClear();
+});
+
+describe('comprobante de cambio — no afirma lo que el snapshot no dice', () => {
+  test('imprime el estado con que volvió el equipo, no un "Devolución OK" fijo', async () => {
+    // La cláusula del anexo hace responsable al trabajador por daños con valores
+    // de reposición tasados. Un documento firmado que dice que el equipo volvió
+    // OK cuando volvió dañado borra justo el dato que después se disputa.
+    await generarPdfDesdeSnapshot(
+      comprobanteCambioSnapshot({
+        equipoAnterior: {
+          ...comprobanteCambioSnapshot().equipoAnterior!,
+          estadoDevolucion: 'danado',
+        },
+      })
+    );
+
+    const texto = textoPlano(arbolRenderizado());
+    expect(texto).toMatch(/dañado/i);
+    expect(texto).not.toMatch(/Devolución OK/i);
+  });
+
+  test('sin equipo anterior no dibuja una devolución que nunca ocurrió', async () => {
+    // El builder devolvía `null` correctamente y el generador lo sustituía por
+    // una fila de guiones: el documento mostraba la tabla "Equipo Devuelto
+    // (Anterior)" completa, con la etiqueta "Devolución OK".
+    await generarPdfDesdeSnapshot(comprobanteCambioSnapshot({ equipoAnterior: null }));
+
+    const texto = textoPlano(arbolRenderizado());
+    expect(texto).not.toMatch(/Equipo Devuelto/i);
+  });
 });
 
 describe('generarPdfDesdeSnapshot — el snapshot es el documento', () => {
@@ -132,7 +165,9 @@ describe('generarPdfDesdeSnapshot — el snapshot es el documento', () => {
   test('la categoria que muestra es la observada al emitir, no la actual', async () => {
     await generarPdfDesdeSnapshot(
       anexoEntregaSnapshot({
-        activos: [{ ...anexoEntregaSnapshot().activos[0], categoriaNombre: 'Notebook corporativo 2026' }],
+        activos: [
+          { ...anexoEntregaSnapshot().activos[0], categoriaNombre: 'Notebook corporativo 2026' },
+        ],
       })
     );
     expect(textoPlano(arbolRenderizado())).toContain('Notebook corporativo 2026');
@@ -154,7 +189,10 @@ describe('generarPdfDesdeSnapshot — el snapshot es el documento', () => {
 
   test('rechaza un tipo de snapshot desconocido en vez de emitir un PDF vacio', async () => {
     await expect(
-      generarPdfDesdeSnapshot({ ...anexoEntregaSnapshot(), tipo: 'inventado' } as unknown as DocumentoSnapshot)
+      generarPdfDesdeSnapshot({
+        ...anexoEntregaSnapshot(),
+        tipo: 'inventado',
+      } as unknown as DocumentoSnapshot)
     ).rejects.toThrow(/tipo de documento/i);
   });
 });

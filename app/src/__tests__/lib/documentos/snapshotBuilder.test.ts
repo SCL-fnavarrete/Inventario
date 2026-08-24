@@ -11,11 +11,7 @@
  * `tipoDevolucion` estable de la Ola 2.
  */
 
-import {
-  datosDeCambio,
-  datosDeDevolucion,
-  datosDeEntrega,
-} from '@/lib/documents/snapshotBuilder';
+import { datosDeCambio, datosDeDevolucion, datosDeEntrega } from '@/lib/documents/snapshotBuilder';
 import { documentoSnapshotSchema } from '@/lib/documents/snapshot';
 import { FIRMA_VALIDA } from '@/test-utils/signature';
 
@@ -88,7 +84,13 @@ describe('datosDeEntrega', () => {
     expect(anexo.activos.map((a) => a.assignmentId)).toEqual(['a1', 'a2']);
     expect(comprobante.activos.map((a) => a.assignmentId)).toEqual(['a1', 'a2']);
     // Ambos son snapshots completos salvo la identidad que pone la emision.
-    const completo = { snapshotVersion: 1, numero: 'DOC-2026-0001', version: 1, emitidoEn: FECHA.toISOString(), emitidoPor: 'Tecnico TI' };
+    const completo = {
+      snapshotVersion: 1,
+      numero: 'DOC-2026-0001',
+      version: 1,
+      emitidoEn: FECHA.toISOString(),
+      emitidoPor: 'Tecnico TI',
+    };
     expect(documentoSnapshotSchema.safeParse({ ...anexo, ...completo }).success).toBe(true);
     expect(documentoSnapshotSchema.safeParse({ ...comprobante, ...completo }).success).toBe(true);
   });
@@ -207,6 +209,27 @@ describe('datosDeCambio', () => {
     });
 
     expect(datos.equipoAnterior).toBeNull();
+  });
+
+  test('captura con qué estado volvió el equipo anterior', async () => {
+    // El comprobante imprimía "Devolución OK" como literal fijo, y el snapshot
+    // no capturaba `estadoDevolucion` aunque el flujo sí lo registra: se cambia
+    // un notebook con la pantalla quebrada, el técnico declara `danado`, y el
+    // documento que la persona firma dice que volvió OK.
+    const tx = txCon([asignacion('vieja', { estadoDevolucion: 'danado' }), asignacion('nueva')]);
+
+    const datos = await datosDeCambio(tx as never, {
+      employeeId: 'employee-1',
+      solicitud: { ...SOLICITUD, tipo: 'cambio_equipo' },
+      gestionadoPor: 'Tecnico TI',
+      fecha: FECHA,
+      motivoCambio: 'Pantalla quebrada',
+      assignmentAnteriorId: 'vieja',
+      assignmentNuevoId: 'nueva',
+      firma: FIRMA,
+    });
+
+    expect(datos.equipoAnterior?.estadoDevolucion).toBe('danado');
   });
 });
 

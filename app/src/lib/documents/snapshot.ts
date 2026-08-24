@@ -94,7 +94,17 @@ export const comprobanteCambioSnapshotSchema = baseSchema.extend({
   fecha: isoDateTime,
   motivoCambio: z.string(),
   gestionadoPor: z.string(),
-  equipoAnterior: activoSnapshotSchema.nullable(),
+  /**
+   * El equipo que sale, con el estado en que volvio.
+   *
+   * `estadoDevolucion` esta aqui porque el comprobante lo afirma: sin capturarlo,
+   * el documento imprimia "Devolucion OK" como literal fijo aunque el tecnico
+   * hubiera declarado `danado`, y la clausula de responsabilidad por danos se
+   * apoya justo en ese dato.
+   */
+  equipoAnterior: activoSnapshotSchema
+    .extend({ estadoDevolucion: z.string().nullable() })
+    .nullable(),
   equipoNuevo: activoSnapshotSchema.nullable(),
 });
 

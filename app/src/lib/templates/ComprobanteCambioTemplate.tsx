@@ -23,8 +23,9 @@ type Props = {
   empleadoRut: string;
   fecha: string;
   motivoCambio: string;
-  equipoAnterior: AssetInfo;
-  equipoNuevo: AssetInfo;
+  /** `null` cuando no hubo equipo anterior: el bloque entero se omite. */
+  equipoAnterior: AssetInfo | null;
+  equipoNuevo: AssetInfo | null;
   gestionadoPor: string;
 };
 
@@ -38,27 +39,30 @@ export function ComprobanteCambioTemplate({
   equipoNuevo,
   gestionadoPor,
 }: Props) {
-  const renderEquipoTable = (asset: AssetInfo, label: string, estadoLabel: string) => (
-    <View style={{ marginBottom: 12 }}>
-      <Text style={styles.subtitle}>{label}</Text>
-      <View style={styles.table}>
-        <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderCell, { width: '20%' }]}>Tipo</Text>
-          <Text style={[styles.tableHeaderCell, { width: '20%' }]}>Marca</Text>
-          <Text style={[styles.tableHeaderCell, { width: '25%' }]}>Modelo</Text>
-          <Text style={[styles.tableHeaderCell, { width: '20%' }]}>N° Serie</Text>
-          <Text style={[styles.tableHeaderCell, { width: '15%' }]}>Estado</Text>
-        </View>
-        <View style={styles.tableRow}>
-          <Text style={[styles.tableCell, { width: '20%' }]}>{asset.tipo}</Text>
-          <Text style={[styles.tableCell, { width: '20%' }]}>{asset.marca}</Text>
-          <Text style={[styles.tableCell, { width: '25%' }]}>{asset.modelo}</Text>
-          <Text style={[styles.tableCell, { width: '20%' }]}>{asset.numeroSerie || '—'}</Text>
-          <Text style={[styles.tableCell, { width: '15%' }]}>{estadoLabel}</Text>
+  // Un bloque sin equipo no se dibuja. Rellenarlo con guiones hacia que el
+  // documento afirmara una devolucion que nunca ocurrio.
+  const renderEquipoTable = (asset: AssetInfo | null, label: string) =>
+    asset === null ? null : (
+      <View style={{ marginBottom: 12 }}>
+        <Text style={styles.subtitle}>{label}</Text>
+        <View style={styles.table}>
+          <View style={styles.tableHeader}>
+            <Text style={[styles.tableHeaderCell, { width: '20%' }]}>Tipo</Text>
+            <Text style={[styles.tableHeaderCell, { width: '20%' }]}>Marca</Text>
+            <Text style={[styles.tableHeaderCell, { width: '25%' }]}>Modelo</Text>
+            <Text style={[styles.tableHeaderCell, { width: '20%' }]}>N° Serie</Text>
+            <Text style={[styles.tableHeaderCell, { width: '15%' }]}>Estado</Text>
+          </View>
+          <View style={styles.tableRow}>
+            <Text style={[styles.tableCell, { width: '20%' }]}>{asset.tipo}</Text>
+            <Text style={[styles.tableCell, { width: '20%' }]}>{asset.marca}</Text>
+            <Text style={[styles.tableCell, { width: '25%' }]}>{asset.modelo}</Text>
+            <Text style={[styles.tableCell, { width: '20%' }]}>{asset.numeroSerie || '—'}</Text>
+            <Text style={[styles.tableCell, { width: '15%' }]}>{asset.estado}</Text>
+          </View>
         </View>
       </View>
-    </View>
-  );
+    );
 
   return (
     <Document {...propsDocumento(evidencia)}>
@@ -86,13 +90,13 @@ export function ComprobanteCambioTemplate({
           <Text style={styles.text}>{motivoCambio}</Text>
         </View>
 
-        {renderEquipoTable(equipoNuevo, 'Equipo Asignado (Nuevo)', 'Entregado OK')}
-        {renderEquipoTable(equipoAnterior, 'Equipo Devuelto (Anterior)', 'Devolución OK')}
+        {renderEquipoTable(equipoNuevo, 'Equipo Asignado (Nuevo)')}
+        {renderEquipoTable(equipoAnterior, 'Equipo Devuelto (Anterior)')}
 
         <View style={{ marginTop: 12, padding: 8, backgroundColor: '#f9fafb', borderRadius: 4 }}>
           <Text style={{ fontSize: 8, color: '#6b7280', fontStyle: 'italic' }}>
-            Nota: Este documento es un respaldo del cambio de equipo realizado. El anexo de
-            contrato será generado posteriormente si corresponde.
+            Nota: Este documento es un respaldo del cambio de equipo realizado. El anexo de contrato
+            será generado posteriormente si corresponde.
           </Text>
         </View>
 

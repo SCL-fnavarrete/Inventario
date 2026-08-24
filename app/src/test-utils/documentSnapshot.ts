@@ -88,7 +88,13 @@ export function comprobanteCambioSnapshot(
     fecha: '2026-03-04T12:34:56.000Z',
     motivoCambio: 'Pantalla quebrada',
     gestionadoPor: 'Tecnico TI',
-    equipoAnterior: { ...ACTIVO, assignmentId: 'assignment-0', assetId: 'asset-0', numeroSerie: 'OLD999' },
+    equipoAnterior: {
+      ...ACTIVO,
+      assignmentId: 'assignment-0',
+      assetId: 'asset-0',
+      numeroSerie: 'OLD999',
+      estadoDevolucion: 'ok',
+    },
     equipoNuevo: ACTIVO,
     ...overrides,
   };

@@ -160,7 +160,15 @@ export async function datosDeCambio(
     Boolean(id)
   );
   const porId = new Map(
-    (await activosDe(tx, ids)).map((asignacion) => [asignacion.id, aActivoSnapshot(asignacion)])
+    (await activosDe(tx, ids)).map((asignacion) => [
+      asignacion.id,
+      {
+        ...aActivoSnapshot(asignacion),
+        // El comprobante afirma con qué estado volvió el equipo, así que el dato
+        // tiene que estar en el snapshot y no en un literal de la plantilla.
+        estadoDevolucion: asignacion.estadoDevolucion,
+      },
+    ])
   );
 
   return {

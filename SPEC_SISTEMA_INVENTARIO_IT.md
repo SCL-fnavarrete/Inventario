@@ -723,6 +723,23 @@ junto al `tipo_devolucion` estable. Las asignaciones se identifican por id: son
 exactamente las que participaron del acto, no las que estén activas después.
 Los generadores no consultan Prisma ni leen el reloj.
 
+**Y el documento solo afirma lo que el snapshot contiene.** Ninguna plantilla
+declara un hecho con un literal fijo. Tres consecuencias concretas:
+
+- El comprobante de cambio captura `estado_devolucion` del equipo que sale y lo
+  imprime. Antes escribía "Devolución OK" como texto fijo: se cambiaba un
+  notebook con la pantalla quebrada, el técnico registraba `danado`, y el
+  documento que la persona firmaba decía que había vuelto OK — borrando el dato
+  en el que se apoya la cláusula de responsabilidad por daños del propio anexo.
+- Un bloque sin equipo **no se dibuja**. Un cambio sin equipo anterior es un
+  caso legítimo; rellenarlo con guiones hacía que el documento mostrara una
+  tabla "Equipo Devuelto (Anterior)" completa y afirmara una devolución que
+  nunca ocurrió.
+- Las condiciones y los estados se traducen con un mapa de los tres valores del
+  enum, no con un ternario. Colapsar `danado` en "Usado" hacía desaparecer del
+  acta justo lo que después se discute. Un valor sin traducción se imprime
+  crudo: es mejor leer `incompleto` en minúscula que un "OK" que nadie declaró.
+
 **Los bytes del PDF son reproducibles.** El `<Document>` recibe
 `creationDate` = `emitido_en` del snapshot, más `producer`/`creator` fijos.
 `@react-pdf/renderer` escribe `/CreationDate` con la hora del proceso y deriva
@@ -1920,6 +1937,7 @@ nunca debió existir como fila separada.
 ## Changelog SPEC
 
 - **v1.9 (2026-08-23):**
+  - El documento solo afirma lo que el snapshot contiene: el comprobante de cambio captura `estado_devolucion` y lo imprime en vez de un "Devolución OK" fijo; un bloque sin equipo no se dibuja en lugar de rellenarse con guiones; y las condiciones se traducen con un mapa de los tres valores del enum, no con un ternario que colapsaba `danado` en "Usado".
   - Cierre de los hallazgos de schema de la revisión independiente de la Ola 2, plegados en la migración `20260822020000_ola_2_evidencia_iso` antes de aplicarla.
   - `documentos_emitidos.contenido_pdf` (`BYTEA`, requerido e inmutable): los bytes del PDF se guardan y el archivo deja de re-renderizar. Re-renderizar hacía depender el archivado del código vigente el día del reintento, y un cambio de plantilla dejaba el documento irrecuperable; una reemisión, además, reproducía la versión anterior con el contenido de hoy.
   - `EstadoNotificacion` agrega `enviando`: el intento reclama la fila antes de llamar a Graph. El guard anterior filtraba la escritura final, y para entonces los dos intentos concurrentes ya habían pasado por `sendMail`. El estado reclamado además separa "nunca se intentó" de "se intentó y no sabemos si salió".
