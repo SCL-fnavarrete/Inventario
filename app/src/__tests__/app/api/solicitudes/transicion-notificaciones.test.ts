@@ -28,6 +28,9 @@ jest.mock('@/lib/services/documentEmissionService', () => ({
   TIMEOUT_TRANSACCION_EMISION_MS: 25000,
 }));
 jest.mock('@/lib/documents/snapshotBuilder', () => ({
+  // El spread deja pasar los helpers puros del modulo -- `firmaDeEvidencias`,
+  // que la ruta usa de verdad -- y mockea solo los constructores de snapshot.
+  ...jest.requireActual('@/lib/documents/snapshotBuilder'),
   datosDeEntrega: jest.fn(async () => ({
     anexo: { tipo: 'anexo_entrega' },
     comprobante: { tipo: 'comprobante_entrega' },

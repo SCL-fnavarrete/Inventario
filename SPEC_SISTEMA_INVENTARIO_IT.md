@@ -928,9 +928,19 @@ responda un 413 opaco.
 | Devolución cerrada (`consolidacion_cierre`) | `cierre_desvinculacion` | Acta de devolución emitida en esa transición |
 | Sincronización Microsoft: cuenta deshabilitada con equipos asignados | `alerta_equipos_pendientes` | Ninguno |
 
-`POST /api/desvinculaciones/[id]/notificar` cubre la desvinculación directa
-—la que no nació de una solicitud— y el reintento. Exige que el acta de
-devolución esté archivada: sin ella no hay nada que adjuntar y responde `409`
+**La desvinculación directa emite su propia evidencia.**
+`POST /api/desvinculaciones/[id]/procesar-devolucion` —el cierre de una
+desvinculación que no nació de una solicitud— emite el acta y prepara el aviso
+dentro de su transacción, y archiva y envía después del commit, con las mismas
+reglas que `consolidacion_cierre`. Antes solo cerraba la devolución, y eso
+dejaba un callejón sin salida: el operador cerraba, intentaba notificar, y
+recibía un `409` que le pedía cerrar la devolución para emitir el acta —sobre
+una devolución ya cerrada—. Emitirla después tampoco era una salida, porque
+crear hoy la evidencia de un acto de hace meses sería fabricarla.
+
+`POST /api/desvinculaciones/[id]/notificar` queda para el **reintento** del
+aviso. Exige que el acta de devolución esté archivada: sin ella no hay nada que
+adjuntar y responde `409`
 en vez de fabricar un PDF desde datos vivos. Un aviso que Graph ya aceptó no se
 reenvía desde ahí; para mandar otra copia hay que reemitir el documento y dejar
 constancia del motivo. El reintento reutiliza la misma fila: la evidencia de un
@@ -1948,6 +1958,7 @@ nunca debió existir como fila separada.
 ## Changelog SPEC
 
 - **v1.9 (2026-08-23):**
+  - `POST /api/desvinculaciones/[id]/procesar-devolucion` emite el acta y prepara el aviso a RRHH, igual que `consolidacion_cierre`. La desvinculación directa era un callejón sin salida: se cerraba sin emitir nada, y `/notificar` respondía 409 pidiendo cerrar la devolución para emitir el acta sobre una devolución ya cerrada. `/notificar` queda para el reintento.
   - `terminations.estado_otros`: el cierre de una desvinculación pregunta por los equipos cuya categoría no evalúa una por una, en vez de bloquearse. La regla —un acta no puede afirmar lo que nadie miró— se mantenía bloqueando el cierre, y el bloqueo alcanzaba al caso dominante: `tipo_devolucion` tiene `@default(otro)` y la mayoría de las categorías del catálogo caen ahí, así que un mouse asignado volvía inalcanzable la consolidación y con ella la emisión del acta.
   - El documento solo afirma lo que el snapshot contiene: el comprobante de cambio captura `estado_devolucion` y lo imprime en vez de un "Devolución OK" fijo; un bloque sin equipo no se dibuja en lugar de rellenarse con guiones; y las condiciones se traducen con un mapa de los tres valores del enum, no con un ternario que colapsaba `danado` en "Usado".
   - Cierre de los hallazgos de schema de la revisión independiente de la Ola 2, plegados en la migración `20260822020000_ola_2_evidencia_iso` antes de aplicarla.

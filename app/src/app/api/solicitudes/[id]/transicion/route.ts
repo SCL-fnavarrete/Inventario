@@ -16,7 +16,12 @@ import {
   TIMEOUT_TRANSACCION_EMISION_MS,
   type EmisionPreparada,
 } from '@/lib/services/documentEmissionService';
-import { datosDeCambio, datosDeDevolucion, datosDeEntrega } from '@/lib/documents/snapshotBuilder';
+import {
+  datosDeCambio,
+  datosDeDevolucion,
+  datosDeEntrega,
+  firmaDeEvidencias,
+} from '@/lib/documents/snapshotBuilder';
 import {
   contenidoCierreDesvinculacion,
   contenidoCierreOnboarding,
@@ -161,14 +166,6 @@ async function prepararAvisoDeCierre(
   return null;
 }
 
-/** La firma del acto es la que quedo en Assignment; el snapshot la sella. */
-function firmaDe(evidencias: AssignmentEvidenceForDocument[]) {
-  const evidencia = evidencias[0];
-  return evidencia
-    ? { imagenPng: evidencia.firmaEmpleado, firmadaEn: evidencia.firmaEmpleadoEn }
-    : { imagenPng: null, firmadaEn: null };
-}
-
 // POST /api/solicitudes/[id]/transicion - Advance workflow state
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -259,7 +256,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 fechaEntrega: eventTimestamp,
                 lugarEntrega: input.datosAccion.lugarEntrega ?? null,
                 cargoSolicitado: workflowRequest.cargoSolicitado ?? null,
-                firma: firmaDe(evidenciasParaDocumento),
+                firma: firmaDeEvidencias(evidenciasParaDocumento),
               });
               const contexto = {
                 employeeId: workflowRequest.employeeId,
@@ -342,7 +339,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                     motivoCambio: workflowRequest.motivoCambio || 'Cambio de equipo',
                     assignmentAnteriorId: devuelta?.assignmentId ?? null,
                     assignmentNuevoId: entregada?.assignmentId ?? null,
-                    firma: firmaDe(evidenciasParaDocumento),
+                    firma: firmaDeEvidencias(evidenciasParaDocumento),
                   }),
                 })
               );
@@ -422,7 +419,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                     lugarDevolucion: input.datosAccion.lugarDevolucion ?? null,
                     observaciones: input.comentario ?? null,
                     assignmentIds: returned.evidenciasParaDocumento.map((e) => e.assignmentId),
-                    firma: firmaDe(returned.evidenciasParaDocumento),
+                    firma: firmaDeEvidencias(returned.evidenciasParaDocumento),
                   }),
                 })
               );

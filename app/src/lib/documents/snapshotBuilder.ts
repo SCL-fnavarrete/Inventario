@@ -108,6 +108,21 @@ function firmaSnapshot(firma: FirmaDelActo) {
   };
 }
 
+/**
+ * La firma del acto es la que quedo en `Assignment`; el snapshot la sella.
+ *
+ * Vive aqui y no en una ruta porque la usan los dos caminos que emiten un acta
+ * de devolucion: la transicion de la solicitud y la desvinculacion directa.
+ */
+export function firmaDeEvidencias(
+  evidencias: Array<{ firmaEmpleado: string | null; firmaEmpleadoEn: Date | null }>
+): FirmaDelActo {
+  const evidencia = evidencias[0];
+  return evidencia
+    ? { imagenPng: evidencia.firmaEmpleado, firmadaEn: evidencia.firmaEmpleadoEn }
+    : { imagenPng: null, firmadaEn: null };
+}
+
 type BaseActo = {
   employeeId: string;
   solicitud: SolicitudDelActo;
