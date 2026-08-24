@@ -41,6 +41,8 @@ export type ExecuteTerminationReturnParams = {
   estadoCelular: 'ok' | 'danado' | 'no_aplica' | 'pendiente';
   estadoMonitor: 'ok' | 'danado' | 'no_aplica' | 'pendiente';
   estadoKit: 'ok' | 'danado' | 'no_aplica' | 'pendiente';
+  /** Estado de los equipos cuya categoria el formulario no pregunta una por una. */
+  estadoOtros: 'ok' | 'danado' | 'no_aplica' | 'pendiente';
   recibidoPor: string;
   lugarDevolucion: string;
   requiereDescuento?: boolean;
@@ -73,8 +75,13 @@ function assertOfficialEvidence(
   aceptaPoliticaUso: boolean,
   tipo: 'entrega' | 'devolucion'
 ) {
-  if (!pngSignatureSchema.safeParse(firma).success || !policyAcceptanceSchema.safeParse(aceptaPoliticaUso).success) {
-    throw new ServiceConflictError(`La ${tipo} requiere firma PNG y aceptación explícita de política`);
+  if (
+    !pngSignatureSchema.safeParse(firma).success ||
+    !policyAcceptanceSchema.safeParse(aceptaPoliticaUso).success
+  ) {
+    throw new ServiceConflictError(
+      `La ${tipo} requiere firma PNG y aceptación explícita de política`
+    );
   }
 }
 
@@ -82,7 +89,11 @@ function eventTimestamp(context?: ServerEvidenceContext) {
   return context?.eventTimestamp ?? new Date();
 }
 
-function employeeName(employee: { nombres?: string; apellidoPaterno?: string; rut?: string | null }) {
+function employeeName(employee: {
+  nombres?: string;
+  apellidoPaterno?: string;
+  rut?: string | null;
+}) {
   return `${employee.nombres || 'Empleado'} ${employee.apellidoPaterno || ''}`.trim();
 }
 
@@ -117,7 +128,9 @@ export async function executeAssignment(
     data: { estado: 'asignado', empleadoActualId: params.employeeId },
   });
   if (claimed.count !== 1) {
-    throw new ServiceConflictError('El activo cambió antes de asignarlo; actualice e intente nuevamente');
+    throw new ServiceConflictError(
+      'El activo cambió antes de asignarlo; actualice e intente nuevamente'
+    );
   }
 
   const assignment = await tx.assignment.create({
@@ -204,7 +217,10 @@ export async function executeReturn(
       firmaEmpleadoDevolucionEn,
     },
   });
-  if (closed.count !== 1) throw new ServiceConflictError('La asignación cambió antes de devolverla; actualice e intente nuevamente');
+  if (closed.count !== 1)
+    throw new ServiceConflictError(
+      'La asignación cambió antes de devolverla; actualice e intente nuevamente'
+    );
 
   const nuevoEstado = params.estadoDevolucion === 'danado' ? 'baja' : 'reutilizable';
   const released = await tx.asset.updateMany({
@@ -221,14 +237,20 @@ export async function executeReturn(
       ...(nuevoEstado === 'baja' && { fechaBaja: firmaEmpleadoDevolucionEn }),
     },
   });
-  if (released.count !== 1) throw new ServiceConflictError('El activo cambió antes de devolverlo; actualice e intente nuevamente');
+  if (released.count !== 1)
+    throw new ServiceConflictError(
+      'El activo cambió antes de devolverlo; actualice e intente nuevamente'
+    );
 
   await tx.assetHistory.create({
     data: {
       assetId: assignment.assetId,
       tipoEvento: 'devolucion',
       descripcion: `Devuelto por ${employeeName(assignment.employee)}. Estado: ${params.estadoDevolucion}`,
-      datosAnteriores: { estado: assignment.asset.estado, empleadoActualId: assignment.asset.empleadoActualId },
+      datosAnteriores: {
+        estado: assignment.asset.estado,
+        empleadoActualId: assignment.asset.empleadoActualId,
+      },
       datosNuevos: { estado: nuevoEstado, empleadoActualId: null },
       usuarioSistema: params.recibidoPor || 'Sistema',
     },
@@ -287,23 +309,39 @@ function assertTerminationCategoryStates(
     );
   }
   if (kitsEntregados === 0 && params.estadoKit !== 'no_aplica') {
-    throw new ServiceConflictError('El empleado no tiene kit entregado: el estado del kit debe ser no_aplica');
-  }
-
-  // Un acta no puede afirmar el estado de algo que nadie evaluó.
-  const sinEvaluar = assignments.find(
-    (assignment) => !EVALUATED_CATEGORIES.includes(assignment.asset.categoria.tipoDevolucion as TerminationAssetType)
-  );
-  if (sinEvaluar) {
     throw new ServiceConflictError(
-      `No se puede cerrar: hay un activo de categoría "${sinEvaluar.asset.categoria.nombre ?? sinEvaluar.asset.categoria.tipoDevolucion}" cuyo estado este cierre no evalúa. Devuélvalo con su propia acta antes de consolidar.`
+      'El empleado no tiene kit entregado: el estado del kit debe ser no_aplica'
     );
   }
 
+  // Un acta no puede afirmar el estado de algo que nadie evaluó. Antes esto se
+  // resolvía bloqueando el cierre, y el bloqueo alcanzaba al caso dominante: 6
+  // de las 9 categorías del seed son `otro`, así que un mouse asignado volvía
+  // inalcanzable la consolidación —y con ella la emisión del acta—. La salida
+  // correcta es declarar el estado, no prohibir el cierre.
+  const hayOtros = assignments.some(
+    (assignment) =>
+      !EVALUATED_CATEGORIES.includes(
+        assignment.asset.categoria.tipoDevolucion as TerminationAssetType
+      )
+  );
+  if (hayOtros && (params.estadoOtros === 'pendiente' || params.estadoOtros === 'no_aplica')) {
+    throw new ServiceConflictError(
+      `No se puede cerrar: existen otros equipos asignados y el estado declarado es ${params.estadoOtros}`
+    );
+  }
+  if (!hayOtros && params.estadoOtros !== 'no_aplica') {
+    throw new ServiceConflictError('No existen otros equipos activos: debe indicar no_aplica');
+  }
+
   for (const [category, state] of states) {
-    const hasActiveAsset = assignments.some((assignment) => assignment.asset.categoria.tipoDevolucion === category);
+    const hasActiveAsset = assignments.some(
+      (assignment) => assignment.asset.categoria.tipoDevolucion === category
+    );
     if (hasActiveAsset && (state === 'pendiente' || state === 'no_aplica')) {
-      throw new ServiceConflictError(`No se puede cerrar: existe ${category} activo con estado ${state}`);
+      throw new ServiceConflictError(
+        `No se puede cerrar: existe ${category} activo con estado ${state}`
+      );
     }
     if (!hasActiveAsset && state !== 'no_aplica') {
       throw new ServiceConflictError(`No existe ${category} activo: debe indicar no_aplica`);
@@ -351,7 +389,9 @@ export async function executeTerminationReturn(
       assignment.asset.estado !== 'asignado' ||
       assignment.asset.empleadoActualId !== expectedEmployeeId
     ) {
-      throw new ServiceConflictError('Una asignación de la desvinculación ya no está vinculada al empleado');
+      throw new ServiceConflictError(
+        'Una asignación de la desvinculación ya no está vinculada al empleado'
+      );
     }
   }
 
@@ -360,6 +400,7 @@ export async function executeTerminationReturn(
     params.estadoCelular,
     params.estadoMonitor,
     params.estadoKit,
+    params.estadoOtros,
   ].includes('danado');
   const updatedTermination = await tx.termination.update({
     where: { id: params.terminationId },
@@ -369,6 +410,7 @@ export async function executeTerminationReturn(
       estadoCelular: params.estadoCelular,
       estadoMonitor: params.estadoMonitor,
       estadoKit: params.estadoKit,
+      estadoOtros: params.estadoOtros,
       recibidoPor: params.recibidoPor,
       lugarDevolucion: params.lugarDevolucion,
       requiereDescuento: params.requiereDescuento || hayDanos,
@@ -390,26 +432,34 @@ export async function executeTerminationReturn(
   const results = [];
   for (const assignment of assignments) {
     const type = assignment.asset.categoria.tipoDevolucion;
-    const categoryState = type === 'notebook'
-      ? params.estadoNotebook
-      : type === 'celular'
-        ? params.estadoCelular
-        : type === 'monitor'
-          ? params.estadoMonitor
-          : 'ok';
-    const result = await executeReturn(tx, {
-      assignmentId: assignment.id,
-      fechaDevolucion: params.fechaDevolucionEquipos,
-      recibidoPor: params.recibidoPor,
-      estadoDevolucion: categoryState === 'danado' ? 'danado' : 'ok',
-      observacionesDevolucion: `Devolución por desvinculación. ${params.observaciones || ''}`.trim(),
-      firmaEmpleadoDevolucion: params.firmaEmpleadoDevolucion,
-      aceptaPoliticaUso: true,
-    }, {
-      eventTimestamp: returnTimestamp,
-      expectedEmployeeId,
-      terminationId: termination.id,
-    });
+    const categoryState =
+      type === 'notebook'
+        ? params.estadoNotebook
+        : type === 'celular'
+          ? params.estadoCelular
+          : type === 'monitor'
+            ? params.estadoMonitor
+            : // Antes caia en 'ok': el acta afirmaba que un docking station roto
+              // habia vuelto bien, porque nadie le habia preguntado.
+              params.estadoOtros;
+    const result = await executeReturn(
+      tx,
+      {
+        assignmentId: assignment.id,
+        fechaDevolucion: params.fechaDevolucionEquipos,
+        recibidoPor: params.recibidoPor,
+        estadoDevolucion: categoryState === 'danado' ? 'danado' : 'ok',
+        observacionesDevolucion:
+          `Devolución por desvinculación. ${params.observaciones || ''}`.trim(),
+        firmaEmpleadoDevolucion: params.firmaEmpleadoDevolucion,
+        aceptaPoliticaUso: true,
+      },
+      {
+        eventTimestamp: returnTimestamp,
+        expectedEmployeeId,
+        terminationId: termination.id,
+      }
+    );
     results.push(result);
   }
 

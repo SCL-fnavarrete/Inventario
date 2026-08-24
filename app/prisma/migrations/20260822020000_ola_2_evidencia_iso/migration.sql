@@ -42,6 +42,13 @@ ALTER TABLE "asset_categories"
   ALTER COLUMN "tipo_devolucion" SET NOT NULL;
 
 -- AlterTable
+-- El cierre de una desvinculacion pregunta por los equipos cuya categoria no
+-- evalua una por una, en vez de bloquearse: la mayoria de las categorias caen en
+-- `otro`, asi que el bloqueo alcanzaba al caso dominante.
+ALTER TABLE "terminations"
+  ADD COLUMN "estado_otros" "EstadoDevolucionTipo" NOT NULL DEFAULT 'pendiente';
+
+-- AlterTable
 ALTER TABLE "assignments"
   ADD COLUMN "firma_empleado_entrega_en" TIMESTAMP(3),
   ADD COLUMN "firma_empleado_devolucion_en" TIMESTAMP(3);

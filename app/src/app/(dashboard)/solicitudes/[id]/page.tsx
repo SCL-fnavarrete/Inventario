@@ -54,7 +54,17 @@ type WorkflowDetail = {
     apellidoMaterno: string | null;
     cargo: string | null;
     correo: string;
-    assignments: { id: string; activo: boolean; asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string } } }[];
+    assignments: {
+      id: string;
+      activo: boolean;
+      asset: {
+        id: string;
+        marca: string;
+        modelo: string;
+        numeroSerie: string | null;
+        categoria: { nombre: string };
+      };
+    }[];
   };
   solicitante: { id: string; nombre: string; rol: string };
   responsableActual: { id: string; nombre: string; rol: string } | null;
@@ -136,17 +146,34 @@ function getStatesForType(tipo: string): string[] {
   const map: Record<string, string[]> = {
     onboarding: ['solicitud_recibida', 'gestion_ti', 'equipos_entregados', 'registro_rrhh'],
     cambio_equipo: ['incidencia_detectada', 'cambio_ejecutado', 'confirmacion_rrhh'],
-    devolucion_termino: ['solicitud_emitida', 'coordinacion_en_curso', 'equipo_recibido', 'consolidacion_cierre'],
+    devolucion_termino: [
+      'solicitud_emitida',
+      'coordinacion_en_curso',
+      'equipo_recibido',
+      'consolidacion_cierre',
+    ],
   };
   return map[tipo] || [];
 }
 
 function initialActionData() {
   return {
-    assetIds: [] as string[], lugarEntrega: '', oldAssignmentId: '', newAssetId: '', estadoDevolucion: 'ok',
-    estadoNotebook: 'no_aplica', estadoCelular: 'no_aplica', estadoMonitor: 'no_aplica', estadoKit: 'no_aplica',
-    lugarDevolucion: '', medioDevolucion: '', otChilexpress: '',
-    firmaEmpleadoEntrega: null as string | null, firmaEmpleadoDevolucion: null as string | null, aceptaPoliticaUso: false,
+    assetIds: [] as string[],
+    lugarEntrega: '',
+    oldAssignmentId: '',
+    newAssetId: '',
+    estadoDevolucion: 'ok',
+    estadoNotebook: 'no_aplica',
+    estadoCelular: 'no_aplica',
+    estadoMonitor: 'no_aplica',
+    estadoKit: 'no_aplica',
+    estadoOtros: 'no_aplica',
+    lugarDevolucion: '',
+    medioDevolucion: '',
+    otChilexpress: '',
+    firmaEmpleadoEntrega: null as string | null,
+    firmaEmpleadoDevolucion: null as string | null,
+    aceptaPoliticaUso: false,
   };
 }
 
@@ -250,7 +277,9 @@ export default function SolicitudDetailPage() {
         const payload = await response.json();
         setAvailableAssets(payload.data || []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'No se pudieron cargar los activos disponibles');
+        setError(
+          err instanceof Error ? err.message : 'No se pudieron cargar los activos disponibles'
+        );
       }
     }
   };
@@ -258,8 +287,15 @@ export default function SolicitudDetailPage() {
   const submitTransitionEvidence = async (nuevoEstado: string) => {
     let datosAccion: Record<string, unknown>;
     if (nuevoEstado === 'equipos_entregados') {
-      if (!actionData.assetIds.length || !actionData.lugarEntrega || !actionData.firmaEmpleadoEntrega || !actionData.aceptaPoliticaUso) {
-        setError('Seleccione activos, lugar, firma y aceptación de política para registrar la entrega.');
+      if (
+        !actionData.assetIds.length ||
+        !actionData.lugarEntrega ||
+        !actionData.firmaEmpleadoEntrega ||
+        !actionData.aceptaPoliticaUso
+      ) {
+        setError(
+          'Seleccione activos, lugar, firma y aceptación de política para registrar la entrega.'
+        );
         return;
       }
       datosAccion = {
@@ -273,7 +309,11 @@ export default function SolicitudDetailPage() {
         setError('Seleccione una devolución, una entrega o ambas para ejecutar el cambio.');
         return;
       }
-      if (!actionData.aceptaPoliticaUso || (actionData.oldAssignmentId && !actionData.firmaEmpleadoDevolucion) || (actionData.newAssetId && (!actionData.firmaEmpleadoEntrega || !actionData.lugarEntrega))) {
+      if (
+        !actionData.aceptaPoliticaUso ||
+        (actionData.oldAssignmentId && !actionData.firmaEmpleadoDevolucion) ||
+        (actionData.newAssetId && (!actionData.firmaEmpleadoEntrega || !actionData.lugarEntrega))
+      ) {
         setError('El cambio requiere firma y aceptación de política para cada acto seleccionado.');
         return;
       }
@@ -291,7 +331,11 @@ export default function SolicitudDetailPage() {
         aceptaPoliticaUso: true,
       };
     } else if (nuevoEstado === 'consolidacion_cierre') {
-      if (!actionData.lugarDevolucion.trim() || !actionData.firmaEmpleadoDevolucion || !actionData.aceptaPoliticaUso) {
+      if (
+        !actionData.lugarDevolucion.trim() ||
+        !actionData.firmaEmpleadoDevolucion ||
+        !actionData.aceptaPoliticaUso
+      ) {
         setError('La devolución final requiere lugar, firma y aceptación de política.');
         return;
       }
@@ -299,6 +343,7 @@ export default function SolicitudDetailPage() {
         estadoNotebook: actionData.estadoNotebook,
         estadoCelular: actionData.estadoCelular,
         estadoMonitor: actionData.estadoMonitor,
+        estadoOtros: actionData.estadoOtros,
         estadoKit: actionData.estadoKit,
         lugarDevolucion: actionData.lugarDevolucion,
         firmaEmpleadoDevolucion: actionData.firmaEmpleadoDevolucion,
@@ -369,7 +414,12 @@ export default function SolicitudDetailPage() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900">{data.numero}</h1>
-              <span className={cn('px-2 py-1 text-xs font-medium rounded-full', prioridadColors[data.prioridad])}>
+              <span
+                className={cn(
+                  'px-2 py-1 text-xs font-medium rounded-full',
+                  prioridadColors[data.prioridad]
+                )}
+              >
                 {data.prioridad.toUpperCase()}
               </span>
               {isClosed && (
@@ -428,7 +478,10 @@ export default function SolicitudDetailPage() {
                 </div>
                 {i < states.length - 1 && (
                   <div
-                    className={cn('h-0.5 w-full mx-1', i < currentStateIndex ? 'bg-green-600' : 'bg-gray-200')}
+                    className={cn(
+                      'h-0.5 w-full mx-1',
+                      i < currentStateIndex ? 'bg-green-600' : 'bg-gray-200'
+                    )}
                   />
                 )}
               </div>
@@ -459,7 +512,9 @@ export default function SolicitudDetailPage() {
                 <div className="mt-4 rounded-lg border border-blue-200 bg-white p-4">
                   {nextState === 'equipos_entregados' && (
                     <>
-                      <h4 className="mb-3 font-medium text-gray-900">Registrar entrega de equipos</h4>
+                      <h4 className="mb-3 font-medium text-gray-900">
+                        Registrar entrega de equipos
+                      </h4>
                       <div className="space-y-2">
                         {availableAssets.map((asset) => (
                           <label key={asset.id} className="flex items-center gap-2 text-sm">
@@ -481,24 +536,284 @@ export default function SolicitudDetailPage() {
                           </label>
                         ))}
                       </div>
-                      <label className="mt-3 block text-sm font-medium" htmlFor="lugar-entrega">Lugar de entrega</label>
-                      <input id="lugar-entrega" value={actionData.lugarEntrega} onChange={(event) => setActionData((previous) => ({ ...previous, lugarEntrega: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" />
-                      <div className="mt-3"><OfficialEvidenceFields kind="entrega" signature={actionData.firmaEmpleadoEntrega} onSignatureChange={(firmaEmpleadoEntrega) => setActionData((previous) => ({ ...previous, firmaEmpleadoEntrega }))} accepted={actionData.aceptaPoliticaUso} onAcceptedChange={(aceptaPoliticaUso) => setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))} /></div>
+                      <label className="mt-3 block text-sm font-medium" htmlFor="lugar-entrega">
+                        Lugar de entrega
+                      </label>
+                      <input
+                        id="lugar-entrega"
+                        value={actionData.lugarEntrega}
+                        onChange={(event) =>
+                          setActionData((previous) => ({
+                            ...previous,
+                            lugarEntrega: event.target.value,
+                          }))
+                        }
+                        className="mt-1 w-full rounded border border-gray-300 p-2"
+                      />
+                      <div className="mt-3">
+                        <OfficialEvidenceFields
+                          kind="entrega"
+                          signature={actionData.firmaEmpleadoEntrega}
+                          onSignatureChange={(firmaEmpleadoEntrega) =>
+                            setActionData((previous) => ({ ...previous, firmaEmpleadoEntrega }))
+                          }
+                          accepted={actionData.aceptaPoliticaUso}
+                          onAcceptedChange={(aceptaPoliticaUso) =>
+                            setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))
+                          }
+                        />
+                      </div>
                     </>
                   )}
                   {nextState === 'cambio_ejecutado' && (
                     <>
-                      <h4 className="mb-3 font-medium text-gray-900">Evidencia del cambio de equipo</h4>
-                      <label className="block text-sm font-medium" htmlFor="asignacion-anterior">Asignación anterior a devolver</label>
-                      <select id="asignacion-anterior" value={actionData.oldAssignmentId} onChange={(event) => setActionData((previous) => ({ ...previous, oldAssignmentId: event.target.value, firmaEmpleadoDevolucion: null, firmaEmpleadoEntrega: null, aceptaPoliticaUso: false }))} className="mt-1 w-full rounded border border-gray-300 p-2"><option value="">No se devuelve asignación</option>{data.employee.assignments.filter((assignment) => assignment.activo).map((assignment) => <option key={assignment.id} value={assignment.id}>{assignment.asset.marca} {assignment.asset.modelo}</option>)}</select>
-                      {actionData.oldAssignmentId && <><label className="mt-3 block text-sm font-medium" htmlFor="estado-devolucion">Estado de devolución</label><select id="estado-devolucion" value={actionData.estadoDevolucion} onChange={(event) => setActionData((previous) => ({ ...previous, estadoDevolucion: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2"><option value="ok">OK</option><option value="danado">Dañado</option><option value="incompleto">Incompleto</option></select><div className="mt-3"><OfficialEvidenceFields kind="devolucion" suffix=" anterior" signature={actionData.firmaEmpleadoDevolucion} onSignatureChange={(firmaEmpleadoDevolucion) => setActionData((previous) => ({ ...previous, firmaEmpleadoDevolucion }))} accepted={actionData.aceptaPoliticaUso} onAcceptedChange={(aceptaPoliticaUso) => setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))} /></div></>}
-                      <label className="mt-3 block text-sm font-medium" htmlFor="activo-nuevo">Activo nuevo a entregar</label><select id="activo-nuevo" value={actionData.newAssetId} onChange={(event) => setActionData((previous) => ({ ...previous, newAssetId: event.target.value, firmaEmpleadoDevolucion: null, firmaEmpleadoEntrega: null, aceptaPoliticaUso: false }))} className="mt-1 w-full rounded border border-gray-300 p-2"><option value="">No se entrega activo</option>{availableAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.marca} {asset.modelo}</option>)}</select>
-                      {actionData.newAssetId && <><label className="mt-3 block text-sm font-medium" htmlFor="lugar-cambio">Lugar de entrega</label><input id="lugar-cambio" value={actionData.lugarEntrega} onChange={(event) => setActionData((previous) => ({ ...previous, lugarEntrega: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" /><div className="mt-3"><OfficialEvidenceFields kind="entrega" suffix=" nueva" signature={actionData.firmaEmpleadoEntrega} onSignatureChange={(firmaEmpleadoEntrega) => setActionData((previous) => ({ ...previous, firmaEmpleadoEntrega }))} accepted={actionData.aceptaPoliticaUso} onAcceptedChange={(aceptaPoliticaUso) => setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))} /></div></>}
+                      <h4 className="mb-3 font-medium text-gray-900">
+                        Evidencia del cambio de equipo
+                      </h4>
+                      <label className="block text-sm font-medium" htmlFor="asignacion-anterior">
+                        Asignación anterior a devolver
+                      </label>
+                      <select
+                        id="asignacion-anterior"
+                        value={actionData.oldAssignmentId}
+                        onChange={(event) =>
+                          setActionData((previous) => ({
+                            ...previous,
+                            oldAssignmentId: event.target.value,
+                            firmaEmpleadoDevolucion: null,
+                            firmaEmpleadoEntrega: null,
+                            aceptaPoliticaUso: false,
+                          }))
+                        }
+                        className="mt-1 w-full rounded border border-gray-300 p-2"
+                      >
+                        <option value="">No se devuelve asignación</option>
+                        {data.employee.assignments
+                          .filter((assignment) => assignment.activo)
+                          .map((assignment) => (
+                            <option key={assignment.id} value={assignment.id}>
+                              {assignment.asset.marca} {assignment.asset.modelo}
+                            </option>
+                          ))}
+                      </select>
+                      {actionData.oldAssignmentId && (
+                        <>
+                          <label
+                            className="mt-3 block text-sm font-medium"
+                            htmlFor="estado-devolucion"
+                          >
+                            Estado de devolución
+                          </label>
+                          <select
+                            id="estado-devolucion"
+                            value={actionData.estadoDevolucion}
+                            onChange={(event) =>
+                              setActionData((previous) => ({
+                                ...previous,
+                                estadoDevolucion: event.target.value,
+                              }))
+                            }
+                            className="mt-1 w-full rounded border border-gray-300 p-2"
+                          >
+                            <option value="ok">OK</option>
+                            <option value="danado">Dañado</option>
+                            <option value="incompleto">Incompleto</option>
+                          </select>
+                          <div className="mt-3">
+                            <OfficialEvidenceFields
+                              kind="devolucion"
+                              suffix=" anterior"
+                              signature={actionData.firmaEmpleadoDevolucion}
+                              onSignatureChange={(firmaEmpleadoDevolucion) =>
+                                setActionData((previous) => ({
+                                  ...previous,
+                                  firmaEmpleadoDevolucion,
+                                }))
+                              }
+                              accepted={actionData.aceptaPoliticaUso}
+                              onAcceptedChange={(aceptaPoliticaUso) =>
+                                setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))
+                              }
+                            />
+                          </div>
+                        </>
+                      )}
+                      <label className="mt-3 block text-sm font-medium" htmlFor="activo-nuevo">
+                        Activo nuevo a entregar
+                      </label>
+                      <select
+                        id="activo-nuevo"
+                        value={actionData.newAssetId}
+                        onChange={(event) =>
+                          setActionData((previous) => ({
+                            ...previous,
+                            newAssetId: event.target.value,
+                            firmaEmpleadoDevolucion: null,
+                            firmaEmpleadoEntrega: null,
+                            aceptaPoliticaUso: false,
+                          }))
+                        }
+                        className="mt-1 w-full rounded border border-gray-300 p-2"
+                      >
+                        <option value="">No se entrega activo</option>
+                        {availableAssets.map((asset) => (
+                          <option key={asset.id} value={asset.id}>
+                            {asset.marca} {asset.modelo}
+                          </option>
+                        ))}
+                      </select>
+                      {actionData.newAssetId && (
+                        <>
+                          <label className="mt-3 block text-sm font-medium" htmlFor="lugar-cambio">
+                            Lugar de entrega
+                          </label>
+                          <input
+                            id="lugar-cambio"
+                            value={actionData.lugarEntrega}
+                            onChange={(event) =>
+                              setActionData((previous) => ({
+                                ...previous,
+                                lugarEntrega: event.target.value,
+                              }))
+                            }
+                            className="mt-1 w-full rounded border border-gray-300 p-2"
+                          />
+                          <div className="mt-3">
+                            <OfficialEvidenceFields
+                              kind="entrega"
+                              suffix=" nueva"
+                              signature={actionData.firmaEmpleadoEntrega}
+                              onSignatureChange={(firmaEmpleadoEntrega) =>
+                                setActionData((previous) => ({ ...previous, firmaEmpleadoEntrega }))
+                              }
+                              accepted={actionData.aceptaPoliticaUso}
+                              onAcceptedChange={(aceptaPoliticaUso) =>
+                                setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))
+                              }
+                            />
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
-                  {nextState === 'equipo_recibido' && <><h4 className="mb-3 font-medium text-gray-900">Coordinación de devolución</h4><label className="block text-sm font-medium" htmlFor="medio-devolucion">Medio de devolución</label><input id="medio-devolucion" value={actionData.medioDevolucion} onChange={(event) => setActionData((previous) => ({ ...previous, medioDevolucion: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" /><label className="mt-3 block text-sm font-medium" htmlFor="ot-chilexpress">Orden de transporte</label><input id="ot-chilexpress" value={actionData.otChilexpress} onChange={(event) => setActionData((previous) => ({ ...previous, otChilexpress: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" /></>}
-                  {nextState === 'consolidacion_cierre' && <><h4 className="mb-3 font-medium text-gray-900">Registrar devolución final</h4>{(['Notebook', 'Celular', 'Monitor', 'Kit'] as const).map((tipo) => { const key = `estado${tipo}` as 'estadoNotebook' | 'estadoCelular' | 'estadoMonitor' | 'estadoKit'; return <label key={key} className="mt-3 block text-sm font-medium">Estado {tipo}<select value={actionData[key]} onChange={(event) => setActionData((previous) => ({ ...previous, [key]: event.target.value }))} className="mt-1 block w-full rounded border border-gray-300 p-2"><option value="ok">OK</option><option value="danado">Dañado</option><option value="no_aplica">No aplica</option><option value="pendiente">Pendiente</option></select></label>; })}<label className="mt-3 block text-sm font-medium" htmlFor="lugar-devolucion">Lugar de devolución</label><input id="lugar-devolucion" value={actionData.lugarDevolucion} onChange={(event) => setActionData((previous) => ({ ...previous, lugarDevolucion: event.target.value }))} className="mt-1 w-full rounded border border-gray-300 p-2" /><div className="mt-3"><OfficialEvidenceFields kind="devolucion" signature={actionData.firmaEmpleadoDevolucion} onSignatureChange={(firmaEmpleadoDevolucion) => setActionData((previous) => ({ ...previous, firmaEmpleadoDevolucion }))} accepted={actionData.aceptaPoliticaUso} onAcceptedChange={(aceptaPoliticaUso) => setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))} /></div></>}
-                  <div className="mt-4 flex gap-2"><button type="button" onClick={() => { setTransitionFormOpen(false); setActionData(initialActionData()); }} disabled={transitioning} className="rounded border border-gray-300 px-3 py-2 text-sm">Cancelar</button><button type="button" onClick={() => submitTransitionEvidence(nextState)} disabled={transitioning} className="rounded bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50">{transitioning ? 'Guardando...' : nextState === 'equipos_entregados' ? 'Confirmar entrega' : 'Confirmar transición'}</button></div>
+                  {nextState === 'equipo_recibido' && (
+                    <>
+                      <h4 className="mb-3 font-medium text-gray-900">Coordinación de devolución</h4>
+                      <label className="block text-sm font-medium" htmlFor="medio-devolucion">
+                        Medio de devolución
+                      </label>
+                      <input
+                        id="medio-devolucion"
+                        value={actionData.medioDevolucion}
+                        onChange={(event) =>
+                          setActionData((previous) => ({
+                            ...previous,
+                            medioDevolucion: event.target.value,
+                          }))
+                        }
+                        className="mt-1 w-full rounded border border-gray-300 p-2"
+                      />
+                      <label className="mt-3 block text-sm font-medium" htmlFor="ot-chilexpress">
+                        Orden de transporte
+                      </label>
+                      <input
+                        id="ot-chilexpress"
+                        value={actionData.otChilexpress}
+                        onChange={(event) =>
+                          setActionData((previous) => ({
+                            ...previous,
+                            otChilexpress: event.target.value,
+                          }))
+                        }
+                        className="mt-1 w-full rounded border border-gray-300 p-2"
+                      />
+                    </>
+                  )}
+                  {nextState === 'consolidacion_cierre' && (
+                    <>
+                      <h4 className="mb-3 font-medium text-gray-900">Registrar devolución final</h4>
+                      {(['Notebook', 'Celular', 'Monitor', 'Kit', 'Otros'] as const).map((tipo) => {
+                        const key = `estado${tipo}` as
+                          | 'estadoNotebook'
+                          | 'estadoCelular'
+                          | 'estadoMonitor'
+                          | 'estadoKit'
+                          | 'estadoOtros';
+                        return (
+                          <label key={key} className="mt-3 block text-sm font-medium">
+                            Estado {tipo}
+                            <select
+                              value={actionData[key]}
+                              onChange={(event) =>
+                                setActionData((previous) => ({
+                                  ...previous,
+                                  [key]: event.target.value,
+                                }))
+                              }
+                              className="mt-1 block w-full rounded border border-gray-300 p-2"
+                            >
+                              <option value="ok">OK</option>
+                              <option value="danado">Dañado</option>
+                              <option value="no_aplica">No aplica</option>
+                              <option value="pendiente">Pendiente</option>
+                            </select>
+                          </label>
+                        );
+                      })}
+                      <label className="mt-3 block text-sm font-medium" htmlFor="lugar-devolucion">
+                        Lugar de devolución
+                      </label>
+                      <input
+                        id="lugar-devolucion"
+                        value={actionData.lugarDevolucion}
+                        onChange={(event) =>
+                          setActionData((previous) => ({
+                            ...previous,
+                            lugarDevolucion: event.target.value,
+                          }))
+                        }
+                        className="mt-1 w-full rounded border border-gray-300 p-2"
+                      />
+                      <div className="mt-3">
+                        <OfficialEvidenceFields
+                          kind="devolucion"
+                          signature={actionData.firmaEmpleadoDevolucion}
+                          onSignatureChange={(firmaEmpleadoDevolucion) =>
+                            setActionData((previous) => ({ ...previous, firmaEmpleadoDevolucion }))
+                          }
+                          accepted={actionData.aceptaPoliticaUso}
+                          onAcceptedChange={(aceptaPoliticaUso) =>
+                            setActionData((previous) => ({ ...previous, aceptaPoliticaUso }))
+                          }
+                        />
+                      </div>
+                    </>
+                  )}
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTransitionFormOpen(false);
+                        setActionData(initialActionData());
+                      }}
+                      disabled={transitioning}
+                      className="rounded border border-gray-300 px-3 py-2 text-sm"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => submitTransitionEvidence(nextState)}
+                      disabled={transitioning}
+                      className="rounded bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50"
+                    >
+                      {transitioning
+                        ? 'Guardando...'
+                        : nextState === 'equipos_entregados'
+                          ? 'Confirmar entrega'
+                          : 'Confirmar transición'}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -510,7 +825,10 @@ export default function SolicitudDetailPage() {
               <h2 className="font-semibold text-gray-900 mb-4">Pendientes / Checklist</h2>
               <div className="space-y-3">
                 {data.pendientes.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-b-0">
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between py-2 border-b last:border-b-0"
+                  >
                     <div className="flex items-center gap-3">
                       <span className={cn('text-sm', pendienteEstadoColors[p.estado])}>
                         {p.estado === 'entregado' ? (
@@ -691,9 +1009,7 @@ export default function SolicitudDetailPage() {
               </div>
               <div>
                 <dt className="text-gray-500">Responsable Actual</dt>
-                <dd className="text-gray-900">
-                  {data.responsableActual?.nombre || 'Sin asignar'}
-                </dd>
+                <dd className="text-gray-900">{data.responsableActual?.nombre || 'Sin asignar'}</dd>
               </div>
               <div>
                 <dt className="text-gray-500">Fecha Creación</dt>

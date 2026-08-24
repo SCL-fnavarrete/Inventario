@@ -200,7 +200,7 @@ describe('transitionSchema', () => {
     const result = transitionSchema.safeParse({
       nuevoEstado: 'consolidacion_cierre',
       datosAccion: {
-        estadoNotebook: 'ok', estadoCelular: 'no_aplica', estadoMonitor: 'no_aplica', estadoKit: 'no_aplica',
+        estadoNotebook: 'ok', estadoCelular: 'no_aplica', estadoMonitor: 'no_aplica', estadoKit: 'no_aplica', estadoOtros: 'no_aplica',
         lugarDevolucion: 'Santiago',
         firmaEmpleadoDevolucion:
           FIRMA_VALIDA,
@@ -295,6 +295,7 @@ describe('transitionSchema', () => {
           estadoNotebook: 'ok',
           estadoCelular: 'no_aplica',
           estadoMonitor: 'no_aplica',
+          estadoOtros: 'no_aplica',
           estadoKit: 'no_aplica',
           lugarDevolucion: 'Santiago',
           firmaEmpleadoDevolucion: firmaPng,

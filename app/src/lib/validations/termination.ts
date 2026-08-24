@@ -1,38 +1,47 @@
-import { z } from "zod";
+import { z } from 'zod';
 import { pngSignatureSchema, policyAcceptanceSchema } from './signature';
 
 // Enums que coinciden con Prisma
-export const EstadoDevolucionTipoEnum = z.enum(["ok", "danado", "no_aplica", "pendiente"]);
+export const EstadoDevolucionTipoEnum = z.enum(['ok', 'danado', 'no_aplica', 'pendiente']);
 
 // Schema para crear una desvinculación
 export const createTerminationSchema = z.object({
-  employeeId: z.string().uuid("ID de empleado inválido"),
+  employeeId: z.string().uuid('ID de empleado inválido'),
   fechaDesvinculacion: z.string().transform((val) => new Date(val)),
-  fechaDevolucionEquipos: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
-  recibidoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
-  lugarDevolucion: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
+  fechaDevolucionEquipos: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => {
+      if (!val) return null;
+      const date = new Date(val);
+      return isNaN(date.getTime()) ? null : date;
+    }),
+  recibidoPor: z.string().max(100, 'Máximo 100 caracteres').optional().nullable(),
+  lugarDevolucion: z.string().max(100, 'Máximo 100 caracteres').optional().nullable(),
   observaciones: z.string().optional().nullable(),
 });
 
 // Schema para actualizar estados de devolución
 export const updateTerminationSchema = z.object({
-  fechaDevolucionEquipos: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
+  fechaDevolucionEquipos: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => {
+      if (!val) return null;
+      const date = new Date(val);
+      return isNaN(date.getTime()) ? null : date;
+    }),
   estadoNotebook: EstadoDevolucionTipoEnum.optional(),
   estadoCelular: EstadoDevolucionTipoEnum.optional(),
   estadoMonitor: EstadoDevolucionTipoEnum.optional(),
+  estadoOtros: EstadoDevolucionTipoEnum.optional(),
   estadoKit: EstadoDevolucionTipoEnum.optional(),
-  recibidoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
-  lugarDevolucion: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
+  recibidoPor: z.string().max(100, 'Máximo 100 caracteres').optional().nullable(),
+  lugarDevolucion: z.string().max(100, 'Máximo 100 caracteres').optional().nullable(),
   requiereDescuento: z.boolean().optional(),
-  montoDescuento: z.number().positive("El monto debe ser positivo").optional().nullable(),
+  montoDescuento: z.number().positive('El monto debe ser positivo').optional().nullable(),
   motivoDescuento: z.string().optional().nullable(),
   // `notificadoRrhh` y `fechaNotificacionRrhh` NO estan aqui a proposito: son
   // propiedad de `notificationService` y solo se escriben cuando Microsoft
@@ -42,21 +51,24 @@ export const updateTerminationSchema = z.object({
 });
 
 // Schema para registrar devolución de equipos
-export const registerReturnSchema = z.object({
-  fechaDevolucionEquipos: z.string().transform((val) => new Date(val)),
-  estadoNotebook: EstadoDevolucionTipoEnum,
-  estadoCelular: EstadoDevolucionTipoEnum,
-  estadoMonitor: EstadoDevolucionTipoEnum,
-  estadoKit: EstadoDevolucionTipoEnum,
-  recibidoPor: z.string().trim().min(1, "Requerido").max(100, "Máximo 100 caracteres"),
-  lugarDevolucion: z.string().trim().min(1, "Requerido").max(100, "Máximo 100 caracteres"),
-  requiereDescuento: z.boolean().default(false),
-  montoDescuento: z.number().positive("El monto debe ser positivo").optional().nullable(),
-  motivoDescuento: z.string().optional().nullable(),
-  observaciones: z.string().optional().nullable(),
-  firmaEmpleadoDevolucion: pngSignatureSchema,
-  aceptaPoliticaUso: policyAcceptanceSchema,
-}).strict();
+export const registerReturnSchema = z
+  .object({
+    fechaDevolucionEquipos: z.string().transform((val) => new Date(val)),
+    estadoNotebook: EstadoDevolucionTipoEnum,
+    estadoCelular: EstadoDevolucionTipoEnum,
+    estadoMonitor: EstadoDevolucionTipoEnum,
+    estadoOtros: EstadoDevolucionTipoEnum,
+    estadoKit: EstadoDevolucionTipoEnum,
+    recibidoPor: z.string().trim().min(1, 'Requerido').max(100, 'Máximo 100 caracteres'),
+    lugarDevolucion: z.string().trim().min(1, 'Requerido').max(100, 'Máximo 100 caracteres'),
+    requiereDescuento: z.boolean().default(false),
+    montoDescuento: z.number().positive('El monto debe ser positivo').optional().nullable(),
+    motivoDescuento: z.string().optional().nullable(),
+    observaciones: z.string().optional().nullable(),
+    firmaEmpleadoDevolucion: pngSignatureSchema,
+    aceptaPoliticaUso: policyAcceptanceSchema,
+  })
+  .strict();
 
 // Schema para filtros de búsqueda
 export const terminationFiltersSchema = z.object({
@@ -67,8 +79,8 @@ export const terminationFiltersSchema = z.object({
   fechaHasta: z.string().optional(),
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(10),
-  sortBy: z.enum(["fechaDesvinculacion", "createdAt"]).default("fechaDesvinculacion"),
-  sortOrder: z.enum(["asc", "desc"]).default("desc"),
+  sortBy: z.enum(['fechaDesvinculacion', 'createdAt']).default('fechaDesvinculacion'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });
 
 // Tipos inferidos

@@ -307,6 +307,11 @@ model Termination {
   estadoCelular          EstadoDevolucionTipo  @default(pendiente) @map("estado_celular")
   estadoMonitor          EstadoDevolucionTipo  @default(pendiente) @map("estado_monitor")
   estadoKit              EstadoDevolucionTipo  @default(pendiente) @map("estado_kit")
+  /// Estado de los equipos cuya categoria el cierre no pregunta una por una.
+  /// Existe porque bloquear el cierre alcanzaba al caso dominante: la mayoria de
+  /// las categorias caen en `otro`, y un mouse asignado volvia inalcanzable la
+  /// consolidacion, y con ella la emision del acta.
+  estadoOtros            EstadoDevolucionTipo  @default(pendiente) @map("estado_otros")
   numeroTelefonoCelular  String?               @map("numero_telefono_celular") // Nro telefono del celular devuelto
   imeiCelular            String?               @map("imei_celular") // IMEI del celular devuelto
   recibidoPor            String?               @map("recibido_por")

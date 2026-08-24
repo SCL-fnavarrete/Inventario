@@ -6,8 +6,7 @@ import {
   executeTerminationReturn,
 } from '@/lib/services/workflowExecutionService';
 
-const firmaPng =
-  FIRMA_VALIDA;
+const firmaPng = FIRMA_VALIDA;
 
 describe('executeAssignment', () => {
   test('detiene la entrega sin crear asignación cuando el CAS del activo no la puede reclamar', async () => {
@@ -15,7 +14,14 @@ describe('executeAssignment', () => {
     const assetHistoryCreate = jest.fn();
     const tx = {
       asset: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'asset-1', estado: 'disponible', deletedAt: null, empleadoActualId: null }),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({
+            id: 'asset-1',
+            estado: 'disponible',
+            deletedAt: null,
+            empleadoActualId: null,
+          }),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       employee: { findUnique: jest.fn().mockResolvedValue({ id: 'employee-1', estado: 'activo' }) },
@@ -23,10 +29,16 @@ describe('executeAssignment', () => {
       assetHistory: { create: assetHistoryCreate },
     } as unknown as Prisma.TransactionClient;
 
-    await expect(executeAssignment(tx, {
-      assetId: 'asset-1', employeeId: 'employee-1', fechaEntrega: new Date(), tipoMovimiento: 'ingreso',
-      firmaEmpleadoEntrega: firmaPng, aceptaPoliticaUso: true,
-    })).rejects.toThrow('cambió antes de asignarlo');
+    await expect(
+      executeAssignment(tx, {
+        assetId: 'asset-1',
+        employeeId: 'employee-1',
+        fechaEntrega: new Date(),
+        tipoMovimiento: 'ingreso',
+        firmaEmpleadoEntrega: firmaPng,
+        aceptaPoliticaUso: true,
+      })
+    ).rejects.toThrow('cambió antes de asignarlo');
 
     expect(assignmentCreate).not.toHaveBeenCalled();
     expect(assetHistoryCreate).not.toHaveBeenCalled();
@@ -45,21 +57,29 @@ describe('executeAssignment', () => {
       },
       employee: {
         findUnique: jest.fn().mockResolvedValue({
-          id: 'employee-1', estado: 'activo', nombres: 'Ada', apellidoPaterno: 'Lovelace', rut: null,
+          id: 'employee-1',
+          estado: 'activo',
+          nombres: 'Ada',
+          apellidoPaterno: 'Lovelace',
+          rut: null,
         }),
       },
       assignment: { create: assignmentCreate },
       assetHistory: { create: jest.fn().mockResolvedValue({}) },
     } as unknown as Prisma.TransactionClient;
     const eventTimestamp = new Date('2026-08-22T12:34:56.000Z');
-    await executeAssignment(tx, {
-      assetId: 'asset-1',
-      employeeId: 'employee-1',
-      fechaEntrega: new Date('2026-08-01T00:00:00.000Z'),
-      tipoMovimiento: 'ingreso',
-      firmaEmpleadoEntrega: firmaPng,
-      aceptaPoliticaUso: true,
-    }, { eventTimestamp });
+    await executeAssignment(
+      tx,
+      {
+        assetId: 'asset-1',
+        employeeId: 'employee-1',
+        fechaEntrega: new Date('2026-08-01T00:00:00.000Z'),
+        tipoMovimiento: 'ingreso',
+        firmaEmpleadoEntrega: firmaPng,
+        aceptaPoliticaUso: true,
+      },
+      { eventTimestamp }
+    );
 
     const createData = assignmentCreate.mock.calls[0][0].data;
     expect(createData.firmaEmpleadoEntrega).toBe(firmaPng);
@@ -123,19 +143,32 @@ describe('executeReturn', () => {
     const tx = {
       assignment: {
         findUnique: jest.fn().mockResolvedValue({
-          id: 'assignment-b', activo: true, employeeId: 'employee-b', assetId: 'asset-1',
+          id: 'assignment-b',
+          activo: true,
+          employeeId: 'employee-b',
+          assetId: 'asset-1',
           asset: { estado: 'asignado', empleadoActualId: 'employee-b', deletedAt: null },
           employee: { nombres: 'Beto', apellidoPaterno: 'B' },
         }),
         updateMany: assignmentUpdate,
       },
-      asset: { updateMany: assetUpdate }, assetHistory: { create: jest.fn() },
+      asset: { updateMany: assetUpdate },
+      assetHistory: { create: jest.fn() },
     } as unknown as Prisma.TransactionClient;
 
-    await expect(executeReturn(tx, {
-      assignmentId: 'assignment-b', fechaDevolucion: new Date(), estadoDevolucion: 'ok',
-      firmaEmpleadoDevolucion: firmaPng, aceptaPoliticaUso: true,
-    }, { expectedEmployeeId: 'employee-a' })).rejects.toThrow('no pertenece al empleado');
+    await expect(
+      executeReturn(
+        tx,
+        {
+          assignmentId: 'assignment-b',
+          fechaDevolucion: new Date(),
+          estadoDevolucion: 'ok',
+          firmaEmpleadoDevolucion: firmaPng,
+          aceptaPoliticaUso: true,
+        },
+        { expectedEmployeeId: 'employee-a' }
+      )
+    ).rejects.toThrow('no pertenece al empleado');
 
     expect(assignmentUpdate).not.toHaveBeenCalled();
     expect(assetUpdate).not.toHaveBeenCalled();
@@ -147,19 +180,28 @@ describe('executeReturn', () => {
     const tx = {
       assignment: {
         findUnique: jest.fn().mockResolvedValue({
-          id: 'assignment-1', activo: true, employeeId: 'employee-1', assetId: 'asset-1',
+          id: 'assignment-1',
+          activo: true,
+          employeeId: 'employee-1',
+          assetId: 'asset-1',
           asset: { estado: 'asignado', empleadoActualId: 'employee-1', deletedAt: null },
           employee: { nombres: 'Ada', apellidoPaterno: 'Lovelace' },
         }),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
-      asset: { updateMany: assetUpdate }, assetHistory: { create: historyCreate },
+      asset: { updateMany: assetUpdate },
+      assetHistory: { create: historyCreate },
     } as unknown as Prisma.TransactionClient;
 
-    await expect(executeReturn(tx, {
-      assignmentId: 'assignment-1', fechaDevolucion: new Date(), estadoDevolucion: 'ok',
-      firmaEmpleadoDevolucion: firmaPng, aceptaPoliticaUso: true,
-    })).rejects.toThrow('cambió antes de devolverla');
+    await expect(
+      executeReturn(tx, {
+        assignmentId: 'assignment-1',
+        fechaDevolucion: new Date(),
+        estadoDevolucion: 'ok',
+        firmaEmpleadoDevolucion: firmaPng,
+        aceptaPoliticaUso: true,
+      })
+    ).rejects.toThrow('cambió antes de devolverla');
 
     expect(assetUpdate).not.toHaveBeenCalled();
     expect(historyCreate).not.toHaveBeenCalled();
@@ -170,7 +212,10 @@ describe('executeReturn', () => {
     const tx = {
       assignment: {
         findUnique: jest.fn().mockResolvedValue({
-          id: 'assignment-1', activo: false, employeeId: 'employee-1', assetId: 'asset-1',
+          id: 'assignment-1',
+          activo: false,
+          employeeId: 'employee-1',
+          assetId: 'asset-1',
           asset: { estado: 'asignado', empleadoActualId: 'employee-1' },
           employee: { nombres: 'Ada', apellidoPaterno: 'Lovelace' },
         }),
@@ -180,10 +225,15 @@ describe('executeReturn', () => {
       assetHistory: { create: jest.fn() },
     } as unknown as Prisma.TransactionClient;
 
-    await expect(executeReturn(tx, {
-      assignmentId: 'assignment-1', fechaDevolucion: new Date(), estadoDevolucion: 'ok',
-      firmaEmpleadoDevolucion: firmaPng, aceptaPoliticaUso: true,
-    })).rejects.toThrow('ya no está activa');
+    await expect(
+      executeReturn(tx, {
+        assignmentId: 'assignment-1',
+        fechaDevolucion: new Date(),
+        estadoDevolucion: 'ok',
+        firmaEmpleadoDevolucion: firmaPng,
+        aceptaPoliticaUso: true,
+      })
+    ).rejects.toThrow('ya no está activa');
 
     expect(assignmentUpdate).not.toHaveBeenCalled();
     expect(assetUpdate).not.toHaveBeenCalled();
@@ -193,7 +243,11 @@ describe('executeReturn', () => {
     const tx = {
       assignment: {
         findUnique: jest.fn().mockResolvedValue({
-          id: 'assignment-1', activo: true, employeeId: 'employee-1', assetId: 'asset-1', asset: { estado: 'asignado', empleadoActualId: 'employee-1', deletedAt: null },
+          id: 'assignment-1',
+          activo: true,
+          employeeId: 'employee-1',
+          assetId: 'asset-1',
+          asset: { estado: 'asignado', empleadoActualId: 'employee-1', deletedAt: null },
           employee: { nombres: 'Ada', apellidoPaterno: 'Lovelace' },
         }),
         updateMany: assignmentUpdate,
@@ -229,6 +283,7 @@ describe('executeTerminationReturn', () => {
     estadoCelular: 'no_aplica' as const,
     estadoMonitor: 'no_aplica' as const,
     estadoKit: 'no_aplica' as const,
+    estadoOtros: 'no_aplica' as const,
     recibidoPor: 'Técnico TI',
     lugarDevolucion: 'Santiago',
     firmaEmpleadoDevolucion: firmaPng,
@@ -246,7 +301,10 @@ describe('executeTerminationReturn', () => {
       employeeId: 'employee-1',
       activo: true,
       asset: {
-        id: 'asset-1', estado: 'asignado', empleadoActualId: 'employee-1', deletedAt: null,
+        id: 'asset-1',
+        estado: 'asignado',
+        empleadoActualId: 'employee-1',
+        deletedAt: null,
         categoria: { nombre, tipoDevolucion },
       },
       employee: { nombres: 'Ada', apellidoPaterno: 'Lovelace' },
@@ -269,7 +327,10 @@ describe('executeTerminationReturn', () => {
         count: jest.fn().mockResolvedValue(0),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
-      assignment: { findUnique: jest.fn().mockResolvedValue(assignmentRecord), updateMany: assignmentUpdate },
+      assignment: {
+        findUnique: jest.fn().mockResolvedValue(assignmentRecord),
+        updateMany: assignmentUpdate,
+      },
       asset: { updateMany: assetUpdate },
       assetHistory: { create: assetHistoryCreate },
     } as unknown as Prisma.TransactionClient;
@@ -280,7 +341,11 @@ describe('executeTerminationReturn', () => {
   test('clasifica como notebook una categoría renombrada a Laptop por su tipo estable', async () => {
     const { tx, assignmentUpdate, assetUpdate } = transactionForCategory('Laptop', 'notebook');
 
-    await executeTerminationReturn(tx, { ...returnParams, estadoCelular: 'no_aplica', estadoMonitor: 'no_aplica' });
+    await executeTerminationReturn(tx, {
+      ...returnParams,
+      estadoCelular: 'no_aplica',
+      estadoMonitor: 'no_aplica',
+    });
 
     expect(assignmentUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -301,25 +366,42 @@ describe('executeTerminationReturn', () => {
     const tx = {
       termination: {
         findUnique: jest.fn().mockResolvedValue({
-          id: 'termination-1', employeeId: 'employee-1',
+          id: 'termination-1',
+          employeeId: 'employee-1',
           employee: {
-            id: 'employee-1', nombres: 'Ada', apellidoPaterno: 'Lovelace',
-            assignments: [{
-              id: 'assignment-1', assetId: 'asset-1', employeeId: 'employee-1', activo: true,
-              asset: { id: 'asset-1', estado: 'asignado', empleadoActualId: 'employee-1', categoria: { nombre: 'Laptop', tipoDevolucion: 'notebook' } },
-            }],
+            id: 'employee-1',
+            nombres: 'Ada',
+            apellidoPaterno: 'Lovelace',
+            assignments: [
+              {
+                id: 'assignment-1',
+                assetId: 'asset-1',
+                employeeId: 'employee-1',
+                activo: true,
+                asset: {
+                  id: 'asset-1',
+                  estado: 'asignado',
+                  empleadoActualId: 'employee-1',
+                  categoria: { nombre: 'Laptop', tipoDevolucion: 'notebook' },
+                },
+              },
+            ],
           },
         }),
         update: terminationUpdate,
       },
       assignment: { update: assignmentUpdate },
       asset: { update: assetUpdate },
-      kitAssignment: { count: jest.fn().mockResolvedValue(0), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      kitAssignment: {
+        count: jest.fn().mockResolvedValue(0),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
       assetHistory: { create: jest.fn() },
     } as unknown as Prisma.TransactionClient;
 
-    await expect(executeTerminationReturn(tx, { ...returnParams, estadoNotebook: 'pendiente' }))
-      .rejects.toThrow('pendiente');
+    await expect(
+      executeTerminationReturn(tx, { ...returnParams, estadoNotebook: 'pendiente' })
+    ).rejects.toThrow('pendiente');
 
     expect(terminationUpdate).not.toHaveBeenCalled();
     expect(assignmentUpdate).not.toHaveBeenCalled();
@@ -328,8 +410,9 @@ describe('executeTerminationReturn', () => {
 
   test('exige no_aplica cuando no existe un celular activo', async () => {
     const { tx, assignmentUpdate, assetUpdate } = transactionForCategory('Laptop', 'notebook');
-    await expect(executeTerminationReturn(tx, { ...returnParams, estadoCelular: 'ok' }))
-      .rejects.toThrow('no_aplica');
+    await expect(
+      executeTerminationReturn(tx, { ...returnParams, estadoCelular: 'ok' })
+    ).rejects.toThrow('no_aplica');
     expect(assignmentUpdate).not.toHaveBeenCalled();
     expect(assetUpdate).not.toHaveBeenCalled();
   });
@@ -342,7 +425,9 @@ describe('executeTerminationReturn', () => {
     await expect(
       executeTerminationReturn(tx, {
         ...returnParams,
-        estadoNotebook: 'no_aplica', estadoCelular: 'no_aplica', estadoMonitor: 'no_aplica',
+        estadoNotebook: 'no_aplica',
+        estadoCelular: 'no_aplica',
+        estadoMonitor: 'no_aplica',
       })
     ).rejects.toThrow(/no se puede cerrar/i);
 
@@ -356,7 +441,9 @@ describe('executeTerminationReturn', () => {
     await expect(
       executeTerminationReturn(tx, {
         ...returnParams,
-        estadoNotebook: 'no_aplica', estadoCelular: 'no_aplica', estadoMonitor: 'no_aplica',
+        estadoNotebook: 'no_aplica',
+        estadoCelular: 'no_aplica',
+        estadoMonitor: 'no_aplica',
       })
     ).rejects.toThrow(/no se puede cerrar/i);
 
@@ -373,12 +460,20 @@ describe('executeTerminationReturn', () => {
           employeeId: 'employee-1',
           employee: {
             id: 'employee-1',
-            nombres: 'Ada', apellidoPaterno: 'Lovelace',
+            nombres: 'Ada',
+            apellidoPaterno: 'Lovelace',
             assignments: ['asset-1', 'asset-2'].map((assetId, index) => ({
               id: `assignment-${index + 1}`,
               assetId,
-              employeeId: 'employee-1', activo: true,
-              asset: { id: assetId, estado: 'asignado', empleadoActualId: 'employee-1', deletedAt: null, categoria: { nombre: 'Laptop', tipoDevolucion: 'notebook' } },
+              employeeId: 'employee-1',
+              activo: true,
+              asset: {
+                id: assetId,
+                estado: 'asignado',
+                empleadoActualId: 'employee-1',
+                deletedAt: null,
+                categoria: { nombre: 'Laptop', tipoDevolucion: 'notebook' },
+              },
             })),
           },
         }),
@@ -392,23 +487,37 @@ describe('executeTerminationReturn', () => {
             assetId: `asset-${index}`,
             employeeId: 'employee-1',
             activo: true,
-            asset: { id: `asset-${index}`, estado: 'asignado', empleadoActualId: 'employee-1', deletedAt: null },
+            asset: {
+              id: `asset-${index}`,
+              estado: 'asignado',
+              empleadoActualId: 'employee-1',
+              deletedAt: null,
+            },
             employee: { nombres: 'Ada', apellidoPaterno: 'Lovelace' },
           });
         }),
         updateMany: assignmentUpdate,
       },
       asset: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
-      kitAssignment: { count: jest.fn().mockResolvedValue(0), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      kitAssignment: {
+        count: jest.fn().mockResolvedValue(0),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
       assetHistory: { create: jest.fn().mockResolvedValue({}) },
     } as unknown as Prisma.TransactionClient;
 
-    await executeTerminationReturn(tx, { ...returnParams, estadoCelular: 'no_aplica', estadoMonitor: 'no_aplica' });
+    await executeTerminationReturn(tx, {
+      ...returnParams,
+      estadoCelular: 'no_aplica',
+      estadoMonitor: 'no_aplica',
+    });
 
     const signatureUpdates = assignmentUpdate.mock.calls.map(([call]) => call.data);
     expect(signatureUpdates).toHaveLength(2);
     expect(signatureUpdates.every((data) => data.firmaEmpleadoDevolucion === firmaPng)).toBe(true);
-    expect(signatureUpdates[0].firmaEmpleadoDevolucionEn).toBe(signatureUpdates[1].firmaEmpleadoDevolucionEn);
+    expect(signatureUpdates[0].firmaEmpleadoDevolucionEn).toBe(
+      signatureUpdates[1].firmaEmpleadoDevolucionEn
+    );
   });
 });
 
@@ -432,6 +541,7 @@ describe('executeTerminationReturn — kit y categorías no evaluadas', () => {
     estadoCelular: 'no_aplica' as const,
     estadoMonitor: 'no_aplica' as const,
     estadoKit: 'no_aplica' as const,
+    estadoOtros: 'no_aplica' as const,
     recibidoPor: 'Técnico TI',
     lugarDevolucion: 'Santiago',
     firmaEmpleadoDevolucion: FIRMA_VALIDA,
@@ -449,7 +559,10 @@ describe('executeTerminationReturn — kit y categorías no evaluadas', () => {
       employeeId: 'employee-1',
       activo: true,
       asset: {
-        id: 'asset-1', estado: 'asignado', empleadoActualId: 'employee-1', deletedAt: null,
+        id: 'asset-1',
+        estado: 'asignado',
+        empleadoActualId: 'employee-1',
+        deletedAt: null,
         categoria: { nombre: 'Categoría', tipoDevolucion },
       },
       employee: { nombres: 'Ada', apellidoPaterno: 'Lovelace' },
@@ -457,6 +570,7 @@ describe('executeTerminationReturn — kit y categorías no evaluadas', () => {
     const assignments = conAsignacion ? [assignmentRecord] : [];
     const terminationUpdate = jest.fn().mockResolvedValue({ id: 'termination-1' });
     const kitUpdateMany = jest.fn().mockResolvedValue({ count: kitsEntregados });
+    const assignmentUpdateMany = jest.fn().mockResolvedValue({ count: 1 });
     const tx = {
       termination: {
         findUnique: jest.fn().mockResolvedValue({
@@ -470,12 +584,15 @@ describe('executeTerminationReturn — kit y categorías no evaluadas', () => {
         count: jest.fn().mockResolvedValue(kitsEntregados),
         updateMany: kitUpdateMany,
       },
-      assignment: { findUnique: jest.fn().mockResolvedValue(assignmentRecord), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      assignment: {
+        findUnique: jest.fn().mockResolvedValue(assignmentRecord),
+        updateMany: assignmentUpdateMany,
+      },
       asset: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       assetHistory: { create: jest.fn().mockResolvedValue({}) },
     } as unknown as Prisma.TransactionClient;
 
-    return { tx, terminationUpdate, kitUpdateMany };
+    return { tx, terminationUpdate, kitUpdateMany, assignmentUpdateMany };
   }
 
   test('no deja declarar no_aplica cuando el empleado tiene kit entregado', async () => {
@@ -501,7 +618,11 @@ describe('executeTerminationReturn — kit y categorías no evaluadas', () => {
   test('un kit dañado obliga al descuento, igual que los otros equipos', async () => {
     const { tx, terminationUpdate } = transaccion({ kitsEntregados: 1 });
 
-    await executeTerminationReturn(tx, { ...baseParams, estadoNotebook: 'ok', estadoKit: 'danado' });
+    await executeTerminationReturn(tx, {
+      ...baseParams,
+      estadoNotebook: 'ok',
+      estadoKit: 'danado',
+    });
 
     expect(terminationUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ requiereDescuento: true }) })
@@ -524,10 +645,51 @@ describe('executeTerminationReturn — kit y categorías no evaluadas', () => {
   test('no firma el estado de un activo que el formulario no evalúa', async () => {
     const { tx, terminationUpdate } = transaccion({ tipoDevolucion: 'otro' });
 
-    await expect(
-      executeTerminationReturn(tx, { ...baseParams })
-    ).rejects.toThrow(/no se puede/i);
+    await expect(executeTerminationReturn(tx, { ...baseParams })).rejects.toThrow(/no se puede/i);
 
     expect(terminationUpdate).not.toHaveBeenCalled();
+  });
+
+  test('el cierre pregunta por los otros equipos en vez de bloquearse', async () => {
+    // Bloquear era correcto -- un acta no puede afirmar lo que nadie evaluo --
+    // pero alcanzaba al caso dominante: 6 de las 9 categorias del seed son
+    // `otro`, asi que un mouse asignado hacia inalcanzable la consolidacion, y
+    // con ella la emision del acta. La salida es declarar su estado, no
+    // prohibir el cierre.
+    const { tx, terminationUpdate, assignmentUpdateMany } = transaccion({
+      tipoDevolucion: 'otro',
+    });
+
+    await executeTerminationReturn(tx, { ...baseParams, estadoOtros: 'ok' });
+
+    expect(terminationUpdate).toHaveBeenCalled();
+    expect(assignmentUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ estadoDevolucion: 'ok' }) })
+    );
+  });
+
+  test('un otro equipo danado se cierra danado y activa el descuento', async () => {
+    // El fallback `: 'ok'` cerraba como bueno cualquier categoria no evaluada:
+    // el acta afirmaba que un docking station roto habia vuelto bien.
+    const { tx, terminationUpdate, assignmentUpdateMany } = transaccion({
+      tipoDevolucion: 'otro',
+    });
+
+    await executeTerminationReturn(tx, { ...baseParams, estadoOtros: 'danado' });
+
+    expect(assignmentUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ estadoDevolucion: 'danado' }) })
+    );
+    expect(terminationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ requiereDescuento: true }) })
+    );
+  });
+
+  test('sin otros equipos activos, declarar un estado distinto de no_aplica es un error', async () => {
+    const { tx } = transaccion({ tipoDevolucion: 'notebook' });
+
+    await expect(
+      executeTerminationReturn(tx, { ...baseParams, estadoNotebook: 'ok', estadoOtros: 'ok' })
+    ).rejects.toThrow(/no_aplica/i);
   });
 });

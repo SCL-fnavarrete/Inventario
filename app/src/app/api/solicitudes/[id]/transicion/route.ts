@@ -392,6 +392,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                   estadoNotebook: input.datosAccion.estadoNotebook,
                   estadoCelular: input.datosAccion.estadoCelular,
                   estadoMonitor: input.datosAccion.estadoMonitor,
+                  estadoOtros: input.datosAccion.estadoOtros,
                   estadoKit: input.datosAccion.estadoKit,
                   recibidoPor: systemUser.nombre,
                   lugarDevolucion: input.datosAccion.lugarDevolucion,

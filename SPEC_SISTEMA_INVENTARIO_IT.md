@@ -672,10 +672,21 @@ realmente asignados. Además:
   `ok` o `danado`, esos ítems pasan a `devuelto`, que es lo que mantiene la
   regla coherente en el tiempo.
 - Un `estado_kit` dañado exige descuento, igual que las otras tres categorías.
-- Si el empleado tiene asignado un activo de una categoría que este cierre no
-  pregunta (hoy `tipo_devolucion = otro`), el cierre se rechaza y nombra el
-  activo. Antes se registraba como devuelto en buen estado sin que nadie lo
-  hubiera mirado. La salida es devolverlo con su propia acta y luego consolidar.
+- `estado_otros` cubre los equipos cuya categoría el formulario no pregunta una
+  por una: todo lo que no sea notebook, celular ni monitor. Se contrasta en
+  ambos sentidos igual que las otras tres, y un `danado` exige descuento. Cada
+  activo se cierra con el estado declarado, así que el acta dice lo que se
+  evaluó.
+
+  *Por qué existe:* la regla original era que un acta no puede afirmar el
+  estado de algo que nadie miró, y se hacía cumplir **bloqueando** el cierre.
+  Pero el bloqueo alcanzaba al caso dominante: `tipo_devolucion` tiene
+  `@default(otro)` y la mayoría de las categorías del catálogo caen ahí
+  —impresora, mouse, teclado, docking station, webcam, audífonos—, así que un
+  mouse asignado volvía inalcanzable `consolidacion_cierre` y, con ella, la
+  emisión del acta. La regla se mantiene; lo que cambia es que ahora se
+  pregunta en vez de prohibir. Antes de eso, el cierre los registraba como
+  devueltos en buen estado sin que nadie los hubiera mirado.
 
 **Actas del parque histórico.** Las asignaciones anteriores a este control no
 tienen firma. Su acta se emite igual, sellada como `REGISTRO HISTÓRICO — sin
@@ -1937,6 +1948,7 @@ nunca debió existir como fila separada.
 ## Changelog SPEC
 
 - **v1.9 (2026-08-23):**
+  - `terminations.estado_otros`: el cierre de una desvinculación pregunta por los equipos cuya categoría no evalúa una por una, en vez de bloquearse. La regla —un acta no puede afirmar lo que nadie miró— se mantenía bloqueando el cierre, y el bloqueo alcanzaba al caso dominante: `tipo_devolucion` tiene `@default(otro)` y la mayoría de las categorías del catálogo caen ahí, así que un mouse asignado volvía inalcanzable la consolidación y con ella la emisión del acta.
   - El documento solo afirma lo que el snapshot contiene: el comprobante de cambio captura `estado_devolucion` y lo imprime en vez de un "Devolución OK" fijo; un bloque sin equipo no se dibuja en lugar de rellenarse con guiones; y las condiciones se traducen con un mapa de los tres valores del enum, no con un ternario que colapsaba `danado` en "Usado".
   - Cierre de los hallazgos de schema de la revisión independiente de la Ola 2, plegados en la migración `20260822020000_ola_2_evidencia_iso` antes de aplicarla.
   - `documentos_emitidos.contenido_pdf` (`BYTEA`, requerido e inmutable): los bytes del PDF se guardan y el archivo deja de re-renderizar. Re-renderizar hacía depender el archivado del código vigente el día del reintento, y un cambio de plantilla dejaba el documento irrecuperable; una reemisión, además, reproducía la versión anterior con el contenido de hoy.
@@ -1969,7 +1981,7 @@ nunca debió existir como fila separada.
   - `employee_id` obligatorio en la devolución por lote: era opcional y la verificación de pertenencia se comparaba consigo misma, así que un lote de varios empleados se cerraba con una sola firma.
   - La firma exige al menos un chunk `IDAT` y 64×32 mínimo. Se documenta el límite que el control **no** cubre: un PNG en blanco del tamaño correcto pasa.
   - La firma deja de duplicarse en `workflow_transitions.datos_accion`; queda solo la constancia de que existió.
-  - `estado_kit` se contrasta con `kit_assignments` y sus ítems pasan a `devuelto` al cerrar; un kit dañado exige descuento; un activo de categoría no evaluada bloquea el cierre en vez de registrarse como devuelto en buen estado.
+  - `estado_kit` se contrasta con `kit_assignments` y sus ítems pasan a `devuelto` al cerrar; un kit dañado exige descuento; un activo de categoría no evaluada bloquea el cierre en vez de registrarse como devuelto en buen estado. *(v1.9: el bloqueo se reemplaza por `estado_otros`, que lo pregunta.)*
   - El acta de una asignación histórica se emite sellada como registro sin evidencia, en vez de responder 409; cuando hay firma, el PDF la dibuja.
 - **v1.5 (2026-08-22):**
   - Sección 1.3.2: una petición sin sesión a `/api/**` responde `401` con el formato de error unificado, no un redirect a la página de login. El redirect devolvía HTML a los `fetch()` del cliente, que fallaban con `Unexpected token '<'` en vez de informar que la sesión expiró.

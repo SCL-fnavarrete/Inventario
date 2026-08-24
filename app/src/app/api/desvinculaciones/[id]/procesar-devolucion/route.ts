@@ -34,6 +34,7 @@ export async function POST(
         estadoNotebook: data.estadoNotebook,
         estadoCelular: data.estadoCelular,
         estadoMonitor: data.estadoMonitor,
+        estadoOtros: data.estadoOtros,
         estadoKit: data.estadoKit,
         recibidoPor: data.recibidoPor,
         lugarDevolucion: data.lugarDevolucion,

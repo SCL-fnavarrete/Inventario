@@ -54,11 +54,14 @@ const baseRequestFields = {
 const onboardingFields = z.object({
   tipo: z.literal('onboarding'),
   ...baseRequestFields,
-  fechaIngreso: z.string().min(1, 'Fecha de ingreso requerida').transform((val) => {
-    const date = new Date(val);
-    if (isNaN(date.getTime())) throw new Error('Fecha de ingreso inválida');
-    return date;
-  }),
+  fechaIngreso: z
+    .string()
+    .min(1, 'Fecha de ingreso requerida')
+    .transform((val) => {
+      const date = new Date(val);
+      if (isNaN(date.getTime())) throw new Error('Fecha de ingreso inválida');
+      return date;
+    }),
   cargoSolicitado: z.string().min(1, 'Cargo requerido').max(200),
   ubicacionDestino: z.string().max(200).optional().nullable(),
   requiereNotebook: z.boolean().default(false),
@@ -78,11 +81,14 @@ const cambioEquipoFields = z.object({
 const devolucionTerminoFields = z.object({
   tipo: z.literal('devolucion_termino'),
   ...baseRequestFields,
-  fechaDesvinculacion: z.string().min(1, 'Fecha de desvinculación requerida').transform((val) => {
-    const date = new Date(val);
-    if (isNaN(date.getTime())) throw new Error('Fecha de desvinculación inválida');
-    return date;
-  }),
+  fechaDesvinculacion: z
+    .string()
+    .min(1, 'Fecha de desvinculación requerida')
+    .transform((val) => {
+      const date = new Date(val);
+      if (isNaN(date.getTime())) throw new Error('Fecha de desvinculación inválida');
+      return date;
+    }),
   medioDevolucion: z.string().max(100).optional().nullable(),
   otChilexpress: z.string().max(100).optional().nullable(),
   ciudadDevolucion: z.string().max(200).optional().nullable(),
@@ -114,6 +120,10 @@ const returnActionSchema = z
     estadoCelular: estadoDevolucionTermino,
     estadoMonitor: estadoDevolucionTermino,
     estadoKit: estadoDevolucionTermino,
+    // Los equipos que el formulario no pregunta uno por uno tambien se declaran:
+    // el acta no puede afirmar el estado de algo que nadie evaluo, y bloquear el
+    // cierre alcanzaba al caso dominante.
+    estadoOtros: estadoDevolucionTermino,
     lugarDevolucion: z.string().trim().min(1, 'Lugar de devolución requerido').max(100),
     firmaEmpleadoDevolucion: pngSignatureSchema,
     aceptaPoliticaUso: policyAcceptanceSchema,

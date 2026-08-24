@@ -362,6 +362,7 @@ describe('devolucion por termino', () => {
         estadoNotebook: 'ok',
         estadoCelular: 'no_aplica',
         estadoMonitor: 'no_aplica',
+        estadoOtros: 'no_aplica',
         estadoKit: 'no_aplica',
         lugarDevolucion: 'Santiago',
         firmaEmpleadoDevolucion: FIRMA_VALIDA,
