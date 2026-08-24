@@ -61,8 +61,32 @@ export function crearStoreDocumentos() {
       if (valor && typeof valor === 'object' && 'in' in (valor as object)) {
         return (valor as { in: unknown[] }).in.includes(fila[campo as keyof FilaDocumento]);
       }
+      if (valor && typeof valor === 'object' && 'not' in (valor as object)) {
+        return fila[campo as keyof FilaDocumento] !== (valor as { not: unknown }).not;
+      }
       return fila[campo as keyof FilaDocumento] === valor;
     });
+  }
+
+  /**
+   * Escribe respetando el trigger y traduciendo `{ increment }`.
+   *
+   * El incremento importa: escribir un absoluto calculado en memoria hace que
+   * dos intentos concurrentes lean el mismo valor y el contador subestime.
+   */
+  function aplicar(fila: FilaDocumento, data: Record<string, unknown>): void {
+    for (const [campo, valor] of Object.entries(data)) {
+      if (!CAMPOS_STAGED.has(campo)) {
+        throw new Error(`No se permite modificar la evidencia de un documento emitido: ${campo}`);
+      }
+      if (valor && typeof valor === 'object' && 'increment' in (valor as object)) {
+        const actual = fila[campo as keyof FilaDocumento] as number;
+        (fila as Record<string, unknown>)[campo] =
+          actual + (valor as { increment: number }).increment;
+        continue;
+      }
+      (fila as Record<string, unknown>)[campo] = valor;
+    }
   }
 
   const documentoEmitido = {
@@ -115,19 +139,32 @@ export function crearStoreDocumentos() {
       where?: Record<string, unknown>;
       orderBy?: Record<string, 'asc' | 'desc'>;
     }) => {
-      const encontradas = filas.filter((fila) => coincide(fila, where)).sort((a, b) => ordenar(a, b, orderBy));
+      const encontradas = filas
+        .filter((fila) => coincide(fila, where))
+        .sort((a, b) => ordenar(a, b, orderBy));
       return encontradas.length ? { ...encontradas[0] } : null;
     },
     update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
       const fila = filas.find((candidata) => candidata.id === where.id);
       if (!fila) throw new Error('P2025');
-      for (const campo of Object.keys(data)) {
-        if (!CAMPOS_STAGED.has(campo)) {
-          throw new Error(`No se permite modificar la evidencia de un documento emitido: ${campo}`);
-        }
-      }
-      Object.assign(fila, data);
+      aplicar(fila, data);
       return { ...fila };
+    },
+    /**
+     * `updateMany` es la unica forma de escribir con guarda de estado. El
+     * servicio la usa para no pisar un documento ya archivado con el fallo de un
+     * intento que llego tarde.
+     */
+    updateMany: async ({
+      where,
+      data,
+    }: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }) => {
+      const afectadas = filas.filter((fila) => coincide(fila, where));
+      for (const fila of afectadas) aplicar(fila, data);
+      return { count: afectadas.length };
     },
     delete: async () => {
       throw new Error('No se permite eliminar documentos emitidos');

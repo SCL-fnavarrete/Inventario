@@ -26,16 +26,22 @@ type PrismaTx = Prisma.TransactionClient;
  * (SPEC 2.1 sexies):
  *
  *  1. `prepararEmision` corre **dentro** de la transaccion: numera, arma el
- *     snapshot, renderiza el PDF, calcula su SHA-256 y crea la fila como
- *     `pendiente`. Si el negocio se revierte, la evidencia se revierte con el.
- *  2. `archivarDocumento` corre **despues del commit**: re-renderiza desde el
- *     snapshot guardado, verifica que el hash siga siendo el mismo y sube los
- *     bytes. El resultado se anota como `archivado` o `fallido` con su error
- *     saneado y su contador de intentos; reintentar es idempotente.
+ *     snapshot, renderiza el PDF, guarda sus bytes, calcula su SHA-256 y crea la
+ *     fila como `pendiente`. Si el negocio se revierte, la evidencia tambien.
+ *  2. `archivarDocumento` corre **despues del commit**: lee los bytes guardados,
+ *     verifica que su hash siga siendo el mismo y los sube. El resultado se anota
+ *     como `archivado` o `fallido` con su error saneado y su contador de
+ *     intentos; reintentar es idempotente.
  *
- * Nada de esto reconstruye un documento desde datos vivos. `obtenerDocumento`
- * descarga los bytes archivados y verifica el hash: si el archivo cambio, el
- * sistema lo dice en vez de entregar algo que no es lo que se firmo.
+ * Nada de esto reconstruye un documento desde datos vivos, ni lo re-renderiza:
+ * los bytes se emiten una vez y se mueven. `obtenerDocumento` descarga los bytes
+ * archivados y verifica el hash, asi que si el archivo cambio el sistema lo dice
+ * en vez de entregar algo que no es lo que se firmo.
+ *
+ * **La etapa 2 no lanza.** Quien la llama ya commiteo el hecho de negocio: una
+ * excepcion ahi convertiria en 500 una entrega que ya ocurrio fisicamente, que
+ * es justo lo que la particion en dos etapas viene a evitar. Todo error viaja
+ * como `ResultadoArchivo`.
  */
 
 /** El PDF se renderiza dentro de la transaccion; el default de 5 s no alcanza. */
@@ -247,25 +253,63 @@ function errorSaneado(error: unknown): string {
   return mensaje.slice(0, 500);
 }
 
-async function anotarFallo(documentoId: string, intentos: number, error: unknown) {
-  await prisma.documentoEmitido.update({
-    where: { id: documentoId },
-    data: {
-      archivoEstado: 'fallido',
-      archivoError: errorSaneado(error),
-      intentosArchivo: intentos,
-    },
-  });
+/**
+ * Marca el fallo de archivo sin pisar un documento que ya quedo archivado.
+ *
+ * La guarda de estado es necesaria porque hay dos caminos que archivan el mismo
+ * documento -- la transicion despues del commit y el reintento manual -- y los
+ * dos suben a la misma ruta con `conflictBehavior=replace`. Sin ella, el intento
+ * que perdia dejaba la fila en `fallido` con el `sharepointItemId` puesto: el
+ * PDF estaba correctamente archivado en SharePoint y la aplicacion respondia 409
+ * sobre un documento que estaba bien.
+ *
+ * El contador se incrementa en la base. Escribir un absoluto calculado en
+ * memoria hace que dos intentos concurrentes lean el mismo valor y subestime.
+ *
+ * No lanza: quien llama esta en un `catch` posterior al commit del negocio.
+ */
+async function anotarFallo(documentoId: string, error: unknown) {
+  try {
+    await prisma.documentoEmitido.updateMany({
+      where: { id: documentoId, archivoEstado: { not: 'archivado' } },
+      data: {
+        archivoEstado: 'fallido',
+        archivoError: errorSaneado(error),
+        intentosArchivo: { increment: 1 },
+      },
+    });
+  } catch {
+    // La base cayo justo al anotar el fallo -- el momento de mayor presion sobre
+    // el pool, inmediatamente despues del commit. Propagarlo convertiria en 500
+    // una transicion ya confirmada, que es exactamente lo que la particion en
+    // dos etapas viene a evitar. El error real viaja en el ResultadoArchivo.
+  }
 }
 
 /**
  * Sube el documento a SharePoint. Se llama **despues** del commit del hecho de
  * negocio y nunca lanza: un fallo de archivo no puede tumbar la respuesta de
  * una entrega que ya ocurrio. Deja el estado para que alguien reintente.
+ *
+ * "Nunca lanza" incluye los dos caminos que antes lo desmentian: un documento
+ * que no existe se reporta como resultado, y un fallo de la base al anotar el
+ * fallo se traga en `anotarFallo`. Los dos ocurren justo despues del commit,
+ * cuando la presion sobre el pool de conexiones es maxima.
  */
 export async function archivarDocumento(documentoId: string): Promise<ResultadoArchivo> {
-  const documento = await prisma.documentoEmitido.findUnique({ where: { id: documentoId } });
-  if (!documento) throw new ServiceNotFoundError('Documento emitido no encontrado');
+  const documento = await prisma.documentoEmitido
+    .findUnique({ where: { id: documentoId } })
+    .catch(() => null);
+  if (!documento) {
+    // Se reporta como resultado, no como excepcion: el contrato de esta funcion
+    // es no lanzar, y quien la llama ya commiteo el hecho de negocio.
+    return {
+      documentoId,
+      archivoEstado: 'fallido',
+      sharepointUrl: null,
+      error: 'Documento emitido no encontrado',
+    };
+  }
 
   if (documento.archivoEstado === 'archivado' && documento.sharepointItemId) {
     return {
@@ -275,8 +319,6 @@ export async function archivarDocumento(documentoId: string): Promise<ResultadoA
       error: null,
     };
   }
-
-  const intentos = documento.intentosArchivo + 1;
 
   try {
     // Los bytes que se archivan son los que se emitieron, no un render nuevo.
@@ -308,7 +350,7 @@ export async function archivarDocumento(documentoId: string): Promise<ResultadoA
         sharepointItemId: archivado.itemId,
         sharepointUrl: archivado.webUrl,
         archivoError: null,
-        intentosArchivo: intentos,
+        intentosArchivo: { increment: 1 },
       },
     });
 
@@ -319,7 +361,7 @@ export async function archivarDocumento(documentoId: string): Promise<ResultadoA
       error: null,
     };
   } catch (error) {
-    await anotarFallo(documentoId, intentos, error);
+    await anotarFallo(documentoId, error);
     return {
       documentoId,
       archivoEstado: 'fallido',

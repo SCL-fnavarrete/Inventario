@@ -242,6 +242,68 @@ describe('archivarDocumento — despues del commit', () => {
   });
 });
 
+describe('archivarDocumento — la promesa de no lanzar', () => {
+  // La transición ya commiteó cuando esto corre, y se apoya en que archivar
+  // nunca lance: un tenant caído no puede convertir un 200 en un 500 sobre una
+  // entrega que ya ocurrió físicamente. El contrato lo prometía y el código no
+  // lo cumplía en dos caminos.
+
+  test('un id que no existe se reporta como resultado, no como excepción', async () => {
+    const resultado = await archivarDocumento('documento-inexistente');
+
+    expect(resultado.archivoEstado).toBe('fallido');
+    expect(resultado.error).toMatch(/no encontrado/i);
+  });
+
+  test('si la base falla al anotar el fallo, tampoco lanza', async () => {
+    // Es el peor momento posible y el más probable: justo después del commit,
+    // cuando la presión sobre el pool de conexiones es máxima. `anotarFallo`
+    // corría dentro del catch sin try propio, así que su excepción escapaba y
+    // el POST devolvía 500 sobre una transición ya confirmada.
+    const emision = await emitirAnexo();
+    (subirDocumento as jest.Mock).mockRejectedValueOnce(new Error('SharePoint 503'));
+    const updateOriginal = store.documentoEmitido.update;
+    store.documentoEmitido.update = async () => {
+      throw new Error('Connection terminated unexpectedly');
+    };
+
+    const resultado = await archivarDocumento(emision.documentoId);
+
+    expect(resultado.archivoEstado).toBe('fallido');
+    expect(resultado.error).toMatch(/SharePoint 503/);
+    store.documentoEmitido.update = updateOriginal;
+  });
+});
+
+describe('archivarDocumento — concurrencia', () => {
+  test('un intento que llega tarde no pisa un documento ya archivado', async () => {
+    // La transición archiva tras el commit y el reintento manual puede
+    // dispararse en cualquier momento. Ambos suben a la misma ruta con
+    // conflictBehavior=replace: uno gana, y el que falla dejaba la fila en
+    // `fallido` sin limpiar el sharepointItemId. Quedaba un PDF correctamente
+    // archivado en SharePoint sobre el que la aplicación respondía 409.
+    const emision = await emitirAnexo();
+    let llamadas = 0;
+    (subirDocumento as jest.Mock).mockImplementation(async (args) => {
+      llamadas += 1;
+      if (llamadas === 2) throw new Error('SharePoint 503');
+      return drive.subir(args);
+    });
+
+    await Promise.all([
+      archivarDocumento(emision.documentoId),
+      archivarDocumento(emision.documentoId),
+    ]);
+
+    const fila = store.filas[0];
+    expect(fila.archivoEstado).toBe('archivado');
+    expect(fila.sharepointItemId).not.toBeNull();
+    // Y los dos intentos se cuentan: escribir un absoluto calculado en memoria
+    // hacía que el contador subestimara.
+    expect(fila.intentosArchivo).toBe(2);
+  });
+});
+
 describe('obtenerDocumento — la descarga no reconstruye nada', () => {
   test('devuelve los mismos bytes aunque cambien el empleado, la asignacion y la categoria', async () => {
     const emision = await emitirAnexo();
