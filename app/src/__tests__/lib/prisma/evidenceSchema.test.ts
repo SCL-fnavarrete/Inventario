@@ -69,7 +69,15 @@ describe('Prisma DMMF — contrato de evidencia ISO (Ola 2)', () => {
       'cierre_desvinculacion',
       'alerta_equipos_pendientes',
     ]);
-    expect(enumValues('EstadoNotificacion')).toEqual(['pendiente', 'enviada', 'fallida']);
+    // `enviando` separa "nunca se intento" de "se intento y no sabemos": es el
+    // estado que se reclama ANTES de llamar a Graph, para que un reintento
+    // concurrente no mande un segundo correo (revision 4.1, hallazgo B2).
+    expect(enumValues('EstadoNotificacion')).toEqual([
+      'pendiente',
+      'enviando',
+      'enviada',
+      'fallida',
+    ]);
   });
 
   test('mantiene el tipo de devolución estable, firmas con marca de servidor y relaciones inversas', () => {
@@ -210,6 +218,16 @@ describe('Prisma DMMF — contrato de evidencia ISO (Ola 2)', () => {
       numero: { kind: 'scalar', type: 'String', isRequired: true },
       tipo: { kind: 'enum', type: 'TipoDocumento', isRequired: true },
       version: { kind: 'scalar', type: 'Int', isRequired: true, default: 1 },
+      // Los bytes del PDF son la evidencia, no una cache: sin ellos, archivar
+      // un documento exige re-renderizarlo con el codigo del dia del reintento,
+      // y cualquier cambio de plantilla lo vuelve irrecuperable (hallazgo B3).
+      // Obligatorio a proposito: un documento emitido sin bytes no es evidencia.
+      contenidoPdf: {
+        kind: 'scalar',
+        type: 'Bytes',
+        isRequired: true,
+        dbName: 'contenido_pdf',
+      },
       sharepointItemId: {
         kind: 'scalar',
         type: 'String',
@@ -470,6 +488,11 @@ describe('migración Ola 2 — contrato físico de evidencia', () => {
     }
 
     expect(sql).toContain("IF TG_OP = 'DELETE' THEN");
+    // Los triggers de FILA no se disparan nunca en TRUNCATE: sin una rama y un
+    // trigger de STATEMENT propios, `TRUNCATE documentos_emitidos` —o un
+    // `TRUNCATE employees CASCADE`, que RESTRICT no detiene— borra la evidencia
+    // completa sin error ni traza (hallazgo G6).
+    expect(sql).toContain("IF TG_OP = 'TRUNCATE' THEN");
     expect(sql).toContain('RETURN NEW;');
     for (const protectedColumn of [
       'id',
@@ -477,6 +500,7 @@ describe('migración Ola 2 — contrato físico de evidencia', () => {
       'tipo',
       'version',
       'contenido_snapshot',
+      'contenido_pdf',
       'hash_sha256',
       'emitido_por',
       'emitido_en',
@@ -503,6 +527,24 @@ describe('migración Ola 2 — contrato físico de evidencia', () => {
     }
     expect(MIGRATION_SQL).toContain(
       'CREATE TRIGGER "documentos_emitidos_proteger_inmutabilidad"\nBEFORE UPDATE OR DELETE ON "documentos_emitidos"'
+    );
+  });
+
+  test('materializa los bytes del PDF y el estado reclamado del aviso en el contrato fisico', () => {
+    // Los bytes viven en la tabla, no se recalculan: es lo que permite que un
+    // reintento de archivo suba el documento original en vez de re-renderizarlo
+    // con el codigo del dia (hallazgo B3). NOT NULL porque un documento emitido
+    // sin bytes no seria evidencia de nada.
+    expect(MIGRATION_SQL).toContain('"contenido_pdf" BYTEA NOT NULL');
+
+    // El estado `enviando` se reclama antes de llamar a Graph (hallazgo B2).
+    expect(MIGRATION_SQL).toContain(
+      'CREATE TYPE "EstadoNotificacion" AS ENUM (\'pendiente\', \'enviando\', \'enviada\', \'fallida\');'
+    );
+
+    // Trigger de STATEMENT aparte: los de fila no ven el TRUNCATE (hallazgo G6).
+    expect(MIGRATION_SQL).toContain(
+      'CREATE TRIGGER "documentos_emitidos_proteger_truncate"\nBEFORE TRUNCATE ON "documentos_emitidos"\nFOR EACH STATEMENT EXECUTE FUNCTION "proteger_documentos_emitidos"();'
     );
   });
 });

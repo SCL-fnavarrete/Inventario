@@ -147,12 +147,20 @@ Every API route follows this sequence:
 - **TipoDocumento:** `anexo_entrega`, `comprobante_entrega`, `comprobante_cambio`, `acta_devolucion`.
 - **EstadoArchivoDocumento:** `pendiente`, `archivado`, `fallido`.
 - **TipoNotificacion:** `cierre_onboarding`, `cierre_desvinculacion`, `alerta_equipos_pendientes`.
-- **EstadoNotificacion:** `pendiente`, `enviada`, `fallida`. `enviada` significa que Graph aceptó la solicitud, no que una persona la recibió.
+- **EstadoNotificacion:** `pendiente`, `enviando`, `enviada`, `fallida`. `enviada` significa que Graph aceptó la solicitud, no que una persona la recibió. `enviando` es un intento que ya reclamó la fila y puede haber salido: se escribe **antes** de llamar a Graph, porque un guard aplicado a la escritura final llega tarde — los dos intentos concurrentes ya pasaron por `sendMail`.
 
 Los documentos emitidos son físicamente inmutables: solo sus metadatos staged
 de archivo pueden actualizarse. Sus contextos operativos usan `SET NULL`; el
 trigger permite exclusivamente el paso de contexto no nulo a `NULL`, necesario
-cuando la FK conserva la evidencia al borrar un registro operativo.
+cuando la FK conserva la evidencia al borrar un registro operativo. `TRUNCATE`
+tiene su propio trigger de sentencia: los de fila no lo ven y `ON DELETE
+RESTRICT` no lo detiene.
+
+**Los bytes del PDF viven en `documentos_emitidos.contenido_pdf`, y son
+inmutables.** Archivar y reemitir mueven esos bytes; no re-renderizan. Un
+re-render depende de las plantillas, los estilos y la versión de la librería
+vigentes en ese momento, no solo del snapshot: si cambian entre la emisión y el
+reintento, el hash no coincide y el documento queda irrecuperable.
 
 **Workflow / Solicitudes:**
 - **TipoSolicitud:** `onboarding`, `cambio_equipo`, `devolucion_termino`
@@ -248,7 +256,7 @@ El SPEC mantiene un `## Changelog SPEC` al final. Cada actualización significat
 - v1.x (YYYY-MM-DD): descripción concisa del cambio
 ```
 
-La versión actual es **v1.8 (2026-08-22)**.
+La versión actual es **v1.9 (2026-08-23)**.
 
 ### Checklist antes de implementar un cambio de modelo
 

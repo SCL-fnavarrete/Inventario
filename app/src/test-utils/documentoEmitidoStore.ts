@@ -15,6 +15,8 @@ export type FilaDocumento = {
   tipo: string;
   version: number;
   contenidoSnapshot: unknown;
+  /** Los bytes exactos del PDF emitido. Inmutables, como el snapshot. */
+  contenidoPdf: Buffer;
   hashSha256: string;
   sharepointItemId: string | null;
   sharepointUrl: string | null;
@@ -70,6 +72,11 @@ export function crearStoreDocumentos() {
       if (filas.some((fila) => fila.numero === numero && fila.version === version)) {
         throw new Error(`Unique constraint failed on (numero, version): ${numero} v${version}`);
       }
+      // `contenido_pdf` es NOT NULL en la base: un documento emitido sin bytes
+      // no seria evidencia de nada, y el doble tiene que decirlo igual que ella.
+      if (!Buffer.isBuffer(data.contenidoPdf)) {
+        throw new Error('Null constraint failed on documentos_emitidos.contenido_pdf');
+      }
       secuencia += 1;
       const fila: FilaDocumento = {
         id: `documento-${secuencia}`,
@@ -77,6 +84,7 @@ export function crearStoreDocumentos() {
         tipo: data.tipo as string,
         version,
         contenidoSnapshot: data.contenidoSnapshot,
+        contenidoPdf: data.contenidoPdf,
         hashSha256: data.hashSha256 as string,
         sharepointItemId: null,
         sharepointUrl: null,

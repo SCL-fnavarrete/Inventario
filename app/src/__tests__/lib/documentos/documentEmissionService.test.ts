@@ -154,14 +154,38 @@ describe('archivarDocumento — despues del commit', () => {
     expect(sha256(drive.archivos.get('DOC-2026-0001-v1.pdf') as Buffer)).toBe(fila.hashSha256);
   });
 
-  test('re-renderiza desde el snapshot guardado, nunca desde datos vivos', async () => {
+  test('sube los bytes guardados en la emision y no vuelve a renderizar', async () => {
     const emision = await emitirAnexo();
+    const bytesEmitidos = store.filas[0].contenidoPdf;
     (generarPdfDesdeSnapshot as jest.Mock).mockClear();
 
     await archivarDocumento(emision.documentoId);
 
-    const [snapshotUsado] = (generarPdfDesdeSnapshot as jest.Mock).mock.calls[0];
-    expect(snapshotUsado).toEqual(store.filas[0].contenidoSnapshot);
+    expect(generarPdfDesdeSnapshot).not.toHaveBeenCalled();
+    const [{ contenido }] = (subirDocumento as jest.Mock).mock.calls[0];
+    expect(contenido.equals(bytesEmitidos)).toBe(true);
+  });
+
+  test('un cambio de plantilla entre la emision y el reintento no rompe el archivado', async () => {
+    // Es el escenario que dejaba la evidencia irrecuperable: el archivo falla,
+    // al dia siguiente se despliega un cambio de estilo o se corrige el RUT de
+    // la empresa, y el reintento re-renderizado producia otros bytes, no
+    // coincidia con su hash y volvia a `fallido` para siempre.
+    const emision = await emitirAnexo();
+    (subirDocumento as jest.Mock).mockRejectedValueOnce(new Error('SharePoint 503'));
+    await archivarDocumento(emision.documentoId);
+    expect(store.filas[0].archivoEstado).toBe('fallido');
+
+    // La plantilla de hoy renderiza distinto que la del dia de la emision.
+    (generarPdfDesdeSnapshot as jest.Mock).mockImplementation(async () =>
+      Buffer.from('%PDF-fake plantilla nueva')
+    );
+
+    const resultado = await archivarDocumento(emision.documentoId);
+
+    expect(resultado.archivoEstado).toBe('archivado');
+    const [{ contenido }] = (subirDocumento as jest.Mock).mock.calls.at(-1)!;
+    expect(sha256(contenido)).toBe(store.filas[0].hashSha256);
   });
 
   test('un fallo de subida deja el documento fallido, con intento y error saneado', async () => {
@@ -204,9 +228,11 @@ describe('archivarDocumento — despues del commit', () => {
     expect(subirDocumento).not.toHaveBeenCalled();
   });
 
-  test('si el PDF regenerado no coincide con el hash emitido, no sube nada', async () => {
+  test('si los bytes guardados no coinciden con su hash, no sube nada', async () => {
+    // Ya no puede pasar por un re-render, pero sigue cubriendo lo que importa:
+    // que nunca se archive un PDF que no es el que se hasheo al emitir.
     const emision = await emitirAnexo();
-    (generarPdfDesdeSnapshot as jest.Mock).mockResolvedValueOnce(Buffer.from('otro contenido'));
+    store.filas[0].contenidoPdf = Buffer.from('otro contenido');
 
     const resultado = await archivarDocumento(emision.documentoId);
 
@@ -335,5 +361,29 @@ describe('reemitir — conserva la evidencia anterior', () => {
     expect(nuevo.version).toBe(2);
     expect(nuevo.emitidoEn).toBe('2026-03-05T09:00:00.000Z');
     expect(segunda.version).toBe(2);
+  });
+
+  test('reproduce los bytes de la version anterior aunque la plantilla haya cambiado', async () => {
+    // Una reemision declara reproducir la version anterior. Re-renderizando el
+    // snapshot viejo con las plantillas nuevas, la v2 de un anexo de 2026
+    // llevaria los montos de reposicion y la razon social vigentes hoy mientras
+    // afirma reproducir la v1: un documento legal que miente sobre lo que es.
+    const primera = await emitirAnexo();
+    const bytesOriginales = store.filas[0].contenidoPdf;
+
+    (generarPdfDesdeSnapshot as jest.Mock).mockImplementation(async () =>
+      Buffer.from('%PDF-fake plantilla nueva con otros montos')
+    );
+
+    await reemitir({
+      documentoId: primera.documentoId,
+      motivo: 'Se extravio la copia firmada',
+      emitidoPor: 'Admin IT',
+      emitidoEn: new Date('2026-03-05T09:00:00.000Z'),
+    });
+
+    const v2 = store.filas[1];
+    expect(v2.contenidoPdf.equals(bytesOriginales)).toBe(true);
+    expect(v2.hashSha256).toBe(store.filas[0].hashSha256);
   });
 });

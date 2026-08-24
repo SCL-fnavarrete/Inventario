@@ -18,7 +18,10 @@ CREATE TYPE "EstadoArchivoDocumento" AS ENUM ('pendiente', 'archivado', 'fallido
 CREATE TYPE "TipoNotificacion" AS ENUM ('cierre_onboarding', 'cierre_desvinculacion', 'alerta_equipos_pendientes');
 
 -- CreateEnum
-CREATE TYPE "EstadoNotificacion" AS ENUM ('pendiente', 'enviada', 'fallida');
+-- `enviando` se reclama antes de llamar a Graph: sin ese estado dos intentos
+-- concurrentes pasan los dos por `sendMail`, y separa "nunca se intento" de
+-- "se intento y no sabemos si salio".
+CREATE TYPE "EstadoNotificacion" AS ENUM ('pendiente', 'enviando', 'enviada', 'fallida');
 
 -- AlterTable
 ALTER TABLE "asset_categories" ADD COLUMN "tipo_devolucion" "TipoDevolucion";
@@ -64,6 +67,11 @@ CREATE TABLE "documentos_emitidos" (
     "tipo" "TipoDocumento" NOT NULL,
     "version" INTEGER NOT NULL DEFAULT 1,
     "contenido_snapshot" JSONB NOT NULL,
+    -- Los bytes exactos del PDF emitido: el archivo en SharePoint y el hash se
+    -- derivan de aqui. Sin ellos, archivar exige re-renderizar con el codigo
+    -- del dia del reintento y cualquier cambio de plantilla vuelve el documento
+    -- irrecuperable.
+    "contenido_pdf" BYTEA NOT NULL,
     "hash_sha256" TEXT NOT NULL,
     "sharepoint_item_id" TEXT,
     "sharepoint_url" TEXT,
@@ -174,6 +182,17 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
+    -- Los triggers de FILA no se disparan nunca en TRUNCATE, y `ON DELETE
+    -- RESTRICT` tampoco lo detiene: sin esta rama, un `TRUNCATE
+    -- documentos_emitidos` —o un `TRUNCATE employees CASCADE` desde un script
+    -- de limpieza apuntado a la base equivocada— borra la evidencia completa
+    -- sin error ni traza, mientras el DELETE bloqueado da la falsa sensacion de
+    -- que eso no puede pasar. La declaracion del trigger de STATEMENT que
+    -- alcanza este camino esta al final del archivo.
+    IF TG_OP = 'TRUNCATE' THEN
+        RAISE EXCEPTION 'No se permite truncar documentos emitidos';
+    END IF;
+
     IF TG_OP = 'DELETE' THEN
         RAISE EXCEPTION 'No se permite eliminar documentos emitidos';
     END IF;
@@ -183,6 +202,7 @@ BEGIN
        OR OLD.tipo IS DISTINCT FROM NEW.tipo
        OR OLD.version IS DISTINCT FROM NEW.version
        OR OLD.contenido_snapshot IS DISTINCT FROM NEW.contenido_snapshot
+       OR OLD.contenido_pdf IS DISTINCT FROM NEW.contenido_pdf
        OR OLD.hash_sha256 IS DISTINCT FROM NEW.hash_sha256
        OR OLD.emitido_por IS DISTINCT FROM NEW.emitido_por
        OR OLD.emitido_en IS DISTINCT FROM NEW.emitido_en
@@ -206,3 +226,9 @@ $$;
 CREATE TRIGGER "documentos_emitidos_proteger_inmutabilidad"
 BEFORE UPDATE OR DELETE ON "documentos_emitidos"
 FOR EACH ROW EXECUTE FUNCTION "proteger_documentos_emitidos"();
+
+-- TRUNCATE necesita su propio trigger, de STATEMENT: el de fila de arriba no lo
+-- ve. Comparten la funcion, que distingue el caso por TG_OP.
+CREATE TRIGGER "documentos_emitidos_proteger_truncate"
+BEFORE TRUNCATE ON "documentos_emitidos"
+FOR EACH STATEMENT EXECUTE FUNCTION "proteger_documentos_emitidos"();

@@ -335,6 +335,13 @@ model DocumentoEmitido {
   tipo              TipoDocumento
   version           Int                    @default(1)
   contenidoSnapshot Json                   @map("contenido_snapshot")
+  /// Los bytes exactos del PDF emitido. Son la evidencia, no una cache: el
+  /// archivo en SharePoint y el hash se derivan de aqui. Guardarlos es lo que
+  /// permite que un reintento de archivo suba el documento original en vez de
+  /// re-renderizarlo con el codigo del dia del reintento, que dependeria de las
+  /// plantillas, de `pdfStyles` y de la version de la libreria vigentes en ese
+  /// momento. Obligatorio: un documento emitido sin bytes no es evidencia.
+  contenidoPdf      Bytes                  @map("contenido_pdf")
   hashSha256        String                 @map("hash_sha256")
   sharepointItemId  String?                @map("sharepoint_item_id")
   sharepointUrl     String?                @map("sharepoint_url")
@@ -742,8 +749,14 @@ enum TipoNotificacion {
   alerta_equipos_pendientes
 }
 
+/// `enviando` se reclama antes de llamar a Graph. Sin ese estado, dos intentos
+/// concurrentes pasan los dos por `sendMail` antes de que el guard de escritura
+/// alcance a actuar, y RRHH recibe el aviso dos veces. Ademas distingue "nunca
+/// se intento" (pendiente) de "se intento y no sabemos si salio" (enviando),
+/// que era la incertidumbre que no se podia separar.
 enum EstadoNotificacion {
   pendiente
+  enviando
   enviada
   fallida
 }

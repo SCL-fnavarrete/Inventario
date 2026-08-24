@@ -578,9 +578,22 @@ para reconstruir su expediente de auditoría.
 `DocumentoEmitido` es la evidencia de cada acta emitida. Tiene `id` UUID,
 `numero`, `tipo` (`anexo_entrega`, `comprobante_entrega`,
 `comprobante_cambio`, `acta_devolucion`), `version` (por defecto 1),
-`contenido_snapshot` JSON requerido e inmutable y `hash_sha256` requerido del
-PDF. La combinación `(numero, version)` es única; una reemisión crea otra
+`contenido_snapshot` JSON requerido e inmutable, `contenido_pdf` requerido e
+inmutable con los bytes exactos del PDF, y `hash_sha256` requerido de esos
+bytes. La combinación `(numero, version)` es única; una reemisión crea otra
 versión y registra `motivo_reemision`, nunca reemplaza la evidencia anterior.
+
+**Los bytes del PDF se guardan, no se recalculan.** `contenido_pdf` es la
+evidencia; el archivo en SharePoint y el hash se derivan de él. La alternativa
+—guardar solo el snapshot y volver a renderizar cuando hace falta— parecía
+suficiente porque el render es determinista, pero lo es *respecto del snapshot*:
+también depende de las plantillas, de los estilos, de la razón social y de los
+montos de reposición que la plantilla dibuja como literales, y de la versión de
+la librería de PDF. Un documento cuyo archivo falló y se reintenta después de un
+cambio de plantilla producía otros bytes, no coincidía con su hash y quedaba
+irrecuperable para siempre. Y una reemisión, que declara reproducir la versión
+anterior, la reproducía con el contenido vigente hoy. Con los bytes guardados,
+archivar y reemitir mueven el documento original.
 
 El archivo externo se maneja en etapas mediante `archivo_estado`:
 `pendiente`, `archivado` o `fallido`, junto con `sharepoint_item_id`,
@@ -597,12 +610,24 @@ usan `ON DELETE SET NULL`: borrar un contexto operativo jamás borra un document
 emitido. Se indexan empleado/fecha, estado de archivo/fecha y cada contexto.
 
 La inmutabilidad también se aplica físicamente en la base: no se puede eliminar
-un documento emitido ni cambiar los datos de emisión, snapshot, hash, firma,
-versión, emisor o empleado. Solo son actualizables los metadatos staged de
-archivo (`sharepoint_item_id`, `sharepoint_url`, `archivo_estado`,
+un documento emitido ni cambiar los datos de emisión, snapshot, bytes del PDF,
+hash, firma, versión, emisor o empleado. Solo son actualizables los metadatos
+staged de archivo (`sharepoint_item_id`, `sharepoint_url`, `archivo_estado`,
 `archivo_error`, `intentos_archivo`). Como excepción técnica necesaria para los
 FK `SET NULL`, cada contexto puede conservarse o cambiar de un valor existente a
 `NULL`; no puede asignarse ni reemplazarse por otro contexto.
+
+**`TRUNCATE` está bloqueado aparte.** Los triggers de fila no se disparan en
+`TRUNCATE`, y `ON DELETE RESTRICT` tampoco lo detiene: `TRUNCATE
+documentos_emitidos`, o un `TRUNCATE employees CASCADE`, borraba toda la
+evidencia sin error ni traza mientras el `DELETE` bloqueado daba la falsa
+sensación de que eso no podía pasar. Un trigger de sentencia propio lo rechaza.
+
+*Alcance de la garantía:* es una defensa contra el error, no contra el abuso
+deliberado. El dueño de la tabla —que en Neon suele ser el rol de la
+aplicación— puede desactivar un trigger (`ALTER TABLE … DISABLE TRIGGER`,
+`session_replication_role = replica`). Cerrar eso es materia de permisos de
+base, no de esquema.
 
 ### 2.1 quinquies El acto oficial de entrega y devolución
 
@@ -712,14 +737,32 @@ transacción, así que la emisión se parte:
 
 1. **Dentro** de la transacción del hecho de negocio: se reserva el correlativo
    `DOC-AAAA-NNNN`, se arma y valida el snapshot, se renderiza el PDF, se
-   calcula su `SHA-256` en minúsculas y se crea `DocumentoEmitido` con
-   `archivo_estado = pendiente`. Si el negocio se revierte, la evidencia se
-   revierte con él.
-2. **Después del commit**: se re-renderiza desde el snapshot guardado, se
-   verifica que el hash siga siendo el mismo y se suben los bytes a SharePoint.
-   El resultado se anota como `archivado` (con `sharepoint_item_id` y
-   `sharepoint_url`) o `fallido` (con `archivo_error` saneado), y en ambos casos
-   se incrementa `intentos_archivo`.
+   calcula su `SHA-256` en minúsculas y se crea `DocumentoEmitido` con los bytes
+   en `contenido_pdf` y `archivo_estado = pendiente`. Si el negocio se revierte,
+   la evidencia se revierte con él.
+2. **Después del commit**: se leen los bytes guardados, se verifica que su hash
+   siga siendo el mismo y se suben a SharePoint. El resultado se anota como
+   `archivado` (con `sharepoint_item_id` y `sharepoint_url`) o `fallido` (con
+   `archivo_error` saneado), y en ambos casos se incrementa `intentos_archivo`.
+
+   **El archivo no re-renderiza.** Renderizar de nuevo hacía depender el
+   archivado del código vigente el día del reintento, no del día de la emisión:
+   un cambio de plantilla entre la emisión y el reintento producía otros bytes,
+   el hash no coincidía y el documento quedaba irrecuperable. La etapa 2 mueve
+   los bytes que la etapa 1 selló.
+
+**Un fallo al anotar el fallo no tumba el acto.** La etapa 2 no propaga
+excepciones: si la base falla justo al registrar que el archivo no se pudo
+subir —el momento de mayor presión de conexiones, inmediatamente después del
+commit—, el error se reporta como resultado y no como excepción. Lo contrario
+convertía en `500` una transición ya confirmada, que es exactamente lo que la
+partición en dos etapas venía a evitar.
+
+**El archivo nunca degrada un documento ya archivado.** La anotación de fallo
+solo alcanza a una fila que no esté `archivado`. Sin esa guarda, un reintento
+que llegara tarde pisaba el estado de un archivado exitoso y dejaba el PDF
+correctamente subido a SharePoint con la fila diciendo `fallido`: la aplicación
+respondía `409` sobre un documento que estaba bien.
 
 Un fallo de archivo **no revierte** el acto: la entrega ya ocurrió físicamente
 y un tenant caído no puede deshacerla. Queda visible como `fallido` y
@@ -797,9 +840,26 @@ la validación Zod de actualización y del `PUT`; los listados y reportes pueden
 seguir filtrando por ellos, porque ahora dicen la verdad.
 
 **Qué significa cada estado.** `pendiente` es un aviso preparado que todavía no
-se intentó. `enviada` significa que Graph respondió aceptando la solicitud
-(HTTP 202) — no que una persona la haya recibido ni leído; la UI lo dice con
-esas palabras. `fallida` guarda el error saneado del intento.
+se intentó. `enviando` es un aviso reclamado por un intento en curso: se
+escribió *antes* de llamar a Graph, así que el correo puede haber salido o no.
+`enviada` significa que Graph respondió aceptando la solicitud (HTTP 202) — no
+que una persona la haya recibido ni leído; la UI lo dice con esas palabras.
+`fallida` guarda el error saneado de un intento que no llegó a salir.
+
+**Por qué existe `enviando`.** El guard contra el doble envío era un filtro de
+estado sobre la escritura final, y eso llega tarde: dos intentos concurrentes
+leían `pendiente`, los dos pasaban por `sendMail`, y el filtro recién impedía
+que el segundo *anotara* lo que ya había hecho. RRHH recibía el aviso dos veces.
+Ahora el intento **reclama** la fila antes de llamar a Graph, y quien no logra
+reclamarla no envía. El estado reclamado además separa dos cosas que antes se
+confundían: "nunca se intentó" y "se intentó y no sabemos si salió".
+
+**Un aviso que Graph aceptó nunca vuelve a `fallida`.** La degradación por error
+solo alcanza a lo que ocurrió *antes* del 202. Si Graph acepta y después falla
+la transacción que lo registra, el aviso no se marca como fallido: eso es
+exactamente el error que hace que alguien reintente y duplique el correo, y es
+el peor de los dos —el correo salió y el sistema decía que no—. El fallo
+posterior al 202 se registra sin tocar el estado.
 
 **Envío en dos etapas**, igual que el archivo de documentos:
 
@@ -1816,16 +1876,6 @@ Ubicación | Tipo Contrato | Fecha Ingreso
 
 ---
 
-# FIN DEL DOCUMENTO DE ESPECIFICACIONES
-
-Versión: 1.4
-Fecha: 2026-08-21
-Metodología: BMAD + SDD (Spec Driven Design)
-Autor: Arquitectura generada para desarrollo por IA
-```
-
----
-
 ### 2.7.7 Borrado de activos: el historial no se destruye
 
 Un activo con historial o con asignaciones **no se elimina**. El registro de
@@ -1869,6 +1919,14 @@ nunca debió existir como fila separada.
 
 ## Changelog SPEC
 
+- **v1.9 (2026-08-23):**
+  - Cierre de los hallazgos de schema de la revisión independiente de la Ola 2, plegados en la migración `20260822020000_ola_2_evidencia_iso` antes de aplicarla.
+  - `documentos_emitidos.contenido_pdf` (`BYTEA`, requerido e inmutable): los bytes del PDF se guardan y el archivo deja de re-renderizar. Re-renderizar hacía depender el archivado del código vigente el día del reintento, y un cambio de plantilla dejaba el documento irrecuperable; una reemisión, además, reproducía la versión anterior con el contenido de hoy.
+  - `EstadoNotificacion` agrega `enviando`: el intento reclama la fila antes de llamar a Graph. El guard anterior filtraba la escritura final, y para entonces los dos intentos concurrentes ya habían pasado por `sendMail`. El estado reclamado además separa "nunca se intentó" de "se intentó y no sabemos si salió".
+  - Un aviso que Graph aceptó nunca vuelve a `fallida`: la degradación por error solo alcanza a lo ocurrido antes del 202.
+  - El archivo de un documento no degrada uno ya `archivado`, y no propaga excepciones: un fallo al anotar el fallo dejaba en `500` una transición ya confirmada.
+  - `TRUNCATE` sobre `documentos_emitidos` queda bloqueado con un trigger de sentencia propio: los de fila no lo ven y `ON DELETE RESTRICT` no lo detiene, así que un `TRUNCATE … CASCADE` borraba la evidencia sin traza. Se documenta el alcance real de la garantía (defensa contra el error, no contra el dueño de la tabla).
+  - Corrige el cierre del documento: el pie de "FIN DEL DOCUMENTO" estaba en medio del archivo, con una cerca de código sin abrir que hacía que la sección 2.7.7 y todo este changelog se renderizaran como bloque de código.
 - **v1.8 (2026-08-22):**
   - Sección 2.1 septies nueva: el aviso a RRHH pasa de checkbox a evidencia auditable por Microsoft Graph (Ola 2.7).
   - `notificado_rrhh` y `fecha_notificacion_rrhh` son campos de compatibilidad propiedad de `notificationService`: salen de la validación Zod de actualización y del PUT, y solo se escriben cuando Graph acepta el correo.
@@ -1904,7 +1962,6 @@ nunca debió existir como fila separada.
   - Sección 2.1 ter: se agregan `EmployeeHistory`, `DocumentoEmitido` y `NotificacionEnviada`, con snapshots inmutables, hash, versionado, estados staged de SharePoint y correo Graph, e índices de evidencia.
   - Sección 2.1 ter: los documentos e historial requieren empleado y se retienen con `RESTRICT`; los contextos operativos opcionales usan `SET NULL`, nunca cascade.
   - Sección 2.1 ter: PDFs y plantillas usan el timestamp del snapshot de servidor; una descarga no regenera ni modifica la evidencia. La aceptación de política queda en el snapshot firmado.
-- **v1.0 (2025):** Versión inicial — 12 modelos, stack definido, metodología BMAD.
 - **v1.3 (2026-08-21):**
   - Sección 1.3.1: matriz de permisos ejecutable (13 recursos × 3 acciones × 5 roles) como único punto de verdad de la autorización, consumida por la API y por la UI.
   - Sección 1.3.1: se corrige la divergencia en importación masiva — importar activos y empleados exige `admin` o `tecnico`; el código lo permitía a `supervisor` y `rrhh`, contra el "solo lectura" del SPEC.
@@ -1927,3 +1984,14 @@ nunca debió existir como fila separada.
   - Sección 2.1 bis: agrega 6 modelos nuevos (`workflow_requests`, `workflow_comments`, `workflow_transitions`, `workflow_pendientes`, `dispatch_guides`, `dispatch_guide_items`).
   - Sección 2.5: Sistema de Solicitudes (Workflow) — máquinas de estado, reglas de negocio, estructura `datos_accion`.
   - Sección 2.6: Integración Microsoft Entra ID — flujo, estrategia de match, campos sincronizados vs manuales.
+
+- **v1.0 (2025):** Versión inicial — 12 modelos, stack definido, metodología BMAD.
+
+---
+
+# FIN DEL DOCUMENTO DE ESPECIFICACIONES
+
+Versión: 1.9
+Fecha: 2026-08-23
+Metodología: BMAD + SDD (Spec Driven Design)
+Autor: Arquitectura generada para desarrollo por IA

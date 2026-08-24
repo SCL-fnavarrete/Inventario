@@ -117,10 +117,16 @@ async function crearEvidencia(
     contexto: ContextoEmision;
     emitidoEn: Date;
     motivoReemision?: string | null;
+    /**
+     * Bytes ya emitidos que hay que reproducir tal cual. Los usa `reemitir`:
+     * una reemision declara reproducir la version anterior, y renderizando de
+     * nuevo reproduciria el snapshot viejo con las plantillas de hoy.
+     */
+    contenidoPdf?: Buffer;
   }
 ): Promise<EmisionPreparada> {
   const snapshot = documentoSnapshotSchema.parse(params.snapshot);
-  const pdf = await renderizar(snapshot);
+  const pdf = params.contenidoPdf ?? (await renderizar(snapshot));
   const hashSha256 = hashDe(pdf);
 
   const documento = await tx.documentoEmitido.create({
@@ -129,6 +135,7 @@ async function crearEvidencia(
       tipo: snapshot.tipo,
       version: snapshot.version,
       contenidoSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+      contenidoPdf: pdf,
       hashSha256,
       archivoEstado: 'pendiente',
       emitidoPor: snapshot.emitidoPor,
@@ -191,6 +198,11 @@ export async function prepararEmision(
  * se extravio la copia o porque hay que volver a entregarla, no para cambiar
  * lo que el documento dijo. Lo unico que cambia es la identidad (version,
  * fecha, emisor) y el motivo, que es obligatorio.
+ *
+ * "Reproducir" son los bytes, no el snapshot: se copia el PDF original. Volver
+ * a renderizar el snapshot viejo lo dibujaria con las plantillas, los estilos y
+ * la razon social de hoy, asi que la v2 de un anexo de 2026 podria llevar los
+ * montos de reposicion de 2027 mientras afirma reproducir la v1.
  */
 export async function reemitir(params: {
   documentoId: string;
@@ -225,6 +237,7 @@ export async function reemitir(params: {
     },
     emitidoEn,
     motivoReemision: motivo,
+    contenidoPdf: Buffer.from(original.contenidoPdf),
   });
 }
 
@@ -266,16 +279,20 @@ export async function archivarDocumento(documentoId: string): Promise<ResultadoA
   const intentos = documento.intentosArchivo + 1;
 
   try {
-    const snapshot = parseDocumentoSnapshot(documento.contenidoSnapshot);
-    const pdf = await renderizar(snapshot);
+    // Los bytes que se archivan son los que se emitieron, no un render nuevo.
+    // Re-renderizar hacia depender el archivado del codigo vigente el dia del
+    // reintento —plantillas, estilos, razon social, version de la libreria—, y
+    // no solo del snapshot: un cambio desplegado entre la emision y el reintento
+    // producia otros bytes, el hash no coincidia y el documento quedaba en
+    // `fallido` para siempre, sin ninguna ruta de recuperacion.
+    const pdf = Buffer.from(documento.contenidoPdf);
 
-    // El reintento re-renderiza, asi que hay que probar que produjo lo mismo
-    // que se hasheo al emitir. Subir bytes distintos del hash almacenado
-    // dejaria un archivo que despues ninguna verificacion aceptaria.
+    // La verificacion se conserva: ya no puede fallar por un render distinto,
+    // pero sigue impidiendo que se archive un PDF que no es el que se hasheo.
     const hash = hashDe(pdf);
     if (hash !== documento.hashSha256) {
       throw new Error(
-        `Integridad rota: el PDF regenerado no coincide con el hash emitido (${documento.hashSha256.slice(0, 12)}…)`
+        `Integridad rota: los bytes almacenados no coinciden con el hash emitido (${documento.hashSha256.slice(0, 12)}…)`
       );
     }
 
