@@ -7,6 +7,15 @@ type DmmfField = DmmfModel['fields'][number];
 
 const MODELS = Prisma.dmmf.datamodel.models;
 const ENUMS = Prisma.dmmf.datamodel.enums;
+/**
+ * Los fines de linea se normalizan a LF antes de comparar.
+ *
+ * Varias aserciones buscan substrings de dos lineas -- la declaracion de un
+ * trigger, por ejemplo --, y el repo no tiene `.gitattributes`: con
+ * `core.autocrlf=true` el mismo archivo llega con CRLF en un checkout de Windows
+ * y con LF en el de CI, asi que sin normalizar el test pasa o falla segun la
+ * maquina y no segun el contenido de la migracion.
+ */
 const MIGRATION_SQL = readFileSync(
   join(
     process.cwd(),
@@ -16,7 +25,7 @@ const MIGRATION_SQL = readFileSync(
     'migration.sql'
   ),
   'utf8'
-);
+).replace(/\r\n/g, '\n');
 
 function model(name: string): DmmfModel {
   const found = MODELS.find((candidate) => candidate.name === name);
