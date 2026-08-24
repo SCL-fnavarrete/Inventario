@@ -4,11 +4,7 @@ import { updateWorkflowRequestSchema } from '@/lib/validations/workflow';
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // GET /api/solicitudes/[id] - Get full detail
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requirePermission('solicitudes', 'read');
     const { id } = await params;
@@ -41,6 +37,45 @@ export async function GET(
         pendientes: {
           orderBy: { createdAt: 'asc' },
         },
+        // La evidencia viaja con la solicitud: sin esto, un documento que no se
+        // pudo archivar era invisible desde la aplicacion.
+        //
+        // El `select` es obligatorio, no una optimizacion: `contenidoPdf` es un
+        // BYTEA con el PDF completo y `contenidoSnapshot` lleva todo el
+        // contenido del acta -- incluida la imagen de la firma manuscrita, que
+        // tambien esta en `firmaEmpleado`. Sin acotar los campos, abrir la ficha
+        // descargaria cada documento de la solicitud.
+        documentosEmitidos: {
+          select: {
+            id: true,
+            numero: true,
+            tipo: true,
+            version: true,
+            archivoEstado: true,
+            archivoError: true,
+            intentosArchivo: true,
+            sharepointUrl: true,
+            emitidoPor: true,
+            emitidoEn: true,
+            motivoReemision: true,
+          },
+          orderBy: { emitidoEn: 'asc' },
+        },
+        notificacionesEnviadas: {
+          select: {
+            id: true,
+            tipo: true,
+            destinatarios: true,
+            asunto: true,
+            estado: true,
+            mensajeError: true,
+            enviadaPor: true,
+            aceptadaEn: true,
+            createdAt: true,
+            documentoIds: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
 
@@ -55,11 +90,7 @@ export async function GET(
 }
 
 // PATCH /api/solicitudes/[id] - Update metadata
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requirePermission('solicitudes', 'write');
     const { id } = await params;

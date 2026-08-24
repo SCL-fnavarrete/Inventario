@@ -50,6 +50,8 @@ const onboardingInDelivery = {
   comments: [],
   transitions: [],
   pendientes: [],
+  documentosEmitidos: [],
+  notificacionesEnviadas: [],
 };
 
 describe('detalle de solicitud — evidencia de transición', () => {

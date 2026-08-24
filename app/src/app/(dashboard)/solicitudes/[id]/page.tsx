@@ -16,6 +16,11 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import OfficialEvidenceFields from '@/components/ui/OfficialEvidenceFields';
+import DocumentEvidence, {
+  type DocumentoEvidencia,
+} from '@/components/solicitudes/DocumentEvidence';
+import NotificationTimeline from '@/components/desvinculaciones/NotificationTimeline';
+import { usePermissions } from '@/hooks/usePermissions';
 
 type WorkflowDetail = {
   id: string;
@@ -90,6 +95,19 @@ type WorkflowDetail = {
     descripcion: string | null;
     actualizadoPor: string | null;
     updatedAt: string;
+  }[];
+  documentosEmitidos: DocumentoEvidencia[];
+  notificacionesEnviadas: {
+    id: string;
+    tipo: string;
+    destinatarios: string[];
+    asunto: string;
+    estado: 'pendiente' | 'enviando' | 'enviada' | 'fallida';
+    mensajeError: string | null;
+    enviadaPor: string;
+    aceptadaEn: string | null;
+    createdAt: string;
+    documentoIds: string[];
   }[];
 };
 
@@ -191,6 +209,47 @@ export default function SolicitudDetailPage() {
   const [transitionFormOpen, setTransitionFormOpen] = useState(false);
   const [availableAssets, setAvailableAssets] = useState<AvailableAsset[]>([]);
   const [actionData, setActionData] = useState(initialActionData);
+  const [reintentandoDocumento, setReintentandoDocumento] = useState<string | null>(null);
+  const [reintentandoAviso, setReintentandoAviso] = useState<string | null>(null);
+  const { can } = usePermissions();
+
+  /**
+   * Reintenta el archivo de un documento en SharePoint.
+   *
+   * El documento ya esta emitido y su contenido es inmutable: esto solo vuelve a
+   * subir los bytes que se sellaron al emitirlo.
+   */
+  const reintentarArchivo = async (tipo: string) => {
+    setReintentandoDocumento(tipo);
+    setError('');
+    try {
+      const res = await fetch(`/api/solicitudes/${id}/documento/${tipo}`, { method: 'POST' });
+      if (!res.ok) {
+        const cuerpo = await res.json().catch(() => ({}));
+        setError(cuerpo.error || 'No se pudo reintentar el archivo del documento');
+        return;
+      }
+      await fetchData();
+    } finally {
+      setReintentandoDocumento(null);
+    }
+  };
+
+  const reintentarAviso = async (notificacionId: string) => {
+    setReintentandoAviso(notificacionId);
+    setError('');
+    try {
+      const res = await fetch(`/api/solicitudes/${id}/notificar`, { method: 'POST' });
+      if (!res.ok) {
+        const cuerpo = await res.json().catch(() => ({}));
+        setError(cuerpo.error || 'No se pudo reintentar el aviso a RRHH');
+        return;
+      }
+      await fetchData();
+    } finally {
+      setReintentandoAviso(null);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -815,6 +874,45 @@ export default function SolicitudDetailPage() {
                     </button>
                   </div>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Evidencia: documentos emitidos y avisos a RRHH.
+              La transicion ya calculaba estos estados y los devolvia en el 200,
+              pero nadie los leia: un documento que no se pudo archivar era
+              invisible, y sin UI las rutas de descarga y reintento no tenian
+              ningun consumidor. */}
+          {(data.documentosEmitidos.length > 0 || data.notificacionesEnviadas.length > 0) && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="font-semibold text-gray-900 mb-4">Evidencia documental</h2>
+              <DocumentEvidence
+                solicitudId={id}
+                documentos={data.documentosEmitidos}
+                puedeReintentar={can('solicitudes', 'write')}
+                onReintentar={reintentarArchivo}
+                reintentando={reintentandoDocumento}
+              />
+
+              {data.notificacionesEnviadas.length > 0 && (
+                <>
+                  <h3 className="font-medium text-gray-900 mt-6 mb-3">Avisos a RRHH</h3>
+                  <NotificationTimeline
+                    notificaciones={data.notificacionesEnviadas.map((aviso) => ({
+                      ...aviso,
+                      documentos: data.documentosEmitidos
+                        .filter((documento) => aviso.documentoIds.includes(documento.id))
+                        .map((documento) => ({
+                          id: documento.id,
+                          numero: documento.numero,
+                          version: documento.version,
+                        })),
+                    }))}
+                    puedeReintentar={can('solicitudes', 'write')}
+                    onReintentar={reintentarAviso}
+                    reintentando={reintentandoAviso}
+                  />
+                </>
               )}
             </div>
           )}
