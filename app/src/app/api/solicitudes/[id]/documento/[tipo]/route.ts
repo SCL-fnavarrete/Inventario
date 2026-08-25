@@ -102,6 +102,7 @@ export async function GET(
     return new NextResponse(new Uint8Array(documento.contenido), {
       headers: {
         'Content-Type': 'application/pdf',
+        'Cache-Control': 'private, no-store',
         'Content-Disposition': `attachment; filename="${nombre}"`,
         'X-Documento-Numero': documento.numero,
         'X-Documento-Version': String(documento.version),

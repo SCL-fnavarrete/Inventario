@@ -256,4 +256,24 @@ describe('datosDeDevolucion', () => {
     expect(datos.fechaTermino).toBe('2026-03-01T00:00:00.000Z');
     expect(datos.observaciones).toBe('Falta el cargador');
   });
+
+  test('rechaza el acta si una asignacion no tiene estado de devolución declarado', async () => {
+    // Si esta validación desaparece, `null` vuelve a convertirse en `ok` y el
+    // acta afirma una revisión que el técnico nunca realizó.
+    const tx = txCon([asignacion('sin-estado')]);
+
+    await expect(
+      datosDeDevolucion(tx as never, {
+        employeeId: 'employee-1',
+        solicitud: { ...SOLICITUD, tipo: 'devolucion_termino' },
+        recibidoPor: 'Tecnico TI',
+        fechaDevolucion: FECHA,
+        fechaTermino: null,
+        lugarDevolucion: 'Santiago',
+        observaciones: null,
+        assignmentIds: ['sin-estado'],
+        firma: FIRMA,
+      })
+    ).rejects.toThrow(/estado.*devoluci.n/i);
+  });
 });

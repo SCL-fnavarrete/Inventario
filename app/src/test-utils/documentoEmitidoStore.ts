@@ -187,9 +187,14 @@ export function crearStoreDocumentos() {
       if (locksTomados.length === 0) {
         throw new Error('Se leyo el maximo del correlativo sin tomar el lock antes');
       }
-      const prefijo = String(valores[0]).replace('%', '');
-      const maximo = filas
-        .filter((fila) => fila.numero.startsWith(prefijo))
+      const patron = String(valores[0]);
+      const candidatas = sql.includes('~')
+        ? filas.filter((fila) => new RegExp(patron).test(fila.numero))
+        : filas.filter((fila) => fila.numero.startsWith(patron.replace('%', '')));
+      const numeros = sql.includes('~')
+        ? candidatas.filter((fila) => /^DOC-\d{4}-\d+$/.test(fila.numero))
+        : candidatas;
+      const maximo = numeros
         .reduce((max, fila) => Math.max(max, Number(fila.numero.split('-')[2])), 0);
       return [{ max: maximo || null }];
     }

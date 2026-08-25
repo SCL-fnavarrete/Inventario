@@ -123,6 +123,34 @@ describe('comprobante de cambio — no afirma lo que el snapshot no dice', () =>
   });
 });
 
+describe('plantillas de entrega y devolución — etiquetas de evidencia', () => {
+  test.each([
+    ['nuevo', 'Nuevo'],
+    ['usado', 'Usado'],
+    ['danado', 'Dañado'],
+  ])('traduce la condición %s como %s en los documentos de entrega', async (condicion, etiqueta) => {
+    const activo = { ...anexoEntregaSnapshot().activos[0], condicion };
+
+    await generarPdfDesdeSnapshot(anexoEntregaSnapshot({ activos: [activo] }));
+    expect(textoPlano(arbolRenderizado())).toContain(etiqueta);
+
+    await generarPdfDesdeSnapshot(comprobanteEntregaSnapshot({ activos: [activo] }));
+    expect(textoPlano(arbolRenderizado())).toContain(etiqueta);
+  });
+
+  test('traduce incompleto en el acta de devolución sin filtrar el enum crudo', async () => {
+    await generarPdfDesdeSnapshot(
+      actaDevolucionSnapshot({
+        activos: [{ ...actaDevolucionSnapshot().activos[0], estadoDevolucion: 'incompleto' }],
+      })
+    );
+
+    const texto = textoPlano(arbolRenderizado());
+    expect(texto).toContain('Incompleto');
+    expect(texto).not.toMatch(/\bincompleto\b/);
+  });
+});
+
 describe('generarPdfDesdeSnapshot — el snapshot es el documento', () => {
   test('no consulta la base de datos para ninguno de los cuatro tipos', async () => {
     for (const snapshot of TODOS()) {
@@ -185,6 +213,23 @@ describe('generarPdfDesdeSnapshot — el snapshot es el documento', () => {
       anexoEntregaSnapshot({ firma: { imagenPng: null, firmadaEn: null } })
     );
     expect(JSON.stringify(arbolRenderizado())).not.toContain('data:image/png;base64,');
+  });
+
+  test('acepta una firma ausente pero rechaza una firma que no cumple el contrato PNG', async () => {
+    await expect(
+      generarPdfDesdeSnapshot(anexoEntregaSnapshot({ firma: { imagenPng: null, firmadaEn: null } }))
+    ).resolves.toBeInstanceOf(Buffer);
+
+    await expect(
+      generarPdfDesdeSnapshot(
+        anexoEntregaSnapshot({
+          firma: {
+            imagenPng: 'https://example.com/firma.png',
+            firmadaEn: '2026-03-04T12:30:00.000Z',
+          },
+        })
+      )
+    ).rejects.toThrow();
   });
 
   test('rechaza un tipo de snapshot desconocido en vez de emitir un PDF vacio', async () => {

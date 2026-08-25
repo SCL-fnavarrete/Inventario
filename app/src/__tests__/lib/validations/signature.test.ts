@@ -62,4 +62,8 @@ describe('pngSignatureSchema', () => {
 
     expect(pngSignatureSchema.safeParse(oversizedPng).success).toBe(false);
   });
+
+  test('rechaza una firma comprimida cuya superficie declarada excede cuatro millones de píxeles', () => {
+    expect(pngSignatureSchema.safeParse(pngValido(2_001, 2_000)).success).toBe(false);
+  });
 });

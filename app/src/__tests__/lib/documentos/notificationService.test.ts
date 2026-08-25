@@ -259,7 +259,7 @@ describe('enviarNotificacion — después del commit', () => {
     expect(payload.message.attachments).toHaveLength(1);
     expect(payload.message.attachments[0]).toMatchObject({
       contentType: 'application/pdf',
-      name: 'DOC-2026-0001_v1.pdf',
+      name: 'DOC-2026-0001-v1.pdf',
     });
     expect(Buffer.from(payload.message.attachments[0].contentBytes, 'base64').toString()).toBe(
       '%PDF-acta'

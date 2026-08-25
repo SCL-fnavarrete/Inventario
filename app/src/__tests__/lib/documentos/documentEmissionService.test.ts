@@ -107,6 +107,20 @@ describe('prepararEmision — dentro de la transaccion de negocio', () => {
     expect(store.locksTomados).toHaveLength(3);
   });
 
+  test('ignora números malformados y continúa después de un correlativo de cinco dígitos', async () => {
+    await emitirAnexo();
+    store.filas.push({
+      ...store.filas[0],
+      id: 'malformado',
+      numero: 'DOC-2026-no-es-numero',
+    });
+    store.filas.push({ ...store.filas[0], id: 'correlativo-alto', numero: 'DOC-2026-9999' });
+
+    const emision = await emitirAnexo();
+
+    expect(emision.numero).toBe('DOC-2026-10000');
+  });
+
   test('el snapshot guardado lleva la identidad del documento y la aceptacion de politica', async () => {
     await emitirAnexo();
 

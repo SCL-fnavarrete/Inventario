@@ -29,6 +29,12 @@ type Props = {
   recibidoPor: string;
 };
 
+const ESTADO_DEVOLUCION_LABEL: Record<string, string> = {
+  ok: 'OK',
+  danado: 'Dañado',
+  incompleto: 'Incompleto',
+};
+
 export function ActaDevolucionTemplate({
   evidencia,
   empleadoNombre,
@@ -92,7 +98,7 @@ export function ActaDevolucionTemplate({
                   {asset.numeroSerie || '—'}
                 </Text>
                 <Text style={[styles.tableCell, { width: '15%' }]}>
-                  {asset.estadoDevolucion === 'ok' ? 'OK' : asset.estadoDevolucion === 'danado' ? 'No OK' : asset.estadoDevolucion}
+                  {ESTADO_DEVOLUCION_LABEL[asset.estadoDevolucion] ?? asset.estadoDevolucion}
                 </Text>
               </View>
             ))}

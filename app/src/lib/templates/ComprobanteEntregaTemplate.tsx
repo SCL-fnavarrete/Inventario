@@ -29,6 +29,12 @@ type Props = {
   gestionadoPor: string;
 };
 
+const CONDICION_LABEL: Record<string, string> = {
+  nuevo: 'Nuevo',
+  usado: 'Usado',
+  danado: 'Dañado',
+};
+
 export function ComprobanteEntregaTemplate({
   evidencia,
   empleadoNombre,
@@ -75,7 +81,7 @@ export function ComprobanteEntregaTemplate({
                 {asset.numeroSerie || asset.imei || '—'}
               </Text>
               <Text style={[styles.tableCell, { width: '15%' }]}>
-                {asset.estado === 'nuevo' ? 'Nuevo' : 'Usado'}
+                {CONDICION_LABEL[asset.estado] ?? asset.estado}
               </Text>
             </View>
           ))}

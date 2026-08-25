@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { pngSignatureSchema } from '@/lib/validations/signature';
 
 /**
  * El snapshot de un documento emitido.
@@ -49,7 +50,7 @@ const activoDevueltoSnapshotSchema = activoSnapshotSchema.extend({
 
 const baseSchema = z.object({
   snapshotVersion: z.literal(SNAPSHOT_VERSION),
-  numero: z.string().regex(/^DOC-\d{4}-\d{4}$/),
+  numero: z.string().regex(/^DOC-\d{4}-\d{4,}$/),
   version: z.number().int().positive(),
   emitidoEn: isoDateTime,
   emitidoPor: z.string().min(1),
@@ -69,7 +70,7 @@ const baseSchema = z.object({
   // un flag editable en Employee o Assignment (SPEC 2.1 ter).
   aceptaPoliticaUso: z.literal(true),
   firma: z.object({
-    imagenPng: z.string().nullable(),
+    imagenPng: pngSignatureSchema.nullable(),
     firmadaEn: isoDateTime.nullable(),
   }),
 });

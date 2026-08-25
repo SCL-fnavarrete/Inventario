@@ -6,6 +6,7 @@ export const MAX_SIGNATURE_BYTES = 256 * 1024;
 const PNG_DATA_URL = /^data:image\/png;base64,([A-Za-z0-9+/]*={0,2})$/;
 const PNG_HEADER = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const MAX_PNG_DIMENSION = 10_000;
+const MAX_SIGNATURE_PIXELS = 4_000_000;
 
 /**
  * Un lienzo de firma real mide cientos de píxeles de lado; `SignaturePad`
@@ -39,6 +40,7 @@ function isCompletePng(bytes: Buffer): boolean {
       const height = bytes.readUInt32BE(dataOffset + 4);
       if (width < MIN_PNG_WIDTH || height < MIN_PNG_HEIGHT) return false;
       if (width > MAX_PNG_DIMENSION || height > MAX_PNG_DIMENSION) return false;
+      if (width * height > MAX_SIGNATURE_PIXELS) return false;
     } else if (type === 'IHDR') {
       return false;
     }

@@ -109,7 +109,7 @@ async function asignarNumero(tx: PrismaTx, emitidoEn: Date): Promise<string> {
   const filas = await tx.$queryRaw<Array<{ max: number | bigint | null }>>`
     SELECT MAX(CAST(SPLIT_PART("numero", '-', 3) AS INTEGER)) AS max
     FROM "documentos_emitidos"
-    WHERE "numero" LIKE ${`DOC-${anio}-%`}
+    WHERE "numero" ~ ${`^DOC-${anio}-[0-9]+$`}
   `;
 
   const maximo = Number(filas[0]?.max ?? 0);

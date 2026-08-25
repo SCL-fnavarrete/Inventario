@@ -84,6 +84,7 @@ describe('GET /api/asignaciones/[id]/acta — evidencia oficial', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('application/pdf');
     expect(response.headers.get('x-evidencia-oficial')).toBe('ausente');
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
   });
 
   test('declara la evidencia presente cuando la asignación está firmada', async () => {
@@ -93,6 +94,7 @@ describe('GET /api/asignaciones/[id]/acta — evidencia oficial', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('x-evidencia-oficial')).toBe('presente');
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
   });
 
   test('dibuja la firma guardada en vez de una línea en blanco', async () => {
@@ -128,6 +130,7 @@ describe('GET /api/asignaciones/[id]/acta — evidencia oficial', () => {
     expect(response.headers.get('x-documento-origen')).toBe('emitido');
     expect(response.headers.get('x-evidencia-oficial')).toBe('presente');
     expect(response.headers.get('content-disposition')).toContain('DOC-2026-0001_v1.pdf');
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('%PDF-archivado');
   });
 

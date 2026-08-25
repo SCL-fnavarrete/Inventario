@@ -90,6 +90,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         status: 200,
         headers: {
           'Content-Type': 'application/pdf',
+          'Cache-Control': 'private, no-store',
           'X-Evidencia-Oficial': 'presente',
           'X-Documento-Origen': 'emitido',
           'Content-Disposition': `attachment; filename="acta_${tipo}_${documento.numero}_v${documento.version}.pdf"`,
@@ -330,6 +331,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
+        "Cache-Control": "private, no-store",
         "X-Evidencia-Oficial": tieneEvidenciaOficial ? "presente" : "ausente",
         "X-Documento-Origen": "historico-no-oficial",
         "Content-Disposition": `attachment; filename="acta_${tipo}${tieneEvidenciaOficial ? "" : "_historico"}_${(assignment.employee.rut || assignment.employee.id).replace(/\./g, "")}_${assignment.asset.numeroSerie || assignment.id}.pdf"`,

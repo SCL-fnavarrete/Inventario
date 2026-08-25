@@ -93,6 +93,7 @@ describe('GET — entrega el archivo inmutable', () => {
     expect(response.headers.get('content-disposition')).toContain(
       'Acta_Devolucion_DOC-2026-0001_v1.pdf'
     );
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('%PDF-archivado');
   });
 

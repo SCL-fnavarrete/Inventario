@@ -6,7 +6,9 @@ import { ComprobanteEntregaTemplate } from '@/lib/templates/ComprobanteEntregaTe
 import { ComprobanteCambioTemplate } from '@/lib/templates/ComprobanteCambioTemplate';
 import { ActaDevolucionTemplate } from '@/lib/templates/ActaDevolucionTemplate';
 import type { EvidenciaDocumento } from '@/lib/templates/evidencia';
-import type {
+import {
+  parseDocumentoSnapshot,
+  type
   ActaDevolucionSnapshot,
   ActivoSnapshot,
   AnexoEntregaSnapshot,
@@ -203,13 +205,21 @@ export function generateActaDevolucion(snapshot: ActaDevolucionSnapshot): Promis
 export function generarPdfDesdeSnapshot(snapshot: DocumentoSnapshot): Promise<Buffer> {
   switch (snapshot.tipo) {
     case 'anexo_entrega':
-      return generateAnexoEntrega(snapshot);
+      return Promise.resolve().then(() =>
+        generateAnexoEntrega(parseDocumentoSnapshot(snapshot) as AnexoEntregaSnapshot)
+      );
     case 'comprobante_entrega':
-      return generateComprobanteEntrega(snapshot);
+      return Promise.resolve().then(() =>
+        generateComprobanteEntrega(parseDocumentoSnapshot(snapshot) as ComprobanteEntregaSnapshot)
+      );
     case 'comprobante_cambio':
-      return generateComprobanteCambio(snapshot);
+      return Promise.resolve().then(() =>
+        generateComprobanteCambio(parseDocumentoSnapshot(snapshot) as ComprobanteCambioSnapshot)
+      );
     case 'acta_devolucion':
-      return generateActaDevolucion(snapshot);
+      return Promise.resolve().then(() =>
+        generateActaDevolucion(parseDocumentoSnapshot(snapshot) as ActaDevolucionSnapshot)
+      );
     default: {
       const tipo = (snapshot as { tipo: string }).tipo;
       return Promise.reject(new Error(`Tipo de documento no soportado: ${tipo}`));

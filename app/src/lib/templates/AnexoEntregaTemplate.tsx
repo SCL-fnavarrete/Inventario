@@ -34,6 +34,12 @@ type Props = {
   gestionadoPor: string;
 };
 
+const CONDICION_LABEL: Record<string, string> = {
+  nuevo: 'Nuevo',
+  usado: 'Usado',
+  danado: 'Dañado',
+};
+
 export function AnexoEntregaTemplate({
   evidencia,
   empleadoNombre,
@@ -98,7 +104,7 @@ export function AnexoEntregaTemplate({
                 <Text style={[styles.tableCell, { width: '10%' }]}>{asset.discoDuro || '—'}</Text>
                 <Text style={[styles.tableCell, { width: '8%' }]}>{asset.ram || '—'}</Text>
                 <Text style={[styles.tableCell, { width: '10%' }]}>
-                  {asset.estado === 'nuevo' ? 'Nuevo' : 'Usado'}
+                  {CONDICION_LABEL[asset.estado] ?? asset.estado}
                 </Text>
               </View>
             ))}

@@ -646,9 +646,10 @@ declararlo: su empleado es el de la propia asignación.
 
 **Qué garantiza la validación de la firma.** La firma es un PNG en base64 con
 cabecera y estructura completas —`IHDR` primero, al menos un `IDAT` con datos, e
-`IEND` al final—, de tamaño mínimo 64×32 y máximo 256 KB, con base64 canónico.
-Exigir `IDAT` es lo que descarta un archivo sin imagen: sin ese chunk, ~60 bytes
-de estructura satisfacían el control y el visor no dibujaba nada.
+`IEND` al final—, de tamaño mínimo 64×32, máximo 256 KB y superficie declarada
+máxima de 4.000.000 de píxeles, con base64 canónico. Exigir `IDAT` es lo que
+descarta un archivo sin imagen: sin ese chunk, ~60 bytes de estructura satisfacían
+el control y el visor no dibujaba nada.
 
 *Límite conocido y deliberado:* un PNG bien formado y del tamaño correcto cuyos
 píxeles sean todos transparentes pasa la validación. Comprobar que hay trazo
@@ -734,6 +735,12 @@ junto al `tipo_devolucion` estable. Las asignaciones se identifican por id: son
 exactamente las que participaron del acto, no las que estén activas después.
 Los generadores no consultan Prisma ni leen el reloj.
 
+La firma del snapshot puede ser nula en un registro histórico, pero cuando
+existe se valida con el mismo contrato PNG de captura del acto; una URL o texto
+arbitrario no es evidencia. Al construir un acta de devolución, cada asignación
+debe tener `estado_devolucion` declarado: la ausencia se rechaza, nunca se
+normaliza a `ok`.
+
 **Y el documento solo afirma lo que el snapshot contiene.** Ninguna plantilla
 declara un hecho con un literal fijo. Tres consecuencias concretas:
 
@@ -747,9 +754,10 @@ declara un hecho con un literal fijo. Tres consecuencias concretas:
   tabla "Equipo Devuelto (Anterior)" completa y afirmara una devolución que
   nunca ocurrió.
 - Las condiciones y los estados se traducen con un mapa de los tres valores del
-  enum, no con un ternario. Colapsar `danado` en "Usado" hacía desaparecer del
-  acta justo lo que después se discute. Un valor sin traducción se imprime
-  crudo: es mejor leer `incompleto` en minúscula que un "OK" que nadie declaró.
+  enum, no con un ternario: `nuevo`/`usado`/`danado` se imprimen como
+  `Nuevo`/`Usado`/`Dañado`, y `incompleto` como `Incompleto`. Colapsar
+  `danado` en "Usado" o imprimir un enum crudo hacía desaparecer o degradaba
+  justo el dato que después se discute.
 
 **Los bytes del PDF son reproducibles.** El `<Document>` recibe
 `creationDate` = `emitido_en` del snapshot, más `producer`/`creator` fijos.
@@ -764,7 +772,7 @@ en un equipo local.
 transacción, así que la emisión se parte:
 
 1. **Dentro** de la transacción del hecho de negocio: se reserva el correlativo
-   `DOC-AAAA-NNNN`, se arma y valida el snapshot, se renderiza el PDF, se
+   `DOC-AAAA-NNNN` (cuatro o más dígitos), se arma y valida el snapshot, se renderiza el PDF, se
    calcula su `SHA-256` en minúsculas y se crea `DocumentoEmitido` con los bytes
    en `contenido_pdf` y `archivo_estado = pendiente`. Si el negocio se revierte,
    la evidencia se revierte con él.
@@ -800,7 +808,10 @@ reintentable. El reintento es idempotente: sube a la misma ruta
 **El correlativo no se calcula con `count() + 1`.** Dos transiciones simultáneas
 leerían el mismo total. La reserva toma `pg_advisory_xact_lock` dentro de la
 transacción —se libera al confirmarla— y recién entonces lee el máximo del año,
-de modo que lectura e inserción quedan serializadas sin bloquear la tabla.
+de modo que lectura e inserción quedan serializadas sin bloquear la tabla. La
+lectura filtra primero el formato `DOC-AAAA-<dígitos>` antes de convertir el
+sufijo a entero: una fila histórica malformada no rompe la reserva ni altera el
+máximo válido.
 
 **Recuperación.** `GET` descarga los bytes archivados y verifica el `SHA-256`
 almacenado. No existe camino de regeneración, a propósito:
@@ -811,6 +822,10 @@ almacenado. No existe camino de regeneración, a propósito:
 | Nunca se emitió ese tipo para el contexto | `404`, indicando que se emite con la transición |
 | Emitido pero `pendiente` o `fallido` | `409` con `details` del estado e intentos |
 | El archivo no coincide con el hash | `409` de integridad |
+
+Toda respuesta PDF de `GET /api/solicitudes/[id]/documento/[tipo]` y de
+`GET /api/asignaciones/[id]/acta`, sea evidencia emitida o registro histórico,
+incluye `Cache-Control: private, no-store`.
 
 **Emisión por transición.** El acta la crea la transición que ejecuta el acto:
 `equipos_entregados` emite anexo y comprobante de entrega, `cambio_ejecutado`
@@ -830,6 +845,9 @@ RRHH como notificada.
 contenido del snapshot anterior y registra `motivo_reemision`. Las filas y los
 archivos previos se conservan: una reemisión existe porque se extravió la
 copia, no para cambiar lo que el documento dijo.
+
+Los adjuntos de aviso conservan el mismo nombre que el archivo en SharePoint:
+`NUMERO-vN.pdf`.
 
 **Acta legacy de una asignación.** `GET /api/asignaciones/[id]/acta` deja de
 competir con la evidencia: si existe un documento archivado que menciona esa
@@ -1957,6 +1975,11 @@ nunca debió existir como fila separada.
 
 ## Changelog SPEC
 
+- **v1.10 (2026-08-25):**
+  - El builder de actas rechaza asignaciones sin `estado_devolucion`; ya no convierte una ausencia en `ok`. Las plantillas traducen las tres condiciones de activo y el estado `incompleto` a sus etiquetas legibles.
+  - El schema del snapshot permite firma nula, pero valida una firma presente con el mismo PNG de captura; la firma limita además su superficie declarada a 4.000.000 de píxeles.
+  - Los correlativos aceptan cuatro o más dígitos y su consulta filtra `DOC-AAAA-<dígitos>` antes del `CAST`, para aislar filas malformadas.
+  - Los adjuntos usan `NUMERO-vN.pdf`, igual que SharePoint, y todas las descargas PDF oficiales e históricas declaran `Cache-Control: private, no-store`.
 - **v1.9 (2026-08-23):**
   - La evidencia que falla al archivarse se ve y se repara desde la aplicación. `GET /api/solicitudes/[id]` devuelve los documentos emitidos y los avisos con un `select` acotado —`contenido_pdf` es un BYTEA y sin acotar la ficha descargaría cada PDF—, la ficha los muestra con descarga y reintento, y `POST /api/solicitudes/[id]/notificar` reintenta el aviso de cierre. Antes la transición calculaba esos estados y los devolvía en el 200, pero la ficha descartaba el cuerpo y las rutas de descarga y reintento no tenían ningún consumidor: un onboarding podía cerrarse sin evidencia, con un correo a RRHH que decía "Sin documentos archivados disponibles" y quedaba `enviada`, sin forma de repararlo.
   - `POST /api/desvinculaciones/[id]/procesar-devolucion` emite el acta y prepara el aviso a RRHH, igual que `consolidacion_cierre`. La desvinculación directa era un callejón sin salida: se cerraba sin emitir nada, y `/notificar` respondía 409 pidiendo cerrar la devolución para emitir el acta sobre una devolución ya cerrada. `/notificar` queda para el reintento.

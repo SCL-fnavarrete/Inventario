@@ -191,7 +191,7 @@ async function adjuntosDe(documentoIds: string[]) {
     }
     adjuntos.push({
       '@odata.type': '#microsoft.graph.fileAttachment',
-      name: `${documento.numero}_v${documento.version}.pdf`,
+      name: `${documento.numero}-v${documento.version}.pdf`,
       contentType: 'application/pdf',
       contentBytes,
     });

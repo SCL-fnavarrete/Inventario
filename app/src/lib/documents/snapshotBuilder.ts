@@ -216,9 +216,13 @@ export async function datosDeDevolucion(
   const empleado = await empleadoDe(tx, params.employeeId);
   const asignaciones = await activosDe(tx, params.assignmentIds);
 
+  if (asignaciones.some((asignacion) => asignacion.estadoDevolucion === null)) {
+    throw new Error('No se puede construir el acta sin estado de devolución declarado');
+  }
+
   const activos: ActivoDevueltoSnapshot[] = asignaciones.map((asignacion) => ({
     ...aActivoSnapshot(asignacion),
-    estadoDevolucion: asignacion.estadoDevolucion || 'ok',
+    estadoDevolucion: asignacion.estadoDevolucion!,
   }));
 
   return {
