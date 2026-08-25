@@ -2098,7 +2098,7 @@ nunca debió existir como fila separada.
 
 # FIN DEL DOCUMENTO DE ESPECIFICACIONES
 
-Versión: 1.9
-Fecha: 2026-08-23
+Versión: 1.10
+Fecha: 2026-08-25
 Metodología: BMAD + SDD (Spec Driven Design)
 Autor: Arquitectura generada para desarrollo por IA
