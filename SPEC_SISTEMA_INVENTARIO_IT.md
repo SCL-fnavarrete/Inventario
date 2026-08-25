@@ -1033,36 +1033,63 @@ DEVOLUCION_TERMINO:
 
 ### 2.5.4 Estructura del campo `datos_accion` por transición con efecto
 
-El campo `datos_accion JSONB` en `workflow_transitions` transporta los datos variables de cada transición con efecto secundario:
+El campo `datos_accion JSONB` en `workflow_transitions` transporta los datos variables de cada transición con efecto secundario. El contrato vigente es una unión discriminada y **estricta** por `nuevoEstado`: no admite campos ajenos, timestamps del cliente ni una aceptación de política libre. Las transiciones sin efecto no llevan `datosAccion`.
 
 **`gestion_ti → equipos_entregados` (onboarding):**
 ```typescript
 {
-  assetIds: string[]       // requerido: IDs de activos a asignar
-  lugarEntrega?: string    // opcional: lugar de entrega
+  assetIds: string[]               // requerido, al menos un UUID
+  lugarEntrega: string             // requerido, trim, 1..100 caracteres
+  firmaEmpleadoEntrega: PngDataUri // requerido; PNG validado
+  aceptaPoliticaUso: true          // requerido
 }
 ```
 
 **`incidencia_detectada → cambio_ejecutado` (cambio_equipo):**
 ```typescript
 {
-  oldAssignmentId?: string                              // opcional: asignación a devolver
-  estadoDevolucion?: 'ok' | 'danado' | 'incompleto'   // estado del equipo devuelto
-  newAssetId?: string                                   // opcional: activo nuevo a asignar
-  lugarEntrega?: string
+  oldAssignmentId?: UUID                              // devolución, entrega o ambas
+  estadoDevolucion?: 'ok' | 'danado' | 'incompleto'
+  newAssetId?: UUID
+  lugarEntrega?: string                               // requerida si hay `newAssetId`
+  firmaEmpleadoEntrega?: PngDataUri                   // requerida si hay `newAssetId`
+  firmaEmpleadoDevolucion?: PngDataUri                // requerida si hay `oldAssignmentId`
+  aceptaPoliticaUso: true                             // requerido
 }
 ```
+
+Debe existir `oldAssignmentId` o `newAssetId`. Si se devuelve equipo, también
+son obligatorios `estadoDevolucion` y `firmaEmpleadoDevolucion`; si se entrega
+uno, lo son `lugarEntrega` y `firmaEmpleadoEntrega`.
+
+**`coordinacion_en_curso → equipo_recibido` (devolucion_termino):**
+```typescript
+{
+  medioDevolucion?: string // trim, 1..100 caracteres
+  otChilexpress?: string   // trim, 1..100 caracteres
+}
+```
+
+Debe llegar al menos uno de los dos datos de coordinación.
 
 **`equipo_recibido → consolidacion_cierre` (devolucion_termino):**
 ```typescript
 {
-  estadoNotebook?: 'ok' | 'danado' | 'no_aplica' | 'pendiente'
-  estadoCelular?:  'ok' | 'danado' | 'no_aplica' | 'pendiente'
-  estadoMonitor?:  'ok' | 'danado' | 'no_aplica' | 'pendiente'
-  estadoKit?:      'ok' | 'danado' | 'no_aplica' | 'pendiente'
-  lugarDevolucion?: string
+  estadoNotebook: 'ok' | 'danado' | 'no_aplica' | 'pendiente'
+  estadoCelular:  'ok' | 'danado' | 'no_aplica' | 'pendiente'
+  estadoMonitor:  'ok' | 'danado' | 'no_aplica' | 'pendiente'
+  estadoKit:      'ok' | 'danado' | 'no_aplica' | 'pendiente'
+  estadoOtros:    'ok' | 'danado' | 'no_aplica' | 'pendiente'
+  lugarDevolucion: string            // requerido, trim, 1..100 caracteres
+  firmaEmpleadoDevolucion: PngDataUri // requerido; PNG validado
+  aceptaPoliticaUso: true             // requerido
 }
 ```
+
+`PngDataUri` es una imagen PNG en data URI que satisface la validación de firma
+de la sección 2.1 quinquies. La firma se persiste en la asignación y solo se
+anota como presencia en la transición; no se duplica su imagen en
+`datos_accion`.
 
 ---
 
@@ -1987,6 +2014,7 @@ nunca debió existir como fila separada.
 ## Changelog SPEC
 
 - **v1.10 (2026-08-25):**
+  - La sección 2.5.4 queda alineada con `transitionSchema`: unión estricta por transición, firmas PNG y aceptación de política, lugares obligatorios cuando corresponden, `estadoOtros` obligatorio en el cierre y la transición logística `coordinacion_en_curso → equipo_recibido` con `medioDevolucion` u `otChilexpress`.
   - El builder de actas rechaza asignaciones sin `estado_devolucion`; ya no convierte una ausencia en `ok`. Las plantillas traducen las tres condiciones de activo y el estado `incompleto` a sus etiquetas legibles.
   - El schema del snapshot permite firma nula, pero valida una firma presente con el mismo PNG de captura; la firma limita además su superficie declarada a 4.000.000 de píxeles.
   - Los correlativos aceptan cuatro o más dígitos y su consulta filtra `DOC-AAAA-<dígitos>` antes del `CAST`, para aislar filas malformadas.
