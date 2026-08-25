@@ -755,9 +755,10 @@ declara un hecho con un literal fijo. Tres consecuencias concretas:
   nunca ocurrió.
 - Las condiciones y los estados se traducen con un mapa de los tres valores del
   enum, no con un ternario: `nuevo`/`usado`/`danado` se imprimen como
-  `Nuevo`/`Usado`/`Dañado`, y `incompleto` como `Incompleto`. Colapsar
-  `danado` en "Usado" o imprimir un enum crudo hacía desaparecer o degradaba
-  justo el dato que después se discute.
+  `Nuevo`/`Usado`/`Dañado`; para devolución, `danado` conserva `No OK` e
+  `incompleto` se imprime como `Incompleto`. Colapsar una condición `danado`
+  en "Usado" o imprimir un enum crudo hacía desaparecer o degradaba justo el
+  dato que después se discute.
 
 **Los bytes del PDF son reproducibles.** El `<Document>` recibe
 `creationDate` = `emitido_en` del snapshot, más `producer`/`creator` fijos.

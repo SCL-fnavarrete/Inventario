@@ -149,6 +149,18 @@ describe('plantillas de entrega y devolución — etiquetas de evidencia', () =>
     expect(texto).toContain('Incompleto');
     expect(texto).not.toMatch(/\bincompleto\b/);
   });
+
+  test('conserva No OK para un equipo devuelto dañado', async () => {
+    // Cambiar esta etiqueta altera una redacción existente del acta que no es
+    // parte del quick win de `incompleto`.
+    await generarPdfDesdeSnapshot(
+      actaDevolucionSnapshot({
+        activos: [{ ...actaDevolucionSnapshot().activos[0], estadoDevolucion: 'danado' }],
+      })
+    );
+
+    expect(textoPlano(arbolRenderizado())).toContain('No OK');
+  });
 });
 
 describe('generarPdfDesdeSnapshot — el snapshot es el documento', () => {

@@ -31,7 +31,7 @@ type Props = {
 
 const ESTADO_DEVOLUCION_LABEL: Record<string, string> = {
   ok: 'OK',
-  danado: 'Dañado',
+  danado: 'No OK',
   incompleto: 'Incompleto',
 };
 
