@@ -141,6 +141,46 @@ describe('graphRequestJson', () => {
     // El id de correlacion sirve para pedirle el detalle a Microsoft y no revela nada.
     expect((error as GraphError).message).toContain('req-77');
   });
+
+  test('mantiene el timeout durante la lectura del cuerpo JSON', async () => {
+    const controladorTimeout = new AbortController();
+    const timeout = jest.spyOn(AbortSignal, 'timeout').mockReturnValue(controladorTimeout.signal);
+    let signalDelCuerpo!: AbortSignal;
+    let iniciarLectura!: () => void;
+    const lecturaIniciada = new Promise<void>((resolve) => {
+      iniciarLectura = resolve;
+    });
+
+    fetchMock
+      .mockResolvedValueOnce(respuestaToken())
+      .mockImplementationOnce((_: unknown, init?: RequestInit) => {
+        signalDelCuerpo = init!.signal as AbortSignal;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => {
+            iniciarLectura();
+            return new Promise((_, reject) => {
+              signalDelCuerpo.addEventListener(
+                'abort',
+                () => reject(new DOMException('La lectura se agotó', 'AbortError')),
+                { once: true }
+              );
+            });
+          },
+          text: async () => '',
+          headers: new Headers(),
+        });
+      });
+
+    const solicitud = graphRequestJson('https://graph.microsoft.com/v1.0/users');
+    await lecturaIniciada;
+    controladorTimeout.abort();
+
+    expect(timeout).toHaveBeenCalledWith(30_000);
+    expect(signalDelCuerpo).toBe(controladorTimeout.signal);
+    await expect(solicitud).rejects.toMatchObject({ name: 'AbortError' });
+  });
 });
 
 describe('graphRequestBinary', () => {
@@ -157,6 +197,46 @@ describe('graphRequestBinary', () => {
     const recibido = await graphRequestBinary('https://graph.microsoft.com/v1.0/drives/x/items/y/content');
 
     expect(Buffer.compare(recibido, bytes)).toBe(0);
+  });
+
+  test('mantiene el timeout durante la lectura del cuerpo binario', async () => {
+    const controladorTimeout = new AbortController();
+    const timeout = jest.spyOn(AbortSignal, 'timeout').mockReturnValue(controladorTimeout.signal);
+    let signalDelCuerpo!: AbortSignal;
+    let iniciarLectura!: () => void;
+    const lecturaIniciada = new Promise<void>((resolve) => {
+      iniciarLectura = resolve;
+    });
+
+    fetchMock
+      .mockResolvedValueOnce(respuestaToken())
+      .mockImplementationOnce((_: unknown, init?: RequestInit) => {
+        signalDelCuerpo = init!.signal as AbortSignal;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          arrayBuffer: () => {
+            iniciarLectura();
+            return new Promise((_, reject) => {
+              signalDelCuerpo.addEventListener(
+                'abort',
+                () => reject(new DOMException('La lectura se agotó', 'AbortError')),
+                { once: true }
+              );
+            });
+          },
+          text: async () => '',
+          headers: new Headers(),
+        });
+      });
+
+    const solicitud = graphRequestBinary('https://graph.microsoft.com/v1.0/drives/x/items/y/content');
+    await lecturaIniciada;
+    controladorTimeout.abort();
+
+    expect(timeout).toHaveBeenCalledWith(30_000);
+    expect(signalDelCuerpo).toBe(controladorTimeout.signal);
+    await expect(solicitud).rejects.toMatchObject({ name: 'AbortError' });
   });
 });
 

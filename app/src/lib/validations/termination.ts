@@ -29,7 +29,8 @@ export const updateTerminationSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => {
-      if (!val) return null;
+      if (val === undefined) return undefined;
+      if (val === null || val === '') return null;
       const date = new Date(val);
       return isNaN(date.getTime()) ? null : date;
     }),

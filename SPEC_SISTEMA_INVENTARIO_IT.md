@@ -103,6 +103,9 @@ Por eso la decisión no puede quedar en el callback `authorized` —que sólo sa
 decir sí o no—, sino en el middleware, que sí distingue una API de una página.
 El 401 usa el mismo formato de error que el resto de la API (`{ error }`, ver
 `src/lib/auth/guard.ts`), de modo que el cliente lee siempre la misma clave.
+El matcher conserva fuera las imágenes públicas, pero evalúa primero
+`/api/**` —salvo `/api/auth/**`—: que una ruta de API termine en `.png`, `.jpg`
+o `.svg` no la convierte en un archivo público.
 
 ---
 
@@ -420,6 +423,11 @@ CREATE TABLE terminations (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 ```
+
+En una actualización parcial de la desvinculación, omitir
+`fecha_devolucion_equipos` conserva el campo sin incluirlo en el cambio;
+enviar `null` o una cadena vacía lo limpia; una fecha válida se convierte a
+fecha. La ausencia y el valor nulo no son equivalentes.
 
 ---
 
@@ -871,7 +879,9 @@ petición y la traducción de errores. Un error de Graph nunca lleva el token, e
 secreto ni el cuerpo de la respuesta: lleva el código HTTP y el `request-id`,
 que es lo que Microsoft pide para investigar. El cuerpo importa: AAD devuelve
 el client secret dentro del mensaje `AADSTS7000215` cuando está mal
-configurado.
+configurado. El límite de 30 segundos usa `AbortSignal.timeout` y cubre tanto
+la llegada de cabeceras como la lectura completa de JSON o bytes; el runtime
+de Node se fija en 20 mediante `app/package.json` y `app/.nvmrc`.
 
 ### 2.1 septies — Aviso a RRHH: evidencia, no un checkbox
 
@@ -1981,6 +1991,9 @@ nunca debió existir como fila separada.
   - El schema del snapshot permite firma nula, pero valida una firma presente con el mismo PNG de captura; la firma limita además su superficie declarada a 4.000.000 de píxeles.
   - Los correlativos aceptan cuatro o más dígitos y su consulta filtra `DOC-AAAA-<dígitos>` antes del `CAST`, para aislar filas malformadas.
   - Los adjuntos usan `NUMERO-vN.pdf`, igual que SharePoint, y todas las descargas PDF oficiales e históricas declaran `Cache-Control: private, no-store`.
+  - `graphClient` mantiene el timeout de 30 segundos durante la lectura del cuerpo y el proyecto fija Node 20, cuyo `AbortSignal.timeout` soporta ese contrato. El margen de renovación del token es de dos minutos.
+  - Una actualización parcial de desvinculación distingue una fecha omitida (`undefined`) de una limpieza explícita (`null` o cadena vacía); una fecha válida se transforma a `Date`.
+  - El matcher excluye imágenes públicas, pero cubre siempre `/api/**` salvo `/api/auth/**`, aunque el path de API termine en `.png`, `.jpg` o `.svg`.
 - **v1.9 (2026-08-23):**
   - La evidencia que falla al archivarse se ve y se repara desde la aplicación. `GET /api/solicitudes/[id]` devuelve los documentos emitidos y los avisos con un `select` acotado —`contenido_pdf` es un BYTEA y sin acotar la ficha descargaría cada PDF—, la ficha los muestra con descarga y reintento, y `POST /api/solicitudes/[id]/notificar` reintenta el aviso de cierre. Antes la transición calculaba esos estados y los devolvía en el 200, pero la ficha descartaba el cuerpo y las rutas de descarga y reintento no tenían ningún consumidor: un onboarding podía cerrarse sin evidencia, con un correo a RRHH que decía "Sin documentos archivados disponibles" y quedaba `enviada`, sin forma de repararlo.
   - `POST /api/desvinculaciones/[id]/procesar-devolucion` emite el acta y prepara el aviso a RRHH, igual que `consolidacion_cierre`. La desvinculación directa era un callejón sin salida: se cerraba sin emitir nada, y `/notificar` respondía 409 pidiendo cerrar la devolución para emitir el acta sobre una devolución ya cerrada. `/notificar` queda para el reintento.

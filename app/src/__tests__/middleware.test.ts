@@ -6,6 +6,7 @@
  */
 import { NextRequest } from 'next/server';
 import { encode } from 'next-auth/jwt';
+import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server';
 
 /**
  * Contrato del middleware para las rutas de API.
@@ -37,7 +38,7 @@ process.env.NEXTAUTH_SECRET = SECRET;
 process.env.NEXTAUTH_URL = 'http://localhost:3000';
 
 // Importado después de fijar las variables de entorno, a propósito.
-import middleware from '@/middleware';
+import middleware, { config } from '@/middleware';
 
 /**
  * `withAuth` declara su tipo como `(req: NextRequestWithAuth, event:
@@ -68,6 +69,29 @@ async function pedir(ruta: string, opciones: { conSesion?: boolean } = {}) {
 function dejaPasar(respuesta: Response | undefined) {
   return respuesta === undefined || respuesta.headers.has('x-middleware-next');
 }
+
+function coincideMatcher(ruta: string): boolean {
+  return unstable_doesMiddlewareMatch({
+    config,
+    url: `http://localhost:3000${ruta}`,
+  });
+}
+
+describe('middleware — selección de rutas', () => {
+  test.each(['/api/activos.png', '/api/empleados/foto.jpg', '/api/documentos/logo.svg'])(
+    '%s activa el middleware aunque termine como imagen',
+    (ruta) => {
+      expect(coincideMatcher(ruta)).toBe(true);
+    }
+  );
+
+  test.each(['/imagen-publica.png', '/avatars/empleado.jpg', '/marca.svg', '/api/auth/logo.png'])(
+    '%s queda fuera del middleware',
+    (ruta) => {
+      expect(coincideMatcher(ruta)).toBe(false);
+    }
+  );
+});
 
 describe('middleware — rutas de API sin sesión', () => {
   test('responde 401 en vez de redirigir a una página HTML', async () => {

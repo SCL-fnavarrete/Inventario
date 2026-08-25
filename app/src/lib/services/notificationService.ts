@@ -354,15 +354,4 @@ export async function enviarNotificacion(notificacionId: string): Promise<Result
   }
 }
 
-/** Envia varias sin que el fallo de una detenga a las demas. */
-export async function enviarNotificaciones(
-  notificaciones: Array<{ notificacionId: string }>
-): Promise<ResultadoEnvio[]> {
-  const resultados: ResultadoEnvio[] = [];
-  for (const notificacion of notificaciones) {
-    resultados.push(await enviarNotificacion(notificacion.notificacionId));
-  }
-  return resultados;
-}
-
 export { GraphError };

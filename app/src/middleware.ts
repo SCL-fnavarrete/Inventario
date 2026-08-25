@@ -54,13 +54,15 @@ export default withAuth(
 export const config = {
   matcher: [
     /*
-     * Match all request paths except:
+     * Match all API paths except NextAuth, even if the API resource happens
+     * to end in an image extension. The second matcher handles pages except:
      * - api/auth (NextAuth API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public files (images, etc.)
      */
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.svg$).*)",
+    '/api/((?!auth(?:/|$)).*)',
+    '/((?!api(?:/|$)|_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.svg$).*)',
   ],
 };

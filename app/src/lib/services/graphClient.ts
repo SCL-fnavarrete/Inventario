@@ -21,7 +21,7 @@ const VARIABLES_REQUERIDAS = [
   'MICROSOFT_CLIENT_SECRET',
 ] as const;
 
-/** Se renueva el token con un minuto de anticipacion: evita usarlo justo al vencer. */
+/** Se renueva el token con dos minutos de anticipacion: evita usarlo justo al vencer. */
 const MARGEN_EXPIRACION_MS = 120_000;
 const TIMEOUT_MS = 30_000;
 
@@ -87,13 +87,7 @@ function requireConfiguration(): { tenantId: string; clientId: string; clientSec
 }
 
 async function fetchAcotado(url: string, init: RequestInit): Promise<Response> {
-  const controlador = new AbortController();
-  const temporizador = setTimeout(() => controlador.abort(), TIMEOUT_MS);
-  try {
-    return await fetch(url, { ...init, signal: controlador.signal });
-  } finally {
-    clearTimeout(temporizador);
-  }
+  return fetch(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
 }
 
 export async function getGraphAccessToken(): Promise<string> {
