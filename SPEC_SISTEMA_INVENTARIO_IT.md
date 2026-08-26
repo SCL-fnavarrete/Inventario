@@ -26,6 +26,58 @@ Una empresa de servicios IT necesita gestionar el ciclo de vida completo de acti
 | RRHH | Solo lectura de fichas de empleados y estados de devolución |
 | Auditor | Solo lectura de todo el sistema |
 
+### 1.3.1 Matriz de permisos (implementación)
+
+La tabla anterior describe la intención; esta matriz es su forma ejecutable.
+Vive en `app/src/lib/auth/permissions.ts` y es el **único** punto de verdad de
+la autorización: la consumen tanto las rutas de API (`requirePermission`) como
+la interfaz (`usePermissions` y el componente `<Can>`), de modo que ambas no
+puedan discrepar.
+
+Lectura (R) · Escritura (W) · Borrado (D).
+
+| Recurso | Admin | Técnico | Supervisor | RRHH | Auditor |
+|---|---|---|---|---|---|
+| activos | RWD | RW | R | R | R |
+| empleados | RWD | RW | R | R | R |
+| asignaciones | RWD | RW | R | R | R |
+| solicitudes | RWD | RW | RW | R | R |
+| mantenciones | RWD | RW | R | — | R |
+| desvinculaciones | RWD | RW | R | R | R |
+| guias | RWD | RW | R | — | R |
+| compras | RWD | — | R | — | R |
+| proveedores | RWD | R | R | — | R |
+| categorias | RWD | R | R | — | R |
+| usuarios | RWD | — | — | — | — |
+| reportes | R | R | R | R | R |
+| configuracion | RWD | — | — | — | — |
+
+**Reglas que la matriz hace cumplir:**
+
+1. **`rrhh` y `auditor` no escriben ni borran en ningún recurso.** Es la
+   traducción literal de "solo lectura" de la tabla de roles.
+2. **El borrado es exclusivo de `admin`.** El técnico opera el parque, no lo
+   destruye. Para activos con historial el borrado además está prohibido por
+   completo (ver 2.7.7).
+3. **`compras`, `usuarios` y `configuracion` quedan fuera del alcance del
+   técnico**: son información financiera, de identidad y de sistema.
+4. **`reportes` no tiene escritura para nadie**: un reporte se deriva de los
+   datos, no se edita.
+5. **Las transiciones del workflow no se autorizan con esta matriz.** La regla
+   de qué rol puede ejecutar cada transición vive en la máquina de estados de
+   solicitudes (sección 2.5) y es la única fuente de esa decisión. Por eso
+   `rrhh` no tiene `write` sobre `solicitudes` y aun así puede ejecutar las
+   transiciones de confirmación que le corresponden: la ruta de transición
+   sólo exige poder **leer** la solicitud y delega la autorización real en la
+   máquina de estados.
+
+**Consecuencia del punto 1 sobre la importación masiva.** Antes de la v1.3 el
+código permitía importar activos a `supervisor` y empleados a `supervisor` y
+`rrhh`, en contradicción directa con "solo lectura". La matriz corrige esa
+divergencia a favor del SPEC: **importar activos y empleados requiere `admin`
+o `tecnico`**. Si el negocio necesita que RRHH cargue el maestro de empleados,
+el cambio se hace en esta matriz y en esta sección, no en la ruta.
+
 ---
 
 # PARTE 2: MODELO DE DATOS (MODEL)
@@ -1430,9 +1482,55 @@ Autor: Arquitectura generada para desarrollo por IA
 
 ---
 
+### 2.7.7 Borrado de activos: el historial no se destruye
+
+Un activo con historial o con asignaciones **no se elimina**. El registro de
+auditoría es evidencia (ISO 9001, 7.5.3) y borrarlo junto con el activo destruye
+justamente lo que da fe de lo ocurrido.
+
+`DELETE /api/activos/{id}` se comporta así:
+
+| Situación del activo | Respuesta |
+|---|---|
+| Tiene historial o asignaciones | **409**, indicando que corresponde darlo de baja con `POST /api/activos/{id}/baja` |
+| Está asignado a alguien (`estado = asignado`) | **409**: primero se devuelve el equipo |
+| Sin historial ni asignaciones (creado por error) | Borrado físico permitido |
+
+**Campo nuevo `deletedAt` (`deleted_at`, `DateTime?`, nullable).** Marca un
+activo como retirado de los listados sin borrar su fila ni su historial. Su
+razón de ser es el caso concreto que hoy se resuelve borrando: los duplicados
+que deja una importación. Reglas:
+
+- `deletedAt = null` es un activo vigente. Es el valor por defecto.
+- Un activo con `deletedAt` no aparece en listados, búsquedas, reportes ni
+  estadísticas, y no puede asignarse.
+- Su ficha y su historial siguen siendo accesibles por id: la trazabilidad no
+  se pierde.
+- Marcar un activo con `deletedAt` deja un evento `baja` en `AssetHistory`, con
+  el motivo y el usuario que lo hizo.
+- Sólo `admin` puede marcarlo (acción `delete` sobre el recurso `activos`,
+  sección 1.3.1).
+
+**Cómo se marca.** `DELETE /api/activos/{id}?descartar=true&motivo=...`. El
+motivo es obligatorio: descartar sin decir por qué deja el mismo vacío de
+evidencia que se está corrigiendo. La operación escribe el evento en
+`AssetHistory` y marca `deletedAt` en una sola transacción.
+
+`deletedAt` **no reemplaza** al estado `baja`. Son cosas distintas: `baja` es un
+estado del ciclo de vida del equipo, con fecha y motivo, y el activo sigue
+apareciendo en el inventario como dado de baja. `deletedAt` dice que el registro
+nunca debió existir como fila separada.
+
+---
+
 ## Changelog SPEC
 
 - **v1.0 (2025):** Versión inicial — 12 modelos, stack definido, metodología BMAD.
+- **v1.3 (2026-08-21):**
+  - Sección 1.3.1: matriz de permisos ejecutable (13 recursos × 3 acciones × 5 roles) como único punto de verdad de la autorización, consumida por la API y por la UI.
+  - Sección 1.3.1: se corrige la divergencia en importación masiva — importar activos y empleados exige `admin` o `tecnico`; el código lo permitía a `supervisor` y `rrhh`, contra el "solo lectura" del SPEC.
+  - Sección 2.7.7: borrado de activos con historial prohibido (409, corresponde baja) y campo `deletedAt` para retirar duplicados de importación sin destruir la auditoría.
+  - Atomicidad: la actualización de un activo escribe historial y activo en una sola transacción.
 - **v1.2 (2026-04-07):**
   - Sección 2.7: Máquina de estados del ciclo de vida de activos con 12 transiciones válidas, precondiciones y efectos.
   - Sección 2.7.3: Proceso de baja con motivos y condición final.

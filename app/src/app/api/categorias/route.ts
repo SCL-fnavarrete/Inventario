@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('categorias', 'read');
 
     const searchParams = request.nextUrl.searchParams;
     const includeCount = searchParams.get("includeCount") === "true";
@@ -26,20 +22,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(categories);
   } catch (error) {
-    console.error("Error fetching categories:", error);
-    return NextResponse.json(
-      { error: "Error al obtener categorías" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener categorías');
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('categorias', 'write');
 
     const body = await request.json();
     const { nombre, descripcion, requiereSerie, requiereImei } = body;
@@ -74,10 +63,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(category, { status: 201 });
   } catch (error) {
-    console.error("Error creating category:", error);
-    return NextResponse.json(
-      { error: "Error al crear categoría" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al crear categoría');
   }
 }

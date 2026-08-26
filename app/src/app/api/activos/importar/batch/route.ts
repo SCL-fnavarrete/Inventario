@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseDDMMYYYYToDate } from "@/lib/excel-utils";
 import type { CorrectedRow, ImportRowStatus, ImportBatchResult } from "@/types/import";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // Mapeo de estados del Excel a estados del sistema
 const ESTADO_MAP: Record<string, string> = {
@@ -31,10 +30,7 @@ function parseEstado(value: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    const session = await requirePermission('activos', 'write');
 
     const body = await request.json();
     const { categoria, rows } = body as { categoria: string; rows: CorrectedRow[] };
@@ -328,10 +324,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Error importing batch:", error);
-    return NextResponse.json(
-      { error: "Error al importar activos corregidos" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al importar activos corregidos');
   }
 }

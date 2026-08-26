@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import * as XLSX from "xlsx";
 import { formatearRut, validarDigitoVerificador, limpiarRut } from "@/lib/validations/rut";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // Constantes de seguridad para archivos
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -14,25 +13,10 @@ const ALLOWED_MIME_TYPES = [
   "application/octet-stream",
 ];
 
-// Roles que pueden importar empleados
-const IMPORT_ALLOWED_ROLES = ["admin", "supervisor", "rrhh"];
-
 // POST /api/empleados/importar - Importar empleados desde Excel
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
-    // Verificar que el usuario tenga rol permitido para importar
-    const userRole = session.user.role;
-    if (!IMPORT_ALLOWED_ROLES.includes(userRole)) {
-      return NextResponse.json(
-        { error: "No tiene permisos para importar empleados" },
-        { status: 403 }
-      );
-    }
+    await requirePermission('empleados', 'write');
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -234,10 +218,6 @@ export async function POST(request: NextRequest) {
       results,
     });
   } catch (error) {
-    logger.error("Error importing employees:", error);
-    return NextResponse.json(
-      { error: "Error al procesar el archivo" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al procesar el archivo');
   }
 }

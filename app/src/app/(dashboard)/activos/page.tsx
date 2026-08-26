@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard } from "@/components/activos";
+import { Can } from "@/components/auth/Can";
 
 type Asset = {
   id: string;
@@ -394,20 +395,22 @@ function ActivosPageContent() {
             <Download size={20} />
             <span className="hidden sm:inline">Exportar</span>
           </a>
-          <Link
-            href="/activos/importar"
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <Upload size={20} />
-            <span className="hidden sm:inline">Importar</span>
-          </Link>
-          <Link
-            href="/activos/nuevo"
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={20} />
-            <span>Nuevo</span>
-          </Link>
+          <Can recurso="activos">
+            <Link
+              href="/activos/importar"
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Upload size={20} />
+              <span className="hidden sm:inline">Importar</span>
+            </Link>
+            <Link
+              href="/activos/nuevo"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus size={20} />
+              <span>Nuevo</span>
+            </Link>
+          </Can>
         </div>
       </div>
 

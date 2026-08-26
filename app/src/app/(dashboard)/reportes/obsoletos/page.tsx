@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { ArrowLeft, FileSpreadsheet, AlertTriangle, Calendar, Monitor } from "lucide-react";
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 async function getActivosObsoletos() {
   const cincoAnosAtras = new Date();
@@ -8,6 +9,7 @@ async function getActivosObsoletos() {
 
   const activos = await prisma.asset.findMany({
     where: {
+      ...ACTIVOS_VIGENTES,
       estado: { not: "baja" },
       OR: [
         { sistemaOperativo: { contains: "Windows 10", mode: "insensitive" } },
@@ -33,7 +35,20 @@ async function getActivosObsoletos() {
     orderBy: { fechaCompra: "asc" },
   });
 
-  return activos;
+  // La antiguedad se calcula aqui y no en el render: `Date.now()` es impuro y
+  // el compilador de React no admite llamarlo mientras se renderiza. Ademas
+  // asi todas las filas se comparan contra el mismo instante.
+  const ahoraMs = Date.now();
+
+  return activos.map((activo) => ({
+    ...activo,
+    antiguedadAnios: activo.fechaCompra
+      ? Math.floor(
+          (ahoraMs - activo.fechaCompra.getTime()) / (365.25 * 24 * 60 * 60 * 1000)
+        )
+      : null,
+    esAntiguo: activo.fechaCompra ? activo.fechaCompra < cincoAnosAtras : false,
+  }));
 }
 
 export default async function ReporteObsoletosPage() {
@@ -43,12 +58,7 @@ export default async function ReporteObsoletosPage() {
     a.sistemaOperativo?.toLowerCase().includes("windows 10")
   );
 
-  const antiguos = activos.filter((a) => {
-    if (!a.fechaCompra) return false;
-    const cincoAnosAtras = new Date();
-    cincoAnosAtras.setFullYear(cincoAnosAtras.getFullYear() - 5);
-    return a.fechaCompra < cincoAnosAtras;
-  });
+  const antiguos = activos.filter((a) => a.esAntiguo);
 
   return (
     <div className="space-y-6">
@@ -151,13 +161,7 @@ export default async function ReporteObsoletosPage() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {activos.map((activo) => {
-                const antiguedad = activo.fechaCompra
-                  ? Math.floor(
-                      (Date.now() - new Date(activo.fechaCompra).getTime()) /
-                        (365.25 * 24 * 60 * 60 * 1000)
-                    )
-                  : null;
-
+                const antiguedad = activo.antiguedadAnios;
                 const esWindows10 = activo.sistemaOperativo
                   ?.toLowerCase()
                   .includes("windows 10");

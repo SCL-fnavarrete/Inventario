@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { updatePendienteSchema } from '@/lib/validations/workflow';
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // PATCH /api/solicitudes/[id]/pendientes/[pendienteId] - Update pendiente status
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; pendienteId: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
 
   try {
+    const session = await requirePermission('solicitudes', 'write');
     const { id, pendienteId } = await params;
     const body = await request.json();
 
@@ -50,7 +46,6 @@ export async function PATCH(
 
     return NextResponse.json(updated);
   } catch (error) {
-    console.error('Error updating pendiente:', error);
-    return NextResponse.json({ error: 'Error al actualizar pendiente' }, { status: 500 });
+    return handleApiError(error, 'Error al actualizar pendiente');
   }
 }

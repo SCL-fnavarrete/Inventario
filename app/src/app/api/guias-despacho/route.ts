@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { EstadoGuia, TipoDespacho } from "@prisma/client";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 // GET /api/guias-despacho - Listar guías de despacho
 export async function GET(request: NextRequest) {
   try {
+    await requirePermission('guias', 'read');
     const searchParams = request.nextUrl.searchParams;
     const estado = searchParams.get("estado") as EstadoGuia | null;
     const busqueda = searchParams.get("busqueda");
@@ -52,17 +55,14 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error fetching dispatch guides:", error);
-    return NextResponse.json(
-      { error: "Error al obtener guías de despacho" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener guías de despacho');
   }
 }
 
 // POST /api/guias-despacho - Crear nueva guía de despacho
 export async function POST(request: NextRequest) {
   try {
+    await requirePermission('guias', 'write');
     const body = await request.json();
     const {
       origen,
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
 
     // Verificar que los activos existen
     const assets = await prisma.asset.findMany({
-      where: { id: { in: assetIds } },
+      where: { ...ACTIVOS_VIGENTES, id: { in: assetIds } },
     });
 
     if (assets.length !== assetIds.length) {
@@ -188,10 +188,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(guide, { status: 201 });
   } catch (error) {
-    console.error("Error creating dispatch guide:", error);
-    return NextResponse.json(
-      { error: "Error al crear guía de despacho" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al crear guía de despacho');
   }
 }

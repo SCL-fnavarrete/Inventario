@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck · lint · test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    env:
+      # `prisma generate` exige que las variables del datasource existan, pero
+      # no se conecta a la base. Valores ficticios a proposito: el CI nunca
+      # debe alcanzar una base real.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      DATABASE_URL_UNPOOLED: postgresql://ci:ci@localhost:5432/ci
+      NEXTAUTH_SECRET: ci-no-es-un-secreto
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar cliente Prisma
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Con cobertura, no `npm run test` a secas: es lo unico que hace que los
+      # umbrales de jest.config.ts bloqueen de verdad.
+      - name: Tests + umbrales de cobertura
+        run: npm run test:coverage -- --ci
+
+      # El build detecta lo que `tsc` no ve: violaciones de la frontera
+      # cliente/servidor, imports que no resuelven en el bundler, y errores de
+      # generacion de rutas. Es ademas lo que corre Vercel al desplegar.
+      # Todas las paginas del dashboard son dinamicas, asi que el build no
+      # consulta la base y las variables ficticias de arriba alcanzan.
+      - name: Build
+        run: npm run build
+
+  spec-guard:
+    name: SPEC primero
+    runs-on: ubuntu-latest
+    # En un push directo no hay base contra la cual comparar de forma fiable
+    # cuando es el primer commit de la rama; el guard vive en el PR, que es
+    # donde se decide el merge.
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: El schema no cambia sin el SPEC
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed="$(git diff --name-only "$BASE" "$HEAD")"
+          echo "Archivos modificados:"
+          echo "$changed" | sed 's/^/  /'
+
+          if ! echo "$changed" | grep -qx 'app/prisma/schema.prisma'; then
+            echo "::notice::El schema no cambia en este PR. Nada que verificar."
+            exit 0
+          fi
+
+          if echo "$changed" | grep -qx 'SPEC_SISTEMA_INVENTARIO_IT.md'; then
+            echo "::notice::Schema y SPEC cambian juntos."
+            exit 0
+          fi
+
+          echo "::error file=app/prisma/schema.prisma::Este PR modifica el modelo de datos sin actualizar SPEC_SISTEMA_INVENTARIO_IT.md."
+          cat <<'MSG'
+
+            Regla de oro del proyecto (CLAUDE.md > Proceso SDD):
+
+              El SPEC debe actualizarse primero, o simultaneamente en el mismo
+              commit. Nunca despues.
+
+            Este PR toca app/prisma/schema.prisma pero no
+            SPEC_SISTEMA_INVENTARIO_IT.md. Documenta el modelo o campo nuevo
+            con su tipo, restricciones y proposito, agrega las reglas de
+            negocio asociadas y suma la entrada al "Changelog SPEC".
+
+          MSG
+          exit 1

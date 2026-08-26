@@ -22,6 +22,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Can } from "@/components/auth/Can";
 
 type Maintenance = {
   id: string;
@@ -173,13 +174,15 @@ export default function MantencionesPage() {
             <CalendarDays size={20} />
             Calendario
           </Link>
-          <Link
-            href="/mantenciones/programar"
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            <Plus size={20} />
-            Programar Mantención
-          </Link>
+          <Can recurso="mantenciones">
+            <Link
+              href="/mantenciones/programar"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Plus size={20} />
+              Programar Mantención
+            </Link>
+          </Can>
         </div>
       </div>
 

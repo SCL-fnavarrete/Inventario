@@ -19,6 +19,7 @@ import {
   Filter,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Can } from "@/components/auth/Can";
 
 type Supplier = {
   id: string;
@@ -131,13 +132,15 @@ export default function ComprasPage() {
             <Building2 size={20} />
             Proveedores
           </Link>
-          <Link
-            href="/compras/nueva"
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            <Plus size={20} />
-            Nueva Compra
-          </Link>
+          <Can recurso="compras">
+            <Link
+              href="/compras/nueva"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Plus size={20} />
+              Nueva Compra
+            </Link>
+          </Can>
         </div>
       </div>
 
@@ -299,12 +302,14 @@ export default function ComprasPage() {
           <div className="flex flex-col items-center justify-center h-64 text-gray-500">
             <ShoppingCart className="h-12 w-12 mb-4 text-gray-300" />
             <p>No se encontraron compras</p>
-            <Link
-              href="/compras/nueva"
-              className="mt-4 text-blue-600 hover:text-blue-800 text-sm"
-            >
-              Registrar primera compra
-            </Link>
+            <Can recurso="compras">
+              <Link
+                href="/compras/nueva"
+                className="mt-4 text-blue-600 hover:text-blue-800 text-sm"
+              >
+                Registrar primera compra
+              </Link>
+            </Can>
           </div>
         ) : (
           <>

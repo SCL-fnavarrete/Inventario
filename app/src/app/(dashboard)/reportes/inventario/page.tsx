@@ -1,13 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { ArrowLeft, Download, FileSpreadsheet } from "lucide-react";
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 async function getInventario() {
   const activos = await prisma.asset.findMany({
     include: {
       categoria: true,
       assignments: {
-        where: { activo: true },
+        where: { ...ACTIVOS_VIGENTES, activo: true },
         include: {
           employee: {
             select: {

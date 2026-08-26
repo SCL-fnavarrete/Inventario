@@ -1,21 +1,18 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('reportes', 'read');
 
     const activos = await prisma.asset.findMany({
       include: {
         categoria: true,
         assignments: {
-          where: { activo: true },
+          where: { ...ACTIVOS_VIGENTES, activo: true },
           include: {
             employee: {
               select: {
@@ -79,10 +76,6 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error("Error generando Excel:", error);
-    return NextResponse.json(
-      { error: "Error al generar reporte" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al generar reporte');
   }
 }

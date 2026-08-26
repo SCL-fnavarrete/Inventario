@@ -13,6 +13,7 @@ import {
   TrendingUp,
   AlertTriangle,
 } from "lucide-react";
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 async function getReporteSummary() {
   const [
@@ -22,7 +23,7 @@ async function getReporteSummary() {
     desvinculacionesPendientes,
     activosObsoletos,
   ] = await Promise.all([
-    prisma.asset.count(),
+    prisma.asset.count({ where: ACTIVOS_VIGENTES }),
     prisma.asset.groupBy({
       by: ["estado"],
       _count: true,
@@ -39,6 +40,7 @@ async function getReporteSummary() {
     }),
     prisma.asset.count({
       where: {
+        ...ACTIVOS_VIGENTES,
         OR: [
           { sistemaOperativo: { contains: "Windows 10" } },
           {

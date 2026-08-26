@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('reportes', 'read');
 
     const searchParams = request.nextUrl.searchParams;
     const search = searchParams.get("search");
@@ -60,10 +56,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(asset);
   } catch (error) {
-    console.error("Error en trazabilidad:", error);
-    return NextResponse.json(
-      { error: "Error al buscar activo" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al buscar activo');
   }
 }

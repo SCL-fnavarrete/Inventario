@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { EstadoGuia } from "@prisma/client";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -9,6 +10,7 @@ interface RouteParams {
 // GET /api/guias-despacho/[id] - Obtener detalle de guía
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('guias', 'read');
     const { id } = await params;
 
     const guide = await prisma.dispatchGuide.findUnique({
@@ -47,17 +49,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(guide);
   } catch (error) {
-    console.error("Error fetching dispatch guide:", error);
-    return NextResponse.json(
-      { error: "Error al obtener guía de despacho" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener guía de despacho');
   }
 }
 
 // PATCH /api/guias-despacho/[id] - Actualizar guía (estado, recepción, etc.)
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('guias', 'write');
     const { id } = await params;
     const body = await request.json();
     const { estado, fechaRecepcion, recibidoPor, observaciones } = body;
@@ -138,17 +137,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(updatedGuide);
   } catch (error) {
-    console.error("Error updating dispatch guide:", error);
-    return NextResponse.json(
-      { error: "Error al actualizar guía de despacho" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al actualizar guía de despacho');
   }
 }
 
 // DELETE /api/guias-despacho/[id] - Eliminar guía (solo si está pendiente)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('guias', 'delete');
     const { id } = await params;
 
     const guide = await prisma.dispatchGuide.findUnique({
@@ -176,10 +172,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ message: "Guía eliminada correctamente" });
   } catch (error) {
-    console.error("Error deleting dispatch guide:", error);
-    return NextResponse.json(
-      { error: "Error al eliminar guía de despacho" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al eliminar guía de despacho');
   }
 }

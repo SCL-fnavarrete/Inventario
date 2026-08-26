@@ -1,21 +1,19 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('activos', 'read');
 
     // Obtener total de activos
-    const total = await prisma.asset.count();
+    const total = await prisma.asset.count({ where: ACTIVOS_VIGENTES });
 
     // Obtener conteo por estado
     const byStatusRaw = await prisma.asset.groupBy({
       by: ["estado"],
+      where: ACTIVOS_VIGENTES,
       _count: {
         estado: true,
       },
@@ -41,8 +39,9 @@ export async function GET() {
         id: true,
         nombre: true,
         _count: {
+          // El conteo excluye los registros descartados (SPEC 2.7.7).
           select: {
-            assets: true,
+            assets: { where: ACTIVOS_VIGENTES },
           },
         },
       },
@@ -87,10 +86,6 @@ export async function GET() {
       byCondition,
     });
   } catch (error) {
-    console.error("Error fetching asset stats:", error);
-    return NextResponse.json(
-      { error: "Error al obtener estadísticas" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener estadísticas');
   }
 }

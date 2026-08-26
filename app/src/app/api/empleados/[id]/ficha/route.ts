@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -8,6 +9,7 @@ interface RouteParams {
 // GET /api/empleados/[id]/ficha - Obtener ficha completa del empleado (la ficha azul)
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('empleados', 'read');
     const { id } = await params;
 
     // Intentar buscar por UUID primero, luego por RUT
@@ -222,10 +224,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(ficha);
   } catch (error) {
-    console.error("Error fetching employee ficha:", error);
-    return NextResponse.json(
-      { error: "Error al obtener ficha del empleado" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener ficha del empleado');
   }
 }

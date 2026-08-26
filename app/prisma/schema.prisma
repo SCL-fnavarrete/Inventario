@@ -107,6 +107,10 @@ model Asset {
   fechaCompra         DateTime?           @map("fecha_compra")
   fechaGarantiaFin    DateTime?           @map("fecha_garantia_fin")
   fechaBaja           DateTime?           @map("fecha_baja")
+  // Retira el activo de los listados sin borrar la fila ni su historial.
+  // Para duplicados de importacion; ver SPEC 2.7.7. No reemplaza al estado
+  // `baja`, que es un estado del ciclo de vida del equipo.
+  deletedAt           DateTime?           @map("deleted_at")
   observaciones       String?
   createdAt           DateTime            @default(now()) @map("created_at")
   updatedAt           DateTime            @updatedAt @map("updated_at")
@@ -125,6 +129,7 @@ model Asset {
   @@index([empleadoActualId])
   @@index([marca])
   @@index([createdAt])
+  @@index([deletedAt])
   @@map("assets")
 }
 

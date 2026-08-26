@@ -1,2 +1,9 @@
 .env
 node_modules/
+.superpowers/
+.worktrees/
+
+# artefactos locales
+.playwright-mcp/
+/*.png
+nul

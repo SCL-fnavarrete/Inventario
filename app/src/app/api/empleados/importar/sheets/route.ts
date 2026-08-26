@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // POST /api/empleados/importar/sheets - Obtener hojas del Excel
 export async function POST(request: NextRequest) {
   try {
+    await requirePermission('empleados', 'write');
     const formData = await request.formData();
     const file = formData.get("file") as File;
 
@@ -30,10 +32,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ sheets });
   } catch (error) {
-    console.error("Error reading sheets:", error);
-    return NextResponse.json(
-      { error: "Error al leer el archivo" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al leer el archivo');
   }
 }

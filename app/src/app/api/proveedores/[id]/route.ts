@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateSupplierSchema } from "@/lib/validations/supplier";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -11,10 +10,7 @@ interface RouteParams {
 // GET /api/proveedores/[id] - Obtener proveedor por ID
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('proveedores', 'read');
 
     const { id } = await params;
 
@@ -50,21 +46,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(supplier);
   } catch (error) {
-    console.error("Error fetching supplier:", error);
-    return NextResponse.json(
-      { error: "Error al obtener proveedor" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener proveedor');
   }
 }
 
 // PUT /api/proveedores/[id] - Actualizar proveedor
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('proveedores', 'write');
 
     const { id } = await params;
     const body = await request.json();
@@ -129,21 +118,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(supplier);
   } catch (error) {
-    console.error("Error updating supplier:", error);
-    return NextResponse.json(
-      { error: "Error al actualizar proveedor" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al actualizar proveedor');
   }
 }
 
 // DELETE /api/proveedores/[id] - Eliminar proveedor
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('proveedores', 'delete');
 
     const { id } = await params;
 
@@ -182,10 +164,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ message: "Proveedor eliminado exitosamente" });
   } catch (error) {
-    console.error("Error deleting supplier:", error);
-    return NextResponse.json(
-      { error: "Error al eliminar proveedor" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al eliminar proveedor');
   }
 }

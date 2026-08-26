@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import * as XLSX from "xlsx";
 import { formatearRut, validarDigitoVerificador, limpiarRut } from "@/lib/validations/rut";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // POST /api/empleados/importar/preview - Preview de importación
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('empleados', 'write');
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -100,10 +96,6 @@ export async function POST(request: NextRequest) {
       sheetName: sheetName || workbook.SheetNames[0],
     });
   } catch (error) {
-    console.error("Error previewing import:", error);
-    return NextResponse.json(
-      { error: "Error al procesar el archivo" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al procesar el archivo');
   }
 }

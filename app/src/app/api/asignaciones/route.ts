@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAssignmentSchema, assignmentFiltersSchema } from "@/lib/validations/assignment";
 import { executeAssignment } from "@/lib/services/workflowExecutionService";
 import { Prisma } from "@prisma/client";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // GET /api/asignaciones - Listar asignaciones con filtros
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('asignaciones', 'read');
 
     const searchParams = request.nextUrl.searchParams;
 
@@ -107,21 +103,14 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error fetching assignments:", error);
-    return NextResponse.json(
-      { error: "Error al obtener asignaciones" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener asignaciones');
   }
 }
 
 // POST /api/asignaciones - Crear nueva asignacion
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('asignaciones', 'write');
 
     const body = await request.json();
 
@@ -151,10 +140,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    console.error("Error creating assignment:", error);
-    return NextResponse.json(
-      { error: "Error al crear asignación" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al crear asignación');
   }
 }

@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import * as XLSX from "xlsx";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('activos', 'write');
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -27,10 +23,6 @@ export async function POST(request: NextRequest) {
       sheets: workbook.SheetNames,
     });
   } catch (error) {
-    console.error("Error reading sheets:", error);
-    return NextResponse.json(
-      { error: "Error al leer el archivo Excel" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al leer el archivo Excel');
   }
 }

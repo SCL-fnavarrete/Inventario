@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updateTerminationSchema, registerReturnSchema } from "@/lib/validations/termination";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // GET /api/desvinculaciones/[id] - Obtener detalle de desvinculación
 export async function GET(
@@ -8,6 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await requirePermission('desvinculaciones', 'read');
     const { id } = await params;
 
     const termination = await prisma.termination.findUnique({
@@ -40,11 +42,7 @@ export async function GET(
 
     return NextResponse.json(termination);
   } catch (error) {
-    console.error("Error fetching termination:", error);
-    return NextResponse.json(
-      { error: "Error al obtener desvinculación" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener desvinculación');
   }
 }
 
@@ -54,6 +52,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await requirePermission('desvinculaciones', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -130,11 +129,7 @@ export async function PUT(
 
     return NextResponse.json(termination);
   } catch (error) {
-    console.error("Error updating termination:", error);
-    return NextResponse.json(
-      { error: "Error al actualizar desvinculación" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al actualizar desvinculación');
   }
 }
 
@@ -144,6 +139,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await requirePermission('desvinculaciones', 'delete');
     const { id } = await params;
 
     const termination = await prisma.termination.findUnique({
@@ -190,10 +186,6 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Desvinculación eliminada" });
   } catch (error) {
-    console.error("Error deleting termination:", error);
-    return NextResponse.json(
-      { error: "Error al eliminar desvinculación" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al eliminar desvinculación');
   }
 }

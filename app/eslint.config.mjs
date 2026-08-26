@@ -13,6 +13,14 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  // Scripts utilitarios de Node (CommonJS): no son codigo de la app y se
+  // ejecutan con `node`, asi que `require()` es la forma correcta ahi.
+  {
+    files: ["*.js", "scripts/**/*.js"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

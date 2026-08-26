@@ -6,6 +6,7 @@ import { Plus, Search, Filter, RefreshCw } from "lucide-react";
 import { GuiaDespachoTable } from "@/components/guias-despacho/GuiaDespachoTable";
 import { ESTADO_GUIA_LABELS, type DispatchGuideListItem } from "@/types/guia-despacho";
 import { EstadoGuia } from "@prisma/client";
+import { Can } from "@/components/auth/Can";
 
 export default function GuiasDespachoPage() {
   const [guides, setGuides] = useState<DispatchGuideListItem[]>([]);
@@ -61,13 +62,15 @@ export default function GuiasDespachoPage() {
           <h1 className="text-2xl font-bold text-gray-900">Guías de Despacho</h1>
           <p className="text-gray-600">Gestiona el despacho de equipos</p>
         </div>
-        <Link
-          href="/guias-despacho/nueva"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus size={20} />
-          Nueva Guía
-        </Link>
+        <Can recurso="guias">
+          <Link
+            href="/guias-despacho/nueva"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus size={20} />
+            Nueva Guía
+          </Link>
+        </Can>
       </div>
 
       {/* Filtros */}

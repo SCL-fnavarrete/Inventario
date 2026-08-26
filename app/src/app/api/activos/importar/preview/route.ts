@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { convertExcelDateValue } from "@/lib/excel-utils";
 import type { ImportRowStatus, ValidationError, ImportPreviewResult } from "@/types/import";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // Filas de inicio conocidas por categoría
 const HEADER_ROWS: Record<string, number> = {
@@ -19,10 +18,7 @@ const HEADER_ROWS: Record<string, number> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('activos', 'write');
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -283,10 +279,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Error previewing file:", error);
-    return NextResponse.json(
-      { error: "Error al procesar el archivo Excel" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al procesar el archivo Excel');
   }
 }

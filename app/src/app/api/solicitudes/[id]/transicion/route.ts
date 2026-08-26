@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { transitionSchema } from '@/lib/validations/workflow';
 import { canTransition, isFinalState } from '@/lib/services/workflowStateMachine';
@@ -10,18 +8,16 @@ import {
   executeTerminationReturn,
 } from '@/lib/services/workflowExecutionService';
 import { SystemRole } from '@prisma/client';
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // POST /api/solicitudes/[id]/transicion - Advance workflow state
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
 
   try {
+    const session = await requirePermission('solicitudes', 'read');
     const { id } = await params;
     const body = await request.json();
 
@@ -201,8 +197,6 @@ export async function POST(
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error transitioning workflow:', error);
-    const message = error instanceof Error ? error.message : 'Error al avanzar solicitud';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleApiError(error, 'Error al avanzar solicitud');
   }
 }

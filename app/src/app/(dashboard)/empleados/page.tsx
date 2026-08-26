@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Can } from "@/components/auth/Can";
 
 type Employee = {
   id: string;
@@ -281,20 +282,22 @@ export default function EmpleadosPage() {
           <p className="text-gray-600">Gestión de colaboradores y asignaciones</p>
         </div>
         <div className="flex gap-2">
-          <Link
-            href="/empleados/importar"
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <Upload size={20} />
-            <span>Importar Excel</span>
-          </Link>
-          <Link
-            href="/empleados/nuevo"
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={20} />
-            <span>Nuevo Empleado</span>
-          </Link>
+          <Can recurso="empleados">
+            <Link
+              href="/empleados/importar"
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Upload size={20} />
+              <span>Importar Excel</span>
+            </Link>
+            <Link
+              href="/empleados/nuevo"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus size={20} />
+              <span>Nuevo Empleado</span>
+            </Link>
+          </Can>
         </div>
       </div>
 

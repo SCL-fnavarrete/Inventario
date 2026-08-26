@@ -186,7 +186,7 @@ export default function ReturnAssetModal({
             {/* Info Box */}
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
-                Al confirmar, el activo cambiara automaticamente de "asignado" a{" "}
+                Al confirmar, el activo cambiara automaticamente de &quot;asignado&quot; a{" "}
                 {formData.estadoDevolucion === "ok" ? '"disponible"' : '"reutilizable"'} y
                 quedara listo para ser asignado nuevamente.
               </p>

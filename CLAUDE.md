@@ -12,43 +12,23 @@ All commands run from the `app/` directory:
 
 ```bash
 cd app
-npm run dev              # Dev server on localhost:3000
-npm run build            # prisma generate && next build
-npm run lint             # ESLint check
-npm run lint:fix         # ESLint auto-fix
-npm run format           # Prettier format
-npm run format:check     # Prettier check
-npm run typecheck        # TypeScript type checking
-npm run test             # Jest tests
-npm run test:watch       # Jest in watch mode
-npm run test:coverage    # Jest with coverage (70% threshold)
-npm run db:migrate       # Prisma dev migration
-npm run db:push          # Push schema to DB
+# los scripts estandar (dev, build, lint, format, typecheck, test) estan en app/package.json
+npm run db:migrate       # Prisma dev migration (unica via para cambiar el schema)
+npm run db:migrate:prod  # prisma migrate deploy (produccion)
+npm run db:status        # prisma migrate status - verificar deriva
+npm run db:push          # DESHABILITADO a proposito (ver "Migraciones")
 npm run db:seed          # Seed default users + categories
 npm run db:studio        # Prisma Studio GUI
 ```
 
 ## Architecture
 
-**Stack:** Next.js 16 (App Router, React 19) / TypeScript / Prisma 5 / PostgreSQL (Neon) / NextAuth 4 / Tailwind CSS 4 / TanStack React Query / Zod 4
-
 **Source root:** `app/src/` with path alias `@/*` → `./src/*`
 
-### Route Groups
+### Rutas
 
-- `(auth)/login` — Login page (public)
-- `(dashboard)/` — All authenticated pages:
-  - `activos/` — listado, `[id]/`, `[id]/editar/`, `nuevo/`, `importar/`
-  - `asignaciones/` — listado, `[id]/`, `devolucion/`
-  - `compras/` — listado, `nueva/`, `[id]/`
-  - `empleados/` — listado, `[id]/`, `[id]/editar/`, `nuevo/`, `importar/`
-  - `guias-despacho/` — listado, `[id]/`, `nueva/`
-  - `mantenciones/` — listado, `[id]/`, `calendario/`, `programar/`
-  - `desvinculaciones/` — listado, `[id]/`, `nueva/`
-  - `solicitudes/` — listado, `[id]/`, `nueva/` *(workflow de onboarding/cambio/devolución)*
-  - `reportes/` — index, `rrhh/`, `stock/`, `inventario/`, `obsoletos/`, `trazabilidad/`, `empleados/`
-  - `configuracion/` — index, `categorias/`, `proveedores/`, `usuarios/`, `parametros/`, `mantenimiento/`, `microsoft-sync/`
-- `api/` — 61+ REST endpoints organizados por feature
+`app/src/app/` con route groups `(auth)` (publico) y `(dashboard)` (autenticado),
+mas `api/` con los endpoints REST agrupados por feature.
 
 ### Key Modules
 
@@ -77,71 +57,34 @@ Every API route follows this sequence:
 4. Log to `assetHistoryService` for audit trail (on mutations)
 5. Return `NextResponse.json()`
 
-### Database Models (19 total)
+### Modelos y enums
 
-**Core:**
-- `SystemUser` — usuarios del sistema con roles
-- `Employee` — empleados (con soporte Microsoft Entra ID sync)
-- `AssetCategory` — categorías de activos
-- `Asset` — activos IT
-- `Supplier` — proveedores
-- `Purchase` / `PurchaseAsset` — facturas y detalle de compra
-- `Assignment` — asignaciones activo-empleado
-- `WelcomeKitItem` / `KitAssignment` — kit de bienvenida y EPP
-- `Maintenance` — mantenciones
-- `AssetHistory` — historial/auditoría de activos
-- `Termination` — desvinculaciones
-- `DispatchGuide` / `DispatchGuideItem` — guías de despacho
-
-**Workflow (solicitudes):**
-- `WorkflowRequest` — solicitud de onboarding, cambio de equipo o devolución por término
-- `WorkflowComment` — comentarios en solicitudes
-- `WorkflowTransition` — registro de cada cambio de estado
-- `WorkflowPendiente` — items pendientes de entregar dentro de una solicitud
-
-### Database Key Enums
-
-**Activos:**
-- **EstadoActivo:** `disponible`, `asignado`, `en_mantencion`, `reutilizable`, `baja`, `vendido`
-- **CondicionActivo:** `nuevo`, `usado`, `danado`
-
-**Empleados:**
-- **TipoContrato:** `planta`, `proyecto`, `externo`
-- **EstadoEmpleado:** `activo`, `desvinculado`, `licencia`
-
-**Compras:**
-- **TipoCompra:** `FACTURA`, `GASTO_MENOR`
-- **MetodoPago:** `EFECTIVO`, `TRANSFERENCIA`, `TARJETA_CREDITO`, `CAJA_CHICA`, `REEMBOLSO_PENDIENTE`
-- **Moneda:** `CLP`, `USD`
-
-**Asignaciones:**
-- **TipoMovimiento:** `ingreso`, `cambio`, `reemplazo`, `temporal`
-- **EstadoDevolucion:** `ok`, `danado`, `incompleto`
-
-**Guías de despacho:**
-- **TipoDespacho:** `asignacion`, `traslado`, `prestamo`
-- **EstadoGuia:** `pendiente`, `despachado`, `recibido`, `anulado`
-
-**Mantenciones:**
-- **TipoMantencion:** `preventiva`, `correctiva`, `actualizacion_so`, `limpieza`, `reparacion`
-- **EstadoMantencion:** `pendiente`, `en_proceso`, `completada`, `cancelada`
-
-**Historial:**
-- **TipoEvento:** `creacion`, `asignacion`, `devolucion`, `mantencion`, `cambio_estado`, `actualizacion_specs`, `baja`, `venta`, `solicitud_workflow`
-
-**Workflow / Solicitudes:**
-- **TipoSolicitud:** `onboarding`, `cambio_equipo`, `devolucion_termino`
-- **EstadoSolicitud:** onboarding→`solicitud_recibida`→`gestion_ti`→`equipos_entregados`→`registro_rrhh`; cambio→`incidencia_detectada`→`cambio_ejecutado`→`confirmacion_rrhh`; devolución→`solicitud_emitida`→`coordinacion_en_curso`→`equipo_recibido`→`consolidacion_cierre`
-- **PrioridadSolicitud:** `baja`, `media`, `alta`, `urgente`
-- **TipoPendiente:** `celular`, `audifonos`, `mochila`, `cargador`, `epp_zapatos`, `epp_chaleco`, `epp_casco`, `epp_lentes`, `kit_bienvenida`, `otro`
-- **EstadoPendiente:** `pendiente`, `gestionando`, `entregado`, `no_aplica`
-
-**Roles:**
-- **SystemRole:** `admin`, `tecnico`, `supervisor`, `rrhh`, `auditor`
+Los 19 modelos y los 23 enums viven en `app/prisma/schema.prisma`, y el SPEC
+documenta el proposito de cada uno. No se duplican aqui: la copia se desactualiza.
 
 ### Database Connections
 
 Uses both pooled (`DATABASE_URL`) and unpooled (`DATABASE_URL_UNPOOLED`) Neon connections. The `directUrl` in schema.prisma is required for migrations on Neon.
+
+### Migraciones
+
+**Toda modificacion del schema pasa por una migracion versionada. `db:push` esta deshabilitado.**
+
+Hasta la Ola 0 solo existia `20251211_init` (tabla `system_users`); los otros 18 modelos se
+habian creado con `prisma db push`, sin dejar rastro. `20260821000000_baseline` captura ese
+estado y esta marcada como aplicada en Neon con `prisma migrate resolve --applied`. El
+baseline omite a proposito el enum `SystemRole`, la tabla `system_users` y su indice unico,
+porque `20251211_init` ya los crea: asi `prisma migrate deploy` reproduce el schema completo
+desde cero sin colisiones.
+
+Flujo para cambiar el schema:
+
+1. Editar `prisma/schema.prisma` **y** `SPEC_SISTEMA_INVENTARIO_IT.md` en el mismo commit.
+2. `npm run db:migrate` -- genera la migracion con nombre descriptivo.
+3. `npm run db:status` -- debe reportar la base al dia, sin deriva.
+4. Commitear el directorio de `prisma/migrations/` junto al cambio.
+
+En produccion (Vercel) se aplica con `npm run db:migrate:prod`.
 
 ## Conventions
 
@@ -159,18 +102,8 @@ Uses both pooled (`DATABASE_URL`) and unpooled (`DATABASE_URL_UNPOOLED`) Neon co
 
 ## Environment Variables
 
-Required in `.env` (see `.env.example`):
-```
-DATABASE_URL=postgresql://...         # Neon pooled connection
-DATABASE_URL_UNPOOLED=postgresql://... # Neon direct connection (for migrations)
-NEXTAUTH_SECRET=<base64-secret>
-NEXTAUTH_URL=http://localhost:3000
-
-# Microsoft Entra ID (Azure AD) - Employee Sync
-MICROSOFT_TENANT_ID=<azure-tenant-id>
-MICROSOFT_CLIENT_ID=<azure-app-client-id>
-MICROSOFT_CLIENT_SECRET=<azure-app-client-secret>
-```
+Ver `.env.example`: conexion Neon (`DATABASE_URL` pooled y `DATABASE_URL_UNPOOLED`
+directa, requerida por las migraciones), NextAuth y credenciales de Microsoft Entra ID.
 
 ## Deployment
 
@@ -184,48 +117,50 @@ Antes de implementar cualquier cambio que modifique el modelo de datos, agregue 
 
 El archivo `SPEC_SISTEMA_INVENTARIO_IT.md` es la fuente de verdad del sistema. El CLAUDE.md es la guía de implementación. Cuando hay contradicción, el SPEC manda.
 
-### Versionado del SPEC
-
-El SPEC mantiene un `## Changelog SPEC` al final. Cada actualización significativa agrega una entrada:
-
-```
-- v1.x (YYYY-MM-DD): descripción concisa del cambio
-```
-
-La versión actual es **v1.1 (2026-04-07)**.
-
-### Checklist antes de implementar un cambio de modelo
-
-```
-□ ¿Está el nuevo campo/modelo documentado en SPEC con tipo, restricciones y propósito?
-□ ¿Si el campo cambia una restricción existente (ej: NOT NULL → nullable), está la razón documentada?
-□ ¿Si hay reglas de negocio asociadas, están en la sección correspondiente del SPEC?
-□ ¿Si el cambio afecta al sistema de solicitudes (Workflow), está la sección 2.5 del SPEC actualizada?
-□ ¿Se actualizó el Changelog del SPEC con la versión y fecha?
-```
-
-### Checklist antes de hacer merge de un cambio a API
-
-```
-□ ¿Existe al menos un test que valide el comportamiento de negocio (no solo el tipo Zod)?
-□ ¿El test cubre el caso feliz y al menos un caso de error de negocio?
-□ ¿Las reglas de negocio del test coinciden con lo documentado en SPEC?
-□ ¿`npm run test` pasa sin fallos?
-```
-
-### Dónde van los tests de comportamiento
-
-- **Validaciones Zod:** `app/src/__tests__/lib/validations/` — ya existen para asset, employee, assignment, maintenance, rut, workflow
-- **Lógica de servicios puros:** `app/src/__tests__/lib/services/` — para funciones sin Prisma (ej: `workflowStateMachine.ts`)
-- **API routes:** Excluidas de cobertura por decisión (ver `jest.config.ts`)
+Los checklists (cambio de modelo, merge de API), el versionado del SPEC y la
+ubicacion de los tests estan en la skill `sdd-workflow`
+(`.claude/skills/sdd-workflow/SKILL.md`), que se carga al invocarla.
 
 ---
 
-## Bugs Pendientes
+## Autorizacion (Ola 1)
 
-### Bug: "Error al actualizar activo" al editar activos (detectado en Audifonos)
-- **Archivos afectados:**
-  - `src/app/(dashboard)/activos/[id]/editar/page.tsx` (linea 164) — cliente lee `error.details` y `error.message` pero servidor envia key `error`
-  - `src/app/api/activos/[id]/route.ts` — respuestas 401/404 usan key `error`, 400/500 usan `message`/`details` (formato inconsistente)
-- **Causa raiz:** El cliente no extrae correctamente el error del servidor. Para 401/404 ambas keys `details` y `message` son undefined, cae al fallback generico y no muestra el error real.
-- **Fix necesario:** Unificar formato de respuestas de error en el API y mejorar extraccion en el cliente (`error.error || error.details || error.message || fallback`)
+**Toda ruta de `src/app/api/**` abre con `requirePermission` y cierra con
+`handleApiError`.** No hay excepciones salvo `api/auth/[...nextauth]`, que es
+publica. Un test de auditoria (`src/__tests__/lib/auth/rutas-protegidas.test.ts`)
+lo verifica en cada corrida: si agregas una ruta y te olvidas, el CI falla.
+
+```ts
+export async function POST(request: NextRequest) {
+  try {
+    const session = await requirePermission('activos', 'write');
+    // ...
+  } catch (error) {
+    return handleApiError(error, 'Error al crear activo');
+  }
+}
+```
+
+- **La matriz manda.** `src/lib/auth/permissions.ts` es el unico punto de verdad
+  (SPEC 1.3.1). No verifiques roles a mano dentro de una ruta: si el permiso
+  que necesitas no existe, se cambia la matriz y el SPEC, no la ruta.
+- **La UI usa la misma matriz** via `usePermissions()` y `<Can recurso=... accion=...>`.
+  Asi un boton visible nunca lleva a un 403.
+- **Las transiciones de workflow no pasan por la matriz.** Las autoriza
+  `workflowStateMachine.canTransition`, que ya conoce el rol de cada
+  transicion. La ruta de transicion solo exige `solicitudes/read`.
+- **Formato de error unificado:** `{ error: string, details?: unknown }`.
+  `handleApiError` traduce ApiError, ZodError y los codigos de Prisma
+  (P2002/P2003/P2025), y acepta un segundo argumento con el mensaje generico de
+  la ruta. En el cliente, leer siempre `err.error` primero.
+  *(Esto cerro el bug de "Error al actualizar activo": el servidor mandaba
+  `error` y el cliente leia `details`/`message`.)*
+
+## Borrado de activos
+
+Un activo con historial o asignaciones **no se borra** (SPEC 2.7.7): su
+registro es evidencia de auditoria. `DELETE /api/activos/[id]` responde 409 y
+apunta a `/baja`. Para duplicados de importacion existe
+`DELETE /api/activos/[id]?descartar=true&motivo=...`, que marca `deletedAt` y
+deja el evento en el historial. Los listados y reportes filtran con
+`ACTIVOS_VIGENTES` de `src/lib/queries/activos.ts`.

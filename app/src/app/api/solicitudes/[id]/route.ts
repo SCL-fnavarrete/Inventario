@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { updateWorkflowRequestSchema } from '@/lib/validations/workflow';
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // GET /api/solicitudes/[id] - Get full detail
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
 
   try {
+    await requirePermission('solicitudes', 'read');
     const { id } = await params;
 
     const workflowRequest = await prisma.workflowRequest.findUnique({
@@ -54,8 +50,7 @@ export async function GET(
 
     return NextResponse.json(workflowRequest);
   } catch (error) {
-    console.error('Error fetching workflow request:', error);
-    return NextResponse.json({ error: 'Error al obtener solicitud' }, { status: 500 });
+    return handleApiError(error, 'Error al obtener solicitud');
   }
 }
 
@@ -64,12 +59,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
 
   try {
+    await requirePermission('solicitudes', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -105,7 +97,6 @@ export async function PATCH(
 
     return NextResponse.json(updated);
   } catch (error) {
-    console.error('Error updating workflow request:', error);
-    return NextResponse.json({ error: 'Error al actualizar solicitud' }, { status: 500 });
+    return handleApiError(error, 'Error al actualizar solicitud');
   }
 }

@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { assetReassignmentSchema } from '@/lib/validations/assetTransition';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // SPEC 2.7.6: Reasignación de Equipo
 export async function POST(
@@ -11,10 +10,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
+    const session = await requirePermission('activos', 'write');
 
     const { id } = await params;
     const body = await request.json();
@@ -135,7 +131,6 @@ export async function POST(
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error processing reassignment:', error);
-    return NextResponse.json({ error: 'Error al reasignar el equipo' }, { status: 500 });
+    return handleApiError(error, 'Error al reasignar el equipo');
   }
 }

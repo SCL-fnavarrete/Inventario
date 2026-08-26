@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { linkAssetsToPurchaseSchema, purchaseAssetSchema } from "@/lib/validations/purchase";
 import { z } from "zod";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -12,10 +12,7 @@ interface RouteParams {
 // GET /api/compras/[id]/activos - Listar activos de una compra
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('compras', 'read');
 
     const { id } = await params;
 
@@ -66,21 +63,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       },
     });
   } catch (error) {
-    console.error("Error fetching purchase assets:", error);
-    return NextResponse.json(
-      { error: "Error al obtener activos de la compra" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener activos de la compra');
   }
 }
 
 // POST /api/compras/[id]/activos - Vincular activos a una compra
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('compras', 'write');
 
     const { id } = await params;
     const body = await request.json();
@@ -110,7 +100,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Verificar que los activos existen
     const existingAssets = await prisma.asset.findMany({
-      where: { id: { in: data.assetIds } },
+      where: { ...ACTIVOS_VIGENTES, id: { in: data.assetIds } },
       select: { id: true, numeroSerie: true },
     });
 
@@ -177,21 +167,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    console.error("Error linking assets to purchase:", error);
-    return NextResponse.json(
-      { error: "Error al vincular activos a la compra" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al vincular activos a la compra');
   }
 }
 
 // DELETE /api/compras/[id]/activos - Desvincular activos de una compra
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('compras', 'delete');
 
     const { id } = await params;
     const searchParams = request.nextUrl.searchParams;
@@ -248,10 +231,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       deletedCount,
     });
   } catch (error) {
-    console.error("Error unlinking assets from purchase:", error);
-    return NextResponse.json(
-      { error: "Error al desvincular activos de la compra" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al desvincular activos de la compra');
   }
 }

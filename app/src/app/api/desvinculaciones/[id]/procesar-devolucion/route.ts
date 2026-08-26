@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { registerReturnSchema } from "@/lib/validations/termination";
 import { executeTerminationReturn } from "@/lib/services/workflowExecutionService";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // POST /api/desvinculaciones/[id]/procesar-devolucion - Procesar devolución de equipos
 export async function POST(
@@ -9,6 +10,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await requirePermission('desvinculaciones', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -72,10 +74,6 @@ export async function POST(
 
     return NextResponse.json(finalTermination);
   } catch (error) {
-    console.error("Error processing return:", error);
-    return NextResponse.json(
-      { error: "Error al procesar devolución" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al procesar devolución');
   }
 }

@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('reportes', 'read');
 
     const today = new Date();
     const nextWeek = new Date();
@@ -79,6 +76,7 @@ export async function GET() {
     // Activos danados sin mantenimiento programado
     const activosDanados = await prisma.asset.findMany({
       where: {
+        ...ACTIVOS_VIGENTES,
         condicion: "danado",
         NOT: {
           maintenances: {
@@ -110,6 +108,7 @@ export async function GET() {
     nextMonth.setDate(nextMonth.getDate() + 30);
     const garantiaPorVencer = await prisma.asset.findMany({
       where: {
+        ...ACTIVOS_VIGENTES,
         fechaGarantiaFin: {
           gte: today,
           lte: nextMonth,
@@ -214,10 +213,6 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error("Error fetching alerts:", error);
-    return NextResponse.json(
-      { error: "Error al obtener alertas" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener alertas');
   }
 }

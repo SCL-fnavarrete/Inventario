@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createCommentSchema } from '@/lib/validations/workflow';
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // POST /api/solicitudes/[id]/comentarios - Add comment
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
 
   try {
+    const session = await requirePermission('solicitudes', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -55,7 +51,6 @@ export async function POST(
 
     return NextResponse.json(comment, { status: 201 });
   } catch (error) {
-    console.error('Error creating comment:', error);
-    return NextResponse.json({ error: 'Error al agregar comentario' }, { status: 500 });
+    return handleApiError(error, 'Error al agregar comentario');
   }
 }

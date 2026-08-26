@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 // Mapeo de estados para mostrar en español
 const ESTADO_LABELS: Record<string, string> = {
@@ -22,17 +22,15 @@ const CONDICION_LABELS: Record<string, string> = {
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('activos', 'read');
 
     const searchParams = request.nextUrl.searchParams;
     const estado = searchParams.get("estado") || "";
     const categoriaId = searchParams.get("categoriaId") || "";
 
     // Construir filtros
-    const where: Record<string, unknown> = {};
+    // Los registros descartados no se exportan (SPEC 2.7.7).
+    const where: Record<string, unknown> = { ...ACTIVOS_VIGENTES };
     if (estado) {
       where.estado = estado;
     }
@@ -136,10 +134,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error exporting assets:", error);
-    return NextResponse.json(
-      { error: "Error al exportar activos" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al exportar activos');
   }
 }

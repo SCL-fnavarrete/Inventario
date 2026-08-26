@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { completeMaintenanceSchema } from "@/lib/validations/maintenance";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -9,6 +10,7 @@ interface RouteParams {
 // POST /api/mantenciones/[id]/completar - Completar mantención
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('mantenciones', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -124,10 +126,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Error completing maintenance:", error);
-    return NextResponse.json(
-      { error: "Error al completar mantención" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al completar mantención');
   }
 }

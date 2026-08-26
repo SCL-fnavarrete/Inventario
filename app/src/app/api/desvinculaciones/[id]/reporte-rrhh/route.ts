@@ -4,6 +4,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as fs from "fs";
 import * as path from "path";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // Extender tipos de jsPDF para lastAutoTable
 declare module "jspdf" {
@@ -52,6 +53,7 @@ const estadoColors: Record<string, [number, number, number]> = {
 // GET /api/desvinculaciones/[id]/reporte-rrhh - Generar reporte para RRHH
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    await requirePermission('desvinculaciones', 'read');
     const { id } = await params;
 
     const termination = await prisma.termination.findUnique({
@@ -424,15 +426,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       },
     });
   } catch (error) {
-    console.error("Error generating RRHH report:", error);
-    console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
-    console.error("Error message:", error instanceof Error ? error.message : String(error));
-    return NextResponse.json(
-      {
-        error: "Error al generar reporte RRHH",
-        details: error instanceof Error ? error.message : String(error)
-      },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al generar reporte RRHH');
   }
 }

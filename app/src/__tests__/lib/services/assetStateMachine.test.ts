@@ -5,12 +5,13 @@ import {
   validateTransition,
   isTerminalState,
 } from '@/lib/services/assetStateMachine';
+import { EstadoActivo } from '@prisma/client';
 
 // SPEC: Sección 2.7 — Máquina de Estados del Ciclo de Vida de Activos
 
 describe('assetStateMachine — canTransitionAsset', () => {
   // SPEC 2.7.2: Transiciones válidas
-  const validTransitions: [string, string][] = [
+  const validTransitions: [EstadoActivo, EstadoActivo][] = [
     ['disponible', 'asignado'],
     ['disponible', 'en_mantencion'],
     ['asignado', 'reutilizable'],
@@ -26,11 +27,11 @@ describe('assetStateMachine — canTransitionAsset', () => {
   ];
 
   test.each(validTransitions)('%s → %s es válida', (from, to) => {
-    expect(canTransitionAsset(from as any, to as any)).toBe(true);
+    expect(canTransitionAsset(from, to)).toBe(true);
   });
 
   // Transiciones inválidas
-  const invalidTransitions: [string, string][] = [
+  const invalidTransitions: [EstadoActivo, EstadoActivo][] = [
     ['disponible', 'baja'],
     ['disponible', 'vendido'],
     ['disponible', 'reutilizable'],
@@ -50,7 +51,7 @@ describe('assetStateMachine — canTransitionAsset', () => {
   ];
 
   test.each(invalidTransitions)('%s → %s es inválida', (from, to) => {
-    expect(canTransitionAsset(from as any, to as any)).toBe(false);
+    expect(canTransitionAsset(from, to)).toBe(false);
   });
 });
 

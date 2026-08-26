@@ -33,24 +33,26 @@ export function ErrorReviewPanel({
     setCorrectedRows((prev) => new Map(prev).set(rowIndex, updatedData));
   };
 
-  const getRowWithCorrections = (row: ImportRowStatus): ImportRowStatus => {
-    if (reimportedRows.has(row.rowIndex)) {
-      return { ...row, status: "imported" };
-    }
-    if (correctedRows.has(row.rowIndex)) {
-      return {
-        ...row,
-        data: correctedRows.get(row.rowIndex)!,
-        status: "corrected",
-      };
-    }
-    return row;
-  };
-
   const correctedCount = correctedRows.size - reimportedRows.size;
   const pendingCount = errorRows.length - correctedRows.size;
 
+  // `getRowWithCorrections` vivia fuera del useMemo y se recreaba en cada
+  // render sin estar en las dependencias, lo que anulaba la memoizacion.
   const filteredRows = useMemo(() => {
+    const getRowWithCorrections = (row: ImportRowStatus): ImportRowStatus => {
+      if (reimportedRows.has(row.rowIndex)) {
+        return { ...row, status: "imported" };
+      }
+      if (correctedRows.has(row.rowIndex)) {
+        return {
+          ...row,
+          data: correctedRows.get(row.rowIndex)!,
+          status: "corrected",
+        };
+      }
+      return row;
+    };
+
     return errorRows
       .map(getRowWithCorrections)
       .filter((row) => {

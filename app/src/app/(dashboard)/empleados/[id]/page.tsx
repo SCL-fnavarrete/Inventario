@@ -597,7 +597,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Pulgadas</p>
-                    <p className="font-medium">{monitor.pulgadas || "-"}"</p>
+                    <p className="font-medium">{monitor.pulgadas || "-"}&quot;</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Fecha Entrega</p>

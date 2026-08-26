@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // Roles válidos del sistema
 const VALID_ROLES = ["admin", "tecnico", "supervisor", "rrhh", "auditor"] as const;
@@ -13,18 +12,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('usuarios', 'read');
 
     const { id } = await params;
-
-    // Solo admin puede ver detalles de usuarios
-    const userRole = session.user.role;
-    if (userRole !== "admin") {
-      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
-    }
 
     const user = await prisma.systemUser.findUnique({
       where: { id },
@@ -48,11 +38,7 @@ export async function GET(
 
     return NextResponse.json(user);
   } catch (error) {
-    console.error("Error fetching user:", error);
-    return NextResponse.json(
-      { error: "Error al obtener usuario" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al obtener usuario');
   }
 }
 
@@ -61,18 +47,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('usuarios', 'write');
 
     const { id } = await params;
-
-    // Solo admin puede actualizar usuarios
-    const userRole = session.user.role;
-    if (userRole !== "admin") {
-      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
-    }
 
     const existingUser = await prisma.systemUser.findUnique({
       where: { id },
@@ -142,11 +119,7 @@ export async function PUT(
 
     return NextResponse.json(user);
   } catch (error) {
-    console.error("Error updating user:", error);
-    return NextResponse.json(
-      { error: "Error al actualizar usuario" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al actualizar usuario');
   }
 }
 
@@ -155,18 +128,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    const session = await requirePermission('usuarios', 'delete');
 
     const { id } = await params;
-
-    // Solo admin puede eliminar usuarios
-    const userRole = session.user.role;
-    if (userRole !== "admin") {
-      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
-    }
 
     // No permitir eliminarse a sí mismo
     if (session.user.id === id) {
@@ -193,10 +157,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting user:", error);
-    return NextResponse.json(
-      { error: "Error al eliminar usuario" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al eliminar usuario');
   }
 }

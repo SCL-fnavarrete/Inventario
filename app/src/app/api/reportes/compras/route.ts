@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // Schema para filtros de reportes de compras
 const reportFiltersSchema = z.object({
@@ -17,10 +16,7 @@ const reportFiltersSchema = z.object({
 // GET /api/reportes/compras - Reportes de compras
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    await requirePermission('reportes', 'read');
 
     const searchParams = request.nextUrl.searchParams;
 
@@ -79,11 +75,7 @@ export async function GET(request: NextRequest) {
         return await getReporteResumen(whereCondition);
     }
   } catch (error) {
-    console.error("Error generating purchases report:", error);
-    return NextResponse.json(
-      { error: "Error al generar reporte de compras" },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al generar reporte de compras');
   }
 }
 

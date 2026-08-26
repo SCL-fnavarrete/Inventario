@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 type DeleteType =
   | "activos"
@@ -14,18 +13,9 @@ type DeleteType =
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    const session = await requirePermission('configuracion', 'delete');
 
     // Solo admin puede eliminar
-    const userRole = (session.user as { role?: string; rol?: string }).role ||
-                     (session.user as { role?: string; rol?: string }).rol;
-    if (userRole !== "admin") {
-      return NextResponse.json({ error: "Acceso denegado. Solo administradores pueden realizar esta acción." }, { status: 403 });
-    }
-
     const body = await request.json();
     const { tipo } = body as { tipo: DeleteType };
 
@@ -131,10 +121,6 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error("Error en eliminación masiva:", error);
-    return NextResponse.json(
-      { error: "Error al eliminar registros. Puede haber restricciones de integridad." },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Error al eliminar registros. Puede haber restricciones de integridad.');
   }
 }

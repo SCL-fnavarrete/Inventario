@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 async function getStats() {
   const [
@@ -36,12 +37,12 @@ async function getStats() {
     categories,
     solicitudesAbiertas,
   ] = await Promise.all([
-    prisma.asset.count(),
-    prisma.asset.count({ where: { estado: "disponible" } }),
-    prisma.asset.count({ where: { estado: "asignado" } }),
-    prisma.asset.count({ where: { estado: "en_mantencion" } }),
-    prisma.asset.count({ where: { estado: "baja" } }),
-    prisma.asset.count({ where: { estado: "reutilizable" } }),
+    prisma.asset.count({ where: ACTIVOS_VIGENTES }),
+    prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, estado: "disponible" } }),
+    prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, estado: "asignado" } }),
+    prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, estado: "en_mantencion" } }),
+    prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, estado: "baja" } }),
+    prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, estado: "reutilizable" } }),
     prisma.employee.count(),
     prisma.employee.count({ where: { estado: "activo" } }),
     prisma.maintenance.count({ where: { estado: "pendiente" } }),
@@ -64,7 +65,8 @@ async function getStats() {
     prisma.assetCategory.findMany({
       include: {
         _count: {
-          select: { assets: true },
+          // Excluye los registros descartados (SPEC 2.7.7).
+          select: { assets: { where: ACTIVOS_VIGENTES } },
         },
       },
     }),
@@ -78,16 +80,16 @@ async function getStats() {
     categories.map(async (cat) => {
       const [disponibles, asignados, mantencion, baja] = await Promise.all([
         prisma.asset.count({
-          where: { categoriaId: cat.id, estado: "disponible" },
+          where: { ...ACTIVOS_VIGENTES, categoriaId: cat.id, estado: "disponible" },
         }),
         prisma.asset.count({
-          where: { categoriaId: cat.id, estado: "asignado" },
+          where: { ...ACTIVOS_VIGENTES, categoriaId: cat.id, estado: "asignado" },
         }),
         prisma.asset.count({
-          where: { categoriaId: cat.id, estado: "en_mantencion" },
+          where: { ...ACTIVOS_VIGENTES, categoriaId: cat.id, estado: "en_mantencion" },
         }),
         prisma.asset.count({
-          where: { categoriaId: cat.id, estado: "baja" },
+          where: { ...ACTIVOS_VIGENTES, categoriaId: cat.id, estado: "baja" },
         }),
       ]);
       return {
@@ -239,7 +241,7 @@ async function getAlertas() {
       take: 5,
     }),
     prisma.asset.count({
-      where: { condicion: "danado" },
+      where: { ...ACTIVOS_VIGENTES, condicion: "danado" },
     }),
   ]);
 
