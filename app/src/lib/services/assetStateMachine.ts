@@ -24,6 +24,7 @@ const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
   disponible: [
     { to: 'asignado', description: 'Asignar a empleado' },
     { to: 'en_mantencion', description: 'Enviar a mantención' },
+    { to: 'baja', description: 'Dar de baja sin uso previo' },
   ],
   asignado: [
     { to: 'reutilizable', description: 'Devolver equipo (ok/incompleto)' },
@@ -64,6 +65,13 @@ const TRANSITION_PRECONDITIONS: Record<string, (ctx: TransitionContext) => strin
     return errors;
   },
   'reutilizable→baja': (ctx) => {
+    const errors: string[] = [];
+    if (!ctx.motivo) {
+      errors.push('Requiere motivo obligatorio para dar de baja');
+    }
+    return errors;
+  },
+    'disponible→baja': (ctx) => {
     const errors: string[] = [];
     if (!ctx.motivo) {
       errors.push('Requiere motivo obligatorio para dar de baja');

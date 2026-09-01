@@ -408,12 +408,15 @@ export default async function DetalleActivoPage({
                   Registrar venta
                 </Link>
               )}
-              <Link
-                href={`/mantenciones/programar?activoId=${asset.id}`}
-                className="block w-full py-2 px-4 bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100 text-center transition-colors"
-              >
-                Enviar a mantención
-              </Link>
+              {(asset.estado === "disponible" || asset.estado==="asignado")&&(
+                <Link
+                  href={`/mantenciones/programar?activoId=${asset.id}`}
+                  className="block w-full py-2 px-4 bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100 text-center transition-colors"
+                >
+                  Enviar a mantención
+                </Link>
+              )}
+              
             </div>
           </div>
         </div>

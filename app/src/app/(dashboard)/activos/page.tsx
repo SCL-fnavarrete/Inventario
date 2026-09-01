@@ -33,6 +33,8 @@ import {
 import { cn } from "@/lib/utils";
 import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard } from "@/components/activos";
 import { Can } from "@/components/auth/Can";
+import { Modal } from "@/components/ui/Modal";
+import { BajaActivoForm } from "@/components/activos/BajaActivoForm";
 
 type Asset = {
   id: string;
@@ -180,6 +182,7 @@ function ActivosPageContent() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"table" | "cards" | "kanban">("table");
   const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS);
+  const [bajaModalAssetId, setBajaModalAssetId] = useState<string | null>(null);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
@@ -296,12 +299,13 @@ function ActivosPageContent() {
     router.push(pathname, { scroll: false });
   }
 
+  /*
   // Handle status change from Kanban drag-and-drop
   async function handleStatusChange(assetId: string, newStatus: string) {
     setIsUpdatingStatus(true);
     try {
       const res = await fetch(`/api/activos/${assetId}`, {
-        method: "PATCH",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ estado: newStatus }),
       });
@@ -324,6 +328,103 @@ function ActivosPageContent() {
       setIsUpdatingStatus(false);
     }
   }
+  */
+
+  async function handleStatusChange(assetId: string, newStatus: string){
+    const asset = allAssets.find((a) => a.id == assetId);
+    if (!asset) return;
+    const currentStatus = asset.estado;
+
+    //No necesita pantalla intermedia, no hace falta ningun dato extra
+    if (currentStatus == "reutilizable" && newStatus == "disponible"){
+      setIsUpdatingStatus(true);
+      try{
+        const res = await fetch(`/api/activos/${assetId}`,{
+          method : "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ estado: newStatus }),
+        });
+
+        if (res.ok) {
+          setAllAssets((prev)=>
+          prev.map((a)=>
+          a.id===assetId ? { ...a, estado:newStatus as Asset["estado"]} : a
+        )
+      );
+      const statsRes = await fetch("/api/activos/stats");
+      const statsData = await statsRes.json();
+      setStats(statsData);
+      } else{
+        const data = await res.json().catch(() => null);
+        alert(data?.error ?? "No se pudo actualizar el estado del activo");
+      }
+    } catch (error){
+      console.error("Error updating status:", error);
+      alert("Error de conexión al actualizar el activo");
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+    return;
+  }
+
+  //asignacion nueva: no hay formulario directo, pasa por solicitudes
+  if (currentStatus === "disponible" && newStatus ==="asignado"){
+    router.push("/solicitudes/nueva");
+    return;
+  }
+
+  //enviar a mantencion: necesita tipo:motivo/fecha
+  if ((currentStatus === "disponible" || currentStatus === "asignado") &&newStatus === "en_mantencion"){
+    router.push(`/mantenciones/programar?activoId=${assetId}`);
+    return;
+  }
+
+  //Devolucion de un equipo asignado (a reutilizable o dado de baja)
+  if (currentStatus==="asignado" && (newStatus ==="reutilizable" || newStatus==="baja")){
+    try{
+      const res = await fetch(`/api/asignaciones?assetId=${assetId}&activo=true&limit=1`);
+      const data = await res.json();
+      const asignacionId = data?.data?.[0]?.id;
+      if (asignacionId){
+        router.push(`/asignaciones/devolucion?id=${asignacionId}`);
+      }else{
+        alert("No se encontro la asignacion activa de este equipo");
+      }
+    }catch(error){
+      console.error("Error buscando la asignacion:",error);
+      alert("Error al buscar la asignacion del equipo");
+    }
+    return;
+  }
+
+  //reasignar un equipo reutilizable a otro empleado:por formulario directo
+  if (currentStatus === "reutilizable" && newStatus === "asignado"){
+    router.push(`/activos/${assetId}/reasignar`);
+    return;
+  }
+
+  //dar de baja: se necesita un motivo
+  if (newStatus === "baja" && (currentStatus === "reutilizable" || currentStatus === "en_mantencion" || currentStatus === "disponible")) {
+    setBajaModalAssetId(assetId);
+    return;
+  }
+
+  //vender un activo dado de baja: necesita comprador, monto y fecha
+  if(currentStatus === "baja" && newStatus==="vendido"){
+    router.push(`/activos/${assetId}/venta`);
+    return;
+  }
+
+  //salir de mantencion: no hay forma de preseleccionar la mantencion desde aca
+  if(currentStatus=== "en_mantencion"){
+    router.push("/mantenciones");
+    return;
+  }
+
+  //Cualquier otra combinacion no tiene un camino definido todavia
+  alert(`No se puede pasar de "${currentStatus}" a "${newStatus}" desde el Kanban`);
+}
+
 
   function toggleRowExpansion(assetId: string) {
     setExpandedRows((prev) => {
@@ -1166,6 +1267,29 @@ function ActivosPageContent() {
           </div>
         </div>
       )}
+
+      <Modal
+        isOpen={!!bajaModalAssetId}
+        onClose={() => setBajaModalAssetId(null)}
+        title="Dar de baja"
+        size="lg"
+      >
+        {bajaModalAssetId && (
+          <BajaActivoForm
+            assetId={bajaModalAssetId}
+            onCancel={() => setBajaModalAssetId(null)}
+            onSuccess={async () => {
+              setAllAssets((prev) =>
+                prev.map((a) => (a.id === bajaModalAssetId ? { ...a, estado: "baja" as Asset["estado"] } : a))
+              );
+              const statsRes = await fetch("/api/activos/stats");
+              const statsData = await statsRes.json();
+              setStats(statsData);
+              setBajaModalAssetId(null);
+            }}
+          />
+        )}
+      </Modal>  
     </div>
   );
 }
