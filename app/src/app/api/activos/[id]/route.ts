@@ -26,6 +26,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         empleadoActual: {
           select: { nombres: true, apellidoPaterno: true, rut: true },
         },
+        assignments: {
+          where: { activo: true },
+          select: {
+            id: true,
+            activo: true,
+            employee: {
+              select: { id: true, nombres: true, apellidoPaterno: true, rut: true },
+            },
+          },
+        },
+       maintenances: {
+          where: { estado: { in: ['pendiente', 'en_proceso'] } },
+          select: { id: true, estado: true },
+        },
       },
     });
 

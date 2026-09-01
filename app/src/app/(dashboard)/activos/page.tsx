@@ -35,6 +35,7 @@ import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard } from "@
 import { Can } from "@/components/auth/Can";
 import { Modal } from "@/components/ui/Modal";
 import { BajaActivoForm } from "@/components/activos/BajaActivoForm";
+import { ReasignarActivoForm } from "@/components/activos/ReasignarActivoForm";
 
 type Asset = {
   id: string;
@@ -183,6 +184,7 @@ function ActivosPageContent() {
   const [viewMode, setViewMode] = useState<"table" | "cards" | "kanban">("table");
   const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS);
   const [bajaModalAssetId, setBajaModalAssetId] = useState<string | null>(null);
+  const [reasignarModalAssetId, setReasignarModalAssetId] = useState<string | null>(null);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
@@ -399,7 +401,7 @@ function ActivosPageContent() {
 
   //reasignar un equipo reutilizable a otro empleado:por formulario directo
   if (currentStatus === "reutilizable" && newStatus === "asignado"){
-    router.push(`/activos/${assetId}/reasignar`);
+    router.push("/solicitudes/nueva");
     return;
   }
 
@@ -1290,6 +1292,29 @@ function ActivosPageContent() {
           />
         )}
       </Modal>  
+      
+      <Modal
+        isOpen={!!reasignarModalAssetId}
+        onClose={() => setReasignarModalAssetId(null)}
+        title="Reasignar Equipo"
+        size="lg"
+      >
+        {reasignarModalAssetId && (
+          <ReasignarActivoForm
+            assetId={reasignarModalAssetId}
+            onCancel={() => setReasignarModalAssetId(null)}
+            onSuccess={async () => {
+              setAllAssets((prev) =>
+                prev.map((a) => (a.id === reasignarModalAssetId ? { ...a, estado: "asignado" as Asset["estado"] } : a))
+              );
+              const statsRes = await fetch("/api/activos/stats");
+              const statsData = await statsRes.json();
+              setStats(statsData);
+              setReasignarModalAssetId(null);
+            }}
+          />
+        )}
+      </Modal>
     </div>
   );
 }
