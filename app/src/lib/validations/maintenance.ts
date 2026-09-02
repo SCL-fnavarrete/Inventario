@@ -16,6 +16,12 @@ export const EstadoMantencionEnum = z.enum([
   "cancelada",
 ]);
 
+// Campo de costo reutilizable: acepta 0 o positivo, opcional y nullable.
+// Usado por las tres schemas de mantención para que la regla no se desincronice entre ellas.
+const costoSchema = z.number().nonnegative("El costo debe ser 0 o positivo").optional().nullable();
+
+
+
 // Schema para crear una mantención
 export const createMaintenanceSchema = z.object({
   assetId: z.string().uuid("ID de activo inválido"),
@@ -32,7 +38,7 @@ export const createMaintenanceSchema = z.object({
     return isNaN(date.getTime()) ? null : date;
   }),
   realizadoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
-  costo: z.number().positive("El costo debe ser positivo").optional().nullable(),
+  costo: costoSchema,
   proveedorExterno: z.string().max(200, "Máximo 200 caracteres").optional().nullable(),
 });
 
@@ -56,7 +62,7 @@ export const updateMaintenanceSchema = z.object({
     return isNaN(date.getTime()) ? null : date;
   }),
   realizadoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
-  costo: z.number().positive("El costo debe ser positivo").optional().nullable(),
+  costo: costoSchema,
   proveedorExterno: z.string().max(200, "Máximo 200 caracteres").optional().nullable(),
   estado: EstadoMantencionEnum.optional(),
   resultado: z.string().max(1000, "Máximo 1000 caracteres").optional().nullable(),
@@ -67,7 +73,7 @@ export const completeMaintenanceSchema = z.object({
   fechaRealizada: z.string().transform((val) => new Date(val)),
   realizadoPor: z.string().min(1, "Requerido").max(100, "Máximo 100 caracteres"),
   resultado: z.string().min(1, "El resultado es requerido").max(1000, "Máximo 1000 caracteres"),
-  costo: z.number().positive("El costo debe ser positivo").optional().nullable(),
+  costo: costoSchema,
   proximaMantencion: z.string().optional().nullable().transform((val) => {
     if (!val) return null;
     const date = new Date(val);
