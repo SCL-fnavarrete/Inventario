@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createMaintenanceSchema, maintenanceFiltersSchema } from "@/lib/validations/maintenance";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { validateTransition } from '@/lib/services/assetStateMachine';
 
 // GET /api/mantenciones - Listar mantenciones con filtros
 export async function GET(request: NextRequest) {
@@ -156,6 +157,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validar transición de estado con la máquina de estados (SPEC 2.7),
+    // igual que PUT /api/activos/[id]. Solo aplica cuando esta mantención
+    // va a cambiar el estado del activo (fechaProgramada presente) y el
+    // activo no está ya en mantención.
+    if (data.fechaProgramada && asset.estado !== "en_mantencion") {
+      const activeAssignment = await prisma.assignment.findFirst({
+        where: { assetId: data.assetId, activo: true },
+      });
+      const activeMaintenance = await prisma.maintenance.findFirst({
+        where: { assetId: data.assetId, estado: { in: ["pendiente", "en_proceso"] } },
+      });
+
+      const transitionResult = validateTransition(asset.estado, "en_mantencion", {
+        hasActiveAssignment: !!activeAssignment,
+        hasActiveMaintenance: !!activeMaintenance,
+      });
+
+      if (!transitionResult.valid) {
+        return NextResponse.json(
+          { error: "Transición de estado no permitida", details: transitionResult.errors },
+          { status: 400 }
+        );
+      }
+    }
+
     // Crear la mantención en transacción
     const result = await prisma.$transaction(async (tx) => {
       // Crear mantención
@@ -179,7 +205,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Actualizar estado del activo si se programa mantención
-      if (data.fechaProgramada) {
+      if (data.fechaProgramada && asset.estado !== "en_mantencion") {
         await tx.asset.update({
           where: { id: data.assetId },
           data: { estado: "en_mantencion" },
