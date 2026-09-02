@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Can } from "@/components/auth/Can";
+import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 
 type Employee = {
   id: string;
@@ -31,8 +32,8 @@ type Employee = {
   cargo: string | null;
   jefatura: string | null;
   ubicacion: string | null;
-  tipoContrato: string;
-  estado: string;
+  tipoContrato: TipoContrato;
+  estado: EstadoEmpleado;
   fechaIngreso: string | null;
   origenMicrosoft?: boolean;
   _count: {
@@ -60,25 +61,27 @@ type UbicacionDetalle = {
   cantidad: number;
 };
 
-const estadoColors: Record<string, string> = {
+// Tipados contra el enum: si manana se agrega un estado y se olvida una
+// etiqueta, el compilador lo detiene en vez de dejar la celda en blanco.
+const estadoColors: Record<EstadoEmpleado, string> = {
   activo: "bg-green-100 text-green-800",
   desvinculado: "bg-red-100 text-red-800",
   licencia: "bg-yellow-100 text-yellow-800",
 };
 
-const estadoLabels: Record<string, string> = {
+const estadoLabels: Record<EstadoEmpleado, string> = {
   activo: "Activo",
   desvinculado: "Desvinculado",
   licencia: "En Licencia",
 };
 
-const tipoContratoLabels: Record<string, string> = {
+const tipoContratoLabels: Record<TipoContrato, string> = {
   planta: "Planta",
   proyecto: "Proyecto",
   externo: "Externo",
 };
 
-const tipoContratoColors: Record<string, string> = {
+const tipoContratoColors: Record<TipoContrato, string> = {
   planta: "bg-blue-100 text-blue-800",
   proyecto: "bg-purple-100 text-purple-800",
   externo: "bg-orange-100 text-orange-800",

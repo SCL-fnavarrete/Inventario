@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReturnAssetModal, { ReturnAssetData } from "@/components/ReturnAssetModal";
+import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 
 type NotebookAsignado = {
   asignacionId: string;
@@ -86,10 +87,10 @@ type Ficha = {
     jefatura: string | null;
     supervisor: string | null;
     ubicacion: string | null;
-    tipoContrato: string;
+    tipoContrato: TipoContrato;
     fechaIngreso: string | null;
     fechaTermino: string | null;
-    estado: string;
+    estado: EstadoEmpleado;
     telefonoContacto: string | null;
     origenMicrosoft?: boolean;
   };
@@ -129,13 +130,13 @@ type Ficha = {
   };
 };
 
-const estadoColors: Record<string, string> = {
+const estadoColors: Record<EstadoEmpleado, string> = {
   activo: "bg-green-500",
   desvinculado: "bg-red-500",
   licencia: "bg-yellow-500",
 };
 
-const tipoContratoLabels: Record<string, string> = {
+const tipoContratoLabels: Record<TipoContrato, string> = {
   planta: "Planta",
   proyecto: "Proyecto",
   externo: "Externo",
