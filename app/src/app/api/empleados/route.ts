@@ -54,15 +54,12 @@ export async function GET(request: NextRequest) {
     // Construir condiciones de búsqueda
     const where: Prisma.EmployeeWhereInput = {};
 
-    // Normalizar búsqueda: quitar puntos/guiones (RUT) y acentos
-    const normalizedSearch = filters.search ? normalizeRut(filters.search) : "";
+    // Un termino de solo espacios no es una busqueda: se ignora en vez de
+    // filtrar por vacio, que no devolveria nada util.
+    const terminoBusqueda = filters.search?.trim() ?? "";
 
-    if (filters.search) {
-      // Siempre traer todos y filtrar en memoria para soportar:
-      // 1. RUT sin formato (15941817 → matchea 15.941.817-K)
-      // 2. Sin acentos (Cesar → matchea César)
-      // La base es chica (<1000 empleados) así que es viable
-    }
+    // Normalizar búsqueda: quitar puntos/guiones (RUT) y acentos
+    const normalizedSearch = terminoBusqueda ? normalizeRut(terminoBusqueda) : "";
 
     if (filters.estado) {
       where.estado = filters.estado;
@@ -83,8 +80,14 @@ export async function GET(request: NextRequest) {
     let employees;
     let total;
 
-    if (filters.search && filters.search.length >= 2) {
-      // Búsqueda normalizada: sin acentos, sin puntos/guiones para RUT
+    // Se filtra en memoria para soportar RUT sin formato (15941817 matchea
+    // 15.941.817-0) y texto sin acentos (Cesar matchea César). La base es
+    // chica (<1000 empleados), asi que traerla entera es viable.
+    //
+    // Basta un caracter: antes se exigian dos, y con uno solo la peticion caia
+    // a la rama sin filtro y devolvia TODOS los empleados. El usuario escribia
+    // una letra y creia que el buscador estaba roto.
+    if (terminoBusqueda) {
       const allEmployees = await prisma.employee.findMany({
         where: {
           // Aplicar filtros no-search (estado, tipoContrato, etc.)
@@ -109,7 +112,7 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      const searchTerms = removeAccents(filters.search.toLowerCase());
+      const searchTerms = removeAccents(terminoBusqueda.toLowerCase());
 
       const filtered = allEmployees.filter((emp) => {
         // 1. Buscar por RUT normalizado (sin puntos ni guiones)
