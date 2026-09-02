@@ -489,7 +489,7 @@ function ActivosPageContent() {
           <h1 className="text-2xl font-bold text-gray-900">
             Activos {stats && <span className="text-gray-500">({stats.total})</span>}
           </h1>
-          <p className="text-gray-600">Gesti\u00f3n de equipos y dispositivos IT</p>
+          <p className="text-gray-600">Gestión de equipos y dispositivos IT</p>
         </div>
         <div className="flex gap-2">
           <a
@@ -943,17 +943,17 @@ function ActivosPageContent() {
                               <div className="space-y-2">
                                 <h4 className="font-semibold text-gray-700 flex items-center gap-2">
                                   <Package size={16} />
-                                  Informaci\u00f3n General
+                                  Información General
                                 </h4>
                                 <dl className="space-y-1">
                                   <div className="flex justify-between">
-                                    <dt className="text-gray-500">Categor\u00eda:</dt>
+                                    <dt className="text-gray-500">Categoría:</dt>
                                     <dd className="font-medium text-gray-900">
                                       {asset.categoria.nombre}
                                     </dd>
                                   </div>
                                   <div className="flex justify-between">
-                                    <dt className="text-gray-500">Condici\u00f3n:</dt>
+                                    <dt className="text-gray-500">Condición:</dt>
                                     <dd>
                                       <span
                                         className={cn(
@@ -967,7 +967,7 @@ function ActivosPageContent() {
                                   </div>
                                   {asset.fechaGarantiaFin && (
                                     <div className="flex justify-between">
-                                      <dt className="text-gray-500">Garant\u00eda hasta:</dt>
+                                      <dt className="text-gray-500">Garantía hasta:</dt>
                                       <dd className="text-gray-900">
                                         {new Date(asset.fechaGarantiaFin).toLocaleDateString(
                                           "es-CL"
@@ -977,7 +977,7 @@ function ActivosPageContent() {
                                   )}
                                   {asset.numeroTelefono && (
                                     <div className="flex justify-between">
-                                      <dt className="text-gray-500">Tel\u00e9fono:</dt>
+                                      <dt className="text-gray-500">Teléfono:</dt>
                                       <dd className="text-gray-900">{asset.numeroTelefono}</dd>
                                     </div>
                                   )}
@@ -1028,7 +1028,7 @@ function ActivosPageContent() {
                               <div className="space-y-2">
                                 <h4 className="font-semibold text-gray-700 flex items-center gap-2">
                                   <Shield size={16} />
-                                  Software y Gesti\u00f3n
+                                  Software y Gestión
                                 </h4>
                                 <dl className="space-y-1">
                                   <div className="flex justify-between">
@@ -1063,7 +1063,7 @@ function ActivosPageContent() {
                                   </div>
                                   {asset.ubicacionFisica && (
                                     <div className="flex justify-between">
-                                      <dt className="text-gray-500">Ubicaci\u00f3n:</dt>
+                                      <dt className="text-gray-500">Ubicación:</dt>
                                       <dd className="text-gray-900">{asset.ubicacionFisica}</dd>
                                     </div>
                                   )}
@@ -1113,13 +1113,13 @@ function ActivosPageContent() {
                 {pagination.pages > 1 && (
                   <nav
                     className="flex items-center gap-1"
-                    aria-label="Navegaci\u00f3n de p\u00e1ginas"
+                    aria-label="Navegación de páginas"
                   >
                     <button
                       onClick={() => updateUrlParams({ page: String(pagination.current - 1) })}
                       disabled={pagination.current === 1}
                       className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
-                      aria-label="P\u00e1gina anterior"
+                      aria-label="Página anterior"
                     >
                       <ChevronLeft size={20} className="text-gray-600" />
                     </button>
@@ -1159,14 +1159,14 @@ function ActivosPageContent() {
                     </div>
 
                     <div className="sm:hidden px-4 py-2 text-sm font-medium text-gray-700">
-                      P\u00e1gina {pagination.current} de {pagination.pages}
+                      Página {pagination.current} de {pagination.pages}
                     </div>
 
                     <button
                       onClick={() => updateUrlParams({ page: String(pagination.current + 1) })}
                       disabled={pagination.current === pagination.pages}
                       className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
-                      aria-label="P\u00e1gina siguiente"
+                      aria-label="Página siguiente"
                     >
                       <ChevronRight size={20} className="text-gray-600" />
                     </button>
@@ -1209,12 +1209,12 @@ function ActivosPageContent() {
             </div>
 
             {pagination.pages > 1 && (
-              <nav className="flex items-center gap-1" aria-label="Navegaci\u00f3n de p\u00e1ginas">
+              <nav className="flex items-center gap-1" aria-label="Navegación de páginas">
                 <button
                   onClick={() => updateUrlParams({ page: String(pagination.current - 1) })}
                   disabled={pagination.current === 1}
                   className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
-                  aria-label="P\u00e1gina anterior"
+                  aria-label="Página anterior"
                 >
                   <ChevronLeft size={20} className="text-gray-600" />
                 </button>
@@ -1254,14 +1254,14 @@ function ActivosPageContent() {
                 </div>
 
                 <div className="sm:hidden px-4 py-2 text-sm font-medium text-gray-700">
-                  P\u00e1gina {pagination.current} de {pagination.pages}
+                  Página {pagination.current} de {pagination.pages}
                 </div>
 
                 <button
                   onClick={() => updateUrlParams({ page: String(pagination.current + 1) })}
                   disabled={pagination.current === pagination.pages}
                   className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
-                  aria-label="P\u00e1gina siguiente"
+                  aria-label="Página siguiente"
                 >
                   <ChevronRight size={20} className="text-gray-600" />
                 </button>
