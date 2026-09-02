@@ -11,6 +11,7 @@ import {
   GripVertical
 } from "lucide-react";
 import { AssetCard } from "./AssetCard";
+import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 
 interface AssetData {
   id: string;
@@ -18,8 +19,8 @@ interface AssetData {
   numeroActivoInterno: string | null;
   marca: string;
   modelo: string;
-  estado: "disponible" | "asignado" | "en_mantencion" | "reutilizable" | "baja" | "vendido";
-  condicion: "nuevo" | "usado" | "danado";
+  estado: EstadoActivo;
+  condicion: CondicionActivo;
   procesador?: string | null;
   ram?: string | null;
   discoDuro?: string | null;

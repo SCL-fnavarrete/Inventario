@@ -18,6 +18,7 @@ import {
 import { createElement } from "react";
 import { Badge, AssetStatusBadge } from "@/components/ui/Badge";
 import Link from "next/link";
+import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 
 interface AssetData {
   id: string;
@@ -25,8 +26,8 @@ interface AssetData {
   numeroActivoInterno: string | null;
   marca: string;
   modelo: string;
-  estado: "disponible" | "asignado" | "en_mantencion" | "reutilizable" | "baja" | "vendido";
-  condicion: "nuevo" | "usado" | "danado";
+  estado: EstadoActivo;
+  condicion: CondicionActivo;
   procesador?: string | null;
   ram?: string | null;
   discoDuro?: string | null;
@@ -82,13 +83,13 @@ function CategoryIcon({ categoria, className }: { categoria: string; className?:
 }
 
 // Valores del enum CondicionActivo: nuevo | usado | danado.
-const conditionColors: Record<string, string> = {
+const conditionColors: Record<CondicionActivo, string> = {
   nuevo: "bg-emerald-100 text-emerald-700",
   usado: "bg-blue-100 text-blue-700",
   danado: "bg-red-100 text-red-700",
 };
 
-const conditionLabels: Record<string, string> = {
+const conditionLabels: Record<CondicionActivo, string> = {
   nuevo: "Nuevo",
   usado: "Usado",
   danado: "Dañado",

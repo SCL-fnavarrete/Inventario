@@ -1,4 +1,8 @@
 import { z } from "zod";
+import type {
+  EstadoActivo as PrismaEstadoActivo,
+  CondicionActivo as PrismaCondicionActivo,
+} from "@prisma/client";
 
 // Estados de activos validos
 export const estadoActivoEnum = z.enum([
@@ -91,5 +95,25 @@ export const updateAssetSchema = assetSchema.partial();
 export type AssetInput = z.infer<typeof assetSchema>;
 export type CreateAssetInput = z.infer<typeof createAssetSchema>;
 export type UpdateAssetInput = z.infer<typeof updateAssetSchema>;
+/**
+ * Guardia de sincronizacion entre Prisma y Zod.
+ *
+ * El dominio se define dos veces: en el enum de Prisma (la base) y en el de
+ * Zod (la frontera de validacion). Nada obligaba a que coincidieran, y de ahi
+ * salio el bug de condicion: la base decia nuevo|usado|danado mientras la UI
+ * mostraba etiquetas para bueno|regular|malo, que no existian.
+ *
+ * `MismoConjunto` exige asignabilidad en ambas direcciones. Si alguien anade
+ * un valor a un lado y no al otro, esto deja de compilar y el CI lo detiene
+ * antes de que llegue a produccion.
+ */
+// Devuelve false (no never) cuando divergen: `never extends true` se cumple,
+// asi que una version con never dejaria pasar la divergencia en silencio.
+type MismoConjunto<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+type Exigir<T extends true> = T;
+
+export type EstadoSincronizado = Exigir<MismoConjunto<z.infer<typeof estadoActivoEnum>, PrismaEstadoActivo>>;
+export type CondicionSincronizada = Exigir<MismoConjunto<z.infer<typeof condicionActivoEnum>, PrismaCondicionActivo>>;
+
 export type EstadoActivo = z.infer<typeof estadoActivoEnum>;
 export type CondicionActivo = z.infer<typeof condicionActivoEnum>;

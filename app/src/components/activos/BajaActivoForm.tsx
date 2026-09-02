@@ -3,8 +3,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AlertTriangle, XCircle, CheckCircle } from "lucide-react";
+import type { AssetBajaInput } from "@/lib/validations/assetTransition";
 
-const motivoLabels: Record<string, string> = {
+// Derivados del schema Zod: si cambia un motivo, esto deja de compilar.
+const motivoLabels: Record<AssetBajaInput["motivo"], string> = {
   obsolescencia: "Obsolescencia",
   falla_irreparable: "Falla irreparable",
   robo: "Robo",
@@ -12,7 +14,7 @@ const motivoLabels: Record<string, string> = {
   otro: "Otro",
 };
 
-const condicionLabels: Record<string, string> = {
+const condicionLabels: Record<AssetBajaInput["condicionFinal"], string> = {
   danado: "Dañado",
   usado: "Usado",
 };

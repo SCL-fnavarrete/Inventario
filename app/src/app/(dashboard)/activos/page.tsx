@@ -36,6 +36,7 @@ import { Can } from "@/components/auth/Can";
 import { Modal } from "@/components/ui/Modal";
 import { BajaActivoForm } from "@/components/activos/BajaActivoForm";
 import { ReasignarActivoForm } from "@/components/activos/ReasignarActivoForm";
+import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 
 type Asset = {
   id: string;
@@ -43,8 +44,8 @@ type Asset = {
   marca: string;
   modelo: string;
   numeroSerie: string | null;
-  estado: "disponible" | "asignado" | "en_mantencion" | "reutilizable" | "baja" | "vendido";
-  condicion: "nuevo" | "usado" | "danado";
+  estado: EstadoActivo;
+  condicion: CondicionActivo;
   procesador: string | null;
   ram: string | null;
   discoDuro: string | null;
@@ -97,7 +98,9 @@ type Pagination = {
   limit: number;
 };
 
-const estadoColors: Record<string, string> = {
+// Tipar el mapa contra el enum convierte una clave olvidada en un error de
+// compilacion, en vez de una celda vacia que nadie nota en produccion.
+const estadoColors: Record<EstadoActivo, string> = {
   disponible: "bg-green-100 text-green-800",
   asignado: "bg-blue-100 text-blue-800",
   en_mantencion: "bg-yellow-100 text-yellow-800",
@@ -106,7 +109,7 @@ const estadoColors: Record<string, string> = {
   vendido: "bg-gray-100 text-gray-800",
 };
 
-const estadoLabels: Record<string, string> = {
+const estadoLabels: Record<EstadoActivo, string> = {
   disponible: "Disponible",
   asignado: "Asignado",
   en_mantencion: "En Mantenci\u00f3n",
@@ -118,13 +121,22 @@ const estadoLabels: Record<string, string> = {
 // Los valores son los del enum CondicionActivo (nuevo | usado | danado).
 // Antes este mapa listaba bueno/regular/malo, que no existen en el dominio:
 // dos de los tres valores reales quedaban sin etiqueta y la celda salia vacia.
-const condicionColors: Record<string, string> = {
+/**
+ * `estado` llega como texto libre desde la URL (?estado=...), asi que no se
+ * puede usar como clave del mapa sin comprobarlo antes: un valor inventado
+ * daria undefined en silencio.
+ */
+function esEstadoConocido(valor: string): valor is EstadoActivo {
+  return valor in estadoLabels;
+}
+
+const condicionColors: Record<CondicionActivo, string> = {
   nuevo: "bg-emerald-50 text-emerald-700",
   usado: "bg-blue-50 text-blue-700",
   danado: "bg-red-50 text-red-700",
 };
 
-const condicionLabels: Record<string, string> = {
+const condicionLabels: Record<CondicionActivo, string> = {
   nuevo: "Nuevo",
   usado: "Usado",
   danado: "Dañado",
@@ -467,7 +479,7 @@ function ActivosPageContent() {
       key: "estado",
       label: "Estado",
       value: estadoFilter,
-      displayValue: estadoLabels[estadoFilter] || estadoFilter,
+      displayValue: esEstadoConocido(estadoFilter) ? estadoLabels[estadoFilter] : estadoFilter,
     });
   }
   if (categoriaFilter && stats?.byCategory) {

@@ -15,8 +15,9 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { EstadoActivo, CondicionActivo, TipoEvento } from "@prisma/client";
 
-const estadoColors: Record<string, string> = {
+const estadoColors: Record<EstadoActivo, string> = {
   disponible: "bg-green-100 text-green-800",
   asignado: "bg-blue-100 text-blue-800",
   en_mantencion: "bg-yellow-100 text-yellow-800",
@@ -25,7 +26,7 @@ const estadoColors: Record<string, string> = {
   vendido: "bg-gray-100 text-gray-800",
 };
 
-const estadoLabels: Record<string, string> = {
+const estadoLabels: Record<EstadoActivo, string> = {
   disponible: "Disponible",
   asignado: "Asignado",
   en_mantencion: "En Mantención",
@@ -34,7 +35,7 @@ const estadoLabels: Record<string, string> = {
   vendido: "Vendido",
 };
 
-const condicionLabels: Record<string, string> = {
+const condicionLabels: Record<CondicionActivo, string> = {
   nuevo: "Nuevo",
   usado: "Usado",
   danado: "Dañado",
@@ -43,7 +44,7 @@ const condicionLabels: Record<string, string> = {
 // Cubre el enum TipoEvento completo. Faltaban venta, actualizacion_specs y
 // solicitud_workflow, que se mostraban crudos ("venta", "actualizacion_specs")
 // en un historial que es evidencia de auditoria.
-const tipoEventoLabels: Record<string, string> = {
+const tipoEventoLabels: Record<TipoEvento, string> = {
   creacion: "Creación",
   asignacion: "Asignación",
   devolucion: "Devolución",
