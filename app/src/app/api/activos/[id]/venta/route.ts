@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { assetVentaSchema } from '@/lib/validations/assetTransition';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, ConflictError } from '@/lib/auth/guard';
 
 // SPEC 2.7.4: Proceso de Venta
 export async function POST(
@@ -38,6 +38,11 @@ export async function POST(
 
     if (!asset) {
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
+    }
+
+    // Un registro descartado es basura de importacion: no genera movimientos.
+    if (asset.deletedAt) {
+      throw new ConflictError('Este activo esta descartado y no admite movimientos');
     }
 
     // SPEC: Solo se puede vender desde baja o reutilizable
@@ -87,7 +92,8 @@ export async function POST(
         id,
         data.comprador,
         Number(data.monto),
-        usuario
+        usuario,
+        tx
       );
 
       return updated;

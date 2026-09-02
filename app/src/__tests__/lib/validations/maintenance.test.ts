@@ -151,12 +151,14 @@ describe('Maintenance Validation - createMaintenanceSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  test('should reject zero costo', () => {
+  // Una mantencion en garantia o hecha por el proveedor cuesta 0: es un dato
+  // valido, no una ausencia de dato (que se expresa con null).
+  test('should accept zero costo', () => {
     const result = createMaintenanceSchema.safeParse({
       ...validMaintenance,
       costo: 0,
     })
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 
   test('should accept null costo', () => {

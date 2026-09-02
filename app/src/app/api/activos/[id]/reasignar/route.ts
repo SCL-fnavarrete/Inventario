@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { assetReassignmentSchema } from '@/lib/validations/assetTransition';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, ConflictError } from '@/lib/auth/guard';
 
 // SPEC 2.7.6: Reasignación de Equipo
 export async function POST(
@@ -34,6 +34,11 @@ export async function POST(
 
     if (!asset) {
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
+    }
+
+    // Un registro descartado es basura de importacion: no genera movimientos.
+    if (asset.deletedAt) {
+      throw new ConflictError('Este activo esta descartado y no admite movimientos');
     }
 
     if (asset.estado !== 'asignado') {
@@ -113,7 +118,8 @@ export async function POST(
         currentAssignment.employee.rut || '',
         data.estadoDevolucion,
         `Reasignación: ${data.motivoReasignacion}`,
-        usuario
+        usuario,
+        tx
       );
 
       // 5. Registrar historial: nueva asignación
@@ -123,7 +129,8 @@ export async function POST(
         newEmployee.rut || '',
         data.lugarEntrega || '',
         data.entregadoPor || usuario,
-        usuario
+        usuario,
+        tx
       );
 
       return newAssignment;

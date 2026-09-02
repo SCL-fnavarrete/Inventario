@@ -5,13 +5,33 @@ import { assetHistoryService } from "@/lib/services/assetHistoryService";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
+/**
+ * Tope de filas por pagina. Protege la base de un ?limit arbitrario.
+ *
+ * 500 y no menos: SelectorActivos (guias de despacho) pide limit=200 para
+ * llenar su lista de una vez. Un tope por debajo de eso truncaria ese
+ * selector en silencio, que es peor que no tener tope.
+ */
+const LIMITE_MAXIMO_PAGINA = 500;
+
 export async function GET(request: NextRequest) {
   try {
     await requirePermission('activos', 'read');
 
     const searchParams = request.nextUrl.searchParams;
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
+
+    // Paginacion saneada: sin esto, ?page=abc daba NaN y reventaba en Prisma,
+    // ?limit=999999 arrastraba la tabla entera y ?limit=0 devolvia
+    // pages: Infinity. Un entero fuera de rango se corrige al limite, no
+    // rechaza la peticion: el listado siempre responde algo utilizable.
+    const enteroEnRango = (valor: string | null, pordefecto: number, minimo: number, maximo: number) => {
+      const n = Number.parseInt(valor ?? "", 10);
+      if (!Number.isFinite(n)) return pordefecto;
+      return Math.min(Math.max(n, minimo), maximo);
+    };
+
+    const page = enteroEnRango(searchParams.get("page"), 1, 1, Number.MAX_SAFE_INTEGER);
+    const limit = enteroEnRango(searchParams.get("limit"), 10, 1, LIMITE_MAXIMO_PAGINA);
     const search = searchParams.get("search") || "";
     const estado = searchParams.get("estado") || "";
     const categoriaId = searchParams.get("categoriaId") || "";

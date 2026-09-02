@@ -24,6 +24,7 @@ export default function NuevoActivoPage() {
     estado: "disponible",
     condicion: "nuevo",
     fechaCompra: "",
+    fechaGarantiaFin:"",
     procesador: "",
     ram: "",
     almacenamiento: "",
@@ -74,6 +75,7 @@ export default function NuevoActivoPage() {
         estado: formData.estado,
         condicion: formData.condicion,
         fechaCompra: formData.fechaCompra || null,
+        fechaGarantiaFin: formData.fechaGarantiaFin || null,
         procesador: formData.procesador || null,
         ram: formData.ram || null,
         discoDuro: formData.almacenamiento || null,
@@ -258,6 +260,21 @@ export default function NuevoActivoPage() {
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Fin de Garantia
+              </label>
+              <input
+                type="date"
+                name="fechaGarantiaFin"
+                value={formData.fechaGarantiaFin}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Opcional. El dashboard avisa cuando faltan 30 dias para vencer.
+              </p>
             </div>
           </div>
         </div>

@@ -14,6 +14,8 @@ describe('assetStateMachine — canTransitionAsset', () => {
   const validTransitions: [EstadoActivo, EstadoActivo][] = [
     ['disponible', 'asignado'],
     ['disponible', 'en_mantencion'],
+    // Baja sin uso previo: un equipo puede descartarse sin haber sido asignado.
+    ['disponible', 'baja'],
     ['asignado', 'reutilizable'],
     ['asignado', 'baja'],
     ['asignado', 'en_mantencion'],
@@ -32,7 +34,6 @@ describe('assetStateMachine — canTransitionAsset', () => {
 
   // Transiciones inválidas
   const invalidTransitions: [EstadoActivo, EstadoActivo][] = [
-    ['disponible', 'baja'],
     ['disponible', 'vendido'],
     ['disponible', 'reutilizable'],
     ['asignado', 'vendido'],
@@ -56,8 +57,8 @@ describe('assetStateMachine — canTransitionAsset', () => {
 });
 
 describe('assetStateMachine — getValidTransitions', () => {
-  test('disponible puede ir a asignado y en_mantencion', () => {
-    expect(getValidTransitions('disponible')).toEqual(['asignado', 'en_mantencion']);
+  test('disponible puede ir a asignado, en_mantencion y baja', () => {
+    expect(getValidTransitions('disponible')).toEqual(['asignado', 'en_mantencion', 'baja']);
   });
 
   test('asignado puede ir a reutilizable, baja y en_mantencion', () => {

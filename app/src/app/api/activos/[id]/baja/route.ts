@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { assetBajaSchema } from '@/lib/validations/assetTransition';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, ConflictError } from '@/lib/auth/guard';
 
 // SPEC 2.7.3: Proceso de Baja
 export async function POST(
@@ -39,6 +39,11 @@ export async function POST(
 
     if (!asset) {
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
+    }
+
+    // Un registro descartado es basura de importacion: no genera movimientos.
+    if (asset.deletedAt) {
+      throw new ConflictError('Este activo esta descartado y no admite movimientos');
     }
 
     // SPEC: Si tiene asignación activa, bloquear
@@ -90,7 +95,13 @@ export async function POST(
       });
 
       // Registrar en historial (reutiliza assetHistoryService)
-      await assetHistoryService.registrarBaja(id, motivoCompleto, data.condicionFinal, usuario);
+      await assetHistoryService.registrarBaja(
+        id,
+        motivoCompleto,
+        data.condicionFinal,
+        usuario,
+        tx
+      );
 
       return updated;
     });

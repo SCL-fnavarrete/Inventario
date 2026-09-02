@@ -77,7 +77,8 @@ export const assetHistoryService = {
     empleadoRut: string,
     lugarEntrega?: string,
     entregadoPor?: string,
-    usuario?: string
+    usuario?: string,
+    tx?: PrismaTx
   ) {
     return this.registrar({
       assetId,
@@ -91,7 +92,7 @@ export const assetHistoryService = {
         fechaAsignacion: new Date().toISOString(),
       },
       usuarioSistema: usuario,
-    })
+    }, tx)
   },
 
   /**
@@ -103,7 +104,8 @@ export const assetHistoryService = {
     empleadoRut: string,
     estadoDevolucion: string,
     observaciones?: string,
-    usuario?: string
+    usuario?: string,
+    tx?: PrismaTx
   ) {
     return this.registrar({
       assetId,
@@ -117,7 +119,7 @@ export const assetHistoryService = {
         fechaDevolucion: new Date().toISOString(),
       },
       usuarioSistema: usuario,
-    })
+    }, tx)
   },
 
   /**
@@ -201,7 +203,8 @@ export const assetHistoryService = {
     assetId: string,
     motivo: string,
     condicionFinal: string,
-    usuario?: string
+    usuario?: string,
+    tx?: PrismaTx
   ) {
     return this.registrar({
       assetId,
@@ -213,7 +216,7 @@ export const assetHistoryService = {
         fechaBaja: new Date().toISOString(),
       },
       usuarioSistema: usuario,
-    })
+    }, tx)
   },
 
   /**
@@ -223,7 +226,8 @@ export const assetHistoryService = {
     assetId: string,
     comprador?: string,
     monto?: number,
-    usuario?: string
+    usuario?: string,
+    tx?: PrismaTx
   ) {
     return this.registrar({
       assetId,
@@ -235,7 +239,7 @@ export const assetHistoryService = {
         fechaVenta: new Date().toISOString(),
       },
       usuarioSistema: usuario,
-    })
+    }, tx)
   },
 
   /**
