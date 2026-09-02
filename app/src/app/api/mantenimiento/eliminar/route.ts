@@ -35,17 +35,31 @@ export async function POST(request: NextRequest) {
     await prisma.$transaction(async (tx:Prisma.TransactionClient) => {
       switch (tipo) {
         case "activos":
-          // Eliminar en orden para respetar las relaciones
-          // Eliminar asignaciones
-          await tx.assignment.deleteMany({});
-          // Eliminar mantenciones
-          await tx.maintenance.deleteMany({});
-          // Eliminar relación compra-activo
-          await tx.purchaseAsset.deleteMany({});
-          // Finalmente eliminar activos
-          const activosResult = await tx.asset.deleteMany({});
+          // SPEC 2.7.7 / NF-03: un activo con historial de auditoría o guías
+          // de despacho asociadas es evidencia y nunca se borra, ni siquiera
+          // desde este panel de administración. Solo se eliminan los activos
+          // "limpios" -- sin historial ni guías -- típicamente datos de
+          // prueba o duplicados de importación.
+          const activosBorrables = await tx.asset.findMany({
+            where: {
+              history: { none: {} },
+              dispatchItems: { none: {} },
+            },
+            select: { id: true },
+          });
+          const idsBorrables = activosBorrables.map((a) => a.id);
+
+          await tx.assignment.deleteMany({ where: { assetId: { in: idsBorrables } } });
+          await tx.maintenance.deleteMany({ where: { assetId: { in: idsBorrables } } });
+          await tx.purchaseAsset.deleteMany({ where: { assetId: { in: idsBorrables } } });
+
+          const activosResult = await tx.asset.deleteMany({ where: { id: { in: idsBorrables } } });
           deletedCount = activosResult.count;
-          message = `Se eliminaron ${deletedCount} activos y sus datos relacionados (asignaciones, mantenciones).`;
+
+          const activosConservados = await tx.asset.count();
+          message = deletedCount > 0
+            ? `Se eliminaron ${deletedCount} activos sin historial de auditoría. ${activosConservados} activos se conservaron porque tienen historial o guías de despacho asociadas.`
+            : `No se eliminó ningún activo: los ${activosConservados} activos existentes tienen historial de auditoría o guías de despacho asociadas.`;
           break;
 
         case "empleados":

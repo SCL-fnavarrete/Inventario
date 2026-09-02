@@ -40,10 +40,10 @@ const deleteOptions: DeleteOption[] = [
   {
     id: "activos",
     label: "Activos",
-    description: "Eliminar todos los activos del sistema",
+    description: "Eliminar activos sin historial de auditoría (datos de prueba)",
     icon: Laptop,
     color: "text-blue-600 bg-blue-100",
-    warning: "Esto eliminará todos los equipos, incluyendo su historial y asignaciones relacionadas.",
+    warning: "Solo se eliminan los activos que no tienen historial ni guías de despacho asociadas. Los activos con historial se conservan siempre.",
   },
   {
     id: "empleados",
@@ -68,14 +68,6 @@ const deleteOptions: DeleteOption[] = [
     icon: Wrench,
     color: "text-orange-600 bg-orange-100",
     warning: "Esto eliminará todo el historial de mantenciones programadas y realizadas.",
-  },
-  {
-    id: "historial",
-    label: "Historial de Activos",
-    description: "Eliminar todo el historial de movimientos",
-    icon: FileText,
-    color: "text-gray-600 bg-gray-100",
-    warning: "Esto eliminará la trazabilidad de todos los activos. No se podrá recuperar.",
   },
   {
     id: "compras",
