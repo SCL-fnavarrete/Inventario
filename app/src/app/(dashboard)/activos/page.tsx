@@ -77,6 +77,7 @@ type StatsData = {
     en_mantencion: number;
     reutilizable: number;
     baja: number;
+    vendido: number;
   };
   byCategory: Array<{ id: string; nombre: string; count: number }>;
   byCondition: Record<string, number>;

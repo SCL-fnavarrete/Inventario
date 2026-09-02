@@ -7,6 +7,7 @@ import {
   Wrench,
   RefreshCw,
   XCircle,
+  DollarSign,
   Loader2
 } from "lucide-react";
 
@@ -18,6 +19,7 @@ interface StatsData {
     en_mantencion: number;
     reutilizable: number;
     baja: number;
+    vendido: number;
   };
 }
 
@@ -65,6 +67,12 @@ const statusConfig = {
     color: "bg-red-50 text-red-700 border-red-200 hover:bg-red-100",
     activeColor: "bg-red-600 text-white border-red-600",
   },
+  vendido: {
+    label: "Vendido",
+    icon: DollarSign,
+    color: "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200",
+    activeColor: "bg-gray-600 text-white border-gray-600",
+  },
 };
 
 export function StatsBar({ data, isLoading, selectedStatus, onStatusClick }: StatsBarProps) {
@@ -85,10 +93,11 @@ export function StatsBar({ data, isLoading, selectedStatus, onStatusClick }: Sta
     { key: "en_mantencion", value: data.byStatus.en_mantencion },
     { key: "reutilizable", value: data.byStatus.reutilizable },
     { key: "baja", value: data.byStatus.baja },
+    { key: "vendido", value:data.byStatus.vendido},
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
       {statItems.map(({ key, value }) => {
         const config = statusConfig[key as keyof typeof statusConfig];
         const Icon = config.icon;

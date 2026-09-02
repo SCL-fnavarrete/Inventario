@@ -25,6 +25,7 @@ export async function GET() {
       en_mantencion: 0,
       reutilizable: 0,
       baja: 0,
+      vendido:0,
     };
 
     byStatusRaw.forEach((item) => {
