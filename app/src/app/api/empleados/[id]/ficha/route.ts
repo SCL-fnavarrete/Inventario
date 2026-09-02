@@ -1,10 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
+
+/**
+ * Relaciones que necesita la ficha. Estaban escritas dos veces —una para la
+ * busqueda por UUID y otra por RUT— y cualquier cambio en una sin la otra
+ * hacia que la ficha devolviera datos distintos segun como se buscara.
+ */
+const RELACIONES_FICHA = {
+  // Equipos actualmente en poder del empleado
+  assignments: {
+    where: { activo: true },
+    include: {
+      asset: {
+        include: {
+          categoria: true,
+        },
+      },
+    },
+    orderBy: { fechaEntrega: "desc" },
+  },
+  // Accesorios del kit de bienvenida y EPP entregados
+  kitAssignments: {
+    include: {
+      item: true,
+    },
+    orderBy: { fechaEntrega: "desc" },
+  },
+} satisfies Prisma.EmployeeInclude;
 
 // GET /api/empleados/[id]/ficha - Obtener ficha completa del empleado (la ficha azul)
 export async function GET(request: NextRequest, { params }: RouteParams) {
@@ -15,66 +43,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Intentar buscar por UUID primero, luego por RUT
     let employee = await prisma.employee.findUnique({
       where: { id },
-      include: {
-        // Asignaciones activas de equipos
-        assignments: {
-          where: { activo: true },
-          include: {
-            asset: {
-              include: {
-                categoria: true,
-              },
-            },
-          },
-          orderBy: { fechaEntrega: "desc" },
-        },
-        // Kit de bienvenida y EPP entregados
-        kitAssignments: {
-          include: {
-            item: true,
-          },
-          orderBy: { fechaEntrega: "desc" },
-        },
-        // Historial de todas las asignaciones
-        activosActuales: {
-          include: {
-            categoria: true,
-          },
-        },
-      },
+      include: RELACIONES_FICHA,
     });
 
     // Si no se encuentra por UUID, intentar buscar por RUT
     if (!employee) {
       employee = await prisma.employee.findUnique({
         where: { rut: id },
-        include: {
-          // Asignaciones activas de equipos
-          assignments: {
-            where: { activo: true },
-            include: {
-              asset: {
-                include: {
-                  categoria: true,
-                },
-              },
-            },
-            orderBy: { fechaEntrega: "desc" },
-          },
-          // Kit de bienvenida y EPP entregados
-          kitAssignments: {
-            include: {
-              item: true,
-            },
-            orderBy: { fechaEntrega: "desc" },
-          },
-          // Historial de todas las asignaciones
-          activosActuales: {
-            include: {
-              categoria: true,
-            },
-          },
-        },
+        include: RELACIONES_FICHA,
       });
     }
 
@@ -85,8 +61,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Organizar datos para la ficha azul
-    const activeAssignments = employee.assignments.filter((a) => a.activo);
+    // La consulta ya trae solo las asignaciones activas.
+    const activeAssignments = employee.assignments;
 
     // Separar por categoría - Soportar múltiples equipos por categoría
     const notebooks = activeAssignments.filter(
