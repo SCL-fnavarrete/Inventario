@@ -43,8 +43,8 @@ type Asset = {
   marca: string;
   modelo: string;
   numeroSerie: string | null;
-  estado: "disponible" | "asignado" | "en_mantencion" | "reutilizable" | "baja";
-  condicion: "nuevo" | "bueno" | "regular" | "malo";
+  estado: "disponible" | "asignado" | "en_mantencion" | "reutilizable" | "baja" | "vendido";
+  condicion: "nuevo" | "usado" | "danado";
   procesador: string | null;
   ram: string | null;
   discoDuro: string | null;
@@ -115,18 +115,19 @@ const estadoLabels: Record<string, string> = {
   vendido: "Vendido",
 };
 
+// Los valores son los del enum CondicionActivo (nuevo | usado | danado).
+// Antes este mapa listaba bueno/regular/malo, que no existen en el dominio:
+// dos de los tres valores reales quedaban sin etiqueta y la celda salia vacia.
 const condicionColors: Record<string, string> = {
   nuevo: "bg-emerald-50 text-emerald-700",
-  bueno: "bg-blue-50 text-blue-700",
-  regular: "bg-amber-50 text-amber-700",
-  malo: "bg-red-50 text-red-700",
+  usado: "bg-blue-50 text-blue-700",
+  danado: "bg-red-50 text-red-700",
 };
 
 const condicionLabels: Record<string, string> = {
   nuevo: "Nuevo",
-  bueno: "Bueno",
-  regular: "Regular",
-  malo: "Malo",
+  usado: "Usado",
+  danado: "Dañado",
 };
 
 function getCategoryIcon(categoryName: string) {

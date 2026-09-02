@@ -40,14 +40,19 @@ const condicionLabels: Record<string, string> = {
   danado: "Dañado",
 };
 
+// Cubre el enum TipoEvento completo. Faltaban venta, actualizacion_specs y
+// solicitud_workflow, que se mostraban crudos ("venta", "actualizacion_specs")
+// en un historial que es evidencia de auditoria.
 const tipoEventoLabels: Record<string, string> = {
   creacion: "Creación",
   asignacion: "Asignación",
   devolucion: "Devolución",
   mantencion: "Mantención",
   cambio_estado: "Cambio de Estado",
+  actualizacion_specs: "Actualización de Specs",
   baja: "Baja",
-  otro: "Otro",
+  venta: "Venta",
+  solicitud_workflow: "Solicitud",
 };
 
 function getCategoryIcon(categoryName: string) {

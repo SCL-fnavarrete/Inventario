@@ -25,8 +25,8 @@ interface AssetData {
   numeroActivoInterno: string | null;
   marca: string;
   modelo: string;
-  estado: "disponible" | "asignado" | "en_mantencion" | "reutilizable" | "baja";
-  condicion: "nuevo" | "bueno" | "regular" | "malo";
+  estado: "disponible" | "asignado" | "en_mantencion" | "reutilizable" | "baja" | "vendido";
+  condicion: "nuevo" | "usado" | "danado";
   procesador?: string | null;
   ram?: string | null;
   discoDuro?: string | null;
@@ -81,18 +81,17 @@ function CategoryIcon({ categoria, className }: { categoria: string; className?:
   return createElement(getCategoryIcon(categoria), { className });
 }
 
+// Valores del enum CondicionActivo: nuevo | usado | danado.
 const conditionColors: Record<string, string> = {
   nuevo: "bg-emerald-100 text-emerald-700",
-  bueno: "bg-blue-100 text-blue-700",
-  regular: "bg-amber-100 text-amber-700",
-  malo: "bg-red-100 text-red-700",
+  usado: "bg-blue-100 text-blue-700",
+  danado: "bg-red-100 text-red-700",
 };
 
 const conditionLabels: Record<string, string> = {
   nuevo: "Nuevo",
-  bueno: "Bueno",
-  regular: "Regular",
-  malo: "Malo",
+  usado: "Usado",
+  danado: "Dañado",
 };
 
 export function AssetCard({ asset, compact = false }: AssetCardProps) {

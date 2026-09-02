@@ -62,6 +62,10 @@ export async function GET() {
     // Obtener conteo por condición
     const byConditionRaw = await prisma.asset.groupBy({
       by: ["condicion"],
+      // Sin este where, el conteo por condicion incluia los registros
+      // descartados, mientras total, byStatus y byCategory si los excluian:
+      // el mismo endpoint respondia con dos universos distintos.
+      where: ACTIVOS_VIGENTES,
       _count: {
         condicion: true,
       },
@@ -69,9 +73,8 @@ export async function GET() {
 
     const byCondition: Record<string, number> = {
       nuevo: 0,
-      bueno: 0,
-      regular: 0,
-      malo: 0,
+      usado: 0,
+      danado: 0,
     };
 
     byConditionRaw.forEach((item) => {

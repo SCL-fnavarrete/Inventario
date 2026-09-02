@@ -18,8 +18,8 @@ interface AssetData {
   numeroActivoInterno: string | null;
   marca: string;
   modelo: string;
-  estado: "disponible" | "asignado" | "en_mantencion" | "reutilizable" | "baja";
-  condicion: "nuevo" | "bueno" | "regular" | "malo";
+  estado: "disponible" | "asignado" | "en_mantencion" | "reutilizable" | "baja" | "vendido";
+  condicion: "nuevo" | "usado" | "danado";
   procesador?: string | null;
   ram?: string | null;
   discoDuro?: string | null;
