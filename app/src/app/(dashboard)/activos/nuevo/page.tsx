@@ -220,19 +220,9 @@ export default function NuevoActivoPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Estado
               </label>
-              <select
-                name="estado"
-                value={formData.estado}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="disponible">Disponible</option>
-                <option value="asignado">Asignado</option>
-                <option value="en_mantencion">En Mantencion</option>
-                <option value="reutilizable">Reutilizable</option>
-                <option value="baja">Baja</option>
-                <option value="vendido">Vendido</option>
-              </select>
+              <p className="px-4 py-2 text-gray-600 bg-gray-50 border border-gray-200 rounded-lg">
+                Disponible
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

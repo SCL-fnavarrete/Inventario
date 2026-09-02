@@ -76,6 +76,12 @@ export const createAssetSchema = assetSchema.extend({
   categoriaId: z.string().uuid("ID de categoria invalido"),
   marca: z.string().min(1, "La marca es requerida").max(50, "Maximo 50 caracteres"),
   modelo: z.string().min(1, "El modelo es requerido").max(100, "Maximo 100 caracteres"),
+  // Todo equipo que se registra nace disponible: es la unica posicion inicial
+  // que el formulario puede respaldar con datos. 'asignado' exige empleado y
+  // asignacion (eso lo hace la importacion, no el alta manual) y 'reutilizable'
+  // significa "volvio de un empleado", que un equipo recien creado no hizo.
+  // El desgaste fisico no va aqui: para eso esta el campo condicion.
+  estado: z.literal("disponible").optional().default("disponible"),
 });
 
 // Schema para actualizar activo (todos opcionales)
