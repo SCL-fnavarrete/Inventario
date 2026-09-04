@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { returnAssignmentSchema } from "@/lib/validations/assignment";
+import { executeReturn } from "@/lib/services/workflowExecutionService";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 interface RouteParams {
@@ -84,65 +85,34 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const data = validationResult.data;
 
-    // SPEC 2.7.7: Destino automático del activo según estado de devolución
-    let nuevoEstadoActivo: "reutilizable" | "baja" = "reutilizable";
-    if (data.estadoDevolucion === "danado") {
-      nuevoEstadoActivo = "baja"; // SPEC: danado → baja
+    // Una devolucion anterior a la entrega no es un dato raro: es un dato
+    // imposible. El schema valida cada fecha por separado; la relacion entre
+    // las dos solo se puede comprobar aqui, que es donde se conoce la entrega.
+    if (data.fechaDevolucion < existingAssignment.fechaEntrega) {
+      return NextResponse.json(
+        {
+          error: `La fecha de devolución no puede ser anterior a la de entrega (${existingAssignment.fechaEntrega.toLocaleDateString("es-CL")})`,
+        },
+        { status: 400 }
+      );
     }
-    // ok → reutilizable, incompleto → reutilizable
 
-    // Actualizar asignación y activo en una transacción
-    const result = await prisma.$transaction(async (tx) => {
-      // Actualizar asignación
-      const assignment = await tx.assignment.update({
-        where: { id },
-        data: {
-          fechaDevolucion: data.fechaDevolucion,
-          recibidoPor: data.recibidoPor,
-          estadoDevolucion: data.estadoDevolucion,
-          observacionesDevolucion: data.observacionesDevolucion,
-          activo: false,
-        },
-        include: {
-          asset: {
-            include: { categoria: true },
-          },
-          employee: true,
-        },
-      });
-
-      // Actualizar estado del activo (SPEC 2.7.7)
-      await tx.asset.update({
-        where: { id: existingAssignment.assetId },
-        data: {
-          estado: nuevoEstadoActivo,
-          condicion: data.estadoDevolucion === "danado" ? "danado" : "usado",
-          empleadoActualId: null,
-          ...(nuevoEstadoActivo === "baja" && { fechaBaja: new Date() }),
-        },
-      });
-
-      // Registrar en historial
-      await tx.assetHistory.create({
-        data: {
-          assetId: existingAssignment.assetId,
-          tipoEvento: "devolucion",
-          descripcion: `Devuelto por ${existingAssignment.employee.nombres} ${existingAssignment.employee.apellidoPaterno}. Estado: ${data.estadoDevolucion}`,
-          datosAnteriores: {
-            estado: "asignado",
-            empleadoActualId: existingAssignment.employeeId,
-          },
-          datosNuevos: {
-            estado: nuevoEstadoActivo,
-            empleadoActualId: null,
-            estadoDevolucion: data.estadoDevolucion,
-          },
-          usuarioSistema: data.recibidoPor || "Sistema",
-        },
-      });
-
-      return assignment;
-    });
+    // La devolucion vive en executeReturn, la misma funcion que usa el flujo de
+    // solicitudes. Antes esta ruta tenia su propia copia y las dos ya habian
+    // divergido: esta comprobaba que la asignacion siguiera activa y la otra
+    // no, y esta escribia en el historial que el estado anterior era
+    // "asignado" sin mirar cual era en realidad. El destino del activo
+    // (SPEC 2.7.7: danado -> baja, el resto -> reutilizable) tambien se decide
+    // ahora en un solo lugar.
+    const result = await prisma.$transaction((tx) =>
+      executeReturn(tx, {
+        assignmentId: id,
+        fechaDevolucion: data.fechaDevolucion,
+        recibidoPor: data.recibidoPor,
+        estadoDevolucion: data.estadoDevolucion,
+        observacionesDevolucion: data.observacionesDevolucion,
+      })
+    );
 
     return NextResponse.json(result);
   } catch (error) {

@@ -110,7 +110,13 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
 
   if (!assignment) throw new Error('Asignación no encontrada');
 
-  await tx.assignment.update({
+  // Sin esta comprobacion se podia devolver dos veces el mismo equipo: la
+  // segunda devolucion sobreescribia la fecha y el estado de la primera. La
+  // ruta PUT ya lo verificaba por su cuenta; esta funcion, que es la que usa
+  // el flujo de solicitudes, no.
+  if (!assignment.activo) throw new Error('Esta asignación ya fue devuelta');
+
+  const actualizada = await tx.assignment.update({
     where: { id: params.assignmentId },
     data: {
       activo: false,
@@ -118,6 +124,10 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       recibidoPor: params.recibidoPor,
       estadoDevolucion: params.estadoDevolucion,
       observacionesDevolucion: params.observacionesDevolucion,
+    },
+    include: {
+      asset: { include: { categoria: true } },
+      employee: true,
     },
   });
 
@@ -130,6 +140,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       estado: nuevoEstado,
       condicion: params.estadoDevolucion === 'danado' ? 'danado' : 'usado',
       empleadoActualId: null,
+      ...(nuevoEstado === 'baja' && { fechaBaja: new Date() }),
     },
   });
 
@@ -142,12 +153,18 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
         estado: assignment.asset.estado,
         empleadoActualId: assignment.asset.empleadoActualId,
       },
-      datosNuevos: { estado: nuevoEstado, empleadoActualId: null },
+      datosNuevos: {
+        estado: nuevoEstado,
+        empleadoActualId: null,
+        estadoDevolucion: params.estadoDevolucion,
+      },
       usuarioSistema: params.recibidoPor || 'Sistema',
     },
   });
 
-  return assignment;
+  // Se devuelve la asignacion ya actualizada, no la que se leyo al entrar:
+  // esa todavia dice activo: true y sin fecha de devolucion.
+  return actualizada;
 }
 
 /**

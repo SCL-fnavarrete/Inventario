@@ -271,3 +271,56 @@ describe('Assignment Validation - assignmentFiltersSchema', () => {
     expect(result.success).toBe(false)
   })
 })
+
+// Reglas nuevas de las fechas. Antes fechaEntrega y fechaDevolucion eran
+// z.string().transform(val => new Date(val)) sin comprobar nada: un texto
+// cualquiera producia un Invalid Date que solo reventaba al llegar a la base,
+// y una entrega fechada en 2050 entraba sin objeciones.
+describe('Assignment Validation - reglas de fecha', () => {
+  const base = {
+    assetId: '550e8400-e29b-41d4-a716-446655440000',
+    employeeId: '550e8400-e29b-41d4-a716-446655440001',
+    tipoMovimiento: 'ingreso' as const,
+  }
+
+  const mensajes = (r: ReturnType<typeof createAssignmentSchema.safeParse>) =>
+    r.success ? [] : r.error.issues.map((i) => i.message)
+
+  test('rechaza una fecha de entrega futura', () => {
+    const dentroDeUnAnio = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+    const result = createAssignmentSchema.safeParse({ ...base, fechaEntrega: dentroDeUnAnio })
+    expect(result.success).toBe(false)
+    expect(mensajes(result)).toContain('La fecha no puede ser futura')
+  })
+
+  test('rechaza un texto que no es fecha en vez de crear un Invalid Date', () => {
+    const result = createAssignmentSchema.safeParse({ ...base, fechaEntrega: 'cualquier cosa' })
+    expect(result.success).toBe(false)
+    expect(mensajes(result)).toContain('Fecha invalida')
+  })
+
+  test('rechaza la fecha vacia', () => {
+    const result = createAssignmentSchema.safeParse({ ...base, fechaEntrega: '' })
+    expect(result.success).toBe(false)
+    expect(mensajes(result)).toContain('La fecha es requerida')
+  })
+
+  test('acepta hoy, que es el caso normal de una entrega', () => {
+    const hoy = new Date()
+    const iso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}T12:00:00`
+    expect(createAssignmentSchema.safeParse({ ...base, fechaEntrega: iso }).success).toBe(true)
+  })
+
+  test('la devolucion aplica las mismas reglas', () => {
+    const futura = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+    expect(
+      returnAssignmentSchema.safeParse({ fechaDevolucion: futura, estadoDevolucion: 'ok' }).success
+    ).toBe(false)
+    expect(
+      returnAssignmentSchema.safeParse({ fechaDevolucion: 'ayer', estadoDevolucion: 'ok' }).success
+    ).toBe(false)
+    expect(
+      returnAssignmentSchema.safeParse({ fechaDevolucion: '2025-07-01T12:00:00', estadoDevolucion: 'ok' }).success
+    ).toBe(true)
+  })
+})
