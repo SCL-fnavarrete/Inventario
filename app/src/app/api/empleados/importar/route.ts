@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import * as XLSX from "xlsx";
 import { formatearRut, validarDigitoVerificador, limpiarRut } from "@/lib/validations/rut";
+import { convertExcelDateValue, parseDDMMYYYYToDate } from "@/lib/excel-utils";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // Constantes de seguridad para archivos
@@ -47,7 +48,11 @@ export async function POST(request: NextRequest) {
 
     // Leer archivo Excel
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "array" });
+    // raw: true evita que SheetJS interprete las fechas por su cuenta. Sin esta
+    // opcion lee 01/12/2024 como 12 de enero (convencion estadounidense) y el
+    // valor llega ya corrompido a nuestro parseador, que si sabe leer el
+    // formato chileno. La libreria no sabe de donde vienen los datos; nosotros si.
+    const workbook = XLSX.read(buffer, { type: "array", raw: true });
 
     const sheet = workbook.Sheets[sheetName || workbook.SheetNames[0]];
     const rawData = XLSX.utils.sheet_to_json(sheet, { defval: "" });
@@ -68,35 +73,56 @@ export async function POST(request: NextRequest) {
       telefonoContacto: ["Teléfono", "Telefono", "telefono", "TELEFONO", "Celular", "Fono"],
     };
 
-    function findColumnValue(row: Record<string, unknown>, mappings: string[]): string {
+    /**
+     * Valor de la primera columna que exista y tenga contenido.
+     *
+     * `undefined` significa "esta columna no viene en el archivo, o su celda
+     * esta vacia". La importacion nunca borra un dato que el archivo no trae:
+     * antes devolvia "" y el llamador lo convertia en null, de modo que
+     * reimportar un archivo con menos columnas vaciaba lo ya cargado.
+     */
+    function valorColumna(row: Record<string, unknown>, mappings: string[]): string | undefined {
       for (const mapping of mappings) {
-        if (row[mapping] !== undefined && row[mapping] !== "") {
-          return String(row[mapping]);
-        }
+        const bruto = row[mapping];
+        if (bruto === undefined || bruto === null) continue;
+        const valor = String(bruto).trim();
+        if (valor !== "") return valor;
       }
-      return "";
+      return undefined;
     }
 
-    function parseTipoContrato(value: string): "planta" | "proyecto" | "externo" {
+        /**
+     * Traduce el texto del Excel a un tipo de contrato del sistema.
+     *   undefined -> la columna no viene en el archivo
+     *   null      -> viene, pero con un valor que no reconocemos
+     *
+     * Antes devolvia "proyecto" para todo lo desconocido, asi que un Excel con
+     * "Contrata" o "Plazo Fijo" clasificaba mal a todo el mundo en silencio.
+     */
+    function parseTipoContrato(
+      value: string | undefined
+    ): "planta" | "proyecto" | "externo" | null | undefined {
+      if (value === undefined) return undefined;
       const lower = value.toLowerCase().trim();
       if (lower.includes("planta") || lower === "indefinido") return "planta";
+      if (lower.includes("proyecto") || lower.includes("plazo")) return "proyecto";
       if (lower.includes("externo") || lower.includes("honorario")) return "externo";
-      return "proyecto";
+      return null;
     }
 
+    /**
+     * Interpreta la fecha del Excel en formato chileno (dd-mm-aaaa o
+     * dd/mm/aaaa) reutilizando el utilitario compartido, el mismo que usa la
+     * importacion de activos.
+     *
+     * Antes esta ruta tenia su propio parseador con new Date(), que lee al
+     * estilo estadounidense: 01/12/2024 se guardaba como 12 de enero y
+     * 31/12/2024 se perdia entero. Y estaba probado en ningun sitio, mientras
+     * el compartido si tiene tests.
+     */
     function parseDate(value: unknown): Date | null {
-      if (!value) return null;
-
-      // Si es un número (fecha serial de Excel)
-      if (typeof value === "number") {
-        const date = XLSX.SSF.parse_date_code(value);
-        return new Date(date.y, date.m - 1, date.d);
-      }
-
-      // Si es string, intentar parsear
-      const strValue = String(value);
-      const date = new Date(strValue);
-      return isNaN(date.getTime()) ? null : date;
+      if (value === undefined || value === null || value === "") return null;
+      return parseDDMMYYYYToDate(convertExcelDateValue(value));
     }
 
     // Procesar filas
@@ -111,7 +137,7 @@ export async function POST(request: NextRequest) {
       const rowNum = i + 2; // +2 porque la fila 1 es header
 
       try {
-        const rutRaw = findColumnValue(row, columnMappings.rut);
+        const rutRaw = valorColumna(row, columnMappings.rut);
 
         if (!rutRaw) {
           results.errors.push({
@@ -134,9 +160,9 @@ export async function POST(request: NextRequest) {
         }
 
         const rut = formatearRut(rutRaw);
-        const nombres = findColumnValue(row, columnMappings.nombres);
-        const apellidoPaterno = findColumnValue(row, columnMappings.apellidoPaterno);
-        const correo = findColumnValue(row, columnMappings.correo);
+        const nombres = valorColumna(row, columnMappings.nombres);
+        const apellidoPaterno = valorColumna(row, columnMappings.apellidoPaterno);
+        const correo = valorColumna(row, columnMappings.correo);
 
         // Validar campos requeridos
         if (!nombres) {
@@ -152,22 +178,64 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+
         // Preparar datos
+        const tipoContrato = parseTipoContrato(valorColumna(row, columnMappings.tipoContrato));
+
+        if (tipoContrato === null) {
+          results.errors.push({
+            row: rowNum,
+            rut,
+            error: `Tipo de contrato no reconocido: "${valorColumna(row, columnMappings.tipoContrato)}"`,
+          });
+          continue;
+        }
+
+        // Solo se escriben los campos que el archivo trae. Un campo ausente se
+        // omite del objeto, y Prisma no lo toca.
+        const apellidoMaterno = valorColumna(row, columnMappings.apellidoMaterno);
+        const cargo = valorColumna(row, columnMappings.cargo);
+        const jefatura = valorColumna(row, columnMappings.jefatura);
+        const supervisor = valorColumna(row, columnMappings.supervisor);
+        const ubicacion = valorColumna(row, columnMappings.ubicacion);
+        const telefonoContacto = valorColumna(row, columnMappings.telefonoContacto);
+
+        // El valor crudo, sin pasar por texto: si el Excel guarda la fecha como
+        // numero de serie, parseDate necesita ese numero.
+        const claveFecha = Object.keys(row).find((k) =>
+          columnMappings.fechaIngreso.includes(k)
+        );
+        const fechaIngresoBruta = claveFecha === undefined ? undefined : row[claveFecha];
+
+        // Una fecha que no se puede interpretar detiene la fila y lo dice: antes
+        // se guardaba como null y nadie se enteraba de que se habia perdido.
+        let fechaIngreso: Date | undefined;
+        if (fechaIngresoBruta !== undefined && fechaIngresoBruta !== "") {
+          const parseada = parseDate(fechaIngresoBruta);
+          if (parseada === null) {
+            results.errors.push({
+              row: rowNum,
+              rut,
+              error: `Fecha de ingreso no reconocida: "${String(fechaIngresoBruta)}" (se espera dd-mm-aaaa)`,
+            });
+            continue;
+          }
+          fechaIngreso = parseada;
+        }
+
         const employeeData = {
           rut,
           nombres,
           apellidoPaterno,
-          apellidoMaterno: findColumnValue(row, columnMappings.apellidoMaterno) || null,
           correo: correo.toLowerCase(),
-          cargo: findColumnValue(row, columnMappings.cargo) || null,
-          jefatura: findColumnValue(row, columnMappings.jefatura) || null,
-          supervisor: findColumnValue(row, columnMappings.supervisor) || null,
-          ubicacion: findColumnValue(row, columnMappings.ubicacion) || null,
-          tipoContrato: parseTipoContrato(findColumnValue(row, columnMappings.tipoContrato)),
-          fechaIngreso: parseDate(row[Object.keys(row).find(k =>
-            columnMappings.fechaIngreso.includes(k)
-          ) || ""]),
-          telefonoContacto: findColumnValue(row, columnMappings.telefonoContacto) || null,
+          ...(apellidoMaterno !== undefined && { apellidoMaterno }),
+          ...(cargo !== undefined && { cargo }),
+          ...(jefatura !== undefined && { jefatura }),
+          ...(supervisor !== undefined && { supervisor }),
+          ...(ubicacion !== undefined && { ubicacion }),
+          ...(telefonoContacto !== undefined && { telefonoContacto }),
+          ...(tipoContrato !== undefined && { tipoContrato }),
+          ...(fechaIngreso !== undefined && { fechaIngreso }),
         };
 
         // Verificar si ya existe
@@ -197,16 +265,28 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
+          // El tipo de contrato es obligatorio en la base y no tiene valor por
+          // defecto: al crear tiene que venir. Al actualizar, en cambio, su
+          // ausencia significa "no lo toques", y por eso solo se exige aqui.
+          if (tipoContrato === undefined) {
+            results.errors.push({
+              row: rowNum,
+              rut,
+              error: "Falta el tipo de contrato (columna ausente o celda vacia)",
+            });
+            continue;
+          }
+
           // Crear
           await prisma.employee.create({
-            data: employeeData,
+            data: { ...employeeData, tipoContrato },
           });
           results.created++;
         }
       } catch (error) {
         results.errors.push({
           row: rowNum,
-          rut: findColumnValue(row as Record<string, unknown>, columnMappings.rut),
+          rut: valorColumna(row as Record<string, unknown>, columnMappings.rut) ?? "",
           error: error instanceof Error ? error.message : "Error desconocido",
         });
       }

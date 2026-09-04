@@ -21,7 +21,11 @@ export async function POST(request: NextRequest) {
 
     // Leer archivo Excel
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "array" });
+    // raw: true evita que SheetJS interprete las fechas por su cuenta. Sin esta
+    // opcion lee 01/12/2024 como 12 de enero (convencion estadounidense) y el
+    // valor llega ya corrompido a nuestro parseador, que si sabe leer el
+    // formato chileno. La libreria no sabe de donde vienen los datos; nosotros si.
+    const workbook = XLSX.read(buffer, { type: "array", raw: true });
 
     const sheet = workbook.Sheets[sheetName || workbook.SheetNames[0]];
     const rawData = XLSX.utils.sheet_to_json(sheet, { defval: "" });

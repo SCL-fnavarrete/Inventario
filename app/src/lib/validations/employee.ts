@@ -3,6 +3,27 @@ import { rutSchema, rutOptionalSchema } from "./rut";
 
 // Enums que coinciden con Prisma
 export const TipoContratoEnum = z.enum(["planta", "proyecto", "externo"]);
+
+/**
+ * Fecha opcional que distingue tres casos:
+ *   - ausente (undefined): el campo no viene en la peticion -> no se toca
+ *   - vacio (null o ""):   se pide explicitamente borrarlo   -> se guarda null
+ *   - texto valido:        se convierte a Date
+ *
+ * Sin esta distincion, una actualizacion parcial borraba las fechas que ni
+ * siquiera mencionaba: el schema convertia el "ausente" en null y la ruta,
+ * que pregunta por !== undefined, lo escribia en la base.
+ */
+const fechaOpcional = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((val) => {
+    if (val === undefined) return undefined;
+    if (val === null || val === "") return null;
+    const fecha = new Date(val);
+    return isNaN(fecha.getTime()) ? null : fecha;
+  });
+
 export const EstadoEmpleadoEnum = z.enum(["activo", "desvinculado", "licencia"]);
 
 // Schema para crear un empleado
@@ -17,33 +38,13 @@ export const createEmployeeSchema = z.object({
   supervisor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   ubicacion: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   tipoContrato: TipoContratoEnum,
-  fechaIngreso: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
-  fechaTermino: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
+  fechaIngreso: fechaOpcional,
+  fechaTermino: fechaOpcional,
   estado: EstadoEmpleadoEnum.default("activo"),
   telefonoContacto: z.string().max(20, "Máximo 20 caracteres").optional().nullable(),
-  fechaEntregaKit: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
-  fechaEntregaEpp: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
-  proximaMantencionEpp: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
+  fechaEntregaKit: fechaOpcional,
+  fechaEntregaEpp: fechaOpcional,
+  proximaMantencionEpp: fechaOpcional,
 });
 
 // Schema para actualizar un empleado
@@ -58,33 +59,13 @@ export const updateEmployeeSchema = z.object({
   supervisor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   ubicacion: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   tipoContrato: TipoContratoEnum.optional(),
-  fechaIngreso: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
-  fechaTermino: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
+  fechaIngreso: fechaOpcional,
+  fechaTermino: fechaOpcional,
   estado: EstadoEmpleadoEnum.optional(),
   telefonoContacto: z.string().max(20, "Máximo 20 caracteres").optional().nullable(),
-  fechaEntregaKit: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
-  fechaEntregaEpp: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
-  proximaMantencionEpp: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
+  fechaEntregaKit: fechaOpcional,
+  fechaEntregaEpp: fechaOpcional,
+  proximaMantencionEpp: fechaOpcional,
 });
 
 // Schema para filtros de búsqueda
