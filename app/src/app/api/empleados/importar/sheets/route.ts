@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { validarArchivoExcel, leerLibro } from "@/lib/importacion/empleados";
 
 // POST /api/empleados/importar/sheets - Obtener hojas del Excel
 export async function POST(request: NextRequest) {
@@ -9,20 +10,13 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get("file") as File;
 
-    if (!file) {
-      return NextResponse.json(
-        { error: "No se proporcionó archivo" },
-        { status: 400 }
-      );
+    const problema = validarArchivoExcel(file);
+    if (problema) {
+      return NextResponse.json({ error: problema }, { status: 400 });
     }
 
-    // Leer archivo Excel
     const buffer = await file.arrayBuffer();
-    // raw: true evita que SheetJS interprete las fechas por su cuenta. Sin esta
-    // opcion lee 01/12/2024 como 12 de enero (convencion estadounidense) y el
-    // valor llega ya corrompido a nuestro parseador, que si sabe leer el
-    // formato chileno. La libreria no sabe de donde vienen los datos; nosotros si.
-    const workbook = XLSX.read(buffer, { type: "array", raw: true });
+    const workbook = leerLibro(buffer);
 
     const sheets = workbook.SheetNames.map((name) => {
       const sheet = workbook.Sheets[name];

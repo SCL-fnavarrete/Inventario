@@ -4,15 +4,16 @@ import { logger } from "@/lib/logger";
 import * as XLSX from "xlsx";
 import { formatearRut, validarDigitoVerificador, limpiarRut } from "@/lib/validations/rut";
 import { convertExcelDateValue, parseDDMMYYYYToDate } from "@/lib/excel-utils";
+import {
+  COLUMNAS_EMPLEADO,
+  validarArchivoExcel,
+  valorColumna,
+  valorCrudo,
+  leerLibro,
+  leerFilas,
+} from "@/lib/importacion/empleados";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
-// Constantes de seguridad para archivos
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ALLOWED_MIME_TYPES = [
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-excel",
-  "application/octet-stream",
-];
 
 // POST /api/empleados/importar - Importar empleados desde Excel
 export async function POST(request: NextRequest) {
@@ -23,82 +24,16 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File;
     const sheetName = formData.get("sheetName") as string;
 
-    if (!file) {
-      return NextResponse.json(
-        { error: "No se proporcionó archivo" },
-        { status: 400 }
-      );
+    const problema = validarArchivoExcel(file);
+    if (problema) {
+      return NextResponse.json({ error: problema }, { status: 400 });
     }
 
-    // Validar tamaño del archivo
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { error: "El archivo excede el tamaño máximo de 5MB" },
-        { status: 413 }
-      );
-    }
-
-    // Validar tipo MIME
-    if (!ALLOWED_MIME_TYPES.includes(file.type) && !file.name.match(/\.xlsx?$/i)) {
-      return NextResponse.json(
-        { error: "Solo se permiten archivos Excel (.xlsx, .xls)" },
-        { status: 400 }
-      );
-    }
-
-    // Leer archivo Excel
     const buffer = await file.arrayBuffer();
-    // raw: true evita que SheetJS interprete las fechas por su cuenta. Sin esta
-    // opcion lee 01/12/2024 como 12 de enero (convencion estadounidense) y el
-    // valor llega ya corrompido a nuestro parseador, que si sabe leer el
-    // formato chileno. La libreria no sabe de donde vienen los datos; nosotros si.
-    const workbook = XLSX.read(buffer, { type: "array", raw: true });
+    const workbook = leerLibro(buffer);
+    const rawData = leerFilas(workbook, sheetName);
 
-    const sheet = workbook.Sheets[sheetName || workbook.SheetNames[0]];
-    const rawData = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-    // Mapeo de columnas (flexible para diferentes formatos)
-    const columnMappings: Record<string, string[]> = {
-      rut: ["RUT", "Rut", "rut", "R.U.T.", "R.U.T"],
-      nombres: ["Nombre", "Nombres", "nombre", "nombres", "NOMBRE", "NOMBRES"],
-      apellidoPaterno: ["Apellido P", "Apellido Paterno", "apellido_paterno", "APELLIDO P", "ApellidoP"],
-      apellidoMaterno: ["Apellido M", "Apellido Materno", "apellido_materno", "APELLIDO M", "ApellidoM"],
-      correo: ["Correo", "Email", "correo", "email", "CORREO", "E-mail", "E-Mail"],
-      cargo: ["Cargo", "cargo", "CARGO", "Puesto"],
-      jefatura: ["Jefatura", "jefatura", "JEFATURA", "Jefe"],
-      supervisor: ["Supervisor", "supervisor", "SUPERVISOR"],
-      ubicacion: ["Ubicación", "Ubicacion", "ubicacion", "UBICACION", "Lugar", "Ciudad"],
-      tipoContrato: ["Tipo Contrato", "TipoContrato", "tipo_contrato", "TIPO CONTRATO", "Contrato"],
-      fechaIngreso: ["Fecha Ingreso", "FechaIngreso", "fecha_ingreso", "FECHA INGRESO", "Ingreso"],
-      telefonoContacto: ["Teléfono", "Telefono", "telefono", "TELEFONO", "Celular", "Fono"],
-    };
-
-    /**
-     * Valor de la primera columna que exista y tenga contenido.
-     *
-     * `undefined` significa "esta columna no viene en el archivo, o su celda
-     * esta vacia". La importacion nunca borra un dato que el archivo no trae:
-     * antes devolvia "" y el llamador lo convertia en null, de modo que
-     * reimportar un archivo con menos columnas vaciaba lo ya cargado.
-     */
-    function valorColumna(row: Record<string, unknown>, mappings: string[]): string | undefined {
-      for (const mapping of mappings) {
-        const bruto = row[mapping];
-        if (bruto === undefined || bruto === null) continue;
-        const valor = String(bruto).trim();
-        if (valor !== "") return valor;
-      }
-      return undefined;
-    }
-
-        /**
-     * Traduce el texto del Excel a un tipo de contrato del sistema.
-     *   undefined -> la columna no viene en el archivo
-     *   null      -> viene, pero con un valor que no reconocemos
-     *
-     * Antes devolvia "proyecto" para todo lo desconocido, asi que un Excel con
-     * "Contrata" o "Plazo Fijo" clasificaba mal a todo el mundo en silencio.
-     */
     function parseTipoContrato(
       value: string | undefined
     ): "planta" | "proyecto" | "externo" | null | undefined {
@@ -125,7 +60,24 @@ export async function POST(request: NextRequest) {
       return parseDDMMYYYYToDate(convertExcelDateValue(value));
     }
 
-    // Procesar filas
+    /**
+     * Cada fila se procesa y se guarda por separado, SIN envolver la importacion
+     * en una transaccion. Es una decision deliberada, no un olvido.
+     *
+     * Con transaccion, un solo RUT malo en la fila 340 abortaria las 339 filas
+     * correctas anteriores y habria que corregir el Excel y empezar de cero.
+     * Sin ella, esas 339 quedan cargadas y el reporte dice exactamente que fila
+     * fallo y por que, de modo que se corrige solo lo que fallo y se reimporta.
+     *
+     * Lo que hace viable ese enfoque es que la importacion es idempotente:
+     * empareja por RUT, actualiza si ya existe y crea si no, y desde el arreglo
+     * de las columnas ausentes nunca borra un dato que el archivo no trae. Por
+     * eso reimportar el mismo archivo dos veces no duplica ni destruye nada.
+     *
+     * La contrapartida asumida: si el proceso se corta a la mitad -por un
+     * reinicio o un fallo de red-, queda cargado lo procesado hasta ahi. La
+     * forma de recuperarse es volver a importar el mismo archivo.
+     */
     const results = {
       created: 0,
       updated: 0,
@@ -137,7 +89,7 @@ export async function POST(request: NextRequest) {
       const rowNum = i + 2; // +2 porque la fila 1 es header
 
       try {
-        const rutRaw = valorColumna(row, columnMappings.rut);
+        const rutRaw = valorColumna(row, COLUMNAS_EMPLEADO.rut);
 
         if (!rutRaw) {
           results.errors.push({
@@ -160,9 +112,9 @@ export async function POST(request: NextRequest) {
         }
 
         const rut = formatearRut(rutRaw);
-        const nombres = valorColumna(row, columnMappings.nombres);
-        const apellidoPaterno = valorColumna(row, columnMappings.apellidoPaterno);
-        const correo = valorColumna(row, columnMappings.correo);
+        const nombres = valorColumna(row, COLUMNAS_EMPLEADO.nombres);
+        const apellidoPaterno = valorColumna(row, COLUMNAS_EMPLEADO.apellidoPaterno);
+        const correo = valorColumna(row, COLUMNAS_EMPLEADO.correo);
 
         // Validar campos requeridos
         if (!nombres) {
@@ -180,32 +132,29 @@ export async function POST(request: NextRequest) {
 
 
         // Preparar datos
-        const tipoContrato = parseTipoContrato(valorColumna(row, columnMappings.tipoContrato));
+        const tipoContrato = parseTipoContrato(valorColumna(row, COLUMNAS_EMPLEADO.tipoContrato));
 
         if (tipoContrato === null) {
           results.errors.push({
             row: rowNum,
             rut,
-            error: `Tipo de contrato no reconocido: "${valorColumna(row, columnMappings.tipoContrato)}"`,
+            error: `Tipo de contrato no reconocido: "${valorColumna(row, COLUMNAS_EMPLEADO.tipoContrato)}"`,
           });
           continue;
         }
 
         // Solo se escriben los campos que el archivo trae. Un campo ausente se
         // omite del objeto, y Prisma no lo toca.
-        const apellidoMaterno = valorColumna(row, columnMappings.apellidoMaterno);
-        const cargo = valorColumna(row, columnMappings.cargo);
-        const jefatura = valorColumna(row, columnMappings.jefatura);
-        const supervisor = valorColumna(row, columnMappings.supervisor);
-        const ubicacion = valorColumna(row, columnMappings.ubicacion);
-        const telefonoContacto = valorColumna(row, columnMappings.telefonoContacto);
+        const apellidoMaterno = valorColumna(row, COLUMNAS_EMPLEADO.apellidoMaterno);
+        const cargo = valorColumna(row, COLUMNAS_EMPLEADO.cargo);
+        const jefatura = valorColumna(row, COLUMNAS_EMPLEADO.jefatura);
+        const supervisor = valorColumna(row, COLUMNAS_EMPLEADO.supervisor);
+        const ubicacion = valorColumna(row, COLUMNAS_EMPLEADO.ubicacion);
+        const telefonoContacto = valorColumna(row, COLUMNAS_EMPLEADO.telefonoContacto);
 
         // El valor crudo, sin pasar por texto: si el Excel guarda la fecha como
         // numero de serie, parseDate necesita ese numero.
-        const claveFecha = Object.keys(row).find((k) =>
-          columnMappings.fechaIngreso.includes(k)
-        );
-        const fechaIngresoBruta = claveFecha === undefined ? undefined : row[claveFecha];
+        const fechaIngresoBruta = valorCrudo(row, COLUMNAS_EMPLEADO.fechaIngreso);
 
         // Una fecha que no se puede interpretar detiene la fila y lo dice: antes
         // se guardaba como null y nadie se enteraba de que se habia perdido.
@@ -286,7 +235,7 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         results.errors.push({
           row: rowNum,
-          rut: valorColumna(row as Record<string, unknown>, columnMappings.rut) ?? "",
+          rut: valorColumna(row as Record<string, unknown>, COLUMNAS_EMPLEADO.rut) ?? "",
           error: error instanceof Error ? error.message : "Error desconocido",
         });
       }
