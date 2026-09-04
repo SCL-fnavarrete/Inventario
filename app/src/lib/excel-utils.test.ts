@@ -75,6 +75,14 @@ describe('convertExcelDateValue', () => {
     expect(convertExcelDateValue('19-04-2023')).toBe('19-04-2023');
   });
 
+  test('normaliza dd/mm/yyyy con barras a dd-mm-yyyy', () => {
+    expect(convertExcelDateValue('01/12/2024')).toBe('01-12-2024');
+  });
+
+  test('rellena dia y mes de un digito', () => {
+    expect(convertExcelDateValue('1/4/2023')).toBe('01-04-2023');
+  });
+
   test('convierte número pequeño (no serial) a string', () => {
     expect(convertExcelDateValue(123)).toBe('123');
   });
@@ -91,5 +99,30 @@ describe('parseDDMMYYYYToDate', () => {
 
   test('retorna null para string inválido', () => {
     expect(parseDDMMYYYYToDate('fecha-invalida')).toBeNull();
+  });
+
+  // Formato chileno con barras: es como la mayoria de los Excel muestran la
+  // fecha cuando la celda es texto. Antes se perdia en silencio.
+  test('parsea 01/12/2024 con barras como 1 de diciembre', () => {
+    const date = parseDDMMYYYYToDate('01/12/2024');
+    expect(date).not.toBeNull();
+    expect(date?.getUTCFullYear()).toBe(2024);
+    expect(date?.getUTCMonth()).toBe(11); // diciembre = 11
+    expect(date?.getUTCDate()).toBe(1);
+  });
+
+  // El caso que probamos a mano y salia mal: con new Date() se leia como
+  // 12 de enero, porque interpretaba mes/dia al estilo estadounidense.
+  test('31/12/2024 no se pierde', () => {
+    const date = parseDDMMYYYYToDate('31/12/2024');
+    expect(date).not.toBeNull();
+    expect(date?.getUTCMonth()).toBe(11);
+    expect(date?.getUTCDate()).toBe(31);
+  });
+
+  test('acepta dia y mes de un solo digito', () => {
+    const date = parseDDMMYYYYToDate('1-4-2023');
+    expect(date?.getUTCMonth()).toBe(3);
+    expect(date?.getUTCDate()).toBe(1);
   });
 });

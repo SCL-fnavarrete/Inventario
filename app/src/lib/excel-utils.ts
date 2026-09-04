@@ -83,9 +83,17 @@ export function convertExcelDateValue(value: unknown): string {
     }
   }
 
-  // Si ya está en formato dd-mm-yyyy, devolverlo tal cual
-  if (typeof value === 'string' && value.match(/^\d{2}-\d{2}-\d{4}$/)) {
-    return value;
+  // Formato chileno con barras: se normaliza a guiones.
+  if (typeof value === 'string' && value.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+    const [dia, mes, anio] = value.split('/');
+    return `${dia.padStart(2, '0')}-${mes.padStart(2, '0')}-${anio}`;
+  }
+
+  // Si ya está en formato dd-mm-yyyy, devolverlo tal cual (rellenando el dia
+  // o el mes si vinieran con un solo digito).
+  if (typeof value === 'string' && value.match(/^\d{1,2}-\d{1,2}-\d{4}$/)) {
+    const [dia, mes, anio] = value.split('-');
+    return `${dia.padStart(2, '0')}-${mes.padStart(2, '0')}-${anio}`;
   }
 
   // Devolver el valor original convertido a string
@@ -102,7 +110,10 @@ export function convertExcelDateValue(value: unknown): string {
 export function parseDDMMYYYYToDate(dateStr: string): Date | null {
   if (!dateStr || typeof dateStr !== 'string') return null;
 
-  const parts = dateStr.split('-');
+  // Se aceptan las dos formas en que un Excel chileno escribe una fecha:
+  // 01-12-2024 y 01/12/2024. Antes solo se admitian guiones, asi que las
+  // fechas con barras -lo mas habitual- se perdian en silencio.
+  const parts = dateStr.trim().split(/[-/]/);
   if (parts.length !== 3) return null;
 
   const day = parseInt(parts[0], 10);
