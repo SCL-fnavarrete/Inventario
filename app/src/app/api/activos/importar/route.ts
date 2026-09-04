@@ -3,6 +3,15 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import * as XLSX from "xlsx";
 import { convertExcelDateValue, parseDDMMYYYYToDate } from "@/lib/excel-utils";
+import {
+  interpretarEstado,
+  interpretarRut,
+  resolverCondicion,
+  resolverEstado,
+  tieneMicrosoft365,
+} from "@/lib/importacion/activos";
+import { limpiarRut } from "@/lib/validations/rut";
+import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // Filas de inicio conocidas por categoría
@@ -17,30 +26,9 @@ const HEADER_ROWS: Record<string, number> = {
   default: 0,
 };
 
-// Mapeo de estados del Excel a estados del sistema
-const ESTADO_MAP: Record<string, string> = {
-  disponible: "disponible",
-  asignado: "asignado",
-  "en mantención": "en_mantencion",
-  "en mantencion": "en_mantencion",
-  reutilizable: "reutilizable",
-  baja: "baja",
-  vendido: "vendido",
-  activo: "asignado",
-  inactivo: "disponible",
-};
-
-function normalizeRut(rut: string): string {
-  if (!rut) return "";
-  // Remover puntos y guiones, convertir a mayúsculas
-  return rut.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
-}
-
-function parseEstado(value: string): string {
-  if (!value) return "disponible";
-  const normalized = value.toLowerCase().trim();
-  return ESTADO_MAP[normalized] || "disponible";
-}
+// El vocabulario del Excel (estados, condiciones, RUT, licencias) vive en
+// @/lib/importacion/activos para que las tres rutas de importacion lo lean
+// igual. Antes cada una tenia su propia copia y ya habian empezado a divergir.
 
 // Constantes de seguridad para archivos
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -123,7 +111,10 @@ export async function POST(request: NextRequest) {
 
     // Leer archivo Excel
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "array" });
+    // raw: true impide que SheetJS interprete por su cuenta las celdas que
+    // "parecen" fecha. El parseo lo hace convertExcelDateValue, que conoce el
+    // formato chileno dd-mm-aaaa y el serial numerico de Excel.
+    const workbook = XLSX.read(buffer, { type: "array", raw: true });
     const worksheet = workbook.Sheets[sheetName];
 
     const headerRow = HEADER_ROWS[categoria.toLowerCase()] ?? HEADER_ROWS.default;
@@ -243,108 +234,109 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Primero, obtener el estado para determinar si necesitamos empleado
-        const estadoValue = getValue("estado");
-        const estadoParsed = parseEstado(estadoValue);
+        // --- Interpretacion de la fila ---------------------------------
+        // Todo lo que puede fallar se decide ANTES de escribir en la base. Una
+        // fila que se rechaza no debe dejar nada a medias.
 
-        // Buscar o crear empleado por RUT solo si el estado NO es "disponible"
-        let empleadoId: string | null = null;
-        const rut = getValue("rut");
-
-        // Solo procesar empleado si tiene RUT Y el estado no es "disponible"
-        if (rut && estadoParsed !== "disponible") {
-          const normalizedRut = normalizeRut(rut);
-
-          // Verificar si ya lo procesamos en esta importacion
-          if (employeeCache.has(normalizedRut)) {
-            empleadoId = employeeCache.get(normalizedRut)!;
-          } else {
-            // Buscar empleado existente en BD
-            let employee = await prisma.employee.findUnique({
-              where: { rut: normalizedRut },
-              select: { id: true },
-            });
-
-            // Si no existe, crear el empleado
-            if (!employee) {
-              const nombres = getValue("nombre");
-              const apellidoPaterno = getValue("apellidoP");
-              const apellidoMaterno = getValue("apellidoM") || null;
-              const correo = getValue("correo");
-              const cargo = getValue("cargo") || null;
-              const jefatura = getValue("jefatura") || null;
-              const supervisor = getValue("supervisor") || null;
-              const comuna = getValue("comuna") || null;
-
-              // Validar campos requeridos para crear empleado
-              if (!nombres || !apellidoPaterno) {
-                results.skipped++;
-                results.errors.push({
-                  row: rowNum,
-                  message: `Empleado con RUT ${rut}: faltan campos obligatorios (Nombre o Apellido P.)`,
-                  type: "missing_employee_data",
-                  data: { marca, modelo, numeroSerie, rut, nombre: nombres || "", apellidoP: apellidoPaterno || "" },
-                });
-                continue;
-              }
-
-              // Generar correo si no existe (requerido en schema)
-              const correoFinal = correo ||
-                `${nombres.toLowerCase().replace(/\s+/g, '.')}.${apellidoPaterno.toLowerCase()}@empresa.cl`;
-
-              try {
-                employee = await prisma.employee.create({
-                  data: {
-                    rut: normalizedRut,
-                    nombres,
-                    apellidoPaterno,
-                    apellidoMaterno,
-                    correo: correoFinal,
-                    cargo,
-                    jefatura,
-                    supervisor,
-                    ubicacion: comuna,
-                    tipoContrato: "planta", // Default, puede ajustarse
-                    estado: "activo",
-                  },
-                  select: { id: true },
-                });
-
-                logger.log(`Empleado creado: ${nombres} ${apellidoPaterno}`);
-              } catch (employeeError) {
-                // Si falla por correo duplicado, intentar con un correo único
-                if (employeeError instanceof Error && employeeError.message.includes("correo")) {
-                  const uniqueCorreo = `${nombres.toLowerCase().replace(/\s+/g, '.')}.${apellidoPaterno.toLowerCase()}.${Date.now()}@empresa.cl`;
-                  employee = await prisma.employee.create({
-                    data: {
-                      rut: normalizedRut,
-                      nombres,
-                      apellidoPaterno,
-                      apellidoMaterno,
-                      correo: uniqueCorreo,
-                      cargo,
-                      jefatura,
-                      supervisor,
-                      ubicacion: comuna,
-                      tipoContrato: "planta",
-                      estado: "activo",
-                    },
-                    select: { id: true },
-                  });
-                } else {
-                  throw employeeError;
-                }
-              }
-            }
-
-            empleadoId = employee.id;
-            employeeCache.set(normalizedRut, empleadoId);
-          }
+        const lecturaEstado = interpretarEstado(getValue("estado"));
+        if (lecturaEstado.tipo === "desconocido") {
+          results.skipped++;
+          results.errors.push({
+            row: rowNum,
+            message: `Estado no reconocido: "${lecturaEstado.valor}". Se espera un estado (Disponible, Asignado, En mantencion, Reutilizable, Baja, Vendido) o una condicion (Nuevo, Usado, Seminuevo, Danado)`,
+            type: "invalid_format",
+            data: { marca, modelo, numeroSerie },
+          });
+          continue;
         }
 
-        // Parsear estado (cast al enum EstadoActivo)
-        // Si tiene empleadoId, el estado es "asignado", sino usar el estado parseado
-        const estado = (empleadoId ? "asignado" : estadoParsed) as "disponible" | "asignado" | "en_mantencion" | "reutilizable" | "baja" | "vendido";
+        const lecturaRut = interpretarRut(getValue("rut"));
+        if (lecturaRut.tipo === "invalido") {
+          results.skipped++;
+          results.errors.push({
+            row: rowNum,
+            message: `RUT invalido: "${lecturaRut.valor}" (digito verificador incorrecto)`,
+            type: "invalid_format",
+            data: { marca, modelo, numeroSerie, rut: lecturaRut.valor },
+          });
+          continue;
+        }
+
+        // La columna "Estado" de estos Excel casi siempre trae la condicion
+        // fisica (Usado/Nuevo). Cuando es asi, el estado real se deduce de si el
+        // equipo esta en manos de alguien; cuando el Excel dice un estado de
+        // verdad, ese manda.
+        const rutEmpleado = lecturaRut.tipo === "valido" ? lecturaRut.rut : null;
+        const estado = resolverEstado(lecturaEstado, rutEmpleado !== null);
+        const condicion = resolverCondicion(lecturaEstado, getValue("condicion"));
+        const debeAsignar = rutEmpleado !== null && estado === "asignado";
+
+        // Si hay que asignar, aqui solo se LEE: se averigua si el empleado ya
+        // existe y, si no, se validan y preparan sus datos. La escritura ocurre
+        // mas abajo, dentro de la transaccion.
+        let empleadoExistenteId: string | null =
+          rutEmpleado ? employeeCache.get(rutEmpleado) ?? null : null;
+        let datosEmpleadoNuevo: Prisma.EmployeeCreateInput | null = null;
+
+        if (debeAsignar && rutEmpleado && !empleadoExistenteId) {
+          const encontrado = await prisma.employee.findUnique({
+            where: { rut: rutEmpleado },
+            select: { id: true },
+          });
+
+          if (encontrado) {
+            empleadoExistenteId = encontrado.id;
+          } else {
+            const nombres = getValue("nombre");
+            const apellidoPaterno = getValue("apellidoP");
+
+            if (!nombres || !apellidoPaterno) {
+              results.skipped++;
+              results.errors.push({
+                row: rowNum,
+                message: `Empleado con RUT ${rutEmpleado}: faltan campos obligatorios (Nombre o Apellido P.)`,
+                type: "missing_employee_data",
+                data: {
+                  marca,
+                  modelo,
+                  numeroSerie,
+                  rut: rutEmpleado,
+                  nombre: nombres || "",
+                  apellidoP: apellidoPaterno || "",
+                },
+              });
+              continue;
+            }
+
+            // El correo es unico en la base. Si el Excel no lo trae se genera
+            // uno derivado del RUT: siempre el mismo para la misma persona, de
+            // modo que reimportar el archivo no cree un empleado distinto cada
+            // vez (antes se usaba Date.now(), que si lo hacia).
+            const base = `${nombres.toLowerCase().replace(/\s+/g, ".")}.${apellidoPaterno.toLowerCase()}`;
+            let correo = getValue("correo") || `${base}@empresa.cl`;
+            const correoTomado = await prisma.employee.findUnique({
+              where: { correo },
+              select: { id: true },
+            });
+            if (correoTomado) {
+              correo = `${base}.${limpiarRut(rutEmpleado).toLowerCase()}@empresa.cl`;
+            }
+
+            datosEmpleadoNuevo = {
+              rut: rutEmpleado,
+              nombres,
+              apellidoPaterno,
+              apellidoMaterno: getValue("apellidoM") || null,
+              correo,
+              cargo: getValue("cargo") || null,
+              jefatura: getValue("jefatura") || null,
+              supervisor: getValue("supervisor") || null,
+              ubicacion: getValue("comuna") || null,
+              tipoContrato: "planta",
+              estado: "activo",
+            };
+          }
+        }
 
         // Obtener campos específicos
         const procesador = getValue("procesador") || null;
@@ -359,23 +351,69 @@ export async function POST(request: NextRequest) {
         const sistemaOperativo = getValue("sistemaOperativo") || null;
         const ubicacionFisica = getValue("comuna") || null;
 
-        // Microsoft 365: parsear booleano desde Excel (SI/NO, true/false, 1/0)
-        const microsoft365Str = getValue("microsoft365").toLowerCase();
-        const microsoft365 = ["si", "sí", "yes", "true", "1"].includes(microsoft365Str);
+        // La columna "Microsoft 365" de estos Excel no trae SI/NO sino el
+        // nombre del plan ("Premium" en 388 filas). Leerla como booleano
+        // estricto convertia todas esas licencias en false.
+        const microsoft365 = tieneMicrosoft365(getValue("microsoft365"));
 
         // Fecha de compra (puede venir como "Fecha de entrega" en el Excel)
-        const fechaCompraStr = getValue("fechaEntrega");
+        const fechaCompraStr = getValue("fechaCompra") || getValue("fechaEntrega");
         const fechaCompra = fechaCompraStr ? parseDDMMYYYYToDate(fechaCompraStr) : null;
 
+        // La fecha de entrega se resuelve antes de escribir nada: si el activo
+        // va asignado a alguien pero la fecha no se puede leer, se rechaza la
+        // fila entera. Antes se usaba la fecha de hoy en silencio, de modo que
+        // una asignacion de 2023 quedaba registrada como entregada hoy: un dato
+        // incorrecto pero verosimil, que nadie iba a detectar.
+        let fechaEntrega: Date | null = null;
+        if (debeAsignar) {
+          // Estos Excel no tienen una columna "Fecha de asignacion": la fecha
+          // en que el equipo se entrego a la persona es "Fecha de Entrega".
+          const fechaAsignacionStr =
+            getValue("fechaAsignacion") || getValue("fechaEntrega");
+          fechaEntrega = fechaAsignacionStr ? parseDDMMYYYYToDate(fechaAsignacionStr) : null;
+
+          if (!fechaEntrega) {
+            results.skipped++;
+            results.errors.push({
+              row: rowNum,
+              message: fechaAsignacionStr
+                ? `Fecha de asignación no reconocida: "${fechaAsignacionStr}" (se espera dd-mm-aaaa)`
+                : "El activo figura asignado pero no trae fecha de asignación",
+              type: "invalid_assignment_date",
+              data: { marca, modelo, numeroSerie },
+            });
+            continue;
+          }
+        }
+
+        // Las escrituras de una fila -activo, historial, asignacion y
+        // mantencion- son una sola operacion: hasta siete escrituras que deben
+        // cuadrar entre si. Sin transaccion, un fallo a mitad dejaba un activo
+        // sin su asignacion o sin historial, y nada lo delataba.
+        const empleadoIdFinal = await prisma.$transaction(async (tx) => {
+        // El empleado se crea aqui dentro. Antes se creaba antes de validar la
+        // fila: una fila rechazada mas abajo dejaba igual el empleado grabado,
+        // huerfano de cualquier activo.
+        let empleadoId: string | null = empleadoExistenteId;
+        if (debeAsignar && !empleadoId && datosEmpleadoNuevo) {
+          const creado = await tx.employee.create({
+            data: datosEmpleadoNuevo,
+            select: { id: true },
+          });
+          empleadoId = creado.id;
+          logger.log(`[ROW ${rowNum}] Empleado creado: ${datosEmpleadoNuevo.nombres} ${datosEmpleadoNuevo.apellidoPaterno}`);
+        }
+
         // Crear activo
-        const asset = await prisma.asset.create({
+        const asset = await tx.asset.create({
           data: {
             categoriaId: categoryRecord.id,
             marca,
             modelo,
             numeroSerie,
             estado,
-            condicion: "usado",
+            condicion,
             procesador,
             ram,
             discoDuro,
@@ -392,7 +430,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Registrar en historial
-        await prisma.assetHistory.create({
+        await tx.assetHistory.create({
           data: {
             assetId: asset.id,
             tipoEvento: "creacion",
@@ -401,20 +439,11 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        // Si tiene empleado asignado, crear asignación
-        if (empleadoId) {
-          const fechaAsignacionStr = getValue("fechaAsignacion");
-          let fechaEntrega = new Date();
-
-          // Intentar parsear la fecha si existe
-          if (fechaAsignacionStr) {
-            const parsedDate = parseDDMMYYYYToDate(fechaAsignacionStr);
-            if (parsedDate) {
-              fechaEntrega = parsedDate;
-            }
-          }
-
-          await prisma.assignment.create({
+        // Si tiene empleado asignado, crear asignación. La fecha ya quedo
+        // validada arriba -sin ella la fila se rechaza-, pero se comprueba de
+        // nuevo para que la garantia sea visible tambien para el compilador.
+        if (empleadoId && fechaEntrega) {
+          await tx.assignment.create({
             data: {
               assetId: asset.id,
               employeeId: empleadoId,
@@ -424,7 +453,7 @@ export async function POST(request: NextRequest) {
             },
           });
 
-          await prisma.assetHistory.create({
+          await tx.assetHistory.create({
             data: {
               assetId: asset.id,
               tipoEvento: "asignacion",
@@ -455,7 +484,7 @@ export async function POST(request: NextRequest) {
             // Obtener datos del empleado para la descripción
             let descripcionDetallada = "Mantención importada desde Excel";
             if (empleadoId) {
-              const empleado = await prisma.employee.findUnique({
+              const empleado = await tx.employee.findUnique({
                 where: { id: empleadoId },
                 select: { nombres: true, apellidoPaterno: true, rut: true }
               });
@@ -507,11 +536,11 @@ export async function POST(request: NextRequest) {
               }
             }
 
-            await prisma.maintenance.create({
+            await tx.maintenance.create({
               data: maintenanceData,
             });
 
-            await prisma.assetHistory.create({
+            await tx.assetHistory.create({
               data: {
                 assetId: asset.id,
                 tipoEvento: "mantencion",
@@ -526,7 +555,17 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        return empleadoId;
+        });
+
+        // La cache se actualiza solo despues del commit: si la transaccion se
+        // hubiera deshecho, guardar el id habria hecho que las filas siguientes
+        // apuntaran a un empleado inexistente.
+        if (rutEmpleado && empleadoIdFinal) {
+          employeeCache.set(rutEmpleado, empleadoIdFinal);
+        }
         existingSeriesSet.add(numeroSerie.toUpperCase());
+
         results.imported++;
       } catch (error) {
         results.errors.push({

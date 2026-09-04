@@ -1,32 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parseDDMMYYYYToDate } from "@/lib/excel-utils";
+import {
+  interpretarEstado,
+  interpretarRut,
+  resolverCondicion,
+  resolverEstado,
+  tieneMicrosoft365,
+} from "@/lib/importacion/activos";
+import { limpiarRut } from "@/lib/validations/rut";
+import { Prisma } from "@prisma/client";
 import type { CorrectedRow, ImportRowStatus, ImportBatchResult } from "@/types/import";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
-// Mapeo de estados del Excel a estados del sistema
-const ESTADO_MAP: Record<string, string> = {
-  disponible: "disponible",
-  asignado: "asignado",
-  "en mantención": "en_mantencion",
-  "en mantencion": "en_mantencion",
-  reutilizable: "reutilizable",
-  baja: "baja",
-  vendido: "vendido",
-  activo: "asignado",
-  inactivo: "disponible",
-};
-
-function normalizeRut(rut: string): string {
-  if (!rut) return "";
-  return rut.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
-}
-
-function parseEstado(value: string): string {
-  if (!value) return "disponible";
-  const normalized = value.toLowerCase().trim();
-  return ESTADO_MAP[normalized] || "disponible";
-}
+// El vocabulario del Excel vive en @/lib/importacion/activos, compartido con
+// la ruta de importacion normal. Antes esta ruta tenia su propia copia y las
+// dos ya habian empezado a divergir.
 
 export async function POST(request: NextRequest) {
   try {
@@ -123,102 +112,113 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Procesar empleado si existe
-        const estadoValue = row.data.estado || "";
-        const estadoParsed = parseEstado(estadoValue);
-        let empleadoId: string | null = null;
-        const rut = row.data.rut || "";
+        // --- Interpretacion de la fila corregida ------------------------
+        const lecturaEstado = interpretarEstado(row.data.estado);
+        if (lecturaEstado.tipo === "desconocido") {
+          rowResult.errors.push({
+            type: "invalid_format",
+            field: "estado",
+            message: `Estado no reconocido: "${lecturaEstado.valor}". Se espera un estado (Disponible, Asignado, En mantencion, Reutilizable, Baja, Vendido) o una condicion (Nuevo, Usado, Seminuevo, Danado)`,
+            value: lecturaEstado.valor,
+          });
+          rowResult.status = "error";
+          results.push(rowResult);
+          continue;
+        }
 
-        if (rut && estadoParsed !== "disponible") {
-          const normalizedRut = normalizeRut(rut);
+        const lecturaRut = interpretarRut(row.data.rut);
+        if (lecturaRut.tipo === "invalido") {
+          rowResult.errors.push({
+            type: "invalid_format",
+            field: "rut",
+            message: `RUT invalido: "${lecturaRut.valor}" (digito verificador incorrecto)`,
+            value: lecturaRut.valor,
+          });
+          rowResult.status = "error";
+          results.push(rowResult);
+          continue;
+        }
 
-          if (employeeCache.has(normalizedRut)) {
-            empleadoId = employeeCache.get(normalizedRut)!;
+        const rutEmpleado = lecturaRut.tipo === "valido" ? lecturaRut.rut : null;
+        const estado = resolverEstado(lecturaEstado, rutEmpleado !== null);
+        const condicion = resolverCondicion(lecturaEstado, row.data.condicion);
+        const debeAsignar = rutEmpleado !== null && estado === "asignado";
+
+        // Solo lecturas: si el empleado no existe se preparan sus datos, pero no
+        // se graba nada hasta que la fila entera este validada.
+        let empleadoExistenteId: string | null =
+          rutEmpleado ? employeeCache.get(rutEmpleado) ?? null : null;
+        let datosEmpleadoNuevo: Prisma.EmployeeCreateInput | null = null;
+
+        if (debeAsignar && rutEmpleado && !empleadoExistenteId) {
+          const encontrado = await prisma.employee.findUnique({
+            where: { rut: rutEmpleado },
+            select: { id: true },
+          });
+
+          if (encontrado) {
+            empleadoExistenteId = encontrado.id;
           } else {
-            let employee = await prisma.employee.findUnique({
-              where: { rut: normalizedRut },
-              select: { id: true },
-            });
+            const nombres = row.data.nombre || row.data.nombres || "";
+            const apellidoPaterno = row.data.apellidoP || row.data.apellidoPaterno || "";
 
-            if (!employee) {
-              const nombres = row.data.nombre || row.data.nombres || "";
-              const apellidoPaterno = row.data.apellidoP || row.data.apellidoPaterno || "";
-              const apellidoMaterno = row.data.apellidoM || row.data.apellidoMaterno || null;
-              const correo = row.data.correo || "";
-              const cargo = row.data.cargo || null;
-              const jefatura = row.data.jefatura || null;
-              const supervisor = row.data.supervisor || null;
-              const comuna = row.data.comuna || null;
-
-              if (!nombres || !apellidoPaterno) {
-                rowResult.errors.push({
-                  type: "missing_employee_data",
-                  message: `Empleado con RUT ${rut}: faltan campos obligatorios (Nombre o Apellido P.)`,
-                });
-                rowResult.status = "error";
-                results.push(rowResult);
-                continue;
-              }
-
-              const correoFinal =
-                correo ||
-                `${nombres.toLowerCase().replace(/\s+/g, ".")}.${apellidoPaterno.toLowerCase()}@empresa.cl`;
-
-              try {
-                employee = await prisma.employee.create({
-                  data: {
-                    rut: normalizedRut,
-                    nombres,
-                    apellidoPaterno,
-                    apellidoMaterno,
-                    correo: correoFinal,
-                    cargo,
-                    jefatura,
-                    supervisor,
-                    ubicacion: comuna,
-                    tipoContrato: "planta",
-                    estado: "activo",
-                  },
-                  select: { id: true },
-                });
-              } catch (employeeError) {
-                if (employeeError instanceof Error && employeeError.message.includes("correo")) {
-                  const uniqueCorreo = `${nombres.toLowerCase().replace(/\s+/g, ".")}.${apellidoPaterno.toLowerCase()}.${Date.now()}@empresa.cl`;
-                  employee = await prisma.employee.create({
-                    data: {
-                      rut: normalizedRut,
-                      nombres,
-                      apellidoPaterno,
-                      apellidoMaterno,
-                      correo: uniqueCorreo,
-                      cargo,
-                      jefatura,
-                      supervisor,
-                      ubicacion: comuna,
-                      tipoContrato: "planta",
-                      estado: "activo",
-                    },
-                    select: { id: true },
-                  });
-                } else {
-                  throw employeeError;
-                }
-              }
+            if (!nombres || !apellidoPaterno) {
+              rowResult.errors.push({
+                type: "missing_employee_data",
+                message: `Empleado con RUT ${rutEmpleado}: faltan campos obligatorios (Nombre o Apellido P.)`,
+              });
+              rowResult.status = "error";
+              results.push(rowResult);
+              continue;
             }
 
-            empleadoId = employee.id;
-            employeeCache.set(normalizedRut, empleadoId);
+            const base = `${nombres.toLowerCase().replace(/\s+/g, ".")}.${apellidoPaterno.toLowerCase()}`;
+            let correo = row.data.correo || `${base}@empresa.cl`;
+            const correoTomado = await prisma.employee.findUnique({
+              where: { correo },
+              select: { id: true },
+            });
+            if (correoTomado) {
+              correo = `${base}.${limpiarRut(rutEmpleado).toLowerCase()}@empresa.cl`;
+            }
+
+            datosEmpleadoNuevo = {
+              rut: rutEmpleado,
+              nombres,
+              apellidoPaterno,
+              apellidoMaterno: row.data.apellidoM || row.data.apellidoMaterno || null,
+              correo,
+              cargo: row.data.cargo || null,
+              jefatura: row.data.jefatura || null,
+              supervisor: row.data.supervisor || null,
+              ubicacion: row.data.comuna || null,
+              tipoContrato: "planta",
+              estado: "activo",
+            };
           }
         }
 
-        // Parsear campos adicionales
-        const estado = (empleadoId ? "asignado" : estadoParsed) as
-          | "disponible"
-          | "asignado"
-          | "en_mantencion"
-          | "reutilizable"
-          | "baja"
-          | "vendido";
+        // La fecha de entrega se valida antes de escribir. Antes, si no se podia
+        // leer, esta ruta usaba new Date(): la asignacion quedaba fechada hoy.
+        let fechaEntrega: Date | null = null;
+        if (debeAsignar) {
+          const fechaAsignacionStr = row.data.fechaAsignacion || row.data.fechaEntrega || "";
+          fechaEntrega = fechaAsignacionStr ? parseDDMMYYYYToDate(fechaAsignacionStr) : null;
+
+          if (!fechaEntrega) {
+            rowResult.errors.push({
+              type: "invalid_assignment_date",
+              field: "fechaAsignacion",
+              message: fechaAsignacionStr
+                ? `Fecha de asignación no reconocida: "${fechaAsignacionStr}" (se espera dd-mm-aaaa)`
+                : "El activo figura asignado pero no trae fecha de asignación",
+              value: fechaAsignacionStr,
+            });
+            rowResult.status = "error";
+            results.push(rowResult);
+            continue;
+          }
+        }
 
         const procesador = row.data.procesador || null;
         const ram = row.data.ram || null;
@@ -229,79 +229,83 @@ export async function POST(request: NextRequest) {
         const pulgadas = pulgadasStr ? parseFloat(pulgadasStr) : null;
         const sistemaOperativo = row.data.sistemaOperativo || null;
         const ubicacionFisica = row.data.comuna || null;
-        const microsoft365Str = (row.data.microsoft365 || "").toLowerCase();
-        const microsoft365 = ["si", "sí", "yes", "true", "1"].includes(microsoft365Str);
-        const fechaCompraStr = row.data.fechaEntrega || "";
+        const microsoft365 = tieneMicrosoft365(row.data.microsoft365);
+        const fechaCompraStr = row.data.fechaCompra || row.data.fechaEntrega || "";
         const fechaCompra = fechaCompraStr ? parseDDMMYYYYToDate(fechaCompraStr) : null;
 
-        // Crear activo
-        const asset = await prisma.asset.create({
-          data: {
-            categoriaId: categoryRecord.id,
-            marca,
-            modelo,
-            numeroSerie,
-            estado,
-            condicion: "usado",
-            procesador,
-            ram,
-            discoDuro,
-            imei,
-            numeroTelefono,
-            pulgadas,
-            sistemaOperativo,
-            ubicacionFisica,
-            microsoft365,
-            fechaCompra,
-            observaciones: row.data.observaciones || null,
-            empleadoActualId: empleadoId,
-          },
-        });
-
-        // Registrar en historial
-        await prisma.assetHistory.create({
-          data: {
-            assetId: asset.id,
-            tipoEvento: "creacion",
-            descripcion: "Activo importado desde Excel (corregido)",
-            usuarioSistema: session.user?.email || "sistema",
-          },
-        });
-
-        // Si tiene empleado, crear asignación
-        if (empleadoId) {
-          const fechaAsignacionStr = row.data.fechaAsignacion || "";
-          let fechaEntrega = new Date();
-
-          if (fechaAsignacionStr) {
-            const parsedDate = parseDDMMYYYYToDate(fechaAsignacionStr);
-            if (parsedDate) {
-              fechaEntrega = parsedDate;
-            }
+        // Activo, historial y asignacion son una sola operacion.
+        const escrito = await prisma.$transaction(async (tx) => {
+          let empleadoId: string | null = empleadoExistenteId;
+          if (debeAsignar && !empleadoId && datosEmpleadoNuevo) {
+            const creado = await tx.employee.create({
+              data: datosEmpleadoNuevo,
+              select: { id: true },
+            });
+            empleadoId = creado.id;
           }
 
-          await prisma.assignment.create({
+          const asset = await tx.asset.create({
             data: {
-              assetId: asset.id,
-              employeeId: empleadoId,
-              fechaEntrega,
-              tipoMovimiento: "ingreso",
-              activo: true,
+              categoriaId: categoryRecord.id,
+              marca,
+              modelo,
+              numeroSerie,
+              estado,
+              condicion,
+              procesador,
+              ram,
+              discoDuro,
+              imei,
+              numeroTelefono,
+              pulgadas,
+              sistemaOperativo,
+              ubicacionFisica,
+              microsoft365,
+              fechaCompra,
+              observaciones: row.data.observaciones || null,
+              empleadoActualId: empleadoId,
             },
           });
 
-          await prisma.assetHistory.create({
+          await tx.assetHistory.create({
             data: {
               assetId: asset.id,
-              tipoEvento: "asignacion",
-              descripcion: "Asignación importada desde Excel (corregido)",
+              tipoEvento: "creacion",
+              descripcion: "Activo importado desde Excel (corregido)",
               usuarioSistema: session.user?.email || "sistema",
             },
           });
+
+          if (empleadoId && fechaEntrega) {
+            await tx.assignment.create({
+              data: {
+                assetId: asset.id,
+                employeeId: empleadoId,
+                fechaEntrega,
+                tipoMovimiento: "ingreso",
+                activo: true,
+              },
+            });
+
+            await tx.assetHistory.create({
+              data: {
+                assetId: asset.id,
+                tipoEvento: "asignacion",
+                descripcion: "Asignación importada desde Excel (corregido)",
+                usuarioSistema: session.user?.email || "sistema",
+              },
+            });
+          }
+
+          return { assetId: asset.id, empleadoId };
+        });
+
+        if (rutEmpleado && escrito.empleadoId) {
+          employeeCache.set(rutEmpleado, escrito.empleadoId);
         }
 
+        rowResult.assetId = escrito.assetId;
         rowResult.status = "imported";
-        rowResult.assetId = asset.id;
         existingSeriesSet.add(numeroSerie.toUpperCase());
       } catch (error) {
         rowResult.errors.push({

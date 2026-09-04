@@ -37,7 +37,10 @@ export async function POST(request: NextRequest) {
     const mapping = mappingStr ? JSON.parse(mappingStr) as Record<string, string> : null;
 
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "array" });
+    // raw: true para que la vista previa lea las celdas igual que la
+    // importacion real; si no, lo que se ve aqui y lo que se guarda pueden
+    // diferir en las fechas.
+    const workbook = XLSX.read(buffer, { type: "array", raw: true });
     const worksheet = workbook.Sheets[sheetName];
 
     if (!worksheet) {

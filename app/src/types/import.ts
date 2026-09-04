@@ -6,6 +6,7 @@ export type ValidationErrorType =
   | "duplicate_in_file"
   | "missing_employee_data"
   | "invalid_format"
+  | "invalid_assignment_date"
   | "unknown_error";
 
 export interface ValidationError {

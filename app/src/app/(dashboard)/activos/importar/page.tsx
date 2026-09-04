@@ -108,9 +108,11 @@ export default function ImportarActivosPage() {
   const allOptionalFields = [
     // Campos comunes para todas las categorías
     { key: "estado", label: "Estado", categories: ["*"] },
+    { key: "condicion", label: "Condición (Nuevo/Usado)", categories: ["*"] },
     { key: "observaciones", label: "Observaciones", categories: ["*"] },
     { key: "fechaAsignacion", label: "Fecha Asignación", categories: ["*"] },
     { key: "fechaEntrega", label: "Fecha de entrega", categories: ["*"] },
+    { key: "fechaCompra", label: "Fecha de compra", categories: ["*"] },
     // Campos opcionales para Notebook
     { key: "correo", label: "Correo", categories: ["notebook"] },
     { key: "cargo", label: "Cargo", categories: ["notebook"] },
@@ -221,7 +223,9 @@ export default function ImportarActivosPage() {
         modelo: ["modelo"],
         numeroSerie: ["nº serie", "serie", "numero serie", "n serie", "no serie", "n° serie"],
         estado: ["estado"],
-        fechaAsignacion: ["fecha asignacion", "fecha asig", "fecha asignado"],
+        condicion: ["condicion", "condición"],
+        fechaAsignacion: ["fecha asignacion", "fecha asig", "fecha asignado", "fecha de asignacion"],
+        fechaCompra: ["fecha compra", "fecha de compra", "fecha factura"],
         observaciones: ["obs.", "observaciones", "observacion"],
         // Campos de Notebook
         procesador: ["procesador", "cpu"],
