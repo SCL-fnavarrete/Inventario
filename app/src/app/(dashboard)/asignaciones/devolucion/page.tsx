@@ -85,12 +85,20 @@ export default function DevolucionPage() {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedAssignments, setSelectedAssignments] = useState<string[]>([]);
-  const [returnData, setReturnData] = useState({
+  const [entregaData, setEntregaData] = useState({
     fechaDevolucion: new Date().toISOString().split("T")[0],
     recibidoPor: "",
-    estadoDevolucion: "ok",
-    observacionesDevolucion: "",
   });
+  type DetalleDevolucion = { estadoDevolucion: "ok" | "incompleto" | "danado"; observaciones: string };
+  const [detallesPorEquipo, setDetallesPorEquipo] = useState<Record<string, DetalleDevolucion>>({});
+
+  function detalleDe(assignmentId: string): DetalleDevolucion {
+    return detallesPorEquipo[assignmentId] ?? { estadoDevolucion: "ok", observaciones: "" };
+  }
+
+  function actualizarDetalle(assignmentId: string, patch: Partial<DetalleDevolucion>) {
+    setDetallesPorEquipo((prev) => ({ ...prev, [assignmentId]: { ...detalleDe(assignmentId), ...patch } }));
+  }
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -165,6 +173,11 @@ export default function DevolucionPage() {
         ? prev.filter((a) => a !== id)
         : [...prev, id]
     );
+    setDetallesPorEquipo((prev) => {
+      if (!(id in prev)) return prev;
+      const { [id]: _omit, ...rest } = prev;
+      return rest;
+    });
   }
 
   function selectAll() {
@@ -187,12 +200,18 @@ export default function DevolucionPage() {
     setError("");
 
     try {
-      // Procesar cada devolución
+      // Procesar cada devolución con su propio estado y observaciones
       for (const assignmentId of selectedAssignments) {
+        const detalle = detalleDe(assignmentId);
         const res = await fetch(`/api/asignaciones/${assignmentId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(returnData),
+          body: JSON.stringify({
+            fechaDevolucion: entregaData.fechaDevolucion,
+            recibidoPor: entregaData.recibidoPor,
+            estadoDevolucion: detalle.estadoDevolucion,
+            observacionesDevolucion: detalle.observaciones,
+          }),
         });
 
         if (!res.ok) {
@@ -365,42 +384,78 @@ export default function DevolucionPage() {
             </div>
 
             <div className="space-y-3">
-              {assignments.map((assignment) => (
-                <div
-                  key={assignment.id}
-                  onClick={() => toggleAssignment(assignment.id)}
-                  className={cn(
-                    "p-4 border rounded-lg cursor-pointer transition-colors",
-                    selectedAssignments.includes(assignment.id)
-                      ? "border-orange-500 bg-orange-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  )}
-                >
-                  <div className="flex items-center gap-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedAssignments.includes(assignment.id)}
-                      onChange={() => toggleAssignment(assignment.id)}
-                      className="h-5 w-5 text-orange-600 rounded"
-                    />
-                    <div className="p-2 bg-gray-100 rounded-lg">
-                      {getCategoryIcon(assignment.asset.categoria.nombre)}
+              {assignments.map((assignment) => {
+                const devuelto = selectedAssignments.includes(assignment.id);
+                const detalle = detalleDe(assignment.id);
+                const opcionesEstado: { value: DetalleDevolucion["estadoDevolucion"]; label: string; className: string }[] = [
+                  { value: "ok", label: "Buen Estado", className: "border-green-500 bg-green-50 text-green-700" },
+                  { value: "incompleto", label: "Incompleto", className: "border-amber-500 bg-amber-50 text-amber-700" },
+                  { value: "danado", label: "Dañado", className: "border-red-500 bg-red-50 text-red-700" },
+                ];
+                return (
+                  <div
+                    key={assignment.id}
+                    className={cn(
+                      "border rounded-lg transition-colors",
+                      devuelto ? "border-orange-500 bg-orange-50" : "border-gray-200 hover:border-gray-300"
+                    )}
+                  >
+                    <div
+                      onClick={() => toggleAssignment(assignment.id)}
+                      className="p-4 flex items-center gap-4 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={devuelto}
+                        onChange={() => toggleAssignment(assignment.id)}
+                        className="h-5 w-5 text-orange-600 rounded"
+                      />
+                      <div className="p-2 bg-gray-100 rounded-lg">
+                        {getCategoryIcon(assignment.asset.categoria.nombre)}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">
+                          {assignment.asset.marca} {assignment.asset.modelo}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {assignment.asset.categoria.nombre} • Serie: {assignment.asset.numeroSerie || "-"}
+                        </p>
+                      </div>
+                      <div className="text-right text-sm">
+                        <p className="text-gray-500">Entregado</p>
+                        <p className="font-medium">{formatDate(assignment.fechaEntrega)}</p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="font-medium">
-                        {assignment.asset.marca} {assignment.asset.modelo}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {assignment.asset.categoria.nombre} • Serie: {assignment.asset.numeroSerie || "-"}
-                      </p>
-                    </div>
-                    <div className="text-right text-sm">
-                      <p className="text-gray-500">Entregado</p>
-                      <p className="font-medium">{formatDate(assignment.fechaEntrega)}</p>
-                    </div>
+
+                    {devuelto && (
+                      <div className="px-4 pb-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="grid grid-cols-3 gap-2">
+                          {opcionesEstado.map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => actualizarDetalle(assignment.id, { estadoDevolucion: opt.value })}
+                              className={cn(
+                                "p-2 border-2 rounded-lg text-xs font-medium transition-colors",
+                                detalle.estadoDevolucion === opt.value ? opt.className : "border-gray-200 hover:border-gray-300"
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                          rows={2}
+                          placeholder="Observaciones de este equipo (opcional)"
+                          value={detalle.observaciones}
+                          onChange={(e) => actualizarDetalle(assignment.id, { observaciones: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        />
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="mt-6 flex justify-between">
@@ -443,9 +498,9 @@ export default function DevolucionPage() {
                   <input
                     type="date"
                     required
-                    value={returnData.fechaDevolucion}
+                    value={entregaData.fechaDevolucion}
                     onChange={(e) =>
-                      setReturnData((prev) => ({ ...prev, fechaDevolucion: e.target.value }))
+                      setEntregaData((prev) => ({ ...prev, fechaDevolucion: e.target.value }))
                     }
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                   />
@@ -461,95 +516,14 @@ export default function DevolucionPage() {
                   <input
                     type="text"
                     placeholder="Nombre de quien recibe"
-                    value={returnData.recibidoPor}
+                    value={entregaData.recibidoPor}
                     onChange={(e) =>
-                      setReturnData((prev) => ({ ...prev, recibidoPor: e.target.value }))
+                      setEntregaData((prev) => ({ ...prev, recibidoPor: e.target.value }))
                     }
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Estado de Devolución *
-              </label>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setReturnData((prev) => ({ ...prev, estadoDevolucion: "ok" }))
-                  }
-                  className={cn(
-                    "p-4 border-2 rounded-lg flex items-center gap-3 transition-colors",
-                    returnData.estadoDevolucion === "ok"
-                      ? "border-green-500 bg-green-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  )}
-                >
-                  <CheckCircle
-                    className={cn(
-                      "h-6 w-6",
-                      returnData.estadoDevolucion === "ok"
-                        ? "text-green-600"
-                        : "text-gray-400"
-                    )}
-                  />
-                  <div className="text-left">
-                    <p className="font-medium">Buen Estado</p>
-                    <p className="text-sm text-gray-500">
-                      Equipo funcional sin daños
-                    </p>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setReturnData((prev) => ({ ...prev, estadoDevolucion: "danado" }))
-                  }
-                  className={cn(
-                    "p-4 border-2 rounded-lg flex items-center gap-3 transition-colors",
-                    returnData.estadoDevolucion === "danado"
-                      ? "border-red-500 bg-red-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  )}
-                >
-                  <AlertCircle
-                    className={cn(
-                      "h-6 w-6",
-                      returnData.estadoDevolucion === "danado"
-                        ? "text-red-600"
-                        : "text-gray-400"
-                    )}
-                  />
-                  <div className="text-left">
-                    <p className="font-medium">Dañado</p>
-                    <p className="text-sm text-gray-500">
-                      Requiere revisión o reparación
-                    </p>
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Observaciones
-              </label>
-              <textarea
-                rows={3}
-                placeholder="Descripción del estado del equipo, daños observados, etc."
-                value={returnData.observacionesDevolucion}
-                onChange={(e) =>
-                  setReturnData((prev) => ({
-                    ...prev,
-                    observacionesDevolucion: e.target.value,
-                  }))
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-              />
             </div>
 
             {/* Summary */}
@@ -567,11 +541,16 @@ export default function DevolucionPage() {
                 <ul className="list-disc list-inside pl-2 text-gray-600">
                   {assignments
                     .filter((a) => selectedAssignments.includes(a.id))
-                    .map((a) => (
-                      <li key={a.id}>
-                        {a.asset.marca} {a.asset.modelo} ({a.asset.numeroSerie || "S/N"})
-                      </li>
-                    ))}
+                    .map((a) => {
+                      const estadoLabel = { ok: "Buen estado", incompleto: "Incompleto", danado: "Dañado" }[
+                        detalleDe(a.id).estadoDevolucion
+                      ];
+                      return (
+                        <li key={a.id}>
+                          {a.asset.marca} {a.asset.modelo} ({a.asset.numeroSerie || "S/N"}) — {estadoLabel}
+                        </li>
+                      );
+                    })}
                 </ul>
               </div>
             </div>
@@ -656,11 +635,10 @@ export default function DevolucionPage() {
                 setAssignments([]);
                 setSelectedAssignments([]);
                 setSuccess(false);
-                setReturnData({
+                setDetallesPorEquipo({});
+                setEntregaData({
                   fechaDevolucion: new Date().toISOString().split("T")[0],
                   recibidoPor: "",
-                  estadoDevolucion: "ok",
-                  observacionesDevolucion: "",
                 });
               }}
               className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"

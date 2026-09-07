@@ -5,6 +5,9 @@ import { executeAssignment } from "@/lib/services/workflowExecutionService";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
+export const dynamic = 'force-dynamic';
+
+
 // GET /api/asignaciones - Listar asignaciones con filtros
 export async function GET(request: NextRequest) {
   try {
@@ -101,7 +104,9 @@ export async function GET(request: NextRequest) {
         total,
         totalPages: Math.ceil(total / filters.limit),
       },
-    });
+    },
+    {headers:{"Cache-Control":"no-store, max-age=0"}}
+  );
   } catch (error) {
     return handleApiError(error, 'Error al obtener asignaciones');
   }

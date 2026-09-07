@@ -100,9 +100,38 @@ export default function AsignacionesPage() {
   const [showActive, setShowActive] = useState<string>("all");
   const [tipoFilter, setTipoFilter] = useState("");
 
+  // Activas/Devueltas son conteos globales, no de la pagina visible:
+  // antes se sacaban filtrando `assignments` (solo los 10 de la pagina
+  // actual), asi que apenas habia mas de una pagina los numeros no
+  // representaban el total real.
+  const [globalStats, setGlobalStats] = useState({ activas: 0, devueltas: 0 });
+
   useEffect(() => {
     fetchAssignments();
   }, [pagination.page, showActive, tipoFilter]);
+
+  useEffect(() => {
+    fetchGlobalStats();
+  }, []);
+
+  async function fetchGlobalStats() {
+    try {
+      const [activasRes, devueltasRes] = await Promise.all([
+        fetch(`/api/asignaciones?activo=true&limit=1`),
+        fetch(`/api/asignaciones?activo=false&limit=1`),
+      ]);
+      const [activasData, devueltasData] = await Promise.all([
+        activasRes.json(),
+        devueltasRes.json(),
+      ]);
+      setGlobalStats({
+        activas: activasData.pagination.total,
+        devueltas: devueltasData.pagination.total,
+      });
+    } catch (error) {
+      console.error("Error fetching global stats:", error);
+    }
+  }
 
   async function fetchAssignments() {
     setLoading(true);
@@ -131,10 +160,6 @@ export default function AsignacionesPage() {
     setPagination((prev) => ({ ...prev, page: 1 }));
     fetchAssignments();
   }
-
-  // Contar asignaciones activas y devueltas
-  const activeCount = assignments.filter((a) => a.activo).length;
-  const returnedCount = assignments.filter((a) => !a.activo).length;
 
   return (
     <div className="space-y-6">
@@ -186,7 +211,7 @@ export default function AsignacionesPage() {
             </div>
             <div>
               <p className="text-sm text-gray-500">Activas</p>
-              <p className="text-xl font-bold">{activeCount}</p>
+              <p className="text-xl font-bold">{globalStats.activas}</p>
             </div>
           </div>
         </div>
@@ -197,7 +222,7 @@ export default function AsignacionesPage() {
             </div>
             <div>
               <p className="text-sm text-gray-500">Devueltas</p>
-              <p className="text-xl font-bold">{returnedCount}</p>
+              <p className="text-xl font-bold">{globalStats.devueltas}</p>
             </div>
           </div>
         </div>

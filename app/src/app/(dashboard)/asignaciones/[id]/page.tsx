@@ -90,6 +90,16 @@ const tipoMovimientoColors: Record<string, string> = {
   temporal: "bg-orange-100 text-orange-800",
 };
 
+// EstadoDevolucionEnum tiene 3 valores (ok | incompleto | danado); el badge
+// anterior era un ternario binario que mostraba "Dañado" para cualquier
+// devolucion que no fuera "ok", incluyendo "incompleto" (que en realidad
+// manda el activo a reutilizable, no a baja).
+const estadoDevolucionInfo: Record<string, { label: string; className: string }> = {
+  ok: { label: "Buen estado", className: "bg-green-100 text-green-800" },
+  incompleto: { label: "Incompleto", className: "bg-amber-100 text-amber-800" },
+  danado: { label: "Dañado", className: "bg-red-100 text-red-800" },
+};
+
 function getCategoryIcon(categoryName: string) {
   switch (categoryName.toLowerCase()) {
     case "notebook":
@@ -472,12 +482,11 @@ export default function AsignacionDetailPage({
                 <span
                   className={cn(
                     "px-2 py-1 text-xs font-medium rounded-full",
-                    assignment.estadoDevolucion === "ok"
-                      ? "bg-green-100 text-green-800"
-                      : "bg-red-100 text-red-800"
+                    (assignment.estadoDevolucion && estadoDevolucionInfo[assignment.estadoDevolucion]?.className) ||
+                      "bg-gray-100 text-gray-800"
                   )}
                 >
-                  {assignment.estadoDevolucion === "ok" ? "Buen estado" : "Dañado"}
+                  {(assignment.estadoDevolucion && estadoDevolucionInfo[assignment.estadoDevolucion]?.label) || "-"}
                 </span>
               </div>
               {assignment.observacionesDevolucion && (

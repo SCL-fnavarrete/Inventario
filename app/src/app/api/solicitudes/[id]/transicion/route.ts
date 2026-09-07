@@ -48,8 +48,24 @@ export async function POST(
       return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
     }
 
-    // Validate transition
-    if (
+    // La entrega parcial de equipos en onboarding no es una transicion de estado
+    // real: la solicitud se queda en gestion_ti hasta cubrir todas las categorias
+    // requeridas, entregando de a poco lo que si hay stock. Por eso no pasa por
+    // canTransition (no existe una regla gestion_ti -> gestion_ti) y en su lugar
+    // solo se valida que el rol pueda gestionar TI.
+    const esEntregaParcialOnboarding =
+      workflowRequest.tipo === 'onboarding' &&
+      workflowRequest.estado === 'gestion_ti' &&
+      nuevoEstado === 'gestion_ti';
+
+    if (esEntregaParcialOnboarding) {
+      if (!['tecnico', 'admin'].includes(systemUser.rol)) {
+        return NextResponse.json(
+          { error: `No tiene permisos para gestionar equipos como ${systemUser.rol}` },
+          { status: 403 }
+        );
+      }
+    } else if (
       !canTransition(
         workflowRequest.tipo,
         workflowRequest.estado,
@@ -72,9 +88,9 @@ export async function POST(
       if (
         workflowRequest.tipo === 'onboarding' &&
         workflowRequest.estado === 'gestion_ti' &&
-        nuevoEstado === 'equipos_entregados'
+        (nuevoEstado === 'equipos_entregados' || nuevoEstado === 'gestion_ti')
       ) {
-        // Create assignments for selected assets
+        // Create assignments for selected assets (entrega total o parcial)
         const assets = (datosAccion?.assetIds as string[]) || [];
         for (const assetId of assets) {
           const assignment = await executeAssignment(tx, {
@@ -187,7 +203,7 @@ export async function POST(
           estadoAnterior: workflowRequest.estado,
           estadoNuevo: nuevoEstado,
           ejecutadoPorId: systemUser.id,
-          comentario,
+          comentario: comentario || (esEntregaParcialOnboarding ? 'Entrega parcial de equipos' : undefined),
           datosAccion: datosAccion ? (datosAccion as Record<string, string | number | boolean | null>) : undefined,
         },
       });

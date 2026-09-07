@@ -358,9 +358,7 @@ model WorkflowRequest {
   fechaIngreso          DateTime?           @map("fecha_ingreso")
   cargoSolicitado       String?             @map("cargo_solicitado")
   ubicacionDestino      String?             @map("ubicacion_destino")
-  requiereNotebook      Boolean             @default(false) @map("requiere_notebook")
-  requiereCelular       Boolean             @default(false) @map("requiere_celular")
-  requiereMonitor       Boolean             @default(false) @map("requiere_monitor")
+  categoriasRequeridas  String[]            @default([]) @map("categorias_requeridas")
   // Campos cambio equipo
   ticketFreshdesk       String?             @map("ticket_freshdesk")
   motivoCambio          String?             @map("motivo_cambio")

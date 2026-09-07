@@ -63,9 +63,7 @@ describe('createWorkflowRequestSchema — onboarding', () => {
       ...validOnboarding,
       prioridad: 'alta',
       ubicacionDestino: 'Santiago',
-      requiereNotebook: true,
-      requiereCelular: false,
-      requiereMonitor: true,
+      categoriasRequeridas: ['Notebook', 'Monitor'],
       observaciones: 'Nuevo ingreso área TI',
       pendientes: [
         { tipo: 'celular', descripcion: 'Pendiente de stock' },

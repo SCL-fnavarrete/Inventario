@@ -60,9 +60,7 @@ const onboardingFields = z.object({
   }),
   cargoSolicitado: z.string().min(1, 'Cargo requerido').max(200),
   ubicacionDestino: z.string().max(200).optional().nullable(),
-  requiereNotebook: z.boolean().default(false),
-  requiereCelular: z.boolean().default(false),
-  requiereMonitor: z.boolean().default(false),
+  categoriasRequeridas: z.array(z.string().min(1)).default([]),
 });
 
 // Cambio equipo fields

@@ -162,9 +162,7 @@ export async function POST(request: NextRequest) {
       createData.fechaIngreso = data.fechaIngreso;
       createData.cargoSolicitado = data.cargoSolicitado;
       createData.ubicacionDestino = data.ubicacionDestino;
-      createData.requiereNotebook = data.requiereNotebook;
-      createData.requiereCelular = data.requiereCelular;
-      createData.requiereMonitor = data.requiereMonitor;
+      createData.categoriasRequeridas = data.categoriasRequeridas;
     } else if (data.tipo === 'cambio_equipo') {
       createData.ticketFreshdesk = data.ticketFreshdesk;
       createData.motivoCambio = data.motivoCambio;

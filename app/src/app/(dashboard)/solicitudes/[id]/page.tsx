@@ -15,6 +15,7 @@ import {
   User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SeleccionarEquiposOnboarding } from '@/components/solicitudes/SeleccionarEquiposOnboarding';
 
 type WorkflowDetail = {
   id: string;
@@ -30,9 +31,7 @@ type WorkflowDetail = {
   fechaIngreso: string | null;
   cargoSolicitado: string | null;
   ubicacionDestino: string | null;
-  requiereNotebook: boolean;
-  requiereCelular: boolean;
-  requiereMonitor: boolean;
+  categoriasRequeridas: string[];
   // Cambio
   ticketFreshdesk: string | null;
   motivoCambio: string | null;
@@ -138,6 +137,17 @@ function getStatesForType(tipo: string): string[] {
   return map[tipo] || [];
 }
 
+// Onboarding se muestra al usuario como 3 etapas (crear solicitud, gestion TI,
+// ticket cerrado) en vez de las 4 etapas reales de la maquina de estados:
+// "equipos_entregados" y "registro_rrhh" comparten la etapa visual "Ticket Cerrado"
+// porque para el tecnico el trabajo ya esta hecho una vez entregado el equipo,
+// aunque falte la confirmacion de RRHH para cerrar formalmente.
+const onboardingStages: { key: string; label: string; states: string[] }[] = [
+  { key: 'creada', label: 'Solicitud Creada', states: ['solicitud_recibida'] },
+  { key: 'gestion_ti', label: 'Gestión TI', states: ['gestion_ti'] },
+  { key: 'ticket_cerrado', label: 'Ticket Cerrado', states: ['equipos_entregados', 'registro_rrhh'] },
+];
+
 export default function SolicitudDetailPage() {
   const params = useParams();
   const id = params.id as string;
@@ -150,13 +160,16 @@ export default function SolicitudDetailPage() {
   const [transitioning, setTransitioning] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (): Promise<WorkflowDetail | null> => {
     try {
       const res = await fetch(`/api/solicitudes/${id}`);
       if (!res.ok) throw new Error('Error al cargar solicitud');
-      setData(await res.json());
+      const detail: WorkflowDetail = await res.json();
+      setData(detail);
+      return detail;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
+      return null;
     } finally {
       setLoading(false);
     }
@@ -186,20 +199,84 @@ export default function SolicitudDetailPage() {
     }
   };
 
-  const handleTransition = async (nuevoEstado: string) => {
+  const handleTransition = async (nuevoEstado: string, datosAccion?: Record<string, unknown>) => {
     setTransitioning(true);
     setError('');
     try {
       const res = await fetch(`/api/solicitudes/${id}/transicion`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nuevoEstado }),
+        body: JSON.stringify(datosAccion ? { nuevoEstado, datosAccion } : { nuevoEstado }),
       });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || 'Error al avanzar solicitud');
       }
       fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
+  // Etapa "Gestion TI" del onboarding: si la solicitud recien fue recibida,
+  // primero avanza a gestion_ti. La entrega de equipos puede ser parcial --
+  // se registran los que si hay disponibles y la solicitud se queda en
+  // Gestion TI para completar el resto despues, en vez de bloquear todo el
+  // paso por un solo producto sin stock. Cuando ya se cubrieron todas las
+  // categorias requeridas, se cierra la etapa automaticamente.
+  const handleEntregarEquipos = async (assetIds: string[]) => {
+    if (!data) return;
+    setTransitioning(true);
+    setError('');
+    try {
+      if (data.estado === 'solicitud_recibida') {
+        const resGestion = await fetch(`/api/solicitudes/${id}/transicion`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nuevoEstado: 'gestion_ti' }),
+        });
+        if (!resGestion.ok) {
+          const err = await resGestion.json();
+          throw new Error(err.error || 'Error al avanzar a Gestión TI');
+        }
+      }
+
+      if (assetIds.length > 0) {
+        const resEntrega = await fetch(`/api/solicitudes/${id}/transicion`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nuevoEstado: 'gestion_ti', datosAccion: { assetIds } }),
+        });
+        if (!resEntrega.ok) {
+          const err = await resEntrega.json();
+          throw new Error(err.error || 'Error al entregar equipos');
+        }
+      }
+
+      const actualizado = await fetchData();
+      if (!actualizado) return;
+
+      const categoriasEntregadas = actualizado.employee.assignments
+        .filter((a) => actualizado.assignmentIds.includes(a.id))
+        .map((a) => a.asset.categoria.nombre);
+      const faltan = actualizado.categoriasRequeridas.some(
+        (c) => !categoriasEntregadas.includes(c)
+      );
+
+      if (!faltan && actualizado.estado === 'gestion_ti') {
+        const resCierre = await fetch(`/api/solicitudes/${id}/transicion`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nuevoEstado: 'equipos_entregados' }),
+        });
+        if (!resCierre.ok) {
+          const err = await resCierre.json();
+          throw new Error(err.error || 'Error al cerrar Gestión TI');
+        }
+        await fetchData();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
     } finally {
@@ -244,6 +321,26 @@ export default function SolicitudDetailPage() {
   const nextState = currentStateIndex < states.length - 1 ? states[currentStateIndex + 1] : null;
   const isClosed = !!data.fechaCierre;
 
+  // Para onboarding el stepper visual usa 3 etapas (ver onboardingStages);
+  // el resto de los tipos de solicitud sigue mostrando un nodo por estado real.
+  const onboardingStageIndex = onboardingStages.findIndex((s) => s.states.includes(data.estado));
+  const stepperItems = data.tipo === 'onboarding'
+    ? onboardingStages.map((s) => ({ key: s.key, label: s.label }))
+    : states.map((s) => ({ key: s, label: estadoLabels[s] }));
+  const stepperCurrentIndex = data.tipo === 'onboarding' ? onboardingStageIndex : currentStateIndex;
+
+  // Categorias ya cubiertas por asignaciones que pertenecen a esta solicitud
+  // (assignmentIds), vs. las que todavia faltan por entregar. Permite mostrar
+  // solo el selector de lo pendiente y avisar que hubo una entrega parcial.
+  const categoriasEntregadas = data.tipo === 'onboarding'
+    ? data.employee.assignments
+        .filter((a) => data.assignmentIds.includes(a.id))
+        .map((a) => a.asset.categoria.nombre)
+    : [];
+  const categoriasPendientes = data.tipo === 'onboarding'
+    ? data.categoriasRequeridas.filter((c) => !categoriasEntregadas.includes(c))
+    : [];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -279,11 +376,11 @@ export default function SolicitudDetailPage() {
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-sm font-medium text-gray-500 mb-4">Progreso</h2>
         <div className="flex items-center">
-          {states.map((state, i) => {
-            const isCompleted = i < currentStateIndex;
-            const isCurrent = i === currentStateIndex;
+          {stepperItems.map((item, i) => {
+            const isCompleted = i < stepperCurrentIndex;
+            const isCurrent = i === stepperCurrentIndex;
             return (
-              <div key={state} className="flex items-center flex-1">
+              <div key={item.key} className="flex items-center flex-1">
                 <div className="flex flex-col items-center flex-1">
                   <div
                     className={cn(
@@ -309,12 +406,12 @@ export default function SolicitudDetailPage() {
                       isCurrent ? 'font-semibold text-blue-700' : 'text-gray-500'
                     )}
                   >
-                    {estadoLabels[state]}
+                    {item.label}
                   </span>
                 </div>
-                {i < states.length - 1 && (
+                {i < stepperItems.length - 1 && (
                   <div
-                    className={cn('h-0.5 w-full mx-1', i < currentStateIndex ? 'bg-green-600' : 'bg-gray-200')}
+                    className={cn('h-0.5 w-full mx-1', i < stepperCurrentIndex ? 'bg-green-600' : 'bg-gray-200')}
                   />
                 )}
               </div>
@@ -327,21 +424,73 @@ export default function SolicitudDetailPage() {
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Action Panel */}
-          {nextState && !isClosed && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="font-medium text-blue-900 mb-2">Siguiente paso</h3>
-              <p className="text-sm text-blue-700 mb-3">
-                Avanzar a: <strong>{estadoLabels[nextState]}</strong>
+          {data.tipo === 'onboarding' && !isClosed &&
+          (data.estado === 'solicitud_recibida' ||
+            (data.estado === 'gestion_ti' && categoriasPendientes.length > 0)) ? (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="font-semibold text-gray-900 mb-1">Gestión TI</h3>
+              <p className="text-sm text-gray-500 mb-1">
+                Selecciona los equipos disponibles para entregar a {data.employee.nombres} {data.employee.apellidoPaterno}.
+              </p>
+              {categoriasEntregadas.length > 0 && (
+                <p className="text-xs text-green-700 mb-3">
+                  Ya entregado: {categoriasEntregadas.join(', ')}
+                </p>
+              )}
+              <SeleccionarEquiposOnboarding
+                categoriasRequeridas={categoriasPendientes}
+                submitting={transitioning}
+                onSubmit={handleEntregarEquipos}
+              />
+            </div>
+          ) : data.tipo === 'onboarding' && !isClosed && data.estado === 'gestion_ti' && categoriasPendientes.length === 0 ? (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h3 className="font-medium text-green-900 mb-2">Todos los equipos fueron entregados</h3>
+              <p className="text-sm text-green-700 mb-3">
+                Ya se cubrieron todas las categorías requeridas. Cierra la etapa de Gestión TI para continuar.
               </p>
               <button
-                onClick={() => handleTransition(nextState)}
+                onClick={() => handleTransition('equipos_entregados')}
                 disabled={transitioning}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
                 <ChevronRight className="h-4 w-4" />
-                {transitioning ? 'Avanzando...' : `Avanzar a ${estadoLabels[nextState]}`}
+                {transitioning ? 'Cerrando...' : 'Cerrar Gestión TI'}
               </button>
             </div>
+          ) : data.tipo === 'onboarding' && !isClosed && data.estado === 'equipos_entregados' ? (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h3 className="font-medium text-green-900 mb-2">Equipos entregados</h3>
+              <p className="text-sm text-green-700 mb-3">
+                Falta el registro de RRHH para cerrar el ticket.
+              </p>
+              <button
+                onClick={() => handleTransition('registro_rrhh')}
+                disabled={transitioning}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                <ChevronRight className="h-4 w-4" />
+                {transitioning ? 'Cerrando...' : 'Cerrar ticket'}
+              </button>
+            </div>
+          ) : (
+            nextState &&
+            !isClosed && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-medium text-blue-900 mb-2">Siguiente paso</h3>
+                <p className="text-sm text-blue-700 mb-3">
+                  Avanzar a: <strong>{estadoLabels[nextState]}</strong>
+                </p>
+                <button
+                  onClick={() => handleTransition(nextState)}
+                  disabled={transitioning}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                  {transitioning ? 'Avanzando...' : `Avanzar a ${estadoLabels[nextState]}`}
+                </button>
+              </div>
+            )
           )}
 
           {/* Pendientes Checklist */}
@@ -581,13 +730,9 @@ export default function SolicitudDetailPage() {
                   <div>
                     <dt className="text-gray-500">Equipos Solicitados</dt>
                     <dd className="text-gray-900">
-                      {[
-                        data.requiereNotebook && 'Notebook',
-                        data.requiereCelular && 'Celular',
-                        data.requiereMonitor && 'Monitor',
-                      ]
-                        .filter(Boolean)
-                        .join(', ') || 'Ninguno'}
+                      {data.categoriasRequeridas.length > 0
+                        ? data.categoriasRequeridas.join(', ')
+                        : 'Ninguno'}
                     </dd>
                   </div>
                 </>

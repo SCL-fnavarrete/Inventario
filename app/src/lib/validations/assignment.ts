@@ -59,7 +59,7 @@ export const assignmentFiltersSchema = z.object({
   search: z.string().optional(),
   employeeId: z.string().uuid().optional(),
   assetId: z.string().uuid().optional(),
-  activo: z.enum(["true", "false"]).optional().transform((val) => val === "true"),
+  activo: z.enum(["true", "false"]).optional().transform((val) => (val === undefined ? undefined : val === "true")),
   tipoMovimiento: TipoMovimientoEnum.optional(),
   fechaDesde: z.string().optional(),
   fechaHasta: z.string().optional(),

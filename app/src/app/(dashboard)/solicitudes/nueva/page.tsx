@@ -45,6 +45,25 @@ type EmployeeAsset = {
   categoria: { nombre: string };
 };
 
+function toggleCategoriaRequerida(
+  lista: string[],
+  nombre: string,
+  marcado: boolean
+): string[] {
+  if (marcado) return lista.includes(nombre) ? lista : [...lista, nombre];
+  return lista.filter((c) => c !== nombre);
+}
+
+const ICONOS_CATEGORIA: Record<string, React.ReactNode> = {
+  Notebook: <Laptop className="h-4 w-4" />,
+  Celular: <Smartphone className="h-4 w-4" />,
+  Monitor: <Monitor className="h-4 w-4" />,
+};
+
+function iconoCategoria(nombre: string): React.ReactNode {
+  return ICONOS_CATEGORIA[nombre] || <Package className="h-4 w-4" />;
+}
+
 const TIPOS = [
   {
     value: 'onboarding',
@@ -127,9 +146,8 @@ export default function NuevaSolicitudPage() {
   const [fechaIngreso, setFechaIngreso] = useState('');
   const [cargoSolicitado, setCargoSolicitado] = useState('');
   const [ubicacionDestino, setUbicacionDestino] = useState('');
-  const [requiereNotebook, setRequiereNotebook] = useState(false);
-  const [requiereCelular, setRequiereCelular] = useState(false);
-  const [requiereMonitor, setRequiereMonitor] = useState(false);
+  const [categorias, setCategorias] = useState<{ id: string; nombre: string }[]>([]);
+  const [categoriasRequeridas, setCategoriasRequeridas] = useState<string[]>([]);
 
   // Cambio equipo fields
   const [ticketFreshdesk, setTicketFreshdesk] = useState('');
@@ -295,6 +313,21 @@ export default function NuevaSolicitudPage() {
     setShowResults(false);
   };
 
+  useEffect(() => {
+    let cancelado = false;
+    fetch('/api/categorias')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelado) setCategorias(data.data || data);
+      })
+      .catch(() => {
+        if (!cancelado) setCategorias([]);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
   const addPendiente = () => {
     setPendientes([...pendientes, { tipo: 'otro', descripcion: '' }]);
   };
@@ -339,9 +372,7 @@ export default function NuevaSolicitudPage() {
           fechaIngreso,
           cargoSolicitado,
           ubicacionDestino: ubicacionDestino || null,
-          requiereNotebook,
-          requiereCelular,
-          requiereMonitor,
+          categoriasRequeridas,
         };
       } else if (tipo === 'cambio_equipo') {
         body = {
@@ -697,35 +728,30 @@ export default function NuevaSolicitudPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Equipos Requeridos
                 </label>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={requiereNotebook}
-                      onChange={(e) => setRequiereNotebook(e.target.checked)}
-                      className="rounded border-gray-300"
-                    />
-                    <span className="text-sm">Notebook</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={requiereCelular}
-                      onChange={(e) => setRequiereCelular(e.target.checked)}
-                      className="rounded border-gray-300"
-                    />
-                    <span className="text-sm">Celular</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={requiereMonitor}
-                      onChange={(e) => setRequiereMonitor(e.target.checked)}
-                      className="rounded border-gray-300"
-                    />
-                    <span className="text-sm">Monitor</span>
-                  </label>
-                </div>
+                {categorias.length === 0 ? (
+                  <p className="text-sm text-gray-400">Cargando categorías...</p>
+                ) : (
+                  <div className="flex flex-wrap gap-4">
+                    {categorias.map((cat) => (
+                      <label key={cat.id} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={categoriasRequeridas.includes(cat.nombre)}
+                          onChange={(e) =>
+                            setCategoriasRequeridas((prev) =>
+                              toggleCategoriaRequerida(prev, cat.nombre, e.target.checked)
+                            )
+                          }
+                          className="rounded border-gray-300"
+                        />
+                        <span className="flex items-center gap-1 text-sm">
+                          {iconoCategoria(cat.nombre)}
+                          {cat.nombre}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
