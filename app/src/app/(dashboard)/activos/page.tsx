@@ -38,7 +38,6 @@ import { Can } from "@/components/auth/Can";
 import { Modal } from "@/components/ui/Modal";
 import { BajaActivoForm } from "@/components/activos/BajaActivoForm";
 import { ReasignarActivoForm } from "@/components/activos/ReasignarActivoForm";
-import { AsignarActivoForm } from "@/components/activos/AsignarActivoForm";
 import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 
 type Asset = {
@@ -202,7 +201,6 @@ function ActivosPageContent() {
   const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS);
   const [bajaModalAssetId, setBajaModalAssetId] = useState<string | null>(null);
   const [reasignarModalAssetId, setReasignarModalAssetId] = useState<string | null>(null);
-  const [asignarModalAssetId, setAsignarModalAssetId] = useState<string | null>(null);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
@@ -387,9 +385,10 @@ function ActivosPageContent() {
     return;
   }
 
-  //entregar un equipo disponible: formulario directo
+  //entregar un equipo disponible: debe quedar registrado como solicitud
+  //(folio, pendientes de kit/EPP, confirmacion RRHH). No se asigna directo.
   if (currentStatus === "disponible" && newStatus === "asignado"){
-    setAsignarModalAssetId(assetId);
+    router.push("/solicitudes/nueva");
     return;
   }
 
@@ -418,9 +417,10 @@ function ActivosPageContent() {
   }
 
   //entregar un equipo reutilizable: es una asignacion nueva, no una
-  //reasignacion, porque el equipo ya no esta en manos de nadie
+  //reasignacion, porque el equipo ya no esta en manos de nadie. Debe
+  //quedar registrado como solicitud, igual que el caso "disponible".
   if (currentStatus === "reutilizable" && newStatus === "asignado"){
-    setAsignarModalAssetId(assetId);
+    router.push("/solicitudes/nueva");
     return;
   }
 
@@ -949,9 +949,9 @@ function ActivosPageContent() {
                               </Link>
                               {(asset.estado === "disponible" || asset.estado === "reutilizable") && (
                                 <button
-                                  onClick={() => setAsignarModalAssetId(asset.id)}
+                                  onClick={() => router.push("/solicitudes/nueva")}
                                   className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                  title="Asignar a una persona"
+                                  title="Iniciar solicitud de entrega"
                                 >
                                   <UserPlus size={16} />
                                 </button>
@@ -1330,29 +1330,6 @@ function ActivosPageContent() {
         )}
       </Modal>  
       
-      <Modal
-        isOpen={!!asignarModalAssetId}
-        onClose={() => setAsignarModalAssetId(null)}
-        title="Asignar equipo"
-        size="lg"
-      >
-        {asignarModalAssetId && (
-          <AsignarActivoForm
-            assetId={asignarModalAssetId}
-            onCancel={() => setAsignarModalAssetId(null)}
-            onSuccess={async () => {
-              setAllAssets((prev) =>
-                prev.map((a) => (a.id === asignarModalAssetId ? { ...a, estado: "asignado" as Asset["estado"] } : a))
-              );
-              const statsRes = await fetch("/api/activos/stats");
-              const statsData = await statsRes.json();
-              setStats(statsData);
-              setAsignarModalAssetId(null);
-            }}
-          />
-        )}
-      </Modal>
-
       <Modal
         isOpen={!!reasignarModalAssetId}
         onClose={() => setReasignarModalAssetId(null)}
