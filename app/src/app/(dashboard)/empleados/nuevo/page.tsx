@@ -10,12 +10,13 @@ type FormData = {
   nombres: string;
   apellidoPaterno: string;
   apellidoMaterno: string;
-  correo: string;
+  correoPersonal: string;
+  correoEmpresa: string;
   cargo: string;
   jefatura: string;
   supervisor: string;
   ubicacion: string;
-  tipoContrato: "planta" | "proyecto" | "externo";
+  tipoContrato: "contrato" | "boleta";
   fechaIngreso: string;
   fechaTermino: string;
   telefonoContacto: string;
@@ -30,12 +31,13 @@ export default function NuevoEmpleadoPage() {
     nombres: "",
     apellidoPaterno: "",
     apellidoMaterno: "",
-    correo: "",
+    correoPersonal: "",
+    correoEmpresa: "",
     cargo: "",
     jefatura: "",
     supervisor: "",
     ubicacion: "",
-    tipoContrato: "proyecto",
+    tipoContrato: "contrato",
     fechaIngreso: "",
     fechaTermino: "",
     telefonoContacto: "",
@@ -64,6 +66,7 @@ export default function NuevoEmpleadoPage() {
           jefatura: formData.jefatura || null,
           supervisor: formData.supervisor || null,
           ubicacion: formData.ubicacion || null,
+          correoEmpresa: formData.correoEmpresa || null,
           fechaIngreso: formData.fechaIngreso || null,
           fechaTermino: formData.fechaTermino || null,
           telefonoContacto: formData.telefonoContacto || null,
@@ -135,15 +138,29 @@ export default function NuevoEmpleadoPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Correo Electrónico <span className="text-red-500">*</span>
+              Correo Personal <span className="text-red-500">*</span>
             </label>
             <input
               type="email"
-              name="correo"
-              value={formData.correo}
+              name="correoPersonal"
+              value={formData.correoPersonal}
               onChange={handleChange}
-              placeholder="ejemplo@empresa.com"
+              placeholder="nombre.personal@gmail.com"
               required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Correo Empresa
+            </label>
+            <input
+              type="email"
+              name="correoEmpresa"
+              value={formData.correoEmpresa}
+              onChange={handleChange}
+              placeholder="nombre@empresa.cl"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
@@ -221,9 +238,8 @@ export default function NuevoEmpleadoPage() {
               required
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
-              <option value="planta">Planta</option>
-              <option value="proyecto">Proyecto</option>
-              <option value="externo">Externo</option>
+              <option value="contrato">Contrato</option>
+              <option value="boleta">Boleta</option>
             </select>
           </div>
 
@@ -306,7 +322,7 @@ export default function NuevoEmpleadoPage() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Solo para contratos por proyecto o temporales
+              Solo para boleta o contratos temporales
             </p>
           </div>
         </div>

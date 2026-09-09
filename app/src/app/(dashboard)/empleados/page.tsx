@@ -28,7 +28,7 @@ type Employee = {
   nombres: string;
   apellidoPaterno: string;
   apellidoMaterno: string | null;
-  correo: string;
+  correoPersonal: string;
   cargo: string | null;
   jefatura: string | null;
   ubicacion: string | null;
@@ -52,7 +52,7 @@ type Pagination = {
 type Stats = {
   totalEmpleados: number;
   activos: number;
-  porProyecto: number;
+  porBoleta: number;
   ubicacionesCount: number;
 };
 
@@ -76,15 +76,13 @@ const estadoLabels: Record<EstadoEmpleado, string> = {
 };
 
 const tipoContratoLabels: Record<TipoContrato, string> = {
-  planta: "Planta",
-  proyecto: "Proyecto",
-  externo: "Externo",
+  contrato: "Contrato",
+  boleta: "Boleta",
 };
 
 const tipoContratoColors: Record<TipoContrato, string> = {
-  planta: "bg-blue-100 text-blue-800",
-  proyecto: "bg-purple-100 text-purple-800",
-  externo: "bg-orange-100 text-orange-800",
+  contrato: "bg-blue-100 text-blue-800",
+  boleta: "bg-purple-100 text-purple-800",
 };
 
 export default function EmpleadosPage() {
@@ -104,7 +102,7 @@ export default function EmpleadosPage() {
   const [stats, setStats] = useState<Stats>({
     totalEmpleados: 0,
     activos: 0,
-    porProyecto: 0,
+    porBoleta: 0,
     ubicacionesCount: 0,
   });
   const [showUbicacionesModal, setShowUbicacionesModal] = useState(false);
@@ -202,7 +200,7 @@ export default function EmpleadosPage() {
 
       // Calcular estadísticas reales
       const activos = allEmployees.filter((e: Employee) => e.estado === "activo").length;
-      const porProyecto = allEmployees.filter((e: Employee) => e.tipoContrato === "proyecto").length;
+      const porBoleta = allEmployees.filter((e: Employee) => e.tipoContrato === "boleta").length;
       const ubicacionesUnicas = new Set(
         allEmployees.filter((e: Employee) => e.ubicacion).map((e: Employee) => e.ubicacion)
       );
@@ -210,7 +208,7 @@ export default function EmpleadosPage() {
       setStats({
         totalEmpleados: data.pagination?.total || 0,
         activos,
-        porProyecto,
+        porBoleta,
         ubicacionesCount: ubicacionesUnicas.size,
       });
     } catch (error) {
@@ -247,7 +245,7 @@ export default function EmpleadosPage() {
     fetchEmployees();
   }
 
-  function handleStatClick(filterType: "activo" | "proyecto" | "reset") {
+  function handleStatClick(filterType: "activo" | "boleta" | "reset") {
     if (filterType === "reset") {
       // Limpiar todos los filtros
       setEstadoFilter("");
@@ -263,12 +261,12 @@ export default function EmpleadosPage() {
         setEstadoFilter("activo");
       }
       setPagination((prev) => ({ ...prev, page: 1 }));
-    } else if (filterType === "proyecto") {
-      // Toggle filtro de proyecto
-      if (tipoContratoFilter === "proyecto") {
+    } else if (filterType === "boleta") {
+      // Toggle filtro de boleta
+      if (tipoContratoFilter === "boleta") {
         setTipoContratoFilter("");
       } else {
-        setTipoContratoFilter("proyecto");
+        setTipoContratoFilter("boleta");
       }
       setPagination((prev) => ({ ...prev, page: 1 }));
     }
@@ -359,27 +357,27 @@ export default function EmpleadosPage() {
           )}
         </button>
 
-        {/* Por Proyecto - Filter Toggle */}
+        {/* Por Boleta - Filter Toggle */}
         <button
-          onClick={() => handleStatClick("proyecto")}
+          onClick={() => handleStatClick("boleta")}
           className={cn(
             "bg-white rounded-lg shadow p-4 text-left transition-all hover:shadow-md hover:scale-105 cursor-pointer",
-            tipoContratoFilter === "proyecto" && "ring-2 ring-purple-500 ring-offset-2"
+            tipoContratoFilter === "boleta" && "ring-2 ring-purple-500 ring-offset-2"
           )}
-          aria-label="Filtrar empleados por proyecto"
-          aria-pressed={tipoContratoFilter === "proyecto"}
-          title="Click para filtrar por contrato de proyecto"
+          aria-label="Filtrar empleados por boleta"
+          aria-pressed={tipoContratoFilter === "boleta"}
+          title="Click para filtrar por contrato a boleta"
         >
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-100 rounded-lg">
               <Building className="h-6 w-6 text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Por Proyecto</p>
-              <p className="text-xl font-bold">{stats.porProyecto}</p>
+              <p className="text-sm text-gray-500">Por Boleta</p>
+              <p className="text-xl font-bold">{stats.porBoleta}</p>
             </div>
           </div>
-          {tipoContratoFilter === "proyecto" && (
+          {tipoContratoFilter === "boleta" && (
             <p className="text-xs text-purple-600 mt-2 font-medium">Filtro activo</p>
           )}
         </button>
@@ -545,7 +543,7 @@ export default function EmpleadosPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-gray-600">{employee.correo}</p>
+                      <p className="text-sm text-gray-600">{employee.correoPersonal}</p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>

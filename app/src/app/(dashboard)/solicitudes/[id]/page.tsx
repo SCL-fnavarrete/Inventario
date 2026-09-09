@@ -16,13 +16,13 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SeleccionarEquiposOnboarding } from '@/components/solicitudes/SeleccionarEquiposOnboarding';
+import { SeleccionarCambioEquipo } from '@/components/solicitudes/SeleccionarCambioEquipo';
 
 type WorkflowDetail = {
   id: string;
   numero: string;
   tipo: string;
   estado: string;
-  prioridad: string;
   observaciones: string | null;
   createdAt: string;
   updatedAt: string;
@@ -32,8 +32,13 @@ type WorkflowDetail = {
   cargoSolicitado: string | null;
   ubicacionDestino: string | null;
   categoriasRequeridas: string[];
+  kitBienvenidaSolicitado: boolean;
+  eppSolicitado: boolean;
+  fechaEntregaCoordinada: string | null;
+  medioEntrega: string | null;
+  lugarEntrega: string | null;
+  otChilexpressEntrega: string | null;
   // Cambio
-  ticketFreshdesk: string | null;
   motivoCambio: string | null;
   // Devolucion
   fechaDesvinculacion: string | null;
@@ -42,6 +47,7 @@ type WorkflowDetail = {
   ciudadDevolucion: string | null;
   // References
   assignmentIds: string[];
+  kitReturnIds: string[];
   terminationId: string | null;
   dispatchGuideId: string | null;
   employee: {
@@ -51,8 +57,11 @@ type WorkflowDetail = {
     apellidoPaterno: string;
     apellidoMaterno: string | null;
     cargo: string | null;
-    correo: string;
-    assignments: { id: string; activo: boolean; asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string } } }[];
+    correoPersonal: string;
+    assignments: { id: string; activo: boolean; estadoDevolucion: string | null; asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string } } }[];
+    // EPP entregado y aun no devuelto (offboarding). El Kit de Bienvenida
+    // no aparece aca -- es consumible, no se devuelve.
+    kitAssignments: { id: string; estado: string; item: { id: string; nombre: string; categoria: 'kit_bienvenida' | 'epp' } }[];
   };
   solicitante: { id: string; nombre: string; rol: string };
   responsableActual: { id: string; nombre: string; rol: string } | null;
@@ -79,16 +88,68 @@ type WorkflowDetail = {
     actualizadoPor: string | null;
     updatedAt: string;
   }[];
+  kitAssignments: {
+    id: string;
+    cantidad: number;
+    estado: string;
+    createdAt: string;
+    item: { id: string; nombre: string; categoria: 'kit_bienvenida' | 'epp' };
+  }[];
+  // Offboarding: equipos ya devueltos y calificados en este ticket (ver
+  // assignmentIds -- quedan con activo:false asi que no vienen en
+  // employee.assignments).
+  equiposDevueltos: {
+    id: string;
+    fechaDevolucion: string | null;
+    recibidoPor: string | null;
+    estadoDevolucion: string | null;
+    observacionesDevolucion: string | null;
+    asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string } };
+  }[];
+  // Mismo caso para el EPP devuelto en este ticket (ver kitReturnIds).
+  eppDevueltos: {
+    id: string;
+    estado: string;
+    observaciones: string | null;
+    item: { id: string; nombre: string; categoria: 'kit_bienvenida' | 'epp' };
+  }[];
+  // Detalle articulo-por-articulo de lo requerido en el onboarding (Kit de
+  // Bienvenida / EPP). Si esta vacio, el ticket es de antes de esta
+  // funcionalidad y se sigue usando el chequeo por categoria (booleanos).
+  kitRequeridos: {
+    id: string;
+    cantidad: number;
+    estado: 'pendiente' | 'entregado' | 'no_aplica';
+    motivoNoAplica: string | null;
+    item: { id: string; nombre: string; categoria: 'kit_bienvenida' | 'epp' };
+  }[];
+  // Cambio de equipo: equipo anterior (devuelto, con su condicion) y equipo
+  // nuevo (entregado) de este ticket, ya separados por el backend.
+  equipoCambioAnterior: {
+    id: string;
+    fechaDevolucion: string | null;
+    recibidoPor: string | null;
+    estadoDevolucion: string | null;
+    observacionesDevolucion: string | null;
+    asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string } };
+  } | null;
+  equipoCambioNuevo: {
+    id: string;
+    fechaEntrega: string;
+    entregadoPor: string | null;
+    asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string } };
+  } | null;
 };
 
 const estadoLabels: Record<string, string> = {
   solicitud_recibida: 'Solicitud Recibida',
   gestion_ti: 'Gestión TI',
+  coordinando_entrega: 'Coordinando Entrega',
   equipos_entregados: 'Equipos Entregados',
-  registro_rrhh: 'Registro RRHH',
+  registro_rrhh: 'Ticket Cerrado',
   incidencia_detectada: 'Incidencia Detectada',
   cambio_ejecutado: 'Cambio Ejecutado',
-  confirmacion_rrhh: 'Confirmación RRHH',
+  confirmacion_rrhh: 'Ticket Cerrado',
   solicitud_emitida: 'Solicitud Emitida',
   coordinacion_en_curso: 'Coordinación en Curso',
   equipo_recibido: 'Equipo Recibido',
@@ -98,14 +159,7 @@ const estadoLabels: Record<string, string> = {
 const tipoLabels: Record<string, string> = {
   onboarding: 'Onboarding',
   cambio_equipo: 'Cambio de Equipo',
-  devolucion_termino: 'Devolución por Término',
-};
-
-const prioridadColors: Record<string, string> = {
-  baja: 'bg-gray-100 text-gray-700',
-  media: 'bg-yellow-100 text-yellow-800',
-  alta: 'bg-orange-100 text-orange-800',
-  urgente: 'bg-red-100 text-red-800',
+  offboarding: 'Offboarding',
 };
 
 const pendienteEstadoColors: Record<string, string> = {
@@ -130,9 +184,9 @@ const pendienteLabels: Record<string, string> = {
 
 function getStatesForType(tipo: string): string[] {
   const map: Record<string, string[]> = {
-    onboarding: ['solicitud_recibida', 'gestion_ti', 'equipos_entregados', 'registro_rrhh'],
+    onboarding: ['solicitud_recibida', 'gestion_ti', 'coordinando_entrega', 'equipos_entregados', 'registro_rrhh'],
     cambio_equipo: ['incidencia_detectada', 'cambio_ejecutado', 'confirmacion_rrhh'],
-    devolucion_termino: ['solicitud_emitida', 'coordinacion_en_curso', 'equipo_recibido', 'consolidacion_cierre'],
+    offboarding: ['solicitud_emitida', 'equipo_recibido', 'consolidacion_cierre'],
   };
   return map[tipo] || [];
 }
@@ -140,11 +194,11 @@ function getStatesForType(tipo: string): string[] {
 // Onboarding se muestra al usuario como 3 etapas (crear solicitud, gestion TI,
 // ticket cerrado) en vez de las 4 etapas reales de la maquina de estados:
 // "equipos_entregados" y "registro_rrhh" comparten la etapa visual "Ticket Cerrado"
-// porque para el tecnico el trabajo ya esta hecho una vez entregado el equipo,
-// aunque falte la confirmacion de RRHH para cerrar formalmente.
+// porque para el tecnico el trabajo ya esta hecho una vez entregado el equipo.
 const onboardingStages: { key: string; label: string; states: string[] }[] = [
   { key: 'creada', label: 'Solicitud Creada', states: ['solicitud_recibida'] },
   { key: 'gestion_ti', label: 'Gestión TI', states: ['gestion_ti'] },
+  { key: 'coordinando_entrega', label: 'Coordinar Entrega', states: ['coordinando_entrega'] },
   { key: 'ticket_cerrado', label: 'Ticket Cerrado', states: ['equipos_entregados', 'registro_rrhh'] },
 ];
 
@@ -159,6 +213,34 @@ export default function SolicitudDetailPage() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [error, setError] = useState('');
+
+  // Cancelar solicitud: solo antes de ejecutar ningun efecto secundario
+  // (ver handleCancelar / POST /api/solicitudes/[id]/cancelar).
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [motivoCancelacion, setMotivoCancelacion] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+
+  // Kit de Bienvenida / EPP: catalogo con stock, independiente de Activos.
+  const [kitCatalog, setKitCatalog] = useState<
+    { id: string; nombre: string; categoria: 'kit_bienvenida' | 'epp'; cantidad: number }[]
+  >([]);
+  const [kitCantidades, setKitCantidades] = useState<Record<string, number>>({});
+  const [entregandoKit, setEntregandoKit] = useState<'kit_bienvenida' | 'epp' | null>(null);
+
+  // Coordinar Entrega (onboarding): fecha/hora de entrega y, segun el medio,
+  // el lugar (presencial) o la OT de despacho (Chilexpress).
+  const [fechaEntregaCoordinada, setFechaEntregaCoordinada] = useState('');
+  const [medioEntrega, setMedioEntrega] = useState<'presencial' | 'chilexpress'>('presencial');
+  const [lugarEntrega, setLugarEntrega] = useState('');
+  const [otChilexpressEntrega, setOtChilexpressEntrega] = useState('');
+
+  // Recepcion de equipos (offboarding): estado y observaciones por cada
+  // asignacion activa del empleado, calificados de forma individual.
+  const [devolucionEstados, setDevolucionEstados] = useState<Record<string, 'ok' | 'danado' | 'no_devuelto'>>({});
+  const [devolucionObservaciones, setDevolucionObservaciones] = useState<Record<string, string>>({});
+  // Mismo caso pero para EPP entregado y pendiente de devolver.
+  const [devolucionEppEstados, setDevolucionEppEstados] = useState<Record<string, 'ok' | 'danado' | 'no_devuelto'>>({});
+  const [devolucionEppObservaciones, setDevolucionEppObservaciones] = useState<Record<string, string>>({});
 
   const fetchData = useCallback(async (): Promise<WorkflowDetail | null> => {
     try {
@@ -178,6 +260,84 @@ export default function SolicitudDetailPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (!data || data.tipo !== 'onboarding') return;
+    if (!data.kitBienvenidaSolicitado && !data.eppSolicitado) return;
+    fetch('/api/kit-items')
+      .then((res) => (res.ok ? res.json() : []))
+      .then(setKitCatalog)
+      .catch(() => setKitCatalog([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.id, data?.tipo, data?.kitBienvenidaSolicitado, data?.eppSolicitado]);
+
+  const handleEntregarKit = async (categoria: 'kit_bienvenida' | 'epp') => {
+    if (!data) return;
+    const items = kitCatalog
+      .filter((it) => it.categoria === categoria)
+      .map((it) => ({ itemId: it.id, cantidad: kitCantidades[it.id] || 0 }))
+      .filter((it) => it.cantidad > 0);
+    if (items.length === 0) return;
+    setEntregandoKit(categoria);
+    setError('');
+    try {
+      const res = await fetch(`/api/solicitudes/${id}/kit-epp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Error al entregar');
+      }
+      setKitCantidades((prev) => {
+        const next = { ...prev };
+        items.forEach((it) => delete next[it.itemId]);
+        return next;
+      });
+      const actualizado = await fetchData();
+      if (actualizado) {
+        fetch('/api/kit-items')
+          .then((res) => (res.ok ? res.json() : []))
+          .then(setKitCatalog)
+          .catch(() => {});
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setEntregandoKit(null);
+    }
+  };
+
+  const [marcandoNoAplica, setMarcandoNoAplica] = useState<string | null>(null);
+
+  // Marca un articulo requerido (RequestKitItem) como "No aplica" -- la
+  // salida para cuando genuinamente no hay como entregarlo (sin stock, no
+  // corresponde al puesto, etc.) y el ticket necesita poder cerrarse igual.
+  const handleMarcarNoAplica = async (requestKitItemId: string) => {
+    const motivo = window.prompt(
+      '¿Por qué no aplica este artículo? (obligatorio, se guarda en el ticket)'
+    );
+    if (!motivo || !motivo.trim()) return;
+    setMarcandoNoAplica(requestKitItemId);
+    setError('');
+    try {
+      const res = await fetch(`/api/solicitudes/${id}/kit-epp`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestKitItemId, motivo: motivo.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Error al marcar como no aplica');
+      }
+      await fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setMarcandoNoAplica(null);
+    }
+  };
 
   const handleAddComment = async () => {
     if (!commentText.trim()) return;
@@ -220,6 +380,98 @@ export default function SolicitudDetailPage() {
     }
   };
 
+  // Cancela la solicitud: solo tiene sentido mientras no ejecuto ningun
+  // efecto secundario (assignmentIds/kitReturnIds vacios) -- la ruta lo
+  // valida igual del lado del servidor, esto es solo para no ofrecer el
+  // boton cuando ya no aplica. Pide motivo obligatorio.
+  const handleCancelar = async () => {
+    if (!motivoCancelacion.trim()) {
+      setError('Indica el motivo de la cancelación');
+      return;
+    }
+    setCancelling(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/solicitudes/${id}/cancelar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ motivo: motivoCancelacion.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Error al cancelar la solicitud');
+      }
+      setShowCancelModal(false);
+      setMotivoCancelacion('');
+      fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  // Etapa "Coordinando Entrega" del onboarding: confirma fecha/hora y medio
+  // (presencial con lugar, o despacho Chilexpress con OT) y avanza a
+  // equipos_entregados.
+  const handleCoordinarEntrega = () => {
+    if (!fechaEntregaCoordinada) {
+      setError('Indica la fecha y hora de entrega');
+      return;
+    }
+    if (medioEntrega === 'presencial' && !lugarEntrega.trim()) {
+      setError('Indica el lugar de la entrega presencial');
+      return;
+    }
+    if (medioEntrega === 'chilexpress' && !otChilexpressEntrega.trim()) {
+      setError('Indica el número de OT de Chilexpress');
+      return;
+    }
+    handleTransition('equipos_entregados', {
+      fechaEntregaCoordinada,
+      medioEntrega,
+      lugarEntrega: medioEntrega === 'presencial' ? lugarEntrega : undefined,
+      otChilexpressEntrega: medioEntrega === 'chilexpress' ? otChilexpressEntrega : undefined,
+    });
+  };
+
+  // Recepcion de equipos (offboarding): califica cada asignacion activa del
+  // empleado (ok / danado) con observaciones opcionales, y avanza a
+  // equipo_recibido. executeReturn se encarga de dejar cada Activo en "baja"
+  // si esta danado o "reutilizable" si esta ok.
+  // EPP realmente pendiente de devolver: entregado y de categoria EPP -- el
+  // Kit de Bienvenida es consumible (nunca se pide de vuelta) y lo ya
+  // devuelto no deberia volver a aparecer en esta lista.
+  const eppPendienteDevolver = data
+    ? data.employee.kitAssignments.filter(
+        (k) => k.estado === 'entregado' && k.item.categoria === 'epp'
+      )
+    : [];
+
+  // No hay un default silencioso: cada equipo/EPP necesita una seleccion
+  // explicita (validado tambien en el boton de abajo, que queda deshabilitado
+  // hasta que todos esten calificados) para que nunca se cierre algo como
+  // "buen estado" sin que alguien lo haya mirado.
+  const handleRecibirEquipos = () => {
+    if (!data) return;
+    const activos = data.employee.assignments.filter((a) => a.activo && !a.estadoDevolucion);
+    const devoluciones = activos
+      .filter((a) => devolucionEstados[a.id])
+      .map((a) => ({
+        assignmentId: a.id,
+        estadoDevolucion: devolucionEstados[a.id],
+        observaciones: devolucionObservaciones[a.id] || undefined,
+      }));
+    const devolucionesEpp = eppPendienteDevolver
+      .filter((k) => devolucionEppEstados[k.id])
+      .map((k) => ({
+        kitAssignmentId: k.id,
+        estadoDevolucion: devolucionEppEstados[k.id],
+        observaciones: devolucionEppObservaciones[k.id] || undefined,
+      }));
+    handleTransition('equipo_recibido', { devoluciones, devolucionesEpp });
+  };
+
   // Etapa "Gestion TI" del onboarding: si la solicitud recien fue recibida,
   // primero avanza a gestion_ti. La entrega de equipos puede ser parcial --
   // se registran los que si hay disponibles y la solicitud se queda en
@@ -255,28 +507,49 @@ export default function SolicitudDetailPage() {
         }
       }
 
-      const actualizado = await fetchData();
-      if (!actualizado) return;
+      // Ya no se cierra Gestion TI automaticamente aca: una vez cubiertas
+      // todas las categorias, la solicitud se queda en gestion_ti y la UI
+      // muestra el boton "Coordinar Entrega" para que el tecnico complete
+      // fecha/hora y medio de entrega -- ese paso necesita datos que no se
+      // pueden completar solos.
+      await fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setTransitioning(false);
+    }
+  };
 
-      const categoriasEntregadas = actualizado.employee.assignments
-        .filter((a) => actualizado.assignmentIds.includes(a.id))
-        .map((a) => a.asset.categoria.nombre);
-      const faltan = actualizado.categoriasRequeridas.some(
-        (c) => !categoriasEntregadas.includes(c)
-      );
-
-      if (!faltan && actualizado.estado === 'gestion_ti') {
-        const resCierre = await fetch(`/api/solicitudes/${id}/transicion`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nuevoEstado: 'equipos_entregados' }),
-        });
-        if (!resCierre.ok) {
-          const err = await resCierre.json();
-          throw new Error(err.error || 'Error al cerrar Gestión TI');
-        }
-        await fetchData();
+  // Etapa "Incidencia Detectada" del cambio de equipo: el tecnico elige que
+  // asignacion activa del empleado se devuelve y que activo nuevo se entrega,
+  // y ambos datos se mandan juntos en la misma transicion de estado.
+  const handleCambiarEquipo = async (
+    oldAssignmentId: string,
+    newAssetId: string,
+    estadoDevolucion: 'ok' | 'danado' | 'no_devuelto',
+    observacionesDevolucion: string
+  ) => {
+    setTransitioning(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/solicitudes/${id}/transicion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nuevoEstado: 'cambio_ejecutado',
+          datosAccion: {
+            oldAssignmentId,
+            newAssetId,
+            estadoDevolucion,
+            observacionesDevolucion: observacionesDevolucion || undefined,
+          },
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Error al ejecutar el cambio de equipo');
       }
+      fetchData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
     } finally {
@@ -341,6 +614,48 @@ export default function SolicitudDetailPage() {
     ? data.categoriasRequeridas.filter((c) => !categoriasEntregadas.includes(c))
     : [];
 
+  // Kit de Bienvenida / EPP: cuanto se ha entregado ya para esta solicitud
+  // (independiente del estado del ticket -- puede entregarse en cualquier
+  // momento mientras la solicitud siga abierta).
+  const kitEntregadoTotal = (categoria: 'kit_bienvenida' | 'epp') =>
+    data.kitAssignments
+      .filter((ka) => ka.item.categoria === categoria)
+      .reduce((sum, ka) => sum + ka.cantidad, 0);
+
+  // Si se pidio Kit de Bienvenida y/o EPP pero todavia no se entrego nada,
+  // no deberia poder cerrarse el ticket -- quedaria "pendiente" sin que
+  // nada lo refleje. La entrega en si sigue siendo independiente del estado
+  // (se puede hacer en cualquier momento), solo el cierre final la exige.
+  // Por categoria: si hay detalle articulo-por-articulo (kitRequeridos) para
+  // esa categoria se usa ese chequeo (mas preciso); si no hay ninguna fila
+  // para esa categoria puntual, se cae al chequeo antiguo por booleano --
+  // nunca se ignora un booleano solo porque la OTRA categoria si tenga
+  // detalle granular (por ejemplo, EPP con stock y Kit sin stock al crear
+  // el ticket).
+  const kitRequeridosPendientes =
+    data.tipo === 'onboarding'
+      ? data.kitRequeridos.filter(
+          (r) => r.item.categoria === 'kit_bienvenida' && r.estado === 'pendiente'
+        )
+      : [];
+  const eppRequeridosPendientes =
+    data.tipo === 'onboarding'
+      ? data.kitRequeridos.filter((r) => r.item.categoria === 'epp' && r.estado === 'pendiente')
+      : [];
+  const kitTieneGranular =
+    data.tipo === 'onboarding' && data.kitRequeridos.some((r) => r.item.categoria === 'kit_bienvenida');
+  const eppTieneGranular =
+    data.tipo === 'onboarding' && data.kitRequeridos.some((r) => r.item.categoria === 'epp');
+  const kitBienvenidaPendiente = kitTieneGranular
+    ? kitRequeridosPendientes.length > 0
+    : data.tipo === 'onboarding' &&
+      data.kitBienvenidaSolicitado &&
+      kitEntregadoTotal('kit_bienvenida') === 0;
+  const eppPendiente = eppTieneGranular
+    ? eppRequeridosPendientes.length > 0
+    : data.tipo === 'onboarding' && data.eppSolicitado && kitEntregadoTotal('epp') === 0;
+  const kitOEppPendiente = kitBienvenidaPendiente || eppPendiente;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -352,19 +667,80 @@ export default function SolicitudDetailPage() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900">{data.numero}</h1>
-              <span className={cn('px-2 py-1 text-xs font-medium rounded-full', prioridadColors[data.prioridad])}>
-                {data.prioridad.toUpperCase()}
-              </span>
-              {isClosed && (
-                <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                  CERRADA
+              {data.estado === 'cancelada' ? (
+                <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-200 text-gray-700">
+                  CANCELADA
                 </span>
+              ) : (
+                isClosed && (
+                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                    CERRADA
+                  </span>
+                )
               )}
             </div>
             <p className="text-gray-600">{tipoLabels[data.tipo]}</p>
           </div>
         </div>
+
+        {/* Cancelar: solo mientras la solicitud no ejecuto ningun efecto
+            secundario todavia (ver handleCancelar). Para el caso "este
+            ticket no debia existir" -- duplicado, error de carga, ya no
+            aplica -- no para cerrar un proceso que si avanzo. */}
+        {!isClosed && data.assignmentIds.length === 0 && data.kitReturnIds.length === 0 && (
+          <button
+            type="button"
+            onClick={() => setShowCancelModal(true)}
+            className="text-sm text-red-600 hover:underline"
+          >
+            Cancelar solicitud
+          </button>
+        )}
       </div>
+
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full space-y-4">
+            <h3 className="font-semibold text-gray-900">Cancelar solicitud</h3>
+            <p className="text-sm text-gray-500">
+              Esta solicitud todavía no ejecutó ninguna acción sobre el inventario, así que se
+              puede cancelar directamente. Se registrará en el historial del ticket con el motivo
+              que indiques.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Motivo *</label>
+              <textarea
+                value={motivoCancelacion}
+                onChange={(e) => setMotivoCancelacion(e.target.value)}
+                placeholder="Ej: Ticket duplicado, ya no corresponde..."
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCancelModal(false);
+                  setMotivoCancelacion('');
+                }}
+                disabled={cancelling}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelar}
+                disabled={cancelling || !motivoCancelacion.trim()}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {cancelling ? 'Cancelando...' : 'Confirmar cancelación'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -425,6 +801,24 @@ export default function SolicitudDetailPage() {
         <div className="lg:col-span-2 space-y-6">
           {/* Action Panel */}
           {data.tipo === 'onboarding' && !isClosed &&
+          data.estado === 'solicitud_recibida' &&
+          data.categoriasRequeridas.length === 0 ? (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="font-semibold text-gray-900 mb-1">Gestión TI</h3>
+              <p className="text-sm text-gray-500 mb-3">
+                Esta solicitud no marcó ningún equipo como requerido. Continúa para coordinar la
+                entrega (del Kit de Bienvenida / EPP, si corresponde).
+              </p>
+              <button
+                onClick={() => handleEntregarEquipos([])}
+                disabled={transitioning}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                <ChevronRight className="h-4 w-4" />
+                {transitioning ? 'Avanzando...' : 'No requiere equipo, continuar'}
+              </button>
+            </div>
+          ) : data.tipo === 'onboarding' && !isClosed &&
           (data.estado === 'solicitud_recibida' ||
             (data.estado === 'gestion_ti' && categoriasPendientes.length > 0)) ? (
             <div className="bg-white rounded-lg shadow p-6">
@@ -447,25 +841,363 @@ export default function SolicitudDetailPage() {
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <h3 className="font-medium text-green-900 mb-2">Todos los equipos fueron entregados</h3>
               <p className="text-sm text-green-700 mb-3">
-                Ya se cubrieron todas las categorías requeridas. Cierra la etapa de Gestión TI para continuar.
+                Ya se cubrieron todas las categorías requeridas. Continúa para coordinar la entrega.
               </p>
               <button
-                onClick={() => handleTransition('equipos_entregados')}
+                onClick={() => handleTransition('coordinando_entrega')}
                 disabled={transitioning}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
                 <ChevronRight className="h-4 w-4" />
-                {transitioning ? 'Cerrando...' : 'Cerrar Gestión TI'}
+                {transitioning ? 'Avanzando...' : 'Coordinar Entrega'}
               </button>
             </div>
-          ) : data.tipo === 'onboarding' && !isClosed && data.estado === 'equipos_entregados' ? (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <h3 className="font-medium text-green-900 mb-2">Equipos entregados</h3>
-              <p className="text-sm text-green-700 mb-3">
-                Falta el registro de RRHH para cerrar el ticket.
+          ) : data.tipo === 'onboarding' && !isClosed && data.estado === 'coordinando_entrega' ? (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="font-semibold text-gray-900 mb-1">Coordinar Entrega</h3>
+              <p className="text-sm text-gray-500 mb-3">
+                Define cuándo y cómo se le hará llegar el equipo a {data.employee.nombres}{' '}
+                {data.employee.apellidoPaterno}.
               </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha y hora de entrega
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={fechaEntregaCoordinada}
+                    onChange={(e) => setFechaEntregaCoordinada(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Medio</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="medioEntrega"
+                        checked={medioEntrega === 'presencial'}
+                        onChange={() => setMedioEntrega('presencial')}
+                      />
+                      Presencial
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="medioEntrega"
+                        checked={medioEntrega === 'chilexpress'}
+                        onChange={() => setMedioEntrega('chilexpress')}
+                      />
+                      Despacho (Chilexpress)
+                    </label>
+                  </div>
+                </div>
+                {medioEntrega === 'presencial' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Lugar de entrega
+                    </label>
+                    <input
+                      type="text"
+                      value={lugarEntrega}
+                      onChange={(e) => setLugarEntrega(e.target.value)}
+                      placeholder="ej: Oficina Santiago, piso 4"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      N° de OT Chilexpress
+                    </label>
+                    <input
+                      type="text"
+                      value={otChilexpressEntrega}
+                      onChange={(e) => setOtChilexpressEntrega(e.target.value)}
+                      placeholder="ej: CH-2026-004567"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                )}
+                <button
+                  onClick={handleCoordinarEntrega}
+                  disabled={transitioning}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                  {transitioning ? 'Guardando...' : 'Confirmar Entrega Coordinada'}
+                </button>
+              </div>
+            </div>
+          ) : data.tipo === 'cambio_equipo' && !isClosed && data.estado === 'incidencia_detectada' ? (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="font-semibold text-gray-900 mb-1">Cambio de Equipo</h3>
+              <p className="text-sm text-gray-500 mb-3">
+                Elige que equipo de {data.employee.nombres} {data.employee.apellidoPaterno} se va a
+                cambiar y con que equipo nuevo se reemplaza.
+              </p>
+              <SeleccionarCambioEquipo
+                asignacionesActivas={data.employee.assignments}
+                submitting={transitioning}
+                onSubmit={handleCambiarEquipo}
+              />
+            </div>
+          ) : data.tipo === 'onboarding' && !isClosed && data.estado === 'equipos_entregados' ? (
+            <div className={cn(
+              'border rounded-lg p-4',
+              kitOEppPendiente ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'
+            )}>
+              <h3 className={cn('font-medium mb-2', kitOEppPendiente ? 'text-amber-900' : 'text-green-900')}>
+                Equipos entregados
+              </h3>
+              {kitOEppPendiente ? (
+                <p className="text-sm text-amber-700 mb-3">
+                  {[...kitRequeridosPendientes, ...eppRequeridosPendientes].length > 0 &&
+                    `Aún falta entregar (o marcar como "No aplica"): ${[
+                      ...kitRequeridosPendientes,
+                      ...eppRequeridosPendientes,
+                    ]
+                      .map((r) => r.item.nombre)
+                      .join(', ')}. `}
+                  {(!kitTieneGranular && kitBienvenidaPendiente) || (!eppTieneGranular && eppPendiente)
+                    ? `Aún falta entregar ${[
+                        !kitTieneGranular && kitBienvenidaPendiente && 'el Kit de Bienvenida',
+                        !eppTieneGranular && eppPendiente && 'el EPP',
+                      ]
+                        .filter(Boolean)
+                        .join(' y ')}. `
+                    : ''}
+                  Ver la tarjeta &quot;Artículos Requeridos&quot; y/o &quot;Kit de Bienvenida y EPP&quot;
+                  más abajo.
+                </p>
+              ) : (
+                <p className="text-sm text-green-700 mb-3">
+                  Listo para cerrar el ticket.
+                </p>
+              )}
               <button
                 onClick={() => handleTransition('registro_rrhh')}
+                disabled={transitioning || kitOEppPendiente}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="h-4 w-4" />
+                {transitioning ? 'Cerrando...' : 'Cerrar ticket'}
+              </button>
+            </div>
+          ) : data.tipo === 'offboarding' && !isClosed && data.estado === 'solicitud_emitida' ? (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="font-semibold text-gray-900 mb-1">Recibir Equipos</h3>
+              <p className="text-sm text-gray-500 mb-3">
+                Califica el estado de cada equipo que devuelve {data.employee.nombres}{' '}
+                {data.employee.apellidoPaterno}. Los dañados se dan de baja automáticamente; el
+                resto queda reutilizable.
+              </p>
+              {(() => {
+                // "no_devuelto" deja la asignacion activa a proposito (el
+                // empleado se queda con el equipo) -- ya fue calificada en
+                // este ticket, asi que no se vuelve a pedir aca; se muestra
+                // aparte, de solo lectura, mas abajo.
+                const yaCalificadasNoDevueltas = data.employee.assignments.filter(
+                  (a) => a.activo && a.estadoDevolucion === 'no_devuelto'
+                );
+                const pendientesDeCalificar = data.employee.assignments.filter(
+                  (a) => a.activo && !a.estadoDevolucion
+                );
+                return (
+                  <>
+                    {pendientesDeCalificar.length === 0 && yaCalificadasNoDevueltas.length === 0 ? (
+                      <p className="text-sm text-gray-500 mb-3">
+                        Este empleado no tiene equipos asignados actualmente.
+                      </p>
+                    ) : pendientesDeCalificar.length === 0 ? (
+                      <p className="text-sm text-gray-500 mb-3">
+                        No queda ningún equipo por calificar.
+                      </p>
+                    ) : (
+                <div className="space-y-3 mb-3">
+                  {pendientesDeCalificar
+                    .map((a) => (
+                      <div key={a.id} className="border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <span className="text-sm font-medium text-gray-900">
+                              {a.asset.marca} {a.asset.modelo}
+                            </span>
+                            <span className="block text-xs text-gray-500">
+                              {a.asset.categoria.nombre}
+                              {a.asset.numeroSerie && ` · S/N: ${a.asset.numeroSerie}`}
+                            </span>
+                          </div>
+                          <div className="flex gap-3">
+                            <label className="flex items-center gap-1 text-sm">
+                              <input
+                                type="radio"
+                                name={`devolucion-${a.id}`}
+                                checked={devolucionEstados[a.id] === 'ok'}
+                                onChange={() =>
+                                  setDevolucionEstados((prev) => ({ ...prev, [a.id]: 'ok' }))
+                                }
+                              />
+                              Buen estado
+                            </label>
+                            <label className="flex items-center gap-1 text-sm">
+                              <input
+                                type="radio"
+                                name={`devolucion-${a.id}`}
+                                checked={devolucionEstados[a.id] === 'danado'}
+                                onChange={() =>
+                                  setDevolucionEstados((prev) => ({ ...prev, [a.id]: 'danado' }))
+                                }
+                              />
+                              Dañado
+                            </label>
+                            <label className="flex items-center gap-1 text-sm">
+                              <input
+                                type="radio"
+                                name={`devolucion-${a.id}`}
+                                checked={devolucionEstados[a.id] === 'no_devuelto'}
+                                onChange={() =>
+                                  setDevolucionEstados((prev) => ({ ...prev, [a.id]: 'no_devuelto' }))
+                                }
+                              />
+                              No devolvió
+                            </label>
+                          </div>
+                        </div>
+                        <input
+                          type="text"
+                          value={devolucionObservaciones[a.id] || ''}
+                          onChange={(e) =>
+                            setDevolucionObservaciones((prev) => ({ ...prev, [a.id]: e.target.value }))
+                          }
+                          placeholder="Observaciones (opcional)"
+                          className="w-full text-sm border border-gray-300 rounded px-2 py-1"
+                        />
+                      </div>
+                    ))}
+                </div>
+                    )}
+                    {yaCalificadasNoDevueltas.length > 0 && (
+                      <div className="space-y-2 mb-3">
+                        {yaCalificadasNoDevueltas.map((a) => (
+                          <div
+                            key={a.id}
+                            className="border border-amber-200 bg-amber-50 rounded-lg p-3 text-sm"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium text-gray-900">
+                                {a.asset.marca} {a.asset.modelo}
+                              </span>
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 flex-shrink-0">
+                                No devolvió
+                              </span>
+                            </div>
+                            <span className="block text-xs text-gray-500 mt-0.5">
+                              {a.asset.categoria.nombre}
+                              {a.asset.numeroSerie && ` · S/N: ${a.asset.numeroSerie}`} · Sigue
+                              asignado a {data.employee.nombres}, a la espera de recuperarlo.
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+              {eppPendienteDevolver.length > 0 && (
+                <div className="space-y-3 mb-3">
+                  <h4 className="text-sm font-medium text-gray-700">EPP a devolver</h4>
+                  {eppPendienteDevolver.map((k) => (
+                    <div key={k.id} className="border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-900">{k.item.nombre}</span>
+                        <div className="flex gap-3">
+                          <label className="flex items-center gap-1 text-sm">
+                            <input
+                              type="radio"
+                              name={`devolucion-epp-${k.id}`}
+                              checked={devolucionEppEstados[k.id] === 'ok'}
+                              onChange={() =>
+                                setDevolucionEppEstados((prev) => ({ ...prev, [k.id]: 'ok' }))
+                              }
+                            />
+                            Buen estado
+                          </label>
+                          <label className="flex items-center gap-1 text-sm">
+                            <input
+                              type="radio"
+                              name={`devolucion-epp-${k.id}`}
+                              checked={devolucionEppEstados[k.id] === 'danado'}
+                              onChange={() =>
+                                setDevolucionEppEstados((prev) => ({ ...prev, [k.id]: 'danado' }))
+                              }
+                            />
+                            Dañado
+                          </label>
+                          <label className="flex items-center gap-1 text-sm">
+                            <input
+                              type="radio"
+                              name={`devolucion-epp-${k.id}`}
+                              checked={devolucionEppEstados[k.id] === 'no_devuelto'}
+                              onChange={() =>
+                                setDevolucionEppEstados((prev) => ({ ...prev, [k.id]: 'no_devuelto' }))
+                              }
+                            />
+                            No devolvió
+                          </label>
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        value={devolucionEppObservaciones[k.id] || ''}
+                        onChange={(e) =>
+                          setDevolucionEppObservaciones((prev) => ({ ...prev, [k.id]: e.target.value }))
+                        }
+                        placeholder="Observaciones (opcional)"
+                        className="w-full text-sm border border-gray-300 rounded px-2 py-1"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(() => {
+                const activosSinCalificar = data.employee.assignments
+                  .filter((a) => a.activo && !a.estadoDevolucion)
+                  .filter((a) => !devolucionEstados[a.id]).length;
+                const eppSinCalificar = eppPendienteDevolver.filter(
+                  (k) => !devolucionEppEstados[k.id]
+                ).length;
+                const faltanPorCalificar = activosSinCalificar + eppSinCalificar;
+                return (
+                  <>
+                    {faltanPorCalificar > 0 && (
+                      <p className="text-xs text-amber-700 mb-2">
+                        Falta calificar {faltanPorCalificar} ítem(s) (elige un estado para cada
+                        uno, o "No devolvió" si corresponde).
+                      </p>
+                    )}
+                    <button
+                      onClick={handleRecibirEquipos}
+                      disabled={transitioning || faltanPorCalificar > 0}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                      {transitioning ? 'Guardando...' : 'Confirmar Recepción'}
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          ) : data.tipo === 'offboarding' && !isClosed && data.estado === 'equipo_recibido' ? (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h3 className="font-medium text-green-900 mb-2">Equipos recibidos</h3>
+              <p className="text-sm text-green-700 mb-3">
+                Listo para cerrar el ticket.
+              </p>
+              <button
+                onClick={() => handleTransition('consolidacion_cierre')}
                 disabled={transitioning}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
@@ -491,6 +1223,166 @@ export default function SolicitudDetailPage() {
                 </button>
               </div>
             )
+          )}
+
+          {/* Detalle articulo-por-articulo de lo requerido (RequestKitItem):
+              solo aparece si el ticket se creo con esa lista. Cada articulo
+              se resuelve solo (entregado) al entregarse desde el panel de
+              abajo, o manualmente con "No aplica" si genuinamente no se
+              puede entregar. */}
+          {data.tipo === 'onboarding' &&
+            data.kitRequeridos.length > 0 &&
+            (['kit_bienvenida', 'epp'] as const).map((categoria) => {
+              const requeridos = data.kitRequeridos.filter((r) => r.item.categoria === categoria);
+              if (requeridos.length === 0) return null;
+              const label = categoria === 'kit_bienvenida' ? 'Kit de Bienvenida' : 'EPP';
+              return (
+                <div key={categoria} className="bg-white rounded-lg shadow p-6">
+                  <h3 className="font-semibold text-gray-900 mb-1">Artículos Requeridos: {label}</h3>
+                  <p className="text-sm text-gray-500 mb-3">
+                    {label} pedido específicamente para este ticket.
+                  </p>
+                  <div className="space-y-2">
+                    {requeridos.map((r) => (
+                      <div
+                        key={r.id}
+                        className="flex items-center justify-between gap-3 py-2 border-b border-gray-100 last:border-0"
+                      >
+                        <div>
+                          <span className="text-sm text-gray-900">
+                            {r.item.nombre} × {r.cantidad}
+                          </span>
+                          <span className="block text-xs text-gray-500">
+                            {r.estado === 'no_aplica' && r.motivoNoAplica ? r.motivoNoAplica : ''}
+                          </span>
+                        </div>
+                        {r.estado === 'pendiente' && !isClosed ? (
+                          <button
+                            onClick={() => handleMarcarNoAplica(r.id)}
+                            disabled={marcandoNoAplica === r.id}
+                            className="text-xs px-2 py-1 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap"
+                          >
+                            {marcandoNoAplica === r.id ? 'Marcando...' : 'No aplica'}
+                          </button>
+                        ) : (
+                          <span
+                            className={cn(
+                              'text-xs px-2 py-0.5 rounded-full whitespace-nowrap',
+                              r.estado === 'entregado'
+                                ? 'bg-green-100 text-green-800'
+                                : r.estado === 'no_aplica'
+                                  ? 'bg-gray-100 text-gray-600'
+                                  : 'bg-amber-100 text-amber-800'
+                            )}
+                          >
+                            {r.estado === 'entregado'
+                              ? 'Entregado'
+                              : r.estado === 'no_aplica'
+                                ? 'No aplica'
+                                : 'Pendiente'}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+          {/* Kit de Bienvenida / EPP: independiente del estado de la solicitud
+              y de la entrega de equipos -- se puede entregar en cualquier
+              momento mientras el ticket siga abierto. */}
+          {data.tipo === 'onboarding' && !isClosed && (data.kitBienvenidaSolicitado || data.eppSolicitado) && (
+            <div className="space-y-4">
+              {(['kit_bienvenida', 'epp'] as const)
+                .filter((categoria) =>
+                  categoria === 'kit_bienvenida' ? data.kitBienvenidaSolicitado : data.eppSolicitado
+                )
+                .map((categoria) => {
+                  const items = kitCatalog.filter((it) => it.categoria === categoria);
+                  const entregado = kitEntregadoTotal(categoria);
+                  const label = categoria === 'kit_bienvenida' ? 'Kit de Bienvenida' : 'EPP';
+
+                  // Si ya se entrego algo de esta categoria para esta solicitud
+                  // (por ejemplo, se reservo al crear el ticket), no hace falta
+                  // seguir pidiendolo aca -- se muestra como ya resuelto, igual
+                  // que "Todos los equipos fueron entregados" en Gestion TI.
+                  if (entregado > 0) {
+                    return (
+                      <div key={categoria} className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-medium text-green-900">{label}</h3>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800">
+                            {entregado} entregado{entregado === 1 ? '' : 's'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-green-700 mt-1">Ya entregado, no queda pendiente.</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={categoria} className="bg-white rounded-lg shadow p-6">
+                      <h3 className="font-semibold text-gray-900 mb-1">{label}</h3>
+                      <p className="text-sm text-gray-500 mb-3">
+                        Elige los artículos y cantidades a entregar a {data.employee.nombres}{' '}
+                        {data.employee.apellidoPaterno}.
+                      </p>
+                      {items.length === 0 ? (
+                        <p className="text-sm text-gray-500">
+                          No hay artículos cargados en el catálogo de {label}. Puedes crearlos en
+                          Configuración → Kit de Bienvenida y EPP.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {items.map((it) => (
+                            <div key={it.id} className="flex items-center justify-between gap-3 py-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-900">{it.nombre}</span>
+                                <span
+                                  className={cn(
+                                    'text-xs px-2 py-0.5 rounded-full border',
+                                    it.cantidad > 0
+                                      ? 'bg-green-50 text-green-700 border-green-200'
+                                      : 'bg-red-50 text-red-700 border-red-200'
+                                  )}
+                                >
+                                  {it.cantidad} disponibles
+                                </span>
+                              </div>
+                              <input
+                                type="number"
+                                min={0}
+                                max={it.cantidad}
+                                value={kitCantidades[it.id] || ''}
+                                onChange={(e) =>
+                                  setKitCantidades((prev) => ({
+                                    ...prev,
+                                    [it.id]: Math.max(0, Math.min(it.cantidad, Number(e.target.value) || 0)),
+                                  }))
+                                }
+                                disabled={it.cantidad === 0}
+                                placeholder="0"
+                                className="w-20 text-sm border border-gray-300 rounded px-2 py-1 disabled:bg-gray-100"
+                              />
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => handleEntregarKit(categoria)}
+                            disabled={
+                              entregandoKit === categoria ||
+                              items.every((it) => !(kitCantidades[it.id] > 0))
+                            }
+                            className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {entregandoKit === categoria ? 'Entregando...' : `Entregar ${label}`}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
           )}
 
           {/* Pendientes Checklist */}
@@ -662,7 +1554,7 @@ export default function SolicitudDetailPage() {
                   {data.employee.nombres} {data.employee.apellidoPaterno}
                 </dd>
                 <dd className="text-xs text-gray-500">
-                  {data.employee.rut || '—'} · {data.employee.correo}
+                  {data.employee.rut || '—'} · {data.employee.correoPersonal}
                 </dd>
               </div>
               {data.employee.cargo && (
@@ -745,15 +1637,9 @@ export default function SolicitudDetailPage() {
                       <dd className="text-gray-900">{data.motivoCambio}</dd>
                     </div>
                   )}
-                  {data.ticketFreshdesk && (
-                    <div>
-                      <dt className="text-gray-500">Ticket Freshdesk</dt>
-                      <dd className="text-gray-900">{data.ticketFreshdesk}</dd>
-                    </div>
-                  )}
                 </>
               )}
-              {data.tipo === 'devolucion_termino' && (
+              {data.tipo === 'offboarding' && (
                 <>
                   {data.fechaDesvinculacion && (
                     <div>
@@ -777,7 +1663,7 @@ export default function SolicitudDetailPage() {
                   )}
                   {data.ciudadDevolucion && (
                     <div>
-                      <dt className="text-gray-500">Ciudad</dt>
+                      <dt className="text-gray-500">Ubicación</dt>
                       <dd className="text-gray-900">{data.ciudadDevolucion}</dd>
                     </div>
                   )}
@@ -805,6 +1691,228 @@ export default function SolicitudDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Equipos Devueltos: lo que ya se recibio y califico en este
+              ticket de offboarding, con su estado y observaciones -- para
+              que quede a la vista sin tener que ir al modulo de
+              Asignaciones a buscar cada asignacion por separado. */}
+          {data.tipo === 'offboarding' && data.equiposDevueltos.length > 0 && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="font-semibold text-gray-900 mb-4">Equipos Devueltos</h3>
+              <div className="space-y-2">
+                {data.equiposDevueltos.map((a) => (
+                  <div key={a.id} className="text-sm p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-gray-900">
+                        {a.asset.categoria.nombre}: {a.asset.marca} {a.asset.modelo}
+                      </span>
+                      <span
+                        className={cn(
+                          'text-xs px-1.5 py-0.5 rounded flex-shrink-0',
+                          a.estadoDevolucion === 'danado'
+                            ? 'bg-red-100 text-red-700'
+                            : a.estadoDevolucion === 'no_devuelto'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-green-100 text-green-700'
+                        )}
+                      >
+                        {a.estadoDevolucion === 'danado'
+                          ? 'Dañado'
+                          : a.estadoDevolucion === 'no_devuelto'
+                            ? 'No devolvió'
+                            : 'Buen estado'}
+                      </span>
+                    </div>
+                    <span className="block text-xs text-gray-500 mt-0.5">
+                      {a.asset.numeroSerie && `S/N: ${a.asset.numeroSerie} · `}
+                      {a.estadoDevolucion === 'no_devuelto'
+                        ? 'Sigue asignado, a la espera de recuperarlo'
+                        : a.fechaDevolucion &&
+                          `Devuelto el ${new Date(a.fechaDevolucion).toLocaleDateString('es-CL')}`}
+                      {a.recibidoPor && ` · Registrado por ${a.recibidoPor}`}
+                    </span>
+                    {a.observacionesDevolucion && (
+                      <p className="text-xs text-gray-600 mt-1">
+                        Observaciones: {a.observacionesDevolucion}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* EPP Devuelto: mismo criterio que Equipos Devueltos, pero para
+              el EPP (el Kit de Bienvenida no se devuelve). El estado y las
+              observaciones quedan en KitAssignment.observaciones porque no
+              hay un campo aparte como en Assignment. */}
+          {data.tipo === 'offboarding' && data.eppDevueltos.length > 0 && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="font-semibold text-gray-900 mb-4">EPP Devuelto</h3>
+              <div className="space-y-2">
+                {data.eppDevueltos.map((k) => (
+                  <div key={k.id} className="text-sm p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-gray-900">{k.item.nombre}</span>
+                      <span
+                        className={cn(
+                          'text-xs px-1.5 py-0.5 rounded flex-shrink-0',
+                          k.estado === 'perdido'
+                            ? 'bg-red-100 text-red-700'
+                            : k.estado === 'no_devuelto'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-green-100 text-green-700'
+                        )}
+                      >
+                        {k.estado === 'perdido'
+                          ? 'Dañado'
+                          : k.estado === 'no_devuelto'
+                            ? 'No devolvió'
+                            : 'Buen estado'}
+                      </span>
+                    </div>
+                    {k.observaciones && (
+                      <p className="text-xs text-gray-600 mt-1">{k.observaciones}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Equipo Cambiado: equipo anterior (con la condicion en que se
+              devolvio) y equipo nuevo entregado en este ticket de cambio de
+              equipo. */}
+          {data.tipo === 'cambio_equipo' && (data.equipoCambioAnterior || data.equipoCambioNuevo) && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="font-semibold text-gray-900 mb-4">Equipo Cambiado</h3>
+              <div className="space-y-3">
+                {data.equipoCambioAnterior && (
+                  <div className="text-sm p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-gray-900">
+                        Anterior: {data.equipoCambioAnterior.asset.categoria.nombre}
+                        {' — '}
+                        {data.equipoCambioAnterior.asset.marca} {data.equipoCambioAnterior.asset.modelo}
+                      </span>
+                      <span
+                        className={cn(
+                          'text-xs px-1.5 py-0.5 rounded flex-shrink-0',
+                          data.equipoCambioAnterior.estadoDevolucion === 'danado'
+                            ? 'bg-red-100 text-red-700'
+                            : data.equipoCambioAnterior.estadoDevolucion === 'no_devuelto'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-green-100 text-green-700'
+                        )}
+                      >
+                        {data.equipoCambioAnterior.estadoDevolucion === 'danado'
+                          ? 'Dañado'
+                          : data.equipoCambioAnterior.estadoDevolucion === 'no_devuelto'
+                            ? 'No devolvió'
+                            : 'Buen estado'}
+                      </span>
+                    </div>
+                    <span className="block text-xs text-gray-500 mt-0.5">
+                      {data.equipoCambioAnterior.asset.numeroSerie &&
+                        `S/N: ${data.equipoCambioAnterior.asset.numeroSerie} · `}
+                      {data.equipoCambioAnterior.estadoDevolucion === 'no_devuelto'
+                        ? 'Sigue asignado, a la espera de recuperarlo'
+                        : data.equipoCambioAnterior.fechaDevolucion &&
+                          `Devuelto el ${new Date(data.equipoCambioAnterior.fechaDevolucion).toLocaleDateString('es-CL')}`}
+                      {data.equipoCambioAnterior.recibidoPor &&
+                        ` · Registrado por ${data.equipoCambioAnterior.recibidoPor}`}
+                    </span>
+                    {data.equipoCambioAnterior.observacionesDevolucion && (
+                      <p className="text-xs text-gray-600 mt-1">
+                        Observaciones: {data.equipoCambioAnterior.observacionesDevolucion}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {data.equipoCambioNuevo && (
+                  <div className="text-sm p-3 bg-green-50 rounded-lg">
+                    <span className="font-medium text-gray-900">
+                      Nuevo: {data.equipoCambioNuevo.asset.categoria.nombre}
+                      {' — '}
+                      {data.equipoCambioNuevo.asset.marca} {data.equipoCambioNuevo.asset.modelo}
+                    </span>
+                    <span className="block text-xs text-gray-500 mt-0.5">
+                      {data.equipoCambioNuevo.asset.numeroSerie &&
+                        `S/N: ${data.equipoCambioNuevo.asset.numeroSerie} · `}
+                      Entregado el {new Date(data.equipoCambioNuevo.fechaEntrega).toLocaleDateString('es-CL')}
+                      {data.equipoCambioNuevo.entregadoPor && ` · Por ${data.equipoCambioNuevo.entregadoPor}`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Entrega Coordinada: fecha/hora y medio (presencial/despacho)
+              definidos en la etapa "Coordinando Entrega". Tarjeta aparte para
+              que se vea de un vistazo, igual que Equipos Asignados. */}
+          {data.tipo === 'onboarding' && data.fechaEntregaCoordinada && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="font-semibold text-gray-900 mb-4">Entrega Coordinada</h3>
+              <dl className="space-y-3 text-sm">
+                <div>
+                  <dt className="text-gray-500">Fecha y Hora</dt>
+                  <dd className="text-gray-900">
+                    {new Date(data.fechaEntregaCoordinada).toLocaleString('es-CL')}
+                  </dd>
+                </div>
+                {data.medioEntrega && (
+                  <div>
+                    <dt className="text-gray-500">Medio</dt>
+                    <dd className="text-gray-900">
+                      {data.medioEntrega === 'presencial' ? 'Presencial' : 'Despacho (Chilexpress)'}
+                    </dd>
+                  </div>
+                )}
+                {data.lugarEntrega && (
+                  <div>
+                    <dt className="text-gray-500">Lugar</dt>
+                    <dd className="text-gray-900">{data.lugarEntrega}</dd>
+                  </div>
+                )}
+                {data.otChilexpressEntrega && (
+                  <div>
+                    <dt className="text-gray-500">OT Chilexpress</dt>
+                    <dd className="text-gray-900">{data.otChilexpressEntrega}</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          )}
+
+          {/* Kit de Bienvenida y EPP entregados con esta solicitud -- son
+              insumos, no Activos, por eso van en su propia tarjeta separada
+              de "Equipos Asignados". Se muestran en tarjetas separadas (no
+              mezcladas en una lista) porque son cosas distintas: el Kit es
+              consumible y no se devuelve, el EPP si se pide de vuelta al
+              desvincularse. */}
+          {(['kit_bienvenida', 'epp'] as const).map((categoria) => {
+            const entregas = data.kitAssignments.filter((ka) => ka.item.categoria === categoria);
+            if (entregas.length === 0) return null;
+            const label = categoria === 'kit_bienvenida' ? 'Kit de Bienvenida' : 'EPP';
+            return (
+              <div key={categoria} className="bg-white rounded-lg shadow p-6">
+                <h3 className="font-semibold text-gray-900 mb-4">{label}</h3>
+                <div className="space-y-2">
+                  {entregas.map((ka) => (
+                    <div key={ka.id} className="text-sm p-2 bg-gray-50 rounded">
+                      <span className="font-medium">
+                        {ka.item.nombre} × {ka.cantidad}
+                      </span>
+                      <span className="block text-xs text-gray-500">
+                        {new Date(ka.createdAt).toLocaleDateString('es-CL')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
 
           {data.observaciones && (
             <div className="bg-white rounded-lg shadow p-6">

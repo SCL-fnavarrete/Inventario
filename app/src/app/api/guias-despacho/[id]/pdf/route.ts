@@ -151,7 +151,7 @@ async function generatePage(
     destinatarioData.push(
       ["Cargo:", guide.destinatario.cargo || "-"],
       ["Ubicación:", guide.destinatario.ubicacion || "-"],
-      ["Correo:", guide.destinatario.correo || "-"]
+      ["Correo:", guide.destinatario.correoPersonal || "-"]
     );
   }
 
@@ -316,7 +316,7 @@ async function getGuideData(id: string) {
           apellidoMaterno: true,
           cargo: true,
           ubicacion: true,
-          correo: true,
+          correoPersonal: true,
         },
       },
     },

@@ -65,7 +65,7 @@ type Employee = {
   nombres: string;
   apellidoPaterno: string;
   apellidoMaterno: string | null;
-  correo: string;
+  correoPersonal: string;
   cargo: string | null;
   jefatura: string | null;
   ubicacion: string | null;
@@ -572,7 +572,7 @@ export default function DesvinculacionDetallePage({
               </div>
               <div>
                 <p className="text-gray-500">Correo</p>
-                <p className="font-medium">{employee.correo}</p>
+                <p className="font-medium">{employee.correoPersonal}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

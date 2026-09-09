@@ -133,15 +133,29 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Si se está actualizando el correo, verificar que no exista otro empleado con ese correo
-    if (data.correo && data.correo !== existingEmployee.correo) {
+    // Si se está actualizando el correo personal, verificar que no exista otro empleado con ese correo
+    if (data.correoPersonal && data.correoPersonal !== existingEmployee.correoPersonal) {
       const existingByEmail = await prisma.employee.findUnique({
-        where: { correo: data.correo },
+        where: { correoPersonal: data.correoPersonal },
       });
 
       if (existingByEmail) {
         return NextResponse.json(
-          { error: "Ya existe otro empleado con este correo" },
+          { error: "Ya existe otro empleado con este correo personal" },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Si se está actualizando el correo de empresa, verificar que no exista otro empleado con ese correo
+    if (data.correoEmpresa && data.correoEmpresa !== existingEmployee.correoEmpresa) {
+      const existingByCorreoEmpresa = await prisma.employee.findUnique({
+        where: { correoEmpresa: data.correoEmpresa },
+      });
+
+      if (existingByCorreoEmpresa) {
+        return NextResponse.json(
+          { error: "Ya existe otro empleado con este correo de empresa" },
           { status: 409 }
         );
       }
@@ -155,11 +169,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         ...(data.nombres && { nombres: data.nombres }),
         ...(data.apellidoPaterno && { apellidoPaterno: data.apellidoPaterno }),
         ...(data.apellidoMaterno !== undefined && { apellidoMaterno: data.apellidoMaterno }),
-        ...(data.correo && { correo: data.correo }),
+        ...(data.correoPersonal && { correoPersonal: data.correoPersonal }),
+        ...(data.correoEmpresa !== undefined && { correoEmpresa: data.correoEmpresa }),
         ...(data.cargo !== undefined && { cargo: data.cargo }),
         ...(data.jefatura !== undefined && { jefatura: data.jefatura }),
         ...(data.supervisor !== undefined && { supervisor: data.supervisor }),
         ...(data.ubicacion !== undefined && { ubicacion: data.ubicacion }),
+        ...(data.division !== undefined && { division: data.division }),
+        ...(data.area !== undefined && { area: data.area }),
+        ...(data.subArea !== undefined && { subArea: data.subArea }),
+        ...(data.direccionParticular !== undefined && { direccionParticular: data.direccionParticular }),
+        ...(data.listasDistribucion !== undefined && { listasDistribucion: data.listasDistribucion }),
         ...(data.tipoContrato && { tipoContrato: data.tipoContrato }),
         ...(data.fechaIngreso !== undefined && { fechaIngreso: data.fechaIngreso }),
         ...(data.fechaTermino !== undefined && { fechaTermino: data.fechaTermino }),

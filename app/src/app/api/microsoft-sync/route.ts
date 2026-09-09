@@ -64,7 +64,7 @@ export async function POST() {
                 nombres: validated.nombres,
                 apellidoPaterno: validated.apellidoPaterno,
                 apellidoMaterno: validated.apellidoMaterno,
-                correo: validated.correo,
+                correoEmpresa: validated.correoEmpresa,
                 cargo: validated.cargo,
                 ubicacion: validated.ubicacion,
                 telefonoContacto: validated.telefonoContacto,
@@ -75,9 +75,10 @@ export async function POST() {
             resultado.actualizados++;
           }
         } else if (accountEnabled) {
-          // Buscar por correo para vincular
+          // Buscar por correo de empresa para vincular con un empleado ya
+          // creado manualmente (requiere que su Correo Empresa ya este cargado)
           employee = await prisma.employee.findUnique({
-            where: { correo: validated.correo },
+            where: { correoEmpresa: validated.correoEmpresa },
             include: { activosActuales: true },
           });
 
@@ -108,13 +109,14 @@ export async function POST() {
                 nombres: validated.nombres,
                 apellidoPaterno: validated.apellidoPaterno,
                 apellidoMaterno: validated.apellidoMaterno,
-                correo: validated.correo,
+                correoPersonal: validated.correoEmpresa,
+                correoEmpresa: validated.correoEmpresa,
                 cargo: validated.cargo,
                 ubicacion: validated.ubicacion,
                 telefonoContacto: validated.telefonoContacto,
                 jefatura: validated.jefatura,
                 supervisor: validated.supervisor,
-                tipoContrato: 'externo',
+                tipoContrato: 'boleta',
                 estado: 'activo',
               },
             });

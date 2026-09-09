@@ -33,7 +33,7 @@ import {
   Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard } from "@/components/activos";
+import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard, AsignacionesTable } from "@/components/activos";
 import { Can } from "@/components/auth/Can";
 import { Modal } from "@/components/ui/Modal";
 import { BajaActivoForm } from "@/components/activos/BajaActivoForm";
@@ -67,7 +67,7 @@ type Asset = {
     id: string;
     nombres: string;
     apellidoPaterno: string;
-    correo: string;
+    correoPersonal: string;
     cargo: string | null;
   } | null;
 };
@@ -1046,7 +1046,7 @@ function ActivosPageContent() {
                                     <div className="flex justify-between">
                                       <dt className="text-gray-500">Email:</dt>
                                       <dd className="text-gray-900 truncate max-w-[200px]">
-                                        {asset.empleadoActual.correo}
+                                        {asset.empleadoActual.correoPersonal}
                                       </dd>
                                     </div>
                                   </dl>
@@ -1306,6 +1306,10 @@ function ActivosPageContent() {
           </div>
         </div>
       )}
+
+      <div className="mt-8">
+        <AsignacionesTable />
+      </div>
 
       <Modal
         isOpen={!!bajaModalAssetId}

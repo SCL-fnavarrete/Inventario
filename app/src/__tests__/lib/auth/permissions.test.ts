@@ -189,7 +189,7 @@ describe('permissions — la matriz no autoriza transiciones de workflow', () =>
     expect(canTransition('onboarding', 'equipos_entregados', 'registro_rrhh', 'rrhh')).toBe(true);
     expect(canTransition('cambio_equipo', 'cambio_ejecutado', 'confirmacion_rrhh', 'rrhh')).toBe(true);
     expect(
-      canTransition('devolucion_termino', 'equipo_recibido', 'consolidacion_cierre', 'rrhh')
+      canTransition('offboarding', 'equipo_recibido', 'consolidacion_cierre', 'rrhh')
     ).toBe(true);
   });
 

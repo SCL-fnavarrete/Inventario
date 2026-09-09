@@ -22,6 +22,13 @@ export async function GET(
               where: { activo: true },
               include: { asset: { include: { categoria: true } } },
             },
+            // EPP entregado y aun no devuelto: se necesita para poder
+            // calificarlo/devolverlo desde el ticket de offboarding, igual
+            // que con los equipos.
+            kitAssignments: {
+              where: { estado: 'entregado', item: { categoria: 'epp' } },
+              include: { item: true },
+            },
           },
         },
         solicitante: { select: { id: true, nombre: true, rol: true, email: true } },
@@ -41,6 +48,17 @@ export async function GET(
         pendientes: {
           orderBy: { createdAt: 'asc' },
         },
+        kitAssignments: {
+          include: { item: true },
+          orderBy: { createdAt: 'desc' },
+        },
+        // Detalle articulo-por-articulo de lo requerido en el onboarding
+        // (Kit de Bienvenida / EPP), para poder mostrar y resolver
+        // (entregado / no aplica) cada uno individualmente.
+        kitRequeridos: {
+          include: { item: true },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
 
@@ -48,7 +66,51 @@ export async function GET(
       return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
     }
 
-    return NextResponse.json(workflowRequest);
+    // Equipos devueltos en este ticket de offboarding: assignmentIds guarda
+    // las asignaciones que se fueron devolviendo (calificadas ok/danado),
+    // pero como ya quedaron con activo:false, "employee.assignments" (que
+    // solo trae las activas) no las incluye -- hay que buscarlas aparte.
+    const equiposDevueltos =
+      workflowRequest.tipo === 'offboarding' && workflowRequest.assignmentIds.length > 0
+        ? await prisma.assignment.findMany({
+            where: { id: { in: workflowRequest.assignmentIds } },
+            include: { asset: { include: { categoria: true } } },
+            orderBy: { fechaDevolucion: 'desc' },
+          })
+        : [];
+
+    // Mismo criterio para el EPP devuelto en este ticket (kitReturnIds).
+    const eppDevueltos =
+      workflowRequest.tipo === 'offboarding' && workflowRequest.kitReturnIds.length > 0
+        ? await prisma.kitAssignment.findMany({
+            where: { id: { in: workflowRequest.kitReturnIds } },
+            include: { item: true },
+            orderBy: { createdAt: 'desc' },
+          })
+        : [];
+
+    // Cambio de equipo: assignmentIds mezcla la asignacion vieja (devuelta,
+    // con estadoDevolucion) y la nueva (entregada, sin estadoDevolucion) --
+    // se separan aca para poder mostrar "equipo anterior" y "equipo nuevo"
+    // por separado en el detalle del ticket.
+    const equiposCambio =
+      workflowRequest.tipo === 'cambio_equipo' && workflowRequest.assignmentIds.length > 0
+        ? await prisma.assignment.findMany({
+            where: { id: { in: workflowRequest.assignmentIds } },
+            include: { asset: { include: { categoria: true } } },
+            orderBy: { createdAt: 'asc' },
+          })
+        : [];
+    const equipoCambioAnterior = equiposCambio.find((a) => a.estadoDevolucion !== null) || null;
+    const equipoCambioNuevo = equiposCambio.find((a) => a.estadoDevolucion === null) || null;
+
+    return NextResponse.json({
+      ...workflowRequest,
+      equiposDevueltos,
+      eppDevueltos,
+      equipoCambioAnterior,
+      equipoCambioNuevo,
+    });
   } catch (error) {
     return handleApiError(error, 'Error al obtener solicitud');
   }
@@ -82,7 +144,6 @@ export async function PATCH(
     const updated = await prisma.workflowRequest.update({
       where: { id },
       data: {
-        ...(data.prioridad !== undefined && { prioridad: data.prioridad }),
         ...(data.responsableActualId !== undefined && {
           responsableActualId: data.responsableActualId,
         }),

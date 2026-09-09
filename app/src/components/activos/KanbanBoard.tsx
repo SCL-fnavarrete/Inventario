@@ -32,7 +32,7 @@ interface AssetData {
     id: string;
     nombres: string;
     apellidoPaterno: string;
-    correo?: string | null;
+    correoPersonal?: string | null;
     cargo?: string | null;
   } | null;
 }

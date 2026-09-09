@@ -5,9 +5,9 @@ import { canTransition, isFinalState } from '@/lib/services/workflowStateMachine
 import {
   executeAssignment,
   executeReturn,
-  executeTerminationReturn,
+  executeKitReturn,
 } from '@/lib/services/workflowExecutionService';
-import { SystemRole } from '@prisma/client';
+import { SystemRole, EstadoSolicitud } from '@prisma/client';
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
 // POST /api/solicitudes/[id]/transicion - Advance workflow state
@@ -81,8 +81,118 @@ export async function POST(
       );
     }
 
+    // No se puede cerrar un onboarding si se pidio Kit de Bienvenida y/o EPP
+    // pero todavia no se entrego nada de eso -- quedaria pendiente sin que
+    // nada lo refleje una vez cerrado el ticket. Si la solicitud usa el
+    // detalle articulo-por-articulo (RequestKitItem), se valida cada
+    // articulo individual (pendiente bloquea, no_aplica no); si no, se cae
+    // al chequeo antiguo por categoria (tickets creados antes de esa
+    // funcionalidad).
+    if (
+      workflowRequest.tipo === 'onboarding' &&
+      workflowRequest.estado === 'equipos_entregados' &&
+      nuevoEstado === 'registro_rrhh'
+    ) {
+      const requeridos = await prisma.requestKitItem.findMany({
+        where: { requestId: id },
+        include: { item: true },
+      });
+      const entregas = await prisma.kitAssignment.findMany({
+        where: { requestId: id },
+        include: { item: true },
+      });
+
+      // Por categoria: si hay filas granulares (RequestKitItem) para esa
+      // categoria puntual se usan esas (mas precisas); si no hay ninguna
+      // (tipico cuando no habia stock al crear el ticket, o es un ticket
+      // viejo) se cae al chequeo por booleano+entrega para esa categoria.
+      // Nunca se ignora un booleano solo porque la OTRA categoria si tenga
+      // detalle granular.
+      const nombresPendientes: string[] = [];
+      const categoriasFaltantesLegacy: string[] = [];
+
+      for (const [categoria, solicitado, etiqueta] of [
+        ['kit_bienvenida', workflowRequest.kitBienvenidaSolicitado, 'el Kit de Bienvenida'],
+        ['epp', workflowRequest.eppSolicitado, 'el EPP'],
+      ] as const) {
+        const filasCategoria = requeridos.filter((r) => r.item.categoria === categoria);
+        if (filasCategoria.length > 0) {
+          nombresPendientes.push(
+            ...filasCategoria.filter((r) => r.estado === 'pendiente').map((r) => r.item.nombre)
+          );
+        } else if (solicitado && !entregas.some((e) => e.item.categoria === categoria)) {
+          categoriasFaltantesLegacy.push(etiqueta);
+        }
+      }
+
+      if (nombresPendientes.length > 0 || categoriasFaltantesLegacy.length > 0) {
+        const partes = [
+          ...(nombresPendientes.length > 0
+            ? [`${nombresPendientes.join(', ')} (o márcalos como "No aplica")`]
+            : []),
+          ...categoriasFaltantesLegacy,
+        ];
+        return NextResponse.json(
+          { error: `Falta entregar ${partes.join(' y ')} antes de cerrar el ticket` },
+          { status: 400 }
+        );
+      }
+    }
+
+
+    // Tampoco se puede cerrar un offboarding si todavia queda equipo activo
+    // o EPP entregado sin calificar -- se dejaria a alguien "desvinculado"
+    // con equipos fantasma en el sistema. La salida para casos sin otra
+    // opcion es calificar el item como "No devolvió" (no bloquea el cierre).
+    if (
+      workflowRequest.tipo === 'offboarding' &&
+      workflowRequest.estado === 'equipo_recibido' &&
+      nuevoEstado === 'consolidacion_cierre'
+    ) {
+      // "no_devuelto" deja la asignacion activa a proposito (el empleado se
+      // quedo con el equipo) -- no cuenta como pendiente de calificar, solo
+      // lo que todavia no tiene ningun estadoDevolucion registrado.
+      const asignacionesActivas = await prisma.assignment.count({
+        where: { employeeId: workflowRequest.employeeId, activo: true, estadoDevolucion: null },
+      });
+      const eppPendiente = await prisma.kitAssignment.count({
+        where: {
+          employeeId: workflowRequest.employeeId,
+          estado: 'entregado',
+          item: { categoria: 'epp' },
+        },
+      });
+      if (asignacionesActivas > 0 || eppPendiente > 0) {
+        return NextResponse.json(
+          {
+            error:
+              'Todavía hay equipos o EPP sin calificar para este empleado. Califica cada uno (o márcalo como "No devolvió") antes de cerrar el ticket.',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (
+      workflowRequest.tipo === 'cambio_equipo' &&
+      workflowRequest.estado === 'incidencia_detectada' &&
+      nuevoEstado === 'cambio_ejecutado' &&
+      datosAccion?.oldAssignmentId &&
+      !datosAccion?.estadoDevolucion
+    ) {
+      return NextResponse.json(
+        { error: 'Falta indicar el estado del equipo que se devuelve (buen estado, dañado o no devolvió)' },
+        { status: 400 }
+      );
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const assignmentIds: string[] = [...workflowRequest.assignmentIds];
+      const kitReturnIds: string[] = [...workflowRequest.kitReturnIds];
+      // Por defecto la transicion avanza al estado pedido; el bloque de
+      // offboarding mas abajo puede dejarlo en el estado actual si todavia
+      // queda equipo/EPP sin calificar.
+      let estadoFinalEfectivo: EstadoSolicitud = nuevoEstado;
 
       // Execute side effects based on transition
       if (
@@ -107,6 +217,26 @@ export async function POST(
       }
 
       if (
+        workflowRequest.tipo === 'onboarding' &&
+        workflowRequest.estado === 'coordinando_entrega' &&
+        nuevoEstado === 'equipos_entregados'
+      ) {
+        // Coordinacion de entrega: fecha/hora y, segun el medio, el lugar
+        // (presencial) o la OT de despacho (Chilexpress).
+        await tx.workflowRequest.update({
+          where: { id },
+          data: {
+            fechaEntregaCoordinada: datosAccion?.fechaEntregaCoordinada
+              ? new Date(datosAccion.fechaEntregaCoordinada as string)
+              : undefined,
+            medioEntrega: (datosAccion?.medioEntrega as string) || undefined,
+            lugarEntrega: (datosAccion?.lugarEntrega as string) || undefined,
+            otChilexpressEntrega: (datosAccion?.otChilexpressEntrega as string) || undefined,
+          },
+        });
+      }
+
+      if (
         workflowRequest.tipo === 'cambio_equipo' &&
         workflowRequest.estado === 'incidencia_detectada' &&
         nuevoEstado === 'cambio_ejecutado'
@@ -116,13 +246,22 @@ export async function POST(
         const newAssetId = datosAccion?.newAssetId as string | undefined;
 
         if (oldAssignmentId) {
+          const estadoDevolucionViejo = datosAccion?.estadoDevolucion as
+            | 'ok'
+            | 'danado'
+            | 'no_devuelto';
+          const observacionesViejo = (datosAccion?.observacionesDevolucion as string) || null;
           await executeReturn(tx, {
             assignmentId: oldAssignmentId,
             fechaDevolucion: new Date(),
             recibidoPor: systemUser.nombre,
-            estadoDevolucion: (datosAccion?.estadoDevolucion as 'ok' | 'danado' | 'incompleto') || 'ok',
-            observacionesDevolucion: `Cambio de equipo - ${workflowRequest.numero}`,
+            estadoDevolucion: estadoDevolucionViejo,
+            observacionesDevolucion: observacionesViejo
+              ? `Cambio de equipo - ${workflowRequest.numero}: ${observacionesViejo}`
+              : `Cambio de equipo - ${workflowRequest.numero}`,
+            expectedEmployeeId: workflowRequest.employeeId,
           });
+          assignmentIds.push(oldAssignmentId);
         }
 
         if (newAssetId) {
@@ -140,53 +279,81 @@ export async function POST(
       }
 
       if (
-        workflowRequest.tipo === 'devolucion_termino' &&
-        workflowRequest.estado === 'coordinacion_en_curso' &&
+        workflowRequest.tipo === 'offboarding' &&
+        workflowRequest.estado === 'solicitud_emitida' &&
         nuevoEstado === 'equipo_recibido'
       ) {
-        // Update devolucion details
-        await tx.workflowRequest.update({
-          where: { id },
-          data: {
-            medioDevolucion: (datosAccion?.medioDevolucion as string) || undefined,
-            otChilexpress: (datosAccion?.otChilexpress as string) || undefined,
-          },
-        });
-      }
-
-      if (
-        workflowRequest.tipo === 'devolucion_termino' &&
-        workflowRequest.estado === 'equipo_recibido' &&
-        nuevoEstado === 'consolidacion_cierre'
-      ) {
-        // Execute termination return if data provided
-        const terminationData = datosAccion as Record<string, unknown> | undefined;
-        if (terminationData?.terminationId) {
-          const updatedTermination = await executeTerminationReturn(tx, {
-            terminationId: terminationData.terminationId as string,
-            fechaDevolucionEquipos: new Date(),
-            estadoNotebook: (terminationData.estadoNotebook as 'ok' | 'danado' | 'no_aplica' | 'pendiente') || 'no_aplica',
-            estadoCelular: (terminationData.estadoCelular as 'ok' | 'danado' | 'no_aplica' | 'pendiente') || 'no_aplica',
-            estadoMonitor: (terminationData.estadoMonitor as 'ok' | 'danado' | 'no_aplica' | 'pendiente') || 'no_aplica',
-            estadoKit: (terminationData.estadoKit as 'ok' | 'danado' | 'no_aplica' | 'pendiente') || 'no_aplica',
+        // Recepcion de equipos: se califica el estado de cada asignacion
+        // activa del empleado de forma individual (no solo 3 categorias
+        // fijas). Cada una se devuelve con executeReturn, que ya deja el
+        // Activo en "baja" si esta danado o "reutilizable" si esta ok --
+        // igual que en el flujo de Cambio de Equipo. El EPP entregado se
+        // devuelve igual, con executeKitReturn (el Kit de Bienvenida no se
+        // devuelve, es consumible).
+        const devoluciones =
+          (datosAccion?.devoluciones as
+            | { assignmentId: string; estadoDevolucion: 'ok' | 'danado' | 'no_devuelto'; observaciones?: string }[]
+            | undefined) || [];
+        for (const dev of devoluciones) {
+          await executeReturn(tx, {
+            assignmentId: dev.assignmentId,
+            fechaDevolucion: new Date(),
             recibidoPor: systemUser.nombre,
-            lugarDevolucion: (terminationData.lugarDevolucion as string) || 'Oficina',
-            observaciones: comentario || undefined,
+            estadoDevolucion: dev.estadoDevolucion,
+            observacionesDevolucion: dev.observaciones || null,
+            expectedEmployeeId: workflowRequest.employeeId,
           });
-          await tx.workflowRequest.update({
-            where: { id },
-            data: { terminationId: updatedTermination.id },
+          assignmentIds.push(dev.assignmentId);
+        }
+
+        const devolucionesEpp =
+          (datosAccion?.devolucionesEpp as
+            | { kitAssignmentId: string; estadoDevolucion: 'ok' | 'danado' | 'no_devuelto'; observaciones?: string }[]
+            | undefined) || [];
+        for (const dev of devolucionesEpp) {
+          await executeKitReturn(tx, {
+            kitAssignmentId: dev.kitAssignmentId,
+            estadoDevolucion: dev.estadoDevolucion,
+            recibidoPor: systemUser.nombre,
+            observaciones: dev.observaciones || null,
+            expectedEmployeeId: workflowRequest.employeeId,
           });
+          kitReturnIds.push(dev.kitAssignmentId);
+        }
+
+        // Si con lo recien calificado todavia queda equipo activo o EPP
+        // entregado sin resolver, el ticket se queda abierto en
+        // solicitud_emitida en vez de saltar a equipo_recibido -- lo ya
+        // calificado no se pierde, solo no se cierra la etapa.
+        const asignacionesActivasRestantes = await tx.assignment.findMany({
+          where: {
+            employeeId: workflowRequest.employeeId,
+            activo: true,
+            estadoDevolucion: null,
+          },
+          select: { id: true },
+        });
+        const eppPendienteRestante = await tx.kitAssignment.findMany({
+          where: {
+            employeeId: workflowRequest.employeeId,
+            estado: 'entregado',
+            item: { categoria: 'epp' },
+          },
+          select: { id: true },
+        });
+        if (asignacionesActivasRestantes.length > 0 || eppPendienteRestante.length > 0) {
+          estadoFinalEfectivo = 'solicitud_emitida';
         }
       }
 
       // Update the request state
-      const isFinal = isFinalState(workflowRequest.tipo, nuevoEstado);
+      const isFinal = isFinalState(workflowRequest.tipo, estadoFinalEfectivo);
       const updated = await tx.workflowRequest.update({
         where: { id },
         data: {
-          estado: nuevoEstado,
+          estado: estadoFinalEfectivo,
           assignmentIds,
+          kitReturnIds,
           ...(isFinal && { fechaCierre: new Date() }),
         },
         include: {
@@ -196,14 +363,30 @@ export async function POST(
         },
       });
 
+      // Al cerrar un offboarding, el empleado pasa a desvinculado -- ya no
+      // trabaja en la empresa, y los equipos que tenia ya quedaron libres
+      // (reutilizable/baja) en el paso de recepcion de equipos.
+      if (isFinal && workflowRequest.tipo === 'offboarding') {
+        await tx.employee.update({
+          where: { id: workflowRequest.employeeId },
+          data: { estado: 'desvinculado' },
+        });
+      }
+
       // Log the transition
       await tx.workflowTransition.create({
         data: {
           requestId: id,
           estadoAnterior: workflowRequest.estado,
-          estadoNuevo: nuevoEstado,
+          estadoNuevo: estadoFinalEfectivo,
           ejecutadoPorId: systemUser.id,
-          comentario: comentario || (esEntregaParcialOnboarding ? 'Entrega parcial de equipos' : undefined),
+          comentario:
+            comentario ||
+            (esEntregaParcialOnboarding
+              ? 'Entrega parcial de equipos'
+              : estadoFinalEfectivo !== nuevoEstado
+                ? 'Recepción parcial de equipos/EPP - ticket queda abierto hasta calificar todo'
+                : undefined),
           datosAccion: datosAccion ? (datosAccion as Record<string, string | number | boolean | null>) : undefined,
         },
       });

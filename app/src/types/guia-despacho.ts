@@ -56,7 +56,7 @@ export interface DispatchGuideDestinatario {
   apellidoMaterno: string | null;
   cargo: string | null;
   ubicacion: string | null;
-  correo: string;
+  correoPersonal: string;
 }
 
 export interface DispatchGuideListItem {

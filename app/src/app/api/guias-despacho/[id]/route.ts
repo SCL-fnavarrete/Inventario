@@ -34,7 +34,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             apellidoMaterno: true,
             cargo: true,
             ubicacion: true,
-            correo: true,
+            correoPersonal: true,
           },
         },
       },

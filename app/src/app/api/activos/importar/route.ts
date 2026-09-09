@@ -313,13 +313,13 @@ export async function POST(request: NextRequest) {
             // modo que reimportar el archivo no cree un empleado distinto cada
             // vez (antes se usaba Date.now(), que si lo hacia).
             const base = `${nombres.toLowerCase().replace(/\s+/g, ".")}.${apellidoPaterno.toLowerCase()}`;
-            let correo = getValue("correo") || `${base}@empresa.cl`;
+            let correoPersonal = getValue("correo") || `${base}@empresa.cl`;
             const correoTomado = await prisma.employee.findUnique({
-              where: { correo },
+              where: { correoPersonal },
               select: { id: true },
             });
             if (correoTomado) {
-              correo = `${base}.${limpiarRut(rutEmpleado).toLowerCase()}@empresa.cl`;
+              correoPersonal = `${base}.${limpiarRut(rutEmpleado).toLowerCase()}@empresa.cl`;
             }
 
             datosEmpleadoNuevo = {
@@ -327,12 +327,12 @@ export async function POST(request: NextRequest) {
               nombres,
               apellidoPaterno,
               apellidoMaterno: getValue("apellidoM") || null,
-              correo,
+              correoPersonal,
               cargo: getValue("cargo") || null,
               jefatura: getValue("jefatura") || null,
               supervisor: getValue("supervisor") || null,
               ubicacion: getValue("comuna") || null,
-              tipoContrato: "planta",
+              tipoContrato: "contrato",
               estado: "activo",
             };
           }

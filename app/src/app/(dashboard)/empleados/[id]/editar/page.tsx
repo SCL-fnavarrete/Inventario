@@ -10,12 +10,13 @@ type FormData = {
   nombres: string;
   apellidoPaterno: string;
   apellidoMaterno: string;
-  correo: string;
+  correoPersonal: string;
+  correoEmpresa: string;
   cargo: string;
   jefatura: string;
   supervisor: string;
   ubicacion: string;
-  tipoContrato: "planta" | "proyecto" | "externo";
+  tipoContrato: "contrato" | "boleta";
   estado: "activo" | "desvinculado" | "licencia";
   fechaIngreso: string;
   fechaTermino: string;
@@ -38,12 +39,13 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
     nombres: "",
     apellidoPaterno: "",
     apellidoMaterno: "",
-    correo: "",
+    correoPersonal: "",
+    correoEmpresa: "",
     cargo: "",
     jefatura: "",
     supervisor: "",
     ubicacion: "",
-    tipoContrato: "proyecto",
+    tipoContrato: "contrato",
     estado: "activo",
     fechaIngreso: "",
     fechaTermino: "",
@@ -69,12 +71,13 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
         nombres: employee.nombres || "",
         apellidoPaterno: employee.apellidoPaterno || "",
         apellidoMaterno: employee.apellidoMaterno || "",
-        correo: employee.correo || "",
+        correoPersonal: employee.correoPersonal || "",
+        correoEmpresa: employee.correoEmpresa || "",
         cargo: employee.cargo || "",
         jefatura: employee.jefatura || "",
         supervisor: employee.supervisor || "",
         ubicacion: employee.ubicacion || "",
-        tipoContrato: employee.tipoContrato || "proyecto",
+        tipoContrato: employee.tipoContrato || "contrato",
         estado: employee.estado || "activo",
         fechaIngreso: employee.fechaIngreso
           ? new Date(employee.fechaIngreso).toISOString().split("T")[0]
@@ -123,6 +126,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           jefatura: formData.jefatura || null,
           supervisor: formData.supervisor || null,
           ubicacion: formData.ubicacion || null,
+          correoEmpresa: formData.correoEmpresa || null,
           fechaIngreso: formData.fechaIngreso || null,
           fechaTermino: formData.fechaTermino || null,
           telefonoContacto: formData.telefonoContacto || null,
@@ -264,14 +268,27 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Correo Electrónico <span className="text-red-500">*</span>
+              Correo Personal <span className="text-red-500">*</span>
             </label>
             <input
               type="email"
-              name="correo"
-              value={formData.correo}
+              name="correoPersonal"
+              value={formData.correoPersonal}
               onChange={handleChange}
               required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Correo Empresa
+            </label>
+            <input
+              type="email"
+              name="correoEmpresa"
+              value={formData.correoEmpresa}
+              onChange={handleChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
@@ -365,9 +382,8 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               required
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
-              <option value="planta">Planta</option>
-              <option value="proyecto">Proyecto</option>
-              <option value="externo">Externo</option>
+              <option value="contrato">Contrato</option>
+              <option value="boleta">Boleta</option>
             </select>
           </div>
 

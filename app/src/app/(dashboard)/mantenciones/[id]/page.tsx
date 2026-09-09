@@ -53,7 +53,7 @@ type Maintenance = {
       nombres: string;
       apellidoPaterno: string;
       apellidoMaterno: string | null;
-      correo: string;
+      correoPersonal: string;
       cargo: string | null;
     } | null;
   };

@@ -50,18 +50,27 @@ function iconoDe(nombre: string): React.ReactNode {
   return ICONOS[nombre] || <Package className="h-4 w-4" />;
 }
 
+// Especificaciones con etiqueta (Procesador: i5, RAM: 8GB...) en vez de solo
+// los valores sueltos, para que se entienda que es cada dato sin tener que
+// adivinar por el formato (un "8GB" solo no dice si es RAM o disco).
+function especificacionesEtiquetadas(a: ActivoDisponible): { etiqueta: string; valor: string }[] {
+  const partes: { etiqueta: string; valor: string }[] = [];
+  if (a.procesador) partes.push({ etiqueta: "Procesador", valor: a.procesador });
+  if (a.ram) partes.push({ etiqueta: "Memoria RAM", valor: a.ram });
+  if (a.discoDuro) partes.push({ etiqueta: "Disco", valor: a.discoDuro });
+  if (a.sistemaOperativo) partes.push({ etiqueta: "Sistema Operativo", valor: a.sistemaOperativo });
+  if (a.imei) partes.push({ etiqueta: "IMEI", valor: a.imei });
+  if (a.numeroTelefono) partes.push({ etiqueta: "Número", valor: a.numeroTelefono });
+  if (a.tipoPlan) partes.push({ etiqueta: "Plan", valor: a.tipoPlan });
+  if (a.operador) partes.push({ etiqueta: "Operador", valor: a.operador });
+  if (a.pulgadas) partes.push({ etiqueta: "Pantalla", valor: `${a.pulgadas}"` });
+  return partes;
+}
+
 function especificaciones(a: ActivoDisponible): string {
-  const partes: string[] = [];
-  if (a.procesador) partes.push(a.procesador);
-  if (a.ram) partes.push(a.ram);
-  if (a.discoDuro) partes.push(a.discoDuro);
-  if (a.sistemaOperativo) partes.push(a.sistemaOperativo);
-  if (a.imei) partes.push(`IMEI ${a.imei}`);
-  if (a.numeroTelefono) partes.push(a.numeroTelefono);
-  if (a.tipoPlan) partes.push(a.tipoPlan);
-  if (a.operador) partes.push(a.operador);
-  if (a.pulgadas) partes.push(`${a.pulgadas}"`);
-  return partes.join(" · ");
+  return especificacionesEtiquetadas(a)
+    .map(({ etiqueta, valor }) => `${etiqueta}: ${valor}`)
+    .join(" · ");
 }
 
 /**
@@ -197,7 +206,18 @@ export function SeleccionarEquiposOnboarding({
                 </select>
                 {seleccionado && (
                   <div className="mt-2 text-xs text-gray-500 bg-gray-50 rounded-lg p-2">
-                    {especificaciones(seleccionado) || "Sin especificaciones registradas"}
+                    {especificacionesEtiquetadas(seleccionado).length > 0 ? (
+                      <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
+                        {especificacionesEtiquetadas(seleccionado).map(({ etiqueta, valor }) => (
+                          <div key={etiqueta} className="flex gap-1">
+                            <dt className="font-medium text-gray-600">{etiqueta}:</dt>
+                            <dd>{valor}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : (
+                      "Sin especificaciones registradas"
+                    )}
                   </div>
                 )}
               </>

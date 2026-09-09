@@ -47,7 +47,7 @@ type Employee = {
   nombres: string;
   apellidoPaterno: string;
   apellidoMaterno: string | null;
-  correo: string;
+  correoPersonal: string;
   cargo: string | null;
   ubicacion: string | null;
   _count: {

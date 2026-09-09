@@ -4,7 +4,6 @@ import {
   workflowFiltersSchema,
   TipoSolicitudEnum,
   EstadoSolicitudEnum,
-  PrioridadSolicitudEnum,
 } from '@/lib/validations/workflow';
 
 // SPEC: Sección 2.5 — Sistema de Solicitudes (Workflow)
@@ -30,14 +29,6 @@ describe('createWorkflowRequestSchema — onboarding', () => {
     expect(result.success).toBe(true);
   });
 
-  test('prioridad por defecto es media', () => {
-    const result = createWorkflowRequestSchema.safeParse(validOnboarding);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.prioridad).toBe('media');
-    }
-  });
-
   test('rechaza onboarding sin fechaIngreso', () => {
     const { fechaIngreso, ...sin } = validOnboarding;
     const result = createWorkflowRequestSchema.safeParse(sin);
@@ -61,7 +52,6 @@ describe('createWorkflowRequestSchema — onboarding', () => {
   test('acepta onboarding con campos opcionales', () => {
     const result = createWorkflowRequestSchema.safeParse({
       ...validOnboarding,
-      prioridad: 'alta',
       ubicacionDestino: 'Santiago',
       categoriasRequeridas: ['Notebook', 'Monitor'],
       observaciones: 'Nuevo ingreso área TI',
@@ -111,42 +101,30 @@ describe('createWorkflowRequestSchema — cambio_equipo', () => {
     expect(result.success).toBe(false);
   });
 
-  test('acepta cambio_equipo con ticketFreshdesk opcional', () => {
-    const result = createWorkflowRequestSchema.safeParse({
-      ...validCambio,
-      ticketFreshdesk: 'INC-12345',
-    });
-    expect(result.success).toBe(true);
-  });
-
-  test('acepta cambio_equipo sin ticketFreshdesk', () => {
-    const result = createWorkflowRequestSchema.safeParse(validCambio);
-    expect(result.success).toBe(true);
-  });
 });
 
 // ============================================================
 // DEVOLUCION_TERMINO
 // ============================================================
-describe('createWorkflowRequestSchema — devolucion_termino', () => {
+describe('createWorkflowRequestSchema — offboarding', () => {
   const validDevolucion = {
     ...baseFields,
-    tipo: 'devolucion_termino' as const,
+    tipo: 'offboarding' as const,
     fechaDesvinculacion: '2026-03-31',
   };
 
-  test('acepta datos mínimos válidos de devolucion_termino', () => {
+  test('acepta datos mínimos válidos de offboarding', () => {
     const result = createWorkflowRequestSchema.safeParse(validDevolucion);
     expect(result.success).toBe(true);
   });
 
-  test('rechaza devolucion_termino sin fechaDesvinculacion', () => {
+  test('rechaza offboarding sin fechaDesvinculacion', () => {
     const { fechaDesvinculacion, ...sin } = validDevolucion;
     const result = createWorkflowRequestSchema.safeParse(sin);
     expect(result.success).toBe(false);
   });
 
-  test('rechaza devolucion_termino con fechaDesvinculacion vacía', () => {
+  test('rechaza offboarding con fechaDesvinculacion vacía', () => {
     const result = createWorkflowRequestSchema.safeParse({
       ...validDevolucion,
       fechaDesvinculacion: '',
@@ -154,7 +132,7 @@ describe('createWorkflowRequestSchema — devolucion_termino', () => {
     expect(result.success).toBe(false);
   });
 
-  test('acepta devolucion_termino con campos opcionales de logística', () => {
+  test('acepta offboarding con campos opcionales de logística', () => {
     const result = createWorkflowRequestSchema.safeParse({
       ...validDevolucion,
       medioDevolucion: 'Chilexpress',
@@ -184,7 +162,7 @@ describe('transitionSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  test('acepta estado válido de devolucion_termino', () => {
+  test('acepta estado válido de offboarding', () => {
     const result = transitionSchema.safeParse({ nuevoEstado: 'consolidacion_cierre' });
     expect(result.success).toBe(true);
   });
@@ -247,11 +225,10 @@ describe('workflowFiltersSchema', () => {
   test('acepta filtros válidos', () => {
     const result = workflowFiltersSchema.safeParse({
       tipo: 'onboarding',
-      estado: 'gestion_ti',
-      prioridad: 'alta',
+      estado: 'abierto',
       page: 2,
       limit: 25,
-      sortBy: 'prioridad',
+      sortBy: 'updatedAt',
       sortOrder: 'asc',
     });
     expect(result.success).toBe(true);
@@ -273,7 +250,7 @@ describe('workflowFiltersSchema', () => {
 // ============================================================
 describe('TipoSolicitudEnum', () => {
   test('acepta los 3 tipos válidos', () => {
-    ['onboarding', 'cambio_equipo', 'devolucion_termino'].forEach((tipo) => {
+    ['onboarding', 'cambio_equipo', 'offboarding'].forEach((tipo) => {
       expect(TipoSolicitudEnum.safeParse(tipo).success).toBe(true);
     });
   });
@@ -283,18 +260,10 @@ describe('TipoSolicitudEnum', () => {
   });
 });
 
-describe('PrioridadSolicitudEnum', () => {
-  test('acepta las 4 prioridades', () => {
-    ['baja', 'media', 'alta', 'urgente'].forEach((p) => {
-      expect(PrioridadSolicitudEnum.safeParse(p).success).toBe(true);
-    });
-  });
-});
-
 describe('EstadoSolicitudEnum', () => {
-  test('acepta los 11 estados válidos', () => {
+  test('acepta los 12 estados válidos', () => {
     const estados = [
-      'solicitud_recibida', 'gestion_ti', 'equipos_entregados', 'registro_rrhh',
+      'solicitud_recibida', 'gestion_ti', 'coordinando_entrega', 'equipos_entregados', 'registro_rrhh',
       'incidencia_detectada', 'cambio_ejecutado', 'confirmacion_rrhh',
       'solicitud_emitida', 'coordinacion_en_curso', 'equipo_recibido', 'consolidacion_cierre',
     ];

@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  Plus,
   Search,
   Filter,
   ChevronLeft,
@@ -20,7 +19,6 @@ import {
   Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Can } from "@/components/auth/Can";
 
 type Assignment = {
   id: string;
@@ -164,31 +162,9 @@ export default function AsignacionesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Asignaciones</h1>
-          <p className="text-gray-600">Gestión de entregas y devoluciones de equipos</p>
-        </div>
-        <div className="flex gap-2">
-          <Can recurso="asignaciones">
-            <Link
-              href="/asignaciones/devolucion"
-              className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-            >
-              <Undo2 size={20} />
-              <span>Registrar Devolución</span>
-            </Link>
-          </Can>
-          <Can recurso="solicitudes">
-            <Link
-              href="/solicitudes/nueva"
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus size={20} />
-              <span>Nueva Solicitud</span>
-            </Link>
-          </Can>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Asignaciones</h1>
+        <p className="text-gray-600">Dashboard de entregas y devoluciones de equipos vigentes</p>
       </div>
 
       {/* Stats */}

@@ -36,12 +36,19 @@ export async function POST(request: NextRequest) {
 
     function parseTipoContrato(
       value: string | undefined
-    ): "planta" | "proyecto" | "externo" | null | undefined {
+    ): "contrato" | "boleta" | null | undefined {
       if (value === undefined) return undefined;
       const lower = value.toLowerCase().trim();
-      if (lower.includes("planta") || lower === "indefinido") return "planta";
-      if (lower.includes("proyecto") || lower.includes("plazo")) return "proyecto";
-      if (lower.includes("externo") || lower.includes("honorario")) return "externo";
+      if (lower === "contrato" || lower === "boleta") return lower;
+      if (lower.includes("externo") || lower.includes("honorario") || lower.includes("boleta")) return "boleta";
+      if (
+        lower.includes("planta") ||
+        lower.includes("proyecto") ||
+        lower === "indefinido" ||
+        lower.includes("plazo")
+      ) {
+        return "contrato";
+      }
       return null;
     }
 
@@ -114,7 +121,7 @@ export async function POST(request: NextRequest) {
         const rut = formatearRut(rutRaw);
         const nombres = valorColumna(row, COLUMNAS_EMPLEADO.nombres);
         const apellidoPaterno = valorColumna(row, COLUMNAS_EMPLEADO.apellidoPaterno);
-        const correo = valorColumna(row, COLUMNAS_EMPLEADO.correo);
+        const correoPersonal = valorColumna(row, COLUMNAS_EMPLEADO.correoPersonal);
 
         // Validar campos requeridos
         if (!nombres) {
@@ -125,7 +132,7 @@ export async function POST(request: NextRequest) {
           results.errors.push({ row: rowNum, rut, error: "Apellido paterno requerido" });
           continue;
         }
-        if (!correo) {
+        if (!correoPersonal) {
           results.errors.push({ row: rowNum, rut, error: "Correo requerido" });
           continue;
         }
@@ -176,7 +183,7 @@ export async function POST(request: NextRequest) {
           rut,
           nombres,
           apellidoPaterno,
-          correo: correo.toLowerCase(),
+          correoPersonal: correoPersonal.toLowerCase(),
           ...(apellidoMaterno !== undefined && { apellidoMaterno }),
           ...(cargo !== undefined && { cargo }),
           ...(jefatura !== undefined && { jefatura }),
@@ -200,16 +207,16 @@ export async function POST(request: NextRequest) {
           });
           results.updated++;
         } else {
-          // Verificar correo único
+          // Verificar correo personal único
           const existingByEmail = await prisma.employee.findUnique({
-            where: { correo: employeeData.correo },
+            where: { correoPersonal: employeeData.correoPersonal },
           });
 
           if (existingByEmail) {
             results.errors.push({
               row: rowNum,
               rut,
-              error: `Correo ${employeeData.correo} ya existe para otro empleado`,
+              error: `Correo ${employeeData.correoPersonal} ya existe para otro empleado`,
             });
             continue;
           }

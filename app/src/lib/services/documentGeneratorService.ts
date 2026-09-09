@@ -17,6 +17,13 @@ function formatDate(date: Date | string | null): string {
   return new Date(date).toLocaleDateString('es-CL');
 }
 
+// Nombre y correo de quien gestiona/recibe la operacion, para dejar registro
+// verificable en la firma del documento (no solo el nombre, que puede repetirse
+// entre personas).
+function nombreConCorreo(user: { nombre: string; email: string }): string {
+  return `${user.nombre} (${user.email})`;
+}
+
 export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer> {
   const solicitud = await prisma.workflowRequest.findUniqueOrThrow({
     where: { id: solicitudId },
@@ -55,7 +62,7 @@ export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer>
     fechaContrato: formatDate(solicitud.employee.fechaIngreso),
     fechaEntrega: formatDate(new Date()),
     assets,
-    gestionadoPor: solicitud.responsableActual?.nombre || solicitud.solicitante.nombre,
+    gestionadoPor: nombreConCorreo(solicitud.responsableActual || solicitud.solicitante),
   });
 
   return renderPdf(element);
@@ -94,7 +101,7 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
     empleadoRut: solicitud.employee.rut || '—',
     fechaEntrega: formatDate(new Date()),
     assets,
-    gestionadoPor: solicitud.responsableActual?.nombre || solicitud.solicitante.nombre,
+    gestionadoPor: nombreConCorreo(solicitud.responsableActual || solicitud.solicitante),
   });
 
   return renderPdf(element);
@@ -150,7 +157,7 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
     motivoCambio: solicitud.motivoCambio || '—',
     equipoNuevo: newAssignment ? toAssetInfo(newAssignment.asset) : { tipo: '—', marca: '—', modelo: '—', numeroSerie: null, estado: '—' },
     equipoAnterior: oldAsset ? toAssetInfo(oldAsset) : { tipo: '—', marca: '—', modelo: '—', numeroSerie: null, estado: '—' },
-    gestionadoPor: solicitud.responsableActual?.nombre || solicitud.solicitante.nombre,
+    gestionadoPor: nombreConCorreo(solicitud.responsableActual || solicitud.solicitante),
   });
 
   return renderPdf(element);
@@ -194,7 +201,7 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
     fechaDevolucion: formatDate(new Date()),
     assets,
     observaciones: solicitud.observaciones,
-    recibidoPor: solicitud.responsableActual?.nombre || solicitud.solicitante.nombre,
+    recibidoPor: nombreConCorreo(solicitud.responsableActual || solicitud.solicitante),
   });
 
   return renderPdf(element);

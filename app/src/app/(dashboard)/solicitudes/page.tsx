@@ -8,7 +8,7 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
-  Eye,
+  Notebook,
   ClipboardList,
   LayoutGrid,
   List,
@@ -21,7 +21,6 @@ type WorkflowRequest = {
   numero: string;
   tipo: string;
   estado: string;
-  prioridad: string;
   observaciones: string | null;
   createdAt: string;
   fechaCierre: string | null;
@@ -48,42 +47,31 @@ type Pagination = {
 const tipoLabels: Record<string, string> = {
   onboarding: 'Onboarding',
   cambio_equipo: 'Cambio de Equipo',
-  devolucion_termino: 'Devolución por Término',
+  offboarding: 'Offboarding',
 };
 
 const tipoColors: Record<string, string> = {
   onboarding: 'bg-green-100 text-green-800',
   cambio_equipo: 'bg-blue-100 text-blue-800',
-  devolucion_termino: 'bg-orange-100 text-orange-800',
+  offboarding: 'bg-orange-100 text-orange-800',
 };
 
 const estadoLabels: Record<string, string> = {
   solicitud_recibida: 'Solicitud Recibida',
   gestion_ti: 'Gestión TI',
+  coordinando_entrega: 'Coordinando Entrega',
   equipos_entregados: 'Equipos Entregados',
-  registro_rrhh: 'Registro RRHH',
+  registro_rrhh: 'Ticket Cerrado',
   incidencia_detectada: 'Incidencia Detectada',
   cambio_ejecutado: 'Cambio Ejecutado',
-  confirmacion_rrhh: 'Confirmación RRHH',
+  confirmacion_rrhh: 'Ticket Cerrado',
   solicitud_emitida: 'Solicitud Emitida',
   coordinacion_en_curso: 'Coordinación en Curso',
   equipo_recibido: 'Equipo Recibido',
   consolidacion_cierre: 'Consolidación y Cierre',
 };
 
-const prioridadColors: Record<string, string> = {
-  baja: 'bg-gray-100 text-gray-700',
-  media: 'bg-yellow-100 text-yellow-800',
-  alta: 'bg-orange-100 text-orange-800',
-  urgente: 'bg-red-100 text-red-800',
-};
 
-const prioridadLabels: Record<string, string> = {
-  baja: 'Baja',
-  media: 'Media',
-  alta: 'Alta',
-  urgente: 'Urgente',
-};
 
 export default function SolicitudesPage() {
   const [requests, setRequests] = useState<WorkflowRequest[]>([]);
@@ -126,18 +114,11 @@ export default function SolicitudesPage() {
     fetchRequests();
   }, [fetchRequests]);
 
-  const kanbanStates = filterTipo
-    ? getStatesForType(filterTipo)
-    : [
-        'solicitud_recibida',
-        'gestion_ti',
-        'equipos_entregados',
-        'incidencia_detectada',
-        'cambio_ejecutado',
-        'solicitud_emitida',
-        'coordinacion_en_curso',
-        'equipo_recibido',
-      ];
+  // El Kanban agrupa por tipo de solicitud (Onboarding / Cambio de Equipo /
+  // Offboarding) en vez de por el estado interno detallado -- eso ahora vive
+  // solo como badge dentro de cada tarjeta. Si hay un filtro de tipo activo
+  // solo se muestra esa columna.
+  const kanbanTipos = (filterTipo ? [filterTipo] : ['onboarding', 'cambio_equipo', 'offboarding']) as string[];
 
   return (
     <div className="space-y-6">
@@ -217,7 +198,7 @@ export default function SolicitudesPage() {
               <option value="">Todos los tipos</option>
               <option value="onboarding">Onboarding</option>
               <option value="cambio_equipo">Cambio de Equipo</option>
-              <option value="devolucion_termino">Devolución por Término</option>
+              <option value="offboarding">Offboarding</option>
             </select>
             <select
               value={filterEstado}
@@ -225,11 +206,8 @@ export default function SolicitudesPage() {
               className="border border-gray-300 rounded-lg px-3 py-2"
             >
               <option value="">Todos los estados</option>
-              {Object.entries(estadoLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
+              <option value="abierto">Abierto</option>
+              <option value="cerrado">Cerrado</option>
             </select>
             <button
               onClick={() => {
@@ -270,9 +248,6 @@ export default function SolicitudesPage() {
                     Estado
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Prioridad
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Responsable
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -306,18 +281,15 @@ export default function SolicitudesPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800">
-                        {estadoLabels[req.estado] || req.estado}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
                       <span
                         className={cn(
                           'inline-flex px-2 py-1 text-xs font-medium rounded-full',
-                          prioridadColors[req.prioridad]
+                          req.fechaCierre
+                            ? 'bg-gray-100 text-gray-700'
+                            : 'bg-blue-100 text-blue-800'
                         )}
                       >
-                        {prioridadLabels[req.prioridad]}
+                        {req.fechaCierre ? 'Cerrado' : 'Abierto'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">
@@ -331,7 +303,7 @@ export default function SolicitudesPage() {
                         href={`/solicitudes/${req.id}`}
                         className="text-blue-600 hover:text-blue-800"
                       >
-                        <Eye className="h-4 w-4" />
+                        <Notebook className="h-4 w-4" />
                       </Link>
                     </td>
                   </tr>
@@ -378,13 +350,13 @@ export default function SolicitudesPage() {
       ) : (
         /* Kanban View */
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {kanbanStates.map((estado) => {
-            const items = requests.filter((r) => r.estado === estado);
+          {kanbanTipos.map((tipo) => {
+            const items = requests.filter((r) => r.tipo === tipo);
             return (
-              <div key={estado} className="flex-shrink-0 w-72">
+              <div key={tipo} className="flex-shrink-0 w-72">
                 <div className="bg-gray-100 rounded-lg p-3">
                   <h3 className="text-sm font-semibold text-gray-700 mb-3">
-                    {estadoLabels[estado] || estado}{' '}
+                    {tipoLabels[tipo] || tipo}{' '}
                     <span className="text-gray-400">({items.length})</span>
                   </h3>
                   <div className="space-y-2">
@@ -396,25 +368,12 @@ export default function SolicitudesPage() {
                       >
                         <div className="flex justify-between items-start mb-2">
                           <span className="text-xs font-medium text-blue-600">{req.numero}</span>
-                          <span
-                            className={cn(
-                              'text-xs px-1.5 py-0.5 rounded',
-                              prioridadColors[req.prioridad]
-                            )}
-                          >
-                            {prioridadLabels[req.prioridad]}
-                          </span>
                         </div>
                         <p className="text-sm font-medium text-gray-900">
                           {req.employee.nombres} {req.employee.apellidoPaterno}
                         </p>
-                        <span
-                          className={cn(
-                            'inline-flex mt-1 px-1.5 py-0.5 text-xs rounded',
-                            tipoColors[req.tipo]
-                          )}
-                        >
-                          {tipoLabels[req.tipo]}
+                        <span className="inline-flex mt-1 px-1.5 py-0.5 text-xs rounded bg-indigo-100 text-indigo-800">
+                          {estadoLabels[req.estado] || req.estado}
                         </span>
                       </Link>
                     ))}
@@ -432,16 +391,3 @@ export default function SolicitudesPage() {
   );
 }
 
-function getStatesForType(tipo: string): string[] {
-  const map: Record<string, string[]> = {
-    onboarding: ['solicitud_recibida', 'gestion_ti', 'equipos_entregados', 'registro_rrhh'],
-    cambio_equipo: ['incidencia_detectada', 'cambio_ejecutado', 'confirmacion_rrhh'],
-    devolucion_termino: [
-      'solicitud_emitida',
-      'coordinacion_en_curso',
-      'equipo_recibido',
-      'consolidacion_cierre',
-    ],
-  };
-  return map[tipo] || [];
-}

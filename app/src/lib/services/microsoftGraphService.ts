@@ -175,7 +175,7 @@ function transformUser(graphUser: GraphUser): MicrosoftUserWithStatus {
     nombres,
     apellidoPaterno,
     apellidoMaterno,
-    correo: graphUser.mail || graphUser.userPrincipalName,
+    correoEmpresa: graphUser.mail || graphUser.userPrincipalName,
     cargo: graphUser.jobTitle || null,
     ubicacion: graphUser.officeLocation || null,
     telefonoContacto: graphUser.businessPhones?.[0] || graphUser.mobilePhone || null,

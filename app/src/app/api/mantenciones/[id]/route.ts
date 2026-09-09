@@ -26,7 +26,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                 nombres: true,
                 apellidoPaterno: true,
                 apellidoMaterno: true,
-                correo: true,
+                correoPersonal: true,
                 cargo: true,
               },
             },

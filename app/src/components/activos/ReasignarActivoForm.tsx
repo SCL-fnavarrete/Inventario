@@ -18,7 +18,7 @@ type Employee = {
   nombres: string;
   apellidoPaterno: string;
   rut: string | null;
-  correo: string;
+  correoPersonal: string;
   cargo: string | null;
 };
 
@@ -222,7 +222,7 @@ export function ReasignarActivoForm({ assetId, onSuccess, onCancel }: ReasignarA
                           {emp.nombres} {emp.apellidoPaterno}
                         </p>
                         <p className="text-gray-500">
-                          {emp.rut || "Sin RUT"} • {emp.correo}
+                          {emp.rut || "Sin RUT"} • {emp.correoPersonal}
                         </p>
                       </button>
                     ))}

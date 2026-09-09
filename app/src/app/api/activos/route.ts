@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
               id: true,
               nombres: true,
               apellidoPaterno: true,
-              correo: true,
+              correoPersonal: true,
               cargo: true
             },
           },

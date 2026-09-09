@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
         nombres: valorColumna(r, COLUMNAS_EMPLEADO.nombres) ?? "",
         apellidoPaterno: valorColumna(r, COLUMNAS_EMPLEADO.apellidoPaterno) ?? "",
         apellidoMaterno: valorColumna(r, COLUMNAS_EMPLEADO.apellidoMaterno) ?? "",
-        correo: valorColumna(r, COLUMNAS_EMPLEADO.correo) ?? "",
+        correoPersonal: valorColumna(r, COLUMNAS_EMPLEADO.correoPersonal) ?? "",
         cargo: valorColumna(r, COLUMNAS_EMPLEADO.cargo) ?? "",
         jefatura: valorColumna(r, COLUMNAS_EMPLEADO.jefatura) ?? "",
         // Los tres que la previa omitia aunque la importacion si los guarda.

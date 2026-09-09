@@ -125,7 +125,8 @@ export async function GET(request: NextRequest) {
         if (matchNoAccent(emp.nombres, searchTerms)) return true;
         if (matchNoAccent(emp.apellidoPaterno, searchTerms)) return true;
         if (matchNoAccent(emp.apellidoMaterno, searchTerms)) return true;
-        if (matchNoAccent(emp.correo, searchTerms)) return true;
+        if (matchNoAccent(emp.correoPersonal, searchTerms)) return true;
+        if (matchNoAccent(emp.correoEmpresa, searchTerms)) return true;
         if (matchNoAccent(emp.cargo, searchTerms)) return true;
 
         return false;
@@ -202,16 +203,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verificar si ya existe un empleado con el mismo correo
+    // Verificar si ya existe un empleado con el mismo correo personal
     const existingByEmail = await prisma.employee.findUnique({
-      where: { correo: data.correo },
+      where: { correoPersonal: data.correoPersonal },
     });
 
     if (existingByEmail) {
       return NextResponse.json(
-        { error: "Ya existe un empleado con este correo" },
+        { error: "Ya existe un empleado con este correo personal" },
         { status: 409 }
       );
+    }
+
+    // Verificar si ya existe un empleado con el mismo correo de empresa
+    if (data.correoEmpresa) {
+      const existingByCorreoEmpresa = await prisma.employee.findUnique({
+        where: { correoEmpresa: data.correoEmpresa },
+      });
+
+      if (existingByCorreoEmpresa) {
+        return NextResponse.json(
+          { error: "Ya existe un empleado con este correo de empresa" },
+          { status: 409 }
+        );
+      }
     }
 
     // Crear empleado
@@ -221,11 +236,17 @@ export async function POST(request: NextRequest) {
         nombres: data.nombres,
         apellidoPaterno: data.apellidoPaterno,
         apellidoMaterno: data.apellidoMaterno,
-        correo: data.correo,
+        correoPersonal: data.correoPersonal,
+        correoEmpresa: data.correoEmpresa,
         cargo: data.cargo,
         jefatura: data.jefatura,
         supervisor: data.supervisor,
         ubicacion: data.ubicacion,
+        division: data.division,
+        area: data.area,
+        subArea: data.subArea,
+        direccionParticular: data.direccionParticular,
+        listasDistribucion: data.listasDistribucion,
         tipoContrato: data.tipoContrato,
         fechaIngreso: data.fechaIngreso,
         fechaTermino: data.fechaTermino,

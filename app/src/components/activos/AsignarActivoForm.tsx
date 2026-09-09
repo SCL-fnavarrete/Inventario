@@ -32,7 +32,7 @@ type Employee = {
   apellidoPaterno: string;
   apellidoMaterno: string | null;
   rut: string | null;
-  correo: string;
+  correoPersonal: string;
   cargo: string | null;
 };
 

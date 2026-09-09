@@ -8,6 +8,7 @@ import {
   Trash2,
   ShieldAlert,
   Cloud,
+  PackageCheck,
 } from "lucide-react";
 
 const configSections = [
@@ -17,6 +18,14 @@ const configSections = [
     href: "/configuracion/categorias",
     icon: FolderTree,
     color: "bg-blue-100 text-blue-600",
+    adminOnly: false,
+  },
+  {
+    title: "Kit de Bienvenida y EPP",
+    description: "Gestiona el catálogo y stock de artículos de Kit de Bienvenida y EPP (no son equipos)",
+    href: "/configuracion/kit-epp",
+    icon: PackageCheck,
+    color: "bg-teal-100 text-teal-600",
     adminOnly: false,
   },
   {

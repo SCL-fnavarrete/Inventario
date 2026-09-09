@@ -82,7 +82,8 @@ type Ficha = {
     nombres: string;
     apellidoPaterno: string;
     apellidoMaterno: string | null;
-    correo: string;
+    correoPersonal: string;
+    correoEmpresa: string | null;
     cargo: string | null;
     jefatura: string | null;
     supervisor: string | null;
@@ -137,9 +138,8 @@ const estadoColors: Record<EstadoEmpleado, string> = {
 };
 
 const tipoContratoLabels: Record<TipoContrato, string> = {
-  planta: "Planta",
-  proyecto: "Proyecto",
-  externo: "Externo",
+  contrato: "Contrato",
+  boleta: "Boleta",
 };
 
 function formatDate(dateString: string | null): string {
@@ -297,8 +297,14 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="flex items-center gap-2">
             <Mail size={18} className="text-blue-300" />
-            <span>{ficha.empleado.correo}</span>
+            <span>{ficha.empleado.correoPersonal}</span>
           </div>
+          {ficha.empleado.correoEmpresa && (
+            <div className="flex items-center gap-2">
+              <Mail size={18} className="text-blue-300" />
+              <span>{ficha.empleado.correoEmpresa} (empresa)</span>
+            </div>
+          )}
           {ficha.empleado.telefonoContacto && (
             <div className="flex items-center gap-2">
               <Phone size={18} className="text-blue-300" />

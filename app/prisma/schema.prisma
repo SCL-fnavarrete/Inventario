@@ -33,11 +33,17 @@ model Employee {
   nombres              String          @map("nombre")
   apellidoPaterno      String          @map("apellido_paterno")
   apellidoMaterno      String?         @map("apellido_materno")
-  correo               String          @unique
+  correoPersonal       String          @unique @map("correo_personal")
+  correoEmpresa        String?         @unique @map("correo_empresa")
   cargo                String?
   jefatura             String?
   supervisor           String?
   ubicacion            String?
+  division             String?
+  area                 String?
+  subArea              String?         @map("sub_area")
+  direccionParticular  String?         @map("direccion_particular")
+  listasDistribucion   String?         @map("listas_distribucion")
   tipoContrato         TipoContrato    @map("tipo_contrato")
   fechaIngreso         DateTime?       @map("fecha_ingreso")
   fechaTermino         DateTime?       @map("fecha_termino")
@@ -214,24 +220,61 @@ model WelcomeKitItem {
   id             String          @id @default(uuid())
   nombre         String
   categoria      CategoriaKit
-  createdAt      DateTime        @default(now()) @map("created_at")
+  // Stock disponible de este articulo. Baja al entregar (KitAssignment),
+  // sube si se devuelve. Es un conteo simple, no unidades individuales
+  // rastreables (a diferencia de Asset) -- para EPP/Kit no hace falta
+  // distinguir una unidad de otra, solo saber cuantas quedan.
+  cantidad       Int              @default(0)
+  createdAt      DateTime         @default(now()) @map("created_at")
   kitAssignments KitAssignment[]
+  requeridoEn    RequestKitItem[]
 
   @@map("welcome_kit_items")
 }
 
 model KitAssignment {
-  id            String         @id @default(uuid())
-  employeeId    String         @map("employee_id")
-  itemId        String         @map("item_id")
-  fechaEntrega  DateTime       @map("fecha_entrega")
-  estado        EstadoKit      @default(entregado)
+  id            String           @id @default(uuid())
+  employeeId    String           @map("employee_id")
+  itemId        String           @map("item_id")
+  // Solicitud de onboarding que origino esta entrega. Nullable porque el
+  // modelo tambien admite entregas sueltas (no ligadas a un ticket), igual
+  // que ya pasaba antes de que hubiera Solicitudes.
+  requestId     String?          @map("request_id")
+  cantidad      Int              @default(1)
+  fechaEntrega  DateTime         @map("fecha_entrega")
+  estado        EstadoKit        @default(entregado)
   observaciones String?
-  createdAt     DateTime       @default(now()) @map("created_at")
-  employee      Employee       @relation(fields: [employeeId], references: [id])
-  item          WelcomeKitItem @relation(fields: [itemId], references: [id])
+  createdAt     DateTime         @default(now()) @map("created_at")
+  employee      Employee         @relation(fields: [employeeId], references: [id])
+  item          WelcomeKitItem   @relation(fields: [itemId], references: [id])
+  request       WorkflowRequest? @relation(fields: [requestId], references: [id])
 
+  @@index([requestId])
   @@map("kit_assignments")
+}
+
+/// Lista de articulos de Kit/EPP que una solicitud de onboarding pidio, uno
+/// por uno (zapatos, casco, chaleco...), con el estado de cada uno. Es la
+/// version detallada de las banderas kitBienvenidaSolicitado/eppSolicitado:
+/// esas dicen "corresponde entregar EPP", esta dice exactamente que articulos
+/// y si cada uno ya se entrego o se descarto. El ticket no cierra mientras
+/// quede alguno en "pendiente".
+model RequestKitItem {
+  id             String             @id @default(uuid())
+  requestId      String             @map("request_id")
+  itemId         String             @map("item_id")
+  cantidad       Int                @default(1)
+  estado         EstadoKitRequerido @default(pendiente)
+  motivoNoAplica String?            @map("motivo_no_aplica")
+  resueltoPor    String?            @map("resuelto_por")
+  resueltoEn     DateTime?          @map("resuelto_en")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  request        WorkflowRequest    @relation(fields: [requestId], references: [id])
+  item           WelcomeKitItem     @relation(fields: [itemId], references: [id])
+
+  @@unique([requestId, itemId])
+  @@index([requestId])
+  @@map("request_kit_items")
 }
 
 model Maintenance {
@@ -350,7 +393,6 @@ model WorkflowRequest {
   numero                String              @unique
   tipo                  TipoSolicitud
   estado                EstadoSolicitud
-  prioridad             PrioridadSolicitud  @default(media)
   employeeId            String              @map("employee_id")
   solicitanteId         String              @map("solicitante_id")
   responsableActualId   String?             @map("responsable_actual_id")
@@ -359,8 +401,23 @@ model WorkflowRequest {
   cargoSolicitado       String?             @map("cargo_solicitado")
   ubicacionDestino      String?             @map("ubicacion_destino")
   categoriasRequeridas  String[]            @default([]) @map("categorias_requeridas")
+  // Coordinacion de entrega (onboarding): se llena en la etapa "Coordinando
+  // Entrega", despues de asignar los equipos y antes de darlos por entregados.
+  // Si medioEntrega es presencial se usa lugarEntrega; si es despacho
+  // (Chilexpress) se usa otChilexpressEntrega. Es simetrico a los campos
+  // medioDevolucion/otChilexpress que ya existen para el offboarding, pero
+  // separados porque son dos flujos y direcciones distintas.
+  fechaEntregaCoordinada DateTime?          @map("fecha_entrega_coordinada")
+  medioEntrega           String?            @map("medio_entrega")
+  lugarEntrega           String?            @map("lugar_entrega")
+  otChilexpressEntrega   String?            @map("ot_chilexpress_entrega")
+  // Kit de Bienvenida y EPP ya no son categorias de Activos (ver
+  // WelcomeKitItem): la intencion se guarda aparte como estos dos flags,
+  // y la entrega real (que articulos especificos, con que cantidad) se
+  // registra en KitAssignment cuando Gestion TI la concreta.
+  kitBienvenidaSolicitado Boolean           @default(false) @map("kit_bienvenida_solicitado")
+  eppSolicitado           Boolean           @default(false) @map("epp_solicitado")
   // Campos cambio equipo
-  ticketFreshdesk       String?             @map("ticket_freshdesk")
   motivoCambio          String?             @map("motivo_cambio")
   // Campos devolución
   fechaDesvinculacion   DateTime?           @map("fecha_desvinculacion")
@@ -369,6 +426,11 @@ model WorkflowRequest {
   ciudadDevolucion      String?             @map("ciudad_devolucion")
   // Referencias a registros creados
   assignmentIds         String[]            @map("assignment_ids")
+  // Igual que assignmentIds pero para devoluciones de EPP (KitAssignment):
+  // se necesita para poder mostrar en el detalle del ticket que EPP se
+  // devolvio, con su estado y observaciones -- employee.kitAssignments
+  // trae TODO el historico del empleado, no solo lo de este ticket.
+  kitReturnIds           String[]            @default([]) @map("kit_return_ids")
   terminationId         String?             @map("termination_id")
   dispatchGuideId       String?             @map("dispatch_guide_id")
   // General
@@ -383,6 +445,8 @@ model WorkflowRequest {
   comments              WorkflowComment[]
   transitions           WorkflowTransition[]
   pendientes            WorkflowPendiente[]
+  kitAssignments        KitAssignment[]
+  kitRequeridos         RequestKitItem[]
 
   @@index([tipo])
   @@index([estado])
@@ -453,9 +517,8 @@ enum SystemRole {
 }
 
 enum TipoContrato {
-  planta
-  proyecto
-  externo
+  contrato
+  boleta
 }
 
 enum EstadoEmpleado {
@@ -508,6 +571,9 @@ enum EstadoDevolucion {
   ok
   danado
   incompleto
+  // El empleado no entrego el equipo (se fue con el, se perdio). El Activo
+  // sale del parque util igual que uno danado, pero por otro motivo.
+  no_devuelto
 }
 
 enum CategoriaKit {
@@ -515,10 +581,21 @@ enum CategoriaKit {
   epp
 }
 
+/// Estado de cada articulo de Kit/EPP que una solicitud pidio (RequestKitItem).
+enum EstadoKitRequerido {
+  pendiente
+  entregado
+  // Se decidio que ese articulo no corresponde entregarlo (no hay stock y no
+  // se va a reponer, el cargo no lo necesita, se entrego por fuera...). Deja
+  // de bloquear el cierre del ticket, pero queda registrado con su motivo.
+  no_aplica
+}
+
 enum EstadoKit {
   entregado
   devuelto
   perdido
+  no_devuelto
 }
 
 enum TipoMantencion {
@@ -551,13 +628,14 @@ enum TipoEvento {
 enum TipoSolicitud {
   onboarding
   cambio_equipo
-  devolucion_termino
+  offboarding
 }
 
 enum EstadoSolicitud {
   // Onboarding
   solicitud_recibida
   gestion_ti
+  coordinando_entrega
   equipos_entregados
   registro_rrhh
   // Cambio equipo
@@ -569,13 +647,9 @@ enum EstadoSolicitud {
   coordinacion_en_curso
   equipo_recibido
   consolidacion_cierre
-}
-
-enum PrioridadSolicitud {
-  baja
-  media
-  alta
-  urgente
+  // Cancelación (los tres tipos) -- solo antes de ejecutar efectos
+  // secundarios; ver SPEC 2.5.2/2.5.3 y POST /api/solicitudes/[id]/cancelar
+  cancelada
 }
 
 enum TipoPendiente {
@@ -588,6 +662,7 @@ enum TipoPendiente {
   epp_casco
   epp_lentes
   kit_bienvenida
+  epp
   otro
 }
 

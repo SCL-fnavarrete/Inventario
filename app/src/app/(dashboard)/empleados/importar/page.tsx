@@ -25,7 +25,7 @@ type PreviewRow = {
   nombres: string;
   apellidoPaterno: string;
   apellidoMaterno: string;
-  correo: string;
+  correoPersonal: string;
   cargo: string;
   jefatura: string;
   ubicacion: string;
@@ -401,11 +401,11 @@ export default function ImportarEmpleadosPage() {
                         <td className="px-3 py-2 text-gray-900">
                           {[row.apellidoPaterno, row.apellidoMaterno].filter(Boolean).join(" ") || "-"}
                         </td>
-                        <td className="px-3 py-2 text-gray-900">{row.correo || "-"}</td>
+                        <td className="px-3 py-2 text-gray-900">{row.correoPersonal || "-"}</td>
                         <td className="px-3 py-2 text-gray-900">{row.cargo || "-"}</td>
                         <td className="px-3 py-2 text-gray-900">{row.ubicacion || "-"}</td>
                         <td className="px-3 py-2">
-                          {row.rutValido && row.nombres && row.apellidoPaterno && row.correo ? (
+                          {row.rutValido && row.nombres && row.apellidoPaterno && row.correoPersonal ? (
                             <CheckCircle className="text-green-500" size={18} />
                           ) : (
                             <XCircle className="text-red-500" size={18} />

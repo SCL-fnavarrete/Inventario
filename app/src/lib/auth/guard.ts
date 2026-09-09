@@ -5,6 +5,7 @@ import { ZodError } from 'zod';
 import { authOptions } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { can, type Accion, type Recurso } from './permissions';
+import { ApiError, UnauthorizedError, ForbiddenError } from '@/lib/errors';
 
 /**
  * Guard de autorizacion y traductor unico de errores para las rutas de API.
@@ -20,52 +21,17 @@ import { can, type Accion, type Recurso } from './permissions';
  * enviaba y caia siempre al mensaje por defecto.
  */
 
-export class ApiError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-    public readonly details?: unknown
-  ) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}
-
-export class UnauthorizedError extends ApiError {
-  constructor(message = 'No autorizado') {
-    super(401, message);
-    this.name = 'UnauthorizedError';
-  }
-}
-
-export class ForbiddenError extends ApiError {
-  constructor(message = 'No tienes permisos para realizar esta accion') {
-    super(403, message);
-    this.name = 'ForbiddenError';
-  }
-}
-
-export class NotFoundError extends ApiError {
-  constructor(message = 'Recurso no encontrado') {
-    super(404, message);
-    this.name = 'NotFoundError';
-  }
-}
-
-/** Error de regla de negocio: la peticion es valida pero el estado no lo permite. */
-export class ConflictError extends ApiError {
-  constructor(message: string, details?: unknown) {
-    super(409, message, details);
-    this.name = 'ConflictError';
-  }
-}
-
-export class ValidationError extends ApiError {
-  constructor(message = 'Datos invalidos', details?: unknown) {
-    super(400, message, details);
-    this.name = 'ValidationError';
-  }
-}
+// Las clases de error viven en @/lib/errors para que la capa de servicios
+// pueda lanzarlas sin arrastrar next-auth. Se re-exportan aca porque medio
+// sistema las importa desde este modulo.
+export {
+  ApiError,
+  UnauthorizedError,
+  ForbiddenError,
+  NotFoundError,
+  ConflictError,
+  ValidationError,
+} from '@/lib/errors';
 
 /** Sesion autenticada, con el rol ya resuelto. */
 export interface SesionAutenticada extends Session {

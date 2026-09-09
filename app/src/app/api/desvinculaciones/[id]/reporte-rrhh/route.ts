@@ -185,7 +185,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     doc.setFont("helvetica", "bold");
     doc.text("Correo:", leftCol, yPos);
     doc.setFont("helvetica", "normal");
-    doc.text(employee.correo, leftCol + 30, yPos);
+    doc.text(employee.correoPersonal, leftCol + 30, yPos);
 
     doc.setFont("helvetica", "bold");
     doc.text("Tipo Contrato:", midCol, yPos);

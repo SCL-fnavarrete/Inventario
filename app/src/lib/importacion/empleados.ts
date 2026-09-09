@@ -53,7 +53,7 @@ export const COLUMNAS_EMPLEADO: Record<string, string[]> = {
   nombres: ["Nombre", "Nombres", "nombre", "nombres", "NOMBRE", "NOMBRES"],
   apellidoPaterno: ["Apellido P", "Apellido Paterno", "apellido_paterno", "APELLIDO P", "ApellidoP"],
   apellidoMaterno: ["Apellido M", "Apellido Materno", "apellido_materno", "APELLIDO M", "ApellidoM"],
-  correo: ["Correo", "Email", "correo", "email", "CORREO", "E-mail", "E-Mail"],
+  correoPersonal: ["Correo", "Correo Personal", "Email", "correo", "email", "CORREO", "E-mail", "E-Mail"],
   cargo: ["Cargo", "cargo", "CARGO", "Puesto"],
   jefatura: ["Jefatura", "jefatura", "JEFATURA", "Jefe"],
   supervisor: ["Supervisor", "supervisor", "SUPERVISOR"],

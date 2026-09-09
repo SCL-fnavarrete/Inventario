@@ -2,7 +2,7 @@ import { z } from "zod";
 import { rutSchema, rutOptionalSchema } from "./rut";
 
 // Enums que coinciden con Prisma
-export const TipoContratoEnum = z.enum(["planta", "proyecto", "externo"]);
+export const TipoContratoEnum = z.enum(["contrato", "boleta"]);
 
 /**
  * Fecha opcional que distingue tres casos:
@@ -32,11 +32,17 @@ export const createEmployeeSchema = z.object({
   nombres: z.string().min(1, "El nombre es requerido").max(100, "Máximo 100 caracteres"),
   apellidoPaterno: z.string().min(1, "El apellido paterno es requerido").max(100, "Máximo 100 caracteres"),
   apellidoMaterno: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
-  correo: z.string().email("Email inválido").max(150, "Máximo 150 caracteres"),
+  correoPersonal: z.string().email("Email inválido").max(150, "Máximo 150 caracteres"),
+  correoEmpresa: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional().nullable(),
   cargo: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   jefatura: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   supervisor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   ubicacion: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
+  division: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
+  area: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
+  subArea: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
+  direccionParticular: z.string().max(300, "Máximo 300 caracteres").optional().nullable(),
+  listasDistribucion: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
   tipoContrato: TipoContratoEnum,
   fechaIngreso: fechaOpcional,
   fechaTermino: fechaOpcional,
@@ -53,11 +59,17 @@ export const updateEmployeeSchema = z.object({
   nombres: z.string().min(1, "El nombre es requerido").max(100, "Máximo 100 caracteres").optional(),
   apellidoPaterno: z.string().min(1, "El apellido paterno es requerido").max(100, "Máximo 100 caracteres").optional(),
   apellidoMaterno: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
-  correo: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional(),
+  correoPersonal: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional(),
+  correoEmpresa: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional().nullable(),
   cargo: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   jefatura: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   supervisor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   ubicacion: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
+  division: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
+  area: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
+  subArea: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
+  direccionParticular: z.string().max(300, "Máximo 300 caracteres").optional().nullable(),
+  listasDistribucion: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
   tipoContrato: TipoContratoEnum.optional(),
   fechaIngreso: fechaOpcional,
   fechaTermino: fechaOpcional,
@@ -77,7 +89,7 @@ export const employeeFiltersSchema = z.object({
   jefatura: z.string().optional(),
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(10),
-  sortBy: z.enum(["nombres", "rut", "correo", "cargo", "fechaIngreso", "createdAt"]).default("nombres"),
+  sortBy: z.enum(["nombres", "rut", "correoPersonal", "cargo", "fechaIngreso", "createdAt"]).default("nombres"),
   sortOrder: z.enum(["asc", "desc"]).default("asc"),
 });
 
@@ -87,17 +99,22 @@ export const importEmployeeSchema = z.object({
   nombres: z.string().min(1, "El nombre es requerido"),
   apellidoPaterno: z.string().min(1, "El apellido paterno es requerido"),
   apellidoMaterno: z.string().optional().nullable(),
-  correo: z.string().email("Email inválido"),
+  correoPersonal: z.string().email("Email inválido"),
   cargo: z.string().optional().nullable(),
   jefatura: z.string().optional().nullable(),
   supervisor: z.string().optional().nullable(),
   ubicacion: z.string().optional().nullable(),
   tipoContrato: z.string().transform((val) => {
     const lower = val.toLowerCase();
-    if (lower === "planta" || lower === "proyecto" || lower === "externo") {
-      return lower as "planta" | "proyecto" | "externo";
+    if (lower === "contrato" || lower === "boleta") {
+      return lower as "contrato" | "boleta";
     }
-    return "proyecto" as const; // Default
+    // Compatibilidad con valores antiguos (planta/proyecto -> contrato,
+    // externo/honorarios -> boleta) y con texto libre de planillas.
+    if (lower.includes("boleta") || lower.includes("externo") || lower.includes("honorario")) {
+      return "boleta" as const;
+    }
+    return "contrato" as const; // Default (planta, proyecto, indefinido, etc.)
   }),
   fechaIngreso: z.string().optional().nullable().transform((val) => {
     if (!val) return null;
@@ -113,7 +130,7 @@ export const microsoftSyncEmployeeSchema = z.object({
   nombres: z.string().min(1).max(100),
   apellidoPaterno: z.string().min(1).max(100),
   apellidoMaterno: z.string().max(100).optional().nullable(),
-  correo: z.string().email().max(150),
+  correoEmpresa: z.string().email().max(150),
   cargo: z.string().max(100).optional().nullable(),
   jefatura: z.string().max(100).optional().nullable(),
   supervisor: z.string().max(100).optional().nullable(),

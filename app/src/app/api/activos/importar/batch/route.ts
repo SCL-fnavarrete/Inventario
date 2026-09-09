@@ -173,13 +173,13 @@ export async function POST(request: NextRequest) {
             }
 
             const base = `${nombres.toLowerCase().replace(/\s+/g, ".")}.${apellidoPaterno.toLowerCase()}`;
-            let correo = row.data.correo || `${base}@empresa.cl`;
+            let correoPersonal = row.data.correo || `${base}@empresa.cl`;
             const correoTomado = await prisma.employee.findUnique({
-              where: { correo },
+              where: { correoPersonal },
               select: { id: true },
             });
             if (correoTomado) {
-              correo = `${base}.${limpiarRut(rutEmpleado).toLowerCase()}@empresa.cl`;
+              correoPersonal = `${base}.${limpiarRut(rutEmpleado).toLowerCase()}@empresa.cl`;
             }
 
             datosEmpleadoNuevo = {
@@ -187,12 +187,12 @@ export async function POST(request: NextRequest) {
               nombres,
               apellidoPaterno,
               apellidoMaterno: row.data.apellidoM || row.data.apellidoMaterno || null,
-              correo,
+              correoPersonal,
               cargo: row.data.cargo || null,
               jefatura: row.data.jefatura || null,
               supervisor: row.data.supervisor || null,
               ubicacion: row.data.comuna || null,
-              tipoContrato: "planta",
+              tipoContrato: "contrato",
               estado: "activo",
             };
           }

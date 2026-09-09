@@ -103,7 +103,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const empleadoData = [
       ["RUT:", assignment.employee.rut || "-"],
       ["Nombre:", `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno} ${assignment.employee.apellidoMaterno || ""}`],
-      ["Correo:", assignment.employee.correo],
+      ["Correo:", assignment.employee.correoPersonal],
       ["Cargo:", assignment.employee.cargo || "-"],
       ["Jefatura:", assignment.employee.jefatura || "-"],
       ["Ubicación:", assignment.employee.ubicacion || "-"],

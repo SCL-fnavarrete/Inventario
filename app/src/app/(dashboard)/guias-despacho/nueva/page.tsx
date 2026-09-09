@@ -26,7 +26,7 @@ type Employee = {
   nombres: string;
   apellidoPaterno: string;
   apellidoMaterno: string | null;
-  correo: string;
+  correoPersonal: string;
   cargo: string | null;
   ubicacion: string | null;
 };
@@ -136,7 +136,7 @@ export default function NuevaGuiaDespachoPage() {
 
   function selectEmployee(employee: Employee) {
     setSelectedEmployee(employee);
-    setRutSearch(employee.rut || employee.correo);
+    setRutSearch(employee.rut || employee.correoPersonal);
     setShowSuggestions(false);
     setEmployeeSuggestions([]);
     setEmployeeError(null);
@@ -525,7 +525,7 @@ export default function NuevaGuiaDespachoPage() {
                             <span className="font-medium">RUT:</span> {selectedEmployee.rut || "—"}
                           </p>
                           <p className="text-sm text-gray-700">
-                            <span className="font-medium">Email:</span> {selectedEmployee.correo}
+                            <span className="font-medium">Email:</span> {selectedEmployee.correoPersonal}
                           </p>
                           {selectedEmployee.cargo && (
                             <p className="text-sm text-gray-700">
