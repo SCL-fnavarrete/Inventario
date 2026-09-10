@@ -6,18 +6,20 @@ import {
 } from "@/lib/validations/purchase";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { sedeWhere, sedeIdParaCrear } from '@/lib/auth/sedeScope';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 // GET /api/compras - Listar compras/facturas con filtros y paginación
 export async function GET(request: NextRequest) {
   try {
-    await requirePermission('compras', 'read');
+    const session = await requirePermission('compras', 'read');
 
     const searchParams = request.nextUrl.searchParams;
 
     const filtersResult = purchaseFiltersSchema.safeParse({
       search: searchParams.get("search") || undefined,
       supplierId: searchParams.get("supplierId") || undefined,
+      sedeId: searchParams.get("sedeId") || undefined,
       moneda: searchParams.get("moneda") || undefined,
       tipoCompra: searchParams.get("tipoCompra") || undefined,
       metodoPago: searchParams.get("metodoPago") || undefined,
@@ -42,10 +44,17 @@ export async function GET(request: NextRequest) {
     const skip = (filters.page - 1) * filters.limit;
 
     // Construir condiciones de búsqueda
-    const where: Prisma.PurchaseWhereInput = {};
+    // sedeWhere() es hoy un no-op (compras es admin-only, tieneVisibilidadTotal
+    // siempre true) -- se deja igual que en Activos/Empleados/etc. por si el
+    // dia de mañana un tecnico tambien puede leer compras de su sede.
+    const where: Prisma.PurchaseWhereInput = { ...sedeWhere(session) };
 
     if (filters.supplierId) {
       where.supplierId = filters.supplierId;
+    }
+
+    if (filters.sedeId) {
+      where.sedeId = filters.sedeId;
     }
 
     if (filters.moneda) {
@@ -104,6 +113,9 @@ export async function GET(request: NextRequest) {
               rutEmpresa: true,
             },
           },
+          sede: {
+            select: { id: true, nombre: true, codigo: true },
+          },
           _count: {
             select: { purchaseAssets: true },
           },
@@ -145,7 +157,7 @@ export async function GET(request: NextRequest) {
 // POST /api/compras - Crear nueva compra/factura con activos opcionales
 export async function POST(request: NextRequest) {
   try {
-    await requirePermission('compras', 'write');
+    const session = await requirePermission('compras', 'write');
 
     const body = await request.json();
 
@@ -174,6 +186,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Verificar que la sede existe (si se proporciona)
+    if (data.sedeId) {
+      const sede = await prisma.sede.findUnique({ where: { id: data.sedeId } });
+      if (!sede) {
+        return NextResponse.json({ error: "Sede no encontrada" }, { status: 404 });
+      }
+    }
+
     // Verificar que los activos existen (si se proporcionan)
     if (data.assets && data.assets.length > 0) {
       const assetIds = data.assets.map((a) => a.assetId);
@@ -199,6 +219,11 @@ export async function POST(request: NextRequest) {
       const newPurchase = await tx.purchase.create({
         data: {
           supplierId: data.supplierId,
+          // Compras es admin-only, asi que sedeIdParaCrear() siempre toma
+          // la rama "admin": respeta el sedeId elegido en el formulario, o
+          // null si se deja transversal. Se reusa la misma funcion que
+          // Activos/Empleados/etc. para no duplicar la regla.
+          sedeId: sedeIdParaCrear(session, data.sedeId),
           numeroFactura: data.numeroFactura,
           fechaFactura: data.fechaFactura,
           montoTotal: data.montoTotal,
@@ -243,6 +268,9 @@ export async function POST(request: NextRequest) {
               razonSocial: true,
               rutEmpresa: true,
             },
+          },
+          sede: {
+            select: { id: true, nombre: true, codigo: true },
           },
           purchaseAssets: {
             include: {

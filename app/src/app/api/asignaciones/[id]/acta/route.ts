@@ -5,6 +5,7 @@ import autoTable from "jspdf-autotable";
 import * as fs from "fs";
 import * as path from "path";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // Extender tipos de jsPDF para lastAutoTable
 declare module "jspdf" {
@@ -31,7 +32,7 @@ function formatDate(date: Date | null): string {
 // GET /api/asignaciones/[id]/acta - Generar acta de entrega/devolución PDF
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('asignaciones', 'read');
+    const session = await requirePermission('asignaciones', 'read');
     const { id } = await params;
     const searchParams = request.nextUrl.searchParams;
     const tipo = searchParams.get("tipo") || "entrega"; // entrega o devolucion
@@ -54,6 +55,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    assertSedeAccess(session, assignment.asset.sedeId, 'Asignación no encontrada');
 
     // Crear PDF
     const doc = new jsPDF();

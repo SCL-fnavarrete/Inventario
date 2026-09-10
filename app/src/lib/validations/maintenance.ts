@@ -1,14 +1,11 @@
 import { z } from "zod";
 
-// Enums que coinciden con Prisma
-export const TipoMantencionEnum = z.enum([
-  "preventiva",
-  "correctiva",
-  "actualizacion_so",
-  "limpieza",
-  "reparacion",
-]);
+// El tipo de mantencion (Preventiva, Correctiva, etc.) ya no es un enum
+// fijo (9-sep-2026): ahora es una fila de MaintenanceType, referenciada
+// por id. Ver prisma/schema.prisma y src/app/api/mantenciones/tipos.
+const tipoIdSchema = z.string().uuid("Tipo de mantención inválido");
 
+// Enums que coinciden con Prisma
 export const EstadoMantencionEnum = z.enum([
   "pendiente",
   "en_proceso",
@@ -25,12 +22,18 @@ const costoSchema = z.number().nonnegative("El costo debe ser 0 o positivo").opt
 // Schema para crear una mantención
 export const createMaintenanceSchema = z.object({
   assetId: z.string().uuid("ID de activo inválido"),
-  tipo: TipoMantencionEnum,
+  tipoId: tipoIdSchema,
   descripcion: z.string().min(1, "La descripción es requerida").max(1000, "Máximo 1000 caracteres"),
-  fechaProgramada: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
+  // Obligatoria: una mantención no puede quedar "en proceso" (boton
+  // Iniciar) sin haber tenido nunca una fecha programada. El formulario ya
+  // la exige, esto es la misma regla del lado del servidor.
+  fechaProgramada: z.string().min(1, "La fecha programada es requerida").transform((val, ctx) => {
     const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
+    if (isNaN(date.getTime())) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Fecha programada inválida" });
+      return z.NEVER;
+    }
+    return date;
   }),
   proximaMantencion: z.string().optional().nullable().transform((val) => {
     if (!val) return null;
@@ -44,7 +47,7 @@ export const createMaintenanceSchema = z.object({
 
 // Schema para actualizar una mantención
 export const updateMaintenanceSchema = z.object({
-  tipo: TipoMantencionEnum.optional(),
+  tipoId: tipoIdSchema.optional(),
   descripcion: z.string().min(1, "La descripción es requerida").max(1000, "Máximo 1000 caracteres").optional(),
   fechaProgramada: z.string().optional().nullable().transform((val) => {
     if (!val) return null;
@@ -85,7 +88,7 @@ export const completeMaintenanceSchema = z.object({
 export const maintenanceFiltersSchema = z.object({
   search: z.string().optional(),
   assetId: z.string().uuid().optional(),
-  tipo: TipoMantencionEnum.optional(),
+  tipoId: z.string().uuid().optional(),
   estado: EstadoMantencionEnum.optional(),
   fechaDesde: z.string().optional(),
   fechaHasta: z.string().optional(),
@@ -93,7 +96,7 @@ export const maintenanceFiltersSchema = z.object({
   vencidas: z.coerce.boolean().optional(),
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(10),
-  sortBy: z.enum(["fechaProgramada", "fechaRealizada", "createdAt", "tipo", "estado"]).default("fechaProgramada"),
+  sortBy: z.enum(["fechaProgramada", "fechaRealizada", "createdAt", "tipoId", "estado"]).default("fechaProgramada"),
   sortOrder: z.enum(["asc", "desc"]).default("asc"),
 });
 

@@ -8,24 +8,24 @@ import {
   Trash2,
   ShieldAlert,
   Cloud,
-  PackageCheck,
+  MapPin,
 } from "lucide-react";
 
 const configSections = [
+  {
+    title: "Sedes",
+    description: "Administra las sedes (Santiago, Concepción, etc.) que aíslan los datos entre soporte",
+    href: "/configuracion/sedes",
+    icon: MapPin,
+    color: "bg-amber-100 text-amber-600",
+    adminOnly: true,
+  },
   {
     title: "Categorías de Activos",
     description: "Gestiona las categorías para clasificar equipos (Notebook, Celular, Monitor, etc.)",
     href: "/configuracion/categorias",
     icon: FolderTree,
     color: "bg-blue-100 text-blue-600",
-    adminOnly: false,
-  },
-  {
-    title: "Kit de Bienvenida y EPP",
-    description: "Gestiona el catálogo y stock de artículos de Kit de Bienvenida y EPP (no son equipos)",
-    href: "/configuracion/kit-epp",
-    icon: PackageCheck,
-    color: "bg-teal-100 text-teal-600",
     adminOnly: false,
   },
   {

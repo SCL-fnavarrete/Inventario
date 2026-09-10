@@ -33,7 +33,7 @@ import {
   Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard, AsignacionesTable } from "@/components/activos";
+import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard, AsignacionesTable, ActivosTabs } from "@/components/activos";
 import { Can } from "@/components/auth/Can";
 import { Modal } from "@/components/ui/Modal";
 import { BajaActivoForm } from "@/components/activos/BajaActivoForm";
@@ -535,6 +535,10 @@ function ActivosPageContent() {
           </Can>
         </div>
       </div>
+
+      {/* Tabs del modulo: Equipos (esta pagina) / Personal / Kit de
+          Bienvenida / EPP (ver ActivosTabs -- compartido entre las 4) */}
+      <ActivosTabs />
 
       {/* Stats Bar */}
       <StatsBar

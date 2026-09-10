@@ -163,6 +163,9 @@ const NEW_EMPLOYEE_INITIAL = {
 export default function NuevaSolicitudPage() {
   const router = useRouter();
   const { data: session } = useSession();
+  const isAdmin = session?.user?.role === 'admin';
+  const [sedes, setSedes] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
+  const [sedeId, setSedeId] = useState('');
   const [step, setStep] = useState(1);
   const [tipo, setTipo] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -412,6 +415,22 @@ export default function NuevaSolicitudPage() {
   };
 
   useEffect(() => {
+    if (!isAdmin) return;
+    let cancelado = false;
+    fetch('/api/sedes?activas=true')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelado) setSedes(data);
+      })
+      .catch(() => {
+        if (!cancelado) setSedes([]);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [isAdmin]);
+
+  useEffect(() => {
     let cancelado = false;
     fetch('/api/categorias')
       .then((res) => res.json())
@@ -579,6 +598,7 @@ export default function NuevaSolicitudPage() {
       const base = {
         tipo,
         observaciones: observaciones || null,
+        sedeId: sedeId || undefined,
       };
 
       let body: Record<string, unknown> = base;
@@ -1452,6 +1472,27 @@ export default function NuevaSolicitudPage() {
             </div>
           </div>
 
+          {isAdmin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sede</label>
+              <select
+                value={sedeId}
+                onChange={(e) => setSedeId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="">Sin sede (solo lo verás tú)</option>
+                {sedes.map((sede) => (
+                  <option key={sede.id} value={sede.id}>
+                    {sede.nombre}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú.
+              </p>
+            </div>
+          )}
+
           {/* Observaciones */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
@@ -1903,6 +1944,27 @@ export default function NuevaSolicitudPage() {
                   />
                 </div>
               </div>
+            </div>
+          )}
+
+          {isAdmin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sede</label>
+              <select
+                value={sedeId}
+                onChange={(e) => setSedeId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="">Sin sede (solo lo verás tú)</option>
+                {sedes.map((sede) => (
+                  <option key={sede.id} value={sede.id}>
+                    {sede.nombre}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú.
+              </p>
             </div>
           )}
 

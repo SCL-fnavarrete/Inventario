@@ -14,6 +14,10 @@ export const MetodoPagoEnum = z.enum([
 // Schema para crear una compra/factura
 export const createPurchaseSchema = z.object({
   supplierId: z.string().uuid("ID de proveedor inválido").optional().nullable(),
+  // A que sede se le atribuye la compra (9-sep-2026). Compras es
+  // admin-only, asi que siempre se elige de una lista en el formulario;
+  // opcional para permitir compras transversales sin sede.
+  sedeId: z.string().uuid("Sede inválida").optional().nullable(),
   numeroFactura: z
     .string()
     .max(50, "Máximo 50 caracteres")
@@ -48,6 +52,7 @@ export const createPurchaseSchema = z.object({
 // Schema para actualizar una compra/factura
 export const updatePurchaseSchema = z.object({
   supplierId: z.string().uuid("ID de proveedor inválido").optional().nullable(),
+  sedeId: z.string().uuid("Sede inválida").optional().nullable(),
   numeroFactura: z
     .string()
     .max(50, "Máximo 50 caracteres")
@@ -116,6 +121,7 @@ export const createPurchaseWithAssetsSchema = createPurchaseSchema.extend({
 export const purchaseFiltersSchema = z.object({
   search: z.string().optional(),
   supplierId: z.string().uuid().optional(),
+  sedeId: z.string().uuid().optional(),
   moneda: MonedaEnum.optional(),
   tipoCompra: TipoCompraEnum.optional(),
   metodoPago: MetodoPagoEnum.optional(),

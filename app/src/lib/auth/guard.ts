@@ -35,7 +35,7 @@ export {
 
 /** Sesion autenticada, con el rol ya resuelto. */
 export interface SesionAutenticada extends Session {
-  user: Session['user'] & { id: string; role: string };
+  user: Session['user'] & { id: string; role: string; sedeId: string | null };
 }
 
 /** Exige sesion. Lanza 401 si no hay. */

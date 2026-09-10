@@ -224,7 +224,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
       <div className="space-y-6">
         <div className="flex items-center gap-4">
           <Link
-            href="/empleados"
+            href="/activos/empleados"
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft size={24} />
@@ -244,7 +244,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link
-            href="/empleados"
+            href="/activos/empleados"
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft size={24} />

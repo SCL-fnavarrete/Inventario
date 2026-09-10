@@ -2,6 +2,7 @@ import {
   createWorkflowRequestSchema,
   transitionSchema,
   workflowFiltersSchema,
+  cancelWorkflowRequestSchema,
   TipoSolicitudEnum,
   EstadoSolicitudEnum,
 } from '@/lib/validations/workflow';
@@ -101,6 +102,146 @@ describe('createWorkflowRequestSchema — cambio_equipo', () => {
     expect(result.success).toBe(false);
   });
 
+});
+
+// ============================================================
+// CAMBIO_EQUIPO — ejecución inmediata al crear el ticket
+// ============================================================
+describe('createWorkflowRequestSchema — cambio_equipo con ejecución inmediata', () => {
+  const validCambio = {
+    ...baseFields,
+    tipo: 'cambio_equipo' as const,
+    motivoCambio: 'Pantalla rota, equipo inoperable',
+  };
+  const datosEjecucion = {
+    oldAssignmentId: '550e8400-e29b-41d4-a716-446655440001',
+    newAssetId: '550e8400-e29b-41d4-a716-446655440002',
+    estadoDevolucionAnterior: 'ok' as const,
+  };
+
+  test('acepta cambio_equipo sin datos de ejecución (solo incidencia)', () => {
+    const result = createWorkflowRequestSchema.safeParse(validCambio);
+    expect(result.success).toBe(true);
+  });
+
+  test('acepta cambio_equipo con los 3 datos de ejecución completos', () => {
+    const result = createWorkflowRequestSchema.safeParse({
+      ...validCambio,
+      ...datosEjecucion,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test('acepta observacionesDevolucionAnterior opcional junto a los 3 obligatorios', () => {
+    const result = createWorkflowRequestSchema.safeParse({
+      ...validCambio,
+      ...datosEjecucion,
+      observacionesDevolucionAnterior: 'Equipo con rayones menores',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test('rechaza cambio_equipo con solo oldAssignmentId (falta newAssetId y estado)', () => {
+    const result = createWorkflowRequestSchema.safeParse({
+      ...validCambio,
+      oldAssignmentId: datosEjecucion.oldAssignmentId,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('rechaza cambio_equipo con oldAssignmentId + newAssetId pero sin estadoDevolucionAnterior', () => {
+    const result = createWorkflowRequestSchema.safeParse({
+      ...validCambio,
+      oldAssignmentId: datosEjecucion.oldAssignmentId,
+      newAssetId: datosEjecucion.newAssetId,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('rechaza cambio_equipo con solo estadoDevolucionAnterior', () => {
+    const result = createWorkflowRequestSchema.safeParse({
+      ...validCambio,
+      estadoDevolucionAnterior: 'danado' as const,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('acepta estadoDevolucionAnterior "no_devuelto" dentro del set completo', () => {
+    const result = createWorkflowRequestSchema.safeParse({
+      ...validCambio,
+      ...datosEjecucion,
+      estadoDevolucionAnterior: 'no_devuelto' as const,
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+// ============================================================
+// ONBOARDING — reincorporación (empleado existente + tipoContrato)
+// ============================================================
+describe('createWorkflowRequestSchema — onboarding con reincorporación', () => {
+  const validReincorporacion = {
+    employeeId: '550e8400-e29b-41d4-a716-446655440000',
+    tipo: 'onboarding' as const,
+    fechaIngreso: '2026-04-07',
+    cargoSolicitado: 'Analista TI',
+  };
+
+  test('acepta onboarding sobre empleado existente sin tipoContrato (no cambia)', () => {
+    const result = createWorkflowRequestSchema.safeParse(validReincorporacion);
+    expect(result.success).toBe(true);
+  });
+
+  test('acepta onboarding sobre empleado existente actualizando tipoContrato a "contrato"', () => {
+    const result = createWorkflowRequestSchema.safeParse({
+      ...validReincorporacion,
+      tipoContrato: 'contrato',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test('acepta onboarding sobre empleado existente actualizando tipoContrato a "boleta"', () => {
+    const result = createWorkflowRequestSchema.safeParse({
+      ...validReincorporacion,
+      tipoContrato: 'boleta',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test('rechaza tipoContrato con valor no reconocido', () => {
+    const result = createWorkflowRequestSchema.safeParse({
+      ...validReincorporacion,
+      tipoContrato: 'honorarios',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ============================================================
+// CANCELACIÓN
+// ============================================================
+describe('cancelWorkflowRequestSchema', () => {
+  test('acepta un motivo válido', () => {
+    const result = cancelWorkflowRequestSchema.safeParse({
+      motivo: 'Ticket creado por error, no corresponde',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test('rechaza sin motivo', () => {
+    const result = cancelWorkflowRequestSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
+  test('rechaza motivo vacío', () => {
+    const result = cancelWorkflowRequestSchema.safeParse({ motivo: '' });
+    expect(result.success).toBe(false);
+  });
+
+  test('rechaza motivo mayor a 1000 caracteres', () => {
+    const result = cancelWorkflowRequestSchema.safeParse({ motivo: 'a'.repeat(1001) });
+    expect(result.success).toBe(false);
+  });
 });
 
 // ============================================================
@@ -261,15 +402,19 @@ describe('TipoSolicitudEnum', () => {
 });
 
 describe('EstadoSolicitudEnum', () => {
-  test('acepta los 12 estados válidos', () => {
+  test('acepta los 13 estados válidos del flujo normal', () => {
     const estados = [
       'solicitud_recibida', 'gestion_ti', 'coordinando_entrega', 'equipos_entregados', 'registro_rrhh',
-      'incidencia_detectada', 'cambio_ejecutado', 'confirmacion_rrhh',
+      'incidencia_detectada', 'coordinando_cambio', 'cambio_ejecutado', 'confirmacion_rrhh',
       'solicitud_emitida', 'coordinacion_en_curso', 'equipo_recibido', 'consolidacion_cierre',
     ];
     estados.forEach((estado) => {
       expect(EstadoSolicitudEnum.safeParse(estado).success).toBe(true);
     });
+  });
+
+  test('acepta "cancelada" (estado de cancelación, fuera del flujo normal)', () => {
+    expect(EstadoSolicitudEnum.safeParse('cancelada').success).toBe(true);
   });
 
   test('rechaza estado inválido', () => {

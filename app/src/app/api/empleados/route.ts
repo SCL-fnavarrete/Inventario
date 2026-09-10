@@ -4,6 +4,7 @@ import { createEmployeeSchema, employeeFiltersSchema } from "@/lib/validations/e
 import { Prisma } from "@prisma/client";
 import { normalizeRut } from "@/lib/utils/rut";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { sedeWhere, sedeIdParaCrear } from '@/lib/auth/sedeScope';
 
 /**
  * Quita acentos/diacríticos de un string.
@@ -24,7 +25,7 @@ function matchNoAccent(field: string | null | undefined, searchTermNoAccent: str
 // GET /api/empleados - Listar empleados con filtros y paginación
 export async function GET(request: NextRequest) {
   try {
-    await requirePermission('empleados', 'read');
+    const session = await requirePermission('empleados', 'read');
 
     const searchParams = request.nextUrl.searchParams;
 
@@ -52,7 +53,8 @@ export async function GET(request: NextRequest) {
     const skip = (filters.page - 1) * filters.limit;
 
     // Construir condiciones de búsqueda
-    const where: Prisma.EmployeeWhereInput = {};
+    // Aislamiento por sede (SPEC 2.9): admin ve todo, el resto solo lo suyo.
+    const where: Prisma.EmployeeWhereInput = { ...sedeWhere(session) };
 
     // Un termino de solo espacios no es una busqueda: se ignora en vez de
     // filtrar por vacio, que no devolveria nada util.
@@ -90,6 +92,7 @@ export async function GET(request: NextRequest) {
     if (terminoBusqueda) {
       const allEmployees = await prisma.employee.findMany({
         where: {
+          ...sedeWhere(session),
           // Aplicar filtros no-search (estado, tipoContrato, etc.)
           ...(filters.estado && { estado: filters.estado }),
           ...(filters.tipoContrato && { tipoContrato: filters.tipoContrato }),
@@ -173,7 +176,7 @@ export async function GET(request: NextRequest) {
 // POST /api/empleados - Crear nuevo empleado
 export async function POST(request: NextRequest) {
   try {
-    await requirePermission('empleados', 'write');
+    const session = await requirePermission('empleados', 'write');
 
     const body = await request.json();
 
@@ -229,9 +232,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // La sede se hereda de quien registra al empleado; no se ofrece como
+    // campo del formulario. Ver SPEC 2.9.
+    const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId);
+
     // Crear empleado
     const employee = await prisma.employee.create({
       data: {
+        sedeId,
         rut: data.rut,
         nombres: data.nombres,
         apellidoPaterno: data.apellidoPaterno,

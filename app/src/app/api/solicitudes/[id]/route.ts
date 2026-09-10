@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { updateWorkflowRequestSchema } from '@/lib/validations/workflow';
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // GET /api/solicitudes/[id] - Get full detail
 export async function GET(
@@ -10,7 +11,7 @@ export async function GET(
 ) {
 
   try {
-    await requirePermission('solicitudes', 'read');
+    const session = await requirePermission('solicitudes', 'read');
     const { id } = await params;
 
     const workflowRequest = await prisma.workflowRequest.findUnique({
@@ -65,6 +66,8 @@ export async function GET(
     if (!workflowRequest) {
       return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
     }
+
+    assertSedeAccess(session, workflowRequest.sedeId, 'Solicitud no encontrada');
 
     // Equipos devueltos en este ticket de offboarding: assignmentIds guarda
     // las asignaciones que se fueron devolviendo (calificadas ok/danado),
@@ -123,7 +126,7 @@ export async function PATCH(
 ) {
 
   try {
-    await requirePermission('solicitudes', 'write');
+    const session = await requirePermission('solicitudes', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -139,6 +142,8 @@ export async function PATCH(
     if (!existing) {
       return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
     }
+
+    assertSedeAccess(session, existing.sedeId, 'Solicitud no encontrada');
 
     const data = validationResult.data;
     const updated = await prisma.workflowRequest.update({

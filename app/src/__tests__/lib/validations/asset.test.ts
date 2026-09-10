@@ -1,5 +1,4 @@
 import {
-  assetSchema,
   createAssetSchema,
   updateAssetSchema,
   estadoActivoEnum,

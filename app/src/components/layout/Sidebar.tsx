@@ -7,8 +7,6 @@ import { signOut, useSession } from "next-auth/react";
 import {
   LayoutDashboard,
   Laptop,
-  Users,
-  UserMinus,
   Wrench,
   ShoppingCart,
   BarChart3,
@@ -36,10 +34,8 @@ const menuItems: Array<{
 }> = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, recurso: "reportes" },
   { href: "/activos", label: "Activos", icon: Laptop, recurso: "activos" },
-  { href: "/empleados", label: "Empleados", icon: Users, recurso: "empleados" },
   { href: "/solicitudes", label: "Solicitudes", icon: ClipboardList, recurso: "solicitudes" },
   { href: "/guias-despacho", label: "Guias de Despacho", icon: FileText, recurso: "guias" },
-  { href: "/desvinculaciones", label: "Desvinculaciones", icon: UserMinus, recurso: "desvinculaciones" },
   { href: "/mantenciones", label: "Mantenciones", icon: Wrench, recurso: "mantenciones" },
   { href: "/compras", label: "Compras", icon: ShoppingCart, recurso: "compras" },
   { href: "/reportes", label: "Reportes", icon: BarChart3, recurso: "reportes" },

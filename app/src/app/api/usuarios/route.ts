@@ -3,8 +3,9 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
-// Roles válidos del sistema
-const VALID_ROLES = ["admin", "tecnico", "supervisor", "rrhh", "auditor"] as const;
+// Roles válidos del sistema (solo dos: admin ve todo, tecnico es soporte
+// restringido a su sede -- ver sedeScope()).
+const VALID_ROLES = ["admin", "tecnico"] as const;
 type SystemRole = typeof VALID_ROLES[number];
 
 export async function GET() {
@@ -21,6 +22,8 @@ export async function GET() {
         activo: true,
         ultimoLogin: true,
         createdAt: true,
+        sedeId: true,
+        sede: { select: { id: true, codigo: true, nombre: true } },
       },
     });
 
@@ -35,7 +38,7 @@ export async function POST(request: NextRequest) {
     await requirePermission('usuarios', 'write');
 
     const body = await request.json();
-    const { email, nombre, rol, password, activo } = body;
+    const { email, nombre, rol, password, activo, sedeId } = body;
 
     if (!email || !email.trim()) {
       return NextResponse.json(
@@ -91,15 +94,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Sede (SPEC 2.9): admin no tiene sede (ve todo); cualquier otro rol
+    // necesita una para que el aislamiento de datos funcione -- sin ella el
+    // usuario quedaria creado pero sin poder ver ni crear nada.
+    const rolFinal = (rol as SystemRole) || "tecnico";
+    if (rolFinal !== "admin" && !sedeId) {
+      return NextResponse.json(
+        { error: "Este rol necesita una sede asignada" },
+        { status: 400 }
+      );
+    }
+
     const passwordHash = await bcrypt.hash(password, 12);
 
     const user = await prisma.systemUser.create({
       data: {
         email: email.toLowerCase().trim(),
         nombre: nombre.trim(),
-        rol: (rol as SystemRole) || "tecnico",
+        rol: rolFinal,
         passwordHash,
         activo: activo ?? true,
+        sedeId: rolFinal === "admin" ? null : sedeId,
       },
       select: {
         id: true,
@@ -108,6 +123,8 @@ export async function POST(request: NextRequest) {
         rol: true,
         activo: true,
         createdAt: true,
+        sedeId: true,
+        sede: { select: { id: true, codigo: true, nombre: true } },
       },
     });
 

@@ -9,6 +9,7 @@ import {
 } from '@/lib/services/workflowExecutionService';
 import { SystemRole, EstadoSolicitud } from '@prisma/client';
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // POST /api/solicitudes/[id]/transicion - Advance workflow state
 export async function POST(
@@ -47,6 +48,8 @@ export async function POST(
     if (!workflowRequest) {
       return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
     }
+
+    assertSedeAccess(session, workflowRequest.sedeId, 'Solicitud no encontrada');
 
     // La entrega parcial de equipos en onboarding no es una transicion de estado
     // real: la solicitud se queda en gestion_ti hasta cubrir todas las categorias
@@ -175,7 +178,7 @@ export async function POST(
 
     if (
       workflowRequest.tipo === 'cambio_equipo' &&
-      workflowRequest.estado === 'incidencia_detectada' &&
+      workflowRequest.estado === 'coordinando_cambio' &&
       nuevoEstado === 'cambio_ejecutado' &&
       datosAccion?.oldAssignmentId &&
       !datosAccion?.estadoDevolucion
@@ -232,6 +235,7 @@ export async function POST(
             medioEntrega: (datosAccion?.medioEntrega as string) || undefined,
             lugarEntrega: (datosAccion?.lugarEntrega as string) || undefined,
             otChilexpressEntrega: (datosAccion?.otChilexpressEntrega as string) || undefined,
+            ciudadEntrega: (datosAccion?.ciudadEntrega as string) || undefined,
           },
         });
       }
@@ -239,6 +243,29 @@ export async function POST(
       if (
         workflowRequest.tipo === 'cambio_equipo' &&
         workflowRequest.estado === 'incidencia_detectada' &&
+        nuevoEstado === 'coordinando_cambio'
+      ) {
+        // Coordinacion del cambio, ANTES de ejecutarlo: fecha/hora y, segun
+        // el medio, el lugar (presencial) o la OT + ciudad de despacho
+        // (Chilexpress). Simetrico a la coordinacion de entrega de
+        // onboarding y a la de devolucion de offboarding, mas abajo.
+        await tx.workflowRequest.update({
+          where: { id },
+          data: {
+            medioCambio: (datosAccion?.medioCambio as string) || undefined,
+            fechaCambioCoordinada: datosAccion?.fechaCambioCoordinada
+              ? new Date(datosAccion.fechaCambioCoordinada as string)
+              : undefined,
+            lugarCambio: (datosAccion?.lugarCambio as string) || undefined,
+            otCambioChilexpress: (datosAccion?.otCambioChilexpress as string) || undefined,
+            ciudadCambio: (datosAccion?.ciudadCambio as string) || undefined,
+          },
+        });
+      }
+
+      if (
+        workflowRequest.tipo === 'cambio_equipo' &&
+        workflowRequest.estado === 'coordinando_cambio' &&
         nuevoEstado === 'cambio_ejecutado'
       ) {
         // Return old asset and assign new one
@@ -281,6 +308,30 @@ export async function POST(
       if (
         workflowRequest.tipo === 'offboarding' &&
         workflowRequest.estado === 'solicitud_emitida' &&
+        nuevoEstado === 'coordinacion_en_curso'
+      ) {
+        // Coordinacion de la devolucion, ANTES de recibir los equipos:
+        // fecha/hora y, segun el medio, el lugar (presencial) o la OT +
+        // ciudad de despacho (Chilexpress). medioDevolucion/otChilexpress/
+        // ciudadDevolucion ya se podian llenar al crear el ticket -- esta
+        // transicion los deja completar o actualizar si cambiaron.
+        await tx.workflowRequest.update({
+          where: { id },
+          data: {
+            medioDevolucion: (datosAccion?.medioDevolucion as string) || undefined,
+            fechaDevolucionCoordinada: datosAccion?.fechaDevolucionCoordinada
+              ? new Date(datosAccion.fechaDevolucionCoordinada as string)
+              : undefined,
+            lugarDevolucion: (datosAccion?.lugarDevolucion as string) || undefined,
+            otChilexpress: (datosAccion?.otChilexpress as string) || undefined,
+            ciudadDevolucion: (datosAccion?.ciudadDevolucion as string) || undefined,
+          },
+        });
+      }
+
+      if (
+        workflowRequest.tipo === 'offboarding' &&
+        workflowRequest.estado === 'coordinacion_en_curso' &&
         nuevoEstado === 'equipo_recibido'
       ) {
         // Recepcion de equipos: se califica el estado de cada asignacion
@@ -342,7 +393,7 @@ export async function POST(
           select: { id: true },
         });
         if (asignacionesActivasRestantes.length > 0 || eppPendienteRestante.length > 0) {
-          estadoFinalEfectivo = 'solicitud_emitida';
+          estadoFinalEfectivo = 'coordinacion_en_curso';
         }
       }
 

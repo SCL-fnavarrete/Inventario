@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { sedeWhere } from '@/lib/auth/sedeScope';
 
 // GET /api/mantenciones/pendientes - Obtener mantenciones pendientes y próximas
 export async function GET(request: NextRequest) {
   try {
-    await requirePermission('mantenciones', 'read');
+    const session = await requirePermission('mantenciones', 'read');
     const searchParams = request.nextUrl.searchParams;
     const dias = parseInt(searchParams.get("dias") || "30", 10);
 
@@ -13,11 +14,16 @@ export async function GET(request: NextRequest) {
     const fechaLimite = new Date();
     fechaLimite.setDate(fechaLimite.getDate() + dias);
 
+    // Maintenance no tiene sedeId propio -- se filtra via su relacion al
+    // activo (mismo criterio que el listado y el Dashboard).
+    const swAsset = { asset: sedeWhere(session) };
+
     // Obtener mantenciones vencidas (fecha pasada y pendiente/en_proceso)
     const vencidas = await prisma.maintenance.findMany({
       where: {
         fechaProgramada: { lt: hoy },
         estado: { in: ["pendiente", "en_proceso"] },
+        ...swAsset,
       },
       include: {
         asset: {
@@ -45,6 +51,7 @@ export async function GET(request: NextRequest) {
           lte: fechaLimite,
         },
         estado: { in: ["pendiente", "en_proceso"] },
+        ...swAsset,
       },
       include: {
         asset: {
@@ -68,6 +75,7 @@ export async function GET(request: NextRequest) {
     const enProceso = await prisma.maintenance.findMany({
       where: {
         estado: "en_proceso",
+        ...swAsset,
       },
       include: {
         asset: {
@@ -90,15 +98,17 @@ export async function GET(request: NextRequest) {
     // Estadísticas
     const stats = await prisma.maintenance.groupBy({
       by: ["estado"],
+      where: swAsset,
       _count: { estado: true },
     });
 
     const statsByTipo = await prisma.maintenance.groupBy({
-      by: ["tipo"],
+      by: ["tipoId"],
       where: {
         estado: { in: ["pendiente", "en_proceso"] },
+        ...swAsset,
       },
-      _count: { tipo: true },
+      _count: { tipoId: true },
     });
 
     return NextResponse.json({
@@ -111,8 +121,8 @@ export async function GET(request: NextRequest) {
           count: s._count.estado,
         })),
         porTipo: statsByTipo.map((s) => ({
-          tipo: s.tipo,
-          count: s._count.tipo,
+          tipoId: s.tipoId,
+          count: s._count.tipoId,
         })),
         totalVencidas: vencidas.length,
         totalProximas: proximas.length,

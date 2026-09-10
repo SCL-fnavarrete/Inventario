@@ -4,17 +4,18 @@ import { createMaintenanceSchema, maintenanceFiltersSchema } from "@/lib/validat
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { validateTransition } from '@/lib/services/assetStateMachine';
+import { sedeWhere, assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // GET /api/mantenciones - Listar mantenciones con filtros
 export async function GET(request: NextRequest) {
   try {
-    await requirePermission('mantenciones', 'read');
+    const session = await requirePermission('mantenciones', 'read');
     const searchParams = request.nextUrl.searchParams;
 
     const filtersResult = maintenanceFiltersSchema.safeParse({
       search: searchParams.get("search") || undefined,
       assetId: searchParams.get("assetId") || undefined,
-      tipo: searchParams.get("tipo") || undefined,
+      tipoId: searchParams.get("tipoId") || undefined,
       estado: searchParams.get("estado") || undefined,
       fechaDesde: searchParams.get("fechaDesde") || undefined,
       fechaHasta: searchParams.get("fechaHasta") || undefined,
@@ -37,14 +38,18 @@ export async function GET(request: NextRequest) {
     const skip = (filters.page - 1) * filters.limit;
 
     // Construir condiciones de búsqueda
-    const where: Prisma.MaintenanceWhereInput = {};
+    // Maintenance no tiene sedeId propio -- se filtra via su relacion al
+    // activo (mismo criterio que el Dashboard: swAsset = { asset: sw }).
+    const where: Prisma.MaintenanceWhereInput = {
+      asset: sedeWhere(session),
+    };
 
     if (filters.assetId) {
       where.assetId = filters.assetId;
     }
 
-    if (filters.tipo) {
-      where.tipo = filters.tipo;
+    if (filters.tipoId) {
+      where.tipoId = filters.tipoId;
     }
 
     if (filters.estado) {
@@ -92,6 +97,7 @@ export async function GET(request: NextRequest) {
       prisma.maintenance.findMany({
         where,
         include: {
+          tipo: true,
           asset: {
             include: {
               categoria: true,
@@ -130,7 +136,7 @@ export async function GET(request: NextRequest) {
 // POST /api/mantenciones - Crear nueva mantención
 export async function POST(request: NextRequest) {
   try {
-    await requirePermission('mantenciones', 'write');
+    const session = await requirePermission('mantenciones', 'write');
     const body = await request.json();
 
     const validationResult = createMaintenanceSchema.safeParse(body);
@@ -153,6 +159,24 @@ export async function POST(request: NextRequest) {
     if (!asset) {
       return NextResponse.json(
         { error: "Activo no encontrado" },
+        { status: 404 }
+      );
+    }
+
+    // Un tecnico no debe poder programar una mantencion para un activo de
+    // otra sede aunque conozca el id -- el selector de la UI ya filtra por
+    // sede, pero la API no lo bloqueaba.
+    assertSedeAccess(session, asset.sedeId, 'Activo no encontrado');
+
+    // Verificar que el tipo de mantencion existe (catalogo dinamico, ver
+    // MaintenanceType / /api/mantenciones/tipos).
+    const tipoMantencion = await prisma.maintenanceType.findUnique({
+      where: { id: data.tipoId },
+    });
+
+    if (!tipoMantencion) {
+      return NextResponse.json(
+        { error: "Tipo de mantención no encontrado" },
         { status: 404 }
       );
     }
@@ -188,7 +212,7 @@ export async function POST(request: NextRequest) {
       const maintenance = await tx.maintenance.create({
         data: {
           assetId: data.assetId,
-          tipo: data.tipo,
+          tipoId: data.tipoId,
           descripcion: data.descripcion,
           fechaProgramada: data.fechaProgramada,
           proximaMantencion: data.proximaMantencion,
@@ -198,6 +222,7 @@ export async function POST(request: NextRequest) {
           estado: "pendiente",
         },
         include: {
+          tipo: true,
           asset: {
             include: { categoria: true },
           },
@@ -216,7 +241,7 @@ export async function POST(request: NextRequest) {
           data: {
             assetId: data.assetId,
             tipoEvento: "mantencion",
-            descripcion: `Mantención ${data.tipo} programada: ${data.descripcion}`,
+            descripcion: `Mantención ${maintenance.tipo.nombre} programada: ${data.descripcion}`,
             datosAnteriores: { estado: asset.estado },
             datosNuevos: { estado: "en_mantencion", maintenanceId: maintenance.id },
             usuarioSistema: data.realizadoPor || "Sistema",

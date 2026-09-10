@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createAssetSchema } from "@/lib/validations/asset";
 import { assetHistoryService } from "@/lib/services/assetHistoryService";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { sedeWhere, sedeIdParaCrear } from '@/lib/auth/sedeScope';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 /**
@@ -16,7 +17,7 @@ const LIMITE_MAXIMO_PAGINA = 500;
 
 export async function GET(request: NextRequest) {
   try {
-    await requirePermission('activos', 'read');
+    const session = await requirePermission('activos', 'read');
 
     const searchParams = request.nextUrl.searchParams;
 
@@ -38,7 +39,8 @@ export async function GET(request: NextRequest) {
     const empleadoActualId = searchParams.get("empleadoActualId") || "";
 
     // Los registros descartados no aparecen en el listado (SPEC 2.7.7).
-    const where: Record<string, unknown> = { ...ACTIVOS_VIGENTES };
+    // Aislamiento por sede (SPEC 2.9): admin ve todo, el resto solo lo suyo.
+    const where: Record<string, unknown> = { ...ACTIVOS_VIGENTES, ...sedeWhere(session) };
 
     if (search) {
       where.OR = [
@@ -122,9 +124,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // La sede se hereda de quien crea el activo (admin puede elegirla); no
+    // se ofrece como campo del formulario. Ver SPEC 2.9.
+    const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId);
+
     const asset = await prisma.asset.create({
       data: {
         categoriaId: validatedData.categoriaId,
+        sedeId,
         marca: validatedData.marca,
         modelo: validatedData.modelo,
         numeroSerie: validatedData.numeroSerie || null,

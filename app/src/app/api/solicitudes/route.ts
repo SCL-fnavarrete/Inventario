@@ -5,6 +5,7 @@ import { getInitialState } from '@/lib/services/workflowStateMachine';
 import { executeAssignment, executeKitDelivery, executeReturn, executeKitReturn } from '@/lib/services/workflowExecutionService';
 import { Prisma, Employee } from '@prisma/client';
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { sedeWhere, sedeIdParaCrear, assertSedeAccess } from '@/lib/auth/sedeScope';
 
 async function generateNumero(): Promise<string> {
   const year = new Date().getFullYear();
@@ -20,7 +21,7 @@ async function generateNumero(): Promise<string> {
 export async function GET(request: NextRequest) {
 
   try {
-    await requirePermission('solicitudes', 'read');
+    const session = await requirePermission('solicitudes', 'read');
     const searchParams = request.nextUrl.searchParams;
     const filtersResult = workflowFiltersSchema.safeParse({
       search: searchParams.get('search') || undefined,
@@ -45,7 +46,8 @@ export async function GET(request: NextRequest) {
     const filters = filtersResult.data;
     const skip = (filters.page - 1) * filters.limit;
 
-    const where: Prisma.WorkflowRequestWhereInput = {};
+    // Aislamiento por sede (SPEC 2.9): admin ve todo, el resto solo lo suyo.
+    const where: Prisma.WorkflowRequestWhereInput = { ...sedeWhere(session) };
 
     if (filters.tipo) where.tipo = filters.tipo;
     // 'abierto'/'cerrado' en vez del estado interno detallado: un ticket
@@ -163,12 +165,20 @@ export async function POST(request: NextRequest) {
           { status: 409 }
         );
       }
+      // Defensa en profundidad: aunque el selector de empleados ya viene
+      // filtrado por sede, un no-admin no puede crear una solicitud para un
+      // empleado de otra sede. Ver SPEC 2.9.
+      assertSedeAccess(session, empleadoExistente.sedeId, 'Empleado no encontrado');
     }
     const esReincorporacion =
       data.tipo === 'onboarding' && empleadoExistente?.estado === 'desvinculado';
 
     const numero = await generateNumero();
     const estadoInicial = getInitialState(data.tipo);
+
+    // La sede se hereda de quien crea la solicitud; no se ofrece como campo
+    // del formulario. Ver SPEC 2.9.
+    const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId);
 
     // Campos comunes a los tres tipos. "employee" se agrega recien dentro de
     // la transaccion, una vez resuelto el id (existente o recien creado).
@@ -180,6 +190,7 @@ export async function POST(request: NextRequest) {
       responsableActual: { connect: { id: systemUser.id } },
       observaciones: data.observaciones,
       assignmentIds: [],
+      ...(sedeId ? { sede: { connect: { id: sedeId } } } : {}),
     };
 
     // Type-specific fields
@@ -207,7 +218,11 @@ export async function POST(request: NextRequest) {
       let empId: string;
       if (data.tipo === 'onboarding' && !data.employeeId && data.nuevoEmpleado) {
         const nuevo = await tx.employee.create({
-          data: { ...data.nuevoEmpleado, estado: data.nuevoEmpleado.estado || 'activo' },
+          data: {
+            ...data.nuevoEmpleado,
+            estado: data.nuevoEmpleado.estado || 'activo',
+            sedeId,
+          },
         });
         empId = nuevo.id;
       } else {

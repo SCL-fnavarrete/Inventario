@@ -3,11 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { createTerminationSchema, terminationFiltersSchema } from "@/lib/validations/termination";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { sedeWhere, assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // GET /api/desvinculaciones - Listar desvinculaciones con filtros
 export async function GET(request: NextRequest) {
   try {
-    await requirePermission('desvinculaciones', 'read');
+    const session = await requirePermission('desvinculaciones', 'read');
     const searchParams = request.nextUrl.searchParams;
 
     const filtersResult = terminationFiltersSchema.safeParse({
@@ -32,7 +33,11 @@ export async function GET(request: NextRequest) {
     const filters = filtersResult.data;
     const skip = (filters.page - 1) * filters.limit;
 
-    const where: Prisma.TerminationWhereInput = {};
+    // Termination no tiene sedeId propio -- se filtra via su relacion al
+    // empleado (mismo criterio que el Dashboard: swEmployee = { employee: sw }).
+    const where: Prisma.TerminationWhereInput = {
+      employee: sedeWhere(session),
+    };
 
     // Filtrar por pendientes (sin devolver equipos)
     if (filters.pendientes === true) {
@@ -60,9 +65,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Búsqueda por RUT o nombre
+    // Búsqueda por RUT o nombre -- se combina con el filtro de sede de
+    // arriba (no lo reemplaza).
     if (filters.search) {
       where.employee = {
+        ...sedeWhere(session),
         OR: [
           { rut: { contains: filters.search, mode: "insensitive" } },
           { nombres: { contains: filters.search, mode: "insensitive" } },
@@ -112,7 +119,7 @@ export async function GET(request: NextRequest) {
 // POST /api/desvinculaciones - Crear nueva desvinculación
 export async function POST(request: NextRequest) {
   try {
-    await requirePermission('desvinculaciones', 'write');
+    const session = await requirePermission('desvinculaciones', 'write');
     const body = await request.json();
 
     const validationResult = createTerminationSchema.safeParse(body);
@@ -147,6 +154,8 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    assertSedeAccess(session, employee.sedeId, 'Empleado no encontrado');
 
     // Verificar si ya existe una desvinculación para este empleado
     const existingTermination = await prisma.termination.findFirst({

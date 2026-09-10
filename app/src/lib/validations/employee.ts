@@ -78,6 +78,10 @@ export const updateEmployeeSchema = z.object({
   fechaEntregaKit: fechaOpcional,
   fechaEntregaEpp: fechaOpcional,
   proximaMantencionEpp: fechaOpcional,
+  // Reasignar la sede de un empleado ya creado (ej. se traslada de
+  // Concepcion a Santiago). Solo admin puede enviarlo -- la ruta ignora
+  // este campo si lo envia un tecnico. null = transversal/sin sede.
+  sedeId: z.string().uuid("Sede inválida").optional().nullable(),
 });
 
 // Schema para filtros de búsqueda

@@ -16,14 +16,20 @@ model SystemUser {
   rol          SystemRole
   activo       Boolean    @default(true)
   ultimoLogin  DateTime?  @map("ultimo_login")
+  // Sede a la que pertenece este usuario. `admin` la deja en null porque ve
+  // todas las sedes; el resto (soporte/tecnico, etc.) queda restringido a
+  // los datos de la suya -- ver sedeScope() y SPEC 2.9.
+  sedeId       String?    @map("sede_id")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
+  sede                Sede?             @relation(fields: [sedeId], references: [id])
   solicitudesCreadas  WorkflowRequest[] @relation("SolicitanteRelation")
   solicitudesAsignadas WorkflowRequest[] @relation("ResponsableRelation")
   workflowComments    WorkflowComment[]
   workflowTransitions WorkflowTransition[]
 
+  @@index([sedeId])
   @@map("system_users")
 }
 
@@ -56,6 +62,10 @@ model Employee {
   fechaEntregaEpp      DateTime?       @map("fecha_entrega_epp")
   fechaEntregaKit      DateTime?       @map("fecha_entrega_kit")
   proximaMantencionEpp DateTime?       @map("proxima_mantencion_epp")
+  // Sede de quien registro al empleado -- determina que soporte lo ve.
+  // Independiente de `ubicacion` (texto libre, ya existia). Ver SPEC 2.9.
+  sedeId               String?         @map("sede_id")
+  sede                 Sede?           @relation(fields: [sedeId], references: [id])
   activosActuales      Asset[]         @relation("EmpleadoActual")
   assignments          Assignment[]
   dispatchGuides       DispatchGuide[]
@@ -69,6 +79,7 @@ model Employee {
   @@index([jefatura])
   @@index([microsoftId])
   @@index([createdAt])
+  @@index([sedeId])
   @@map("employees")
 }
 
@@ -78,6 +89,11 @@ model AssetCategory {
   descripcion   String?
   requiereSerie Boolean  @default(true) @map("requiere_serie")
   requiereImei  Boolean  @default(false) @map("requiere_imei")
+  // Umbral de "stock bajo" para la alerta del Dashboard, igual concepto que
+  // WelcomeKitItem.stockMinimo pero aplicado a activos DISPONIBLES de esta
+  // categoria (no al total): un notebook "asignado" no cuenta como stock,
+  // es el que queda libre para entregar lo que le importa a soporte.
+  stockMinimo   Int      @default(3) @map("stock_minimo")
   createdAt     DateTime @default(now()) @map("created_at")
   assets        Asset[]
 
@@ -122,9 +138,15 @@ model Asset {
   updatedAt           DateTime            @updatedAt @map("updated_at")
   empleadoActualId    String?             @map("empleado_actual_id")
   nombreEquipo        String?             @map("nombre_equipo")
+  // Sede donde esta almacenado FISICAMENTE el activo. Independiente de la
+  // sede/ubicacion del empleado asignado -- no cambia por una asignacion o
+  // devolucion, solo por una guia de despacho de tipo `traslado` ya
+  // recibida. Ver SPEC 2.9 (Sedes).
+  sedeId              String?             @map("sede_id")
   history             AssetHistory[]
   categoria           AssetCategory       @relation(fields: [categoriaId], references: [id])
   empleadoActual      Employee?           @relation("EmpleadoActual", fields: [empleadoActualId], references: [id])
+  sede                Sede?               @relation(fields: [sedeId], references: [id])
   assignments         Assignment[]
   dispatchItems       DispatchGuideItem[]
   maintenances        Maintenance[]
@@ -133,6 +155,7 @@ model Asset {
   @@index([estado])
   @@index([categoriaId])
   @@index([empleadoActualId])
+  @@index([sedeId])
   @@index([marca])
   @@index([createdAt])
   @@index([deletedAt])
@@ -166,10 +189,19 @@ model Purchase {
   compradoPor    String?         @map("comprado_por")
   ordenCompra    String?         @map("orden_compra")
   documentoUrl   String?         @map("documento_url")
+  // Sede a la que se le atribuye la compra (9-sep-2026, ver sedeScope.ts):
+  // Compras es admin-only, asi que en la practica siempre la elige el
+  // admin de una lista (no se hereda de una sesion de tecnico como en
+  // Activos/Empleados). Nullable a proposito -- una compra realmente
+  // transversal (ej. licencias de software para toda la empresa) puede
+  // quedar sin sede.
+  sedeId         String?         @map("sede_id")
   createdAt      DateTime        @default(now()) @map("created_at")
   purchaseAssets PurchaseAsset[]
   supplier       Supplier?       @relation(fields: [supplierId], references: [id])
+  sede           Sede?           @relation(fields: [sedeId], references: [id])
 
+  @@index([sedeId])
   @@map("purchases")
 }
 
@@ -225,10 +257,22 @@ model WelcomeKitItem {
   // rastreables (a diferencia de Asset) -- para EPP/Kit no hace falta
   // distinguir una unidad de otra, solo saber cuantas quedan.
   cantidad       Int              @default(0)
+  // Umbral configurable para la alerta de "stock bajo" del Dashboard: se
+  // avisa cuando cantidad llega a este numero o menos (y por separado cuando
+  // llega a 0, "sin stock"). Cada articulo puede tener su propio umbral --
+  // no todos se agotan al mismo ritmo.
+  stockMinimo    Int              @default(5) @map("stock_minimo")
+  // Catalogo separado por sede (SPEC 2.9): cada sede tiene sus propias filas
+  // y su propio stock, igual que Asset/Employee -- no es un catalogo global
+  // con un stock compartido. Nullable por el mismo motivo que en los demas
+  // modelos con sede: un registro "sin sede" solo lo ve admin.
+  sedeId         String?          @map("sede_id")
+  sede           Sede?            @relation(fields: [sedeId], references: [id])
   createdAt      DateTime         @default(now()) @map("created_at")
   kitAssignments KitAssignment[]
   requeridoEn    RequestKitItem[]
 
+  @@index([sedeId])
   @@map("welcome_kit_items")
 }
 
@@ -277,10 +321,32 @@ model RequestKitItem {
   @@map("request_kit_items")
 }
 
+// Tipos de mantencion (9-sep-2026): antes era un enum fijo de Postgres
+// (TipoMantencion), pedido por Javier para que sea mantenible sin tocar
+// codigo/deploy. Admin y tecnico pueden crear/editar/eliminar tipos por
+// igual (recurso de permisos "tiposMantencion", ver permissions.ts) -- es
+// una decision operativa del dia a dia, no algo que deba quedar detras de
+// Configuracion (que es solo para lo fijo del sistema). No tiene sedeId:
+// es un catalogo global, mismo criterio que AssetCategory.
+model MaintenanceType {
+  id           String        @id @default(uuid())
+  nombre       String        @unique
+  descripcion  String?
+  // Permite "retirar" un tipo sin borrarlo (y sin romper las mantenciones
+  // que ya lo usan) -- se deja de ofrecer en el selector pero las
+  // mantenciones existentes lo siguen mostrando.
+  activo       Boolean       @default(true)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  maintenances Maintenance[]
+
+  @@map("maintenance_types")
+}
+
 model Maintenance {
   id                String           @id @default(uuid())
   assetId           String           @map("asset_id")
-  tipo              TipoMantencion
+  tipoId            String           @map("tipo_id")
   descripcion       String
   fechaProgramada   DateTime?        @map("fecha_programada")
   fechaRealizada    DateTime?        @map("fecha_realizada")
@@ -293,10 +359,11 @@ model Maintenance {
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
   asset             Asset            @relation(fields: [assetId], references: [id])
+  tipo              MaintenanceType  @relation(fields: [tipoId], references: [id])
 
   @@index([assetId])
   @@index([estado])
-  @@index([tipo])
+  @@index([tipoId])
   @@index([fechaProgramada])
   @@map("maintenances")
 }
@@ -362,16 +429,61 @@ model DispatchGuide {
   estado             EstadoGuia          @default(pendiente)
   fechaRecepcion     DateTime?           @map("fecha_recepcion")
   recibidoPor        String?             @map("recibido_por")
+  // Sede origen/destino estructuradas -- `origen`/`destino` (texto libre)
+  // se mantienen tal cual para no romper guias existentes; estas son solo
+  // para guias de tipo `traslado`, y sedeDestinoId es lo que se aplica a
+  // cada activo cuando la guia pasa a `recibido`. Ver SPEC 2.9.
+  sedeOrigenId       String?             @map("sede_origen_id")
+  sedeDestinoId      String?             @map("sede_destino_id")
+  // Datos de envio por OT Chilexpress (guia tipo traslado despachada por
+  // OT en vez de presencial). Ver SPEC 2.9.
+  otChilexpress        String?           @map("ot_chilexpress")
+  fechaEstimadaLlegada DateTime?         @map("fecha_estimada_llegada")
+  // Sede de quien creo la guia -- determina que soporte la ve. Distinta de
+  // sedeOrigenId/sedeDestinoId (esas describen el traslado del activo; esta
+  // es la propietaria del registro). Ver SPEC 2.9.
+  sedeId             String?             @map("sede_id")
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
   items              DispatchGuideItem[]
   destinatario       Employee?           @relation(fields: [destinatarioId], references: [id])
+  sede               Sede?               @relation("GuiasSede", fields: [sedeId], references: [id])
+  sedeOrigen         Sede?               @relation("GuiasOrigen", fields: [sedeOrigenId], references: [id])
+  sedeDestino        Sede?               @relation("GuiasDestino", fields: [sedeDestinoId], references: [id])
 
   @@index([numero])
   @@index([estado])
   @@index([fechaDespacho])
   @@index([destinatarioId])
+  @@index([sedeId])
+  @@index([sedeOrigenId])
+  @@index([sedeDestinoId])
   @@map("dispatch_guides")
+}
+
+model Sede {
+  id        String   @id @default(uuid())
+  // Slug corto y estable (ej: STGO, CCP). No cambia aunque el nombre
+  // visible cambie -- es lo que idealmente se referencia en integraciones
+  // futuras. Ver SPEC 2.9.
+  codigo    String   @unique
+  nombre    String
+  // Permite desactivar una sede sin perder el historial de activos/guias
+  // que la referencian.
+  activa    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  assets       Asset[]
+  empleados    Employee[]
+  usuarios     SystemUser[]
+  solicitudes  WorkflowRequest[]
+  guias        DispatchGuide[]   @relation("GuiasSede")
+  guiasOrigen  DispatchGuide[]   @relation("GuiasOrigen")
+  guiasDestino DispatchGuide[]   @relation("GuiasDestino")
+  kitItems     WelcomeKitItem[]
+  compras      Purchase[]
+
+  @@map("sedes")
 }
 
 model DispatchGuideItem {
@@ -403,14 +515,16 @@ model WorkflowRequest {
   categoriasRequeridas  String[]            @default([]) @map("categorias_requeridas")
   // Coordinacion de entrega (onboarding): se llena en la etapa "Coordinando
   // Entrega", despues de asignar los equipos y antes de darlos por entregados.
-  // Si medioEntrega es presencial se usa lugarEntrega; si es despacho
-  // (Chilexpress) se usa otChilexpressEntrega. Es simetrico a los campos
-  // medioDevolucion/otChilexpress que ya existen para el offboarding, pero
-  // separados porque son dos flujos y direcciones distintas.
+  // Si medioEntrega es presencial se usa lugarEntrega y fechaEntregaCoordinada
+  // es la fecha/hora real de la visita; si es despacho (Chilexpress) se usan
+  // otChilexpressEntrega + ciudadEntrega, y fechaEntregaCoordinada pasa a ser
+  // la fecha ESTIMADA de llegada (mismo patron que medioCambio/ciudadCambio
+  // mas abajo).
   fechaEntregaCoordinada DateTime?          @map("fecha_entrega_coordinada")
   medioEntrega           String?            @map("medio_entrega")
   lugarEntrega           String?            @map("lugar_entrega")
   otChilexpressEntrega   String?            @map("ot_chilexpress_entrega")
+  ciudadEntrega          String?            @map("ciudad_entrega")
   // Kit de Bienvenida y EPP ya no son categorias de Activos (ver
   // WelcomeKitItem): la intencion se guarda aparte como estos dos flags,
   // y la entrega real (que articulos especificos, con que cantidad) se
@@ -419,11 +533,30 @@ model WorkflowRequest {
   eppSolicitado           Boolean           @default(false) @map("epp_solicitado")
   // Campos cambio equipo
   motivoCambio          String?             @map("motivo_cambio")
+  // Coordinacion de cambio (cambio_equipo): se llena en la etapa "Coordinando
+  // Cambio", ANTES de ejecutar el cambio (a diferencia de la coordinacion de
+  // entrega de onboarding, que se llena despues de asignar). Mismo patron
+  // presencial/OT que las otras dos coordinaciones: si medioCambio es
+  // presencial se usa lugarCambio; si es despacho (Chilexpress) se usan
+  // otCambioChilexpress + ciudadCambio, y fechaCambioCoordinada pasa a ser la
+  // fecha estimada de llegada en vez de la fecha/hora de la visita.
+  medioCambio           String?             @map("medio_cambio")
+  fechaCambioCoordinada DateTime?           @map("fecha_cambio_coordinada")
+  lugarCambio           String?             @map("lugar_cambio")
+  otCambioChilexpress   String?             @map("ot_cambio_chilexpress")
+  ciudadCambio          String?             @map("ciudad_cambio")
   // Campos devolución
   fechaDesvinculacion   DateTime?           @map("fecha_desvinculacion")
   medioDevolucion       String?             @map("medio_devolucion")
   otChilexpress         String?             @map("ot_chilexpress")
   ciudadDevolucion      String?             @map("ciudad_devolucion")
+  // Coordinacion de devolucion (offboarding): se llena en la etapa
+  // "Coordinando Devolucion", ANTES de recibir los equipos. lugarDevolucion es
+  // el analogo presencial de ciudadDevolucion (que en la practica se usa como
+  // destino del despacho OT); fechaDevolucionCoordinada es la fecha/hora de
+  // la visita presencial, o la fecha estimada de llegada si es por OT.
+  fechaDevolucionCoordinada DateTime?       @map("fecha_devolucion_coordinada")
+  lugarDevolucion       String?             @map("lugar_devolucion")
   // Referencias a registros creados
   assignmentIds         String[]            @map("assignment_ids")
   // Igual que assignmentIds pero para devoluciones de EPP (KitAssignment):
@@ -433,6 +566,9 @@ model WorkflowRequest {
   kitReturnIds           String[]            @default([]) @map("kit_return_ids")
   terminationId         String?             @map("termination_id")
   dispatchGuideId       String?             @map("dispatch_guide_id")
+  // Sede de quien creo la solicitud -- determina que soporte la ve.
+  // Ver SPEC 2.9.
+  sedeId                String?             @map("sede_id")
   // General
   observaciones         String?
   fechaCierre           DateTime?           @map("fecha_cierre")
@@ -442,6 +578,7 @@ model WorkflowRequest {
   employee              Employee            @relation(fields: [employeeId], references: [id])
   solicitante           SystemUser          @relation("SolicitanteRelation", fields: [solicitanteId], references: [id])
   responsableActual     SystemUser?         @relation("ResponsableRelation", fields: [responsableActualId], references: [id])
+  sede                  Sede?               @relation(fields: [sedeId], references: [id])
   comments              WorkflowComment[]
   transitions           WorkflowTransition[]
   pendientes            WorkflowPendiente[]
@@ -454,6 +591,7 @@ model WorkflowRequest {
   @@index([solicitanteId])
   @@index([responsableActualId])
   @@index([createdAt])
+  @@index([sedeId])
   @@map("workflow_requests")
 }
 
@@ -508,12 +646,13 @@ model WorkflowPendiente {
   @@map("workflow_pendientes")
 }
 
+// Solo dos roles reales: admin (ve y administra todo) y tecnico (soporte
+// operativo, restringido a su sede -- ver sedeScope()). supervisor/rrhh/
+// auditor se retiraron: el sistema es de soporte, esos roles no lo usaban
+// en la practica.
 enum SystemRole {
   admin
   tecnico
-  supervisor
-  rrhh
-  auditor
 }
 
 enum TipoContrato {
@@ -598,14 +737,6 @@ enum EstadoKit {
   no_devuelto
 }
 
-enum TipoMantencion {
-  preventiva
-  correctiva
-  actualizacion_so
-  limpieza
-  reparacion
-}
-
 enum EstadoMantencion {
   pendiente
   en_proceso
@@ -623,6 +754,9 @@ enum TipoEvento {
   baja
   venta
   solicitud_workflow
+  // Cambio de sede fisica del activo, via guia de despacho tipo traslado
+  // recibida. Ver SPEC 2.9.
+  traslado
 }
 
 enum TipoSolicitud {
@@ -640,10 +774,17 @@ enum EstadoSolicitud {
   registro_rrhh
   // Cambio equipo
   incidencia_detectada
+  // Coordinacion del cambio (fecha/lugar presencial, u OT + fecha estimada
+  // de llegada), ANTES de ejecutarlo -- ver SPEC 2.5.2 regla 9.
+  coordinando_cambio
   cambio_ejecutado
   confirmacion_rrhh
   // Devolución
   solicitud_emitida
+  // Coordinacion de la devolucion (fecha/lugar presencial, u OT + fecha
+  // estimada de llegada), ANTES de recibir los equipos. Este valor ya
+  // existia en el enum (sin usar) desde antes -- ahora se conecta a
+  // TRANSITIONS/STATES_BY_TYPE -- ver SPEC 2.5.2 regla 9.
   coordinacion_en_curso
   equipo_recibido
   consolidacion_cierre

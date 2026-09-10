@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     await requirePermission('categorias', 'write');
 
     const body = await request.json();
-    const { nombre, descripcion, requiereSerie, requiereImei } = body;
+    const { nombre, descripcion, requiereSerie, requiereImei, stockMinimo } = body;
 
     if (!nombre || !nombre.trim()) {
       return NextResponse.json(
@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
         descripcion: descripcion?.trim() || null,
         requiereSerie: requiereSerie ?? true,
         requiereImei: requiereImei ?? false,
+        stockMinimo: Number.isFinite(Number(stockMinimo)) ? Number(stockMinimo) : 3,
       },
     });
 

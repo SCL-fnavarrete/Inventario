@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updateTerminationSchema, registerReturnSchema } from "@/lib/validations/termination";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // GET /api/desvinculaciones/[id] - Obtener detalle de desvinculación
 export async function GET(
@@ -9,7 +10,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requirePermission('desvinculaciones', 'read');
+    const session = await requirePermission('desvinculaciones', 'read');
     const { id } = await params;
 
     const termination = await prisma.termination.findUnique({
@@ -40,6 +41,9 @@ export async function GET(
       );
     }
 
+    // Termination no tiene sedeId propio -- se valida via la sede del empleado.
+    assertSedeAccess(session, termination.employee.sedeId, 'Desvinculación no encontrada');
+
     return NextResponse.json(termination);
   } catch (error) {
     return handleApiError(error, 'Error al obtener desvinculación');
@@ -52,7 +56,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requirePermission('desvinculaciones', 'write');
+    const session = await requirePermission('desvinculaciones', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -90,6 +94,8 @@ export async function PUT(
         { status: 404 }
       );
     }
+
+    assertSedeAccess(session, existingTermination.employee.sedeId, 'Desvinculación no encontrada');
 
     // Actualizar desvinculación
     const termination = await prisma.termination.update({
@@ -139,7 +145,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requirePermission('desvinculaciones', 'delete');
+    const session = await requirePermission('desvinculaciones', 'delete');
     const { id } = await params;
 
     const termination = await prisma.termination.findUnique({
@@ -153,6 +159,8 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    assertSedeAccess(session, termination.employee.sedeId, 'Desvinculación no encontrada');
 
     // Verificar que no se hayan procesado devoluciones
     const hasProcessedReturns =

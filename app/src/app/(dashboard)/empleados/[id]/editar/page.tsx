@@ -2,8 +2,11 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { ArrowLeft, Save, Loader2, Trash2 } from "lucide-react";
+
+type Sede = { id: string; nombre: string; codigo: string; activa: boolean };
 
 type FormData = {
   rut: string;
@@ -24,16 +27,20 @@ type FormData = {
   fechaEntregaKit: string;
   fechaEntregaEpp: string;
   proximaMantencionEpp: string;
+  sedeId: string;
 };
 
 export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const { data: session } = useSession();
+  const esAdmin = session?.user?.role === "admin";
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [sedes, setSedes] = useState<Sede[]>([]);
   const [formData, setFormData] = useState<FormData>({
     rut: "",
     nombres: "",
@@ -53,11 +60,22 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
     fechaEntregaKit: "",
     fechaEntregaEpp: "",
     proximaMantencionEpp: "",
+    sedeId: "",
   });
 
   useEffect(() => {
     fetchEmployee();
   }, [id]);
+
+  // La sede solo la puede reasignar admin (ver PUT /api/empleados/[id]);
+  // el tecnico ni siquiera necesita ver el select.
+  useEffect(() => {
+    if (!esAdmin) return;
+    fetch("/api/sedes?activas=true")
+      .then((res) => res.json())
+      .then((data) => setSedes(Array.isArray(data) ? data : []))
+      .catch(() => setSedes([]));
+  }, [esAdmin]);
 
   async function fetchEmployee() {
     try {
@@ -95,6 +113,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
         proximaMantencionEpp: employee.proximaMantencionEpp
           ? new Date(employee.proximaMantencionEpp).toISOString().split("T")[0]
           : "",
+        sedeId: employee.sedeId || "",
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
@@ -133,6 +152,8 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           fechaEntregaKit: formData.fechaEntregaKit || null,
           fechaEntregaEpp: formData.fechaEntregaEpp || null,
           proximaMantencionEpp: formData.proximaMantencionEpp || null,
+          // El backend ignora este campo si quien edita no es admin.
+          sedeId: formData.sedeId || null,
         }),
       });
 
@@ -163,7 +184,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
         throw new Error(data.error || "Error al eliminar empleado");
       }
 
-      router.push("/empleados");
+      router.push("/activos/empleados");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
       setShowDeleteConfirm(false);
@@ -464,6 +485,32 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
+
+          {esAdmin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sede
+              </label>
+              <select
+                name="sedeId"
+                value={formData.sedeId}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Sin sede</option>
+                {sedes.map((sede) => (
+                  <option key={sede.id} value={sede.id}>
+                    {sede.nombre}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Reasigna a qué sede pertenece este empleado (ej. si se traslada
+                de Concepción a Santiago). Solo administradores pueden
+                cambiarlo.
+              </p>
+            </div>
+          )}
 
           {/* Kit de Bienvenida y EPP */}
           <div className="md:col-span-2 mt-4">

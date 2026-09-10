@@ -1,5 +1,6 @@
 export { StatsBar } from "./StatsBar";
 export { CategoryTabs } from "./CategoryTabs";
+export { ActivosTabs } from "./ActivosTabs";
 export { ActiveFilters } from "./ActiveFilters";
 export { AssetCard } from "./AssetCard";
 export { KanbanBoard } from "./KanbanBoard";

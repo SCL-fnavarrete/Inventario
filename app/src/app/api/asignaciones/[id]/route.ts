@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { returnAssignmentSchema } from "@/lib/validations/assignment";
 import { executeReturn } from "@/lib/services/workflowExecutionService";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -11,7 +12,7 @@ interface RouteParams {
 // GET /api/asignaciones/[id] - Obtener asignación por ID
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('asignaciones', 'read');
+    const session = await requirePermission('asignaciones', 'read');
     const { id } = await params;
 
     const assignment = await prisma.assignment.findUnique({
@@ -37,6 +38,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Assignment no tiene sedeId propio -- se valida via la sede del activo.
+    assertSedeAccess(session, assignment.asset.sedeId, 'Asignación no encontrada');
+
     return NextResponse.json(assignment);
   } catch (error) {
     return handleApiError(error, 'Error al obtener asignación');
@@ -46,7 +50,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // PUT /api/asignaciones/[id] - Registrar devolución
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('asignaciones', 'write');
+    const session = await requirePermission('asignaciones', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -65,6 +69,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    assertSedeAccess(session, existingAssignment.asset.sedeId, 'Asignación no encontrada');
 
     if (!existingAssignment.activo) {
       return NextResponse.json(
@@ -123,7 +129,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/asignaciones/[id] - Cancelar asignación (solo si no ha sido devuelta)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('asignaciones', 'delete');
+    const session = await requirePermission('asignaciones', 'delete');
     const { id } = await params;
 
     const assignment = await prisma.assignment.findUnique({
@@ -140,6 +146,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    assertSedeAccess(session, assignment.asset.sedeId, 'Asignación no encontrada');
 
     if (!assignment.activo) {
       return NextResponse.json(

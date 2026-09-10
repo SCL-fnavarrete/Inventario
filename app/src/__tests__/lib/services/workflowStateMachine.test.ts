@@ -4,6 +4,7 @@ import {
   getStatesForType,
   getNextStates,
   canTransition,
+  isCancelled,
 } from '@/lib/services/workflowStateMachine';
 
 // SPEC: Sección 2.5.2 — Máquinas de estado por tipo de solicitud
@@ -59,24 +60,27 @@ describe('workflowStateMachine — getStatesForType', () => {
     ]);
   });
 
-  test('cambio_equipo tiene exactamente 3 estados', () => {
+  test('cambio_equipo tiene exactamente 4 estados (incluye Coordinando Cambio)', () => {
     expect(getStatesForType('cambio_equipo')).toEqual([
       'incidencia_detectada',
+      'coordinando_cambio',
       'cambio_ejecutado',
       'confirmacion_rrhh',
     ]);
   });
 
-  test('offboarding tiene exactamente 3 estados', () => {
+  test('offboarding tiene exactamente 4 estados (incluye Coordinacion en Curso)', () => {
     expect(getStatesForType('offboarding')).toEqual([
       'solicitud_emitida',
+      'coordinacion_en_curso',
       'equipo_recibido',
       'consolidacion_cierre',
     ]);
   });
 });
 
-// SPEC Sección 2.5.3 Regla 1: Solo tecnico/admin avanzan estados TI; solo rrhh/admin confirman RRHH
+// SPEC Sección 2.5.3 Regla 1: solo tecnico/admin avanzan estados (los
+// únicos dos roles que existen -- ver permissions.ts).
 describe('workflowStateMachine — canTransition (transiciones permitidas)', () => {
   // Onboarding
   test('tecnico puede avanzar solicitud_recibida → gestion_ti (onboarding)', () => {
@@ -103,19 +107,34 @@ describe('workflowStateMachine — canTransition (transiciones permitidas)', () 
     expect(canTransition('onboarding', 'equipos_entregados', 'registro_rrhh', 'admin')).toBe(true);
   });
 
-  // Cambio equipo
-  test('tecnico puede avanzar incidencia_detectada → cambio_ejecutado', () => {
-    expect(canTransition('cambio_equipo', 'incidencia_detectada', 'cambio_ejecutado', 'tecnico')).toBe(true);
+  // Cambio equipo: incidencia_detectada -> coordinando_cambio -> cambio_ejecutado
+  test('tecnico puede avanzar incidencia_detectada → coordinando_cambio', () => {
+    expect(canTransition('cambio_equipo', 'incidencia_detectada', 'coordinando_cambio', 'tecnico')).toBe(true);
+  });
+
+  test('tecnico puede avanzar coordinando_cambio → cambio_ejecutado', () => {
+    expect(canTransition('cambio_equipo', 'coordinando_cambio', 'cambio_ejecutado', 'tecnico')).toBe(true);
+  });
+
+  test('NO se puede saltar coordinando_cambio: incidencia_detectada → cambio_ejecutado directo', () => {
+    expect(canTransition('cambio_equipo', 'incidencia_detectada', 'cambio_ejecutado', 'tecnico')).toBe(false);
   });
 
   test('tecnico puede avanzar cambio_ejecutado → confirmacion_rrhh', () => {
     expect(canTransition('cambio_equipo', 'cambio_ejecutado', 'confirmacion_rrhh', 'tecnico')).toBe(true);
   });
 
-  // Devolucion termino: la coordinacion (medio, OT, ubicacion) se captura al
-  // crear la solicitud, asi que no hay una etapa aparte para eso.
-  test('tecnico puede avanzar solicitud_emitida → equipo_recibido', () => {
-    expect(canTransition('offboarding', 'solicitud_emitida', 'equipo_recibido', 'tecnico')).toBe(true);
+  // Offboarding: solicitud_emitida -> coordinacion_en_curso -> equipo_recibido
+  test('tecnico puede avanzar solicitud_emitida → coordinacion_en_curso', () => {
+    expect(canTransition('offboarding', 'solicitud_emitida', 'coordinacion_en_curso', 'tecnico')).toBe(true);
+  });
+
+  test('tecnico puede avanzar coordinacion_en_curso → equipo_recibido', () => {
+    expect(canTransition('offboarding', 'coordinacion_en_curso', 'equipo_recibido', 'tecnico')).toBe(true);
+  });
+
+  test('NO se puede saltar coordinacion_en_curso: solicitud_emitida → equipo_recibido directo', () => {
+    expect(canTransition('offboarding', 'solicitud_emitida', 'equipo_recibido', 'tecnico')).toBe(false);
   });
 
   test('tecnico puede avanzar equipo_recibido → consolidacion_cierre', () => {
@@ -123,35 +142,11 @@ describe('workflowStateMachine — canTransition (transiciones permitidas)', () 
   });
 });
 
-describe('workflowStateMachine — canTransition (transiciones bloqueadas por rol)', () => {
-  test('rrhh NO puede avanzar solicitud_recibida → gestion_ti (onboarding)', () => {
-    expect(canTransition('onboarding', 'solicitud_recibida', 'gestion_ti', 'rrhh')).toBe(false);
-  });
-
-  test('supervisor NO puede avanzar solicitud_recibida → gestion_ti (onboarding)', () => {
-    expect(canTransition('onboarding', 'solicitud_recibida', 'gestion_ti', 'supervisor')).toBe(false);
-  });
-
-  test('auditor NO puede avanzar ningún estado (onboarding)', () => {
-    expect(canTransition('onboarding', 'solicitud_recibida', 'gestion_ti', 'auditor')).toBe(false);
-  });
-
-  test('rrhh NO puede cerrar equipos_entregados → registro_rrhh (solo tecnico/admin)', () => {
-    expect(canTransition('onboarding', 'equipos_entregados', 'registro_rrhh', 'rrhh')).toBe(false);
-  });
-
-  test('rrhh NO puede cerrar cambio_ejecutado → confirmacion_rrhh (solo tecnico/admin)', () => {
-    expect(canTransition('cambio_equipo', 'cambio_ejecutado', 'confirmacion_rrhh', 'rrhh')).toBe(false);
-  });
-
-  test('rrhh NO puede cerrar equipo_recibido → consolidacion_cierre (solo tecnico/admin)', () => {
-    expect(canTransition('offboarding', 'equipo_recibido', 'consolidacion_cierre', 'rrhh')).toBe(false);
-  });
-
-  test('auditor NO puede cerrar equipo_recibido → consolidacion_cierre', () => {
-    expect(canTransition('offboarding', 'equipo_recibido', 'consolidacion_cierre', 'auditor')).toBe(false);
-  });
-});
+// Ya no hay un tercer rol para probar bloqueo: solo existen admin/tecnico,
+// y ambos pueden ejecutar todas las transiciones (ver TRANSITIONS, todas
+// con roles: ['tecnico', 'admin']). El caso "rol invalido no coincide con
+// ningun `roles.includes()`" ya esta cubierto por los tests de entradas
+// invalidas en permissions.test.ts.
 
 describe('workflowStateMachine — canTransition (transiciones inválidas)', () => {
   test('NO se puede saltar gestion_ti: solicitud_recibida → equipos_entregados', () => {
@@ -195,28 +190,61 @@ describe('workflowStateMachine — getNextStates', () => {
     expect(next).toEqual(['registro_rrhh']);
   });
 
-  test('rrhh en equipos_entregados no tiene próximos estados', () => {
-    const next = getNextStates('onboarding', 'equipos_entregados', 'rrhh');
-    expect(next).toEqual([]);
-  });
-
   test('admin en registro_rrhh (estado final) no tiene próximos estados', () => {
     const next = getNextStates('onboarding', 'registro_rrhh', 'admin');
     expect(next).toEqual([]);
   });
 
-  test('tecnico en incidencia_detectada puede ir a cambio_ejecutado', () => {
+  test('tecnico en incidencia_detectada puede ir a coordinando_cambio', () => {
     const next = getNextStates('cambio_equipo', 'incidencia_detectada', 'tecnico');
+    expect(next).toEqual(['coordinando_cambio']);
+  });
+
+  test('tecnico en coordinando_cambio puede ir a cambio_ejecutado', () => {
+    const next = getNextStates('cambio_equipo', 'coordinando_cambio', 'tecnico');
     expect(next).toEqual(['cambio_ejecutado']);
   });
 
-  test('rrhh en equipo_recibido puede ir a consolidacion_cierre', () => {
-    const next = getNextStates('offboarding', 'equipo_recibido', 'rrhh');
+  test('tecnico en equipo_recibido puede ir a consolidacion_cierre', () => {
+    const next = getNextStates('offboarding', 'equipo_recibido', 'tecnico');
     expect(next).toEqual(['consolidacion_cierre']);
   });
 
-  test('tecnico en solicitud_emitida puede ir a equipo_recibido', () => {
+  test('tecnico en solicitud_emitida puede ir a coordinacion_en_curso', () => {
     const next = getNextStates('offboarding', 'solicitud_emitida', 'tecnico');
+    expect(next).toEqual(['coordinacion_en_curso']);
+  });
+
+  test('tecnico en coordinacion_en_curso puede ir a equipo_recibido', () => {
+    const next = getNextStates('offboarding', 'coordinacion_en_curso', 'tecnico');
     expect(next).toEqual(['equipo_recibido']);
+  });
+});
+
+// SPEC 2.5.2/2.5.3 Regla 7: cancelación es una acción aparte, no una
+// transición del diagrama normal -- no pasa por TRANSITIONS/canTransition.
+describe('workflowStateMachine — cancelación', () => {
+  test('isCancelled reconoce el estado "cancelada"', () => {
+    expect(isCancelled('cancelada')).toBe(true);
+  });
+
+  test('isCancelled es false para cualquier estado del flujo normal', () => {
+    expect(isCancelled('solicitud_recibida')).toBe(false);
+    expect(isCancelled('incidencia_detectada')).toBe(false);
+    expect(isCancelled('registro_rrhh')).toBe(false);
+    expect(isCancelled('confirmacion_rrhh')).toBe(false);
+    expect(isCancelled('consolidacion_cierre')).toBe(false);
+  });
+
+  test('canTransition nunca permite llegar a "cancelada" (no está en TRANSITIONS)', () => {
+    expect(canTransition('onboarding', 'solicitud_recibida', 'cancelada', 'admin')).toBe(false);
+    expect(canTransition('cambio_equipo', 'incidencia_detectada', 'cancelada', 'admin')).toBe(false);
+    expect(canTransition('offboarding', 'solicitud_emitida', 'cancelada', 'admin')).toBe(false);
+  });
+
+  test('getNextStates nunca devuelve "cancelada" como próximo estado', () => {
+    expect(getNextStates('onboarding', 'solicitud_recibida', 'admin')).not.toContain('cancelada');
+    expect(getNextStates('cambio_equipo', 'incidencia_detectada', 'admin')).not.toContain('cancelada');
+    expect(getNextStates('offboarding', 'solicitud_emitida', 'admin')).not.toContain('cancelada');
   });
 });

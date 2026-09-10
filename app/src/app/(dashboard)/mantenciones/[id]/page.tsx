@@ -8,8 +8,6 @@ import {
   Wrench,
   Calendar,
   User,
-  DollarSign,
-  Building,
   Laptop,
   Smartphone,
   Monitor,
@@ -26,7 +24,7 @@ import { cn } from "@/lib/utils";
 
 type Maintenance = {
   id: string;
-  tipo: string;
+  tipo: { id: string; nombre: string };
   descripcion: string;
   fechaProgramada: string | null;
   fechaRealizada: string | null;
@@ -57,14 +55,6 @@ type Maintenance = {
       cargo: string | null;
     } | null;
   };
-};
-
-const tipoLabels: Record<string, string> = {
-  preventiva: "Preventiva",
-  correctiva: "Correctiva",
-  actualizacion_so: "Actualización SO",
-  limpieza: "Limpieza",
-  reparacion: "Reparación",
 };
 
 const estadoConfig: Record<string, { label: string; icon: typeof CheckCircle; color: string; bgColor: string }> = {
@@ -118,7 +108,6 @@ export default function MantencionDetallePage({
     fechaRealizada: new Date().toISOString().split("T")[0],
     realizadoPor: "",
     resultado: "",
-    costo: "",
     proximaMantencion: "",
   });
 
@@ -140,7 +129,6 @@ export default function MantencionDetallePage({
         fechaRealizada: new Date().toISOString().split("T")[0],
         realizadoPor: data.realizadoPor || "",
         resultado: "",
-        costo: data.costo?.toString() || "",
         proximaMantencion: "",
       });
     } catch (err) {
@@ -196,7 +184,6 @@ export default function MantencionDetallePage({
           fechaRealizada: completeForm.fechaRealizada,
           realizadoPor: completeForm.realizadoPor,
           resultado: completeForm.resultado,
-          costo: completeForm.costo ? parseFloat(completeForm.costo) : null,
           proximaMantencion: completeForm.proximaMantencion || null,
         }),
       });
@@ -367,13 +354,20 @@ export default function MantencionDetallePage({
         <StatusIcon className={cn("h-6 w-6", config.color)} />
         <div>
           <p className={cn("font-semibold", config.color)}>{config.label}</p>
-          <p className="text-sm text-gray-600">
-            {maintenance.estado === "completada" && maintenance.fechaRealizada
-              ? `Completada el ${formatDate(maintenance.fechaRealizada)}`
-              : maintenance.fechaProgramada
-              ? `Programada para ${formatDate(maintenance.fechaProgramada)}`
-              : "Sin fecha programada"}
-          </p>
+          {/* Registros nuevos siempre tienen fechaProgramada (es obligatoria
+              al crear). Los que no la tienen son de antes de ese cambio; en
+              ese caso el estado (ej. "En Proceso") ya se entiende por si
+              solo con el label de arriba, asi que no mostramos ningun
+              subtitulo en vez del alarmante "Sin fecha programada". */}
+          {maintenance.estado === "completada" && maintenance.fechaRealizada ? (
+            <p className="text-sm text-gray-600">
+              {`Completada el ${formatDate(maintenance.fechaRealizada)}`}
+            </p>
+          ) : maintenance.fechaProgramada ? (
+            <p className="text-sm text-gray-600">
+              {`Programada para ${formatDate(maintenance.fechaProgramada)}`}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -393,20 +387,36 @@ export default function MantencionDetallePage({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-500">Tipo</p>
-                <p className="font-medium">{tipoLabels[maintenance.tipo] || maintenance.tipo}</p>
+                <p className="font-medium">{maintenance.tipo.nombre}</p>
               </div>
+              {/* Fecha Programada es obligatoria para mantenciones nuevas
+                  (no se puede crear una sin ella), asi que en la practica
+                  siempre va a haber una fecha aca. Los registros de antes
+                  de esa regla no tienen fechaProgramada guardada -- en vez
+                  de dejar la fila vacia o esconderla, mostramos createdAt
+                  (la fecha en que se decidio mandar el equipo a
+                  mantencion), que es la mejor fecha disponible para esos
+                  casos. */}
               <div>
                 <p className="text-sm text-gray-500">Fecha Programada</p>
-                <p className="font-medium">{formatDate(maintenance.fechaProgramada)}</p>
+                <p className="font-medium">
+                  {formatDate(maintenance.fechaProgramada ?? maintenance.createdAt)}
+                </p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Técnico Asignado</p>
                 <p className="font-medium">{maintenance.realizadoPor || "-"}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Costo</p>
-                <p className="font-medium">{formatCurrency(maintenance.costo)}</p>
-              </div>
+              {/* Costo/Proveedor Externo ya no se piden al crear ni al
+                  completar una mantencion (es trabajo interno, sin costo).
+                  Se muestran solo si el registro es de antes de ese cambio
+                  y ya tenia un valor. */}
+              {maintenance.costo != null && (
+                <div>
+                  <p className="text-sm text-gray-500">Costo</p>
+                  <p className="font-medium">{formatCurrency(maintenance.costo)}</p>
+                </div>
+              )}
               {maintenance.proveedorExterno && (
                 <div className="col-span-2">
                   <p className="text-sm text-gray-500">Proveedor Externo</p>
@@ -554,22 +564,6 @@ export default function MantencionDetallePage({
                   value={completeForm.resultado}
                   onChange={(e) =>
                     setCompleteForm((prev) => ({ ...prev, resultado: e.target.value }))
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Costo Final (CLP)
-                </label>
-                <input
-                  type="number"
-                  placeholder="0"
-                  min="0"
-                  value={completeForm.costo}
-                  onChange={(e) =>
-                    setCompleteForm((prev) => ({ ...prev, costo: e.target.value }))
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />

@@ -23,10 +23,17 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Can } from "@/components/auth/Can";
+import { MantencionesTabs } from "@/components/mantenciones";
+
+type TipoMantencion = {
+  id: string;
+  nombre: string;
+  activo: boolean;
+};
 
 type Maintenance = {
   id: string;
-  tipo: string;
+  tipo: { id: string; nombre: string };
   descripcion: string;
   fechaProgramada: string | null;
   fechaRealizada: string | null;
@@ -55,18 +62,10 @@ type Maintenance = {
 
 type Stats = {
   porEstado: { estado: string; count: number }[];
-  porTipo: { tipo: string; count: number }[];
+  porTipo: { tipoId: string; count: number }[];
   totalVencidas: number;
   totalProximas: number;
   totalEnProceso: number;
-};
-
-const tipoLabels: Record<string, string> = {
-  preventiva: "Preventiva",
-  correctiva: "Correctiva",
-  actualizacion_so: "Actualización SO",
-  limpieza: "Limpieza",
-  reparacion: "Reparación",
 };
 
 const estadoConfig: Record<string, { label: string; icon: typeof CheckCircle; color: string; bgColor: string }> = {
@@ -110,19 +109,35 @@ function isOverdue(fechaProgramada: string | null, estado: string): boolean {
 
 export default function MantencionesPage() {
   const [maintenances, setMaintenances] = useState<Maintenance[]>([]);
+  const [tiposMantencion, setTiposMantencion] = useState<TipoMantencion[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [filterTipo, setFilterTipo] = useState("");
+  const [filterTipoId, setFilterTipoId] = useState("");
   const [filterEstado, setFilterEstado] = useState("");
   const [showVencidas, setShowVencidas] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
+    fetchTipos();
+  }, []);
+
+  useEffect(() => {
     fetchMaintenances();
     fetchStats();
-  }, [search, filterTipo, filterEstado, showVencidas, page]);
+  }, [search, filterTipoId, filterEstado, showVencidas, page]);
+
+  async function fetchTipos() {
+    try {
+      const res = await fetch("/api/mantenciones/tipos");
+      if (res.ok) {
+        setTiposMantencion(await res.json());
+      }
+    } catch (error) {
+      console.error("Error fetching tipos de mantención:", error);
+    }
+  }
 
   async function fetchMaintenances() {
     try {
@@ -132,7 +147,7 @@ export default function MantencionesPage() {
       });
 
       if (search) params.append("search", search);
-      if (filterTipo) params.append("tipo", filterTipo);
+      if (filterTipoId) params.append("tipoId", filterTipoId);
       if (filterEstado) params.append("estado", filterEstado);
       if (showVencidas) params.append("vencidas", "true");
 
@@ -185,6 +200,8 @@ export default function MantencionesPage() {
           </Can>
         </div>
       </div>
+
+      <MantencionesTabs />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -257,19 +274,19 @@ export default function MantencionesPage() {
           </div>
 
           <select
-            value={filterTipo}
+            value={filterTipoId}
             onChange={(e) => {
-              setFilterTipo(e.target.value);
+              setFilterTipoId(e.target.value);
               setPage(1);
             }}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Todos los tipos</option>
-            <option value="preventiva">Preventiva</option>
-            <option value="correctiva">Correctiva</option>
-            <option value="actualizacion_so">Actualización SO</option>
-            <option value="limpieza">Limpieza</option>
-            <option value="reparacion">Reparación</option>
+            {tiposMantencion.map((tipo) => (
+              <option key={tipo.id} value={tipo.id}>
+                {tipo.nombre}
+              </option>
+            ))}
           </select>
 
           <select
@@ -370,7 +387,7 @@ export default function MantencionesPage() {
                         </td>
                         <td className="px-4 py-4">
                           <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded">
-                            {tipoLabels[maintenance.tipo] || maintenance.tipo}
+                            {maintenance.tipo.nombre}
                           </span>
                         </td>
                         <td className="px-4 py-4">

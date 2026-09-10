@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
-  Plus,
-  Upload,
-  Download,
   Search,
   Filter,
   ChevronLeft,
@@ -14,13 +12,19 @@ import {
   Edit,
   User,
   Users,
-  Building,
+  UserX,
   MapPin,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Can } from "@/components/auth/Can";
+import { ActivosTabs } from "@/components/activos";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
+
+// Esta pagina reemplaza al antiguo modulo "Empleados" (creacion manual e
+// importacion Excel ya no se usan: los empleados se crean desde Solicitudes
+// -> Onboarding). Queda solo como vista de consulta, dentro de Activos,
+// porque "quien tiene que equipo" es el dato que de verdad se usa dia a dia.
+// Ficha de detalle y edicion puntual se mantienen en /empleados/[id].
 
 type Employee = {
   id: string;
@@ -52,7 +56,7 @@ type Pagination = {
 type Stats = {
   totalEmpleados: number;
   activos: number;
-  porBoleta: number;
+  desvinculados: number;
   ubicacionesCount: number;
 };
 
@@ -61,8 +65,6 @@ type UbicacionDetalle = {
   cantidad: number;
 };
 
-// Tipados contra el enum: si manana se agrega un estado y se olvida una
-// etiqueta, el compilador lo detiene en vez de dejar la celda en blanco.
 const estadoColors: Record<EstadoEmpleado, string> = {
   activo: "bg-green-100 text-green-800",
   desvinculado: "bg-red-100 text-red-800",
@@ -85,7 +87,13 @@ const tipoContratoColors: Record<TipoContrato, string> = {
   boleta: "bg-purple-100 text-purple-800",
 };
 
-export default function EmpleadosPage() {
+export default function PersonalPage() {
+  const { data: session } = useSession();
+  // Ubicaciones es un dato legado (texto libre, previo a Sede) que ya no
+  // aporta nada util al tecnico -- el filtrado real por sede lo hace la
+  // sesion sola. Javier pidio (10-sep-2026) que la tarjeta y el filtro de
+  // Ubicaciones queden exclusivos de admin.
+  const esAdmin = session?.user?.role === "admin";
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -102,7 +110,7 @@ export default function EmpleadosPage() {
   const [stats, setStats] = useState<Stats>({
     totalEmpleados: 0,
     activos: 0,
-    porBoleta: 0,
+    desvinculados: 0,
     ubicacionesCount: 0,
   });
   const [showUbicacionesModal, setShowUbicacionesModal] = useState(false);
@@ -113,14 +121,16 @@ export default function EmpleadosPage() {
   }, [pagination.page, estadoFilter, tipoContratoFilter, ubicacionFilter]);
 
   useEffect(() => {
-    fetchUbicaciones();
+    // El detalle de ubicaciones ya no se muestra al tecnico -- no vale la
+    // pena pedirlo.
+    if (esAdmin) {
+      fetchUbicaciones();
+    }
     fetchStats();
-  }, []);
+  }, [esAdmin]);
 
   async function fetchUbicaciones() {
     try {
-      // Obtener ubicaciones únicas haciendo múltiples requests si es necesario
-      // El límite máximo de la API es 100
       const res = await fetch("/api/empleados?limit=100");
       const data = await res.json();
 
@@ -132,14 +142,13 @@ export default function EmpleadosPage() {
       const allEmployees: Employee[] = [...data.data];
       const totalPages = data.pagination?.totalPages || 1;
 
-      // Si hay más páginas, obtenerlas
       if (totalPages > 1) {
         const promises = [];
         for (let page = 2; page <= Math.min(totalPages, 10); page++) {
-          promises.push(fetch(`/api/empleados?limit=100&page=${page}`).then(r => r.json()));
+          promises.push(fetch(`/api/empleados?limit=100&page=${page}`).then((r) => r.json()));
         }
         const results = await Promise.all(promises);
-        results.forEach(result => {
+        results.forEach((result) => {
           if (result.data) {
             allEmployees.push(...result.data);
           }
@@ -147,13 +156,10 @@ export default function EmpleadosPage() {
       }
 
       const uniqueUbicaciones = [...new Set(
-        allEmployees
-          .filter((e: Employee) => e.ubicacion)
-          .map((e: Employee) => e.ubicacion)
+        allEmployees.filter((e: Employee) => e.ubicacion).map((e: Employee) => e.ubicacion)
       )] as string[];
       setUbicaciones(uniqueUbicaciones);
 
-      // Calcular detalle de ubicaciones con conteo
       const ubicacionesMap = new Map<string, number>();
       allEmployees.forEach((e: Employee) => {
         if (e.ubicacion) {
@@ -184,23 +190,21 @@ export default function EmpleadosPage() {
       const allEmployees: Employee[] = [...data.data];
       const totalPages = data.pagination?.totalPages || 1;
 
-      // Si hay más páginas, obtenerlas para cálculos precisos
       if (totalPages > 1) {
         const promises = [];
         for (let page = 2; page <= Math.min(totalPages, 10); page++) {
-          promises.push(fetch(`/api/empleados?limit=100&page=${page}`).then(r => r.json()));
+          promises.push(fetch(`/api/empleados?limit=100&page=${page}`).then((r) => r.json()));
         }
         const results = await Promise.all(promises);
-        results.forEach(result => {
+        results.forEach((result) => {
           if (result.data) {
             allEmployees.push(...result.data);
           }
         });
       }
 
-      // Calcular estadísticas reales
       const activos = allEmployees.filter((e: Employee) => e.estado === "activo").length;
-      const porBoleta = allEmployees.filter((e: Employee) => e.tipoContrato === "boleta").length;
+      const desvinculados = allEmployees.filter((e: Employee) => e.estado === "desvinculado").length;
       const ubicacionesUnicas = new Set(
         allEmployees.filter((e: Employee) => e.ubicacion).map((e: Employee) => e.ubicacion)
       );
@@ -208,7 +212,7 @@ export default function EmpleadosPage() {
       setStats({
         totalEmpleados: data.pagination?.total || 0,
         activos,
-        porBoleta,
+        desvinculados,
         ubicacionesCount: ubicacionesUnicas.size,
       });
     } catch (error) {
@@ -245,29 +249,15 @@ export default function EmpleadosPage() {
     fetchEmployees();
   }
 
-  function handleStatClick(filterType: "activo" | "boleta" | "reset") {
+  function handleStatClick(filterType: "activo" | "desvinculado" | "reset") {
     if (filterType === "reset") {
-      // Limpiar todos los filtros
       setEstadoFilter("");
       setTipoContratoFilter("");
       setUbicacionFilter("");
       setSearch("");
       setPagination((prev) => ({ ...prev, page: 1 }));
-    } else if (filterType === "activo") {
-      // Toggle filtro de activos
-      if (estadoFilter === "activo") {
-        setEstadoFilter("");
-      } else {
-        setEstadoFilter("activo");
-      }
-      setPagination((prev) => ({ ...prev, page: 1 }));
-    } else if (filterType === "boleta") {
-      // Toggle filtro de boleta
-      if (tipoContratoFilter === "boleta") {
-        setTipoContratoFilter("");
-      } else {
-        setTipoContratoFilter("boleta");
-      }
+    } else {
+      setEstadoFilter((prev) => (prev === filterType ? "" : filterType));
       setPagination((prev) => ({ ...prev, page: 1 }));
     }
   }
@@ -279,31 +269,19 @@ export default function EmpleadosPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Empleados</h1>
-          <p className="text-gray-600">Gestión de colaboradores y asignaciones</p>
-        </div>
-        <div className="flex gap-2">
-          <Can recurso="empleados">
-            <Link
-              href="/empleados/importar"
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <Upload size={20} />
-              <span>Importar Excel</span>
-            </Link>
-            <Link
-              href="/empleados/nuevo"
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus size={20} />
-              <span>Nuevo Empleado</span>
-            </Link>
-          </Can>
+          <h1 className="text-2xl font-bold text-gray-900">Personal</h1>
+          <p className="text-gray-600">
+            Colaboradores y sus asignaciones de equipos — se crean desde Solicitudes (Onboarding)
+          </p>
         </div>
       </div>
 
+      {/* Tabs del modulo: Equipos / Personal (esta pagina) / Kit de
+          Bienvenida / EPP (ver ActivosTabs -- compartido entre las 4) */}
+      <ActivosTabs />
+
       {/* Stats - Interactive Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className={cn("grid grid-cols-1 gap-4", esAdmin ? "md:grid-cols-4" : "md:grid-cols-3")}>
         {/* Total Empleados - Reset Filter */}
         <button
           onClick={() => handleStatClick("reset")}
@@ -357,49 +335,51 @@ export default function EmpleadosPage() {
           )}
         </button>
 
-        {/* Por Boleta - Filter Toggle */}
+        {/* Desvinculados - Filter Toggle */}
         <button
-          onClick={() => handleStatClick("boleta")}
+          onClick={() => handleStatClick("desvinculado")}
           className={cn(
             "bg-white rounded-lg shadow p-4 text-left transition-all hover:shadow-md hover:scale-105 cursor-pointer",
-            tipoContratoFilter === "boleta" && "ring-2 ring-purple-500 ring-offset-2"
+            estadoFilter === "desvinculado" && "ring-2 ring-red-500 ring-offset-2"
           )}
-          aria-label="Filtrar empleados por boleta"
-          aria-pressed={tipoContratoFilter === "boleta"}
-          title="Click para filtrar por contrato a boleta"
+          aria-label="Filtrar empleados desvinculados"
+          aria-pressed={estadoFilter === "desvinculado"}
+          title="Click para filtrar por empleados desvinculados"
         >
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Building className="h-6 w-6 text-purple-600" />
+            <div className="p-2 bg-red-100 rounded-lg">
+              <UserX className="h-6 w-6 text-red-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Por Boleta</p>
-              <p className="text-xl font-bold">{stats.porBoleta}</p>
+              <p className="text-sm text-gray-500">Desvinculados</p>
+              <p className="text-xl font-bold">{stats.desvinculados}</p>
             </div>
           </div>
-          {tipoContratoFilter === "boleta" && (
-            <p className="text-xs text-purple-600 mt-2 font-medium">Filtro activo</p>
+          {estadoFilter === "desvinculado" && (
+            <p className="text-xs text-red-600 mt-2 font-medium">Filtro activo</p>
           )}
         </button>
 
-        {/* Ubicaciones - Open Modal */}
-        <button
-          onClick={() => setShowUbicacionesModal(true)}
-          className="bg-white rounded-lg shadow p-4 text-left transition-all hover:shadow-md hover:scale-105 cursor-pointer"
-          aria-label="Ver desglose de ubicaciones"
-          title="Click para ver detalle de ubicaciones"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <MapPin className="h-6 w-6 text-orange-600" />
+        {/* Ubicaciones - Open Modal (solo admin) */}
+        {esAdmin && (
+          <button
+            onClick={() => setShowUbicacionesModal(true)}
+            className="bg-white rounded-lg shadow p-4 text-left transition-all hover:shadow-md hover:scale-105 cursor-pointer"
+            aria-label="Ver desglose de ubicaciones"
+            title="Click para ver detalle de ubicaciones"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <MapPin className="h-6 w-6 text-orange-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Ubicaciones</p>
+                <p className="text-xl font-bold">{stats.ubicacionesCount}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-gray-500">Ubicaciones</p>
-              <p className="text-xl font-bold">{stats.ubicacionesCount}</p>
-            </div>
-          </div>
-          <p className="text-xs text-orange-600 mt-2 font-medium">Click para ver detalle</p>
-        </button>
+            <p className="text-xs text-orange-600 mt-2 font-medium">Click para ver detalle</p>
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -417,21 +397,6 @@ export default function EmpleadosPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <select
-              value={estadoFilter}
-              onChange={(e) => {
-                setEstadoFilter(e.target.value);
-                setPagination((prev) => ({ ...prev, page: 1 }));
-              }}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Todos los estados</option>
-              {Object.entries(estadoLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            <select
               value={tipoContratoFilter}
               onChange={(e) => {
                 setTipoContratoFilter(e.target.value);
@@ -446,21 +411,23 @@ export default function EmpleadosPage() {
                 </option>
               ))}
             </select>
-            <select
-              value={ubicacionFilter}
-              onChange={(e) => {
-                setUbicacionFilter(e.target.value);
-                setPagination((prev) => ({ ...prev, page: 1 }));
-              }}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Todas las ubicaciones</option>
-              {ubicaciones.map((ubi) => (
-                <option key={ubi} value={ubi}>
-                  {ubi}
-                </option>
-              ))}
-            </select>
+            {esAdmin && (
+              <select
+                value={ubicacionFilter}
+                onChange={(e) => {
+                  setUbicacionFilter(e.target.value);
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Todas las ubicaciones</option>
+                {ubicaciones.map((ubi) => (
+                  <option key={ubi} value={ubi}>
+                    {ubi}
+                  </option>
+                ))}
+              </select>
+            )}
             <button
               type="submit"
               className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"

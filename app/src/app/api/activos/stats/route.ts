@@ -1,19 +1,28 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { sedeWhere } from '@/lib/auth/sedeScope';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 export async function GET() {
   try {
-    await requirePermission('activos', 'read');
+    const session = await requirePermission('activos', 'read');
+
+    // Aislamiento por sede (SPEC 2.9): las tarjetas/estadisticas deben
+    // reflejar solo lo de la sede del tecnico, igual que el listado de
+    // /api/activos. Antes este endpoint no filtraba nada -- por eso las
+    // tarjetas mostraban el total de todas las sedes aunque el listado ya
+    // estuviera bien filtrado.
+    const sw = sedeWhere(session);
+    const whereVigentes = { ...ACTIVOS_VIGENTES, ...sw };
 
     // Obtener total de activos
-    const total = await prisma.asset.count({ where: ACTIVOS_VIGENTES });
+    const total = await prisma.asset.count({ where: whereVigentes });
 
     // Obtener conteo por estado
     const byStatusRaw = await prisma.asset.groupBy({
       by: ["estado"],
-      where: ACTIVOS_VIGENTES,
+      where: whereVigentes,
       _count: {
         estado: true,
       },
@@ -40,9 +49,10 @@ export async function GET() {
         id: true,
         nombre: true,
         _count: {
-          // El conteo excluye los registros descartados (SPEC 2.7.7).
+          // El conteo excluye los registros descartados (SPEC 2.7.7) y
+          // aplica el aislamiento por sede.
           select: {
-            assets: { where: ACTIVOS_VIGENTES },
+            assets: { where: whereVigentes },
           },
         },
       },
@@ -65,7 +75,7 @@ export async function GET() {
       // Sin este where, el conteo por condicion incluia los registros
       // descartados, mientras total, byStatus y byCategory si los excluian:
       // el mismo endpoint respondia con dos universos distintos.
-      where: ACTIVOS_VIGENTES,
+      where: whereVigentes,
       _count: {
         condicion: true,
       },

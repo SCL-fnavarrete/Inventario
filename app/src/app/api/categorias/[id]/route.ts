@@ -42,7 +42,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { nombre, descripcion, requiereSerie, requiereImei } = body;
+    const { nombre, descripcion, requiereSerie, requiereImei, stockMinimo } = body;
 
     if (!nombre || !nombre.trim()) {
       return NextResponse.json(
@@ -85,6 +85,7 @@ export async function PUT(
         descripcion: descripcion?.trim() || null,
         requiereSerie: requiereSerie ?? existing.requiereSerie,
         requiereImei: requiereImei ?? existing.requiereImei,
+        stockMinimo: Number.isFinite(Number(stockMinimo)) ? Number(stockMinimo) : existing.stockMinimo,
       },
     });
 

@@ -19,10 +19,11 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MantencionesTabs } from "@/components/mantenciones";
 
 type Maintenance = {
   id: string;
-  tipo: string;
+  tipo: { id: string; nombre: string };
   descripcion: string;
   fechaProgramada: string | null;
   estado: string;
@@ -35,14 +36,6 @@ type Maintenance = {
       nombre: string;
     };
   };
-};
-
-const tipoLabels: Record<string, string> = {
-  preventiva: "Preventiva",
-  correctiva: "Correctiva",
-  actualizacion_so: "Act. SO",
-  limpieza: "Limpieza",
-  reparacion: "Reparación",
 };
 
 const estadoColors: Record<string, string> = {
@@ -204,6 +197,8 @@ export default function CalendarioMantencionesPage() {
         </button>
       </div>
 
+      <MantencionesTabs />
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Calendar */}
         <div className="lg:col-span-3 bg-white rounded-lg shadow p-6">
@@ -303,7 +298,7 @@ export default function CalendarioMantencionesPage() {
                           >
                             <span className="inline-flex items-center gap-1">
                               {getCategoryIcon(m.asset.categoria.nombre)}
-                              {tipoLabels[m.tipo]}
+                              {m.tipo.nombre}
                             </span>
                           </div>
                         ))}
@@ -348,7 +343,7 @@ export default function CalendarioMantencionesPage() {
                     <div className="flex items-center gap-2 mb-1">
                       {getCategoryIcon(m.asset.categoria.nombre)}
                       <span className="font-medium text-sm">
-                        {tipoLabels[m.tipo]}
+                        {m.tipo.nombre}
                       </span>
                     </div>
                     <p className="text-sm">

@@ -5,18 +5,17 @@ import type { SystemRole } from '@prisma/client';
 /**
  * Matriz de permisos — unico punto de verdad de la autorizacion.
  *
- * Derivada de la tabla de roles del SPEC seccion 1.3:
+ * Solo existen dos roles reales (ver SystemRole en el schema):
  *
- *   | Admin IT   | CRUD completo, reportes, configuracion                       |
- *   | Tecnico IT | Asignar/recibir equipos, registrar mantenciones               |
- *   | Supervisor | Ver reportes de su area, aprobar solicitudes                  |
- *   | RRHH       | Solo lectura de fichas de empleados y estados de devolucion   |
- *   | Auditor    | Solo lectura de todo el sistema                               |
+ *   | Admin   | CRUD completo, reportes, configuracion, ve todas las sedes |
+ *   | Tecnico | Trabajo operativo de soporte (activos, empleados, solicitudes,
+ *   |         | mantenciones, guias), restringido a su propia sede (ver
+ *   |         | sedeScope()) |
  *
- * Regla base: `auditor` y `rrhh` no escriben en ningun recurso. La unica
- * excepcion es la confirmacion de RRHH dentro del workflow de solicitudes,
- * que no es un permiso de recurso sino de estado y vive en
- * `puedeConfirmarComoRrhh()`, mas abajo.
+ * supervisor/rrhh/auditor existieron en una version anterior del sistema
+ * pero no se usaban en la practica (era solo Soporte + Admin) -- se
+ * retiraron del enum SystemRole para no mantener una matriz mas compleja
+ * de lo que el sistema real necesita.
  *
  * Antes de este archivo cada ruta decidia por su cuenta y 55 de 63 no decidian
  * nada. Cualquier cambio de permisos se hace aqui y en el SPEC, nunca en una
@@ -29,12 +28,15 @@ export const RECURSOS = [
   'asignaciones',
   'solicitudes',
   'mantenciones',
+  'tiposMantencion',
   'desvinculaciones',
   'guias',
   'compras',
   'proveedores',
   'categorias',
+  'kitEpp',
   'usuarios',
+  'sedes',
   'reportes',
   'configuracion',
 ] as const;
@@ -45,73 +47,92 @@ export const ACCIONES = ['read', 'write', 'delete'] as const;
 export type Accion = (typeof ACCIONES)[number];
 
 const ADMIN: readonly SystemRole[] = ['admin'];
+const AMBOS: readonly SystemRole[] = ['admin', 'tecnico'];
 const SOLO_LECTURA: readonly SystemRole[] = [];
 
 export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly SystemRole[]>> = {
-  // El parque de equipos. RRHH lo lee porque la ficha del empleado muestra
-  // que tiene asignado; no lo modifica.
   activos: {
-    read: ['admin', 'tecnico', 'supervisor', 'rrhh', 'auditor'],
-    write: ['admin', 'tecnico'],
+    read: AMBOS,
+    write: AMBOS,
     delete: ADMIN,
   },
 
   empleados: {
-    read: ['admin', 'tecnico', 'supervisor', 'rrhh', 'auditor'],
-    write: ['admin', 'tecnico'],
+    read: AMBOS,
+    write: AMBOS,
     delete: ADMIN,
   },
 
   // Entregar y recibir equipos es justamente el trabajo del tecnico.
   asignaciones: {
-    read: ['admin', 'tecnico', 'supervisor', 'rrhh', 'auditor'],
-    write: ['admin', 'tecnico'],
+    read: AMBOS,
+    write: AMBOS,
     delete: ADMIN,
   },
 
-  // El supervisor escribe porque el SPEC le asigna aprobar solicitudes.
   solicitudes: {
-    read: ['admin', 'tecnico', 'supervisor', 'rrhh', 'auditor'],
-    write: ['admin', 'tecnico', 'supervisor'],
+    read: AMBOS,
+    write: AMBOS,
     delete: ADMIN,
   },
 
   mantenciones: {
-    read: ['admin', 'tecnico', 'supervisor', 'auditor'],
-    write: ['admin', 'tecnico'],
+    read: AMBOS,
+    write: AMBOS,
     delete: ADMIN,
   },
 
-  // RRHH lee: el SPEC le da acceso a los estados de devolucion.
+  // Catalogo de tipos de mantencion (9-sep-2026): a diferencia de
+  // Categorias/Configuracion, esto es una decision operativa del dia a
+  // dia (que tipos de mantencion se usan), no algo "fijo del sistema" --
+  // Javier pidio explicitamente que el tecnico tambien pueda
+  // crear/editar/eliminar tipos, sin pasar por Configuracion (admin-only).
+  tiposMantencion: {
+    read: AMBOS,
+    write: AMBOS,
+    delete: AMBOS,
+  },
+
   desvinculaciones: {
-    read: ['admin', 'tecnico', 'supervisor', 'rrhh', 'auditor'],
-    write: ['admin', 'tecnico'],
+    read: AMBOS,
+    write: AMBOS,
     delete: ADMIN,
   },
 
   guias: {
-    read: ['admin', 'tecnico', 'supervisor', 'auditor'],
-    write: ['admin', 'tecnico'],
+    read: AMBOS,
+    write: AMBOS,
     delete: ADMIN,
   },
 
   // Informacion financiera: fuera del alcance operativo del tecnico.
   compras: {
-    read: ['admin', 'supervisor', 'auditor'],
+    read: ADMIN,
     write: ADMIN,
     delete: ADMIN,
   },
 
   proveedores: {
-    read: ['admin', 'tecnico', 'supervisor', 'auditor'],
+    read: AMBOS,
     write: ADMIN,
     delete: ADMIN,
   },
 
   // Datos maestros: los lee todo el que trabaja con activos, los cambia admin.
   categorias: {
-    read: ['admin', 'tecnico', 'supervisor', 'auditor'],
+    read: AMBOS,
     write: ADMIN,
+    delete: ADMIN,
+  },
+
+  // Catalogo y stock de Kit de Bienvenida / EPP (SPEC 2.9): a diferencia de
+  // Categorias, aca el tecnico si puede escribir -- es el que entrega estos
+  // articulos en terreno y necesita poder ajustar el stock de su propia
+  // sede (ver sedeScope en las rutas de /api/kit-items). Eliminar un
+  // articulo del catalogo si queda solo para admin.
+  kitEpp: {
+    read: AMBOS,
+    write: AMBOS,
     delete: ADMIN,
   },
 
@@ -121,9 +142,19 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
     delete: ADMIN,
   },
 
+  // Datos maestros de sedes (SPEC 2.9). Tecnico necesita leer la lista (ej.
+  // para mostrar el nombre de su sede); solo admin crea/edita/desactiva
+  // sedes -- es lo que define el aislamiento de datos, asi que no puede
+  // quedar en manos de soporte.
+  sedes: {
+    read: AMBOS,
+    write: ADMIN,
+    delete: ADMIN,
+  },
+
   // Nadie "escribe" un reporte: se generan a partir de los datos.
   reportes: {
-    read: ['admin', 'tecnico', 'supervisor', 'rrhh', 'auditor'],
+    read: AMBOS,
     write: SOLO_LECTURA,
     delete: SOLO_LECTURA,
   },
@@ -146,10 +177,7 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
  * fuentes de verdad para lo mismo, que es justo lo que esta ola elimina.
  *
  * Por eso la ruta de transicion exige `solicitudes/read` (que la persona pueda
- * ver la solicitud) y delega la decision real en la maquina de estados. Es
- * tambien la razon por la que `rrhh` no tiene `write` en `solicitudes`: sus
- * unicas escrituras son las transiciones de confirmacion, y esas las concede
- * la maquina de estados, no la matriz.
+ * ver la solicitud) y delega la decision real en la maquina de estados.
  */
 
 /** ¿Puede este rol ejecutar esta accion sobre este recurso? */

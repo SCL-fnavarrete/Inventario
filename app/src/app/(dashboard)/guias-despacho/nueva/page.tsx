@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -29,6 +30,12 @@ type Employee = {
   correoPersonal: string;
   cargo: string | null;
   ubicacion: string | null;
+};
+
+type Sede = {
+  id: string;
+  codigo: string;
+  nombre: string;
 };
 
 type Asset = {
@@ -66,10 +73,13 @@ const TIPO_DESPACHO_OPTIONS = [
 
 export default function NuevaGuiaDespachoPage() {
   const router = useRouter();
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "admin";
   const searchRef = useRef<HTMLDivElement>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sedes, setSedes] = useState<Sede[]>([]);
 
   // Step 1: Assets
   const [selectedAssets, setSelectedAssets] = useState<Asset[]>([]);
@@ -82,6 +92,7 @@ export default function NuevaGuiaDespachoPage() {
     despachadoPor: "",
     fechaDespacho: new Date().toISOString().slice(0, 16),
     observaciones: "",
+    sedeId: "",
   });
 
   // Step 3: Recipient
@@ -156,6 +167,22 @@ export default function NuevaGuiaDespachoPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (isAdmin) {
+      fetchSedes();
+    }
+  }, [isAdmin]);
+
+  async function fetchSedes() {
+    try {
+      const res = await fetch("/api/sedes?activas=true");
+      const data = await res.json();
+      setSedes(data);
+    } catch (error) {
+      console.error("Error fetching sedes:", error);
+    }
+  }
+
   async function handleSubmit() {
     setSubmitting(true);
     setError(null);
@@ -168,6 +195,7 @@ export default function NuevaGuiaDespachoPage() {
         despachadoPor: dispatchData.despachadoPor,
         fechaDespacho: dispatchData.fechaDespacho,
         observaciones: dispatchData.observaciones || null,
+        sedeId: dispatchData.sedeId || undefined,
         assetIds: selectedAssets.map((a) => a.id),
         destinatarioId: useEmployee ? selectedEmployee?.id : null,
         destinatarioNombre: useEmployee
@@ -399,6 +427,30 @@ export default function NuevaGuiaDespachoPage() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+              {isAdmin && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sede
+                  </label>
+                  <select
+                    value={dispatchData.sedeId}
+                    onChange={(e) =>
+                      setDispatchData((prev) => ({ ...prev, sedeId: e.target.value }))
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Sin sede (solo lo verás tú)</option>
+                    {sedes.map((sede) => (
+                      <option key={sede.id} value={sede.id}>
+                        {sede.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}

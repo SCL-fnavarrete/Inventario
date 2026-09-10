@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updateMaintenanceSchema, completeMaintenanceSchema } from "@/lib/validations/maintenance";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -10,12 +11,13 @@ interface RouteParams {
 // GET /api/mantenciones/[id] - Obtener detalle de mantención
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('mantenciones', 'read');
+    const session = await requirePermission('mantenciones', 'read');
     const { id } = await params;
 
     const maintenance = await prisma.maintenance.findUnique({
       where: { id },
       include: {
+        tipo: true,
         asset: {
           include: {
             categoria: true,
@@ -42,6 +44,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Maintenance no tiene sedeId propio -- se valida via la sede del activo.
+    assertSedeAccess(session, maintenance.asset.sedeId, 'Mantención no encontrada');
+
     return NextResponse.json(maintenance);
   } catch (error) {
     return handleApiError(error, 'Error al obtener mantención');
@@ -51,7 +56,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // PUT /api/mantenciones/[id] - Actualizar mantención
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('mantenciones', 'write');
+    const session = await requirePermission('mantenciones', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -81,6 +86,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    assertSedeAccess(session, existingMaintenance.asset.sedeId, 'Mantención no encontrada');
+
     // No permitir modificar mantenciones completadas o canceladas
     if (existingMaintenance.estado === "completada" || existingMaintenance.estado === "cancelada") {
       return NextResponse.json(
@@ -94,7 +101,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       const updatedMaintenance = await tx.maintenance.update({
         where: { id },
         data: {
-          tipo: data.tipo,
+          tipoId: data.tipoId,
           descripcion: data.descripcion,
           fechaProgramada: data.fechaProgramada,
           fechaRealizada: data.fechaRealizada,
@@ -106,6 +113,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           resultado: data.resultado,
         },
         include: {
+          tipo: true,
           asset: {
             include: { categoria: true },
           },
@@ -129,7 +137,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           data: {
             assetId: existingMaintenance.assetId,
             tipoEvento: "mantencion",
-            descripcion: `Mantención ${updatedMaintenance.tipo} completada: ${data.resultado || "Sin observaciones"}`,
+            descripcion: `Mantención ${updatedMaintenance.tipo.nombre} completada: ${data.resultado || "Sin observaciones"}`,
             datosAnteriores: { estado: "en_mantencion" },
             datosNuevos: { estado: nuevoEstado, maintenanceId: id },
             usuarioSistema: data.realizadoPor || "Sistema",
@@ -153,7 +161,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           data: {
             assetId: existingMaintenance.assetId,
             tipoEvento: "mantencion",
-            descripcion: `Mantención ${updatedMaintenance.tipo} cancelada`,
+            descripcion: `Mantención ${updatedMaintenance.tipo.nombre} cancelada`,
             datosAnteriores: { estado: "en_mantencion" },
             datosNuevos: { estado: estadoAnterior, maintenanceId: id },
             usuarioSistema: data.realizadoPor || "Sistema",
@@ -173,7 +181,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/mantenciones/[id] - Eliminar mantención
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('mantenciones', 'delete');
+    const session = await requirePermission('mantenciones', 'delete');
     const { id } = await params;
 
     const maintenance = await prisma.maintenance.findUnique({
@@ -187,6 +195,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    assertSedeAccess(session, maintenance.asset.sedeId, 'Mantención no encontrada');
 
     // Solo permitir eliminar mantenciones pendientes
     if (maintenance.estado !== "pendiente") {

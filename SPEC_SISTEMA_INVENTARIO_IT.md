@@ -401,7 +401,9 @@ CREATE TABLE workflow_requests (
         -- Cambio equipo
         'incidencia_detectada', 'cambio_ejecutado', 'confirmacion_rrhh',
         -- Devolución por término
-        'solicitud_emitida', 'coordinacion_en_curso', 'equipo_recibido', 'consolidacion_cierre'
+        'solicitud_emitida', 'coordinacion_en_curso', 'equipo_recibido', 'consolidacion_cierre',
+        -- Cancelación (los tres tipos, ver 2.5.2)
+        'cancelada'
     ) NOT NULL,
     prioridad ENUM('baja', 'media', 'alta', 'urgente') DEFAULT 'media',
     employee_id UUID REFERENCES employees(id) NOT NULL,
@@ -549,6 +551,15 @@ DEVOLUCION_TERMINO:
   coordinacion_en_curso → [tecnico|admin] → equipo_recibido
   equipo_recibido       → [rrhh|admin]    → consolidacion_cierre  ← SIDE EFFECT: crea termination
                                                                    ← ESTADO FINAL
+
+CANCELACIÓN (los tres tipos):
+  <estado_inicial_del_tipo> → [tecnico|admin] → cancelada  ← ESTADO FINAL, sin SIDE EFFECT
+
+  No es una transición del diagrama normal de cada tipo: es una acción aparte,
+  fuera de `canTransition`/`getNextStates`, solo disponible mientras la
+  solicitud no ejecutó ningún efecto secundario todavía (`assignment_ids` y
+  `kit_return_ids` vacíos). Existe para el caso "este ticket no debería
+  existir" (duplicado, error de carga, ya no aplica) -- ver regla 7 en 2.5.3.
 ```
 
 ### 2.5.3 Reglas de negocio
@@ -559,6 +570,8 @@ DEVOLUCION_TERMINO:
 4. **Devolución con daño:** Si `estadoDevolucion = danado`, el activo devuelto queda en `baja`. Si es `ok` o `incompleto`, queda en `reutilizable`.
 5. **Inmutabilidad:** `workflow_transitions` es un log inmutable. Las transiciones nunca se eliminan.
 6. **Acumulación:** `assignment_ids` en `workflow_requests` es acumulativo; cada assignment creado se agrega al array, nunca se sobreescribe.
+7. **Cancelación:** cualquier solicitud (de los tres tipos) puede cancelarse mientras `assignment_ids` y `kit_return_ids` sigan vacíos -- es decir, mientras no haya ejecutado ningún efecto secundario real sobre el inventario todavía. Exige un motivo (texto libre, obligatorio) que queda en `workflow_transitions.comentario`. Pasa a `estado = 'cancelada'` y `fecha_cierre = now()`; no modifica activos ni empleados. Si la solicitud ya ejecutó algo (tiene `assignment_ids` y/o `kit_return_ids`), no se puede cancelar por esta vía -- hay que revertir manualmente cada acción (devolver el activo, etc.) antes de poder cerrarla.
+8. **Reincorporación (onboarding):** un `onboarding` puede apuntar a un `employee` ya existente que esté `desvinculado` (alguien que trabajó antes y vuelve) en vez de crear uno nuevo -- necesario porque `rut`/`correo_personal`/`correo_empresa` son únicos, así que "crear de nuevo" a esa persona choca con su registro anterior. Al crear el ticket, si el `employee_id` elegido está `desvinculado`, se reactiva (`estado -> activo`, `fecha_termino -> null`) dentro de la misma transacción que crea la solicitud. Para `cambio_equipo` y `offboarding` el empleado desvinculado sigue bloqueado (regla previa a esta, sin numerar aparte): no tiene sentido cambiarle el equipo o desvincular de nuevo a alguien que ya no está activo.
 
 ### 2.5.4 Estructura del campo `datos_accion` por transición con efecto
 
@@ -1525,6 +1538,10 @@ nunca debió existir como fila separada.
 
 ## Changelog SPEC
 
+- **v1.4 (2026-09-09):**
+  - Sección 2.5.2: agrega la acción de cancelación (`cancelada`), disponible para los tres tipos de solicitud mientras no hayan ejecutado ningún efecto secundario (`assignment_ids`/`kit_return_ids` vacíos).
+  - Sección 2.5.3: regla 7 -- condiciones y efecto de la cancelación (exige motivo, no toca inventario, no revierte acciones ya ejecutadas).
+  - Sección 2.5.3: regla 8 -- un onboarding puede reincorporar a un empleado existente `desvinculado` (en vez de crear uno nuevo, que chocaría con rut/correo únicos); se reactiva automáticamente al crear el ticket.
 - **v1.0 (2025):** Versión inicial — 12 modelos, stack definido, metodología BMAD.
 - **v1.3 (2026-08-21):**
   - Sección 1.3.1: matriz de permisos ejecutable (13 recursos × 3 acciones × 5 roles) como único punto de verdad de la autorización, consumida por la API y por la UI.

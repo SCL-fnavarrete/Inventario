@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -9,8 +10,6 @@ import {
   Wrench,
   Calendar,
   User,
-  DollarSign,
-  Building,
   Laptop,
   Smartphone,
   Monitor,
@@ -56,13 +55,16 @@ type Employee = {
   };
 };
 
-const tipoOptions = [
-  { value: "preventiva", label: "Preventiva", description: "Mantención programada regular" },
-  { value: "correctiva", label: "Correctiva", description: "Reparación de fallo o problema" },
-  { value: "actualizacion_so", label: "Actualización SO", description: "Actualización de sistema operativo" },
-  { value: "limpieza", label: "Limpieza", description: "Limpieza física y lógica" },
-  { value: "reparacion", label: "Reparación", description: "Reparación de hardware o software" },
-];
+// Los tipos de mantencion ya no son una lista fija (9-sep-2026): se
+// cargan desde /api/mantenciones/tipos, catalogo editable por admin y
+// tecnico en la pestaña "Tipos" de Mantenciones. Solo se ofrecen los
+// tipos activos.
+type TipoMantencion = {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  activo: boolean;
+};
 
 function getCategoryIcon(categoryName: string) {
   switch (categoryName.toLowerCase()) {
@@ -80,11 +82,14 @@ function getCategoryIcon(categoryName: string) {
 export default function ProgramarMantencionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
   const [step, setStep] = useState(1);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [loadingAsset, setLoadingAsset] = useState(false);
+  const [tiposMantencion, setTiposMantencion] = useState<TipoMantencion[]>([]);
+  const [loadingTipos, setLoadingTipos] = useState(true);
 
   // Employee selection states
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -95,19 +100,39 @@ export default function ProgramarMantencionPage() {
   const [loadingEmployeeAssets, setLoadingEmployeeAssets] = useState(false);
 
   const [formData, setFormData] = useState({
-    tipo: "",
+    tipoId: "",
     descripcion: "",
     fechaProgramada: "",
-    proximaMantencion: "",
     realizadoPor: "",
-    costo: "",
-    proveedorExterno: "",
   });
 
   // Load employees on mount
   useEffect(() => {
     fetchEmployees();
+    fetchTipos();
   }, []);
+
+  async function fetchTipos() {
+    setLoadingTipos(true);
+    try {
+      const res = await fetch("/api/mantenciones/tipos?activo=true");
+      if (res.ok) {
+        setTiposMantencion(await res.json());
+      }
+    } catch (err) {
+      console.error("Error fetching tipos de mantención:", err);
+    } finally {
+      setLoadingTipos(false);
+    }
+  }
+
+  // El tecnico asignado ya no se escribe a mano: siempre es quien esta
+  // programando la mantencion (usuario de la sesion actual).
+  useEffect(() => {
+    if (session?.user?.name) {
+      setFormData((prev) => ({ ...prev, realizadoPor: session.user.name as string }));
+    }
+  }, [session]);
 
   // Load asset from URL parameter if present
   useEffect(() => {
@@ -196,7 +221,7 @@ export default function ProgramarMantencionPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedAsset || !formData.tipo || !formData.descripcion) return;
+    if (!selectedAsset || !formData.tipoId || !formData.descripcion || !formData.fechaProgramada) return;
 
     setSubmitting(true);
     setError("");
@@ -207,13 +232,10 @@ export default function ProgramarMantencionPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           assetId: selectedAsset.id,
-          tipo: formData.tipo,
+          tipoId: formData.tipoId,
           descripcion: formData.descripcion,
           fechaProgramada: formData.fechaProgramada || null,
-          proximaMantencion: formData.proximaMantencion || null,
           realizadoPor: formData.realizadoPor || null,
-          costo: formData.costo ? parseFloat(formData.costo) : null,
-          proveedorExterno: formData.proveedorExterno || null,
         }),
       });
 
@@ -531,26 +553,42 @@ export default function ProgramarMantencionPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {tipoOptions.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => {
-                  setFormData((prev) => ({ ...prev, tipo: option.value }));
-                  setStep(3);
-                }}
-                className={cn(
-                  "p-4 rounded-lg border text-left transition-colors",
-                  formData.tipo === option.value
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-gray-200 hover:border-blue-300 hover:bg-gray-50"
-                )}
-              >
-                <p className="font-medium">{option.label}</p>
-                <p className="text-sm text-gray-500 mt-1">{option.description}</p>
-              </button>
-            ))}
-          </div>
+          {loadingTipos ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            </div>
+          ) : tiposMantencion.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p className="font-medium text-gray-700">No hay tipos de mantención configurados</p>
+              <p className="text-sm mt-1">
+                Crea al menos uno en la pestaña &quot;Tipos&quot; de Mantenciones antes de
+                programar una.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {tiposMantencion.map((tipo) => (
+                <button
+                  key={tipo.id}
+                  onClick={() => {
+                    setFormData((prev) => ({ ...prev, tipoId: tipo.id }));
+                    setStep(3);
+                  }}
+                  className={cn(
+                    "p-4 rounded-lg border text-left transition-colors",
+                    formData.tipoId === tipo.id
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:border-blue-300 hover:bg-gray-50"
+                  )}
+                >
+                  <p className="font-medium">{tipo.nombre}</p>
+                  {tipo.descripcion && (
+                    <p className="text-sm text-gray-500 mt-1">{tipo.descripcion}</p>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="mt-6 flex justify-between">
             <button
@@ -564,7 +602,7 @@ export default function ProgramarMantencionPage() {
       )}
 
       {/* Step 3: Detalles de la Mantención */}
-      {step === 3 && selectedAsset && formData.tipo && (
+      {step === 3 && selectedAsset && formData.tipoId && (
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
@@ -584,7 +622,7 @@ export default function ProgramarMantencionPage() {
             <div>
               <p className="text-sm text-gray-500">Tipo de Mantención</p>
               <p className="font-medium">
-                {tipoOptions.find((t) => t.value === formData.tipo)?.label}
+                {tiposMantencion.find((t) => t.id === formData.tipoId)?.nombre}
               </p>
             </div>
           </div>
@@ -609,31 +647,21 @@ export default function ProgramarMantencionPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 <Calendar className="inline h-4 w-4 mr-1" />
-                Fecha Programada
+                Fecha Programada *
               </label>
               <input
                 type="date"
+                required
                 value={formData.fechaProgramada}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, fechaProgramada: e.target.value }))
                 }
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <Calendar className="inline h-4 w-4 mr-1" />
-                Próxima Mantención
-              </label>
-              <input
-                type="date"
-                value={formData.proximaMantencion}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, proximaMantencion: e.target.value }))
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+              <p className="text-xs text-gray-500 mt-1">
+                Obligatoria: una mantención no puede quedar &quot;en proceso&quot; sin una fecha
+                programada.
+              </p>
             </div>
 
             <div>
@@ -643,46 +671,14 @@ export default function ProgramarMantencionPage() {
               </label>
               <input
                 type="text"
-                placeholder="Nombre del técnico"
+                readOnly
+                disabled
                 value={formData.realizadoPor}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, realizadoPor: e.target.value }))
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 border border-gray-200 bg-gray-50 text-gray-600 rounded-lg cursor-not-allowed"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <DollarSign className="inline h-4 w-4 mr-1" />
-                Costo Estimado (CLP)
-              </label>
-              <input
-                type="number"
-                placeholder="0"
-                min="0"
-                value={formData.costo}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, costo: e.target.value }))
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <Building className="inline h-4 w-4 mr-1" />
-                Proveedor Externo (si aplica)
-              </label>
-              <input
-                type="text"
-                placeholder="Nombre del proveedor"
-                value={formData.proveedorExterno}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, proveedorExterno: e.target.value }))
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+              <p className="text-xs text-gray-500 mt-1">
+                Se asigna automáticamente: quien está programando la mantención.
+              </p>
             </div>
           </div>
 
@@ -703,7 +699,7 @@ export default function ProgramarMantencionPage() {
             </button>
             <button
               type="submit"
-              disabled={submitting || !formData.descripcion}
+              disabled={submitting || !formData.descripcion || !formData.fechaProgramada}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {submitting ? (

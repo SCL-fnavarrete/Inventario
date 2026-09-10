@@ -90,6 +90,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.nombre,
           role: user.rol,
+          sedeId: user.sedeId,
         };
       },
     }),
@@ -99,6 +100,11 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        // `sedeId` viaja en el token para que sedeScope() no tenga que ir a
+        // buscar el usuario en cada request. Si el admin le cambia la sede
+        // a alguien con sesion activa, el cambio aplica en el proximo login
+        // (maxAge del JWT es 24h) -- ver SPEC 2.9.
+        token.sedeId = (user as { sedeId?: string | null }).sedeId ?? null;
       }
       return token;
     },
@@ -106,6 +112,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
+        session.user.sedeId = (token.sedeId as string | null) ?? null;
       }
       return session;
     },

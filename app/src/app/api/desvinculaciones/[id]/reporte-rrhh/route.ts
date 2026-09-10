@@ -5,6 +5,7 @@ import autoTable from "jspdf-autotable";
 import * as fs from "fs";
 import * as path from "path";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // Extender tipos de jsPDF para lastAutoTable
 declare module "jspdf" {
@@ -53,7 +54,7 @@ const estadoColors: Record<string, [number, number, number]> = {
 // GET /api/desvinculaciones/[id]/reporte-rrhh - Generar reporte para RRHH
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('desvinculaciones', 'read');
+    const session = await requirePermission('desvinculaciones', 'read');
     const { id } = await params;
 
     const termination = await prisma.termination.findUnique({
@@ -93,6 +94,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    assertSedeAccess(session, employee.sedeId, 'Desvinculación no encontrada');
 
     // Crear PDF
     let doc: jsPDF;

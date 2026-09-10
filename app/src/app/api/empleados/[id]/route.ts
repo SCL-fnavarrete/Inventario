@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updateEmployeeSchema } from "@/lib/validations/employee";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -10,7 +11,7 @@ interface RouteParams {
 // GET /api/empleados/[id] - Obtener empleado por ID o RUT
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('empleados', 'read');
+    const session = await requirePermission('empleados', 'read');
     const { id } = await params;
 
     // Intentar buscar por UUID primero, luego por RUT
@@ -82,6 +83,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    assertSedeAccess(session, employee.sedeId, 'Empleado no encontrado');
+
     return NextResponse.json(employee);
   } catch (error) {
     return handleApiError(error, 'Error al obtener empleado');
@@ -91,7 +94,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // PUT /api/empleados/[id] - Actualizar empleado
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('empleados', 'write');
+    const session = await requirePermission('empleados', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -118,6 +121,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    assertSedeAccess(session, existingEmployee.sedeId, 'Empleado no encontrado');
 
     // Si se está actualizando el RUT, verificar que no exista otro empleado con ese RUT
     if (data.rut && data.rut !== existingEmployee.rut) {
@@ -161,6 +166,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    // Reasignar sede (ej. el empleado se traslada de sede): decision de
+    // Javier (10-sep-2026) -- solo admin puede hacerlo, a diferencia de
+    // Activos, donde el traslado entre sedes se maneja via Guias de
+    // Despacho (sedeOrigenId/sedeDestinoId) y no editando el registro
+    // directamente. Si un tecnico envia sedeId igual, se ignora en
+    // silencio en vez de rechazar toda la actualizacion -- el resto de
+    // los campos del formulario si son suyos para editar.
+    const puedeCambiarSede = tieneVisibilidadTotal(session);
+    if (puedeCambiarSede && data.sedeId) {
+      const sedeDestino = await prisma.sede.findUnique({ where: { id: data.sedeId } });
+      if (!sedeDestino) {
+        return NextResponse.json({ error: "Sede no encontrada" }, { status: 404 });
+      }
+    }
+
     // Actualizar empleado
     const employee = await prisma.employee.update({
       where: { id },
@@ -188,6 +208,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         ...(data.fechaEntregaKit !== undefined && { fechaEntregaKit: data.fechaEntregaKit }),
         ...(data.fechaEntregaEpp !== undefined && { fechaEntregaEpp: data.fechaEntregaEpp }),
         ...(data.proximaMantencionEpp !== undefined && { proximaMantencionEpp: data.proximaMantencionEpp }),
+        ...(puedeCambiarSede && data.sedeId !== undefined && { sedeId: data.sedeId }),
       },
     });
 
@@ -200,7 +221,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/empleados/[id] - Eliminar empleado (soft delete cambiando estado)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('empleados', 'delete');
+    const session = await requirePermission('empleados', 'delete');
     const { id } = await params;
 
     // Verificar que el empleado existe
@@ -219,6 +240,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    assertSedeAccess(session, existingEmployee.sedeId, 'Empleado no encontrado');
 
     // Verificar si tiene equipos asignados activos
     if (existingEmployee.assignments.length > 0) {

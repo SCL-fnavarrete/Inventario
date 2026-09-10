@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { updateKitItemSchema } from '@/lib/validations/kitItem';
 
 export async function PUT(
@@ -8,7 +9,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requirePermission('categorias', 'write');
+    const session = await requirePermission('kitEpp', 'write');
     const { id } = await params;
 
     const body = await request.json();
@@ -18,6 +19,7 @@ export async function PUT(
     if (!item) {
       return NextResponse.json({ error: 'Artículo no encontrado' }, { status: 404 });
     }
+    assertSedeAccess(session, item.sedeId, 'Artículo no encontrado');
 
     const updated = await prisma.welcomeKitItem.update({
       where: { id },
@@ -25,6 +27,7 @@ export async function PUT(
         ...(validated.nombre !== undefined && { nombre: validated.nombre.trim() }),
         ...(validated.categoria !== undefined && { categoria: validated.categoria }),
         ...(validated.cantidad !== undefined && { cantidad: validated.cantidad }),
+        ...(validated.stockMinimo !== undefined && { stockMinimo: validated.stockMinimo }),
       },
     });
 
@@ -39,7 +42,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requirePermission('categorias', 'delete');
+    const session = await requirePermission('kitEpp', 'delete');
     const { id } = await params;
 
     const item = await prisma.welcomeKitItem.findUnique({
@@ -49,6 +52,7 @@ export async function DELETE(
     if (!item) {
       return NextResponse.json({ error: 'Artículo no encontrado' }, { status: 404 });
     }
+    assertSedeAccess(session, item.sedeId, 'Artículo no encontrado');
     if (item._count.kitAssignments > 0) {
       return NextResponse.json(
         { error: 'No se puede eliminar: este artículo ya tiene entregas registradas. Puedes dejar la cantidad en 0 en vez de eliminarlo.' },

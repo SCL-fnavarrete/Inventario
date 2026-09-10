@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { EstadoGuia } from "@prisma/client";
+import { EstadoGuia, TipoDespacho } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assetHistoryService } from '@/lib/services/assetHistoryService';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -10,7 +12,7 @@ interface RouteParams {
 // GET /api/guias-despacho/[id] - Obtener detalle de guía
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('guias', 'read');
+    const session = await requirePermission('guias', 'read');
     const { id } = await params;
 
     const guide = await prisma.dispatchGuide.findUnique({
@@ -37,6 +39,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             correoPersonal: true,
           },
         },
+        sedeOrigen: true,
+        sedeDestino: true,
       },
     });
 
@@ -47,6 +51,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    assertSedeAccess(session, guide.sedeId, 'Guía de despacho no encontrada');
+
     return NextResponse.json(guide);
   } catch (error) {
     return handleApiError(error, 'Error al obtener guía de despacho');
@@ -56,7 +62,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // PATCH /api/guias-despacho/[id] - Actualizar guía (estado, recepción, etc.)
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('guias', 'write');
+    const session = await requirePermission('guias', 'write');
     const { id } = await params;
     const body = await request.json();
     const { estado, fechaRecepcion, recibidoPor, observaciones } = body;
@@ -72,6 +78,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    assertSedeAccess(session, existingGuide.sedeId, 'Guía de despacho no encontrada');
 
     // Validar transiciones de estado
     if (estado) {
@@ -117,22 +125,58 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       updateData.observaciones = observaciones;
     }
 
-    // Actualizar
-    const updatedGuide = await prisma.dispatchGuide.update({
-      where: { id },
-      data: updateData,
-      include: {
-        items: {
-          include: {
-            asset: {
-              include: {
-                categoria: true,
+    // Si la guia es de tipo `traslado` y pasa a `recibido`, la sede fisica
+    // de cada activo despachado se actualiza a la sede destino de la guia.
+    // Ver SPEC 2.9. No aplica a `asignacion`/`prestamo`: esos activos siguen
+    // registrados en la sede de origen, solo cambia quien los tiene.
+    const actualizaSedeActivos =
+      estado === EstadoGuia.recibido &&
+      existingGuide.tipoDespacho === TipoDespacho.traslado &&
+      !!existingGuide.sedeDestinoId;
+
+    const updatedGuide = await prisma.$transaction(async (tx) => {
+      const guide = await tx.dispatchGuide.update({
+        where: { id },
+        data: updateData,
+        include: {
+          items: {
+            include: {
+              asset: {
+                include: {
+                  categoria: true,
+                },
               },
             },
           },
+          destinatario: true,
+          sedeOrigen: true,
+          sedeDestino: true,
         },
-        destinatario: true,
-      },
+      });
+
+      if (actualizaSedeActivos) {
+        for (const item of guide.items) {
+          const sedeAnteriorId = item.asset.sedeId;
+
+          await tx.asset.update({
+            where: { id: item.assetId },
+            data: { sedeId: existingGuide.sedeDestinoId },
+          });
+
+          await assetHistoryService.registrar(
+            {
+              assetId: item.assetId,
+              tipoEvento: 'traslado',
+              descripcion: `Trasladado a nueva sede vía guía ${guide.numero}`,
+              datosAnteriores: { sedeId: sedeAnteriorId },
+              datosNuevos: { sedeId: existingGuide.sedeDestinoId, guideId: guide.id },
+            },
+            tx
+          );
+        }
+      }
+
+      return guide;
     });
 
     return NextResponse.json(updatedGuide);
@@ -144,7 +188,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/guias-despacho/[id] - Eliminar guía (solo si está pendiente)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('guias', 'delete');
+    const session = await requirePermission('guias', 'delete');
     const { id } = await params;
 
     const guide = await prisma.dispatchGuide.findUnique({
@@ -157,6 +201,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    assertSedeAccess(session, guide.sedeId, 'Guía de despacho no encontrada');
 
     // Solo permitir eliminar si está pendiente
     if (guide.estado !== EstadoGuia.pendiente) {

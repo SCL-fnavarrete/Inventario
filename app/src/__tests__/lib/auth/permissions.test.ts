@@ -11,12 +11,12 @@ import {
 } from '@/lib/auth/permissions';
 import { canTransition } from '@/lib/services/workflowStateMachine';
 
-// SPEC: Sección 1.3 — Usuarios del Sistema
+// SPEC: Sección 1.3 — Usuarios del Sistema. Solo dos roles reales: admin
+// (ve y administra todo) y tecnico (soporte operativo, restringido a su
+// sede -- ver sedeScope()). supervisor/rrhh/auditor existieron en una
+// version anterior pero no se usaban en la practica y se retiraron.
 
-const TODOS_LOS_ROLES: SystemRole[] = ['admin', 'tecnico', 'supervisor', 'rrhh', 'auditor'];
-
-/** Recursos operativos: todo lo que no es un reporte de solo lectura. */
-const RECURSOS_OPERATIVOS: Recurso[] = RECURSOS.filter((r) => r !== 'reportes');
+const TODOS_LOS_ROLES: SystemRole[] = ['admin', 'tecnico'];
 
 describe('permissions — integridad de la matriz', () => {
   test('todos los recursos declaran las tres acciones', () => {
@@ -68,53 +68,14 @@ describe('permissions — admin', () => {
   });
 });
 
-describe('permissions — solo lectura (regla base del SPEC)', () => {
-  // Caso obligatorio del plan: la regresión más cara de reintroducir.
-  test.each(RECURSOS_OPERATIVOS)('rrhh NO puede escribir en %s', (recurso) => {
-    expect(can('rrhh', recurso, 'write')).toBe(false);
-  });
-
-  test.each(RECURSOS_OPERATIVOS)('rrhh NO puede borrar en %s', (recurso) => {
-    expect(can('rrhh', recurso, 'delete')).toBe(false);
-  });
-
-  test.each(RECURSOS_OPERATIVOS)('auditor NO puede escribir en %s', (recurso) => {
-    expect(can('auditor', recurso, 'write')).toBe(false);
-  });
-
-  test.each(RECURSOS_OPERATIVOS)('auditor NO puede borrar en %s', (recurso) => {
-    expect(can('auditor', recurso, 'delete')).toBe(false);
-  });
-
-  test('auditor lee todo el sistema salvo usuarios y configuración', () => {
-    for (const recurso of RECURSOS) {
-      const esperado = recurso !== 'usuarios' && recurso !== 'configuracion';
-      expect(can('auditor', recurso, 'read')).toBe(esperado);
-    }
-  });
-
-  test('rrhh lee fichas de empleados y estados de devolución', () => {
-    expect(can('rrhh', 'empleados', 'read')).toBe(true);
-    expect(can('rrhh', 'desvinculaciones', 'read')).toBe(true);
-    expect(can('rrhh', 'asignaciones', 'read')).toBe(true);
-    expect(can('rrhh', 'activos', 'read')).toBe(true);
-  });
-
-  test('rrhh no ve información financiera ni configuración', () => {
-    expect(can('rrhh', 'compras', 'read')).toBe(false);
-    expect(can('rrhh', 'proveedores', 'read')).toBe(false);
-    expect(can('rrhh', 'usuarios', 'read')).toBe(false);
-    expect(can('rrhh', 'configuracion', 'read')).toBe(false);
-  });
-});
-
 describe('permissions — tecnico', () => {
-  test('escribe lo operativo: activos, asignaciones, mantenciones, guías', () => {
+  test('escribe lo operativo: activos, asignaciones, mantenciones, guías, solicitudes', () => {
     expect(can('tecnico', 'activos', 'write')).toBe(true);
     expect(can('tecnico', 'asignaciones', 'write')).toBe(true);
     expect(can('tecnico', 'mantenciones', 'write')).toBe(true);
     expect(can('tecnico', 'guias', 'write')).toBe(true);
     expect(can('tecnico', 'desvinculaciones', 'write')).toBe(true);
+    expect(can('tecnico', 'solicitudes', 'write')).toBe(true);
   });
 
   test('no borra nada: el borrado es de admin', () => {
@@ -123,32 +84,27 @@ describe('permissions — tecnico', () => {
     }
   });
 
-  test('no toca datos maestros ni configuración', () => {
+  test('no toca datos maestros ni configuración ni usuarios', () => {
     expect(can('tecnico', 'categorias', 'write')).toBe(false);
     expect(can('tecnico', 'proveedores', 'write')).toBe(false);
+    expect(can('tecnico', 'compras', 'read')).toBe(false);
     expect(can('tecnico', 'usuarios', 'read')).toBe(false);
+    expect(can('tecnico', 'sedes', 'write')).toBe(false);
     expect(can('tecnico', 'configuracion', 'read')).toBe(false);
   });
-});
 
-describe('permissions — supervisor', () => {
-  test('aprueba solicitudes, según el SPEC', () => {
-    expect(can('supervisor', 'solicitudes', 'write')).toBe(true);
-  });
-
-  test('no ejecuta trabajo operativo de TI', () => {
-    expect(can('supervisor', 'activos', 'write')).toBe(false);
-    expect(can('supervisor', 'mantenciones', 'write')).toBe(false);
-    expect(can('supervisor', 'asignaciones', 'write')).toBe(false);
-  });
-
-  test('ve reportes', () => {
-    expect(can('supervisor', 'reportes', 'read')).toBe(true);
+  test('lee lo mismo que escribe, más los datos maestros de solo lectura', () => {
+    expect(can('tecnico', 'activos', 'read')).toBe(true);
+    expect(can('tecnico', 'empleados', 'read')).toBe(true);
+    expect(can('tecnico', 'categorias', 'read')).toBe(true);
+    expect(can('tecnico', 'proveedores', 'read')).toBe(true);
+    expect(can('tecnico', 'sedes', 'read')).toBe(true);
+    expect(can('tecnico', 'reportes', 'read')).toBe(true);
   });
 });
 
 describe('permissions — reportes', () => {
-  test('los cinco roles leen reportes', () => {
+  test('ambos roles leen reportes', () => {
     for (const rol of TODOS_LOS_ROLES) {
       expect(can(rol, 'reportes', 'read')).toBe(true);
     }
@@ -163,10 +119,13 @@ describe('permissions — reportes', () => {
 });
 
 describe('permissions — entradas inválidas', () => {
-  test.each([undefined, null, '', 'root', 'ADMIN'])('%p no obtiene permiso', (rol) => {
-    expect(can(rol as string | null | undefined, 'activos', 'read')).toBe(false);
-    expect(can(rol as string | null | undefined, 'activos', 'write')).toBe(false);
-  });
+  test.each([undefined, null, '', 'root', 'ADMIN', 'rrhh', 'supervisor', 'auditor'])(
+    '%p no obtiene permiso',
+    (rol) => {
+      expect(can(rol as string | null | undefined, 'activos', 'read')).toBe(false);
+      expect(can(rol as string | null | undefined, 'activos', 'write')).toBe(false);
+    }
+  );
 
   test('un recurso inexistente no otorga permiso ni lanza', () => {
     expect(can('admin', 'inventado' as Recurso, 'read')).toBe(false);
@@ -179,35 +138,21 @@ describe('permissions — entradas inválidas', () => {
 
 describe('permissions — la matriz no autoriza transiciones de workflow', () => {
   // La regla de quien puede transicionar vive en workflowStateMachine y esta
-  // testeada alli. Aqui solo se fija que la matriz NO la duplique: rrhh sigue
-  // sin escritura sobre el recurso, y aun asi puede confirmar.
-  test('rrhh no tiene write sobre solicitudes en la matriz', () => {
-    expect(can('rrhh', 'solicitudes', 'write')).toBe(false);
-  });
-
-  test('rrhh sí puede ejecutar las transiciones de confirmación', () => {
-    expect(canTransition('onboarding', 'equipos_entregados', 'registro_rrhh', 'rrhh')).toBe(true);
-    expect(canTransition('cambio_equipo', 'cambio_ejecutado', 'confirmacion_rrhh', 'rrhh')).toBe(true);
+  // testeada alli (solo tecnico/admin, en todos los tipos). Aqui solo se fija
+  // que la matriz de recursos no la duplique con otra fuente de verdad.
+  test('tecnico y admin pueden ejecutar las transiciones de cierre', () => {
+    expect(canTransition('onboarding', 'equipos_entregados', 'registro_rrhh', 'tecnico')).toBe(true);
+    expect(canTransition('onboarding', 'equipos_entregados', 'registro_rrhh', 'admin')).toBe(true);
+    expect(canTransition('cambio_equipo', 'cambio_ejecutado', 'confirmacion_rrhh', 'tecnico')).toBe(true);
     expect(
-      canTransition('offboarding', 'equipo_recibido', 'consolidacion_cierre', 'rrhh')
+      canTransition('offboarding', 'equipo_recibido', 'consolidacion_cierre', 'tecnico')
     ).toBe(true);
   });
 
-  test('rrhh no puede ejecutar las transiciones operativas de TI', () => {
-    expect(canTransition('onboarding', 'solicitud_recibida', 'gestion_ti', 'rrhh')).toBe(false);
-    expect(canTransition('onboarding', 'gestion_ti', 'equipos_entregados', 'rrhh')).toBe(false);
-  });
-
-  test('auditor no puede ejecutar ninguna transición', () => {
-    expect(canTransition('onboarding', 'equipos_entregados', 'registro_rrhh', 'auditor')).toBe(false);
-    expect(canTransition('onboarding', 'solicitud_recibida', 'gestion_ti', 'auditor')).toBe(false);
-  });
-
   test('la ruta de transición sólo exige poder leer la solicitud', () => {
-    // requirePermission('solicitudes', 'read') deja pasar a rrhh; la maquina
-    // de estados decide despues. Si la matriz exigiera write, rrhh nunca
-    // llegaria a confirmar.
-    expect(can('rrhh', 'solicitudes', 'read')).toBe(true);
+    // requirePermission('solicitudes', 'read'); la maquina de estados decide
+    // despues cuales transiciones puede ejecutar cada rol.
+    expect(can('tecnico', 'solicitudes', 'read')).toBe(true);
   });
 });
 
@@ -217,10 +162,12 @@ describe('permissions — helpers', () => {
     expect(rolesQuePueden('reportes', 'write')).toEqual([]);
   });
 
-  test('recursosPermitidos para auditor solo devuelve lectura', () => {
-    expect(recursosPermitidos('auditor', 'write')).toEqual([]);
-    expect(recursosPermitidos('auditor', 'delete')).toEqual([]);
-    expect(recursosPermitidos('auditor', 'read').length).toBeGreaterThan(0);
+  test('recursosPermitidos para tecnico no incluye usuarios ni configuración', () => {
+    const recursos = recursosPermitidos('tecnico', 'read');
+    expect(recursos).not.toContain('usuarios');
+    expect(recursos).not.toContain('configuracion');
+    expect(recursos).not.toContain('compras');
+    expect(recursos.length).toBeGreaterThan(0);
   });
 
   test('recursosPermitidos para admin cubre todos los recursos en lectura', () => {

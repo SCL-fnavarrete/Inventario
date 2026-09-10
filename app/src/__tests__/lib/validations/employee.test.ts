@@ -7,9 +7,16 @@ import {
   EstadoEmpleadoEnum,
 } from '@/lib/validations/employee'
 
+// NOTA: TipoContratoEnum se redujo a ['contrato', 'boleta'] (migracion
+// replace_tipo_contrato_enum) y el campo "correo" se dividio en
+// "correoPersonal" (obligatorio) y "correoEmpresa" (opcional, migracion
+// split_employee_correo). Estos tests se actualizaron para reflejar eso --
+// antes seguian probando el schema viejo (planta/proyecto/externo, correo
+// unico) y fallaban contra el schema actual.
+
 describe('Employee Validation - TipoContratoEnum', () => {
   test('should accept valid tipos de contrato', () => {
-    const validTipos = ['planta', 'proyecto', 'externo']
+    const validTipos = ['contrato', 'boleta']
 
     validTipos.forEach((tipo) => {
       const result = TipoContratoEnum.safeParse(tipo)
@@ -17,9 +24,10 @@ describe('Employee Validation - TipoContratoEnum', () => {
     })
   })
 
-  test('should reject invalid tipo', () => {
-    const result = TipoContratoEnum.safeParse('temporal')
-    expect(result.success).toBe(false)
+  test('should reject invalid tipo (valores antiguos ya no existen)', () => {
+    ;['planta', 'proyecto', 'externo', 'temporal'].forEach((tipo) => {
+      expect(TipoContratoEnum.safeParse(tipo).success).toBe(false)
+    })
   })
 })
 
@@ -44,8 +52,8 @@ describe('Employee Validation - createEmployeeSchema', () => {
     rut: '21.523.308-1',
     nombres: 'Juan Carlos',
     apellidoPaterno: 'Perez',
-    correo: 'jperez@empresa.cl',
-    tipoContrato: 'planta' as const,
+    correoPersonal: 'jperez@gmail.com',
+    tipoContrato: 'contrato' as const,
   }
 
   test('should accept valid minimum employee data', () => {
@@ -57,6 +65,7 @@ describe('Employee Validation - createEmployeeSchema', () => {
     const fullEmployee = {
       ...validEmployee,
       apellidoMaterno: 'Garcia',
+      correoEmpresa: 'jperez@empresa.cl',
       cargo: 'Desarrollador Senior',
       jefatura: 'Gerencia TI',
       supervisor: 'Maria Rodriguez',
@@ -124,17 +133,44 @@ describe('Employee Validation - createEmployeeSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  test('should reject invalid email format', () => {
+  test('should reject invalid correoPersonal format', () => {
     const result = createEmployeeSchema.safeParse({
       ...validEmployee,
-      correo: 'not-an-email',
+      correoPersonal: 'not-an-email',
     })
     expect(result.success).toBe(false)
+  })
+
+  test('should reject missing correoPersonal (obligatorio, a diferencia de correoEmpresa)', () => {
+    const { correoPersonal, ...employeeWithoutCorreo } = validEmployee
+    const result = createEmployeeSchema.safeParse(employeeWithoutCorreo)
+    expect(result.success).toBe(false)
+  })
+
+  test('should reject invalid correoEmpresa format when provided', () => {
+    const result = createEmployeeSchema.safeParse({
+      ...validEmployee,
+      correoEmpresa: 'not-an-email',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  test('should accept missing correoEmpresa (opcional)', () => {
+    const result = createEmployeeSchema.safeParse(validEmployee)
+    expect(result.success).toBe(true)
   })
 
   test('should reject missing tipoContrato', () => {
     const { tipoContrato, ...employeeWithoutContrato } = validEmployee
     const result = createEmployeeSchema.safeParse(employeeWithoutContrato)
+    expect(result.success).toBe(false)
+  })
+
+  test('should reject tipoContrato con valor antiguo (planta/proyecto ya no existen)', () => {
+    const result = createEmployeeSchema.safeParse({
+      ...validEmployee,
+      tipoContrato: 'planta',
+    })
     expect(result.success).toBe(false)
   })
 
@@ -172,6 +208,7 @@ describe('Employee Validation - createEmployeeSchema', () => {
     const result = createEmployeeSchema.safeParse({
       ...validEmployee,
       apellidoMaterno: null,
+      correoEmpresa: null,
       cargo: null,
       telefonoContacto: null,
     })
@@ -186,10 +223,10 @@ describe('Employee Validation - createEmployeeSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  test('should reject correo exceeding 150 characters', () => {
+  test('should reject correoPersonal exceeding 150 characters', () => {
     const result = createEmployeeSchema.safeParse({
       ...validEmployee,
-      correo: 'a'.repeat(140) + '@empresa.cl',
+      correoPersonal: 'a'.repeat(140) + '@gmail.com',
     })
     expect(result.success).toBe(false)
   })
@@ -215,9 +252,16 @@ describe('Employee Validation - updateEmployeeSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  test('should validate email if provided', () => {
+  test('should validate correoPersonal if provided', () => {
     const result = updateEmployeeSchema.safeParse({
-      correo: 'not-an-email',
+      correoPersonal: 'not-an-email',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  test('should validate correoEmpresa if provided', () => {
+    const result = updateEmployeeSchema.safeParse({
+      correoEmpresa: 'not-an-email',
     })
     expect(result.success).toBe(false)
   })
@@ -225,6 +269,13 @@ describe('Employee Validation - updateEmployeeSchema', () => {
   test('should accept estado change', () => {
     const result = updateEmployeeSchema.safeParse({
       estado: 'desvinculado',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  test('should accept tipoContrato change (reincorporación: puede cambiar de boleta a contrato o viceversa)', () => {
+    const result = updateEmployeeSchema.safeParse({
+      tipoContrato: 'boleta',
     })
     expect(result.success).toBe(true)
   })
@@ -246,7 +297,7 @@ describe('Employee Validation - employeeFiltersSchema', () => {
     const result = employeeFiltersSchema.safeParse({
       search: 'juan',
       estado: 'activo',
-      tipoContrato: 'planta',
+      tipoContrato: 'contrato',
       ubicacion: 'Santiago',
       page: 2,
       limit: 25,
@@ -293,6 +344,13 @@ describe('Employee Validation - employeeFiltersSchema', () => {
     })
     expect(result.success).toBe(false)
   })
+
+  test('should reject tipoContrato con valor antiguo', () => {
+    const result = employeeFiltersSchema.safeParse({
+      tipoContrato: 'planta',
+    })
+    expect(result.success).toBe(false)
+  })
 })
 
 describe('Employee Validation - importEmployeeSchema', () => {
@@ -300,8 +358,8 @@ describe('Employee Validation - importEmployeeSchema', () => {
     rut: '21.523.308-1',
     nombres: 'Juan Carlos',
     apellidoPaterno: 'Perez',
-    correo: 'jperez@empresa.cl',
-    tipoContrato: 'planta',
+    correoPersonal: 'jperez@gmail.com',
+    tipoContrato: 'contrato',
   }
 
   test('should accept valid import data', () => {
@@ -309,26 +367,41 @@ describe('Employee Validation - importEmployeeSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  test('should transform tipoContrato to lowercase', () => {
+  test('should transform tipoContrato to lowercase (match exacto)', () => {
     const result = importEmployeeSchema.safeParse({
       ...validImportData,
-      tipoContrato: 'PLANTA',
+      tipoContrato: 'BOLETA',
     })
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.tipoContrato).toBe('planta')
+      expect(result.data.tipoContrato).toBe('boleta')
     }
   })
 
-  test('should default invalid tipoContrato to proyecto', () => {
-    const result = importEmployeeSchema.safeParse({
-      ...validImportData,
-      tipoContrato: 'temporal',
+  test('should map valores antiguos equivalentes a boleta (externo/honorarios)', () => {
+    ;['Externo', 'Honorarios', 'boleta de honorarios'].forEach((valor) => {
+      const result = importEmployeeSchema.safeParse({
+        ...validImportData,
+        tipoContrato: valor,
+      })
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.tipoContrato).toBe('boleta')
+      }
     })
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.tipoContrato).toBe('proyecto')
-    }
+  })
+
+  test('should default anything unrecognized (incluye valores antiguos como planta/proyecto) a contrato', () => {
+    ;['planta', 'proyecto', 'temporal', 'indefinido'].forEach((valor) => {
+      const result = importEmployeeSchema.safeParse({
+        ...validImportData,
+        tipoContrato: valor,
+      })
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.tipoContrato).toBe('contrato')
+      }
+    })
   })
 
   test('should transform fechaIngreso string to Date', () => {

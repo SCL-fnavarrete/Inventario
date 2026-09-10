@@ -12,10 +12,11 @@ import {
   ValidationError,
 } from '@/lib/auth/guard';
 import { logger } from '@/lib/logger';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requirePermission('activos', 'read');
+    const session = await requirePermission('activos', 'read');
 
     const { id } = await params;
 
@@ -47,6 +48,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
     }
 
+    assertSedeAccess(session, asset.sedeId, 'Activo no encontrado');
+
     return NextResponse.json(asset);
   } catch (error) {
     return handleApiError(error, 'Error al obtener activo');
@@ -72,6 +75,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!existingAsset) {
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
     }
+
+    assertSedeAccess(session, existingAsset.sedeId, 'Activo no encontrado');
 
     // Verificar si el número de serie ya existe (si se cambió y se proporciona)
     if (validatedData.numeroSerie && validatedData.numeroSerie !== existingAsset.numeroSerie) {
@@ -269,6 +274,7 @@ export async function DELETE(
         numeroSerie: true,
         estado: true,
         deletedAt: true,
+        sedeId: true,
         _count: { select: { history: true, assignments: true } },
       },
     });
@@ -276,6 +282,8 @@ export async function DELETE(
     if (!existingAsset) {
       throw new NotFoundError('Activo no encontrado');
     }
+
+    assertSedeAccess(session, existingAsset.sedeId, 'Activo no encontrado');
 
     if (existingAsset.deletedAt) {
       throw new ConflictError('Este activo ya estaba descartado');

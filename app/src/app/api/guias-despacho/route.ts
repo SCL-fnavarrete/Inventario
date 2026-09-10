@@ -2,19 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { EstadoGuia, TipoDespacho } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { sedeWhere, sedeIdParaCrear } from '@/lib/auth/sedeScope';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 // GET /api/guias-despacho - Listar guías de despacho
 export async function GET(request: NextRequest) {
   try {
-    await requirePermission('guias', 'read');
+    const session = await requirePermission('guias', 'read');
     const searchParams = request.nextUrl.searchParams;
     const estado = searchParams.get("estado") as EstadoGuia | null;
     const busqueda = searchParams.get("busqueda");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
 
-    const where: Record<string, unknown> = {};
+    // Aislamiento por sede (SPEC 2.9): admin ve todo, el resto solo lo suyo.
+    const where: Record<string, unknown> = { ...sedeWhere(session) };
 
     if (estado) {
       where.estado = estado;
@@ -62,7 +64,7 @@ export async function GET(request: NextRequest) {
 // POST /api/guias-despacho - Crear nueva guía de despacho
 export async function POST(request: NextRequest) {
   try {
-    await requirePermission('guias', 'write');
+    const session = await requirePermission('guias', 'write');
     const body = await request.json();
     const {
       origen,
@@ -75,6 +77,10 @@ export async function POST(request: NextRequest) {
       destinatarioRut,
       observaciones,
       assetIds,
+      sedeOrigenId,
+      sedeDestinoId,
+      otChilexpress,
+      fechaEstimadaLlegada,
     } = body;
 
     // Validaciones básicas
@@ -131,6 +137,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Defensa en profundidad: un no-admin no puede despachar activos que no
+    // sean de su propia sede, aunque el selector ya venga filtrado. Ver
+    // SPEC 2.9.
+    const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId);
+    if (sedeId && assets.some((a) => a.sedeId !== sedeId)) {
+      return NextResponse.json(
+        { error: "Algunos activos no pertenecen a tu sede" },
+        { status: 400 }
+      );
+    }
+
     // Si hay destinatarioId, obtener datos del empleado
     let empleadoData: { nombre: string; rut: string | null } | null = null;
     if (destinatarioId) {
@@ -166,6 +183,11 @@ export async function POST(request: NextRequest) {
         destinatarioRut: empleadoData?.rut || destinatarioRut || null,
         observaciones: observaciones || null,
         estado: EstadoGuia.pendiente,
+        sedeId,
+        sedeOrigenId: sedeOrigenId || null,
+        sedeDestinoId: sedeDestinoId || null,
+        otChilexpress: otChilexpress || null,
+        fechaEstimadaLlegada: fechaEstimadaLlegada ? new Date(fechaEstimadaLlegada) : null,
         items: {
           create: assetIds.map((assetId: string) => ({
             assetId,
@@ -183,6 +205,8 @@ export async function POST(request: NextRequest) {
           },
         },
         destinatario: true,
+        sedeOrigen: true,
+        sedeDestino: true,
       },
     });
 

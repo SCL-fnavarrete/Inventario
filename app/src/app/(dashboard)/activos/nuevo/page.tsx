@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { ArrowLeft, Save } from "lucide-react";
 
@@ -10,13 +11,26 @@ type Category = {
   nombre: string;
 };
 
+type Sede = {
+  id: string;
+  codigo: string;
+  nombre: string;
+};
+
 export default function NuevoActivoPage() {
   const router = useRouter();
+  const { data: session } = useSession();
+  // El campo de sede solo lo ve admin: un tecnico no elige sede, la hereda
+  // automaticamente de la suya (ver sedeIdParaCrear en el backend). Ver
+  // SPEC 2.9.
+  const isAdmin = session?.user?.role === "admin";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [sedes, setSedes] = useState<Sede[]>([]);
   const [formData, setFormData] = useState({
     categoriaId: "",
+    sedeId: "",
     marca: "",
     modelo: "",
     numeroSerie: "",
@@ -41,7 +55,8 @@ export default function NuevoActivoPage() {
 
   useEffect(() => {
     fetchCategories();
-  }, []);
+    if (isAdmin) fetchSedes();
+  }, [isAdmin]);
 
   async function fetchCategories() {
     try {
@@ -50,6 +65,16 @@ export default function NuevoActivoPage() {
       setCategories(data);
     } catch (error) {
       console.error("Error fetching categories:", error);
+    }
+  }
+
+  async function fetchSedes() {
+    try {
+      const res = await fetch("/api/sedes?activas=true");
+      const data = await res.json();
+      setSedes(data);
+    } catch (error) {
+      console.error("Error fetching sedes:", error);
     }
   }
 
@@ -68,6 +93,9 @@ export default function NuevoActivoPage() {
     try {
       const payload = {
         categoriaId: formData.categoriaId,
+        // Solo tiene efecto si quien crea es admin -- el backend ignora este
+        // campo para un tecnico y usa siempre su propia sede. Ver SPEC 2.9.
+        sedeId: formData.sedeId || undefined,
         marca: formData.marca,
         modelo: formData.modelo,
         numeroSerie: formData.numeroSerie || null,
@@ -266,6 +294,29 @@ export default function NuevoActivoPage() {
                 Opcional. El dashboard avisa cuando faltan 30 dias para vencer.
               </p>
             </div>
+            {isAdmin && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Sede
+                </label>
+                <select
+                  name="sedeId"
+                  value={formData.sedeId}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Sin sede (solo lo verás tú)</option>
+                  {sedes.map((sede) => (
+                    <option key={sede.id} value={sede.id}>
+                      {sede.nombre}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

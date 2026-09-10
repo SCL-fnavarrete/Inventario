@@ -38,13 +38,21 @@ type WorkflowDetail = {
   medioEntrega: string | null;
   lugarEntrega: string | null;
   otChilexpressEntrega: string | null;
+  ciudadEntrega: string | null;
   // Cambio
   motivoCambio: string | null;
+  medioCambio: string | null;
+  fechaCambioCoordinada: string | null;
+  lugarCambio: string | null;
+  otCambioChilexpress: string | null;
+  ciudadCambio: string | null;
   // Devolucion
   fechaDesvinculacion: string | null;
   medioDevolucion: string | null;
   otChilexpress: string | null;
   ciudadDevolucion: string | null;
+  fechaDevolucionCoordinada: string | null;
+  lugarDevolucion: string | null;
   // References
   assignmentIds: string[];
   kitReturnIds: string[];
@@ -148,10 +156,11 @@ const estadoLabels: Record<string, string> = {
   equipos_entregados: 'Equipos Entregados',
   registro_rrhh: 'Ticket Cerrado',
   incidencia_detectada: 'Incidencia Detectada',
+  coordinando_cambio: 'Coordinando Cambio',
   cambio_ejecutado: 'Cambio Ejecutado',
   confirmacion_rrhh: 'Ticket Cerrado',
   solicitud_emitida: 'Solicitud Emitida',
-  coordinacion_en_curso: 'Coordinación en Curso',
+  coordinacion_en_curso: 'Coordinando Devolución',
   equipo_recibido: 'Equipo Recibido',
   consolidacion_cierre: 'Consolidación y Cierre',
 };
@@ -185,8 +194,8 @@ const pendienteLabels: Record<string, string> = {
 function getStatesForType(tipo: string): string[] {
   const map: Record<string, string[]> = {
     onboarding: ['solicitud_recibida', 'gestion_ti', 'coordinando_entrega', 'equipos_entregados', 'registro_rrhh'],
-    cambio_equipo: ['incidencia_detectada', 'cambio_ejecutado', 'confirmacion_rrhh'],
-    offboarding: ['solicitud_emitida', 'equipo_recibido', 'consolidacion_cierre'],
+    cambio_equipo: ['incidencia_detectada', 'coordinando_cambio', 'cambio_ejecutado', 'confirmacion_rrhh'],
+    offboarding: ['solicitud_emitida', 'coordinacion_en_curso', 'equipo_recibido', 'consolidacion_cierre'],
   };
   return map[tipo] || [];
 }
@@ -233,6 +242,23 @@ export default function SolicitudDetailPage() {
   const [medioEntrega, setMedioEntrega] = useState<'presencial' | 'chilexpress'>('presencial');
   const [lugarEntrega, setLugarEntrega] = useState('');
   const [otChilexpressEntrega, setOtChilexpressEntrega] = useState('');
+  const [ciudadEntrega, setCiudadEntrega] = useState('');
+
+  // Coordinar Cambio (cambio_equipo): igual patron que Coordinar Entrega,
+  // pero ANTES de ejecutar el cambio (no despues).
+  const [fechaCambioCoordinada, setFechaCambioCoordinada] = useState('');
+  const [medioCambio, setMedioCambio] = useState<'presencial' | 'chilexpress'>('presencial');
+  const [lugarCambio, setLugarCambio] = useState('');
+  const [otCambioChilexpress, setOtCambioChilexpress] = useState('');
+  const [ciudadCambio, setCiudadCambio] = useState('');
+
+  // Coordinar Devolución (offboarding): igual patron, ANTES de recibir los
+  // equipos.
+  const [fechaDevolucionCoordinada, setFechaDevolucionCoordinada] = useState('');
+  const [medioDevolucion, setMedioDevolucion] = useState<'presencial' | 'chilexpress'>('presencial');
+  const [lugarDevolucion, setLugarDevolucion] = useState('');
+  const [otChilexpressDevolucion, setOtChilexpressDevolucion] = useState('');
+  const [ciudadDevolucion, setCiudadDevolucion] = useState('');
 
   // Recepcion de equipos (offboarding): estado y observaciones por cada
   // asignacion activa del empleado, calificados de forma individual.
@@ -416,7 +442,11 @@ export default function SolicitudDetailPage() {
   // equipos_entregados.
   const handleCoordinarEntrega = () => {
     if (!fechaEntregaCoordinada) {
-      setError('Indica la fecha y hora de entrega');
+      setError(
+        medioEntrega === 'presencial'
+          ? 'Indica la fecha y hora de entrega'
+          : 'Indica la fecha y hora de entrega estimada'
+      );
       return;
     }
     if (medioEntrega === 'presencial' && !lugarEntrega.trim()) {
@@ -427,11 +457,83 @@ export default function SolicitudDetailPage() {
       setError('Indica el número de OT de Chilexpress');
       return;
     }
+    if (medioEntrega === 'chilexpress' && !ciudadEntrega.trim()) {
+      setError('Indica la ubicación de destino');
+      return;
+    }
     handleTransition('equipos_entregados', {
       fechaEntregaCoordinada,
       medioEntrega,
       lugarEntrega: medioEntrega === 'presencial' ? lugarEntrega : undefined,
       otChilexpressEntrega: medioEntrega === 'chilexpress' ? otChilexpressEntrega : undefined,
+      ciudadEntrega: medioEntrega === 'chilexpress' ? ciudadEntrega : undefined,
+    });
+  };
+
+  // Etapa "Incidencia Detectada" del cambio de equipo: antes de ejecutar el
+  // cambio, se coordina cuando y como se va a hacer -- presencial (fecha,
+  // hora y lugar) u OT de despacho (numero de OT, ciudad destino y fecha
+  // estimada de llegada).
+  const handleCoordinarCambio = () => {
+    if (!fechaCambioCoordinada) {
+      setError(
+        medioCambio === 'presencial'
+          ? 'Indica la fecha y hora del cambio'
+          : 'Indica la fecha estimada de llegada'
+      );
+      return;
+    }
+    if (medioCambio === 'presencial' && !lugarCambio.trim()) {
+      setError('Indica el lugar del cambio presencial');
+      return;
+    }
+    if (medioCambio === 'chilexpress' && !otCambioChilexpress.trim()) {
+      setError('Indica el número de OT de Chilexpress');
+      return;
+    }
+    if (medioCambio === 'chilexpress' && !ciudadCambio.trim()) {
+      setError('Indica la ciudad de destino');
+      return;
+    }
+    handleTransition('coordinando_cambio', {
+      fechaCambioCoordinada,
+      medioCambio,
+      lugarCambio: medioCambio === 'presencial' ? lugarCambio : undefined,
+      otCambioChilexpress: medioCambio === 'chilexpress' ? otCambioChilexpress : undefined,
+      ciudadCambio: medioCambio === 'chilexpress' ? ciudadCambio : undefined,
+    });
+  };
+
+  // Etapa "Solicitud Emitida" del offboarding: antes de recibir los equipos,
+  // se coordina cuando y como se van a devolver -- mismo patron que Coordinar
+  // Cambio.
+  const handleCoordinarDevolucion = () => {
+    if (!fechaDevolucionCoordinada) {
+      setError(
+        medioDevolucion === 'presencial'
+          ? 'Indica la fecha y hora de la devolución'
+          : 'Indica la fecha estimada de llegada'
+      );
+      return;
+    }
+    if (medioDevolucion === 'presencial' && !lugarDevolucion.trim()) {
+      setError('Indica el lugar de la devolución presencial');
+      return;
+    }
+    if (medioDevolucion === 'chilexpress' && !otChilexpressDevolucion.trim()) {
+      setError('Indica el número de OT de Chilexpress');
+      return;
+    }
+    if (medioDevolucion === 'chilexpress' && !ciudadDevolucion.trim()) {
+      setError('Indica la ciudad de destino');
+      return;
+    }
+    handleTransition('coordinacion_en_curso', {
+      fechaDevolucionCoordinada,
+      medioDevolucion,
+      lugarDevolucion: medioDevolucion === 'presencial' ? lugarDevolucion : undefined,
+      otChilexpress: medioDevolucion === 'chilexpress' ? otChilexpressDevolucion : undefined,
+      ciudadDevolucion: medioDevolucion === 'chilexpress' ? ciudadDevolucion : undefined,
     });
   };
 
@@ -862,7 +964,7 @@ export default function SolicitudDetailPage() {
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha y hora de entrega
+                    {medioEntrega === 'presencial' ? 'Fecha y hora de entrega' : 'Fecha y hora de entrega estimada'}
                   </label>
                   <input
                     type="datetime-local"
@@ -908,18 +1010,32 @@ export default function SolicitudDetailPage() {
                     />
                   </div>
                 ) : (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      N° de OT Chilexpress
-                    </label>
-                    <input
-                      type="text"
-                      value={otChilexpressEntrega}
-                      onChange={(e) => setOtChilexpressEntrega(e.target.value)}
-                      placeholder="ej: CH-2026-004567"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    />
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        N° de OT Chilexpress
+                      </label>
+                      <input
+                        type="text"
+                        value={otChilexpressEntrega}
+                        onChange={(e) => setOtChilexpressEntrega(e.target.value)}
+                        placeholder="ej: CH-2026-004567"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Ubicación de destino
+                      </label>
+                      <input
+                        type="text"
+                        value={ciudadEntrega}
+                        onChange={(e) => setCiudadEntrega(e.target.value)}
+                        placeholder="ej: Hotel HD Express, Concepción"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </>
                 )}
                 <button
                   onClick={handleCoordinarEntrega}
@@ -932,6 +1048,99 @@ export default function SolicitudDetailPage() {
               </div>
             </div>
           ) : data.tipo === 'cambio_equipo' && !isClosed && data.estado === 'incidencia_detectada' ? (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="font-semibold text-gray-900 mb-1">Coordinar Cambio</h3>
+              <p className="text-sm text-gray-500 mb-3">
+                Define cuándo y cómo se hará el cambio de equipo a {data.employee.nombres}{' '}
+                {data.employee.apellidoPaterno}, antes de ejecutarlo.
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {medioCambio === 'presencial' ? 'Fecha y hora del cambio' : 'Fecha estimada de llegada'}
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={fechaCambioCoordinada}
+                    onChange={(e) => setFechaCambioCoordinada(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Medio</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="medioCambio"
+                        checked={medioCambio === 'presencial'}
+                        onChange={() => setMedioCambio('presencial')}
+                      />
+                      Presencial
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="medioCambio"
+                        checked={medioCambio === 'chilexpress'}
+                        onChange={() => setMedioCambio('chilexpress')}
+                      />
+                      Despacho (Chilexpress)
+                    </label>
+                  </div>
+                </div>
+                {medioCambio === 'presencial' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Lugar del cambio
+                    </label>
+                    <input
+                      type="text"
+                      value={lugarCambio}
+                      onChange={(e) => setLugarCambio(e.target.value)}
+                      placeholder="ej: Oficina Santiago, piso 4"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        N° de OT Chilexpress
+                      </label>
+                      <input
+                        type="text"
+                        value={otCambioChilexpress}
+                        onChange={(e) => setOtCambioChilexpress(e.target.value)}
+                        placeholder="ej: CH-2026-004567"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Ciudad destino
+                      </label>
+                      <input
+                        type="text"
+                        value={ciudadCambio}
+                        onChange={(e) => setCiudadCambio(e.target.value)}
+                        placeholder="ej: Concepción"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </>
+                )}
+                <button
+                  onClick={handleCoordinarCambio}
+                  disabled={transitioning}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                  {transitioning ? 'Guardando...' : 'Confirmar Coordinación'}
+                </button>
+              </div>
+            </div>
+          ) : data.tipo === 'cambio_equipo' && !isClosed && data.estado === 'coordinando_cambio' ? (
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="font-semibold text-gray-900 mb-1">Cambio de Equipo</h3>
               <p className="text-sm text-gray-500 mb-3">
@@ -987,6 +1196,99 @@ export default function SolicitudDetailPage() {
               </button>
             </div>
           ) : data.tipo === 'offboarding' && !isClosed && data.estado === 'solicitud_emitida' ? (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="font-semibold text-gray-900 mb-1">Coordinar Devolución</h3>
+              <p className="text-sm text-gray-500 mb-3">
+                Define cuándo y cómo {data.employee.nombres} {data.employee.apellidoPaterno} va a
+                devolver sus equipos, antes de recibirlos.
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {medioDevolucion === 'presencial' ? 'Fecha y hora de la devolución' : 'Fecha estimada de llegada'}
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={fechaDevolucionCoordinada}
+                    onChange={(e) => setFechaDevolucionCoordinada(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Medio</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="medioDevolucion"
+                        checked={medioDevolucion === 'presencial'}
+                        onChange={() => setMedioDevolucion('presencial')}
+                      />
+                      Presencial
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="medioDevolucion"
+                        checked={medioDevolucion === 'chilexpress'}
+                        onChange={() => setMedioDevolucion('chilexpress')}
+                      />
+                      Despacho (Chilexpress)
+                    </label>
+                  </div>
+                </div>
+                {medioDevolucion === 'presencial' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Lugar de la devolución
+                    </label>
+                    <input
+                      type="text"
+                      value={lugarDevolucion}
+                      onChange={(e) => setLugarDevolucion(e.target.value)}
+                      placeholder="ej: Oficina Santiago, piso 4"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        N° de OT Chilexpress
+                      </label>
+                      <input
+                        type="text"
+                        value={otChilexpressDevolucion}
+                        onChange={(e) => setOtChilexpressDevolucion(e.target.value)}
+                        placeholder="ej: CH-2026-004567"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Ciudad destino
+                      </label>
+                      <input
+                        type="text"
+                        value={ciudadDevolucion}
+                        onChange={(e) => setCiudadDevolucion(e.target.value)}
+                        placeholder="ej: Concepción"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </>
+                )}
+                <button
+                  onClick={handleCoordinarDevolucion}
+                  disabled={transitioning}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                  {transitioning ? 'Guardando...' : 'Confirmar Coordinación'}
+                </button>
+              </div>
+            </div>
+          ) : data.tipo === 'offboarding' && !isClosed && data.estado === 'coordinacion_en_curso' ? (
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="font-semibold text-gray-900 mb-1">Recibir Equipos</h3>
               <p className="text-sm text-gray-500 mb-3">
@@ -1175,7 +1477,7 @@ export default function SolicitudDetailPage() {
                     {faltanPorCalificar > 0 && (
                       <p className="text-xs text-amber-700 mb-2">
                         Falta calificar {faltanPorCalificar} ítem(s) (elige un estado para cada
-                        uno, o "No devolvió" si corresponde).
+                        uno, o &ldquo;No devolvió&rdquo; si corresponde).
                       </p>
                     )}
                     <button
@@ -1856,7 +2158,9 @@ export default function SolicitudDetailPage() {
               <h3 className="font-semibold text-gray-900 mb-4">Entrega Coordinada</h3>
               <dl className="space-y-3 text-sm">
                 <div>
-                  <dt className="text-gray-500">Fecha y Hora</dt>
+                  <dt className="text-gray-500">
+                    {data.medioEntrega === 'presencial' ? 'Fecha y Hora' : 'Fecha y Hora Estimada'}
+                  </dt>
                   <dd className="text-gray-900">
                     {new Date(data.fechaEntregaCoordinada).toLocaleString('es-CL')}
                   </dd>
@@ -1879,6 +2183,99 @@ export default function SolicitudDetailPage() {
                   <div>
                     <dt className="text-gray-500">OT Chilexpress</dt>
                     <dd className="text-gray-900">{data.otChilexpressEntrega}</dd>
+                  </div>
+                )}
+                {data.ciudadEntrega && (
+                  <div>
+                    <dt className="text-gray-500">Ubicación de destino</dt>
+                    <dd className="text-gray-900">{data.ciudadEntrega}</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          )}
+
+          {/* Cambio Coordinado: mismo patron que Entrega Coordinada, para
+              cambio_equipo. */}
+          {data.tipo === 'cambio_equipo' && data.fechaCambioCoordinada && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="font-semibold text-gray-900 mb-4">Cambio Coordinado</h3>
+              <dl className="space-y-3 text-sm">
+                <div>
+                  <dt className="text-gray-500">
+                    {data.medioCambio === 'presencial' ? 'Fecha y Hora' : 'Fecha Estimada de Llegada'}
+                  </dt>
+                  <dd className="text-gray-900">
+                    {new Date(data.fechaCambioCoordinada).toLocaleString('es-CL')}
+                  </dd>
+                </div>
+                {data.medioCambio && (
+                  <div>
+                    <dt className="text-gray-500">Medio</dt>
+                    <dd className="text-gray-900">
+                      {data.medioCambio === 'presencial' ? 'Presencial' : 'Despacho (Chilexpress)'}
+                    </dd>
+                  </div>
+                )}
+                {data.lugarCambio && (
+                  <div>
+                    <dt className="text-gray-500">Lugar</dt>
+                    <dd className="text-gray-900">{data.lugarCambio}</dd>
+                  </div>
+                )}
+                {data.otCambioChilexpress && (
+                  <div>
+                    <dt className="text-gray-500">OT Chilexpress</dt>
+                    <dd className="text-gray-900">{data.otCambioChilexpress}</dd>
+                  </div>
+                )}
+                {data.ciudadCambio && (
+                  <div>
+                    <dt className="text-gray-500">Ciudad destino</dt>
+                    <dd className="text-gray-900">{data.ciudadCambio}</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          )}
+
+          {/* Devolución Coordinada: mismo patron, para offboarding. */}
+          {data.tipo === 'offboarding' && data.fechaDevolucionCoordinada && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="font-semibold text-gray-900 mb-4">Devolución Coordinada</h3>
+              <dl className="space-y-3 text-sm">
+                <div>
+                  <dt className="text-gray-500">
+                    {data.medioDevolucion === 'presencial' ? 'Fecha y Hora' : 'Fecha Estimada de Llegada'}
+                  </dt>
+                  <dd className="text-gray-900">
+                    {new Date(data.fechaDevolucionCoordinada).toLocaleString('es-CL')}
+                  </dd>
+                </div>
+                {data.medioDevolucion && (
+                  <div>
+                    <dt className="text-gray-500">Medio</dt>
+                    <dd className="text-gray-900">
+                      {data.medioDevolucion === 'presencial' ? 'Presencial' : 'Despacho (Chilexpress)'}
+                    </dd>
+                  </div>
+                )}
+                {data.lugarDevolucion && (
+                  <div>
+                    <dt className="text-gray-500">Lugar</dt>
+                    <dd className="text-gray-900">{data.lugarDevolucion}</dd>
+                  </div>
+                )}
+                {data.otChilexpress && (
+                  <div>
+                    <dt className="text-gray-500">OT Chilexpress</dt>
+                    <dd className="text-gray-900">{data.otChilexpress}</dd>
+                  </div>
+                )}
+                {data.ciudadDevolucion && (
+                  <div>
+                    <dt className="text-gray-500">Ciudad destino</dt>
+                    <dd className="text-gray-900">{data.ciudadDevolucion}</dd>
                   </div>
                 )}
               </dl>

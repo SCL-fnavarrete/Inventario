@@ -7,6 +7,7 @@ import {
   generateActaDevolucion,
 } from '@/lib/services/documentGeneratorService';
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 const VALID_TIPOS = [
   'anexo-entrega',
@@ -31,7 +32,7 @@ export async function GET(
 ) {
 
   try {
-    await requirePermission('solicitudes', 'read');
+    const session = await requirePermission('solicitudes', 'read');
     const { id, tipo } = await params;
 
     if (!VALID_TIPOS.includes(tipo as DocTipo)) {
@@ -44,12 +45,14 @@ export async function GET(
     // Verify request exists
     const solicitud = await prisma.workflowRequest.findUnique({
       where: { id },
-      select: { id: true, numero: true, tipo: true, estado: true },
+      select: { id: true, numero: true, tipo: true, estado: true, sedeId: true },
     });
 
     if (!solicitud) {
       return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
     }
+
+    assertSedeAccess(session, solicitud.sedeId, 'Solicitud no encontrada');
 
     let pdfBuffer: Buffer;
 

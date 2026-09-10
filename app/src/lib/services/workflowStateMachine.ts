@@ -37,7 +37,14 @@ const TRANSITIONS: Record<TipoSolicitud, TransitionRule[]> = {
   ],
   cambio_equipo: [
     {
+      // Coordinacion ANTES de ejecutar el cambio: fecha/lugar presencial, u
+      // OT + fecha estimada de llegada. Ver SPEC 2.5.2 regla 9.
       from: 'incidencia_detectada',
+      to: 'coordinando_cambio',
+      roles: ['tecnico', 'admin'],
+    },
+    {
+      from: 'coordinando_cambio',
       to: 'cambio_ejecutado',
       roles: ['tecnico', 'admin'],
     },
@@ -48,13 +55,19 @@ const TRANSITIONS: Record<TipoSolicitud, TransitionRule[]> = {
       roles: ['tecnico', 'admin'],
     },
   ],
-  // La coordinacion de devolucion (medio, OT Chilexpress, ciudad/ubicacion)
-  // ya se captura al crear la solicitud -- no hace falta una etapa aparte
-  // para eso. El flujo queda en 3 pasos: se emite la solicitud, se reciben
-  // los equipos (calificando el estado de cada uno), se cierra.
   offboarding: [
     {
+      // Coordinacion ANTES de recibir los equipos: fecha/lugar presencial, u
+      // OT + fecha estimada de llegada. Mismos campos que ya se podian
+      // llenar al crear el ticket (medioDevolucion/otChilexpress/
+      // ciudadDevolucion), ahora con una etapa propia para poder
+      // completarlos/actualizarlos despues. Ver SPEC 2.5.2 regla 9.
       from: 'solicitud_emitida',
+      to: 'coordinacion_en_curso',
+      roles: ['tecnico', 'admin'],
+    },
+    {
+      from: 'coordinacion_en_curso',
       to: 'equipo_recibido',
       roles: ['tecnico', 'admin'],
     },
@@ -87,8 +100,8 @@ const STATES_BY_TYPE: Record<TipoSolicitud, EstadoSolicitud[]> = {
     'equipos_entregados',
     'registro_rrhh',
   ],
-  cambio_equipo: ['incidencia_detectada', 'cambio_ejecutado', 'confirmacion_rrhh'],
-  offboarding: ['solicitud_emitida', 'equipo_recibido', 'consolidacion_cierre'],
+  cambio_equipo: ['incidencia_detectada', 'coordinando_cambio', 'cambio_ejecutado', 'confirmacion_rrhh'],
+  offboarding: ['solicitud_emitida', 'coordinacion_en_curso', 'equipo_recibido', 'consolidacion_cierre'],
 };
 
 export const STATE_LABELS: Record<EstadoSolicitud, string> = {
@@ -98,10 +111,11 @@ export const STATE_LABELS: Record<EstadoSolicitud, string> = {
   equipos_entregados: 'Equipos Entregados',
   registro_rrhh: 'Ticket Cerrado',
   incidencia_detectada: 'Incidencia Detectada',
+  coordinando_cambio: 'Coordinando Cambio',
   cambio_ejecutado: 'Cambio Ejecutado',
   confirmacion_rrhh: 'Ticket Cerrado',
   solicitud_emitida: 'Solicitud Emitida',
-  coordinacion_en_curso: 'Coordinación en Curso',
+  coordinacion_en_curso: 'Coordinando Devolución',
   equipo_recibido: 'Equipo Recibido',
   consolidacion_cierre: 'Consolidación y Cierre',
   cancelada: 'Cancelada',

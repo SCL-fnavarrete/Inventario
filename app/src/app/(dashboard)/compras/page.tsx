@@ -27,6 +27,13 @@ type Supplier = {
   rutEmpresa: string | null;
 };
 
+type Sede = {
+  id: string;
+  nombre: string;
+  codigo: string;
+  activa: boolean;
+};
+
 type Purchase = {
   id: string;
   numeroFactura: string;
@@ -36,6 +43,7 @@ type Purchase = {
   ordenCompra: string | null;
   documentoUrl: string | null;
   supplier: Supplier;
+  sede: Sede | null;
   _count: {
     purchaseAssets: number;
   };
@@ -61,10 +69,12 @@ function formatCurrency(amount: number | null, moneda: string): string {
 export default function ComprasPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [sedes, setSedes] = useState<Sede[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterSupplier, setFilterSupplier] = useState("");
+  const [filterSede, setFilterSede] = useState("");
   const [filterMoneda, setFilterMoneda] = useState("");
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
@@ -73,11 +83,12 @@ export default function ComprasPage() {
 
   useEffect(() => {
     fetchSuppliers();
+    fetchSedes();
   }, []);
 
   useEffect(() => {
     fetchPurchases();
-  }, [search, filterSupplier, filterMoneda, fechaDesde, fechaHasta, page]);
+  }, [search, filterSupplier, filterSede, filterMoneda, fechaDesde, fechaHasta, page]);
 
   async function fetchSuppliers() {
     try {
@@ -86,6 +97,16 @@ export default function ComprasPage() {
       setSuppliers(data.data || []);
     } catch (error) {
       console.error("Error fetching suppliers:", error);
+    }
+  }
+
+  async function fetchSedes() {
+    try {
+      const res = await fetch("/api/sedes");
+      const data = await res.json();
+      setSedes(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error fetching sedes:", error);
     }
   }
 
@@ -99,6 +120,7 @@ export default function ComprasPage() {
 
       if (search) params.append("search", search);
       if (filterSupplier) params.append("supplierId", filterSupplier);
+      if (filterSede) params.append("sedeId", filterSede);
       if (filterMoneda) params.append("moneda", filterMoneda);
       if (fechaDesde) params.append("fechaDesde", fechaDesde);
       if (fechaHasta) params.append("fechaHasta", fechaHasta);
@@ -234,6 +256,22 @@ export default function ComprasPage() {
             </select>
 
             <select
+              value={filterSede}
+              onChange={(e) => {
+                setFilterSede(e.target.value);
+                setPage(1);
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Todas las sedes</option>
+              {sedes.map((sede) => (
+                <option key={sede.id} value={sede.id}>
+                  {sede.nombre}
+                </option>
+              ))}
+            </select>
+
+            <select
               value={filterMoneda}
               onChange={(e) => {
                 setFilterMoneda(e.target.value);
@@ -273,11 +311,12 @@ export default function ComprasPage() {
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            {(fechaDesde || fechaHasta || filterSupplier || filterMoneda || search) && (
+            {(fechaDesde || fechaHasta || filterSupplier || filterSede || filterMoneda || search) && (
               <button
                 onClick={() => {
                   setSearch("");
                   setFilterSupplier("");
+                  setFilterSede("");
                   setFilterMoneda("");
                   setFechaDesde("");
                   setFechaHasta("");
@@ -324,6 +363,9 @@ export default function ComprasPage() {
                       Proveedor
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Sede
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Fecha
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
@@ -358,6 +400,11 @@ export default function ComprasPage() {
                             <p className="text-xs text-gray-500">{purchase.supplier.rutEmpresa}</p>
                           )}
                         </div>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-500">
+                        {purchase.sede ? purchase.sede.nombre : (
+                          <span className="text-gray-400 italic">Transversal</span>
+                        )}
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-500">
                         {formatDate(purchase.fechaFactura)}

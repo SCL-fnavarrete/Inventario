@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { completeMaintenanceSchema } from "@/lib/validations/maintenance";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -10,7 +11,7 @@ interface RouteParams {
 // POST /api/mantenciones/[id]/completar - Completar mantención
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('mantenciones', 'write');
+    const session = await requirePermission('mantenciones', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -29,6 +30,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const maintenance = await prisma.maintenance.findUnique({
       where: { id },
       include: {
+        tipo: true,
         asset: true,
       },
     });
@@ -39,6 +41,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    assertSedeAccess(session, maintenance.asset.sedeId, 'Mantención no encontrada');
 
     // Verificar que no está ya completada o cancelada
     if (maintenance.estado === "completada") {
@@ -69,6 +73,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           proximaMantencion: data.proximaMantencion,
         },
         include: {
+          tipo: true,
           asset: {
             include: { categoria: true },
           },
@@ -96,7 +101,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         data: {
           assetId: maintenance.assetId,
           tipoEvento: "mantencion",
-          descripcion: `Mantención ${maintenance.tipo} completada. Resultado: ${data.resultado}`,
+          descripcion: `Mantención ${maintenance.tipo.nombre} completada. Resultado: ${data.resultado}`,
           datosAnteriores: { estado: "en_mantencion" },
           datosNuevos: {
             estado: nuevoEstado,
@@ -113,7 +118,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         await tx.maintenance.create({
           data: {
             assetId: maintenance.assetId,
-            tipo: maintenance.tipo,
+            tipoId: maintenance.tipoId,
             descripcion: `Mantención programada (siguiente de #${id.slice(0, 8)})`,
             fechaProgramada: data.proximaMantencion,
             estado: "pendiente",

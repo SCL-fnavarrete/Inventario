@@ -9,7 +9,16 @@ type Category = {
   descripcion: string | null;
   requiereSerie: boolean;
   requiereImei: boolean;
+  stockMinimo: number;
   _count?: { assets: number };
+};
+
+const FORM_INICIAL = {
+  nombre: "",
+  descripcion: "",
+  requiereSerie: true,
+  requiereImei: false,
+  stockMinimo: 3,
 };
 
 export default function CategoriasPage() {
@@ -17,12 +26,7 @@ export default function CategoriasPage() {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [formData, setFormData] = useState({
-    nombre: "",
-    descripcion: "",
-    requiereSerie: true,
-    requiereImei: false,
-  });
+  const [formData, setFormData] = useState(FORM_INICIAL);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -59,7 +63,7 @@ export default function CategoriasPage() {
       if (res.ok) {
         await fetchCategories();
         setIsCreating(false);
-        setFormData({ nombre: "", descripcion: "", requiereSerie: true, requiereImei: false });
+        setFormData(FORM_INICIAL);
         setError("");
       } else {
         const data = await res.json();
@@ -87,7 +91,7 @@ export default function CategoriasPage() {
       if (res.ok) {
         await fetchCategories();
         setEditingId(null);
-        setFormData({ nombre: "", descripcion: "", requiereSerie: true, requiereImei: false });
+        setFormData(FORM_INICIAL);
         setError("");
       } else {
         const data = await res.json();
@@ -126,6 +130,7 @@ export default function CategoriasPage() {
       descripcion: category.descripcion || "",
       requiereSerie: category.requiereSerie,
       requiereImei: category.requiereImei,
+      stockMinimo: category.stockMinimo,
     });
     setIsCreating(false);
     setError("");
@@ -134,7 +139,7 @@ export default function CategoriasPage() {
   const cancelEdit = () => {
     setEditingId(null);
     setIsCreating(false);
-    setFormData({ nombre: "", descripcion: "", requiereSerie: true, requiereImei: false });
+    setFormData(FORM_INICIAL);
     setError("");
   };
 
@@ -157,7 +162,7 @@ export default function CategoriasPage() {
           <button
             onClick={() => {
               setIsCreating(true);
-              setFormData({ nombre: "", descripcion: "", requiereSerie: true, requiereImei: false });
+              setFormData(FORM_INICIAL);
             }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
@@ -222,6 +227,22 @@ export default function CategoriasPage() {
                 <span className="text-sm text-gray-700">Requiere IMEI</span>
               </label>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Stock mínimo (disponibles)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={formData.stockMinimo}
+                onChange={(e) => setFormData({ ...formData, stockMinimo: parseInt(e.target.value, 10) || 0 })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                El Dashboard avisa cuando los activos disponibles de esta categoría llegan a
+                este número o menos.
+              </p>
+            </div>
           </div>
           <div className="flex justify-end gap-3 mt-4">
             <button
@@ -257,6 +278,9 @@ export default function CategoriasPage() {
               </th>
               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Req. IMEI
+              </th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Stock mínimo
               </th>
               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Activos
@@ -301,6 +325,15 @@ export default function CategoriasPage() {
                         checked={formData.requiereImei}
                         onChange={(e) => setFormData({ ...formData, requiereImei: e.target.checked })}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <input
+                        type="number"
+                        min={0}
+                        value={formData.stockMinimo}
+                        onChange={(e) => setFormData({ ...formData, stockMinimo: parseInt(e.target.value, 10) || 0 })}
+                        className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-center"
                       />
                     </td>
                     <td className="px-6 py-4 text-center text-gray-500">
@@ -352,6 +385,9 @@ export default function CategoriasPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center text-gray-500">
+                      {category.stockMinimo}
+                    </td>
+                    <td className="px-6 py-4 text-center text-gray-500">
                       {category._count?.assets || 0}
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -379,7 +415,7 @@ export default function CategoriasPage() {
             ))}
             {categories.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                   No hay categorías registradas
                 </td>
               </tr>

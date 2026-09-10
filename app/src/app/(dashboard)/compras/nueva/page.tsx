@@ -25,6 +25,13 @@ type Supplier = {
   rutEmpresa: string | null;
 };
 
+type Sede = {
+  id: string;
+  nombre: string;
+  codigo: string;
+  activa: boolean;
+};
+
 type Asset = {
   id: string;
   numeroSerie: string | null;
@@ -46,6 +53,7 @@ export default function NuevaCompraPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [sedes, setSedes] = useState<Sede[]>([]);
   const [availableAssets, setAvailableAssets] = useState<Asset[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(false);
   const [assetSearch, setAssetSearch] = useState("");
@@ -54,6 +62,11 @@ export default function NuevaCompraPage() {
   // Form data
   const [formData, setFormData] = useState({
     supplierId: "",
+    // A que sede se le atribuye la compra (9-sep-2026). Compras es
+    // admin-only, asi que aca siempre se elige de una lista -- no se
+    // autocompleta desde la sesion como en Activos/Empleados, porque quien
+    // usa esta pantalla es admin, que no tiene sede propia.
+    sedeId: "",
     numeroFactura: "",
     fechaFactura: new Date().toISOString().split("T")[0],
     montoTotal: "",
@@ -66,7 +79,18 @@ export default function NuevaCompraPage() {
 
   useEffect(() => {
     fetchSuppliers();
+    fetchSedes();
   }, []);
+
+  async function fetchSedes() {
+    try {
+      const res = await fetch("/api/sedes?activas=true");
+      const data = await res.json();
+      setSedes(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error fetching sedes:", error);
+    }
+  }
 
   useEffect(() => {
     if (assetSearch.length >= 2) {
@@ -139,6 +163,7 @@ export default function NuevaCompraPage() {
     try {
       const payload = {
         supplierId: formData.supplierId,
+        sedeId: formData.sedeId || null,
         numeroFactura: formData.numeroFactura,
         fechaFactura: formData.fechaFactura,
         montoTotal: formData.montoTotal ? parseFloat(formData.montoTotal) : null,
@@ -232,6 +257,29 @@ export default function NuevaCompraPage() {
               >
                 + Agregar nuevo proveedor
               </Link>
+            </div>
+
+            {/* Sede */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sede
+              </label>
+              <select
+                value={formData.sedeId}
+                onChange={(e) => setFormData({ ...formData, sedeId: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Sin sede (transversal)</option>
+                {sedes.map((sede) => (
+                  <option key={sede.id} value={sede.id}>
+                    {sede.nombre}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                A qué sede se le atribuye esta compra. Déjalo vacío si es transversal (ej.
+                licencias de software para toda la empresa).
+              </p>
             </div>
 
             {/* Número de Factura */}

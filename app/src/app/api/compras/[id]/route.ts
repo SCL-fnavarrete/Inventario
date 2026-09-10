@@ -18,6 +18,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       where: { id },
       include: {
         supplier: true,
+        sede: {
+          select: { id: true, nombre: true, codigo: true },
+        },
         purchaseAssets: {
           include: {
             asset: {
@@ -108,11 +111,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    // Verificar que la sede existe si se va a cambiar
+    if (data.sedeId) {
+      const sede = await prisma.sede.findUnique({ where: { id: data.sedeId } });
+      if (!sede) {
+        return NextResponse.json({ error: "Sede no encontrada" }, { status: 404 });
+      }
+    }
+
     // Actualizar la compra
     const purchase = await prisma.purchase.update({
       where: { id },
       data: {
         ...(data.supplierId !== undefined && { supplierId: data.supplierId }),
+        ...(data.sedeId !== undefined && { sedeId: data.sedeId }),
         ...(data.numeroFactura !== undefined && { numeroFactura: data.numeroFactura }),
         ...(data.fechaFactura !== undefined && { fechaFactura: data.fechaFactura }),
         ...(data.montoTotal !== undefined && { montoTotal: data.montoTotal }),
@@ -127,6 +139,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             razonSocial: true,
             rutEmpresa: true,
           },
+        },
+        sede: {
+          select: { id: true, nombre: true, codigo: true },
         },
         purchaseAssets: {
           include: {

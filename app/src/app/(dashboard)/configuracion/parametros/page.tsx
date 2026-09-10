@@ -82,10 +82,14 @@ export default function ParametrosPage() {
     sitioWeb: "www.sclconsultores.com",
   });
 
-  // Estado para notificaciones
+  // Estado para notificaciones. Solo existen dos roles (admin/tecnico, ver
+  // permissions.ts) -- estas notificaciones son para soporte, no para RRHH
+  // (que ya no es un rol del sistema), y cubren las mismas alertas que ya
+  // se ven en el Dashboard: stock, mantenciones vencidas y devoluciones
+  // pendientes.
   const [notificacionesData, setNotificacionesData] = useState({
-    emailRrhh: "rrhh@sclconsultores.com",
-    notificarDesvinculaciones: true,
+    emailSoporte: "soporte@sclconsultores.com",
+    notificarStockBajo: true,
     notificarMantencionesVencidas: true,
     diasAnticipacionMantencion: 7,
     notificarDevolucionesPendientes: true,
@@ -209,24 +213,28 @@ export default function ParametrosPage() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email de RRHH para Notificaciones
+                Email de Soporte para Notificaciones
               </label>
               <input
                 type="email"
-                value={notificacionesData.emailRrhh}
-                onChange={(e) => setNotificacionesData({ ...notificacionesData, emailRrhh: e.target.value })}
+                value={notificacionesData.emailSoporte}
+                onChange={(e) => setNotificacionesData({ ...notificacionesData, emailSoporte: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Estas alertas son para Soporte (el equipo que trabaja con activos, mantenciones y
+                desvinculaciones) — no para Recursos Humanos, que ya no es un rol del sistema.
+              </p>
             </div>
             <div className="space-y-3">
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  checked={notificacionesData.notificarDesvinculaciones}
-                  onChange={(e) => setNotificacionesData({ ...notificacionesData, notificarDesvinculaciones: e.target.checked })}
+                  checked={notificacionesData.notificarStockBajo}
+                  onChange={(e) => setNotificacionesData({ ...notificacionesData, notificarStockBajo: e.target.checked })}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Notificar desvinculaciones a RRHH</span>
+                <span className="text-sm text-gray-700">Notificar stock bajo o sin stock (Kit de Bienvenida / EPP)</span>
               </label>
               <label className="flex items-center gap-2">
                 <input
@@ -235,7 +243,7 @@ export default function ParametrosPage() {
                   onChange={(e) => setNotificacionesData({ ...notificacionesData, notificarMantencionesVencidas: e.target.checked })}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Notificar mantenciones vencidas</span>
+                <span className="text-sm text-gray-700">Notificar mantenciones vencidas (equipos)</span>
               </label>
               <label className="flex items-center gap-2">
                 <input

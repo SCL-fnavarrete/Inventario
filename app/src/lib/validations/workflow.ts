@@ -10,6 +10,7 @@ export const EstadoSolicitudEnum = z.enum([
   'equipos_entregados',
   'registro_rrhh',
   'incidencia_detectada',
+  'coordinando_cambio',
   'cambio_ejecutado',
   'confirmacion_rrhh',
   'solicitud_emitida',

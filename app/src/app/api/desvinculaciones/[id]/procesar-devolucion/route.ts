@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { registerReturnSchema } from "@/lib/validations/termination";
 import { executeTerminationReturn } from "@/lib/services/workflowExecutionService";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // POST /api/desvinculaciones/[id]/procesar-devolucion - Procesar devolución de equipos
 export async function POST(
@@ -10,7 +11,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requirePermission('desvinculaciones', 'write');
+    const session = await requirePermission('desvinculaciones', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -28,6 +29,7 @@ export async function POST(
     // Verificar que existe la desvinculación
     const termination = await prisma.termination.findUnique({
       where: { id },
+      include: { employee: { select: { sedeId: true } } },
     });
 
     if (!termination) {
@@ -36,6 +38,8 @@ export async function POST(
         { status: 404 }
       );
     }
+
+    assertSedeAccess(session, termination.employee.sedeId, 'Desvinculación no encontrada');
 
     // Procesar devolución en transacción usando servicio compartido
     await prisma.$transaction(async (tx) => {

@@ -21,6 +21,15 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-require-imports": "off",
     },
   },
+  // Los tests destructuran `{ campo, ...resto }` para probar el schema sin
+  // ese campo; `campo` nunca se usa a proposito. ignoreRestSiblings evita el
+  // warning de no-unused-vars para ese patron especifico, sin dejar de
+  // avisar sobre variables realmente no usadas.
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["warn", { ignoreRestSiblings: true }],
+    },
+  },
 ]);
 
 export default eslintConfig;

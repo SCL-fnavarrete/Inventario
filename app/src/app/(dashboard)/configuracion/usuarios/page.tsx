@@ -1,44 +1,45 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Save, X, Shield, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Plus, Edit, Trash2, Save, X, ShieldCheck, ShieldAlert } from "lucide-react";
+
+type Sede = {
+  id: string;
+  codigo: string;
+  nombre: string;
+  activa: boolean;
+};
 
 type SystemUser = {
   id: string;
   email: string;
   nombre: string;
-  rol: "admin" | "tecnico" | "supervisor" | "rrhh" | "auditor";
+  rol: "admin" | "tecnico";
   activo: boolean;
   ultimoLogin: string | null;
   createdAt: string;
+  sedeId: string | null;
+  sede: { id: string; codigo: string; nombre: string } | null;
 };
 
 const roleLabels: Record<string, string> = {
   admin: "Administrador",
   tecnico: "Técnico IT",
-  supervisor: "Supervisor",
-  rrhh: "RRHH",
-  auditor: "Auditor",
 };
 
 const roleColors: Record<string, string> = {
   admin: "bg-red-100 text-red-800",
   tecnico: "bg-blue-100 text-blue-800",
-  supervisor: "bg-purple-100 text-purple-800",
-  rrhh: "bg-green-100 text-green-800",
-  auditor: "bg-gray-100 text-gray-800",
 };
 
 const roleDescriptions: Record<string, string> = {
-  admin: "CRUD completo, reportes, configuración",
-  tecnico: "Asignar/recibir equipos, registrar mantenciones",
-  supervisor: "Ver reportes de su área, aprobar solicitudes",
-  rrhh: "Solo lectura de fichas de empleados y estados de devolución",
-  auditor: "Solo lectura de todo el sistema",
+  admin: "CRUD completo, reportes, configuración, ve todas las sedes",
+  tecnico: "Trabajo operativo de soporte, restringido a su propia sede",
 };
 
 export default function UsuariosPage() {
   const [users, setUsers] = useState<SystemUser[]>([]);
+  const [sedes, setSedes] = useState<Sede[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -48,12 +49,14 @@ export default function UsuariosPage() {
     rol: "tecnico" as SystemUser["rol"],
     password: "",
     activo: true,
+    sedeId: "",
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
     fetchUsers();
+    fetchSedes();
   }, []);
 
   const fetchUsers = async () => {
@@ -70,9 +73,24 @@ export default function UsuariosPage() {
     }
   };
 
+  const fetchSedes = async () => {
+    try {
+      const res = await fetch("/api/sedes?activas=true");
+      if (res.ok) {
+        setSedes(await res.json());
+      }
+    } catch (err) {
+      console.error("Error fetching sedes:", err);
+    }
+  };
+
   const handleCreate = async () => {
     if (!formData.email.trim() || !formData.nombre.trim() || !formData.password.trim()) {
       setError("Email, nombre y contraseña son requeridos");
+      return;
+    }
+    if (formData.rol !== "admin" && !formData.sedeId) {
+      setError("Este rol necesita una sede asignada");
       return;
     }
 
@@ -86,7 +104,7 @@ export default function UsuariosPage() {
       if (res.ok) {
         await fetchUsers();
         setIsCreating(false);
-        setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true });
+        setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
         setError("");
         setSuccess("Usuario creado exitosamente");
         setTimeout(() => setSuccess(""), 3000);
@@ -105,6 +123,10 @@ export default function UsuariosPage() {
       setError("Email y nombre son requeridos");
       return;
     }
+    if (formData.rol !== "admin" && !formData.sedeId) {
+      setError("Este rol necesita una sede asignada");
+      return;
+    }
 
     try {
       const updateData: Record<string, unknown> = {
@@ -112,6 +134,7 @@ export default function UsuariosPage() {
         nombre: formData.nombre,
         rol: formData.rol,
         activo: formData.activo,
+        sedeId: formData.rol === "admin" ? null : formData.sedeId,
       };
 
       if (formData.password.trim()) {
@@ -127,7 +150,7 @@ export default function UsuariosPage() {
       if (res.ok) {
         await fetchUsers();
         setEditingId(null);
-        setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true });
+        setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
         setError("");
         setSuccess("Usuario actualizado exitosamente");
         setTimeout(() => setSuccess(""), 3000);
@@ -190,6 +213,7 @@ export default function UsuariosPage() {
       rol: user.rol,
       password: "",
       activo: user.activo,
+      sedeId: user.sedeId || "",
     });
     setIsCreating(false);
     setError("");
@@ -198,7 +222,7 @@ export default function UsuariosPage() {
   const cancelEdit = () => {
     setEditingId(null);
     setIsCreating(false);
-    setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true });
+    setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
     setError("");
   };
 
@@ -232,7 +256,7 @@ export default function UsuariosPage() {
           <button
             onClick={() => {
               setIsCreating(true);
-              setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true });
+              setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
             }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
@@ -255,16 +279,14 @@ export default function UsuariosPage() {
       )}
 
       {/* Roles info cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {Object.entries(roleLabels).map(([key, label]) => (
           <div key={key} className="bg-white rounded-lg shadow p-3">
             <div className="flex items-center gap-2 mb-1">
               {key === "admin" ? (
                 <ShieldAlert size={16} className="text-red-600" />
-              ) : key === "tecnico" ? (
-                <ShieldCheck size={16} className="text-blue-600" />
               ) : (
-                <Shield size={16} className="text-gray-600" />
+                <ShieldCheck size={16} className="text-blue-600" />
               )}
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${roleColors[key]}`}>
                 {label}
@@ -329,11 +351,32 @@ export default function UsuariosPage() {
               >
                 <option value="admin">Administrador</option>
                 <option value="tecnico">Técnico IT</option>
-                <option value="supervisor">Supervisor</option>
-                <option value="rrhh">RRHH</option>
-                <option value="auditor">Auditor</option>
               </select>
             </div>
+            {formData.rol === "admin" ? (
+              <div className="flex items-center text-sm text-gray-500">
+                Administrador ve todas las sedes -- no se le asigna una.
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sede *</label>
+                <select
+                  value={formData.sedeId}
+                  onChange={(e) => setFormData({ ...formData, sedeId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Seleccionar sede...</option>
+                  {sedes.map((sede) => (
+                    <option key={sede.id} value={sede.id}>
+                      {sede.nombre}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Define qué activos, empleados, solicitudes y guías podrá ver y crear este usuario.
+                </p>
+              </div>
+            )}
             {editingId && (
               <div className="flex items-center">
                 <label className="flex items-center gap-2">
@@ -377,6 +420,9 @@ export default function UsuariosPage() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Rol
               </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Sede
+              </th>
               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Estado
               </th>
@@ -401,6 +447,13 @@ export default function UsuariosPage() {
                   <span className={`inline-flex px-2 py-1 text-xs rounded-full ${roleColors[user.rol]}`}>
                     {roleLabels[user.rol]}
                   </span>
+                </td>
+                <td className="px-6 py-4 text-sm text-gray-600">
+                  {user.rol === "admin" ? (
+                    <span className="text-gray-400">Todas</span>
+                  ) : (
+                    user.sede?.nombre || <span className="text-red-500">Sin asignar</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 text-center">
                   <button
@@ -440,7 +493,7 @@ export default function UsuariosPage() {
             ))}
             {users.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                   No hay usuarios registrados
                 </td>
               </tr>

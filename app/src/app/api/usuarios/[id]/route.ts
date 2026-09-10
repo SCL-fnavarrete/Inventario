@@ -3,8 +3,9 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 
-// Roles válidos del sistema
-const VALID_ROLES = ["admin", "tecnico", "supervisor", "rrhh", "auditor"] as const;
+// Roles válidos del sistema (solo dos: admin ve todo, tecnico es soporte
+// restringido a su sede -- ver sedeScope()).
+const VALID_ROLES = ["admin", "tecnico"] as const;
 type SystemRole = typeof VALID_ROLES[number];
 
 export async function GET(
@@ -26,6 +27,8 @@ export async function GET(
         activo: true,
         ultimoLogin: true,
         createdAt: true,
+        sedeId: true,
+        sede: { select: { id: true, codigo: true, nombre: true } },
       },
     });
 
@@ -63,7 +66,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { email, nombre, rol, password, activo } = body;
+    const { email, nombre, rol, password, activo, sedeId } = body;
 
     // Verificar si el email ya está en uso por otro usuario
     if (email && email.toLowerCase().trim() !== existingUser.email) {
@@ -103,6 +106,21 @@ export async function PUT(
       updateData.passwordHash = await bcrypt.hash(password, 12);
     }
 
+    // Sede (SPEC 2.9): admin no tiene sede (ve todo); cualquier otro rol
+    // necesita una para que el aislamiento de datos funcione. El rol
+    // "final" es el nuevo si viene en el body, o el que ya tenia.
+    const rolFinal = (rol as SystemRole) || existingUser.rol;
+    if (rolFinal === 'admin') {
+      updateData.sedeId = null;
+    } else if (sedeId !== undefined) {
+      updateData.sedeId = sedeId || null;
+    } else if (!existingUser.sedeId) {
+      return NextResponse.json(
+        { error: "Este rol necesita una sede asignada" },
+        { status: 400 }
+      );
+    }
+
     const user = await prisma.systemUser.update({
       where: { id },
       data: updateData,
@@ -114,6 +132,8 @@ export async function PUT(
         activo: true,
         ultimoLogin: true,
         createdAt: true,
+        sedeId: true,
+        sede: { select: { id: true, codigo: true, nombre: true } },
       },
     });
 

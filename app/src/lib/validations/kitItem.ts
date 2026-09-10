@@ -6,12 +6,18 @@ export const createKitItemSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido').max(200),
   categoria: CategoriaKitEnum,
   cantidad: z.coerce.number().int().min(0, 'La cantidad no puede ser negativa').default(0),
+  // Umbral de "stock bajo" para la alerta del Dashboard (ver schema.prisma).
+  stockMinimo: z.coerce.number().int().min(0, 'El stock mínimo no puede ser negativo').default(5),
+  // Solo tiene efecto si quien crea es admin -- el backend ignora este
+  // campo para un tecnico y usa siempre su propia sede (sedeIdParaCrear).
+  sedeId: z.string().uuid().optional().nullable(),
 });
 
 export const updateKitItemSchema = z.object({
   nombre: z.string().min(1).max(200).optional(),
   categoria: CategoriaKitEnum.optional(),
   cantidad: z.coerce.number().int().min(0, 'La cantidad no puede ser negativa').optional(),
+  stockMinimo: z.coerce.number().int().min(0, 'El stock mínimo no puede ser negativo').optional(),
 });
 
 // Entrega de Kit/EPP en Gestion TI: uno o mas articulos con la cantidad que

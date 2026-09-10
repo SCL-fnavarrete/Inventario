@@ -58,6 +58,12 @@ type Supplier = {
   direccion: string | null;
 };
 
+type Sede = {
+  id: string;
+  nombre: string;
+  codigo: string;
+};
+
 type Purchase = {
   id: string;
   numeroFactura: string;
@@ -67,6 +73,7 @@ type Purchase = {
   ordenCompra: string | null;
   documentoUrl: string | null;
   supplier: Supplier;
+  sede: Sede | null;
   purchaseAssets: PurchaseAsset[];
   stats: {
     cantidadActivos: number;
@@ -324,6 +331,14 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             <div>
               <dt className="text-sm text-gray-500">Fecha</dt>
               <dd className="font-medium">{formatDate(purchase.fechaFactura)}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-gray-500">Sede</dt>
+              <dd className="font-medium">
+                {purchase.sede ? purchase.sede.nombre : (
+                  <span className="text-gray-400 italic">Transversal (sin sede)</span>
+                )}
+              </dd>
             </div>
             <div>
               <dt className="text-sm text-gray-500">Monto Total</dt>

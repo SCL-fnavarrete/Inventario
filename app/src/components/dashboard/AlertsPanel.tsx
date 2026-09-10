@@ -6,6 +6,8 @@ import {
   Clock,
   XCircle,
   AlertCircle,
+  PackageX,
+  Package,
   ChevronRight,
 } from "lucide-react";
 
@@ -33,24 +35,67 @@ interface Termination {
   };
 }
 
+interface KitItemSinStock {
+  id: string;
+  nombre: string;
+  categoria: "kit_bienvenida" | "epp";
+}
+
+interface KitItemBajoStock extends KitItemSinStock {
+  cantidad: number;
+  stockMinimo: number;
+}
+
+interface CategoriaSinStock {
+  id: string;
+  nombre: string;
+}
+
+interface CategoriaBajoStock extends CategoriaSinStock {
+  disponibles: number;
+  stockMinimo: number;
+}
+
 interface AlertsPanelProps {
   mantencionesVencidas: Maintenance[];
   mantencionesProximas: Maintenance[];
   devolucionesPendientes: Termination[];
-  activosDanados: number;
+  sinStockItems: KitItemSinStock[];
+  bajoStockItems: KitItemBajoStock[];
+  sinStockCategorias: CategoriaSinStock[];
+  bajoStockCategorias: CategoriaBajoStock[];
 }
+
+const categoriaKitLabels: Record<KitItemSinStock["categoria"], string> = {
+  kit_bienvenida: "Kit de Bienvenida",
+  epp: "EPP",
+};
+
+// Antes ambas categorias vivian en /configuracion/kit-epp; se movieron a
+// Activos (9-sep-2026) para que el tecnico pudiera seguir usandolas -- ver
+// pendientes.md. Estos links tienen que apuntar a la ubicacion nueva.
+const kitEppHref: Record<KitItemSinStock["categoria"], string> = {
+  kit_bienvenida: "/activos/kit-bienvenida",
+  epp: "/activos/epp",
+};
 
 export function AlertsPanel({
   mantencionesVencidas,
   mantencionesProximas,
   devolucionesPendientes,
-  activosDanados,
+  sinStockItems,
+  bajoStockItems,
+  sinStockCategorias,
+  bajoStockCategorias,
 }: AlertsPanelProps) {
   const totalAlertas =
     mantencionesVencidas.length +
     mantencionesProximas.length +
     devolucionesPendientes.length +
-    (activosDanados > 0 ? 1 : 0);
+    sinStockItems.length +
+    bajoStockItems.length +
+    sinStockCategorias.length +
+    bajoStockCategorias.length;
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -154,26 +199,91 @@ export function AlertsPanel({
             );
           })}
 
-          {/* Activos Dañados */}
-          {activosDanados > 0 && (
+          {/* Sin Stock (Kit de Bienvenida / EPP) */}
+          {sinStockItems.map((item) => (
             <Link
-              href="/activos?condicion=dañado"
+              key={`sinstock-${item.id}`}
+              href={kitEppHref[item.categoria]}
               className="flex items-start gap-3 p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
             >
               <div className="p-2 bg-red-100 rounded-full">
-                <AlertCircle className="h-4 w-4 text-red-600" />
+                <PackageX className="h-4 w-4 text-red-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-red-900">
-                  Equipos Dañados
-                </p>
-                <p className="text-xs text-red-700">
-                  {activosDanados} equipo(s) dañado(s) sin mantención programada
+                <p className="text-sm font-medium text-red-900">Sin Stock</p>
+                <p className="text-xs text-red-700 truncate">
+                  {item.nombre} ({categoriaKitLabels[item.categoria]})
                 </p>
               </div>
               <ChevronRight className="h-4 w-4 text-red-400" />
             </Link>
-          )}
+          ))}
+
+          {/* Stock Bajo (Kit de Bienvenida / EPP) */}
+          {bajoStockItems.map((item) => (
+            <Link
+              key={`bajostock-${item.id}`}
+              href={kitEppHref[item.categoria]}
+              className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors"
+            >
+              <div className="p-2 bg-yellow-100 rounded-full">
+                <PackageX className="h-4 w-4 text-yellow-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-yellow-900">Stock Bajo</p>
+                <p className="text-xs text-yellow-700 truncate">
+                  {item.nombre} ({categoriaKitLabels[item.categoria]})
+                </p>
+                <p className="text-xs text-yellow-600">
+                  Quedan {item.cantidad} (mínimo configurado: {item.stockMinimo})
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-yellow-400" />
+            </Link>
+          ))}
+
+          {/* Sin Stock (Activos disponibles por categoria) */}
+          {sinStockCategorias.map((cat) => (
+            <Link
+              key={`sinstock-cat-${cat.id}`}
+              href={`/activos?categoriaId=${cat.id}&estado=disponible`}
+              className="flex items-start gap-3 p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+            >
+              <div className="p-2 bg-red-100 rounded-full">
+                <Package className="h-4 w-4 text-red-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-red-900">Sin Stock</p>
+                <p className="text-xs text-red-700 truncate">
+                  {cat.nombre}
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-red-400" />
+            </Link>
+          ))}
+
+          {/* Stock Bajo (Activos disponibles por categoria) */}
+          {bajoStockCategorias.map((cat) => (
+            <Link
+              key={`bajostock-cat-${cat.id}`}
+              href={`/activos?categoriaId=${cat.id}&estado=disponible`}
+              className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors"
+            >
+              <div className="p-2 bg-yellow-100 rounded-full">
+                <Package className="h-4 w-4 text-yellow-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-yellow-900">Stock Bajo</p>
+                <p className="text-xs text-yellow-700 truncate">
+                  {cat.nombre}
+                </p>
+                <p className="text-xs text-yellow-600">
+                  Quedan {cat.disponibles} (mínimo configurado: {cat.stockMinimo})
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-yellow-400" />
+            </Link>
+          ))}
         </div>
       )}
     </div>

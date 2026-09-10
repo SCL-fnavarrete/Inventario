@@ -1,0 +1,1 @@
+export { MantencionesTabs } from "./MantencionesTabs";
