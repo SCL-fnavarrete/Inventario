@@ -41,9 +41,10 @@ const condicionLabels: Record<CondicionActivo, string> = {
   danado: "Dañado",
 };
 
-// Cubre el enum TipoEvento completo. Faltaban venta, actualizacion_specs y
-// solicitud_workflow, que se mostraban crudos ("venta", "actualizacion_specs")
-// en un historial que es evidencia de auditoria.
+// Cubre el enum TipoEvento completo. Faltaban venta, actualizacion_specs,
+// solicitud_workflow y traslado (este ultimo lo emite POST /api/guias-despacho
+// por cada activo trasladado), que se mostraban crudos en un historial que es
+// evidencia de auditoria.
 const tipoEventoLabels: Record<TipoEvento, string> = {
   creacion: "Creación",
   asignacion: "Asignación",
@@ -54,6 +55,7 @@ const tipoEventoLabels: Record<TipoEvento, string> = {
   baja: "Baja",
   venta: "Venta",
   solicitud_workflow: "Solicitud",
+  traslado: "Traslado",
 };
 
 function getCategoryIcon(categoryName: string) {

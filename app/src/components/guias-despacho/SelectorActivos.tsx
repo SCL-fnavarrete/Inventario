@@ -89,14 +89,12 @@ export function SelectorActivos({
   async function fetchAssets() {
     setLoading(true);
     try {
-      const [disponibles, reutilizables] = await Promise.all([
-        fetch("/api/activos?estado=disponible&limit=200").then((r) => r.json()),
-        fetch("/api/activos?estado=reutilizable&limit=200").then((r) => r.json()),
-      ]);
-      setAvailableAssets([
-        ...(disponibles.data || []),
-        ...(reutilizables.data || []),
-      ]);
+      // Solo "disponible": una guia de despacho exige que el activo este
+      // disponible al crearla (ver POST /api/guias-despacho), asi que no
+      // tiene sentido ofrecer "reutilizable" aca -- ese caso pasa primero
+      // por el flujo que lo deja disponible.
+      const disponibles = await fetch("/api/activos?estado=disponible&limit=200").then((r) => r.json());
+      setAvailableAssets(disponibles.data || []);
     } catch (err) {
       console.error("Error fetching assets:", err);
     } finally {

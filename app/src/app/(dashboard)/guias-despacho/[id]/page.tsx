@@ -4,9 +4,6 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
-  Download,
-  CheckCircle,
-  XCircle,
   Loader2,
   Package,
   MapPin,
@@ -19,7 +16,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  TIPO_DESPACHO_LABELS,
   ESTADO_GUIA_LABELS,
   ESTADO_GUIA_COLORS,
   type DispatchGuideDetail,
@@ -68,7 +64,7 @@ export default function GuiaDespachoDetailPage({
   const [guide, setGuide] = useState<DispatchGuideDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState<EstadoGuia | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [recepcionData, setRecepcionData] = useState({
     recibidoPor: "",
     fechaRecepcion: new Date().toISOString().slice(0, 16),
@@ -92,20 +88,16 @@ export default function GuiaDespachoDetailPage({
     }
   }
 
-  async function handleUpdateStatus(newStatus: EstadoGuia) {
+  async function handleConfirmarRecepcion() {
     setUpdating(true);
     try {
-      const body: Record<string, unknown> = { estado: newStatus };
-
-      if (newStatus === EstadoGuia.recibido) {
-        body.recibidoPor = recepcionData.recibidoPor;
-        body.fechaRecepcion = recepcionData.fechaRecepcion;
-      }
-
       const res = await fetch(`/api/guias-despacho/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          recibidoPor: recepcionData.recibidoPor,
+          fechaRecepcion: recepcionData.fechaRecepcion,
+        }),
       });
 
       if (!res.ok) {
@@ -114,31 +106,11 @@ export default function GuiaDespachoDetailPage({
       }
 
       await fetchGuide();
-      setShowConfirmModal(null);
+      setShowConfirmModal(false);
     } catch (error) {
       alert(error instanceof Error ? error.message : "Error al actualizar");
     } finally {
       setUpdating(false);
-    }
-  }
-
-  async function handleDownloadPdf() {
-    try {
-      const response = await fetch(`/api/guias-despacho/${id}/pdf`);
-      if (!response.ok) throw new Error("Error al descargar PDF");
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `guia_despacho_${guide?.numero.replace(/\//g, "-")}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      console.error("Error downloading PDF:", error);
-      alert("Error al descargar el PDF");
     }
   }
 
@@ -193,48 +165,19 @@ export default function GuiaDespachoDetailPage({
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleDownloadPdf}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <Download size={20} />
-            Descargar PDF
-          </button>
-        </div>
       </div>
 
-      {/* Actions based on status */}
-      {guide.estado === EstadoGuia.pendiente && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-yellow-800 mb-3">
-            Esta guía está pendiente de ser despachada.
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => handleUpdateStatus(EstadoGuia.despachado)}
-              disabled={updating}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-            >
-              {updating ? <Loader2 className="animate-spin" size={20} /> : "Marcar como Despachado"}
-            </button>
-            <button
-              onClick={() => setShowConfirmModal(EstadoGuia.anulado)}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-            >
-              Anular Guía
-            </button>
-          </div>
-        </div>
-      )}
-
+      {/* Acción disponible: confirmar recepción. Es puramente informativo
+          -- los equipos ya quedaron disponibles en la sede destino al
+          crear la guía. La guía no se puede anular. */}
       {guide.estado === EstadoGuia.despachado && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-blue-800 mb-3">
-            Esta guía fue despachada y está pendiente de recepción.
+            Los equipos ya están disponibles en {guide.sedeDestino.nombre}.
+            Cuando el paquete llegue físicamente, confirma la recepción.
           </p>
           <button
-            onClick={() => setShowConfirmModal(EstadoGuia.recibido)}
+            onClick={() => setShowConfirmModal(true)}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
           >
             Confirmar Recepción
@@ -251,76 +194,44 @@ export default function GuiaDespachoDetailPage({
           </h2>
           <dl className="space-y-3">
             <div>
-              <dt className="text-sm text-gray-500">Origen</dt>
-              <dd className="font-medium">{guide.origen}</dd>
+              <dt className="text-sm text-gray-500">OT Chilexpress</dt>
+              <dd className="font-medium font-mono">{guide.otChilexpress}</dd>
             </div>
             <div>
-              <dt className="text-sm text-gray-500">Destino</dt>
-              <dd className="font-medium">{guide.destino}</dd>
+              <dt className="text-sm text-gray-500">Sede destino</dt>
+              <dd className="font-medium">{guide.sedeDestino.nombre}</dd>
             </div>
             <div>
-              <dt className="text-sm text-gray-500">Tipo de Despacho</dt>
-              <dd className="font-medium">{TIPO_DESPACHO_LABELS[guide.tipoDespacho]}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-gray-500">Despachado por</dt>
+              <dt className="text-sm text-gray-500">Emisor</dt>
               <dd className="font-medium">{guide.despachadoPor}</dd>
             </div>
             <div>
-              <dt className="text-sm text-gray-500">Fecha de Despacho</dt>
+              <dt className="text-sm text-gray-500">Fecha de envío</dt>
               <dd className="font-medium">{formatDateTime(guide.fechaDespacho)}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-gray-500">Fecha estimada de llegada</dt>
+              <dd className="font-medium">{formatDate(guide.fechaEstimadaLlegada)}</dd>
             </div>
           </dl>
         </div>
 
-        {/* Datos del Destinatario */}
+        {/* Datos del Receptor */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <User className="text-blue-600" size={20} />
-            Destinatario
+            Receptor
           </h2>
-          {guide.destinatario ? (
-            <dl className="space-y-3">
-              <div>
-                <dt className="text-sm text-gray-500">Nombre</dt>
-                <dd className="font-medium">
-                  {guide.destinatario.nombres} {guide.destinatario.apellidoPaterno}{" "}
-                  {guide.destinatario.apellidoMaterno}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-sm text-gray-500">RUT</dt>
-                <dd className="font-medium">{guide.destinatario.rut || "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-sm text-gray-500">Cargo</dt>
-                <dd className="font-medium">{guide.destinatario.cargo || "-"}</dd>
-              </div>
-              <div>
-                <dt className="text-sm text-gray-500">Ubicación</dt>
-                <dd className="font-medium">{guide.destinatario.ubicacion || "-"}</dd>
-              </div>
-              <div>
-                <dt className="text-sm text-gray-500">Correo</dt>
-                <dd className="font-medium">{guide.destinatario.correoPersonal}</dd>
-              </div>
-            </dl>
-          ) : guide.destinatarioNombre ? (
-            <dl className="space-y-3">
-              <div>
-                <dt className="text-sm text-gray-500">Nombre</dt>
-                <dd className="font-medium">{guide.destinatarioNombre}</dd>
-              </div>
-              {guide.destinatarioRut && (
-                <div>
-                  <dt className="text-sm text-gray-500">RUT</dt>
-                  <dd className="font-medium">{guide.destinatarioRut}</dd>
-                </div>
-              )}
-            </dl>
-          ) : (
-            <p className="text-gray-500">No especificado</p>
-          )}
+          <dl className="space-y-3">
+            <div>
+              <dt className="text-sm text-gray-500">Nombre</dt>
+              <dd className="font-medium">{guide.receptorNombre}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-gray-500">RUT</dt>
+              <dd className="font-medium">{guide.receptorRut}</dd>
+            </div>
+          </dl>
         </div>
 
         {/* Estado y Recepción */}
@@ -449,81 +360,55 @@ export default function GuiaDespachoDetailPage({
         </div>
       </div>
 
-      {/* Modal de Confirmación */}
+      {/* Modal de Confirmación de Recepción */}
       {showConfirmModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-            {showConfirmModal === EstadoGuia.recibido ? (
-              <>
-                <h3 className="text-lg font-semibold mb-4">Confirmar Recepción</h3>
-                <div className="space-y-4 mb-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Recibido por <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={recepcionData.recibidoPor}
-                      onChange={(e) =>
-                        setRecepcionData((prev) => ({ ...prev, recibidoPor: e.target.value }))
-                      }
-                      placeholder="Nombre de quien recibe"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Fecha de Recepción
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={recepcionData.fechaRecepcion}
-                      onChange={(e) =>
-                        setRecepcionData((prev) => ({ ...prev, fechaRecepcion: e.target.value }))
-                      }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <button
-                    onClick={() => setShowConfirmModal(null)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={() => handleUpdateStatus(EstadoGuia.recibido)}
-                    disabled={updating || !recepcionData.recibidoPor}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-                  >
-                    {updating ? <Loader2 className="animate-spin" size={20} /> : "Confirmar"}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <h3 className="text-lg font-semibold mb-4">Anular Guía</h3>
-                <p className="text-gray-600 mb-6">
-                  ¿Está seguro que desea anular esta guía de despacho? Esta acción no se puede deshacer.
-                </p>
-                <div className="flex gap-2 justify-end">
-                  <button
-                    onClick={() => setShowConfirmModal(null)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={() => handleUpdateStatus(EstadoGuia.anulado)}
-                    disabled={updating}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-                  >
-                    {updating ? <Loader2 className="animate-spin" size={20} /> : "Anular"}
-                  </button>
-                </div>
-              </>
-            )}
+            <h3 className="text-lg font-semibold mb-4">Confirmar Recepción</h3>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Recibido por <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={recepcionData.recibidoPor}
+                  onChange={(e) =>
+                    setRecepcionData((prev) => ({ ...prev, recibidoPor: e.target.value }))
+                  }
+                  placeholder="Nombre de quien recibe"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fecha de Recepción
+                </label>
+                <input
+                  type="datetime-local"
+                  value={recepcionData.fechaRecepcion}
+                  onChange={(e) =>
+                    setRecepcionData((prev) => ({ ...prev, fechaRecepcion: e.target.value }))
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmarRecepcion}
+                disabled={updating || !recepcionData.recibidoPor}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                {updating ? <Loader2 className="animate-spin" size={20} /> : "Confirmar"}
+              </button>
+            </div>
           </div>
         </div>
       )}

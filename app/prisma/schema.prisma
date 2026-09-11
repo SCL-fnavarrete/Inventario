@@ -68,7 +68,6 @@ model Employee {
   sede                 Sede?           @relation(fields: [sedeId], references: [id])
   activosActuales      Asset[]         @relation("EmpleadoActual")
   assignments          Assignment[]
-  dispatchGuides       DispatchGuide[]
   kitAssignments       KitAssignment[]
   terminations         Termination[]
   workflowRequests     WorkflowRequest[]
@@ -415,48 +414,46 @@ model Termination {
 }
 
 model DispatchGuide {
-  id                 String              @id @default(uuid())
-  numero             String              @unique
-  origen             String
-  destino            String
-  tipoDespacho       TipoDespacho        @map("tipo_despacho")
-  despachadoPor      String              @map("despachado_por")
-  fechaDespacho      DateTime            @map("fecha_despacho")
-  destinatarioId     String?             @map("destinatario_id")
-  destinatarioNombre String?             @map("destinatario_nombre")
-  destinatarioRut    String?             @map("destinatario_rut")
-  observaciones      String?
-  estado             EstadoGuia          @default(pendiente)
-  fechaRecepcion     DateTime?           @map("fecha_recepcion")
-  recibidoPor        String?             @map("recibido_por")
-  // Sede origen/destino estructuradas -- `origen`/`destino` (texto libre)
-  // se mantienen tal cual para no romper guias existentes; estas son solo
-  // para guias de tipo `traslado`, y sedeDestinoId es lo que se aplica a
-  // cada activo cuando la guia pasa a `recibido`. Ver SPEC 2.9.
-  sedeOrigenId       String?             @map("sede_origen_id")
-  sedeDestinoId      String?             @map("sede_destino_id")
-  // Datos de envio por OT Chilexpress (guia tipo traslado despachada por
-  // OT en vez de presencial). Ver SPEC 2.9.
-  otChilexpress        String?           @map("ot_chilexpress")
-  fechaEstimadaLlegada DateTime?         @map("fecha_estimada_llegada")
-  // Sede de quien creo la guia -- determina que soporte la ve. Distinta de
-  // sedeOrigenId/sedeDestinoId (esas describen el traslado del activo; esta
-  // es la propietaria del registro). Ver SPEC 2.9.
-  sedeId             String?             @map("sede_id")
-  createdAt          DateTime            @default(now()) @map("created_at")
-  updatedAt          DateTime            @updatedAt @map("updated_at")
-  items              DispatchGuideItem[]
-  destinatario       Employee?           @relation(fields: [destinatarioId], references: [id])
-  sede               Sede?               @relation("GuiasSede", fields: [sedeId], references: [id])
-  sedeOrigen         Sede?               @relation("GuiasOrigen", fields: [sedeOrigenId], references: [id])
-  sedeDestino        Sede?               @relation("GuiasDestino", fields: [sedeDestinoId], references: [id])
+  id                   String              @id @default(uuid())
+  numero               String              @unique
+  // Numero de seguimiento de Chilexpress -- todo despacho pasa por ahi, es
+  // el dato principal de la guia. Ver discusion de rediseño (10-sep-2026).
+  otChilexpress        String              @map("ot_chilexpress")
+  fechaDespacho        DateTime            @map("fecha_despacho")
+  fechaEstimadaLlegada DateTime?           @map("fecha_estimada_llegada")
+  // Emisor: se autocompleta con el tecnico de la sesion al crear la guia.
+  despachadoPor        String              @map("despachado_por")
+  // Receptor: quien firma la recepcion fisica del paquete. Es texto libre
+  // a proposito -- no siempre es un Employee del sistema (puede ser alguien
+  // no onboardeado todavia). Ver discusion de rediseño (10-sep-2026).
+  receptorNombre       String              @map("receptor_nombre")
+  receptorRut          String              @map("receptor_rut")
+  observaciones        String?
+  // Solo dos estados: la guia nace `despachado` (el efecto sobre los
+  // activos ya se aplico al crearla -- ver POST) y pasa a `realizado`
+  // cuando alguien confirma que llego fisicamente. Esa confirmacion es
+  // puramente informativa, no dispara ningun cambio de datos. La guia no
+  // se puede anular una vez creada.
+  estado               EstadoGuia          @default(despachado)
+  fechaRecepcion       DateTime?           @map("fecha_recepcion")
+  recibidoPor          String?             @map("recibido_por")
+  // Sede destino: obligatoria, se elige explicitamente en el formulario.
+  // Al crear la guia, cada activo despachado cambia de inmediato a esta
+  // sede (ver POST /api/guias-despacho).
+  sedeDestinoId        String              @map("sede_destino_id")
+  // Sede de quien crea la guia (el emisor) -- junto con sedeDestinoId
+  // determina que soporte puede ver/actuar sobre el registro. Ver SPEC 2.9.
+  sedeId               String?             @map("sede_id")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+  items                DispatchGuideItem[]
+  sede                 Sede?               @relation("GuiasSede", fields: [sedeId], references: [id])
+  sedeDestino          Sede                @relation("GuiasDestino", fields: [sedeDestinoId], references: [id])
 
   @@index([numero])
   @@index([estado])
   @@index([fechaDespacho])
-  @@index([destinatarioId])
   @@index([sedeId])
-  @@index([sedeOrigenId])
   @@index([sedeDestinoId])
   @@map("dispatch_guides")
 }
@@ -478,7 +475,6 @@ model Sede {
   usuarios     SystemUser[]
   solicitudes  WorkflowRequest[]
   guias        DispatchGuide[]   @relation("GuiasSede")
-  guiasOrigen  DispatchGuide[]   @relation("GuiasOrigen")
   guiasDestino DispatchGuide[]   @relation("GuiasDestino")
   kitItems     WelcomeKitItem[]
   compras      Purchase[]
@@ -821,15 +817,7 @@ enum EstadoDevolucionTipo {
   pendiente
 }
 
-enum TipoDespacho {
-  asignacion
-  traslado
-  prestamo
-}
-
 enum EstadoGuia {
-  pendiente
   despachado
-  recibido
-  anulado
+  realizado
 }

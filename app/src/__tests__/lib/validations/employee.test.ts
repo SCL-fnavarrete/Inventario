@@ -226,7 +226,7 @@ describe('Employee Validation - createEmployeeSchema', () => {
   test('should reject correoPersonal exceeding 150 characters', () => {
     const result = createEmployeeSchema.safeParse({
       ...validEmployee,
-      correoPersonal: 'a'.repeat(140) + '@gmail.com',
+      correoPersonal: 'a'.repeat(145) + '@gmail.com',
     })
     expect(result.success).toBe(false)
   })

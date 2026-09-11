@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { FileText, Eye, Download, MoreHorizontal } from "lucide-react";
+import { FileText, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  TIPO_DESPACHO_LABELS,
   ESTADO_GUIA_LABELS,
   ESTADO_GUIA_COLORS,
   type DispatchGuideListItem,
@@ -24,26 +23,6 @@ function formatDate(date: Date | string): string {
 }
 
 export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
-  async function handleDownloadPdf(guideId: string, numero: string) {
-    try {
-      const response = await fetch(`/api/guias-despacho/${guideId}/pdf`);
-      if (!response.ok) throw new Error("Error al descargar PDF");
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `guia_despacho_${numero.replace(/\//g, "-")}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      console.error("Error downloading PDF:", error);
-      alert("Error al descargar el PDF");
-    }
-  }
-
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -81,13 +60,13 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
                 Fecha
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Origen → Destino
+                OT Chilexpress
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Destinatario
+                Sede destino
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Tipo
+                Receptor
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Items
@@ -114,16 +93,14 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {formatDate(guide.fechaDespacho)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <span className="text-gray-900">{guide.origen}</span>
-                  <span className="text-gray-400 mx-2">→</span>
-                  <span className="text-gray-900">{guide.destino}</span>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono">
+                  {guide.otChilexpress}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {guide.destinatarioNombre || "-"}
+                  {guide.sedeDestino?.nombre || "-"}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {TIPO_DESPACHO_LABELS[guide.tipoDespacho]}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {guide.receptorNombre}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {guide._count.items}
@@ -147,13 +124,6 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
                     >
                       <Eye size={18} />
                     </Link>
-                    <button
-                      onClick={() => handleDownloadPdf(guide.id, guide.numero)}
-                      className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                      title="Descargar PDF"
-                    >
-                      <Download size={18} />
-                    </button>
                   </div>
                 </td>
               </tr>

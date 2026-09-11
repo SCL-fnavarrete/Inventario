@@ -155,6 +155,17 @@ export async function POST(request: NextRequest) {
     // Map para cachear empleados creados/encontrados durante la importacion
     const employeeCache = new Map<string, string>(); // normalizedRut -> employeeId
 
+    // El tipo de mantencion ya no es un enum fijo (ver MaintenanceType en
+    // schema.prisma). El Excel no trae tipo, asi que las mantenciones
+    // importadas se registran como "Preventiva"; se resuelve una vez y se
+    // crea el catalogo si no existe.
+    const tipoMantencionImportada = await prisma.maintenanceType.upsert({
+      where: { nombre: "Preventiva" },
+      update: {},
+      create: { nombre: "Preventiva" },
+      select: { id: true },
+    });
+
     // Procesar filas
     const results = {
       imported: 0,
@@ -498,7 +509,7 @@ export async function POST(request: NextRequest) {
             // - Si existe "Proxima Mantencion" (proximaMantencion), se guarda en el campo proximaMantencion
             const maintenanceData: {
               assetId: string;
-              tipo: "preventiva";
+              tipoId: string;
               descripcion: string;
               fechaProgramada: Date | null;
               fechaRealizada: Date | null;
@@ -507,7 +518,7 @@ export async function POST(request: NextRequest) {
               realizadoPor: string | null;
             } = {
               assetId: asset.id,
-              tipo: "preventiva",
+              tipoId: tipoMantencionImportada.id,
               descripcion: descripcionDetallada,
               fechaProgramada: null,
               fechaRealizada: null,

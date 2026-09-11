@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError } from "@/lib/auth/guard";
-import { updateMaintenanceTypeSchema } from "@/lib/validations/maintenanceType";
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { updateMaintenanceTypeSchema } from '@/lib/validations/maintenanceType';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -10,7 +10,7 @@ interface RouteParams {
 // PUT /api/mantenciones/tipos/[id] - Actualizar (o desactivar) un tipo
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission("tiposMantencion", "write");
+    await requirePermission('tiposMantencion', 'write');
 
     const { id } = await params;
     const body = await request.json();
@@ -18,7 +18,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     if (!validationResult.success) {
       return NextResponse.json(
-        { error: "Datos inválidos", details: validationResult.error.issues },
+        { error: 'Datos inválidos', details: validationResult.error.issues },
         { status: 400 }
       );
     }
@@ -27,16 +27,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const existing = await prisma.maintenanceType.findUnique({ where: { id } });
     if (!existing) {
-      return NextResponse.json({ error: "Tipo de mantención no encontrado" }, { status: 404 });
+      return NextResponse.json({ error: 'Tipo de mantención no encontrado' }, { status: 404 });
     }
 
     if (data.nombre) {
       const duplicate = await prisma.maintenanceType.findFirst({
-        where: { nombre: { equals: data.nombre.trim(), mode: "insensitive" }, NOT: { id } },
+        where: { nombre: { equals: data.nombre.trim(), mode: 'insensitive' }, NOT: { id } },
       });
       if (duplicate) {
         return NextResponse.json(
-          { error: "Ya existe un tipo de mantención con ese nombre" },
+          { error: 'Ya existe un tipo de mantención con ese nombre' },
           { status: 400 }
         );
       }
@@ -46,14 +46,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       where: { id },
       data: {
         nombre: data.nombre?.trim() ?? existing.nombre,
-        descripcion: data.descripcion !== undefined ? data.descripcion?.trim() || null : existing.descripcion,
+        descripcion:
+          data.descripcion !== undefined ? data.descripcion?.trim() || null : existing.descripcion,
         activo: data.activo ?? existing.activo,
       },
     });
 
     return NextResponse.json(tipo);
   } catch (error) {
-    return handleApiError(error, "Error al actualizar tipo de mantención");
+    return handleApiError(error, 'Error al actualizar tipo de mantención');
   }
 }
 
@@ -63,7 +64,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 // "activo") para no perder el tipo de mantenciones ya registradas.
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission("tiposMantencion", "delete");
+    await requirePermission('tiposMantencion', 'delete');
 
     const { id } = await params;
 
@@ -73,14 +74,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     });
 
     if (!existing) {
-      return NextResponse.json({ error: "Tipo de mantención no encontrado" }, { status: 404 });
+      return NextResponse.json({ error: 'Tipo de mantención no encontrado' }, { status: 404 });
     }
 
     if (existing._count.maintenances > 0) {
       return NextResponse.json(
         {
           error:
-            "No se puede eliminar: hay mantenciones que usan este tipo. Puedes desactivarlo en vez de eliminarlo.",
+            'No se puede eliminar: hay mantenciones que usan este tipo. Puedes desactivarlo en vez de eliminarlo.',
         },
         { status: 400 }
       );
@@ -90,6 +91,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return handleApiError(error, "Error al eliminar tipo de mantención");
+    return handleApiError(error, 'Error al eliminar tipo de mantención');
   }
 }

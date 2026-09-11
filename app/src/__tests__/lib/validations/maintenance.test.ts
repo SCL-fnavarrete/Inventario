@@ -3,31 +3,13 @@ import {
   updateMaintenanceSchema,
   completeMaintenanceSchema,
   maintenanceFiltersSchema,
-  TipoMantencionEnum,
   EstadoMantencionEnum,
 } from '@/lib/validations/maintenance'
 
-describe('Maintenance Validation - TipoMantencionEnum', () => {
-  test('should accept valid tipos de mantencion', () => {
-    const validTipos = [
-      'preventiva',
-      'correctiva',
-      'actualizacion_so',
-      'limpieza',
-      'reparacion',
-    ]
-
-    validTipos.forEach((tipo) => {
-      const result = TipoMantencionEnum.safeParse(tipo)
-      expect(result.success).toBe(true)
-    })
-  })
-
-  test('should reject invalid tipo', () => {
-    const result = TipoMantencionEnum.safeParse('revision')
-    expect(result.success).toBe(false)
-  })
-})
+// El tipo de mantencion dejo de ser un enum fijo (9-sep-2026): ahora es una
+// fila de MaintenanceType referenciada por id (uuid). Ver schema.prisma y
+// src/lib/validations/maintenance.ts.
+const TIPO_ID = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
 
 describe('Maintenance Validation - EstadoMantencionEnum', () => {
   test('should accept valid estados', () => {
@@ -46,10 +28,13 @@ describe('Maintenance Validation - EstadoMantencionEnum', () => {
 })
 
 describe('Maintenance Validation - createMaintenanceSchema', () => {
+  // fechaProgramada es obligatoria: una mantencion no puede quedar "en
+  // proceso" sin haber tenido nunca una fecha programada.
   const validMaintenance = {
     assetId: '550e8400-e29b-41d4-a716-446655440000',
-    tipo: 'preventiva' as const,
+    tipoId: TIPO_ID,
     descripcion: 'Mantencion preventiva trimestral',
+    fechaProgramada: '2024-03-15',
   }
 
   test('should accept valid minimum maintenance data', () => {
@@ -60,7 +45,6 @@ describe('Maintenance Validation - createMaintenanceSchema', () => {
   test('should accept full maintenance data', () => {
     const fullMaintenance = {
       ...validMaintenance,
-      fechaProgramada: '2024-03-15',
       proximaMantencion: '2024-06-15',
       realizadoPor: 'Juan Tecnico',
       costo: 50000,
@@ -72,25 +56,25 @@ describe('Maintenance Validation - createMaintenanceSchema', () => {
   })
 
   test('should transform fechaProgramada to Date', () => {
-    const result = createMaintenanceSchema.safeParse({
-      ...validMaintenance,
-      fechaProgramada: '2024-03-15',
-    })
+    const result = createMaintenanceSchema.safeParse(validMaintenance)
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.fechaProgramada).toBeInstanceOf(Date)
     }
   })
 
-  test('should handle invalid date strings gracefully', () => {
+  test('should reject invalid fechaProgramada', () => {
     const result = createMaintenanceSchema.safeParse({
       ...validMaintenance,
       fechaProgramada: 'not-a-date',
     })
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.fechaProgramada).toBeNull()
-    }
+    expect(result.success).toBe(false)
+  })
+
+  test('should reject missing fechaProgramada', () => {
+    const { fechaProgramada, ...withoutFecha } = validMaintenance
+    const result = createMaintenanceSchema.safeParse(withoutFecha)
+    expect(result.success).toBe(false)
   })
 
   test('should reject missing assetId', () => {
@@ -107,16 +91,16 @@ describe('Maintenance Validation - createMaintenanceSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  test('should reject missing tipo', () => {
-    const { tipo, ...maintenanceWithoutTipo } = validMaintenance
+  test('should reject missing tipoId', () => {
+    const { tipoId, ...maintenanceWithoutTipo } = validMaintenance
     const result = createMaintenanceSchema.safeParse(maintenanceWithoutTipo)
     expect(result.success).toBe(false)
   })
 
-  test('should reject invalid tipo', () => {
+  test('should reject tipoId that is not a uuid', () => {
     const result = createMaintenanceSchema.safeParse({
       ...validMaintenance,
-      tipo: 'revision',
+      tipoId: 'preventiva',
     })
     expect(result.success).toBe(false)
   })
@@ -183,9 +167,14 @@ describe('Maintenance Validation - updateMaintenanceSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  test('should validate tipo if provided', () => {
+  test('should accept tipoId if it is a valid uuid', () => {
+    const result = updateMaintenanceSchema.safeParse({ tipoId: TIPO_ID })
+    expect(result.success).toBe(true)
+  })
+
+  test('should reject tipoId that is not a uuid', () => {
     const result = updateMaintenanceSchema.safeParse({
-      tipo: 'invalid-tipo',
+      tipoId: 'invalid-tipo',
     })
     expect(result.success).toBe(false)
   })
@@ -305,7 +294,7 @@ describe('Maintenance Validation - maintenanceFiltersSchema', () => {
     const result = maintenanceFiltersSchema.safeParse({
       search: 'preventiva',
       assetId: '550e8400-e29b-41d4-a716-446655440000',
-      tipo: 'preventiva',
+      tipoId: TIPO_ID,
       estado: 'pendiente',
       fechaDesde: '2024-01-01',
       fechaHasta: '2024-12-31',
@@ -313,7 +302,7 @@ describe('Maintenance Validation - maintenanceFiltersSchema', () => {
       vencidas: false,
       page: 2,
       limit: 25,
-      sortBy: 'tipo',
+      sortBy: 'tipoId',
       sortOrder: 'desc',
     })
     expect(result.success).toBe(true)
@@ -329,9 +318,9 @@ describe('Maintenance Validation - maintenanceFiltersSchema', () => {
     }
   })
 
-  test('should reject invalid tipo filter', () => {
+  test('should reject tipoId that is not a uuid', () => {
     const result = maintenanceFiltersSchema.safeParse({
-      tipo: 'invalid-tipo',
+      tipoId: 'invalid-tipo',
     })
     expect(result.success).toBe(false)
   })
@@ -355,7 +344,7 @@ describe('Maintenance Validation - maintenanceFiltersSchema', () => {
       'fechaProgramada',
       'fechaRealizada',
       'createdAt',
-      'tipo',
+      'tipoId',
       'estado',
     ]
 

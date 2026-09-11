@@ -78,10 +78,15 @@ describe('permissions — tecnico', () => {
     expect(can('tecnico', 'solicitudes', 'write')).toBe(true);
   });
 
-  test('no borra nada: el borrado es de admin', () => {
+  test('el borrado es de admin, salvo tiposMantencion', () => {
+    // tiposMantencion.delete es de admin + tecnico por decision explicita
+    // (ver nota en src/lib/auth/permissions.ts): es catalogo operativo del
+    // dia a dia, no configuracion del sistema.
     for (const recurso of RECURSOS) {
+      if (recurso === 'tiposMantencion') continue;
       expect(can('tecnico', recurso, 'delete')).toBe(false);
     }
+    expect(can('tecnico', 'tiposMantencion', 'delete')).toBe(true);
   });
 
   test('no toca datos maestros ni configuración ni usuarios', () => {

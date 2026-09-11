@@ -43,6 +43,7 @@ Lectura (R) · Escritura (W) · Borrado (D).
 | asignaciones | RWD | RW | R | R | R |
 | solicitudes | RWD | RW | RW | R | R |
 | mantenciones | RWD | RW | R | — | R |
+| tiposMantencion | RWD | RWD | R | — | R |
 | desvinculaciones | RWD | RW | R | R | R |
 | guias | RWD | RW | R | — | R |
 | compras | RWD | — | R | — | R |
@@ -56,9 +57,13 @@ Lectura (R) · Escritura (W) · Borrado (D).
 
 1. **`rrhh` y `auditor` no escriben ni borran en ningún recurso.** Es la
    traducción literal de "solo lectura" de la tabla de roles.
-2. **El borrado es exclusivo de `admin`.** El técnico opera el parque, no lo
-   destruye. Para activos con historial el borrado además está prohibido por
-   completo (ver 2.7.7).
+2. **El borrado es exclusivo de `admin`, con una excepción: `tiposMantencion`.**
+   El técnico opera el parque, no lo destruye. Para activos con historial el
+   borrado además está prohibido por completo (ver 2.7.7). La excepción es el
+   catálogo `tiposMantencion` (`maintenance_types`): admin y técnico lo
+   crean/editan/eliminan por igual, porque es una lista operativa del día a día
+   (no configuración del sistema) y el técnico es quien registra las
+   mantenciones. Un tipo en uso se retira con `activo = false`, no se borra.
 3. **`compras`, `usuarios` y `configuracion` quedan fuera del alcance del
    técnico**: son información financiera, de identidad y de sistema.
 4. **`reportes` no tiene escritura para nadie**: un reporte se deriva de los
@@ -286,13 +291,29 @@ CREATE TABLE kit_assignments (
 );
 ```
 
+### TIPOS DE MANTENCIÓN (maintenance_types)
+```sql
+-- Antes era un enum fijo de Postgres. Se volvió catálogo editable (9-sep-2026)
+-- para que operaciones pueda mantener la lista sin tocar código ni hacer
+-- deploy. Es global (sin sede_id, mismo criterio que asset_categories).
+CREATE TABLE maintenance_types (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre VARCHAR NOT NULL UNIQUE,            -- Ej: "Preventiva", "Correctiva", "Limpieza"
+    descripcion TEXT,
+    activo BOOLEAN DEFAULT true,               -- Retiro lógico: deja de ofrecerse en el selector
+                                              -- pero las mantenciones que ya lo usan lo siguen mostrando
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+```
+
 ### MANTENCIONES (maintenances)
 ```sql
 CREATE TABLE maintenances (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     asset_id UUID REFERENCES assets(id),
-    
-    tipo ENUM('preventiva', 'correctiva', 'actualizacion_so', 'limpieza', 'reparacion') NOT NULL,
+
+    tipo_id UUID NOT NULL REFERENCES maintenance_types(id),   -- Antes: enum fijo `tipo`
     descripcion TEXT NOT NULL,                 -- Ej: "Actualización Windows 10 a 11"
     
     fecha_programada DATE,
@@ -326,7 +347,8 @@ CREATE TABLE asset_history (
         'actualizacion_specs',
         'baja',
         'venta',
-        'solicitud_workflow'         -- Acción ejecutada por el sistema de solicitudes
+        'solicitud_workflow',        -- Acción ejecutada por el sistema de solicitudes
+        'traslado'                   -- Cambio de sede física del activo vía guía de despacho (ver 2.9)
     ) NOT NULL,
     
     descripcion TEXT NOT NULL,
@@ -490,18 +512,21 @@ CREATE TABLE workflow_pendientes (
 CREATE TABLE dispatch_guides (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     numero VARCHAR(50) UNIQUE NOT NULL,        -- Número correlativo auto-generado
-    origen VARCHAR(200) NOT NULL,              -- Lugar de origen del despacho
-    destino VARCHAR(200) NOT NULL,             -- Lugar de destino
-    tipo_despacho ENUM('asignacion', 'traslado', 'prestamo') NOT NULL,
-    despachado_por VARCHAR(100) NOT NULL,
+    ot_chilexpress VARCHAR(100) NOT NULL,      -- Nº de seguimiento Chilexpress (dato principal)
     fecha_despacho TIMESTAMP NOT NULL,
-    destinatario_id UUID REFERENCES employees(id),     -- Opcional: destinatario interno
-    destinatario_nombre VARCHAR(200),          -- Para destinatarios externos
-    destinatario_rut VARCHAR(15),
+    fecha_estimada_llegada TIMESTAMP,          -- Opcional
+    despachado_por VARCHAR(100) NOT NULL,      -- Emisor: técnico de la sesión
+    receptor_nombre VARCHAR(200) NOT NULL,     -- Receptor físico: texto libre (no es un Employee)
+    receptor_rut VARCHAR(15) NOT NULL,
     observaciones TEXT,
-    estado ENUM('pendiente', 'despachado', 'recibido', 'anulado') DEFAULT 'pendiente',
+    -- Solo dos estados: nace 'despachado' (el efecto sobre los activos ya se
+    -- aplicó al crear la guía) y pasa a 'realizado' cuando alguien confirma la
+    -- llegada física (confirmación puramente informativa). No se puede anular.
+    estado ENUM('despachado', 'realizado') DEFAULT 'despachado',
     fecha_recepcion TIMESTAMP,
     recibido_por VARCHAR(100),
+    sede_destino_id UUID NOT NULL REFERENCES sedes(id) ON DELETE RESTRICT,  -- Obligatoria
+    sede_id UUID REFERENCES sedes(id),         -- Sede del emisor: determina qué soporte ve el registro
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -764,6 +789,89 @@ Regla de destino automático del activo tras devolución:
 | `incompleto` | `reutilizable` | Opcional |
 
 Efectos: `empleadoActualId` → null, assignment → `activo = false`.
+
+---
+
+## 2.8 Aislamiento por Sede (Multi-Sede)
+
+El sistema opera sobre varias sedes físicas (ej. Santiago, Concepción, Rancagua). Un usuario `tecnico` solo debe ver y operar sobre los registros de **su propia sede**; `admin` ve y puede crear en cualquier sede sin restricción.
+
+### 2.8.1 Modelo `Sede`
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `id` | UUID | PK |
+| `codigo` | String, único | Slug corto y estable (ej: `STGO`, `CCP`) |
+| `nombre` | String | Nombre visible |
+| `activa` | Boolean, default `true` | Permite desactivar sin perder el historial de activos/guías que la referencian |
+
+### 2.8.2 Regla de aislamiento
+
+La sede de un registro **no se elige libremente en su formulario**: se hereda de la sede del usuario que lo crea. Un `admin` sin sede propia puede elegirla explícitamente (o dejar el registro transversal, sin sede). Esto evita que un técnico cruce registros a otra sede por error.
+
+Único punto de verdad: `src/lib/auth/sedeScope.ts`, con cuatro funciones que consumen todas las rutas de API afectadas:
+- `tieneVisibilidadTotal(session)` — true solo para `admin`.
+- `sedeWhere(session)` — fragmento de `where` para listados: `{}` para admin, `{ sedeId: session.user.sedeId }` para técnico.
+- `assertSedeAccess(session, registroSedeId, mensaje)` — exige que un registro ya cargado pertenezca a la sede de la sesión; lanza 404 (no 403) para no revelar que el registro existe en otra sede.
+- `sedeIdParaCrear(session, sedeIdSolicitada?)` — decide la sede de un registro nuevo: la del técnico (ignorando cualquier valor del body), o la que el admin haya elegido.
+
+Aplica a: `activos`, `empleados`, `solicitudes`, `mantenciones`, `asignaciones`, `desvinculaciones`, `guias` (guías de despacho), `compras` y `kit EPP`. No aplica a datos maestros globales (categorías, proveedores) ni a `usuarios`/`configuración`.
+
+### 2.8.3 Reasignación de sede
+
+- **Empleado:** un `admin` puede reasignar la sede de un empleado ya creado (ej. se traslada de Concepción a Santiago), editando el registro directamente. Un técnico no puede — el campo se ignora en silencio si lo envía.
+- **Activo:** no tiene edición directa de sede. El traslado de un activo entre sedes ocurre exclusivamente a través de una Guía de Despacho (ver 2.9).
+
+---
+
+## 2.9 Guías de Despacho (`dispatch_guides`)
+
+Registro de que un lote de equipos fue despachado hacia otra sede, vía Chilexpress. **No es un flujo de aprobación**: crear la guía aplica de inmediato su efecto sobre los activos — la guía es el comprobante de una acción que el técnico ya ejecutó físicamente (llevó el paquete a Chilexpress), no una solicitud pendiente.
+
+### 2.9.1 Campos
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `numero` | String, único | Auto-generado: `GD-{año}-{correlativo de 5 dígitos}` |
+| `otChilexpress` | String, obligatorio | Número de seguimiento Chilexpress — todo despacho pasa por ahí, es el dato principal |
+| `fechaDespacho` | DateTime, obligatorio | Fecha de envío |
+| `fechaEstimadaLlegada` | DateTime, opcional | Estimación informativa |
+| `despachadoPor` | String | Emisor — se autocompleta con el nombre del usuario de la sesión, no editable |
+| `receptorNombre`, `receptorRut` | String, obligatorios | Quien firma la recepción física del paquete. **Texto libre a propósito**: no siempre es un `Employee` del sistema (puede ser alguien no onboardeado todavía) |
+| `sedeDestinoId` | UUID, obligatorio (FK `Sede`) | Sede a la que se despachan los equipos. Debe ser distinta de la sede del emisor |
+| `sedeId` | UUID, opcional (FK `Sede`) | Sede del emisor (heredada por `sedeIdParaCrear`, ver 2.8) |
+| `observaciones` | String, opcional | |
+| `estado` | Enum `EstadoGuia`: `despachado` \| `realizado` | Solo dos estados — ver 2.9.3 |
+| `fechaRecepcion`, `recibidoPor` | DateTime / String, opcionales | Se completan al confirmar recepción |
+| `items` | `DispatchGuideItem[]` | Activos incluidos en la guía |
+
+No existe campo "Tipo de Despacho" (se eliminó el enum `TipoDespacho` — `asignacion`/`traslado`/`prestamo`): toda guía se comporta igual, sin distinción de tipo.
+
+### 2.9.2 Efecto al crear (POST) — aplica de inmediato
+
+Precondición: todos los activos seleccionados deben existir, pertenecer a la sede del emisor (salvo admin) y estar en estado `disponible`. Si alguno no cumple, la creación se rechaza completa (400).
+
+Dentro de una transacción:
+1. Se crea el registro `DispatchGuide` con `estado = despachado`.
+2. Cada activo incluido cambia su `sedeId` a `sedeDestinoId` y su `estado` se mantiene/confirma en `disponible` — queda listo para ser asignado por el técnico de la sede destino a través del módulo de Asignaciones (no se crea ninguna `Assignment` automáticamente).
+3. Se registra un evento `traslado` en `asset_history` por cada activo, referenciando el número de guía y la OT Chilexpress.
+
+### 2.9.3 Estados y confirmación de recepción
+
+| Estado | Significado |
+|---|---|
+| `despachado` | Estado inicial. El efecto sobre los activos ya se aplicó |
+| `realizado` | Alguien confirmó que el paquete llegó físicamente (`PATCH` con `recibidoPor` y opcionalmente `fechaRecepcion`) |
+
+La confirmación de recepción es **puramente informativa**: no modifica activos ni asignaciones, solo cierra el ciclo de la guía como comprobante.
+
+**La guía no se puede anular ni eliminar una vez creada.** No existe `DELETE` en la API ni estado `anulado`/`pendiente`.
+
+### 2.9.4 Visibilidad
+
+A diferencia del resto de los módulos con aislamiento por sede (2.8), una guía interesa a **dos** sedes: la del emisor y la sede destino, porque el técnico que recibe el despacho necesita verla para confirmar la recepción. Un técnico ve una guía si su sede coincide con `sedeId` **o** con `sedeDestinoId`; `admin` ve todas.
+
+### 2.9.5 Sin documento PDF
+
+La guía es solo un registro dentro del sistema (listado + detalle) — no genera ningún documento PDF descargable.
 
 ---
 
@@ -1538,6 +1646,12 @@ nunca debió existir como fila separada.
 
 ## Changelog SPEC
 
+- **v1.6 (2026-09-10):**
+  - Sección 2.1: se documenta el modelo `maintenance_types` (catálogo editable, global, con retiro lógico `activo`) y el cambio de `maintenances.tipo` (enum fijo) a `maintenances.tipo_id` (FK). El refactor se hizo el 9-sep-2026 pero no estaba en el SPEC.
+  - Sección 1.3.1: se agrega el recurso `tiposMantencion` a la matriz de permisos (`RWD` para admin y técnico) y la excepción a la regla 2 — el técnico sí puede borrar tipos de mantención, por ser catálogo operativo y no configuración del sistema.
+- **v1.5 (2026-09-10):**
+  - Sección 2.8 (nueva): Aislamiento por Sede (Multi-Sede) — documenta el modelo `Sede`, la regla de aislamiento (`sedeScope.ts`: `tieneVisibilidadTotal`, `sedeWhere`, `assertSedeAccess`, `sedeIdParaCrear`) y los módulos afectados. Esto ya estaba implementado; el SPEC no lo documentaba pese a que el código cita "SPEC 2.9" desde hace tiempo.
+  - Sección 2.9 (nueva): Guías de Despacho (`dispatch_guides`) — rediseño completo: elimina `TipoDespacho` y el vínculo a `Employee` como destinatario (ahora `receptorNombre`/`receptorRut` en texto libre), agrega `otChilexpress` como dato principal obligatorio y `sedeDestinoId` obligatorio, el efecto (traslado de sede + `disponible`) ocurre de inmediato al crear (no hay confirmación de "recibido" que lo gatille), la guía no se puede anular ni eliminar, y se reduce a dos estados (`despachado`/`realizado`, este último solo informativo). Se elimina también la generación de PDF. `asset_history.tipo_evento` agrega el valor `traslado` (un evento por activo despachado, con la sede anterior y la nueva).
 - **v1.4 (2026-09-09):**
   - Sección 2.5.2: agrega la acción de cancelación (`cancelada`), disponible para los tres tipos de solicitud mientras no hayan ejecutado ningún efecto secundario (`assignment_ids`/`kit_return_ids` vacíos).
   - Sección 2.5.3: regla 7 -- condiciones y efecto de la cancelación (exige motivo, no toca inventario, no revierte acciones ya ejecutadas).
