@@ -163,7 +163,6 @@ const NEW_EMPLOYEE_INITIAL = {
 export default function NuevaSolicitudPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  const isAdmin = session?.user?.role === 'admin';
   const [sedes, setSedes] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
   const [sedeId, setSedeId] = useState('');
   const [step, setStep] = useState(1);
@@ -415,7 +414,6 @@ export default function NuevaSolicitudPage() {
   };
 
   useEffect(() => {
-    if (!isAdmin) return;
     let cancelado = false;
     fetch('/api/sedes?activas=true')
       .then((res) => res.json())
@@ -428,7 +426,16 @@ export default function NuevaSolicitudPage() {
     return () => {
       cancelado = true;
     };
-  }, [isAdmin]);
+  }, []);
+
+  // Precarga la sede propia del usuario apenas la sesion esta disponible --
+  // el "prev ||" evita pisar una eleccion manual hecha antes de que la
+  // sesion terminara de cargar. SPEC 2.29: el usuario igual puede cambiarla.
+  useEffect(() => {
+    if (session?.user?.sedeId) {
+      setSedeId((prev) => prev || session.user.sedeId!);
+    }
+  }, [session?.user?.sedeId]);
 
   useEffect(() => {
     let cancelado = false;
@@ -573,10 +580,12 @@ export default function NuevaSolicitudPage() {
       }
     }
 
-    // Defensa en profundidad ademas del "required" del select: si es admin
-    // y no eligio sede, no se manda -- evita que quede un ticket sin sede
-    // (invisible para el tecnico) por un descuido. Ver SPEC 2.9.
-    if (isAdmin && !sedeId) {
+    // Defensa en profundidad ademas del "required" del select: si no se
+    // eligio sede, no se manda -- evita que quede un ticket sin sede
+    // (invisible para todos) por un descuido. Desde SPEC 2.29 esto aplica a
+    // cualquier rol, no solo admin: toda accion debe quedar ligada a una
+    // sede explicita.
+    if (!sedeId) {
       setFieldErrors({ sedeId: 'Debes seleccionar una sede' });
       return;
     }
@@ -1480,31 +1489,29 @@ export default function NuevaSolicitudPage() {
             </div>
           </div>
 
-          {isAdmin && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Sede <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={sedeId}
-                onChange={(e) => setSedeId(e.target.value)}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              >
-                <option value="" disabled>
-                  Selecciona una sede...
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Sede <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={sedeId}
+              onChange={(e) => setSedeId(e.target.value)}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            >
+              <option value="" disabled>
+                Selecciona una sede...
+              </option>
+              {sedes.map((sede) => (
+                <option key={sede.id} value={sede.id}>
+                  {sede.nombre}
                 </option>
-                {sedes.map((sede) => (
-                  <option key={sede.id} value={sede.id}>
-                    {sede.nombre}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-500 mt-1">
-                Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú, y es obligatorio para que el técnico de esa sede pueda ver y gestionar el ticket.
-              </p>
-            </div>
-          )}
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Obligatorio: a qué sede pertenece esta solicitud.
+            </p>
+          </div>
 
           {/* Observaciones */}
           <div>
@@ -1960,31 +1967,29 @@ export default function NuevaSolicitudPage() {
             </div>
           )}
 
-          {isAdmin && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Sede <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={sedeId}
-                onChange={(e) => setSedeId(e.target.value)}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              >
-                <option value="" disabled>
-                  Selecciona una sede...
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Sede <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={sedeId}
+              onChange={(e) => setSedeId(e.target.value)}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            >
+              <option value="" disabled>
+                Selecciona una sede...
+              </option>
+              {sedes.map((sede) => (
+                <option key={sede.id} value={sede.id}>
+                  {sede.nombre}
                 </option>
-                {sedes.map((sede) => (
-                  <option key={sede.id} value={sede.id}>
-                    {sede.nombre}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-500 mt-1">
-                Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú, y es obligatorio para que el técnico de esa sede pueda ver y gestionar el ticket.
-              </p>
-            </div>
-          )}
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Obligatorio: a qué sede pertenece esta solicitud.
+            </p>
+          </div>
 
           {/* Observaciones */}
           <div>

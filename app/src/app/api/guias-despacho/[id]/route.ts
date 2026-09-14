@@ -5,6 +5,7 @@ import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import type { SesionAutenticada } from '@/lib/auth/guard';
 import { tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { NotFoundError, ForbiddenError } from '@/lib/errors';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -140,6 +141,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         sedeDestino: true,
       },
     });
+
+    // Auditoria generica (SPEC 2.31): quien confirmo la recepcion.
+    await auditLogService.registrarActualizacion(
+      'guia_despacho',
+      updatedGuide.id,
+      `Guía de despacho ${updatedGuide.numero}: recepción confirmada por ${recibidoPor}`,
+      { estado: existingGuide.estado },
+      { estado: updatedGuide.estado, recibidoPor: updatedGuide.recibidoPor },
+      session.user?.email
+    );
 
     return NextResponse.json(updatedGuide);
   } catch (error) {

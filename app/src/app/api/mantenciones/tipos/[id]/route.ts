@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { updateMaintenanceTypeSchema } from '@/lib/validations/maintenanceType';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -10,7 +11,7 @@ interface RouteParams {
 // PUT /api/mantenciones/tipos/[id] - Actualizar (o desactivar) un tipo
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('tiposMantencion', 'write');
+    const session = await requirePermission('tiposMantencion', 'write');
 
     const { id } = await params;
     const body = await request.json();
@@ -52,6 +53,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     });
 
+    // Auditoria generica (SPEC 2.31).
+    await auditLogService.registrarActualizacion(
+      'tipo_mantencion',
+      tipo.id,
+      `Tipo de mantención actualizado: ${tipo.nombre}`,
+      { nombre: existing.nombre, descripcion: existing.descripcion, activo: existing.activo },
+      { nombre: tipo.nombre, descripcion: tipo.descripcion, activo: tipo.activo },
+      session.user?.email
+    );
+
     return NextResponse.json(tipo);
   } catch (error) {
     return handleApiError(error, 'Error al actualizar tipo de mantención');
@@ -64,7 +75,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 // "activo") para no perder el tipo de mantenciones ya registradas.
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('tiposMantencion', 'delete');
+    const session = await requirePermission('tiposMantencion', 'delete');
 
     const { id } = await params;
 
@@ -88,6 +99,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     await prisma.maintenanceType.delete({ where: { id } });
+
+    // Auditoria generica (SPEC 2.31).
+    await auditLogService.registrarEliminacion(
+      'tipo_mantencion',
+      existing.id,
+      `Tipo de mantención eliminado: ${existing.nombre}`,
+      { nombre: existing.nombre, descripcion: existing.descripcion },
+      session.user?.email
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {

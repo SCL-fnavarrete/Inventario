@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { createMaintenanceTypeSchema } from '@/lib/validations/maintenanceType';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 // GET /api/mantenciones/tipos - Listar tipos de mantencion
 // Catalogo global (sin sedeId, igual que AssetCategory) -- ver nota en
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
 // write), a diferencia de Categorias donde solo admin escribe.
 export async function POST(request: NextRequest) {
   try {
-    await requirePermission('tiposMantencion', 'write');
+    const session = await requirePermission('tiposMantencion', 'write');
 
     const body = await request.json();
     const validationResult = createMaintenanceTypeSchema.safeParse(body);
@@ -68,6 +69,15 @@ export async function POST(request: NextRequest) {
         descripcion: descripcion?.trim() || null,
       },
     });
+
+    // Auditoria generica (SPEC 2.31).
+    await auditLogService.registrarCreacion(
+      'tipo_mantencion',
+      tipo.id,
+      `Tipo de mantención creado: ${tipo.nombre}`,
+      { nombre: tipo.nombre, descripcion: tipo.descripcion },
+      session.user?.email
+    );
 
     return NextResponse.json(tipo, { status: 201 });
   } catch (error) {

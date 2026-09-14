@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await requirePermission('categorias', 'write');
+    const session = await requirePermission('categorias', 'write');
 
     const body = await request.json();
     const { nombre, descripcion, requiereSerie, requiereImei, stockMinimo } = body;
@@ -61,6 +62,15 @@ export async function POST(request: NextRequest) {
         stockMinimo: Number.isFinite(Number(stockMinimo)) ? Number(stockMinimo) : 3,
       },
     });
+
+    // Auditoria generica (SPEC 2.31).
+    await auditLogService.registrarCreacion(
+      'categoria',
+      category.id,
+      `Categoría creada: ${category.nombre}`,
+      { nombre: category.nombre, descripcion: category.descripcion },
+      session.user?.email
+    );
 
     return NextResponse.json(category, { status: 201 });
   } catch (error) {

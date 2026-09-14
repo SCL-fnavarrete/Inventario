@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { updateEmployeeSchema } from "@/lib/validations/employee";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -212,6 +213,32 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     });
 
+    // Auditoria generica (SPEC 2.29): que cambio y quien lo hizo. Se guardan
+    // solo los campos "de negocio" relevantes -- no todo el registro -- para
+    // no repetir columnas administrativas (updatedAt, etc.) en el snapshot.
+    // Ver comentario en assetHistoryService, mismo criterio.
+    const snapshotEmpleado = (e: typeof existingEmployee) => ({
+      nombres: e.nombres,
+      apellidoPaterno: e.apellidoPaterno,
+      apellidoMaterno: e.apellidoMaterno,
+      rut: e.rut,
+      correoPersonal: e.correoPersonal,
+      correoEmpresa: e.correoEmpresa,
+      cargo: e.cargo,
+      jefatura: e.jefatura,
+      estado: e.estado,
+      tipoContrato: e.tipoContrato,
+      sedeId: e.sedeId,
+    });
+    await auditLogService.registrarActualizacion(
+      'empleado',
+      employee.id,
+      `Empleado actualizado: ${employee.nombres} ${employee.apellidoPaterno}`,
+      snapshotEmpleado(existingEmployee),
+      snapshotEmpleado(employee),
+      session.user?.email
+    );
+
     return NextResponse.json(employee);
   } catch (error) {
     return handleApiError(error, 'Error al actualizar empleado');
@@ -258,6 +285,17 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         estado: "desvinculado",
       },
     });
+
+    // Auditoria generica (SPEC 2.29). Es un soft delete (cambia estado, no
+    // borra la fila) pero desde la perspectiva del usuario es una
+    // eliminacion -- se registra como tal.
+    await auditLogService.registrarEliminacion(
+      'empleado',
+      employee.id,
+      `Empleado marcado como desvinculado: ${employee.nombres} ${employee.apellidoPaterno}`,
+      { nombres: employee.nombres, apellidoPaterno: employee.apellidoPaterno, estadoAnterior: existingEmployee.estado },
+      session.user?.email
+    );
 
     return NextResponse.json({
       message: "Empleado marcado como desvinculado",

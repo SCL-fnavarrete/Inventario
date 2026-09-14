@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { createTerminationSchema, terminationFiltersSchema } from "@/lib/validations/termination";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { sedeWhere, assertSedeAccess } from '@/lib/auth/sedeScope';
+import { sedeWhere, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 // GET /api/desvinculaciones - Listar desvinculaciones con filtros
 export async function GET(request: NextRequest) {
@@ -39,6 +40,13 @@ export async function GET(request: NextRequest) {
       employee: sedeWhere(session),
     };
 
+    // Selector de sede del nav (Etapa 2): solo quien ya tiene visibilidad
+    // total (admin/tecnico) puede acotar por una sede especifica.
+    const sedeIdFiltro = searchParams.get("sedeId") || "";
+    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
+      where.employee = { ...(where.employee as Prisma.EmployeeWhereInput), sedeId: sedeIdFiltro };
+    }
+
     // Filtrar por pendientes (sin devolver equipos)
     if (filters.pendientes === true) {
       where.OR = [
@@ -70,6 +78,7 @@ export async function GET(request: NextRequest) {
     if (filters.search) {
       where.employee = {
         ...sedeWhere(session),
+        ...(sedeIdFiltro && tieneVisibilidadTotal(session) ? { sedeId: sedeIdFiltro } : {}),
         OR: [
           { rut: { contains: filters.search, mode: "insensitive" } },
           { nombres: { contains: filters.search, mode: "insensitive" } },
@@ -220,6 +229,16 @@ export async function POST(request: NextRequest) {
           fechaTermino: data.fechaDesvinculacion,
         },
       });
+
+      // Auditoria generica (SPEC 2.31): quien registro la desvinculacion.
+      await auditLogService.registrarCreacion(
+        'desvinculacion',
+        newTermination.id,
+        `Desvinculación registrada: ${employee.nombres} ${employee.apellidoPaterno}`,
+        { employeeId: data.employeeId, fechaDesvinculacion: data.fechaDesvinculacion.toISOString() },
+        session.user?.email,
+        tx
+      );
 
       return newTermination;
     });

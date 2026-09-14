@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 export async function GET(
   request: NextRequest,
@@ -38,7 +39,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requirePermission('categorias', 'write');
+    const session = await requirePermission('categorias', 'write');
 
     const { id } = await params;
     const body = await request.json();
@@ -89,6 +90,16 @@ export async function PUT(
       },
     });
 
+    // Auditoria generica (SPEC 2.31).
+    await auditLogService.registrarActualizacion(
+      'categoria',
+      category.id,
+      `Categoría actualizada: ${category.nombre}`,
+      { nombre: existing.nombre, descripcion: existing.descripcion, stockMinimo: existing.stockMinimo },
+      { nombre: category.nombre, descripcion: category.descripcion, stockMinimo: category.stockMinimo },
+      session.user?.email
+    );
+
     return NextResponse.json(category);
   } catch (error) {
     return handleApiError(error, 'Error al actualizar categoría');
@@ -100,7 +111,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requirePermission('categorias', 'delete');
+    const session = await requirePermission('categorias', 'delete');
 
     const { id } = await params;
 
@@ -132,6 +143,15 @@ export async function DELETE(
     await prisma.assetCategory.delete({
       where: { id },
     });
+
+    // Auditoria generica (SPEC 2.31).
+    await auditLogService.registrarEliminacion(
+      'categoria',
+      existing.id,
+      `Categoría eliminada: ${existing.nombre}`,
+      { nombre: existing.nombre, descripcion: existing.descripcion },
+      session.user?.email
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {

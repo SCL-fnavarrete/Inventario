@@ -16,11 +16,18 @@ import {
   FileText,
   ClipboardList,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import type { Recurso } from "@/lib/auth/permissions";
 import type { LucideIcon } from "lucide-react";
+
+type Sede = {
+  id: string;
+  codigo: string;
+  nombre: string;
+};
 
 // Cada entrada declara el recurso de la matriz de permisos que representa, en
 // vez de una lista de roles propia. Asi el menu y la API salen de la misma
@@ -51,9 +58,22 @@ export function Sidebar() {
   const { data: session } = useSession();
   const { puedeVer } = usePermissions();
   const [isOpen, setIsOpen] = useState(false);
+  const { sedeSeleccionada, setSedeSeleccionada } = useSedeSeleccionada();
+  const [sedes, setSedes] = useState<Sede[]>([]);
 
   const userRole = session?.user?.role || "user";
   const userName = session?.user?.name || "Usuario";
+
+  // Selector de sede global (SPEC 2.29): filtra los listados de cualquier
+  // pantalla, sin importar el rol -- desde este cambio tecnico tambien ve
+  // todas las sedes por defecto (sedeScope.ts), este selector es lo que le
+  // permite acotar la vista a una sede a la vez si quiere.
+  useEffect(() => {
+    fetch("/api/sedes?activas=true")
+      .then((res) => res.json())
+      .then((data) => setSedes(Array.isArray(data) ? data : []))
+      .catch(() => setSedes([]));
+  }, []);
 
   return (
     <>
@@ -91,6 +111,27 @@ export function Sidebar() {
               className="w-full h-auto rounded-lg"
               priority
             />
+          </div>
+
+          {/* Selector de sede (SPEC 2.29): filtra los listados de todos los
+              módulos a una sede a la vez, o "Todas las sedes" (sin filtro). */}
+          <div className="px-4 pt-4">
+            <label htmlFor="selector-sede" className="block text-xs font-medium text-slate-400 mb-1">
+              Sede
+            </label>
+            <select
+              id="selector-sede"
+              value={sedeSeleccionada ?? ""}
+              onChange={(e) => setSedeSeleccionada(e.target.value || null)}
+              className="w-full px-3 py-2 text-sm bg-slate-800 text-white border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Todas las sedes</option>
+              {sedes.map((sede) => (
+                <option key={sede.id} value={sede.id}>
+                  {sede.nombre}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Navigation */}

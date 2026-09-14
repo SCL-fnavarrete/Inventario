@@ -4,6 +4,7 @@ import { completeMaintenanceSchema } from "@/lib/validations/maintenance";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
+import { auditLogService } from '@/lib/services/auditLogService';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 
 interface RouteParams {
@@ -177,6 +178,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           },
         });
       }
+
+      // Auditoria generica (SPEC 2.31): quien completo el ticket y con que
+      // resultado.
+      await auditLogService.registrarActualizacion(
+        'mantencion',
+        id,
+        `Mantención completada: ${updatedMaintenance.tipo.nombre} (resultado: ${data.resultadoTipo})`,
+        { estado: maintenance.estado },
+        { estado: 'completada', resultadoTipo: data.resultadoTipo, resultado: data.resultado },
+        usuario,
+        tx
+      );
 
       return updatedMaintenance;
     });

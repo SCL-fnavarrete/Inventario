@@ -7,6 +7,7 @@ import { tieneVisibilidadTotal, sedeIdParaCrear } from '@/lib/auth/sedeScope';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { generarNumeroGuia } from '@/lib/services/guiaDespachoService';
+import { auditLogService } from '@/lib/services/auditLogService';
 import { formatearRut, validarDigitoVerificador } from '@/lib/validations/rut';
 import { normalizeRut } from '@/lib/utils/rut';
 import { removeAccents, matchNoAccent } from '@/lib/utils/text';
@@ -241,6 +242,16 @@ export async function POST(request: NextRequest) {
           sedeDestino: true,
         },
       });
+
+      // Auditoria generica (SPEC 2.31): quien creo la guia de despacho.
+      await auditLogService.registrarCreacion(
+        'guia_despacho',
+        nuevaGuia.id,
+        `Guía de despacho creada: ${nuevaGuia.numero} (OT ${otChilexpress})`,
+        { sedeId, sedeDestinoId, cantidadEquipos: (assetIds as string[]).length },
+        session.user?.email,
+        tx
+      );
 
       for (const assetId of assetIds as string[]) {
         const sedeAnteriorId = assets.find((a) => a.id === assetId)?.sedeId ?? null;

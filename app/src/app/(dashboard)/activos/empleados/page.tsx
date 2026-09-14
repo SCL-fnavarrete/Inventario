@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ActivosTabs } from "@/components/activos";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 
 // Esta pagina reemplaza al antiguo modulo "Empleados" (creacion manual e
@@ -90,6 +91,9 @@ const tipoContratoColors: Record<TipoContrato, string> = {
 
 export default function PersonalPage() {
   const { data: session } = useSession();
+  // Selector de sede del nav (Etapa 2): elegir una sede ahi filtra tambien
+  // esta pantalla, igual que ya pasa en Activos.
+  const { sedeSeleccionada } = useSedeSeleccionada();
   // Ubicaciones es un dato legado (texto libre, previo a Sede) que ya no
   // aporta nada util al tecnico -- el filtrado real por sede lo hace la
   // sesion sola. Javier pidio (10-sep-2026) que la tarjeta y el filtro de
@@ -126,7 +130,7 @@ export default function PersonalPage() {
   useEffect(() => {
     fetchEmployees();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.page, debouncedSearch, estadoFilter, tipoContratoFilter, ubicacionFilter]);
+  }, [pagination.page, debouncedSearch, estadoFilter, tipoContratoFilter, ubicacionFilter, sedeSeleccionada]);
 
   useEffect(() => {
     // El detalle de ubicaciones ya no se muestra al tecnico -- no vale la
@@ -243,6 +247,7 @@ export default function PersonalPage() {
       if (estadoFilter) params.append("estado", estadoFilter);
       if (tipoContratoFilter) params.append("tipoContrato", tipoContratoFilter);
       if (ubicacionFilter) params.append("ubicacion", ubicacionFilter);
+      if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
 
       const res = await fetch(`/api/empleados?${params}`);
       const data = await res.json();

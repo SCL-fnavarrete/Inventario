@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { Can } from "@/components/auth/Can";
 import { MantencionesTabs } from "@/components/mantenciones";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 
 type TipoMantencion = {
   id: string;
@@ -123,6 +124,9 @@ export default function MantencionesPage() {
   const [showVencidas, setShowVencidas] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  // Selector de sede del nav (Etapa 2): elegir una sede ahi filtra tambien
+  // esta pantalla, igual que ya pasa en Activos.
+  const { sedeSeleccionada } = useSedeSeleccionada();
 
   useEffect(() => {
     fetchTipos();
@@ -132,7 +136,7 @@ export default function MantencionesPage() {
     fetchMaintenances();
     fetchStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, filterTipoId, filterEstado, showVencidas, page]);
+  }, [debouncedSearch, filterTipoId, filterEstado, showVencidas, page, sedeSeleccionada]);
 
   async function fetchTipos() {
     try {
@@ -156,6 +160,7 @@ export default function MantencionesPage() {
       if (filterTipoId) params.append("tipoId", filterTipoId);
       if (filterEstado) params.append("estado", filterEstado);
       if (showVencidas) params.append("vencidas", "true");
+      if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
 
       const res = await fetch(`/api/mantenciones?${params}`);
       const data = await res.json();

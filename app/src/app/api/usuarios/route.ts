@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { validarPasswordFuerte } from '@/lib/validations/password';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 // Roles válidos del sistema (solo dos: admin ve todo, tecnico es soporte
 // restringido a su sede -- ver sedeScope()).
@@ -36,7 +37,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    await requirePermission('usuarios', 'write');
+    const session = await requirePermission('usuarios', 'write');
 
     const body = await request.json();
     const { email, nombre, rol, password, activo, sedeId } = body;
@@ -113,6 +114,16 @@ export async function POST(request: NextRequest) {
         sede: { select: { id: true, codigo: true, nombre: true } },
       },
     });
+
+    // Auditoria generica (SPEC 2.29). NUNCA incluir passwordHash ni password
+    // en el snapshot -- ver comentario en el modelo AuditLog.
+    await auditLogService.registrarCreacion(
+      'usuario',
+      user.id,
+      `Usuario creado: ${user.nombre} (${user.email})`,
+      { email: user.email, nombre: user.nombre, rol: user.rol, activo: user.activo, sedeId: user.sedeId },
+      session.user?.email
+    );
 
     return NextResponse.json(user, { status: 201 });
   } catch (error) {

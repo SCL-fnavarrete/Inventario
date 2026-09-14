@@ -4,20 +4,31 @@ import { NotFoundError, ValidationError } from '@/lib/errors';
 /**
  * Aislamiento de datos por sede -- unico punto de verdad.
  *
- * Regla (ver SPEC 2.9): `admin` ve y puede crear en cualquier sede. `tecnico`
- * (el unico otro rol -- ver permissions.ts) queda restringido a los
- * registros de SU sede -- la que tiene asignada en `SystemUser.sedeId`.
- * La sede de un registro no se elige en su formulario: se hereda de quien
- * lo crea, para que nunca se pueda cruzar sin querer.
+ * REDISEÑO 14-sep-2026 (SPEC 2.29, pedido explicito de Javier tras conocer
+ * el alcance real -- equipos en Peru, ~10 unidades): tecnico deja de estar
+ * restringido a su propia sede. Ya no tiene sentido crear un usuario
+ * dedicado solo para ver un puñado de equipos de otra sede, y toda accion
+ * relevante queda igual ligada al usuario que la ejecuto (ver
+ * AssetHistoryService, historial de Solicitudes, y el nuevo registro de
+ * auditoria generico para Empleados/Compras/Usuarios). Por eso `tecnico`
+ * ahora tiene la misma visibilidad total que `admin` -- la diferencia entre
+ * ambos roles queda solo en la matriz de permisos (`permissions.ts`,
+ * Configuracion sigue siendo admin-only).
  *
- * Aplica a los 4 modulos operativos que se cruzan entre sedes: activos,
- * empleados, solicitudes y guias de despacho. No aplica a datos maestros
- * (categorias, proveedores) ni a compras/reportes, que son globales.
+ * Esto es un cambio de rumbo DELIBERADO que revierte a proposito parte de
+ * SPEC 2.24 (donde se blindaron 5 rutas para que tecnico NO viera otra
+ * sede). No es un bug ni hay que "corregirlo" de vuelta.
+ *
+ * El filtrado por sede sigue existiendo, pero pasa a ser un filtro de UI
+ * (el selector de sede del nav, `?sedeId=` en los endpoints de listado),
+ * no una restriccion de acceso. La sede de un registro nuevo ahora se elige
+ * siempre explicitamente al crearlo (ver `sedeIdParaCrear`), para todos los
+ * roles.
  */
 
-/** ¿Este rol ve todas las sedes sin restriccion? */
+/** ¿Este rol ve todas las sedes sin restriccion? Hoy: admin y tecnico por igual. */
 export function tieneVisibilidadTotal(session: SesionAutenticada): boolean {
-  return session.user.role === 'admin';
+  return session.user.role === 'admin' || session.user.role === 'tecnico';
 }
 
 /**
@@ -52,20 +63,28 @@ export function assertSedeAccess(
 /**
  * Sede que corresponde asignar a un registro nuevo.
  *
- * - No-admin: siempre la suya (se ignora cualquier `sedeId` que venga en el
- *   body -- el formulario no debe ofrecer el campo). Si no tiene sede
- *   asignada, se rechaza la creacion con un mensaje util en vez de crear un
- *   registro huerfano que nadie va a poder ver despues.
- * - Admin: elige explicitamente la sede (crea "para" esa sede). Antes se
- *   permitia dejarlo en blanco ("sin sede, transversal"), pero en la
- *   practica eso dejaba el registro visible solo para el admin -- ningun
- *   tecnico lo veia nunca, porque su filtro por sede nunca calza con
- *   `sedeId = null`. Por eso ahora `requerido` (activado en los 4 modulos
- *   operativos que ofrecen el selector a admin: activos, empleados,
- *   solicitudes y guias-despacho -- sede origen) exige elegir una sede
- *   real, igual que un no-admin. Queda `false` por defecto solo por si a
- *   futuro se agrega otro caller sin selector todavia en su formulario.
- *   Ver SPEC 2.8.2 y 2.9.2 (11-sep-2026).
+ * 14-sep-2026 (SPEC 2.29): con `tieneVisibilidadTotal` ahora true tambien
+ * para tecnico, este cae siempre en la primera rama -- elige explicitamente
+ * la sede igual que admin, ya no se le asigna automaticamente la suya. Cada
+ * formulario que llama esto con `requerido: true` DEBE ofrecer un selector
+ * de sede a cualquier rol (antes era admin-only) -- ver Activos > Nuevo.
+ *
+ * La segunda rama (asignar automaticamente `session.user.sedeId`) queda
+ * como codigo muerto mientras solo existan los roles admin/tecnico, pero se
+ * deja por si en el futuro se agrega un rol con visibilidad restringida.
+ *
+ * - Con visibilidad total: elige explicitamente la sede (crea "para" esa
+ *   sede). Antes se permitia dejarlo en blanco ("sin sede, transversal"),
+ *   pero en la practica eso dejaba el registro invisible para cualquier
+ *   filtro de sede real. Por eso `requerido` (activado en los modulos
+ *   operativos que ofrecen el selector: activos, empleados, solicitudes y
+ *   guias-despacho -- sede origen) exige elegir una sede real. Queda
+ *   `false` por defecto solo por si a futuro se agrega otro caller sin
+ *   selector todavia en su formulario. Ver SPEC 2.8.2, 2.9.2 y 2.29.
+ * - Sin visibilidad total: siempre la suya (se ignora cualquier `sedeId`
+ *   que venga en el body). Si no tiene sede asignada, se rechaza la
+ *   creacion con un mensaje util en vez de crear un registro huerfano que
+ *   nadie va a poder ver despues.
  */
 export function sedeIdParaCrear(
   session: SesionAutenticada,

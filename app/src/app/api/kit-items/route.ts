@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { sedeWhere, sedeIdParaCrear } from '@/lib/auth/sedeScope';
+import { sedeWhere, sedeIdParaCrear, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { createKitItemSchema } from '@/lib/validations/kitItem';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 // GET /api/kit-items?categoria=kit_bienvenida|epp
 // Catalogo de articulos de Kit de Bienvenida y EPP, con su stock actual.
@@ -14,11 +15,15 @@ export async function GET(request: NextRequest) {
     const session = await requirePermission('kitEpp', 'read');
 
     const categoria = request.nextUrl.searchParams.get('categoria');
+    // Selector de sede del nav (Etapa 2): solo quien ya tiene visibilidad
+    // total (admin/tecnico) puede acotar por una sede especifica.
+    const sedeIdFiltro = request.nextUrl.searchParams.get("sedeId") || "";
 
     const items = await prisma.welcomeKitItem.findMany({
       where: {
         ...sedeWhere(session),
         ...(categoria ? { categoria: categoria as 'kit_bienvenida' | 'epp' } : {}),
+        ...(sedeIdFiltro && tieneVisibilidadTotal(session) ? { sedeId: sedeIdFiltro } : {}),
       },
       // El nombre de la sede solo lo necesita la UI de admin (que ve varias
       // sedes mezcladas); para tecnico es siempre la suya.
@@ -66,6 +71,15 @@ export async function POST(request: NextRequest) {
         sedeId,
       },
     });
+
+    // Auditoria generica (SPEC 2.31).
+    await auditLogService.registrarCreacion(
+      'kit_item',
+      item.id,
+      `Artículo de Kit/EPP creado: ${item.nombre} (${item.categoria})`,
+      { nombre: item.nombre, categoria: item.categoria, cantidad: item.cantidad, sedeId: item.sedeId },
+      session.user?.email
+    );
 
     return NextResponse.json(item, { status: 201 });
   } catch (error) {

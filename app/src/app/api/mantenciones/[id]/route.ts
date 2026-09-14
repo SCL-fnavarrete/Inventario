@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { updateMaintenanceSchema, completeMaintenanceSchema } from "@/lib/validations/maintenance";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -169,6 +170,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         });
       }
 
+      // Auditoria generica (SPEC 2.31): quien actualizo el ticket, dentro
+      // de la misma transaccion.
+      await auditLogService.registrarActualizacion(
+        'mantencion',
+        id,
+        `Mantención actualizada: ${updatedMaintenance.tipo.nombre} (estado: ${updatedMaintenance.estado})`,
+        { estado: existingMaintenance.estado, resultado: existingMaintenance.resultado },
+        { estado: updatedMaintenance.estado, resultado: updatedMaintenance.resultado },
+        session.user?.email,
+        tx
+      );
+
       return updatedMaintenance;
     });
 
@@ -208,6 +221,16 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // Eliminar en transacción
     await prisma.$transaction(async (tx) => {
+      // Auditoria generica (SPEC 2.31), antes del delete fisico.
+      await auditLogService.registrarEliminacion(
+        'mantencion',
+        maintenance.id,
+        `Mantención eliminada (assetId: ${maintenance.assetId})`,
+        { assetId: maintenance.assetId, estado: maintenance.estado },
+        session.user?.email,
+        tx
+      );
+
       // Eliminar mantención
       await tx.maintenance.delete({ where: { id } });
 

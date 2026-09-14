@@ -4,7 +4,8 @@ import { createMaintenanceSchema, maintenanceFiltersSchema } from "@/lib/validat
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { validateTransition } from '@/lib/services/assetStateMachine';
-import { sedeWhere, assertSedeAccess } from '@/lib/auth/sedeScope';
+import { sedeWhere, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 // GET /api/mantenciones - Listar mantenciones con filtros
 export async function GET(request: NextRequest) {
@@ -43,6 +44,13 @@ export async function GET(request: NextRequest) {
     const where: Prisma.MaintenanceWhereInput = {
       asset: sedeWhere(session),
     };
+
+    // Selector de sede del nav (Etapa 2): solo quien ya tiene visibilidad
+    // total (admin/tecnico) puede acotar por una sede especifica.
+    const sedeIdFiltro = searchParams.get("sedeId") || "";
+    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
+      where.asset = { ...(where.asset as Prisma.AssetWhereInput), sedeId: sedeIdFiltro };
+    }
 
     if (filters.assetId) {
       where.assetId = filters.assetId;
@@ -228,6 +236,17 @@ export async function POST(request: NextRequest) {
           },
         },
       });
+
+      // Auditoria generica (SPEC 2.31): quien creo el ticket de mantencion,
+      // dentro de la misma transaccion.
+      await auditLogService.registrarCreacion(
+        'mantencion',
+        maintenance.id,
+        `Mantención creada: ${maintenance.tipo.nombre} para ${asset.marca} ${asset.modelo}`,
+        { assetId: data.assetId, tipoId: data.tipoId, descripcion: data.descripcion, estado: maintenance.estado },
+        session.user?.email,
+        tx
+      );
 
       // Actualizar estado del activo si se programa mantención
       if (data.fechaProgramada && asset.estado !== "en_mantencion") {

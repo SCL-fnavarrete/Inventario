@@ -4,7 +4,7 @@ import { createAssignmentSchema, assignmentFiltersSchema } from "@/lib/validatio
 import { executeAssignment } from "@/lib/services/workflowExecutionService";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { sedeWhere, assertSedeAccess } from '@/lib/auth/sedeScope';
+import { sedeWhere, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { normalizeRut } from '@/lib/utils/rut';
 import { removeAccents, matchNoAccent } from '@/lib/utils/text';
 
@@ -47,6 +47,14 @@ export async function GET(request: NextRequest) {
     const where: Prisma.AssignmentWhereInput = {
       asset: sedeWhere(session),
     };
+
+    // Selector de sede del nav (Etapa 2): solo quien ya tiene visibilidad
+    // total (admin/tecnico) puede acotar por una sede especifica -- para el
+    // resto, sedeWhere ya los deja fijos en la suya y esto no aplica.
+    const sedeIdFiltro = searchParams.get("sedeId") || "";
+    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
+      where.asset = { ...(where.asset as Prisma.AssetWhereInput), sedeId: sedeIdFiltro };
+    }
 
     if (filters.employeeId) {
       where.employeeId = filters.employeeId;

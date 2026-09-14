@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Plus, Edit, Trash2, Save, X } from "lucide-react";
 import { ActivosTabs } from "@/components/activos";
+import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 
 type CategoriaKit = "kit_bienvenida" | "epp";
 
@@ -57,16 +58,21 @@ export function KitEppCategoriaView({
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState(formInicial);
   const [error, setError] = useState("");
+  // Selector de sede del nav (Etapa 2): elegir una sede ahi filtra tambien
+  // este catalogo, igual que ya pasa en Activos.
+  const { sedeSeleccionada } = useSedeSeleccionada();
 
   useEffect(() => {
     fetchItems();
     if (isAdmin) fetchSedes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, categoria]);
+  }, [isAdmin, categoria, sedeSeleccionada]);
 
   const fetchItems = async () => {
     try {
-      const res = await fetch(`/api/kit-items?categoria=${categoria}`);
+      const params = new URLSearchParams({ categoria });
+      if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
+      const res = await fetch(`/api/kit-items?${params}`);
       if (res.ok) {
         setItems(await res.json());
       }

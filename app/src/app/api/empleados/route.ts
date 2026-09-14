@@ -5,7 +5,8 @@ import { Prisma } from "@prisma/client";
 import { normalizeRut } from "@/lib/utils/rut";
 import { removeAccents, matchNoAccent } from "@/lib/utils/text";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { sedeWhere, sedeIdParaCrear } from '@/lib/auth/sedeScope';
+import { sedeWhere, sedeIdParaCrear, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 // GET /api/empleados - Listar empleados con filtros y paginación
 export async function GET(request: NextRequest) {
@@ -40,6 +41,13 @@ export async function GET(request: NextRequest) {
     // Construir condiciones de búsqueda
     // Aislamiento por sede (SPEC 2.9): admin ve todo, el resto solo lo suyo.
     const where: Prisma.EmployeeWhereInput = { ...sedeWhere(session) };
+
+    // Selector de sede del nav (Etapa 2): solo quien ya tiene visibilidad
+    // total (admin/tecnico) puede acotar por una sede especifica.
+    const sedeIdFiltro = searchParams.get("sedeId") || "";
+    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
+      where.sedeId = sedeIdFiltro;
+    }
 
     // Un termino de solo espacios no es una busqueda: se ignora en vez de
     // filtrar por vacio, que no devolveria nada util.
@@ -78,6 +86,7 @@ export async function GET(request: NextRequest) {
       const allEmployees = await prisma.employee.findMany({
         where: {
           ...sedeWhere(session),
+          ...(sedeIdFiltro && tieneVisibilidadTotal(session) ? { sedeId: sedeIdFiltro } : {}),
           // Aplicar filtros no-search (estado, tipoContrato, etc.)
           ...(filters.estado && { estado: filters.estado }),
           ...(filters.tipoContrato && { tipoContrato: filters.tipoContrato }),
@@ -250,6 +259,16 @@ export async function POST(request: NextRequest) {
         telefonoContacto: data.telefonoContacto,
       },
     });
+
+    // Auditoria generica (SPEC 2.29): quien creo este empleado y con que
+    // datos. No bloquea la respuesta si falla -- ver nota en registrar().
+    await auditLogService.registrarCreacion(
+      'empleado',
+      employee.id,
+      `Empleado creado: ${employee.nombres} ${employee.apellidoPaterno}`,
+      { nombres: employee.nombres, apellidoPaterno: employee.apellidoPaterno, rut: employee.rut, sedeId: employee.sedeId },
+      session.user?.email
+    );
 
     return NextResponse.json(employee, { status: 201 });
   } catch (error) {

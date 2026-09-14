@@ -4,6 +4,7 @@ import { updatePurchaseSchema } from "@/lib/validations/purchase";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { ValidationError } from '@/lib/errors';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -145,6 +146,26 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     });
 
+    // Auditoria generica (SPEC 2.29): que cambio y quien lo hizo.
+    await auditLogService.registrarActualizacion(
+      'compra',
+      purchase.id,
+      `Compra actualizada: factura ${purchase.numeroFactura}`,
+      {
+        numeroFactura: existingPurchase.numeroFactura,
+        rutProveedor: existingPurchase.rutProveedor,
+        tipoCompra: existingPurchase.tipoCompra,
+        sedeId: existingPurchase.sedeId,
+      },
+      {
+        numeroFactura: purchase.numeroFactura,
+        rutProveedor: purchase.rutProveedor,
+        tipoCompra: purchase.tipoCompra,
+        sedeId: purchase.sedeId,
+      },
+      session.user?.email
+    );
+
     return NextResponse.json(purchase);
   } catch (error) {
     return handleApiError(error, 'Error al actualizar compra');
@@ -185,6 +206,23 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
           where: { purchaseId: id },
         });
       }
+
+      // Auditoria generica (SPEC 2.29), antes del delete fisico -- el
+      // snapshot es lo unico que queda de esta compra despues de esto.
+      await auditLogService.registrarEliminacion(
+        'compra',
+        purchase.id,
+        `Compra eliminada: factura ${purchase.numeroFactura}`,
+        {
+          numeroFactura: purchase.numeroFactura,
+          rutProveedor: purchase.rutProveedor,
+          tipoCompra: purchase.tipoCompra,
+          sedeId: purchase.sedeId,
+          cantidadActivosVinculados: purchase.purchaseAssets.length,
+        },
+        session.user?.email,
+        tx
+      );
 
       // Eliminar la compra
       await tx.purchase.delete({

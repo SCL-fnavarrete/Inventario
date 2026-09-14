@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { updateTerminationSchema, registerReturnSchema } from "@/lib/validations/termination";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 // GET /api/desvinculaciones/[id] - Obtener detalle de desvinculación
 export async function GET(
@@ -133,6 +134,28 @@ export async function PUT(
       },
     });
 
+    // Auditoria generica (SPEC 2.31).
+    await auditLogService.registrarActualizacion(
+      'desvinculacion',
+      termination.id,
+      `Desvinculación actualizada (${id.slice(0, 8)})`,
+      {
+        estadoNotebook: existingTermination.estadoNotebook,
+        estadoCelular: existingTermination.estadoCelular,
+        estadoMonitor: existingTermination.estadoMonitor,
+        estadoKit: existingTermination.estadoKit,
+        notificadoRrhh: existingTermination.notificadoRrhh,
+      },
+      {
+        estadoNotebook: termination.estadoNotebook,
+        estadoCelular: termination.estadoCelular,
+        estadoMonitor: termination.estadoMonitor,
+        estadoKit: termination.estadoKit,
+        notificadoRrhh: termination.notificadoRrhh,
+      },
+      session.user?.email
+    );
+
     return NextResponse.json(termination);
   } catch (error) {
     return handleApiError(error, 'Error al actualizar desvinculación');
@@ -185,6 +208,16 @@ export async function DELETE(
           fechaTermino: null,
         },
       });
+
+      // Auditoria generica (SPEC 2.31), antes del delete fisico.
+      await auditLogService.registrarEliminacion(
+        'desvinculacion',
+        termination.id,
+        `Desvinculación eliminada: ${termination.employee.nombres} ${termination.employee.apellidoPaterno}`,
+        { employeeId: termination.employeeId },
+        session.user?.email,
+        tx
+      );
 
       // Eliminar desvinculación
       await tx.termination.delete({

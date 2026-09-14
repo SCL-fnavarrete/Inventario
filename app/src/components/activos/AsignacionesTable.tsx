@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 
 type Assignment = {
   id: string;
@@ -92,6 +93,9 @@ export function AsignacionesTable() {
   // peticion es esta version debounced -- antes buscaba en cada tecla sin
   // ningun freno, una peticion por letra. Ver useDebouncedValue.
   const debouncedSearch = useDebouncedValue(search, 350);
+  // Selector de sede del nav (Etapa 2): elegir una sede ahi filtra tambien
+  // esta tabla, igual que ya pasa en Activos.
+  const { sedeSeleccionada } = useSedeSeleccionada();
 
   useEffect(() => {
     let cancelado = false;
@@ -104,6 +108,7 @@ export function AsignacionesTable() {
           activo: "true",
         });
         if (debouncedSearch) params.append("search", debouncedSearch);
+        if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
         const res = await fetch(`/api/asignaciones?${params}`);
         if (!res.ok) return;
         const data = await res.json();
@@ -121,7 +126,7 @@ export function AsignacionesTable() {
       cancelado = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.page, debouncedSearch]);
+  }, [pagination.page, debouncedSearch, sedeSeleccionada]);
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">

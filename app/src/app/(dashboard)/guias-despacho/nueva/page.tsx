@@ -49,15 +49,19 @@ type Asset = {
 export default function NuevaGuiaDespachoPage() {
   const { data: session } = useSession();
   const emisor = session?.user?.name || session?.user?.email || "";
-  const isAdmin = session?.user?.role === "admin";
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sedes, setSedes] = useState<Sede[]>([]);
 
-  // Sede origen: solo la elige admin (un tecnico despacha siempre desde la
-  // suya, forzado en el backend). Sin esto una guia de admin quedaba con
-  // sedeId null -- mezclando en un mismo despacho equipos de sedes
-  // distintas y sin quedar visible para ningun tecnico "emisor". Ver SPEC 2.9.
+  // Sede origen: desde SPEC 2.29 cualquier rol con visibilidad total
+  // (admin y tecnico por igual) elige explicitamente desde que sede
+  // despacha -- ya no se asume en silencio la sede propia del usuario. Sin
+  // esto una guia quedaba con sedeId null -- mezclando en un mismo despacho
+  // equipos de sedes distintas y sin quedar visible para ningun tecnico
+  // "emisor". El dropdown SI viene precargado con la sede propia del
+  // usuario (ver useEffect mas abajo) para no obligarlo a elegir en el caso
+  // comun; solo hace falta cambiarlo si va a despachar desde otra sede.
+  // Ver SPEC 2.9 y SPEC 2.29.
   const [sedeOrigenId, setSedeOrigenId] = useState("");
 
   const [selectedAssets, setSelectedAssets] = useState<Asset[]>([]);
@@ -83,6 +87,15 @@ export default function NuevaGuiaDespachoPage() {
     fetchSedes();
   }, []);
 
+  // Precarga la sede origen propia del usuario apenas la sesion esta
+  // disponible -- el "prev ||" evita pisar una eleccion manual hecha antes
+  // de que la sesion terminara de cargar.
+  useEffect(() => {
+    if (session?.user?.sedeId) {
+      setSedeOrigenId((prev) => prev || session.user.sedeId!);
+    }
+  }, [session?.user?.sedeId]);
+
   async function fetchSedes() {
     try {
       const res = await fetch("/api/sedes?activas=true");
@@ -93,11 +106,9 @@ export default function NuevaGuiaDespachoPage() {
     }
   }
 
-  // Un tecnico no puede despacharse a su propia sede (la valida tambien el
-  // backend); si es admin, se excluye la sede origen que eligio.
-  const sedesDestinoDisponibles = sedes.filter(
-    (s) => s.id !== (isAdmin ? sedeOrigenId : session?.user?.sedeId)
-  );
+  // Nadie puede despacharse a su propia sede origen (la valida tambien el
+  // backend); se excluye la sede origen elegida.
+  const sedesDestinoDisponibles = sedes.filter((s) => s.id !== sedeOrigenId);
   const sedeDestinoNombre = sedes.find((s) => s.id === dispatchData.sedeDestinoId)?.nombre;
 
   const formularioCompleto =
@@ -107,10 +118,10 @@ export default function NuevaGuiaDespachoPage() {
     !!dispatchData.sedeDestinoId &&
     !!receptor.nombre &&
     !!receptor.rut &&
-    (!isAdmin || !!sedeOrigenId);
+    !!sedeOrigenId;
 
   async function handleSubmit() {
-    if (isAdmin && !sedeOrigenId) {
+    if (!sedeOrigenId) {
       setError("Selecciona la sede origen del despacho.");
       return;
     }
@@ -132,9 +143,8 @@ export default function NuevaGuiaDespachoPage() {
         assetIds: selectedAssets.map((a) => a.id),
         receptorNombre: receptor.nombre,
         receptorRut: receptor.rut,
-        // Solo tiene efecto si quien crea es admin -- el backend usa
-        // siempre la sede propia del tecnico. Ver SPEC 2.9.
-        ...(isAdmin ? { sedeId: sedeOrigenId } : {}),
+        // Desde SPEC 2.29 siempre se manda explicita -- ver sedeIdParaCrear.
+        sedeId: sedeOrigenId,
       };
 
       const res = await fetch("/api/guias-despacho", {
@@ -230,44 +240,42 @@ export default function NuevaGuiaDespachoPage() {
         </div>
       )}
 
-      {/* Sección: Sede origen (solo admin) */}
-      {isAdmin && (
-        <div className="bg-white rounded-lg shadow p-6 space-y-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <MapPin className="text-blue-600" size={20} />
-            Sede origen
-          </h2>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Sede origen <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={sedeOrigenId}
-              onChange={(e) => {
-                setSedeOrigenId(e.target.value);
-                // Los equipos ya elegidos pueden ser de una sede distinta a
-                // la nueva -- se limpian para no arrastrar una seleccion
-                // que ya no corresponde.
-                setSelectedAssets([]);
-              }}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="" disabled>
-                Selecciona una sede...
+      {/* Sección: Sede origen */}
+      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <MapPin className="text-blue-600" size={20} />
+          Sede origen
+        </h2>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Sede origen <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={sedeOrigenId}
+            onChange={(e) => {
+              setSedeOrigenId(e.target.value);
+              // Los equipos ya elegidos pueden ser de una sede distinta a
+              // la nueva -- se limpian para no arrastrar una seleccion
+              // que ya no corresponde.
+              setSelectedAssets([]);
+            }}
+            required
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="" disabled>
+              Selecciona una sede...
+            </option>
+            {sedes.map((sede) => (
+              <option key={sede.id} value={sede.id}>
+                {sede.nombre}
               </option>
-              {sedes.map((sede) => (
-                <option key={sede.id} value={sede.id}>
-                  {sede.nombre}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              Un técnico despacha siempre desde su propia sede; como admin debes elegir desde cuál sede sale este despacho, para no mezclar equipos de sedes distintas en una misma guía.
-            </p>
-          </div>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Obligatorio: desde cuál sede sale este despacho, para no mezclar equipos de sedes distintas en una misma guía.
+          </p>
         </div>
-      )}
+      </div>
 
       {/* Sección: Equipos */}
       <div className="bg-white rounded-lg shadow p-6 space-y-4">
@@ -275,7 +283,7 @@ export default function NuevaGuiaDespachoPage() {
           <Package className="text-blue-600" size={20} />
           Equipos a despachar
         </h2>
-        {isAdmin && !sedeOrigenId ? (
+        {!sedeOrigenId ? (
           <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
             Selecciona primero la sede origen para ver el inventario disponible.
           </p>
@@ -283,7 +291,7 @@ export default function NuevaGuiaDespachoPage() {
           <SelectorActivos
             selectedAssets={selectedAssets}
             onSelectionChange={setSelectedAssets}
-            sedeId={isAdmin ? sedeOrigenId : undefined}
+            sedeId={sedeOrigenId}
           />
         )}
       </div>

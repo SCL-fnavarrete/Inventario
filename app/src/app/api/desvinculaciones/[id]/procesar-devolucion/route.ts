@@ -4,6 +4,7 @@ import { registerReturnSchema } from "@/lib/validations/termination";
 import { executeTerminationReturn } from "@/lib/services/workflowExecutionService";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 // POST /api/desvinculaciones/[id]/procesar-devolucion - Procesar devolución de equipos
 export async function POST(
@@ -58,6 +59,26 @@ export async function POST(
         observaciones: data.observaciones,
       });
     });
+
+    // Auditoria generica (SPEC 2.31): quien proceso la devolucion de equipos.
+    await auditLogService.registrarActualizacion(
+      'desvinculacion',
+      id,
+      `Devolución de equipos procesada (desvinculación ${id.slice(0, 8)})`,
+      {
+        estadoNotebook: termination.estadoNotebook,
+        estadoCelular: termination.estadoCelular,
+        estadoMonitor: termination.estadoMonitor,
+        estadoKit: termination.estadoKit,
+      },
+      {
+        estadoNotebook: data.estadoNotebook,
+        estadoCelular: data.estadoCelular,
+        estadoMonitor: data.estadoMonitor,
+        estadoKit: data.estadoKit,
+      },
+      session.user?.email
+    );
 
     // Recargar con todas las relaciones
     const finalTermination = await prisma.termination.findUnique({

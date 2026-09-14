@@ -5,7 +5,7 @@ import { getInitialState } from '@/lib/services/workflowStateMachine';
 import { executeAssignment, executeKitDelivery, executeReturn, executeKitReturn } from '@/lib/services/workflowExecutionService';
 import { Prisma, Employee } from '@prisma/client';
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { sedeWhere, sedeIdParaCrear, assertSedeAccess } from '@/lib/auth/sedeScope';
+import { sedeWhere, sedeIdParaCrear, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { normalizeRut } from '@/lib/utils/rut';
 import { removeAccents, matchNoAccent } from '@/lib/utils/text';
 
@@ -50,6 +50,13 @@ export async function GET(request: NextRequest) {
 
     // Aislamiento por sede (SPEC 2.9): admin ve todo, el resto solo lo suyo.
     const where: Prisma.WorkflowRequestWhereInput = { ...sedeWhere(session) };
+
+    // Selector de sede del nav (Etapa 2): solo quien ya tiene visibilidad
+    // total (admin/tecnico) puede acotar por una sede especifica.
+    const sedeIdFiltro = searchParams.get("sedeId") || "";
+    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
+      where.sedeId = sedeIdFiltro;
+    }
 
     if (filters.tipo) where.tipo = filters.tipo;
     // 'abierto'/'cerrado' en vez del estado interno detallado: un ticket

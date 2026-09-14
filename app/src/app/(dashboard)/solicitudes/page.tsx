@@ -17,6 +17,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Can } from "@/components/auth/Can";
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 
 type WorkflowRequest = {
   id: string;
@@ -93,6 +94,9 @@ export default function SolicitudesPage() {
   const [filterEstado, setFilterEstado] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
+  // Selector de sede del nav (Etapa 2): elegir una sede ahi filtra tambien
+  // esta pantalla, igual que ya pasa en Activos.
+  const { sedeSeleccionada } = useSedeSeleccionada();
 
   const fetchRequests = useCallback(
     async (page = 1) => {
@@ -102,6 +106,7 @@ export default function SolicitudesPage() {
         if (debouncedSearch) params.set('search', debouncedSearch);
         if (filterTipo) params.set('tipo', filterTipo);
         if (filterEstado) params.set('estado', filterEstado);
+        if (sedeSeleccionada) params.set('sedeId', sedeSeleccionada);
 
         const res = await fetch(`/api/solicitudes?${params}`);
         const json = await res.json();
@@ -113,7 +118,7 @@ export default function SolicitudesPage() {
         setLoading(false);
       }
     },
-    [debouncedSearch, filterTipo, filterEstado]
+    [debouncedSearch, filterTipo, filterEstado, sedeSeleccionada]
   );
 
   useEffect(() => {

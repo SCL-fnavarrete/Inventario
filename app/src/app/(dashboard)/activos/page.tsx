@@ -35,6 +35,7 @@ import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard, ActivosT
 import { Can } from "@/components/auth/Can";
 import { Modal } from "@/components/ui/Modal";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import { BajaActivoForm } from "@/components/activos/BajaActivoForm";
 import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 
@@ -173,6 +174,9 @@ function ActivosPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // SPEC 2.29: filtro global de sede (selector del nav), no viene de la URL
+  // de esta pantalla -- se mantiene mientras el usuario navega entre módulos.
+  const { sedeSeleccionada } = useSedeSeleccionada();
 
   // URL state
   const estadoFilter = searchParams.get("estado") || "";
@@ -265,6 +269,7 @@ function ActivosPageContent() {
         if (searchQuery) params.append("search", searchQuery);
         if (estadoFilter) params.append("estado", estadoFilter);
         if (categoriaFilter) params.append("categoriaId", categoriaFilter);
+        if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
 
         const res = await fetch(`/api/activos?${params}`);
         const data = await res.json();
@@ -277,7 +282,7 @@ function ActivosPageContent() {
       }
     }
     fetchAssets();
-  }, [currentPage, limitParam, searchQuery, estadoFilter, categoriaFilter]);
+  }, [currentPage, limitParam, searchQuery, estadoFilter, categoriaFilter, sedeSeleccionada]);
 
   // Fetch all assets for Kanban view
   useEffect(() => {
@@ -287,6 +292,7 @@ function ActivosPageContent() {
           const params = new URLSearchParams({ limit: "1000" });
           if (searchQuery) params.append("search", searchQuery);
           if (categoriaFilter) params.append("categoriaId", categoriaFilter);
+          if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
 
           const res = await fetch(`/api/activos?${params}`);
           const data = await res.json();
@@ -297,7 +303,7 @@ function ActivosPageContent() {
       }
       fetchAllAssets();
     }
-  }, [viewMode, searchQuery, categoriaFilter]);
+  }, [viewMode, searchQuery, categoriaFilter, sedeSeleccionada]);
 
   // Handle search submit
   function handleSearch(e: React.FormEvent) {

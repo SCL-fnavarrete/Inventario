@@ -20,10 +20,13 @@ type Sede = {
 export default function NuevoActivoPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  // El campo de sede solo lo ve admin: un tecnico no elige sede, la hereda
-  // automaticamente de la suya (ver sedeIdParaCrear en el backend). Ver
-  // SPEC 2.9.
-  const isAdmin = session?.user?.role === "admin";
+  // 14-sep-2026 (SPEC 2.29): el campo de sede ahora lo ve cualquier rol --
+  // antes solo admin, porque un tecnico heredaba automaticamente su propia
+  // sede sin poder verla ni cambiarla (ver sedeIdParaCrear en el backend).
+  // Desde este cambio tecnico tambien puede elegir explicitamente, porque
+  // puede crear/gestionar activos de cualquier sede, no solo la suya -- pero
+  // por defecto el dropdown viene precargado con SU sede (ver useEffect mas
+  // abajo), para no obligarlo a elegir en el caso comun. Ver sedeScope.ts.
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -56,8 +59,17 @@ export default function NuevoActivoPage() {
 
   useEffect(() => {
     fetchCategories();
-    if (isAdmin) fetchSedes();
-  }, [isAdmin]);
+    fetchSedes();
+  }, []);
+
+  // Precarga la sede propia del usuario apenas la sesion esta disponible --
+  // el "|| prev.sedeId" evita pisar una eleccion manual si el usuario ya
+  // cambio el dropdown antes de que la sesion terminara de cargar.
+  useEffect(() => {
+    if (session?.user?.sedeId) {
+      setFormData((prev) => ({ ...prev, sedeId: prev.sedeId || session.user.sedeId! }));
+    }
+  }, [session?.user?.sedeId]);
 
   async function fetchCategories() {
     try {
@@ -94,10 +106,9 @@ export default function NuevoActivoPage() {
     try {
       const payload = {
         categoriaId: formData.categoriaId,
-        // Solo tiene efecto si quien crea es admin -- el backend ignora este
-        // campo para un tecnico y usa siempre su propia sede. Para admin es
-        // obligatorio (select sin opcion en blanco); si de todos modos
-        // llegara vacio el backend lo rechaza. Ver SPEC 2.9.
+        // Obligatorio para cualquier rol desde SPEC 2.29 (select sin opcion
+        // en blanco); si de todos modos llegara vacio el backend lo
+        // rechaza (sedeIdParaCrear con requerido: true).
         sedeId: formData.sedeId || undefined,
         marca: formData.marca,
         modelo: formData.modelo,
@@ -311,32 +322,30 @@ export default function NuevoActivoPage() {
                 Opcional. El dashboard avisa cuando faltan 30 dias para vencer.
               </p>
             </div>
-            {isAdmin && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Sede <span className="text-red-500">*</span>
-                </label>
-                <select
-                  name="sedeId"
-                  value={formData.sedeId}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="" disabled>
-                    Selecciona una sede...
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sede <span className="text-red-500">*</span>
+              </label>
+              <select
+                name="sedeId"
+                value={formData.sedeId}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="" disabled>
+                  Selecciona una sede...
+                </option>
+                {sedes.map((sede) => (
+                  <option key={sede.id} value={sede.id}>
+                    {sede.nombre}
                   </option>
-                  {sedes.map((sede) => (
-                    <option key={sede.id} value={sede.id}>
-                      {sede.nombre}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-gray-500">
-                  Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú, y es obligatorio para que el equipo quede visible para la sede correspondiente.
-                </p>
-              </div>
-            )}
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Obligatorio: a qué sede pertenece este equipo.
+              </p>
+            </div>
           </div>
         </div>
 

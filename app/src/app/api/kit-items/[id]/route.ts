@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { updateKitItemSchema } from '@/lib/validations/kitItem';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 export async function PUT(
   request: NextRequest,
@@ -30,6 +31,16 @@ export async function PUT(
         ...(validated.stockMinimo !== undefined && { stockMinimo: validated.stockMinimo }),
       },
     });
+
+    // Auditoria generica (SPEC 2.31).
+    await auditLogService.registrarActualizacion(
+      'kit_item',
+      updated.id,
+      `Artículo de Kit/EPP actualizado: ${updated.nombre}`,
+      { nombre: item.nombre, categoria: item.categoria, cantidad: item.cantidad },
+      { nombre: updated.nombre, categoria: updated.categoria, cantidad: updated.cantidad },
+      session.user?.email
+    );
 
     return NextResponse.json(updated);
   } catch (error) {
@@ -61,6 +72,15 @@ export async function DELETE(
     }
 
     await prisma.welcomeKitItem.delete({ where: { id } });
+
+    // Auditoria generica (SPEC 2.31).
+    await auditLogService.registrarEliminacion(
+      'kit_item',
+      item.id,
+      `Artículo de Kit/EPP eliminado: ${item.nombre}`,
+      { nombre: item.nombre, categoria: item.categoria, sedeId: item.sedeId },
+      session.user?.email
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {

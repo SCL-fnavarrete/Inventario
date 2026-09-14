@@ -2,15 +2,22 @@ import Link from "next/link";
 import {
   FolderTree,
   Users,
-  Truck,
   Settings2,
   ChevronRight,
   Trash2,
   ShieldAlert,
-  Cloud,
   MapPin,
+  History,
 } from "lucide-react";
 
+// Proveedores y Microsoft Sync se sacaron del menu (14-sep-2026), pedido
+// explicito de Javier al revisar que funciones deberia tener este modulo:
+// Proveedores porque esa tabla se va a eliminar (sin uso); Microsoft Sync
+// porque no hay certeza de que la integracion se vaya a usar realmente. Las
+// paginas/rutas de ambos NO se borraron (mismo criterio que kit-epp cuando
+// se movio de aca) -- solo dejan de aparecer en este listado. Se agrega
+// Auditoria, pantalla nueva que unifica AuditLog + AssetHistory +
+// WorkflowTransition (ver auditoria/page.tsx).
 const configSections = [
   {
     title: "Sedes",
@@ -37,27 +44,19 @@ const configSections = [
     adminOnly: false,
   },
   {
-    title: "Proveedores",
-    description: "Gestiona los proveedores de equipos y servicios",
-    href: "/configuracion/proveedores",
-    icon: Truck,
-    color: "bg-purple-100 text-purple-600",
-    adminOnly: false,
-  },
-  {
     title: "Parámetros Generales",
-    description: "Configuración general del sistema",
+    description: "Datos de la empresa y seguridad (duración de sesión, intentos de login)",
     href: "/configuracion/parametros",
     icon: Settings2,
     color: "bg-orange-100 text-orange-600",
     adminOnly: false,
   },
   {
-    title: "Microsoft Sync",
-    description: "Sincroniza empleados desde Microsoft Entra ID (Azure AD)",
-    href: "/configuracion/microsoft-sync",
-    icon: Cloud,
-    color: "bg-sky-100 text-sky-600",
+    title: "Auditoría",
+    description: "Historial completo de todos los módulos: quién hizo qué y cuándo",
+    href: "/configuracion/auditoria",
+    icon: History,
+    color: "bg-indigo-100 text-indigo-600",
     adminOnly: true,
   },
   {

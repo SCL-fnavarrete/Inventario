@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { validarPasswordFuerte } from '@/lib/validations/password';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 // Roles válidos del sistema (solo dos: admin ve todo, tecnico es soporte
 // restringido a su sede -- ver sedeScope()).
@@ -51,7 +52,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requirePermission('usuarios', 'write');
+    const session = await requirePermission('usuarios', 'write');
 
     const { id } = await params;
 
@@ -145,6 +146,19 @@ export async function PUT(
       },
     });
 
+    // Auditoria generica (SPEC 2.29). NUNCA incluir passwordHash ni si la
+    // contraseña cambio o no -- ver comentario en el modelo AuditLog.
+    // `existingUser` viene de un findUnique sin `select`, por lo que SI
+    // trae passwordHash -- se arma el snapshot a mano para excluirlo.
+    await auditLogService.registrarActualizacion(
+      'usuario',
+      user.id,
+      `Usuario actualizado: ${user.nombre} (${user.email})`,
+      { email: existingUser.email, nombre: existingUser.nombre, rol: existingUser.rol, activo: existingUser.activo, sedeId: existingUser.sedeId },
+      { email: user.email, nombre: user.nombre, rol: user.rol, activo: user.activo, sedeId: user.sedeId },
+      session.user?.email
+    );
+
     return NextResponse.json(user);
   } catch (error) {
     return handleApiError(error, 'Error al actualizar usuario');
@@ -182,6 +196,16 @@ export async function DELETE(
     await prisma.systemUser.delete({
       where: { id },
     });
+
+    // Auditoria generica (SPEC 2.29). NUNCA incluir passwordHash -- ver
+    // comentario en el modelo AuditLog.
+    await auditLogService.registrarEliminacion(
+      'usuario',
+      existingUser.id,
+      `Usuario eliminado: ${existingUser.nombre} (${existingUser.email})`,
+      { email: existingUser.email, nombre: existingUser.nombre, rol: existingUser.rol, sedeId: existingUser.sedeId },
+      session.user?.email
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {

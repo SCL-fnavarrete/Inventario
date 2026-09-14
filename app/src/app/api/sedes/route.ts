@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 /**
  * CRUD de sedes (SPEC 2.9). Vive en Configuración -- solo admin escribe,
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
 // POST /api/sedes - Crear nueva sede
 export async function POST(request: NextRequest) {
   try {
-    await requirePermission('sedes', 'write');
+    const session = await requirePermission('sedes', 'write');
     const body = await request.json();
     const { codigo, nombre } = body;
 
@@ -55,6 +56,15 @@ export async function POST(request: NextRequest) {
         activa: body.activa ?? true,
       },
     });
+
+    // Auditoria generica (SPEC 2.31).
+    await auditLogService.registrarCreacion(
+      'sede',
+      sede.id,
+      `Sede creada: ${sede.nombre} (${sede.codigo})`,
+      { codigo: sede.codigo, nombre: sede.nombre, activa: sede.activa },
+      session.user?.email
+    );
 
     return NextResponse.json(sede, { status: 201 });
   } catch (error) {

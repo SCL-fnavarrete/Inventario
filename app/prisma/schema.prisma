@@ -1,4 +1,4 @@
-generator client {0009
+generator client {
   provider = "prisma-client-js"
 }
 
@@ -430,6 +430,79 @@ model AssetHistory {
   @@map("asset_history")
 }
 
+// Auditoria generica de escritura (SPEC 2.29, 14-sep-2026): a diferencia de
+// AssetHistory (dedicado a Activos, con relacion propia y TipoEvento
+// especifico), esta tabla cubre Empleado/Compra/Usuario -- los 3 modulos que
+// hoy solo dejan `updatedAt` en la fila, sin quien ni que cambio. Se agrega
+// porque desde SPEC 2.29 un tecnico puede crear/editar/eliminar datos de
+// CUALQUIER sede (ya no solo la suya), y Javier condiciono abrir ese acceso
+// a que "cualquier cosa quede un registro" ligado al usuario que la ejecuto.
+//
+// Deliberadamente generica/polimorfica (entidad + entidadId como texto, sin
+// relacion FK a cada modelo) porque una sola tabla cubre 3 modelos distintos
+// -- Prisma no soporta una FK que apunte a "uno de varios modelos". Mismo
+// motivo por el que `usuarioSistema` es texto libre (email) y no una FK a
+// SystemUser: sigue el mismo patron que AssetHistory.usuarioSistema.
+//
+// Excluido explicitamente: Proveedores. Javier fue explicito: "aclarar que
+// proveedor no va a estar ya que es un dato que no tiene relevancia para el
+// area de soporte". Ver SPEC 2.29 punto 4.
+//
+// IMPORTANTE: `datosAnteriores`/`datosNuevos` de Usuario NUNCA deben incluir
+// `passwordHash` -- ver auditLogService y las rutas de /api/usuarios.
+model AuditLog {
+  id              String         @id @default(uuid())
+  entidad         AuditEntidad
+  entidadId       String         @map("entidad_id")
+  accion          AuditAccion
+  descripcion     String
+  datosAnteriores Json?          @map("datos_anteriores")
+  datosNuevos     Json?          @map("datos_nuevos")
+  usuarioSistema  String?        @map("usuario_sistema")
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  @@index([entidad, entidadId])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+// Configuracion general del sistema (14-sep-2026, pedido explicito de
+// Javier al revisar Configuracion > Parametros Generales -- esa pantalla
+// era 100% decorativa: datos de ejemplo hardcodeados y el boton Guardar
+// solo simulaba un delay, sin persistir nada).
+//
+// Fila unica (singleton): siempre se lee/escribe el registro con
+// id = "singleton" -- no existe una UI para crear una segunda fila, y la
+// API (/api/configuracion/parametros) hace upsert sobre ese id fijo.
+//
+// `duracionSesionHoras`/`maxIntentosLogin`/`minutosBloqueoLogin` reemplazan
+// las constantes hasta ahora hardcodeadas en lib/auth.ts (maxAge 24h,
+// MAX_ATTEMPTS 5, LOCKOUT_DURATION 15min). Un cambio aca solo afecta
+// sesiones NUEVAS (login) -- una sesion ya activa mantiene la duracion con
+// la que su JWT fue emitido, no se puede "cortar" a mitad de camino.
+model SystemConfig {
+  id                   String   @id @default("singleton")
+
+  // Datos de la empresa: por ahora solo se guardan como referencia -- no se
+  // usan en actas/reportes (Javier confirmo que no hace falta conectarlos).
+  empresaNombre        String?  @map("empresa_nombre")
+  empresaRut           String?  @map("empresa_rut")
+  empresaDireccion     String?  @map("empresa_direccion")
+  empresaTelefono      String?  @map("empresa_telefono")
+  empresaEmail         String?  @map("empresa_email")
+  empresaSitioWeb      String?  @map("empresa_sitio_web")
+
+  // Seguridad de sesion y login.
+  duracionSesionHoras  Int      @default(24) @map("duracion_sesion_horas")
+  maxIntentosLogin     Int      @default(5) @map("max_intentos_login")
+  minutosBloqueoLogin  Int      @default(15) @map("minutos_bloqueo_login")
+
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  updatedPor           String?  @map("updated_por")
+
+  @@map("system_config")
+}
+
 model Termination {
   id                     String               @id @default(uuid())
   employeeId             String               @map("employee_id")
@@ -791,6 +864,35 @@ enum TipoEvento {
   // desde el alta rapida de Nueva Compra -- vincular uno ya existente no
   // dejaba ningun rastro de esa asociacion.
   compra
+}
+
+// AuditLog (SPEC 2.29 y SPEC 2.31): entidades cubiertas -- Proveedores queda
+// afuera a proposito (tabla sin uso, se va a eliminar). Activos y
+// Solicitudes tampoco estan aca porque ya tienen su propio historial mas
+// detallado (AssetHistory / WorkflowTransition.ejecutadoPorId) -- decision
+// explicita de Javier de no unificarlos, ver SPEC 2.31.
+enum AuditEntidad {
+  empleado
+  compra
+  usuario
+  mantencion
+  guia_despacho
+  desvinculacion
+  kit_item
+  sede
+  categoria
+  tipo_mantencion
+  // Agregado 14-sep-2026 junto con SystemConfig: cambios a datos de empresa
+  // o seguridad (duracion de sesion, intentos de login) tambien quedan
+  // auditados -- es configuracion sensible, tiene sentido saber quien la
+  // toco.
+  configuracion
+}
+
+enum AuditAccion {
+  crear
+  actualizar
+  eliminar
 }
 
 enum TipoSolicitud {

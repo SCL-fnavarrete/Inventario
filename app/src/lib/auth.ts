@@ -5,10 +5,70 @@ import { prisma } from "./prisma";
 
 // Rate limiting en memoria (usar Redis en producción)
 const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutos
 
-function checkRateLimit(email: string): boolean {
+// Valores por defecto -- se usan mientras Configuracion > Parametros
+// Generales no tenga fila guardada (SystemConfig, 14-sep-2026) o si la
+// consulta a la config falla por cualquier motivo: el login NO se puede caer
+// por esto, son los mismos numeros que el sistema uso siempre hasta ahora.
+const DEFAULT_MAX_ATTEMPTS = 5;
+const DEFAULT_LOCKOUT_MINUTOS = 15;
+const DEFAULT_SESION_HORAS = 24;
+
+/**
+ * Intentos de login / bloqueo: se leen de SystemConfig en cada intento (ya
+ * es una operacion async, no cuesta nada extra) -- un cambio en
+ * Configuracion aplica de inmediato al siguiente login.
+ */
+async function getConfigLogin(): Promise<{ maxAttempts: number; lockoutMs: number }> {
+  try {
+    const config = await prisma.systemConfig.findUnique({ where: { id: "singleton" } });
+    return {
+      maxAttempts: config?.maxIntentosLogin ?? DEFAULT_MAX_ATTEMPTS,
+      lockoutMs: (config?.minutosBloqueoLogin ?? DEFAULT_LOCKOUT_MINUTOS) * 60 * 1000,
+    };
+  } catch {
+    return { maxAttempts: DEFAULT_MAX_ATTEMPTS, lockoutMs: DEFAULT_LOCKOUT_MINUTOS * 60 * 1000 };
+  }
+}
+
+/**
+ * Duracion de la sesion (`session.maxAge`, en segundos): a diferencia de lo
+ * anterior, NextAuth necesita este valor SINCRONO al construir
+ * `authOptions` (se usa para calcular la expiracion del JWT en cada login) --
+ * no se puede volver a consultar la base en cada request sin reestructurar
+ * como se arma el handler de NextAuth en todas partes donde se usa
+ * `getServerSession(authOptions)` (decenas de archivos).
+ *
+ * Se arranca con el default y se actualiza en segundo plano (sin bloquear
+ * el arranque del modulo ni el login) apenas la consulta a SystemConfig
+ * responde; `authOptions.session` usa un getter para leer siempre el valor
+ * mas reciente de `cachedSesionMaxAgeSegundos`.
+ *
+ * Consecuencia practica: cambiar la duracion de sesion desde Configuracion
+ * aplica recien despues de que el servidor se reinicie/redespliegue (o, como
+ * mucho, unos segundos despues si el proceso lleva rato corriendo) -- no es
+ * instantaneo como los intentos de login, porque el valor no se vuelve a
+ * releer despues de ese refresh inicial. Se le avisa esto a Javier
+ * explicitamente (ver SPEC 2.34).
+ */
+let cachedSesionMaxAgeSegundos = DEFAULT_SESION_HORAS * 60 * 60;
+
+async function refrescarSesionMaxAge(): Promise<void> {
+  try {
+    const config = await prisma.systemConfig.findUnique({ where: { id: "singleton" } });
+    if (config) {
+      cachedSesionMaxAgeSegundos = config.duracionSesionHoras * 60 * 60;
+    }
+  } catch {
+    // Se mantiene el default -- ver comentario de la constante.
+  }
+}
+// Fire-and-forget: no se espera esta promesa en ningun lado a proposito, el
+// modulo tiene que terminar de cargar (y el login tiene que poder ejecutarse)
+// aunque la base todavia no responda.
+void refrescarSesionMaxAge();
+
+function checkRateLimit(email: string, maxAttempts: number, lockoutMs: number): boolean {
   const now = Date.now();
   const attempts = loginAttempts.get(email);
 
@@ -17,19 +77,19 @@ function checkRateLimit(email: string): boolean {
   }
 
   // Limpiar intentos antiguos
-  if (now - attempts.lastAttempt > LOCKOUT_DURATION) {
+  if (now - attempts.lastAttempt > lockoutMs) {
     loginAttempts.delete(email);
     return true;
   }
 
-  return attempts.count < MAX_ATTEMPTS;
+  return attempts.count < maxAttempts;
 }
 
-function recordFailedAttempt(email: string): void {
+function recordFailedAttempt(email: string, lockoutMs: number): void {
   const now = Date.now();
   const attempts = loginAttempts.get(email);
 
-  if (!attempts || now - attempts.lastAttempt > LOCKOUT_DURATION) {
+  if (!attempts || now - attempts.lastAttempt > lockoutMs) {
     loginAttempts.set(email, { count: 1, lastAttempt: now });
   } else {
     loginAttempts.set(email, { count: attempts.count + 1, lastAttempt: now });
@@ -54,10 +114,11 @@ export const authOptions: NextAuthOptions = {
         }
 
         const email = credentials.email.toLowerCase();
+        const { maxAttempts, lockoutMs } = await getConfigLogin();
 
         // Verificar rate limiting
-        if (!checkRateLimit(email)) {
-          throw new Error("Demasiados intentos. Intente en 15 minutos");
+        if (!checkRateLimit(email, maxAttempts, lockoutMs)) {
+          throw new Error(`Demasiados intentos. Intente en ${Math.ceil(lockoutMs / 60000)} minutos`);
         }
 
         const user = await prisma.systemUser.findUnique({
@@ -65,14 +126,14 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (!user || !user.activo) {
-          recordFailedAttempt(email);
+          recordFailedAttempt(email, lockoutMs);
           throw new Error("Usuario no encontrado o inactivo");
         }
 
         const isPasswordValid = await compare(credentials.password, user.passwordHash);
 
         if (!isPasswordValid) {
-          recordFailedAttempt(email);
+          recordFailedAttempt(email, lockoutMs);
           throw new Error("Contraseña incorrecta");
         }
 
@@ -103,7 +164,8 @@ export const authOptions: NextAuthOptions = {
         // `sedeId` viaja en el token para que sedeScope() no tenga que ir a
         // buscar el usuario en cada request. Si el admin le cambia la sede
         // a alguien con sesion activa, el cambio aplica en el proximo login
-        // (maxAge del JWT es 24h) -- ver SPEC 2.9.
+        // (maxAge del JWT es configurable, ver session.maxAge mas abajo y
+        // Configuracion > Parametros Generales) -- ver SPEC 2.9.
         token.sedeId = (user as { sedeId?: string | null }).sedeId ?? null;
       }
       return token;
@@ -123,7 +185,13 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // 24 horas
+    // Getter en vez de un numero fijo: lee siempre el valor cacheado mas
+    // reciente (ver cachedSesionMaxAgeSegundos / refrescarSesionMaxAge
+    // arriba). Configurable desde Configuracion > Parametros Generales,
+    // aplica despues de reiniciar/redesplegar el servidor.
+    get maxAge() {
+      return cachedSesionMaxAgeSegundos;
+    },
   },
   secret: process.env.NEXTAUTH_SECRET,
 };

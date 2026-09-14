@@ -8,6 +8,7 @@ import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { sedeWhere, sedeIdParaCrear, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { auditLogService } from '@/lib/services/auditLogService';
 
 // GET /api/compras - Listar compras/facturas con filtros y paginación
 export async function GET(request: NextRequest) {
@@ -187,6 +188,22 @@ export async function POST(request: NextRequest) {
           tipoCompra: data.tipoCompra,
         },
       });
+
+      // Auditoria generica (SPEC 2.29): dentro de la misma transaccion --
+      // si la compra no se llega a crear, tampoco queda el registro.
+      await auditLogService.registrarCreacion(
+        'compra',
+        newPurchase.id,
+        `Compra creada: factura ${newPurchase.numeroFactura}`,
+        {
+          numeroFactura: newPurchase.numeroFactura,
+          rutProveedor: newPurchase.rutProveedor,
+          tipoCompra: newPurchase.tipoCompra,
+          sedeId: newPurchase.sedeId,
+        },
+        session.user?.email,
+        tx
+      );
 
       // Vincular activos si se proporcionan
       if (data.assets && data.assets.length > 0) {
