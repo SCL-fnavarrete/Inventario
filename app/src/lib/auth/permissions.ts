@@ -22,6 +22,9 @@ import type { SystemRole } from '@prisma/client';
  * ruta suelta.
  */
 
+// 'proveedores' se elimino de este listado el 14-sep-2026 (pedido explicito
+// de Javier: "elimina la tabla de proveedores", tabla sin uso). Ver
+// schema.prisma (nota en el lugar donde vivia el modelo Supplier) y SPEC 2.35.
 export const RECURSOS = [
   'activos',
   'empleados',
@@ -32,7 +35,6 @@ export const RECURSOS = [
   'desvinculaciones',
   'guias',
   'compras',
-  'proveedores',
   'categorias',
   'kitEpp',
   'usuarios',
@@ -118,12 +120,6 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
   compras: {
     read: AMBOS,
     write: AMBOS,
-    delete: ADMIN,
-  },
-
-  proveedores: {
-    read: AMBOS,
-    write: ADMIN,
     delete: ADMIN,
   },
 

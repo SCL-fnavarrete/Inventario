@@ -36,6 +36,17 @@ const prisma = new PrismaClient();
  * catálogo de categorías no tiene pantalla propia en Configuración (ver
  * nota más arriba), así que si se necesitan más adelante hay que agregarlas
  * a mano en la base de datos o volver a incluirlas aquí y correr el seed.
+ *
+ * Actualización 14-sep-2026 (a pedido explícito de Javier, "otra sede seria
+ * la de peru agregala al seed"): se agrega la sede Perú (código "PERU") como
+ * excepción puntual a la regla de "las sedes no se crean en el seed" -- es
+ * la única sede nueva que Javier pidió incluir acá directamente. Santiago y
+ * Concepción NO se agregan a este archivo: ya existen en la base real,
+ * creadas a mano desde Configuración > Sedes, y no se conoce con certeza el
+ * código exacto (`codigo`, campo único) con el que quedaron -- agregarlas
+ * aquí adivinando el código arriesga crear una sede duplicada en vez de
+ * coincidir con la que ya existe. Si en algún momento se quiere que el seed
+ * también las cree/actualice, hay que confirmar antes sus códigos reales.
  */
 async function main() {
   console.log("Iniciando seed de datos...");
@@ -79,9 +90,22 @@ async function main() {
   }
   console.log("Categorías de activos creadas:", categorias.length);
 
+  // 3. Sede Perú (14-sep-2026, pedido explícito de Javier -- ver nota arriba
+  // sobre por qué Santiago/Concepción no están acá).
+  const sedePeru = await prisma.sede.upsert({
+    where: { codigo: "PERU" },
+    update: {},
+    create: {
+      codigo: "PERU",
+      nombre: "Perú",
+      activa: true,
+    },
+  });
+  console.log("Sede creada:", sedePeru.nombre, `(${sedePeru.codigo})`);
+
   console.log("Seed completado exitosamente!");
   console.log(
-    "Próximo paso: inicia sesión como admin y crea desde Configuración las sedes, " +
+    "Próximo paso: inicia sesión como admin y crea desde Configuración las sedes que falten, " +
       "el catálogo de Kit/EPP, y luego los empleados y activos reales de la empresa."
   );
 }

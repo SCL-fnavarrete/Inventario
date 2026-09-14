@@ -182,23 +182,14 @@ model Asset {
   @@map("assets")
 }
 
-// Directorio de proveedores independiente. Hasta el 11-sep-2026 estaba
-// vinculado a Purchase; se desvinculo porque el area de soporte no
-// necesita asociar una compra a un proveedor (ver nota en Purchase). La
-// API `/api/proveedores` sigue funcionando como CRUD de este catalogo,
-// simplemente ya no la consume el flujo de compras.
-model Supplier {
-  id             String   @id @default(uuid())
-  rutEmpresa     String?  @map("rut_empresa")
-  razonSocial    String   @map("razon_social")
-  nombreContacto String?  @map("nombre_contacto")
-  email          String?
-  telefono       String?
-  direccion      String?
-  createdAt      DateTime @default(now()) @map("created_at")
-
-  @@map("suppliers")
-}
+// Modelo Supplier eliminado (14-sep-2026, pedido explicito de Javier: "elimina
+// la tabla de proveedores"). Ya estaba desvinculado de Purchase desde el
+// 11-sep-2026 (el area de soporte no necesita asociar una compra a un
+// proveedor) y Javier confirmo que la tabla no se usaba. Ver migracion
+// 20260914080000_elimina_proveedores y SPEC 2.35. Las rutas /api/proveedores
+// y la pantalla de Configuracion > Proveedores quedaron como stubs que
+// avisan que el modulo se elimino, en vez de borrarse (mismo criterio ya
+// usado con otras paginas cuando no se puede borrar archivos).
 
 // Compras (11-sep-2026, pedido explicito de Javier): se simplifico a solo
 // dos datos -- la factura (para relacionarla) y los equipos que vinieron

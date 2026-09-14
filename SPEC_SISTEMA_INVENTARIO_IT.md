@@ -1396,6 +1396,24 @@ Javier pidió dejar listo el módulo Configuración, que encontraba "un poco pob
   - Solo admin (recurso `configuracion`) -- no hace falta aislar por sede porque quien entra ya ve todas las sedes.
   - Sin test unitario nuevo, mismo criterio que `auditLogService`/`assetHistoryService`: es una consulta/transformación sin lógica de negocio propia que justifique un mock de Prisma.
 
+## 2.35 Eliminación de la tabla Proveedores y sede Perú en el seed (14-sep-2026)
+
+Pedido explícito de Javier: *"elimina la tabla de proveedores, y otra sede Seria la de peru agregala al seed"*.
+
+**Proveedores:**
+- La tabla `Supplier` ya estaba desvinculada de `Purchase` desde el 11-sep-2026 (SPEC de esa fecha, migración `20260911200000_compras_solo_factura_y_equipos`) y Javier había confirmado que no se estaba usando. Al sacarse del menú de Configuración (SPEC 2.34) quedó pendiente eliminar la tabla en sí, que es lo que se hace acá.
+- **Migración `20260914080000_elimina_proveedores`:** `DROP TABLE "suppliers"`. Sin FKs entrantes, se pudo eliminar directo.
+- **`schema.prisma`:** se saca el modelo `Supplier` por completo, se deja un comentario apuntando a esta sección y a la migración.
+- **Permisos (`lib/auth/permissions.ts`):** se saca `'proveedores'` del arreglo `RECURSOS` y su bloque en `RESOURCE_PERMISSIONS` -- ya no es un recurso válido del sistema. Se actualizaron los tests de `permissions.test.ts` que lo referenciaban.
+- **Rutas API (`/api/proveedores`, `/api/proveedores/[id]`):** en vez de eliminarse los archivos (limitación del flujo de respaldo actual, sin capacidad de borrar archivos), quedan como stubs que devuelven `410 Gone` con un mensaje explícito, para que cualquier llamada vieja falle claro en vez de con un error 500 de Prisma contra una tabla inexistente.
+- **Página `configuracion/proveedores/page.tsx`:** mismo criterio -- en vez de borrarse, muestra un mensaje "Proveedores fue eliminado" con link de vuelta a Configuración, por si alguien entra por un enlace o favorito guardado.
+- `lib/validations/supplier.ts` queda huérfano (sin nada que lo importe) -- se deja igual que otros archivos huérfanos existentes en el proyecto, no se toca salvo que Javier lo pida.
+
+**Sede Perú:**
+- Se agrega a `prisma/seed.ts` como excepción puntual a la regla vigente desde el 11-sep-2026 de que las sedes no se crean por seed (se crean a mano desde Configuración > Sedes). Es la única sede nueva que Javier pidió incluir directamente en el seed.
+- `codigo: "PERU"`, `nombre: "Perú"`, `activa: true` -- confirmado por Javier.
+- Santiago y Concepción **no** se agregan al seed: ya existen en la base real (creadas a mano desde Configuración), y no se conoce con certeza el código exacto (`Sede.codigo`, campo único) con el que quedaron guardadas. Agregarlas acá adivinando el código arriesgaba crear una sede duplicada en vez de coincidir con la existente. Queda pendiente confirmar esos códigos con Javier si más adelante se quiere que el seed también las cree/actualice.
+
 ---
 
 # PARTE 3: ARQUITECTURA TÉCNICA (ARCHITECTURE)
@@ -2169,6 +2187,8 @@ nunca debió existir como fila separada.
 
 ## Changelog SPEC
 
+- **v1.41 (2026-09-14):**
+  - Sección 2.35 (nueva): pedido explícito de Javier, *"elimina la tabla de proveedores, y otra sede Seria la de peru agregala al seed"*. Se elimina la tabla `Supplier` (migración `20260914080000_elimina_proveedores`, sin FKs entrantes), se saca `'proveedores'` de los recursos de permisos, y las rutas/página quedan como stubs (410 Gone / mensaje "eliminado") en vez de borrarse, por la misma limitación de respaldo sin borrado de archivos usada antes en `kit-epp`. Se agrega la sede Perú (`codigo: "PERU"`) a `prisma/seed.ts` como excepción puntual; Santiago y Concepción quedan fuera del seed porque no se conoce con certeza su `codigo` real y adivinarlo arriesgaba duplicar sedes existentes.
 - **v1.40 (2026-09-14):**
   - Sección 2.34 (nueva): reorganización de Configuración, pedido explícito de Javier ("dejar listo el módulo Configuración... lo encuentro un poco pobre en cuanto a funciones"). Se sacan del menú Proveedores y Microsoft Sync (sin borrar las rutas). Parámetros Generales, que era 100% decorativa, ahora persiste de verdad (nuevo modelo `SystemConfig`, migración `20260914070000_agrega_system_config`): datos de empresa (solo referencia) y seguridad (duración de sesión, intentos/bloqueo de login), estos últimos ahora leídos por `lib/auth.ts` en vez de estar hardcodeados. Se agrega Auditoría, pantalla nueva que unifica `AuditLog` + `AssetHistory` + `WorkflowTransition` en una sola línea de tiempo consultable (filtros por módulo/usuario/texto/fecha), sin tocar los historiales que ya existían en el detalle de Activos y Solicitudes -- pedido explícito de Javier de "tener todo el historial del sistema en un solo lugar" sin sacar nada de ahí.
 - **v1.39 (2026-09-14):**

@@ -1,123 +1,22 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import {
-  createSupplierSchema,
-  supplierFiltersSchema,
-} from "@/lib/validations/supplier";
-import { Prisma } from "@prisma/client";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { NextResponse } from "next/server";
 
-// GET /api/proveedores - Listar proveedores con filtros y paginación
-export async function GET(request: NextRequest) {
-  try {
-    await requirePermission('proveedores', 'read');
-
-    const searchParams = request.nextUrl.searchParams;
-
-    const filtersResult = supplierFiltersSchema.safeParse({
-      search: searchParams.get("search") || undefined,
-      page: searchParams.get("page") || 1,
-      limit: searchParams.get("limit") || 10,
-      sortBy: searchParams.get("sortBy") || "razonSocial",
-      sortOrder: searchParams.get("sortOrder") || "asc",
-    });
-
-    if (!filtersResult.success) {
-      return NextResponse.json(
-        { error: "Parámetros inválidos", details: filtersResult.error.issues },
-        { status: 400 }
-      );
-    }
-
-    const filters = filtersResult.data;
-    const skip = (filters.page - 1) * filters.limit;
-
-    // Construir condiciones de búsqueda
-    const where: Prisma.SupplierWhereInput = {};
-
-    if (filters.search) {
-      where.OR = [
-        { razonSocial: { contains: filters.search, mode: "insensitive" } },
-        { rutEmpresa: { contains: filters.search, mode: "insensitive" } },
-        { email: { contains: filters.search, mode: "insensitive" } },
-        { nombreContacto: { contains: filters.search, mode: "insensitive" } },
-      ];
-    }
-
-    // Ejecutar consulta
-    const [suppliers, total] = await Promise.all([
-      // 14-sep-2026: se quita `_count.purchases` -- Supplier y Purchase estan
-      // desvinculados desde el 11-sep-2026, esa relacion no existe en Prisma
-      // (ver misma nota en proveedores/[id]/route.ts).
-      prisma.supplier.findMany({
-        where,
-        orderBy: { [filters.sortBy]: filters.sortOrder },
-        skip,
-        take: filters.limit,
-      }),
-      prisma.supplier.count({ where }),
-    ]);
-
-    return NextResponse.json({
-      data: suppliers,
-      pagination: {
-        total,
-        page: filters.page,
-        limit: filters.limit,
-        totalPages: Math.ceil(total / filters.limit),
-      },
-    });
-  } catch (error) {
-    return handleApiError(error, 'Error al obtener proveedores');
-  }
+// Modulo Proveedores eliminado (14-sep-2026, pedido explicito de Javier:
+// "elimina la tabla de proveedores" -- la tabla Supplier no se usaba). El
+// archivo se deja como stub en vez de borrarse (workaround del flujo de
+// respaldo cuando no se puede borrar archivos del dispositivo del usuario)
+// -- cualquier llamada existente recibe un 410 Gone claro en vez de un error
+// 500 de Prisma contra una tabla que ya no existe. Ver SPEC 2.35.
+function gone() {
+  return NextResponse.json(
+    { error: "El módulo de Proveedores fue eliminado. Esta tabla ya no existe." },
+    { status: 410 }
+  );
 }
 
-// POST /api/proveedores - Crear nuevo proveedor
-export async function POST(request: NextRequest) {
-  try {
-    await requirePermission('proveedores', 'write');
+export async function GET() {
+  return gone();
+}
 
-    const body = await request.json();
-
-    const validationResult = createSupplierSchema.safeParse(body);
-
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: "Datos inválidos", details: validationResult.error.issues },
-        { status: 400 }
-      );
-    }
-
-    const data = validationResult.data;
-
-    // Verificar si ya existe un proveedor con el mismo RUT (si se proporciona)
-    if (data.rutEmpresa) {
-      const existingSupplier = await prisma.supplier.findFirst({
-        where: { rutEmpresa: data.rutEmpresa },
-      });
-
-      if (existingSupplier) {
-        return NextResponse.json(
-          { error: "Ya existe un proveedor con este RUT" },
-          { status: 409 }
-        );
-      }
-    }
-
-    // Crear el proveedor
-    const supplier = await prisma.supplier.create({
-      data: {
-        rutEmpresa: data.rutEmpresa,
-        razonSocial: data.razonSocial,
-        nombreContacto: data.nombreContacto,
-        email: data.email,
-        telefono: data.telefono,
-        direccion: data.direccion,
-      },
-    });
-
-    return NextResponse.json(supplier, { status: 201 });
-  } catch (error) {
-    return handleApiError(error, 'Error al crear proveedor');
-  }
+export async function POST() {
+  return gone();
 }

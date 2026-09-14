@@ -91,7 +91,6 @@ describe('permissions — tecnico', () => {
 
   test('no toca datos maestros ni configuración ni usuarios', () => {
     expect(can('tecnico', 'categorias', 'write')).toBe(false);
-    expect(can('tecnico', 'proveedores', 'write')).toBe(false);
     expect(can('tecnico', 'usuarios', 'read')).toBe(false);
     expect(can('tecnico', 'sedes', 'write')).toBe(false);
     expect(can('tecnico', 'configuracion', 'read')).toBe(false);
@@ -111,7 +110,6 @@ describe('permissions — tecnico', () => {
     expect(can('tecnico', 'activos', 'read')).toBe(true);
     expect(can('tecnico', 'empleados', 'read')).toBe(true);
     expect(can('tecnico', 'categorias', 'read')).toBe(true);
-    expect(can('tecnico', 'proveedores', 'read')).toBe(true);
     expect(can('tecnico', 'sedes', 'read')).toBe(true);
     expect(can('tecnico', 'reportes', 'read')).toBe(true);
   });
