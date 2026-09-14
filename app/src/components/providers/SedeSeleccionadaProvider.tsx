@@ -39,6 +39,11 @@ export function SedeSeleccionadaProvider({ children }: { children: React.ReactNo
   useEffect(() => {
     try {
       const guardado = window.localStorage.getItem(CLAVE_STORAGE);
+       
+      // Lectura de localStorage tras el montaje, a proposito: el servidor no
+      // tiene localStorage, asi que el estado arranca en null y se actualiza
+      // recien aca para evitar un mismatch de hidratacion.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (guardado) setSedeSeleccionadaState(guardado);
     } catch {
       // localStorage puede fallar (modo privado, storage bloqueado) -- no es
