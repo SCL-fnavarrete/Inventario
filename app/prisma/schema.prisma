@@ -221,6 +221,14 @@ model Purchase {
   sedeId         String?         @map("sede_id")
   createdAt      DateTime        @default(now()) @map("created_at")
   purchaseAssets PurchaseAsset[]
+  // Lineas de Kit/EPP compradas con esta factura (14-sep-2026, SPEC 2.36,
+  // pedido explicito de Javier: "aveces el kit de bievenida o epp tambien
+  // lo compran y aqui al registrar una factura ... solo funciona con los
+  // equipos pero no con el kitt de bievenida o epp"). A diferencia de
+  // PurchaseAsset, esto no crea una fila nueva por unidad -- Kit/EPP es
+  // stock contable (ver WelcomeKitItem.cantidad), asi que cada linea suma
+  // una cantidad al stock existente del articulo.
+  purchaseKitItems PurchaseKitItem[]
   sede           Sede?           @relation(fields: [sedeId], references: [id])
 
   @@index([sedeId])
@@ -236,6 +244,25 @@ model PurchaseAsset {
   purchase   Purchase @relation(fields: [purchaseId], references: [id])
 
   @@map("purchase_assets")
+}
+
+// Linea de compra de Kit/EPP (14-sep-2026, SPEC 2.36). Cada fila registra
+// cuanta cantidad de un articulo del catalogo (WelcomeKitItem) llego con
+// esta factura -- al crearse, suma esa cantidad al stock del articulo; si
+// la compra se elimina o la linea se desvincula, se resta de vuelta (sin
+// bajar de 0, por si ya se entrego parte de ese stock a un empleado).
+model PurchaseKitItem {
+  id         String         @id @default(uuid())
+  purchaseId String         @map("purchase_id")
+  itemId     String         @map("item_id")
+  cantidad   Int
+  createdAt  DateTime       @default(now()) @map("created_at")
+  purchase   Purchase       @relation(fields: [purchaseId], references: [id])
+  item       WelcomeKitItem @relation(fields: [itemId], references: [id])
+
+  @@index([purchaseId])
+  @@index([itemId])
+  @@map("purchase_kit_items")
 }
 
 model Assignment {
@@ -299,6 +326,8 @@ model WelcomeKitItem {
   createdAt      DateTime         @default(now()) @map("created_at")
   kitAssignments KitAssignment[]
   requeridoEn    RequestKitItem[]
+  // Compras que trajeron stock de este articulo (14-sep-2026, SPEC 2.36).
+  purchaseKitItems PurchaseKitItem[]
 
   @@index([sedeId])
   @@map("welcome_kit_items")

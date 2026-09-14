@@ -15,6 +15,7 @@ import {
   Search,
   AlertCircle,
   PackagePlus,
+  Shirt,
 } from "lucide-react";
 
 type Sede = {
@@ -42,6 +43,24 @@ type Asset = {
 type SelectedAsset = {
   assetId: string;
   asset: Asset;
+};
+
+// Kit/EPP (14-sep-2026, SPEC 2.36, pedido explicito de Javier): a diferencia
+// de un Activo, acá no se elige una unidad existente -- se elige un artículo
+// del catálogo (WelcomeKitItem) y una cantidad, que suma al stock de esa
+// sede al guardar la compra.
+type KitItem = {
+  id: string;
+  nombre: string;
+  categoria: "kit_bienvenida" | "epp";
+  cantidad: number;
+  sedeId: string | null;
+};
+
+type SelectedKitItem = {
+  itemId: string;
+  item: KitItem;
+  cantidad: number;
 };
 
 export default function NuevaCompraPage() {
@@ -133,10 +152,70 @@ export default function NuevaCompraPage() {
 
   const [selectedAssets, setSelectedAssets] = useState<SelectedAsset[]>([]);
 
+  // Kit/EPP (SPEC 2.36)
+  const [kitItemsCatalogo, setKitItemsCatalogo] = useState<KitItem[]>([]);
+  const [selectedKitItems, setSelectedKitItems] = useState<SelectedKitItem[]>([]);
+  const [showKitItemPicker, setShowKitItemPicker] = useState(false);
+  const [kitItemToAdd, setKitItemToAdd] = useState("");
+  const [kitItemCantidad, setKitItemCantidad] = useState("1");
+
   useEffect(() => {
     fetchSedes();
     fetchCategories();
   }, []);
+
+  // El catálogo de Kit/EPP depende de la sede: para técnico se filtra solo
+  // con su sesión (el backend ya lo acota), para admin recién cuando elige
+  // una sede arriba -- mismo criterio que "Crear Equipo Nuevo".
+  useEffect(() => {
+    if (!isAdmin || formData.sedeId) {
+      fetchKitItemsCatalogo();
+    } else {
+      setKitItemsCatalogo([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, formData.sedeId]);
+
+  async function fetchKitItemsCatalogo() {
+    try {
+      const params = new URLSearchParams();
+      if (isAdmin && formData.sedeId) params.set("sedeId", formData.sedeId);
+      const res = await fetch(`/api/kit-items?${params}`);
+      const data = await res.json();
+      setKitItemsCatalogo(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error fetching kit items:", error);
+    }
+  }
+
+  function addKitItem() {
+    if (!kitItemToAdd) return;
+    const item = kitItemsCatalogo.find((i) => i.id === kitItemToAdd);
+    if (!item) return;
+    const cantidad = Math.max(1, parseInt(kitItemCantidad, 10) || 1);
+    setSelectedKitItems((prev) => {
+      const existing = prev.find((k) => k.itemId === item.id);
+      if (existing) {
+        return prev.map((k) =>
+          k.itemId === item.id ? { ...k, cantidad: k.cantidad + cantidad } : k
+        );
+      }
+      return [...prev, { itemId: item.id, item, cantidad }];
+    });
+    setKitItemToAdd("");
+    setKitItemCantidad("1");
+    setShowKitItemPicker(false);
+  }
+
+  function removeKitItem(itemId: string) {
+    setSelectedKitItems((prev) => prev.filter((k) => k.itemId !== itemId));
+  }
+
+  function updateKitItemCantidad(itemId: string, cantidad: number) {
+    setSelectedKitItems((prev) =>
+      prev.map((k) => (k.itemId === itemId ? { ...k, cantidad: Math.max(1, cantidad) } : k))
+    );
+  }
 
   async function fetchSedes() {
     try {
@@ -307,6 +386,10 @@ export default function NuevaCompraPage() {
         ordenCompra: formData.ordenCompra || null,
         assets: selectedAssets.map((a) => ({
           assetId: a.assetId,
+        })),
+        kitItems: selectedKitItems.map((k) => ({
+          itemId: k.itemId,
+          cantidad: k.cantidad,
         })),
       };
 
@@ -867,6 +950,120 @@ export default function NuevaCompraPage() {
               <p className="text-sm">No hay activos vinculados</p>
               <p className="text-xs text-gray-400 mt-1">
                 Puedes vincular activos ahora o después
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Kit/EPP comprado (14-sep-2026, SPEC 2.36): a diferencia de
+            Activos, acá no se crea una unidad nueva -- se elige un
+            artículo del catálogo y una cantidad, que suma al stock de la
+            sede cuando se guarda la compra. */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <Shirt className="h-5 w-5 text-gray-400" />
+              Kit de Bienvenida / EPP Comprado
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowKitItemPicker((v) => !v)}
+              disabled={isAdmin && !formData.sedeId}
+              title={isAdmin && !formData.sedeId ? "Primero elige la sede de la compra" : undefined}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Plus size={16} />
+              Agregar Artículo
+            </button>
+          </div>
+
+          {isAdmin && !formData.sedeId && (
+            <div className="mb-4 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <p>Elige la sede de la compra arriba para ver el catálogo de Kit/EPP de esa sede.</p>
+            </div>
+          )}
+
+          {showKitItemPicker && (
+            <div className="mb-4 p-4 bg-gray-50 rounded-lg flex flex-col sm:flex-row gap-3 sm:items-end">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Artículo</label>
+                <select
+                  value={kitItemToAdd}
+                  onChange={(e) => setKitItemToAdd(e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Selecciona un artículo...</option>
+                  {kitItemsCatalogo.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nombre} ({item.categoria === "epp" ? "EPP" : "Kit Bienvenida"}) -- stock actual: {item.cantidad}
+                    </option>
+                  ))}
+                </select>
+                {kitItemsCatalogo.length === 0 && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    No hay artículos en el catálogo de esta sede. Se crean desde Activos &gt; Kit de Bienvenida.
+                  </p>
+                )}
+              </div>
+              <div className="w-full sm:w-28">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Cantidad</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={kitItemCantidad}
+                  onChange={(e) => setKitItemCantidad(e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={addKitItem}
+                disabled={!kitItemToAdd}
+                className="flex items-center justify-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                <Plus size={16} />
+                Agregar
+              </button>
+            </div>
+          )}
+
+          {selectedKitItems.length > 0 ? (
+            <div className="space-y-2">
+              {selectedKitItems.map((k) => (
+                <div
+                  key={k.itemId}
+                  className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg"
+                >
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{k.item.nombre}</p>
+                    <p className="text-xs text-gray-500">
+                      {k.item.categoria === "epp" ? "EPP" : "Kit Bienvenida"} • stock actual: {k.item.cantidad}
+                    </p>
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={k.cantidad}
+                    onChange={(e) => updateKitItemCantidad(k.itemId, parseInt(e.target.value, 10) || 1)}
+                    className="w-20 px-2 py-1 text-sm border border-gray-300 rounded-lg text-center"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeKitItem(k.itemId)}
+                    className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Shirt className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">No hay artículos de Kit/EPP en esta compra</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Si la factura trajo cascos, chalecos, notebooks de bienvenida, etc., agrégalos acá para sumarlos al stock
               </p>
             </div>
           )}

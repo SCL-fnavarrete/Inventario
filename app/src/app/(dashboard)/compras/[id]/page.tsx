@@ -17,6 +17,7 @@ import {
   Smartphone,
   Monitor,
   Eye,
+  Shirt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Can } from "@/components/auth/Can";
@@ -44,6 +45,22 @@ type PurchaseAsset = {
   asset: Asset;
 };
 
+// Kit/EPP comprado con esta factura (14-sep-2026, SPEC 2.36).
+type KitItem = {
+  id: string;
+  nombre: string;
+  categoria: "kit_bienvenida" | "epp";
+  cantidad: number;
+  sedeId: string | null;
+};
+
+type PurchaseKitItem = {
+  id: string;
+  itemId: string;
+  cantidad: number;
+  item: KitItem;
+};
+
 type Sede = {
   id: string;
   nombre: string;
@@ -58,8 +75,10 @@ type Purchase = {
   rutProveedor: string | null;
   sede: Sede | null;
   purchaseAssets: PurchaseAsset[];
+  purchaseKitItems: PurchaseKitItem[];
   stats: {
     cantidadActivos: number;
+    cantidadArticulosKit: number;
   };
 };
 
@@ -108,6 +127,13 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
   const [availableAssets, setAvailableAssets] = useState<Asset[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(false);
   const [addingAsset, setAddingAsset] = useState(false);
+
+  // Para agregar Kit/EPP (SPEC 2.36)
+  const [showKitItemPicker, setShowKitItemPicker] = useState(false);
+  const [kitItemsCatalogo, setKitItemsCatalogo] = useState<KitItem[]>([]);
+  const [kitItemToAdd, setKitItemToAdd] = useState("");
+  const [kitItemCantidad, setKitItemCantidad] = useState("1");
+  const [addingKitItem, setAddingKitItem] = useState(false);
 
   useEffect(() => {
     fetchPurchase();
@@ -198,6 +224,64 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       await fetchPurchase();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error al desvincular activo");
+    }
+  }
+
+  async function fetchKitItemsCatalogo() {
+    try {
+      const params = new URLSearchParams();
+      if (purchase?.sede?.id) params.set("sedeId", purchase.sede.id);
+      const res = await fetch(`/api/kit-items?${params}`);
+      const data = await res.json();
+      setKitItemsCatalogo(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error fetching kit items:", error);
+    }
+  }
+
+  async function addKitItemToPurchase() {
+    if (!kitItemToAdd) return;
+    const cantidad = Math.max(1, parseInt(kitItemCantidad, 10) || 1);
+    setAddingKitItem(true);
+    try {
+      const res = await fetch(`/api/compras/${id}/kit-items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: [{ itemId: kitItemToAdd, cantidad }] }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Error al agregar artículo de Kit/EPP");
+      }
+
+      await fetchPurchase();
+      setKitItemToAdd("");
+      setKitItemCantidad("1");
+      setShowKitItemPicker(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al agregar artículo de Kit/EPP");
+    } finally {
+      setAddingKitItem(false);
+    }
+  }
+
+  async function removeKitItemFromPurchase(lineId: string) {
+    if (!confirm("¿Desvincular este artículo? Se restará del stock la cantidad que esta línea había sumado (sin bajar de 0).")) return;
+
+    try {
+      const res = await fetch(`/api/compras/${id}/kit-items?lineIds=${lineId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Error al desvincular artículo de Kit/EPP");
+      }
+
+      await fetchPurchase();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al desvincular artículo de Kit/EPP");
     }
   }
 
@@ -328,6 +412,10 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             <div>
               <dt className="text-sm text-gray-500">Cantidad de Activos</dt>
               <dd className="font-medium text-2xl">{purchase.stats.cantidadActivos}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-gray-500">Artículos de Kit/EPP</dt>
+              <dd className="font-medium text-2xl">{purchase.stats.cantidadArticulosKit}</dd>
             </div>
           </dl>
         </div>
@@ -517,6 +605,137 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
         )}
       </div>
 
+      {/* Kit/EPP Vinculados (14-sep-2026, SPEC 2.36) */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6 border-b flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <Shirt className="h-5 w-5 text-gray-400" />
+            Kit de Bienvenida / EPP Comprado ({purchase.purchaseKitItems.length})
+          </h2>
+          <button
+            onClick={() => {
+              setShowKitItemPicker(true);
+              fetchKitItemsCatalogo();
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
+          >
+            <Plus size={16} />
+            Agregar Artículo
+          </button>
+        </div>
+
+        {showKitItemPicker && (
+          <div className="p-4 bg-gray-50 border-b flex flex-col sm:flex-row gap-3 sm:items-end">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-700 mb-1">Artículo</label>
+              <select
+                value={kitItemToAdd}
+                onChange={(e) => setKitItemToAdd(e.target.value)}
+                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Selecciona un artículo...</option>
+                {kitItemsCatalogo.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.nombre} ({item.categoria === "epp" ? "EPP" : "Kit Bienvenida"}) -- stock actual: {item.cantidad}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="w-full sm:w-28">
+              <label className="block text-xs font-medium text-gray-700 mb-1">Cantidad</label>
+              <input
+                type="number"
+                min={1}
+                value={kitItemCantidad}
+                onChange={(e) => setKitItemCantidad(e.target.value)}
+                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={addKitItemToPurchase}
+              disabled={!kitItemToAdd || addingKitItem}
+              className="flex items-center justify-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {addingKitItem ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus size={16} />}
+              Agregar
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowKitItemPicker(false)}
+              className="p-1.5 text-gray-400 hover:text-gray-600"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        )}
+
+        {purchase.purchaseKitItems.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Artículo
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Cantidad comprada
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Stock actual del artículo
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {purchase.purchaseKitItems.map((pk) => (
+                  <tr key={pk.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-3">
+                        <Shirt className="h-4 w-4 text-gray-400" />
+                        <div>
+                          <p className="font-medium text-sm">{pk.item.nombre}</p>
+                          <p className="text-xs text-gray-500">
+                            {pk.item.categoria === "epp" ? "EPP" : "Kit Bienvenida"}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-700">+{pk.cantidad}</td>
+                    <td className="px-4 py-4 text-sm text-gray-500">{pk.item.cantidad}</td>
+                    <td className="px-4 py-4 text-right">
+                      <button
+                        onClick={() => removeKitItemFromPurchase(pk.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-600"
+                        title="Desvincular"
+                      >
+                        <X size={18} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            <Shirt className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+            <p>No hay artículos de Kit/EPP vinculados</p>
+            <button
+              onClick={() => {
+                setShowKitItemPicker(true);
+                fetchKitItemsCatalogo();
+              }}
+              className="mt-4 text-blue-600 hover:text-blue-800 text-sm"
+            >
+              Vincular primer artículo
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Modal de confirmación de eliminación */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -529,6 +748,11 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
               {purchase.purchaseAssets.length > 0 && (
                 <span className="block mt-2 text-orange-600">
                   Se desvinculará de {purchase.purchaseAssets.length} activo(s).
+                </span>
+              )}
+              {purchase.purchaseKitItems.length > 0 && (
+                <span className="block mt-2 text-orange-600">
+                  Se revertirá el stock sumado por {purchase.purchaseKitItems.length} artículo(s) de Kit/EPP.
                 </span>
               )}
             </p>

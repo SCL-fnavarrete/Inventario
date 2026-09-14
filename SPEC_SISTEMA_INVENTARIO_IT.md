@@ -1414,6 +1414,17 @@ Pedido explícito de Javier: *"elimina la tabla de proveedores, y otra sede Seri
 - `codigo: "PERU"`, `nombre: "Perú"`, `activa: true` -- confirmado por Javier.
 - Santiago y Concepción **no** se agregan al seed: ya existen en la base real (creadas a mano desde Configuración), y no se conoce con certeza el código exacto (`Sede.codigo`, campo único) con el que quedaron guardadas. Agregarlas acá adivinando el código arriesgaba crear una sede duplicada en vez de coincidir con la existente. Queda pendiente confirmar esos códigos con Javier si más adelante se quiere que el seed también las cree/actualice.
 
+## 2.36 Compras: soporte para Kit de Bienvenida / EPP (14-sep-2026)
+
+Pedido explícito de Javier: *"no pero me doy cuenta que aveces el kit de bievenida o epp tambien lo compran y aqui al registrar una factura con sus productos solo funciona con los equipos pero no con el kitt de bievenida o epp"*. Antes, "Nueva Compra" solo permitía vincular la factura a Activos (equipos con serie); si una factura traía EPP o artículos del Kit de Bienvenida, no había forma de reflejarlo -- había que ir aparte a editar el stock a mano en Activos > Kit de Bienvenida.
+
+- **Nuevo modelo `PurchaseKitItem`** (migración `20260914090000_agrega_purchase_kit_items`): a diferencia de `PurchaseAsset` (que vincula una unidad de Activo ya existente 1 a 1), esta tabla registra una **cantidad** comprada de un artículo del catálogo `WelcomeKitItem` -- porque Kit/EPP es stock contable, no unidades individuales rastreables (ver SPEC 2.9).
+- **Al agregar una línea de Kit/EPP a una compra** (`POST /api/compras` al crear, o `POST /api/compras/[id]/kit-items` después), el stock del artículo (`WelcomeKitItem.cantidad`) sube automáticamente en esa cantidad, en la sede que le corresponde al artículo -- mismo aislamiento por sede que ya tenía la vinculación de Activos (un técnico solo puede sumar stock a artículos de su propia sede).
+- **Al desvincular una línea** (`DELETE /api/compras/[id]/kit-items`) **o eliminar la compra completa**, el stock se resta de vuelta -- pero nunca baja de 0, por si parte de ese stock ya se entregó a un empleado mientras tanto.
+- Cada suma/resta de stock por una compra queda auditada contra el propio artículo (entidad `kit_item`, igual que una edición manual de stock desde Activos > Kit de Bienvenida) -- así se ve en Auditoría (SPEC 2.34) de dónde salió cada cambio de stock, sin necesitar una entidad de auditoría nueva.
+- **UI:** "Nueva Compra" y el detalle de una compra (`compras/[id]`) ahora tienen una segunda sección, "Kit de Bienvenida / EPP Comprado", paralela a la de Activos: se elige un artículo del catálogo de la sede (mismo `GET /api/kit-items` que usa Activos > Kit de Bienvenida) y una cantidad -- no hay alta rápida de artículo nuevo acá, el catálogo se administra desde esa pantalla.
+- Una misma factura puede traer equipos y Kit/EPP mezclados en la misma compra -- no son mutuamente excluyentes.
+
 ---
 
 # PARTE 3: ARQUITECTURA TÉCNICA (ARCHITECTURE)
@@ -2187,6 +2198,8 @@ nunca debió existir como fila separada.
 
 ## Changelog SPEC
 
+- **v1.42 (2026-09-14):**
+  - Sección 2.36 (nueva): pedido explícito de Javier, *"el kit de bievenida o epp tambien lo compran y aqui al registrar una factura con sus productos solo funciona con los equipos pero no con el kitt de bievenida o epp"*. Nuevo modelo `PurchaseKitItem` (migración `20260914090000_agrega_purchase_kit_items`): cada línea suma una cantidad al stock (`WelcomeKitItem.cantidad`) del artículo comprado, en vez de crear una unidad como Activo. Al desvincular una línea o eliminar la compra, el stock se revierte (sin bajar de 0). "Nueva Compra" y el detalle de compra ahora tienen una sección "Kit de Bienvenida / EPP Comprado" paralela a la de Activos, y cada cambio de stock por compra queda en Auditoría igual que una edición manual.
 - **v1.41 (2026-09-14):**
   - Sección 2.35 (nueva): pedido explícito de Javier, *"elimina la tabla de proveedores, y otra sede Seria la de peru agregala al seed"*. Se elimina la tabla `Supplier` (migración `20260914080000_elimina_proveedores`, sin FKs entrantes), se saca `'proveedores'` de los recursos de permisos, y las rutas/página quedan como stubs (410 Gone / mensaje "eliminado") en vez de borrarse, por la misma limitación de respaldo sin borrado de archivos usada antes en `kit-epp`. Se agrega la sede Perú (`codigo: "PERU"`) a `prisma/seed.ts` como excepción puntual; Santiago y Concepción quedan fuera del seed porque no se conoce con certeza su `codigo` real y adivinarlo arriesgaba duplicar sedes existentes.
 - **v1.40 (2026-09-14):**

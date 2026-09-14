@@ -168,6 +168,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Verificar que los artículos de Kit/EPP existen (14-sep-2026, SPEC
+    // 2.36) -- mismo criterio de aislamiento por sede que los activos.
+    let existingKitItems: { id: string; nombre: string; cantidad: number; sedeId: string | null }[] = [];
+    if (data.kitItems && data.kitItems.length > 0) {
+      const itemIds = data.kitItems.map((k) => k.itemId);
+      existingKitItems = await prisma.welcomeKitItem.findMany({
+        where: { id: { in: itemIds } },
+        select: { id: true, nombre: true, cantidad: true, sedeId: true },
+      });
+
+      const existingItemIds = new Set(existingKitItems.map((i) => i.id));
+      const missingItems = itemIds.filter((id) => !existingItemIds.has(id));
+
+      if (missingItems.length > 0) {
+        return NextResponse.json(
+          { error: "Algunos artículos de Kit/EPP no existen", missingItems },
+          { status: 404 }
+        );
+      }
+
+      if (!esAdmin) {
+        const ajenos = existingKitItems.filter((i) => i.sedeId !== session.user.sedeId);
+        if (ajenos.length > 0) {
+          return NextResponse.json(
+            { error: "Algunos artículos de Kit/EPP no pertenecen a tu sede" },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // Crear la compra en una transacción
     const purchase = await prisma.$transaction(async (tx) => {
       // Crear la compra
@@ -225,6 +256,39 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      // Vincular artículos de Kit/EPP si se proporcionan (SPEC 2.36): cada
+      // línea suma su cantidad al stock del artículo, y queda registrada la
+      // línea de compra para poder desvincularla/revertirla después.
+      if (data.kitItems && data.kitItems.length > 0) {
+        for (const kitItem of data.kitItems) {
+          await tx.purchaseKitItem.create({
+            data: {
+              purchaseId: newPurchase.id,
+              itemId: kitItem.itemId,
+              cantidad: kitItem.cantidad,
+            },
+          });
+
+          const item = existingKitItems.find((i) => i.id === kitItem.itemId);
+          const updatedItem = await tx.welcomeKitItem.update({
+            where: { id: kitItem.itemId },
+            data: { cantidad: { increment: kitItem.cantidad } },
+          });
+
+          // Auditoria generica (SPEC 2.31/2.36): queda en la misma linea de
+          // tiempo que cualquier otro cambio de stock del artículo.
+          await auditLogService.registrarActualizacion(
+            'kit_item',
+            kitItem.itemId,
+            `Stock repuesto por compra${newPurchase.numeroFactura ? ` (factura ${newPurchase.numeroFactura})` : ""}: +${kitItem.cantidad} ${item?.nombre ?? ""}`.trim(),
+            { cantidad: item?.cantidad ?? null },
+            { cantidad: updatedItem.cantidad },
+            session.user?.email,
+            tx
+          );
+        }
+      }
+
       // Retornar la compra con sus relaciones
       return await tx.purchase.findUnique({
         where: { id: newPurchase.id },
@@ -240,6 +304,9 @@ export async function POST(request: NextRequest) {
                 },
               },
             },
+          },
+          purchaseKitItems: {
+            include: { item: true },
           },
         },
       });

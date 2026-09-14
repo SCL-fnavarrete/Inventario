@@ -40,6 +40,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             },
           },
         },
+        // Lineas de Kit/EPP compradas con esta factura (SPEC 2.36).
+        purchaseKitItems: {
+          include: { item: true },
+        },
       },
     });
 
@@ -56,6 +60,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // cuenta cuántos activos vienen con la factura.
     const stats = {
       cantidadActivos: purchase.purchaseAssets.length,
+      cantidadArticulosKit: purchase.purchaseKitItems.length,
     };
 
     return NextResponse.json({
@@ -184,6 +189,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       where: { id },
       include: {
         purchaseAssets: true,
+        // SPEC 2.36: hace falta el stock actual de cada articulo para poder
+        // revertir lo que esta compra sumo, sin bajar de 0.
+        purchaseKitItems: { include: { item: true } },
       },
     });
 
@@ -198,13 +206,36 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // un no-op hoy -- se deja por consistencia con el resto de las rutas.
     assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
 
-    // Eliminar en transacción (primero los activos vinculados, luego la compra)
+    // Eliminar en transacción (primero los vínculos, luego la compra)
     await prisma.$transaction(async (tx) => {
       // Eliminar vínculos con activos
       if (purchase.purchaseAssets.length > 0) {
         await tx.purchaseAsset.deleteMany({
           where: { purchaseId: id },
         });
+      }
+
+      // Revertir el stock que esta compra sumó a cada artículo de Kit/EPP
+      // (SPEC 2.36), sin bajar de 0 -- por si ya se entregó parte a algún
+      // empleado mientras tanto.
+      for (const linea of purchase.purchaseKitItems) {
+        const nuevaCantidad = Math.max(0, linea.item.cantidad - linea.cantidad);
+        const updatedItem = await tx.welcomeKitItem.update({
+          where: { id: linea.itemId },
+          data: { cantidad: nuevaCantidad },
+        });
+        await auditLogService.registrarActualizacion(
+          'kit_item',
+          linea.itemId,
+          `Stock revertido: compra eliminada (factura ${purchase.numeroFactura ?? "s/n"}): -${linea.cantidad} ${linea.item.nombre}`,
+          { cantidad: linea.item.cantidad },
+          { cantidad: updatedItem.cantidad },
+          session.user?.email,
+          tx
+        );
+      }
+      if (purchase.purchaseKitItems.length > 0) {
+        await tx.purchaseKitItem.deleteMany({ where: { purchaseId: id } });
       }
 
       // Auditoria generica (SPEC 2.29), antes del delete fisico -- el
@@ -219,6 +250,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
           tipoCompra: purchase.tipoCompra,
           sedeId: purchase.sedeId,
           cantidadActivosVinculados: purchase.purchaseAssets.length,
+          cantidadArticulosKitVinculados: purchase.purchaseKitItems.length,
         },
         session.user?.email,
         tx

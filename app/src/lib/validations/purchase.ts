@@ -71,10 +71,29 @@ export const purchaseAssetSchema = z.object({
   assetId: z.string().uuid("ID de activo inválido"),
 });
 
-// Schema para crear compra con activos incluidos
+// Schema para una linea de compra de Kit/EPP (14-sep-2026, SPEC 2.36): a
+// diferencia de un activo, no se referencia una unidad individual sino una
+// cantidad que suma al stock del articulo.
+export const purchaseKitItemSchema = z.object({
+  itemId: z.string().uuid("ID de artículo inválido"),
+  cantidad: z.coerce.number().int().min(1, "La cantidad debe ser al menos 1"),
+});
+
+// Schema para vincular articulos de Kit/EPP a una compra
+export const linkKitItemsToPurchaseSchema = z.object({
+  items: z
+    .array(purchaseKitItemSchema)
+    .min(1, "Debe agregar al menos un artículo"),
+});
+
+// Schema para crear compra con activos y/o artículos de Kit/EPP incluidos
 export const createPurchaseWithAssetsSchema = createPurchaseSchema.extend({
   assets: z
     .array(purchaseAssetSchema)
+    .optional()
+    .default([]),
+  kitItems: z
+    .array(purchaseKitItemSchema)
     .optional()
     .default([]),
 });
@@ -99,5 +118,7 @@ export type CreatePurchaseInput = z.infer<typeof createPurchaseSchema>;
 export type UpdatePurchaseInput = z.infer<typeof updatePurchaseSchema>;
 export type LinkAssetsToPurchaseInput = z.infer<typeof linkAssetsToPurchaseSchema>;
 export type PurchaseAssetInput = z.infer<typeof purchaseAssetSchema>;
+export type PurchaseKitItemInput = z.infer<typeof purchaseKitItemSchema>;
+export type LinkKitItemsToPurchaseInput = z.infer<typeof linkKitItemsToPurchaseSchema>;
 export type CreatePurchaseWithAssetsInput = z.infer<typeof createPurchaseWithAssetsSchema>;
 export type PurchaseFilters = z.infer<typeof purchaseFiltersSchema>;
