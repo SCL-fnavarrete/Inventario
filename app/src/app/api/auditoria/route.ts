@@ -62,7 +62,7 @@ const MODULO_LABELS: Record<string, string> = {
 
 export async function GET(request: NextRequest) {
   try {
-    await requirePermission("configuracion", "read");
+    await requirePermission('configuracion', 'read');
 
     const searchParams = request.nextUrl.searchParams;
     const modulo = searchParams.get("modulo") || "";

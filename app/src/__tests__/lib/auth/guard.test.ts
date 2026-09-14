@@ -84,7 +84,7 @@ describe('handleApiError — errores de validación', () => {
     const res = handleApiError(capturado);
     expect(res.status).toBe(400);
     const cuerpo = await cuerpoDe(res);
-    expect(cuerpo.error).toBe('Datos invalidos');
+    expect(cuerpo.error).toBe('Datos inválidos');
     expect(Array.isArray(cuerpo.details)).toBe(true);
   });
 });

@@ -13,7 +13,7 @@ const SINGLETON_ID = "singleton";
 // GET /api/configuracion/parametros
 export async function GET() {
   try {
-    await requirePermission("configuracion", "read");
+    await requirePermission('configuracion', 'read');
 
     const config =
       (await prisma.systemConfig.findUnique({ where: { id: SINGLETON_ID } })) ??
@@ -44,7 +44,7 @@ export async function GET() {
 // PUT /api/configuracion/parametros
 export async function PUT(request: NextRequest) {
   try {
-    const session = await requirePermission("configuracion", "write");
+    const session = await requirePermission('configuracion', 'write');
     const body = await request.json();
 
     const {

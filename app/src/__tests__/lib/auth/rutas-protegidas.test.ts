@@ -17,7 +17,13 @@ import { RECURSOS, ACCIONES } from '@/lib/auth/permissions';
 const API_DIR = path.join(process.cwd(), 'src', 'app', 'api');
 
 /** Única ruta pública: la maneja NextAuth. */
-const EXCLUIDAS = [path.join('auth', '[...nextauth]', 'route.ts')];
+const EXCLUIDAS = [
+  path.join('auth', '[...nextauth]', 'route.ts'),
+  // Modulo Proveedores eliminado (SPEC 2.35): estos archivos quedan como
+  // stubs que solo devuelven 410 Gone, sin logica ni permisos que auditar.
+  path.join('proveedores', 'route.ts'),
+  path.join('proveedores', '[id]', 'route.ts'),
+];
 
 const METODOS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 
