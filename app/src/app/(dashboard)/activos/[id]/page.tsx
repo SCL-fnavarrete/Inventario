@@ -56,6 +56,10 @@ const tipoEventoLabels: Record<TipoEvento, string> = {
   venta: "Venta",
   solicitud_workflow: "Solicitud",
   traslado: "Traslado",
+  // 14-sep-2026 (SPEC 2.25): nuevo evento emitido al vincular activos
+  // existentes a una Compra (ver registrarVinculacionCompra en
+  // assetHistoryService).
+  compra: "Compra",
 };
 
 function getCategoryIcon(categoryName: string) {

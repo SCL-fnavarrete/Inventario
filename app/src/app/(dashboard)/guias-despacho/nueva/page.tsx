@@ -32,6 +32,12 @@ type Asset = {
   sistemaOperativo: string | null;
   numeroTelefono: string | null;
   tipoPlan: string | null;
+  // 14-sep-2026 (SPEC 2.26): agregados para que este tipo coincida
+  // estructuralmente con el `Asset` local de SelectorActivos.tsx (ambos
+  // se llaman igual, TS los trata como incompatibles si no calzan campo
+  // a campo).
+  pulgadas: string | number | null;
+  conectividad: string | null;
   estado: string;
   condicion: string;
   categoria: {

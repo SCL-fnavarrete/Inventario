@@ -1,7 +1,6 @@
 import {
   assetBajaSchema,
   assetVentaSchema,
-  maintenanceCloseSchema,
   assetReassignmentSchema,
   motivoBajaEnum,
   resultadoMantencionEnum,
@@ -116,83 +115,15 @@ describe('assetVentaSchema', () => {
     expect(assetVentaSchema.safeParse(sin).success).toBe(false);
   });
 
-  test('acepta documentoVenta como URL válida', () => {
-    const result = assetVentaSchema.safeParse({
-      ...validVenta,
-      documentoVenta: 'https://drive.google.com/doc/123',
-    });
-    expect(result.success).toBe(true);
-  });
-
-  test('rechaza documentoVenta como URL inválida', () => {
-    const result = assetVentaSchema.safeParse({
-      ...validVenta,
-      documentoVenta: 'no-es-url',
-    });
-    expect(result.success).toBe(false);
-  });
 });
 
-// SPEC: Sección 2.7.5 — Cierre de Mantención
-describe('maintenanceCloseSchema', () => {
-  const validClose = {
-    resultadoEstructurado: 'reparado' as const,
-    realizadoPor: 'Técnico IT',
-  };
-
-  test('acepta cierre reparado válido', () => {
-    expect(maintenanceCloseSchema.safeParse(validClose).success).toBe(true);
-  });
-
-  test('acepta cierre pendiente_repuestos', () => {
-    const result = maintenanceCloseSchema.safeParse({
-      ...validClose,
-      resultadoEstructurado: 'pendiente_repuestos',
-    });
-    expect(result.success).toBe(true);
-  });
-
-  test('rechaza sin realizadoPor', () => {
-    const { realizadoPor, ...sin } = validClose;
-    expect(maintenanceCloseSchema.safeParse(sin).success).toBe(false);
-  });
-
-  test('no_reparable sin motivoBaja es inválido', () => {
-    const result = maintenanceCloseSchema.safeParse({
-      ...validClose,
-      resultadoEstructurado: 'no_reparable',
-    });
-    expect(result.success).toBe(false);
-  });
-
-  test('no_reparable con motivoBaja vacío es inválido', () => {
-    const result = maintenanceCloseSchema.safeParse({
-      ...validClose,
-      resultadoEstructurado: 'no_reparable',
-      motivoBaja: '',
-    });
-    expect(result.success).toBe(false);
-  });
-
-  test('no_reparable con motivoBaja es válido', () => {
-    const result = maintenanceCloseSchema.safeParse({
-      ...validClose,
-      resultadoEstructurado: 'no_reparable',
-      motivoBaja: 'Placa madre dañada, sin reparación posible',
-    });
-    expect(result.success).toBe(true);
-  });
-
-  test('acepta campos opcionales', () => {
-    const result = maintenanceCloseSchema.safeParse({
-      ...validClose,
-      costo: 50000,
-      proveedorExterno: 'Servicio Técnico Lenovo',
-      proximaMantencion: '2026-10-01',
-    });
-    expect(result.success).toBe(true);
-  });
-});
+// Nota (14-sep-2026, SPEC 2.25): se quitaron aqui las pruebas de
+// `documentoVenta` (el campo ya no existe en assetVentaSchema -- vender un
+// activo ya no requiere documento) y el describe completo de
+// `maintenanceCloseSchema` (ese schema se elimino; el cierre de mantencion
+// ahora usa `completeMaintenanceSchema` en lib/validations/maintenance.ts,
+// que reutiliza `resultadoMantencionEnum` de este mismo archivo -- ver
+// pruebas de ese enum mas abajo).
 
 // SPEC: Sección 2.7.6 — Reasignación
 describe('assetReassignmentSchema', () => {

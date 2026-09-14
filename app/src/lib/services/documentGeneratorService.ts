@@ -35,14 +35,16 @@ function formatDateLarga(date: Date | string | null): string {
 
 // Descripcion de equipo en una sola linea, igual al criterio que ya se usa
 // en el detalle de Guias de Despacho -- especificaciones tecnicas para
-// notebooks, datos de linea para celulares.
+// notebooks, datos de linea para celulares. (14-sep-2026: se quito
+// "operador" de la firma -- ese campo del Activo ya no existe, SPEC 2.20.
+// Este archivo referenciaba el campo eliminado y no compilaba; bug
+// preexistente detectado ahora porque el CI corre `tsc`.)
 function descripcionAsset(asset: {
   procesador: string | null;
   ram: string | null;
   discoDuro: string | null;
   sistemaOperativo: string | null;
   numeroTelefono: string | null;
-  operador: string | null;
 }): string {
   const partes: string[] = [];
   if (asset.procesador) partes.push(`Proc: ${asset.procesador}`);
@@ -50,7 +52,6 @@ function descripcionAsset(asset: {
   if (asset.discoDuro) partes.push(`Disco: ${asset.discoDuro}`);
   if (asset.sistemaOperativo) partes.push(`SO: ${asset.sistemaOperativo}`);
   if (asset.numeroTelefono) partes.push(`Tel: ${asset.numeroTelefono}`);
-  if (asset.operador) partes.push(`Operador: ${asset.operador}`);
   return partes.join(' | ');
 }
 
@@ -89,7 +90,6 @@ export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer>
     estado: a.asset.condicion,
     imei: a.asset.imei,
     numeroTelefono: a.asset.numeroTelefono,
-    operador: a.asset.operador,
   }));
 
   const element = React.createElement(AnexoEntregaTemplate, {

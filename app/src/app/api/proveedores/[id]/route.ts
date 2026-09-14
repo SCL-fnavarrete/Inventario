@@ -14,27 +14,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { id } = await params;
 
+    // 14-sep-2026: se quitan los includes de `purchases` y `_count.purchases`
+    // -- Supplier y Purchase estan desvinculados desde el 11-sep-2026 (Purchase
+    // ya no tiene proveedorId, solo un `rutProveedor` de texto libre, ver
+    // comentario en el modelo Purchase de schema.prisma), asi que esa relacion
+    // no existe en Prisma y esto ni siquiera compilaba. Bug preexistente,
+    // detectado ahora porque el CI corre `tsc` y antes no se habia corrido.
     const supplier = await prisma.supplier.findUnique({
       where: { id },
-      include: {
-        purchases: {
-          include: {
-            purchaseAssets: {
-              include: {
-                asset: {
-                  include: {
-                    categoria: true,
-                  },
-                },
-              },
-            },
-          },
-          orderBy: { fechaFactura: "desc" },
-        },
-        _count: {
-          select: { purchases: true },
-        },
-      },
     });
 
     if (!supplier) {
@@ -109,11 +96,6 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         ...(data.telefono !== undefined && { telefono: data.telefono }),
         ...(data.direccion !== undefined && { direccion: data.direccion }),
       },
-      include: {
-        _count: {
-          select: { purchases: true },
-        },
-      },
     });
 
     return NextResponse.json(supplier);
@@ -132,11 +114,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Verificar que el proveedor existe
     const supplier = await prisma.supplier.findUnique({
       where: { id },
-      include: {
-        _count: {
-          select: { purchases: true },
-        },
-      },
     });
 
     if (!supplier) {
@@ -146,16 +123,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Verificar que no tiene compras asociadas
-    if (supplier._count.purchases > 0) {
-      return NextResponse.json(
-        {
-          error: "No se puede eliminar el proveedor porque tiene compras asociadas",
-          purchasesCount: supplier._count.purchases,
-        },
-        { status: 400 }
-      );
-    }
+    // 14-sep-2026: se quita el bloqueo "no se puede eliminar si tiene compras
+    // asociadas" -- Supplier y Purchase estan desvinculados desde el
+    // 11-sep-2026 (Purchase solo guarda un `rutProveedor` de texto libre, sin
+    // relacion real a Supplier), asi que ya no hay forma de contar compras
+    // asociadas a un proveedor del catalogo. Bug preexistente que ni siquiera
+    // compilaba (_count.purchases sobre una relacion que no existe).
 
     // Eliminar el proveedor
     await prisma.supplier.delete({

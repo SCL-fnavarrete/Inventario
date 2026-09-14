@@ -16,7 +16,6 @@ import {
   Mail,
   Phone,
   MapPin,
-  FileText,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -30,9 +29,6 @@ type Supplier = {
   email: string | null;
   telefono: string | null;
   direccion: string | null;
-  _count: {
-    purchases: number;
-  };
 };
 
 type SupplierForm = {
@@ -267,9 +263,6 @@ export default function ProveedoresPage() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Contacto
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                      Compras
-                    </th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                       Acciones
                     </th>
@@ -314,17 +307,6 @@ export default function ProveedoresPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-4 text-center">
-                        <span className={cn(
-                          "inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-medium",
-                          supplier._count.purchases > 0
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-500"
-                        )}>
-                          <FileText className="h-3 w-3 mr-1" />
-                          {supplier._count.purchases}
-                        </span>
-                      </td>
                       <td className="px-4 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
@@ -336,17 +318,8 @@ export default function ProveedoresPage() {
                           </button>
                           <button
                             onClick={() => confirmDelete(supplier)}
-                            disabled={supplier._count.purchases > 0}
-                            className={cn(
-                              "p-2 rounded",
-                              supplier._count.purchases > 0
-                                ? "text-gray-300 cursor-not-allowed"
-                                : "text-gray-400 hover:text-red-600 hover:bg-red-50"
-                            )}
-                            title={supplier._count.purchases > 0
-                              ? "No se puede eliminar (tiene compras)"
-                              : "Eliminar"
-                            }
+                            className="p-2 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                            title="Eliminar"
                           >
                             <Trash2 size={18} />
                           </button>

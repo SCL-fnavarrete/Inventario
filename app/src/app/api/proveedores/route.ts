@@ -46,13 +46,11 @@ export async function GET(request: NextRequest) {
 
     // Ejecutar consulta
     const [suppliers, total] = await Promise.all([
+      // 14-sep-2026: se quita `_count.purchases` -- Supplier y Purchase estan
+      // desvinculados desde el 11-sep-2026, esa relacion no existe en Prisma
+      // (ver misma nota en proveedores/[id]/route.ts).
       prisma.supplier.findMany({
         where,
-        include: {
-          _count: {
-            select: { purchases: true },
-          },
-        },
         orderBy: { [filters.sortBy]: filters.sortOrder },
         skip,
         take: filters.limit,
@@ -115,11 +113,6 @@ export async function POST(request: NextRequest) {
         email: data.email,
         telefono: data.telefono,
         direccion: data.direccion,
-      },
-      include: {
-        _count: {
-          select: { purchases: true },
-        },
       },
     });
 
