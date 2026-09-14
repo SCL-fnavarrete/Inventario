@@ -205,10 +205,14 @@ describe('Maintenance Validation - updateMaintenanceSchema', () => {
 })
 
 describe('Maintenance Validation - completeMaintenanceSchema', () => {
+  // 14-sep-2026 (SPEC 2.25): resultadoTipo ahora es requerido -- estas
+  // pruebas quedaron desactualizadas cuando se agrego el campo (bloqueaba
+  // el CI, "Tests + umbrales de cobertura").
   const validCompletion = {
     fechaRealizada: '2024-03-20',
     realizadoPor: 'Juan Tecnico',
     resultado: 'Mantencion completada exitosamente',
+    resultadoTipo: 'reparado' as const,
   }
 
   test('should accept valid completion data', () => {
@@ -275,6 +279,46 @@ describe('Maintenance Validation - completeMaintenanceSchema', () => {
       resultado: 'A'.repeat(1001),
     })
     expect(result.success).toBe(false)
+  })
+
+  test('should reject missing resultadoTipo', () => {
+    const { resultadoTipo, ...completionWithoutTipo } = validCompletion
+    const result = completeMaintenanceSchema.safeParse(completionWithoutTipo)
+    expect(result.success).toBe(false)
+  })
+
+  test('should accept resultadoTipo pendiente_repuestos without motivoBaja', () => {
+    const result = completeMaintenanceSchema.safeParse({
+      ...validCompletion,
+      resultadoTipo: 'pendiente_repuestos',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  test('should reject resultadoTipo no_reparable without motivoBaja', () => {
+    const result = completeMaintenanceSchema.safeParse({
+      ...validCompletion,
+      resultadoTipo: 'no_reparable',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  test('should reject resultadoTipo no_reparable with empty motivoBaja', () => {
+    const result = completeMaintenanceSchema.safeParse({
+      ...validCompletion,
+      resultadoTipo: 'no_reparable',
+      motivoBaja: '',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  test('should accept resultadoTipo no_reparable with motivoBaja', () => {
+    const result = completeMaintenanceSchema.safeParse({
+      ...validCompletion,
+      resultadoTipo: 'no_reparable',
+      motivoBaja: 'Placa madre dañada, sin reparación posible',
+    })
+    expect(result.success).toBe(true)
   })
 })
 

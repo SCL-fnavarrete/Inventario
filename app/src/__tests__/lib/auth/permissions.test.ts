@@ -92,10 +92,19 @@ describe('permissions — tecnico', () => {
   test('no toca datos maestros ni configuración ni usuarios', () => {
     expect(can('tecnico', 'categorias', 'write')).toBe(false);
     expect(can('tecnico', 'proveedores', 'write')).toBe(false);
-    expect(can('tecnico', 'compras', 'read')).toBe(false);
     expect(can('tecnico', 'usuarios', 'read')).toBe(false);
     expect(can('tecnico', 'sedes', 'write')).toBe(false);
     expect(can('tecnico', 'configuracion', 'read')).toBe(false);
+  });
+
+  // compras es trabajo operativo del tecnico, no un dato maestro (ver nota
+  // "11-sep-2026, pedido explicito de Javier" en permissions.ts) -- prueba
+  // separada, corregida el 14-sep-2026: antes esperaba false y nunca se
+  // habia corrido en CI para detectarlo.
+  test('sí puede leer y escribir compras (trabajo operativo, no dato maestro)', () => {
+    expect(can('tecnico', 'compras', 'read')).toBe(true);
+    expect(can('tecnico', 'compras', 'write')).toBe(true);
+    expect(can('tecnico', 'compras', 'delete')).toBe(false);
   });
 
   test('lee lo mismo que escribe, más los datos maestros de solo lectura', () => {
@@ -171,7 +180,9 @@ describe('permissions — helpers', () => {
     const recursos = recursosPermitidos('tecnico', 'read');
     expect(recursos).not.toContain('usuarios');
     expect(recursos).not.toContain('configuracion');
-    expect(recursos).not.toContain('compras');
+    // compras SÍ está incluido -- es trabajo operativo del técnico, ver
+    // prueba "sí puede leer y escribir compras" más arriba.
+    expect(recursos).toContain('compras');
     expect(recursos.length).toBeGreaterThan(0);
   });
 

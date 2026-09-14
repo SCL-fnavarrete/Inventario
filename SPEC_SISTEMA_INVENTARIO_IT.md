@@ -1237,6 +1237,45 @@ Javier pidió explícitamente bloquear el acceso al módulo de administración p
 
 ---
 
+## 2.27 Corrección de errores de compilación (TypeScript) detectados por CI al subir la rama (14-sep-2026)
+
+Javier subió la rama con todo el trabajo de las secciones 2.24-2.26 a GitHub y el job `npm run lint` falló por un error de comillas sin escapar (`react/no-unescaped-entities`) que resultó ser de un commit viejo -- su copia local ya estaba corregida, bastó con subir de nuevo. Al resolver eso, un segundo job (`tsc`, compilación de TypeScript) sí encontró errores reales, la mayoría **preexistentes** -- código que quedó desincronizado por cambios de schema de días anteriores y que nunca se había detectado porque no se corría el build/typecheck antes de este punto.
+
+**Causados por los cambios de esta sesión (2.24-2.26):**
+- `activos/[id]/page.tsx`: el mapa de etiquetas de `TipoEvento` (`tipoEventoLabels`) no tenía entrada para el nuevo valor `compra` (agregado en SPEC 2.25) -- se agregó `compra: "Compra"`.
+- `guias-despacho/nueva/page.tsx`: tiene su propio tipo local `Asset` (duplicado del de `SelectorActivos.tsx` a propósito, para no acoplar ambos componentes) que quedó desalineado al agregarle `pulgadas`/`conectividad` al tipo de `SelectorActivos` en la sección 2.26 -- TypeScript trata dos tipos con el mismo nombre pero campos distintos como incompatibles. Se agregaron los mismos dos campos al tipo local.
+- `__tests__/lib/validations/assetTransition.test.ts`: probaba `maintenanceCloseSchema` (eliminado en SPEC 2.25) y el campo `documentoVenta` de `assetVentaSchema` (también eliminado). Se quitó el import y el `describe` completo de `maintenanceCloseSchema`, y las 2 pruebas de `documentoVenta`.
+
+**Preexistentes, sin relación con esta sesión (destapados ahora porque el CI corre `tsc` por primera vez):**
+- `documentGeneratorService.ts` seguía leyendo `asset.operador` para armar la descripción del equipo en los documentos PDF (Anexo de Entrega, Comprobante de Entrega) -- ese campo se eliminó del modelo `Asset` el 14-sep-2026 más temprano en esta misma sesión (ver SPEC 2.20, migración `20260914000000_activos_quitar_operador_celular`), pero este archivo no se había tocado. Se quitó `operador` de la firma de `descripcionAsset()` y de donde se arma el objeto `assets` en `generateAnexoEntrega()`; los documentos generados simplemente ya no incluyen ese dato (coherente con que el campo ya no existe en ningún otro lugar del sistema).
+- `api/proveedores/route.ts`, `api/proveedores/[id]/route.ts` y la pantalla `configuracion/proveedores/page.tsx` seguían usando `_count.purchases` (cantidad de compras de un proveedor) y bloqueando el borrado de un proveedor si tenía compras asociadas -- pero `Supplier` y `Purchase` están desvinculados desde el 11-sep-2026 (`Purchase` solo guarda un `rutProveedor` de texto libre, no una relación real al catálogo de proveedores; ver nota en el modelo `Purchase` de `schema.prisma`). Esa relación de Prisma ya no existe, por lo que este código directamente no compilaba. Se quitó `_count.purchases` de las 4 rutas de `/api/proveedores` y la columna "Compras" + el bloqueo de borrado en la pantalla de Configuración → Proveedores -- ya no hay forma de saber cuántas compras tiene un proveedor del catálogo, así que se puede eliminar cualquiera sin esa restricción.
+
+**Fuera de alcance:** no se investigó si el desacople Supplier/Purchase (decisión del 11-sep-2026) fue intencional a largo plazo o si en algún momento se quiere volver a relacionar ambos modelos -- si Javier quiere retomar esa relación, es una decisión de diseño aparte.
+
+**Changelog SPEC:**
+
+**v1.33 (2026-09-14):** Corregidos 8 errores de compilación TypeScript que bloqueaban el CI de GitHub: 3 causados por los cambios de esta sesión (label de evento `compra` faltante, tipo `Asset` desalineado en Nueva Guía de Despacho, test obsoleto) y 5 preexistentes destapados por primera corrida de `tsc` en CI (referencia a campo `Asset.operador` eliminado en `documentGeneratorService.ts`; uso de la relación inexistente `Supplier.purchases` en 3 rutas de `/api/proveedores` y en la pantalla de Configuración → Proveedores, donde también se quitó el bloqueo de borrado basado en esa relación).
+
+---
+
+## 2.28 Corrección de pruebas y cobertura que bloqueaban el paso "Tests" del CI (14-sep-2026)
+
+Después de que el CI pasara Typecheck y Lint, falló el paso "Tests + umbrales de cobertura" (`jest --coverage --ci`): 5 pruebas rotas y 3 umbrales de cobertura no alcanzados.
+
+**Pruebas desactualizadas por el cambio de mantención (SPEC 2.25):** `completeMaintenanceSchema.test.ts` seguía probando datos sin el campo `resultadoTipo`, que se volvió obligatorio al agregar el flujo de "No reparable" -- las 3 pruebas fallaban porque la validación real ahora rechaza esos datos (correctamente). Se corrigió el fixture y se agregaron pruebas nuevas para las ramas que trajo ese cambio: `resultadoTipo` faltante, `pendiente_repuestos` sin motivo, `no_reparable` sin motivo (rechaza), y `no_reparable` con motivo (acepta).
+
+**Pruebas incorrectas, no relacionadas con esta sesión:** `permissions.test.ts` esperaba que técnico NO pudiera leer `compras`, pero la matriz de permisos (`permissions.ts`) documenta explícitamente desde el 11-sep-2026 que registrar una compra es trabajo operativo del técnico ("pedido explícito de Javier"), con lectura y escritura para ambos roles. La prueba nunca se había corrido en CI para detectar el desajuste. Se corrigió: se sacó `compras` de la prueba "no toca datos maestros" (no es un dato maestro) y se agregó una prueba separada que confirma que técnico sí puede leer/escribir compras pero no borrarlas.
+
+**Umbrales de cobertura de rama no alcanzados:** `assetTransition.ts` (80% requerido, 71.42% real) y `maintenance.ts` (74% branches / 90% functions requerido, 72%/0% real) tienen ramas de "fecha inválida lanza error" (`fechaVenta`, `fechaReasignacion`) y el `.refine()` de `no_reparable` que ninguna prueba ejercitaba -- en el caso de `maintenance.ts` la cobertura de funciones caía a 0% porque, al faltar `resultadoTipo`, la validación fallaba antes de llegar a ejecutar las funciones internas de transformación/refine. Se agregaron pruebas puntuales para esas ramas.
+
+**Sin verificar:** no se pudo correr `npm run test:coverage` en este entorno para confirmar los porcentajes finales -- se recomienda que Javier lo corra en local antes de subir de nuevo la rama.
+
+**Changelog SPEC:**
+
+**v1.34 (2026-09-14):** Corregidas 5 pruebas rotas y agregadas pruebas para 3 umbrales de cobertura de rama no alcanzados, que bloqueaban el paso "Tests + umbrales de cobertura" del CI: 3 pruebas de `completeMaintenanceSchema` desactualizadas por SPEC 2.25 (falta `resultadoTipo`), 2 pruebas de `permissions.ts` incorrectas sobre el acceso de técnico a `compras` (ya documentado como intencional desde el 11-sep-2026), y cobertura de rama agregada para fechas inválidas en `assetTransition.ts` y el `.refine()` de `no_reparable` en `maintenance.ts`.
+
+---
+
 # PARTE 3: ARQUITECTURA TÉCNICA (ARCHITECTURE)
 
 ## 3.1 Stack Tecnológico Recomendado

@@ -115,6 +115,11 @@ describe('assetVentaSchema', () => {
     expect(assetVentaSchema.safeParse(sin).success).toBe(false);
   });
 
+  test('rechaza fechaVenta con formato inválido', () => {
+    expect(() =>
+      assetVentaSchema.parse({ ...validVenta, fechaVenta: 'no-es-una-fecha' })
+    ).toThrow();
+  });
 });
 
 // Nota (14-sep-2026, SPEC 2.25): se quitaron aqui las pruebas de
@@ -166,6 +171,12 @@ describe('assetReassignmentSchema', () => {
     expect(
       assetReassignmentSchema.safeParse({ ...validReassignment, estadoDevolucion: 'danado' }).success
     ).toBe(false);
+  });
+
+  test('rechaza fechaReasignacion con formato inválido', () => {
+    expect(() =>
+      assetReassignmentSchema.parse({ ...validReassignment, fechaReasignacion: 'no-es-una-fecha' })
+    ).toThrow();
   });
 
   test('rechaza assignmentId no UUID', () => {
