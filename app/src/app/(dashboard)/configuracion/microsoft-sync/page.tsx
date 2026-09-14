@@ -8,12 +8,13 @@ import {
   RefreshCw,
   CheckCircle,
   AlertTriangle,
-  XCircle,
   Users,
   ChevronDown,
   ChevronUp,
   AlertOctagon,
 } from 'lucide-react';
+import { parseApiError, type FieldErrors } from '@/lib/utils/apiErrors';
+import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
 
 interface SyncStatus {
   configured: boolean;
@@ -38,6 +39,7 @@ export default function MicrosoftSyncPage() {
   const [syncing, setSyncing] = useState(false);
   const [result, setResult] = useState<SyncResult | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [showInstructions, setShowInstructions] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -63,16 +65,19 @@ export default function MicrosoftSyncPage() {
     setSyncing(true);
     setResult(null);
     setSyncError(null);
+    setFieldErrors({});
 
     try {
       const res = await fetch('/api/microsoft-sync', { method: 'POST' });
-      const data = await res.json();
 
       if (!res.ok) {
-        setSyncError(data.error || 'Error al sincronizar');
+        const { message, fieldErrors: fe } = await parseApiError(res, 'Error al sincronizar');
+        setSyncError(message);
+        setFieldErrors(fe);
         return;
       }
 
+      const data = await res.json();
       setResult(data);
       fetchStatus();
     } catch {
@@ -223,15 +228,7 @@ export default function MicrosoftSyncPage() {
       </div>
 
       {/* Error de sync */}
-      {syncError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-          <XCircle size={20} className="text-red-500 mt-0.5 shrink-0" />
-          <div>
-            <p className="text-red-800 font-medium">Error al sincronizar</p>
-            <p className="text-red-600 text-sm mt-1">{syncError}</p>
-          </div>
-        </div>
-      )}
+      <ApiErrorSummary error={syncError} fieldErrors={fieldErrors} />
 
       {/* Resultado de sincronizacion */}
       {result && (

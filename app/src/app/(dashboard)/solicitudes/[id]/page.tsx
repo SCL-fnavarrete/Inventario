@@ -18,6 +18,8 @@ import {
 import { cn } from '@/lib/utils';
 import { SeleccionarEquiposOnboarding } from '@/components/solicitudes/SeleccionarEquiposOnboarding';
 import { SeleccionarCambioEquipo } from '@/components/solicitudes/SeleccionarCambioEquipo';
+import { parseApiError, type FieldErrors } from '@/lib/utils/apiErrors';
+import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
 
 type WorkflowDetail = {
   id: string;
@@ -223,6 +225,7 @@ export default function SolicitudDetailPage() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   // Cancelar solicitud: solo antes de ejecutar ningun efecto secundario
   // (ver handleCancelar / POST /api/solicitudes/[id]/cancelar).
@@ -272,7 +275,11 @@ export default function SolicitudDetailPage() {
   const fetchData = useCallback(async (): Promise<WorkflowDetail | null> => {
     try {
       const res = await fetch(`/api/solicitudes/${id}`);
-      if (!res.ok) throw new Error('Error al cargar solicitud');
+      if (!res.ok) {
+        const { message, fieldErrors: fe } = await parseApiError(res, 'Error al cargar solicitud');
+        setFieldErrors(fe);
+        throw new Error(message);
+      }
       const detail: WorkflowDetail = await res.json();
       setData(detail);
       return detail;
@@ -307,6 +314,7 @@ export default function SolicitudDetailPage() {
     if (items.length === 0) return;
     setEntregandoKit(categoria);
     setError('');
+    setFieldErrors({});
     try {
       const res = await fetch(`/api/solicitudes/${id}/kit-epp`, {
         method: 'POST',
@@ -314,8 +322,9 @@ export default function SolicitudDetailPage() {
         body: JSON.stringify({ items }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Error al entregar');
+        const { message, fieldErrors: fe } = await parseApiError(res, 'Error al entregar');
+        setFieldErrors(fe);
+        throw new Error(message);
       }
       setKitCantidades((prev) => {
         const next = { ...prev };
@@ -348,6 +357,7 @@ export default function SolicitudDetailPage() {
     if (!motivo || !motivo.trim()) return;
     setMarcandoNoAplica(requestKitItemId);
     setError('');
+    setFieldErrors({});
     try {
       const res = await fetch(`/api/solicitudes/${id}/kit-epp`, {
         method: 'PATCH',
@@ -355,8 +365,9 @@ export default function SolicitudDetailPage() {
         body: JSON.stringify({ requestKitItemId, motivo: motivo.trim() }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Error al marcar como no aplica');
+        const { message, fieldErrors: fe } = await parseApiError(res, 'Error al marcar como no aplica');
+        setFieldErrors(fe);
+        throw new Error(message);
       }
       await fetchData();
     } catch (err) {
@@ -369,13 +380,19 @@ export default function SolicitudDetailPage() {
   const handleAddComment = async () => {
     if (!commentText.trim()) return;
     setSubmittingComment(true);
+    setError('');
+    setFieldErrors({});
     try {
       const res = await fetch(`/api/solicitudes/${id}/comentarios`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mensaje: commentText, esInterno: commentInternal }),
       });
-      if (!res.ok) throw new Error('Error al agregar comentario');
+      if (!res.ok) {
+        const { message, fieldErrors: fe } = await parseApiError(res, 'Error al agregar comentario');
+        setFieldErrors(fe);
+        throw new Error(message);
+      }
       setCommentText('');
       setCommentInternal(false);
       fetchData();
@@ -389,6 +406,7 @@ export default function SolicitudDetailPage() {
   const handleTransition = async (nuevoEstado: string, datosAccion?: Record<string, unknown>) => {
     setTransitioning(true);
     setError('');
+    setFieldErrors({});
     try {
       const res = await fetch(`/api/solicitudes/${id}/transicion`, {
         method: 'POST',
@@ -396,8 +414,9 @@ export default function SolicitudDetailPage() {
         body: JSON.stringify(datosAccion ? { nuevoEstado, datosAccion } : { nuevoEstado }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Error al avanzar solicitud');
+        const { message, fieldErrors: fe } = await parseApiError(res, 'Error al avanzar solicitud');
+        setFieldErrors(fe);
+        throw new Error(message);
       }
       fetchData();
     } catch (err) {
@@ -418,6 +437,7 @@ export default function SolicitudDetailPage() {
     }
     setCancelling(true);
     setError('');
+    setFieldErrors({});
     try {
       const res = await fetch(`/api/solicitudes/${id}/cancelar`, {
         method: 'POST',
@@ -425,8 +445,9 @@ export default function SolicitudDetailPage() {
         body: JSON.stringify({ motivo: motivoCancelacion.trim() }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Error al cancelar la solicitud');
+        const { message, fieldErrors: fe } = await parseApiError(res, 'Error al cancelar la solicitud');
+        setFieldErrors(fe);
+        throw new Error(message);
       }
       setShowCancelModal(false);
       setMotivoCancelacion('');
@@ -588,6 +609,7 @@ export default function SolicitudDetailPage() {
     if (!data) return;
     setTransitioning(true);
     setError('');
+    setFieldErrors({});
     try {
       if (data.estado === 'solicitud_recibida') {
         const resGestion = await fetch(`/api/solicitudes/${id}/transicion`, {
@@ -596,8 +618,9 @@ export default function SolicitudDetailPage() {
           body: JSON.stringify({ nuevoEstado: 'gestion_ti' }),
         });
         if (!resGestion.ok) {
-          const err = await resGestion.json();
-          throw new Error(err.error || 'Error al avanzar a Gestión TI');
+          const { message, fieldErrors: fe } = await parseApiError(resGestion, 'Error al avanzar a Gestión TI');
+          setFieldErrors(fe);
+          throw new Error(message);
         }
       }
 
@@ -611,8 +634,9 @@ export default function SolicitudDetailPage() {
           }),
         });
         if (!resEntrega.ok) {
-          const err = await resEntrega.json();
-          throw new Error(err.error || 'Error al entregar equipos');
+          const { message, fieldErrors: fe } = await parseApiError(resEntrega, 'Error al entregar equipos');
+          setFieldErrors(fe);
+          throw new Error(message);
         }
       }
 
@@ -640,6 +664,7 @@ export default function SolicitudDetailPage() {
   ) => {
     setTransitioning(true);
     setError('');
+    setFieldErrors({});
     try {
       const res = await fetch(`/api/solicitudes/${id}/transicion`, {
         method: 'POST',
@@ -655,8 +680,9 @@ export default function SolicitudDetailPage() {
         }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Error al ejecutar el cambio de equipo');
+        const { message, fieldErrors: fe } = await parseApiError(res, 'Error al ejecutar el cambio de equipo');
+        setFieldErrors(fe);
+        throw new Error(message);
       }
       fetchData();
     } catch (err) {
@@ -851,11 +877,7 @@ export default function SolicitudDetailPage() {
         </div>
       )}
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
+      <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* State Stepper */}
       <div className="bg-white rounded-lg shadow p-6">

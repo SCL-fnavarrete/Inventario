@@ -16,6 +16,8 @@ import {
   XCircle,
   Loader2
 } from "lucide-react";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
 type DataCounts = {
   activos: number;
@@ -97,6 +99,7 @@ export default function MantenimientoPage() {
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   useEffect(() => {
     if (status === "loading") return;
@@ -132,6 +135,7 @@ export default function MantenimientoPage() {
 
     setDeleting(true);
     setResult(null);
+    setFieldErrors({});
 
     try {
       const res = await fetch("/api/mantenimiento/eliminar", {
@@ -140,16 +144,18 @@ export default function MantenimientoPage() {
         body: JSON.stringify({ tipo: selectedOption.id }),
       });
 
-      const data = await res.json();
-
-      if (res.ok) {
-        setResult({ success: true, message: data.message });
-        await fetchCounts();
-        setSelectedOption(null);
-        setConfirmText("");
-      } else {
-        setResult({ success: false, message: data.error || "Error al eliminar" });
+      if (!res.ok) {
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al eliminar");
+        setResult({ success: false, message });
+        setFieldErrors(fe);
+        return;
       }
+
+      const data = await res.json();
+      setResult({ success: true, message: data.message });
+      await fetchCounts();
+      setSelectedOption(null);
+      setConfirmText("");
     } catch {
       setResult({ success: false, message: "Error de conexión" });
     } finally {
@@ -197,18 +203,14 @@ export default function MantenimientoPage() {
 
       {/* Resultado de operación */}
       {result && (
-        <div className={`p-4 rounded-lg flex items-center gap-3 ${
-          result.success
-            ? "bg-green-50 border border-green-200 text-green-800"
-            : "bg-red-50 border border-red-200 text-red-800"
-        }`}>
-          {result.success ? (
+        result.success ? (
+          <div className="p-4 rounded-lg flex items-center gap-3 bg-green-50 border border-green-200 text-green-800">
             <CheckCircle2 className="h-5 w-5 text-green-600" />
-          ) : (
-            <XCircle className="h-5 w-5 text-red-600" />
-          )}
-          {result.message}
-        </div>
+            {result.message}
+          </div>
+        ) : (
+          <ApiErrorSummary error={result.message} fieldErrors={fieldErrors} />
+        )
       )}
 
       {/* Opciones de eliminación */}

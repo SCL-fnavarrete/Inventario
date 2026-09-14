@@ -16,6 +16,8 @@ import {
 import { cn } from "@/lib/utils";
 import { ErrorReviewPanel } from "@/components/import/ErrorReviewPanel";
 import type { ImportRowStatus, CorrectedRow } from "@/types/import";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
 type Category = {
   id: number;
@@ -65,6 +67,7 @@ export default function ImportarActivosPage() {
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [showErrorReview, setShowErrorReview] = useState(false);
   const [reimportingCorrected, setReimportingCorrected] = useState(false);
@@ -226,6 +229,7 @@ export default function ImportarActivosPage() {
 
     setParsing(true);
     setError("");
+    setFieldErrors({});
 
     try {
       const formData = new FormData();
@@ -239,8 +243,10 @@ export default function ImportarActivosPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Error al previsualizar");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al previsualizar");
+        setError(message);
+        setFieldErrors(fe);
+        return;
       }
 
       const data = await res.json();
@@ -335,6 +341,7 @@ export default function ImportarActivosPage() {
 
     setLoading(true);
     setError("");
+    setFieldErrors({});
 
     try {
       const formData = new FormData();
@@ -349,12 +356,14 @@ export default function ImportarActivosPage() {
         body: formData,
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        throw new Error(data.error || "Error al importar");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al importar");
+        setError(message);
+        setFieldErrors(fe);
+        return;
       }
 
+      const data = await res.json();
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al importar");
@@ -376,6 +385,7 @@ export default function ImportarActivosPage() {
 
     setReimportingCorrected(true);
     setError("");
+    setFieldErrors({});
 
     try {
       const res = await fetch("/api/activos/importar/batch", {
@@ -388,11 +398,14 @@ export default function ImportarActivosPage() {
         }),
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        throw new Error(data.error || "Error al reimportar");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al reimportar");
+        setError(message);
+        setFieldErrors(fe);
+        return;
       }
+
+      const data = await res.json();
 
       // Actualizar el resultado con los nuevos importados
       if (result) {
@@ -856,12 +869,7 @@ export default function ImportarActivosPage() {
       )}
 
       {/* Error */}
-      {error && (
-        <div className="bg-red-50 text-red-700 rounded-lg p-4 flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 flex-shrink-0" />
-          <p>{error}</p>
-        </div>
-      )}
+      <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* Actions */}
       {preview && (

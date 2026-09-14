@@ -4,6 +4,8 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Save } from "lucide-react";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
 type Category = {
   id: string;
@@ -20,6 +22,7 @@ export default function EditarActivoPage({
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [categories, setCategories] = useState<Category[]>([]);
   const [formData, setFormData] = useState({
     categoriaId: "",
@@ -113,6 +116,7 @@ export default function EditarActivoPage({
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setFieldErrors({});
 
     try {
       const payload = {
@@ -150,8 +154,10 @@ export default function EditarActivoPage({
       });
 
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || err.details || err.message || "Error al actualizar activo");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar activo");
+        setError(message);
+        setFieldErrors(fe);
+        return;
       }
 
       router.push(`/activos/${id}`);
@@ -199,11 +205,7 @@ export default function EditarActivoPage({
       </div>
 
       {/* Error message */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
+      <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-6">

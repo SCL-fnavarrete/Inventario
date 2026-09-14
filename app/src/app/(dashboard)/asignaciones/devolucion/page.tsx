@@ -14,12 +14,13 @@ import {
   User,
   Calendar,
   MapPin,
-  AlertCircle,
   CheckCircle,
   Loader2,
   FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
 type Assignment = {
   id: string;
@@ -101,6 +102,7 @@ export default function DevolucionPage() {
   }
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [success, setSuccess] = useState(false);
 
   // Si viene con ID preseleccionado, cargar esa asignación
@@ -198,6 +200,7 @@ export default function DevolucionPage() {
 
     setSubmitting(true);
     setError("");
+    setFieldErrors({});
 
     try {
       // Procesar cada devolución con su propio estado y observaciones
@@ -215,8 +218,10 @@ export default function DevolucionPage() {
         });
 
         if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || "Error al procesar devolución");
+          const { message, fieldErrors: fe } = await parseApiError(res, "Error al procesar devolución");
+          setError(message);
+          setFieldErrors(fe);
+          return;
         }
       }
 
@@ -291,12 +296,7 @@ export default function DevolucionPage() {
       </div>
 
       {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
-          <p className="text-red-700">{error}</p>
-        </div>
-      )}
+      <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* Step 1: Search Employee */}
       {step === 1 && (

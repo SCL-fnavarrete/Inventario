@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createCommentSchema } from '@/lib/validations/workflow';
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // POST /api/solicitudes/[id]/comentarios - Add comment
@@ -17,10 +17,7 @@ export async function POST(
 
     const validationResult = createCommentSchema.safeParse(body);
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Datos inválidos', details: validationResult.error.issues },
-        { status: 400 }
-      );
+      return respuestaDatosInvalidos(validationResult.error);
     }
 
     // Find the system user

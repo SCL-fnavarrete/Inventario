@@ -2,6 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Edit, Trash2, Save, X, ShieldCheck, ShieldAlert } from "lucide-react";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+
+const usuarioFieldLabels: Record<string, string> = {
+  email: "Email",
+  nombre: "Nombre",
+  password: "Contraseña",
+  rol: "Rol",
+  sedeId: "Sede",
+  activo: "Activo",
+};
 
 type Sede = {
   id: string;
@@ -52,6 +63,7 @@ export default function UsuariosPage() {
     sedeId: "",
   });
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
@@ -106,11 +118,13 @@ export default function UsuariosPage() {
         setIsCreating(false);
         setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
         setError("");
+        setFieldErrors({});
         setSuccess("Usuario creado exitosamente");
         setTimeout(() => setSuccess(""), 3000);
       } else {
-        const data = await res.json();
-        setError(data.error || "Error al crear usuario");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear usuario");
+        setError(message);
+        setFieldErrors(fe);
       }
     } catch (err) {
       setError("Error al crear usuario");
@@ -152,11 +166,13 @@ export default function UsuariosPage() {
         setEditingId(null);
         setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
         setError("");
+        setFieldErrors({});
         setSuccess("Usuario actualizado exitosamente");
         setTimeout(() => setSuccess(""), 3000);
       } else {
-        const data = await res.json();
-        setError(data.error || "Error al actualizar usuario");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar usuario");
+        setError(message);
+        setFieldErrors(fe);
       }
     } catch (err) {
       setError("Error al actualizar usuario");
@@ -177,8 +193,9 @@ export default function UsuariosPage() {
         setSuccess("Usuario eliminado exitosamente");
         setTimeout(() => setSuccess(""), 3000);
       } else {
-        const data = await res.json();
-        setError(data.error || "Error al eliminar usuario");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al eliminar usuario");
+        setError(message);
+        setFieldErrors(fe);
       }
     } catch (err) {
       setError("Error al eliminar usuario");
@@ -198,6 +215,10 @@ export default function UsuariosPage() {
         await fetchUsers();
         setSuccess(`Usuario ${user.activo ? "desactivado" : "activado"} exitosamente`);
         setTimeout(() => setSuccess(""), 3000);
+      } else {
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al cambiar estado del usuario");
+        setError(message);
+        setFieldErrors(fe);
       }
     } catch (err) {
       setError("Error al cambiar estado del usuario");
@@ -217,6 +238,7 @@ export default function UsuariosPage() {
     });
     setIsCreating(false);
     setError("");
+    setFieldErrors({});
   };
 
   const cancelEdit = () => {
@@ -224,6 +246,7 @@ export default function UsuariosPage() {
     setIsCreating(false);
     setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
     setError("");
+    setFieldErrors({});
   };
 
   const formatDate = (dateString: string | null) => {
@@ -257,6 +280,8 @@ export default function UsuariosPage() {
             onClick={() => {
               setIsCreating(true);
               setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
+              setError("");
+              setFieldErrors({});
             }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
@@ -266,11 +291,7 @@ export default function UsuariosPage() {
         )}
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
+      <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} fieldLabels={usuarioFieldLabels} />
 
       {success && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">

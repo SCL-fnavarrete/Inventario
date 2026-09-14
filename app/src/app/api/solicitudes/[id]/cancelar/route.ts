@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cancelWorkflowRequestSchema } from '@/lib/validations/workflow';
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // POST /api/solicitudes/[id]/cancelar - Cancela una solicitud que todavia no
@@ -22,10 +22,7 @@ export async function POST(
 
     const validationResult = cancelWorkflowRequestSchema.safeParse(body);
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Datos inválidos', details: validationResult.error.issues },
-        { status: 400 }
-      );
+      return respuestaDatosInvalidos(validationResult.error);
     }
     const { motivo } = validationResult.data;
 

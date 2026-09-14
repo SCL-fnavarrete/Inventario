@@ -5,6 +5,30 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { ArrowLeft, Save, Loader2, Trash2 } from "lucide-react";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+
+const empleadoFieldLabels: Record<string, string> = {
+  rut: "RUT",
+  nombres: "Nombres",
+  apellidoPaterno: "Apellido Paterno",
+  apellidoMaterno: "Apellido Materno",
+  correoPersonal: "Correo Personal",
+  correoEmpresa: "Correo Empresa",
+  cargo: "Cargo",
+  jefatura: "Jefatura",
+  supervisor: "Supervisor",
+  ubicacion: "Ubicación",
+  tipoContrato: "Tipo de Contrato",
+  estado: "Estado",
+  fechaIngreso: "Fecha de Ingreso",
+  fechaTermino: "Fecha de Término",
+  telefonoContacto: "Teléfono de Contacto",
+  fechaEntregaKit: "Fecha Entrega Kit de Bienvenida",
+  fechaEntregaEpp: "Fecha Entrega EPP",
+  proximaMantencionEpp: "Próxima Mantención EPP",
+  sedeId: "Sede",
+};
 
 type Sede = { id: string; nombre: string; codigo: string; activa: boolean };
 
@@ -39,6 +63,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [formData, setFormData] = useState<FormData>({
@@ -133,6 +158,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
     e.preventDefault();
     setSaving(true);
     setError(null);
+    setFieldErrors({});
 
     try {
       const res = await fetch(`/api/empleados/${id}`, {
@@ -160,8 +186,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Error al actualizar empleado");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar empleado");
+        setError(message);
+        setFieldErrors(fe);
+        return;
       }
 
       router.push(`/empleados/${id}`);
@@ -175,6 +203,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
   async function handleDelete() {
     setDeleting(true);
     setError(null);
+    setFieldErrors({});
 
     try {
       const res = await fetch(`/api/empleados/${id}`, {
@@ -182,8 +211,11 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Error al eliminar empleado");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al eliminar empleado");
+        setError(message);
+        setFieldErrors(fe);
+        setShowDeleteConfirm(false);
+        return;
       }
 
       router.push("/activos/empleados");
@@ -263,8 +295,8 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
       {/* Form */}
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6">
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-            {error}
+          <div className="mb-6">
+            <ApiErrorSummary error={error} fieldErrors={fieldErrors} fieldLabels={empleadoFieldLabels} />
           </div>
         )}
 

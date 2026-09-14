@@ -4,7 +4,7 @@ import { createEmployeeSchema, employeeFiltersSchema } from "@/lib/validations/e
 import { Prisma } from "@prisma/client";
 import { normalizeRut } from "@/lib/utils/rut";
 import { removeAccents, matchNoAccent } from "@/lib/utils/text";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { sedeWhere, sedeIdParaCrear, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
 
@@ -29,10 +29,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!filtersResult.success) {
-      return NextResponse.json(
-        { error: "Parámetros de búsqueda inválidos", details: filtersResult.error.issues },
-        { status: 400 }
-      );
+      return respuestaDatosInvalidos(filtersResult.error);
     }
 
     const filters = filtersResult.data;
@@ -178,10 +175,7 @@ export async function POST(request: NextRequest) {
     const validationResult = createEmployeeSchema.safeParse(body);
 
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: "Datos inválidos", details: validationResult.error.issues },
-        { status: 400 }
-      );
+      return respuestaDatosInvalidos(validationResult.error);
     }
 
     const data = validationResult.data;

@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, XCircle, DollarSign } from 'lucide-react';
+import { parseApiError, type FieldErrors } from '@/lib/utils/apiErrors';
+import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
 
 type Asset = {
   id: string;
@@ -23,6 +25,7 @@ export default function VentaActivoPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [comprador, setComprador] = useState('');
   const [monto, setMonto] = useState('');
@@ -48,6 +51,7 @@ export default function VentaActivoPage() {
     e.preventDefault();
     setSubmitting(true);
     setError('');
+    setFieldErrors({});
 
     try {
       const res = await fetch(`/api/activos/${id}/venta`, {
@@ -62,8 +66,10 @@ export default function VentaActivoPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Error al registrar venta');
+        const { message, fieldErrors: fe } = await parseApiError(res, 'Error al registrar venta');
+        setError(message);
+        setFieldErrors(fe);
+        return;
       }
 
       router.push(`/activos/${id}`);
@@ -100,12 +106,7 @@ export default function VentaActivoPage() {
         </div>
       )}
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-          <XCircle className="text-red-500 shrink-0" size={20} />
-          <p className="text-red-700">{error}</p>
-        </div>
-      )}
+      <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* Info activo */}
       <div className="bg-gray-50 rounded-lg p-4">

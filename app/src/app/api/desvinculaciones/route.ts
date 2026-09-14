@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createTerminationSchema, terminationFiltersSchema } from "@/lib/validations/termination";
 import { Prisma } from "@prisma/client";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { sedeWhere, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
 
@@ -25,10 +25,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!filtersResult.success) {
-      return NextResponse.json(
-        { error: "Parámetros inválidos", details: filtersResult.error.issues },
-        { status: 400 }
-      );
+      return respuestaDatosInvalidos(filtersResult.error);
     }
 
     const filters = filtersResult.data;
@@ -134,10 +131,7 @@ export async function POST(request: NextRequest) {
     const validationResult = createTerminationSchema.safeParse(body);
 
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: "Datos inválidos", details: validationResult.error.issues },
-        { status: 400 }
-      );
+      return respuestaDatosInvalidos(validationResult.error);
     }
 
     const data = validationResult.data;

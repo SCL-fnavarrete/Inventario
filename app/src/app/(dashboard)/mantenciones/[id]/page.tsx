@@ -21,6 +21,8 @@ import {
   Play,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
 type Maintenance = {
   id: string;
@@ -101,6 +103,7 @@ export default function MantencionDetallePage({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [showCompleteForm, setShowCompleteForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -148,6 +151,7 @@ export default function MantencionDetallePage({
 
     setSubmitting(true);
     setError("");
+    setFieldErrors({});
 
     try {
       const res = await fetch(`/api/mantenciones/${id}`, {
@@ -159,8 +163,9 @@ export default function MantencionDetallePage({
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Error al iniciar mantención");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al iniciar mantención");
+        setError(message);
+        setFieldErrors(fe);
         return;
       }
 
@@ -179,6 +184,7 @@ export default function MantencionDetallePage({
 
     setSubmitting(true);
     setError("");
+    setFieldErrors({});
 
     try {
       const res = await fetch(`/api/mantenciones/${id}/completar`, {
@@ -194,10 +200,10 @@ export default function MantencionDetallePage({
         }),
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        setError(data.error || "Error al completar mantención");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al completar mantención");
+        setError(message);
+        setFieldErrors(fe);
         return;
       }
 
@@ -216,6 +222,7 @@ export default function MantencionDetallePage({
 
     setSubmitting(true);
     setError("");
+    setFieldErrors({});
 
     try {
       const res = await fetch(`/api/mantenciones/${id}`, {
@@ -227,8 +234,9 @@ export default function MantencionDetallePage({
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Error al cancelar mantención");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al cancelar mantención");
+        setError(message);
+        setFieldErrors(fe);
         return;
       }
 
@@ -245,14 +253,17 @@ export default function MantencionDetallePage({
     if (!maintenance) return;
 
     setSubmitting(true);
+    setError("");
+    setFieldErrors({});
     try {
       const res = await fetch(`/api/mantenciones/${id}`, {
         method: "DELETE",
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Error al eliminar");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al eliminar");
+        setError(message);
+        setFieldErrors(fe);
         return;
       }
 
@@ -377,12 +388,7 @@ export default function MantencionDetallePage({
         </div>
       </div>
 
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
-          <AlertCircle size={20} />
-          {error}
-        </div>
-      )}
+      <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Maintenance Info */}

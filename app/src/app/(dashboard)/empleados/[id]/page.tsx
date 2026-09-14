@@ -23,6 +23,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { parseApiError } from "@/lib/utils/apiErrors";
 import ReturnAssetModal, { ReturnAssetData } from "@/components/ReturnAssetModal";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 
@@ -201,8 +202,15 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
     });
 
     if (!res.ok) {
-      const error = await res.json();
-      throw new Error(error.error || "Error al devolver activo");
+      // El modal de devolucion (ReturnAssetModal) es el que muestra este
+      // mensaje -- no tiene estado propio de fieldErrors, asi que el
+      // detalle por campo (si vino en `details`) se agrega directamente al
+      // mensaje para que igual sea visible.
+      const { message, fieldErrors } = await parseApiError(res, "Error al devolver activo");
+      const detalle = Object.entries(fieldErrors)
+        .map(([field, msg]) => `${field}: ${msg}`)
+        .join("; ");
+      throw new Error(detalle ? `${message} (${detalle})` : message);
     }
 
     // Refresh the page data

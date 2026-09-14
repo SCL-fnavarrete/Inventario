@@ -1425,6 +1425,23 @@ Pedido explícito de Javier: *"no pero me doy cuenta que aveces el kit de bieven
 - **UI:** "Nueva Compra" y el detalle de una compra (`compras/[id]`) ahora tienen una segunda sección, "Kit de Bienvenida / EPP Comprado", paralela a la de Activos: se elige un artículo del catálogo de la sede (mismo `GET /api/kit-items` que usa Activos > Kit de Bienvenida) y una cantidad -- no hay alta rápida de artículo nuevo acá, el catálogo se administra desde esa pantalla.
 - Una misma factura puede traer equipos y Kit/EPP mezclados en la misma compra -- no son mutuamente excluyentes.
 
+## 2.37 Errores de formulario por campo, en todo el sistema (14-sep-2026)
+
+Pedido explícito de Javier: *"cuando ocurre un error ya sea ingresar un dato incorrecto o etc, simplemente sale dato invalido cosa que no deberia ser asi, si hay error en un campo debe indicar el error, el tipo de error y cual es el campo que genero ese error"*.
+
+**Diagnóstico:** el backend ya mandaba el detalle útil del error (los `issues` de Zod, con el campo exacto y por qué falló) en casi todas las rutas API -- el problema era que ~22 formularios del frontend lo ignoraban por completo y mostraban un cartel genérico ("Datos inválidos" / "Error al crear X"). La única pantalla que lo hacía bien era "Nueva Solicitud" (`solicitudes/nueva`), pero con el parseo copiado dentro de ese único archivo, no como algo reutilizable.
+
+**Backend:**
+- `src/lib/auth/guard.ts` -- nueva función `respuestaDatosInvalidos(error: ZodError)`, que arma la respuesta con `details` ya en un formato uniforme: `{ field: string, message: string }[]` (antes era el array de `issues` de Zod tal cual, con `path` en vez de `field`). Reemplaza el bloque `NextResponse.json({ error: "Datos inválidos", details: validationResult.error.issues }, { status: 400 })` que estaba repetido manualmente en 21 rutas API (24 ocurrencias en total, algunas rutas validan tanto query params como body). `handleApiError` (el traductor de errores no controlados, usado en casi todas las rutas) también se actualizó para usar el mismo formato.
+- El error de Prisma P2002 (valor único duplicado, ej. RUT o número de serie repetido) ahora también manda `details` con el/los campo(s) que causaron el conflicto, no solo el mensaje de texto.
+- Los errores de negocio lanzados a mano (`ConflictError`, `ValidationError`, ej. "RUT duplicado") ya soportaban un `details` opcional desde antes, pero en la práctica casi nadie lo usaba -- queda como mejora pendiente ir agregándolo caso a caso donde se identifique el campo (no se tocó de forma masiva en este cambio, para no reescribir reglas de negocio sin necesidad).
+
+**Frontend:** dos piezas nuevas y reutilizables, para no repetir el parseo en cada pantalla:
+- `src/lib/utils/apiErrors.ts` -- `parseApiError(res, mensajePorDefecto)`, que lee la respuesta de un fetch fallido y devuelve el mensaje general más un mapa `campo -> mensaje` ya parseado (soporta tanto el formato nuevo como el viejo de Zod, por compatibilidad).
+- `src/components/ui/ApiErrorSummary.tsx` -- `<ApiErrorSummary error fieldErrors fieldLabels? />`, el cartel de error (mismo estilo visual que ya tenían casi todos los formularios) que ahora, si hay errores por campo, los lista uno por uno con su nombre; si no, muestra el mensaje general como antes.
+- Aplicado a los ~21 formularios que lo necesitaban (Activos, Empleados, Compras, Configuración completa, Mantenciones, Guías de Despacho, Solicitudes -- detalle). `solicitudes/nueva` no se tocó: ya funcionaba bien con su propio código, aunque queda pendiente migrarlo a estas piezas comunes en algún momento por consistencia.
+- Alcance: esto es el cartel de error mostrando el campo y el motivo tal como pidió Javier. No incluye validación en tiempo real en el cliente (antes de enviar) ni resaltar el borde del input específico -- quedó fuera de este cambio, se puede agregar después si hace falta.
+
 ---
 
 # PARTE 3: ARQUITECTURA TÉCNICA (ARCHITECTURE)
@@ -2198,6 +2215,8 @@ nunca debió existir como fila separada.
 
 ## Changelog SPEC
 
+- **v1.43 (2026-09-14):**
+  - Sección 2.37 (nueva): pedido explícito de Javier, *"si hay error en un campo debe indicar el error, el tipo de error y cual es el campo que genero ese error"*. El backend ya mandaba el detalle util (issues de Zod) pero ~22 formularios lo ignoraban y mostraban un cartel generico. Nueva funcion `respuestaDatosInvalidos` en `guard.ts` (formato uniforme `{field, message}[]`, reemplaza 24 ocurrencias repetidas a mano en 21 rutas), mas dos piezas reutilizables en el frontend (`parseApiError` en `lib/utils/apiErrors.ts` y `<ApiErrorSummary>` en `components/ui/`), aplicadas a los formularios de Activos, Empleados, Compras, Configuracion, Mantenciones, Guias de Despacho y Solicitudes (detalle). `solicitudes/nueva` no se toco, ya funcionaba bien con codigo propio.
 - **v1.42 (2026-09-14):**
   - Sección 2.36 (nueva): pedido explícito de Javier, *"el kit de bievenida o epp tambien lo compran y aqui al registrar una factura con sus productos solo funciona con los equipos pero no con el kitt de bievenida o epp"*. Nuevo modelo `PurchaseKitItem` (migración `20260914090000_agrega_purchase_kit_items`): cada línea suma una cantidad al stock (`WelcomeKitItem.cantidad`) del artículo comprado, en vez de crear una unidad como Activo. Al desvincular una línea o eliminar la compra, el stock se revierte (sin bajar de 0). "Nueva Compra" y el detalle de compra ahora tienen una sección "Kit de Bienvenida / EPP Comprado" paralela a la de Activos, y cada cambio de stock por compra queda en Auditoría igual que una edición manual.
 - **v1.41 (2026-09-14):**

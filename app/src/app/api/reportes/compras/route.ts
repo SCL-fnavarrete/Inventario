@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 
 // Reporte de compras. Simplificado el 11-sep-2026 (pedido explicito de
 // Javier): compras ya no tiene proveedor ni datos financieros (ver SPEC
@@ -30,10 +30,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!filtersResult.success) {
-      return NextResponse.json(
-        { error: "Parámetros inválidos", details: filtersResult.error.issues },
-        { status: 400 }
-      );
+      return respuestaDatosInvalidos(filtersResult.error);
     }
 
     const filters = filtersResult.data;

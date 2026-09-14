@@ -12,7 +12,6 @@ import {
   Plus,
   X,
   Search,
-  AlertCircle,
   Laptop,
   Smartphone,
   Monitor,
@@ -21,6 +20,16 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Can } from "@/components/auth/Can";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+
+/** Arma un mensaje de alert() incluyendo el detalle por campo, si lo hay. */
+function alertMessage(message: string, fieldErrors: FieldErrors): string {
+  const detail = Object.entries(fieldErrors)
+    .map(([field, msg]) => `${field}: ${msg}`)
+    .join("\n");
+  return detail ? `${message}\n${detail}` : message;
+}
 
 type Asset = {
   id: string;
@@ -119,6 +128,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Para agregar activos
@@ -191,8 +201,8 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Error al vincular activo");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al vincular activo");
+        throw new Error(alertMessage(message, fe));
       }
 
       // Refrescar datos
@@ -216,8 +226,8 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Error al desvincular activo");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al desvincular activo");
+        throw new Error(alertMessage(message, fe));
       }
 
       // Refrescar datos
@@ -251,8 +261,8 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Error al agregar artículo de Kit/EPP");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al agregar artículo de Kit/EPP");
+        throw new Error(alertMessage(message, fe));
       }
 
       await fetchPurchase();
@@ -275,8 +285,8 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Error al desvincular artículo de Kit/EPP");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al desvincular artículo de Kit/EPP");
+        throw new Error(alertMessage(message, fe));
       }
 
       await fetchPurchase();
@@ -287,14 +297,19 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
   async function deletePurchase() {
     setDeleting(true);
+    setError(null);
+    setFieldErrors({});
     try {
       const res = await fetch(`/api/compras/${id}`, {
         method: "DELETE",
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Error al eliminar compra");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al eliminar compra");
+        setError(message);
+        setFieldErrors(fe);
+        setDeleting(false);
+        return;
       }
 
       router.push("/compras");
@@ -324,10 +339,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
           </Link>
           <h1 className="text-2xl font-bold text-gray-900">Compra no encontrada</h1>
         </div>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 text-red-500" />
-          <p className="text-red-700">{error || "La compra solicitada no existe"}</p>
-        </div>
+        <ApiErrorSummary error={error || "La compra solicitada no existe"} fieldErrors={fieldErrors} />
       </div>
     );
   }

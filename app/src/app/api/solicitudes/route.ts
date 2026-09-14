@@ -4,7 +4,7 @@ import { createWorkflowRequestSchema, workflowFiltersSchema } from '@/lib/valida
 import { getInitialState } from '@/lib/services/workflowStateMachine';
 import { executeAssignment, executeKitDelivery, executeReturn, executeKitReturn } from '@/lib/services/workflowExecutionService';
 import { Prisma, Employee } from '@prisma/client';
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { sedeWhere, sedeIdParaCrear, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { normalizeRut } from '@/lib/utils/rut';
 import { removeAccents, matchNoAccent } from '@/lib/utils/text';
@@ -39,10 +39,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!filtersResult.success) {
-      return NextResponse.json(
-        { error: 'Parámetros inválidos', details: filtersResult.error.issues },
-        { status: 400 }
-      );
+      return respuestaDatosInvalidos(filtersResult.error);
     }
 
     const filters = filtersResult.data;
@@ -160,10 +157,7 @@ export async function POST(request: NextRequest) {
     const validationResult = createWorkflowRequestSchema.safeParse(body);
 
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Datos inválidos', details: validationResult.error.issues },
-        { status: 400 }
-      );
+      return respuestaDatosInvalidos(validationResult.error);
     }
 
     const data = validationResult.data;

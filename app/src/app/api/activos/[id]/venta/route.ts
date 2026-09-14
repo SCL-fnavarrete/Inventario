@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { assetVentaSchema } from '@/lib/validations/assetTransition';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
-import { requirePermission, handleApiError, ConflictError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, ConflictError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // SPEC 2.7.4: Proceso de Venta
@@ -20,10 +20,7 @@ export async function POST(
     // Validar datos de venta
     const validationResult = assetVentaSchema.safeParse(body);
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Datos inválidos', details: validationResult.error.issues },
-        { status: 400 }
-      );
+      return respuestaDatosInvalidos(validationResult.error);
     }
 
     const data = validationResult.data;

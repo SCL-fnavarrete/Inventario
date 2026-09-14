@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Edit, Trash2, Save, X } from "lucide-react";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
 type Category = {
   id: string;
@@ -28,6 +30,7 @@ export default function CategoriasPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState(FORM_INICIAL);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   useEffect(() => {
     fetchCategories();
@@ -65,9 +68,11 @@ export default function CategoriasPage() {
         setIsCreating(false);
         setFormData(FORM_INICIAL);
         setError("");
+        setFieldErrors({});
       } else {
-        const data = await res.json();
-        setError(data.error || "Error al crear categoría");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear categoría");
+        setError(message);
+        setFieldErrors(fe);
       }
     } catch (err) {
       setError("Error al crear categoría");
@@ -93,9 +98,11 @@ export default function CategoriasPage() {
         setEditingId(null);
         setFormData(FORM_INICIAL);
         setError("");
+        setFieldErrors({});
       } else {
-        const data = await res.json();
-        setError(data.error || "Error al actualizar categoría");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar categoría");
+        setError(message);
+        setFieldErrors(fe);
       }
     } catch (err) {
       setError("Error al actualizar categoría");
@@ -114,8 +121,9 @@ export default function CategoriasPage() {
       if (res.ok) {
         await fetchCategories();
       } else {
-        const data = await res.json();
-        setError(data.error || "Error al eliminar categoría");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al eliminar categoría");
+        setError(message);
+        setFieldErrors(fe);
       }
     } catch (err) {
       setError("Error al eliminar categoría");
@@ -134,6 +142,7 @@ export default function CategoriasPage() {
     });
     setIsCreating(false);
     setError("");
+    setFieldErrors({});
   };
 
   const cancelEdit = () => {
@@ -141,6 +150,7 @@ export default function CategoriasPage() {
     setIsCreating(false);
     setFormData(FORM_INICIAL);
     setError("");
+    setFieldErrors({});
   };
 
   if (loading) {
@@ -163,6 +173,8 @@ export default function CategoriasPage() {
             onClick={() => {
               setIsCreating(true);
               setFormData(FORM_INICIAL);
+              setError("");
+              setFieldErrors({});
             }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
@@ -172,11 +184,7 @@ export default function CategoriasPage() {
         )}
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
+      <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* Formulario de creación */}
       {isCreating && (

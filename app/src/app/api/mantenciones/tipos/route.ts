@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { createMaintenanceTypeSchema } from '@/lib/validations/maintenanceType';
 import { auditLogService } from '@/lib/services/auditLogService';
 
@@ -44,10 +44,7 @@ export async function POST(request: NextRequest) {
     const validationResult = createMaintenanceTypeSchema.safeParse(body);
 
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Datos inválidos', details: validationResult.error.issues },
-        { status: 400 }
-      );
+      return respuestaDatosInvalidos(validationResult.error);
     }
 
     const { nombre, descripcion } = validationResult.data;

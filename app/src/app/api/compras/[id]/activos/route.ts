@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { linkAssetsToPurchaseSchema } from "@/lib/validations/purchase";
 import { z } from "zod";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
@@ -89,10 +89,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const validationResult = linkAssetsToPurchaseSchema.safeParse(body);
 
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: "Datos inválidos", details: validationResult.error.issues },
-        { status: 400 }
-      );
+      return respuestaDatosInvalidos(validationResult.error);
     }
 
     const data = validationResult.data;

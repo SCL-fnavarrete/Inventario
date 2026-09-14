@@ -8,7 +8,7 @@ import {
   executeKitReturn,
 } from '@/lib/services/workflowExecutionService';
 import { SystemRole, EstadoSolicitud } from '@prisma/client';
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // POST /api/solicitudes/[id]/transicion - Advance workflow state
@@ -24,10 +24,7 @@ export async function POST(
 
     const validationResult = transitionSchema.safeParse(body);
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Datos inválidos', details: validationResult.error.issues },
-        { status: 400 }
-      );
+      return respuestaDatosInvalidos(validationResult.error);
     }
 
     const { nuevoEstado, comentario, datosAccion } = validationResult.data;

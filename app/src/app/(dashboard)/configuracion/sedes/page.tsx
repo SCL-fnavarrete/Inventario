@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Edit, Save, X, MapPin } from "lucide-react";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
 type Sede = {
   id: string;
@@ -17,6 +19,7 @@ export default function SedesPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState({ codigo: "", nombre: "", activa: true });
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
@@ -54,11 +57,13 @@ export default function SedesPage() {
         setIsCreating(false);
         setFormData({ codigo: "", nombre: "", activa: true });
         setError("");
+        setFieldErrors({});
         setSuccess("Sede creada exitosamente");
         setTimeout(() => setSuccess(""), 3000);
       } else {
-        const data = await res.json();
-        setError(data.error || "Error al crear sede");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear sede");
+        setError(message);
+        setFieldErrors(fe);
       }
     } catch (err) {
       setError("Error al crear sede");
@@ -84,11 +89,13 @@ export default function SedesPage() {
         setEditingId(null);
         setFormData({ codigo: "", nombre: "", activa: true });
         setError("");
+        setFieldErrors({});
         setSuccess("Sede actualizada exitosamente");
         setTimeout(() => setSuccess(""), 3000);
       } else {
-        const data = await res.json();
-        setError(data.error || "Error al actualizar sede");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar sede");
+        setError(message);
+        setFieldErrors(fe);
       }
     } catch (err) {
       setError("Error al actualizar sede");
@@ -107,6 +114,10 @@ export default function SedesPage() {
         await fetchSedes();
         setSuccess(`Sede ${sede.activa ? "desactivada" : "activada"} exitosamente`);
         setTimeout(() => setSuccess(""), 3000);
+      } else {
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al cambiar el estado de la sede");
+        setError(message);
+        setFieldErrors(fe);
       }
     } catch (err) {
       setError("Error al cambiar el estado de la sede");
@@ -119,6 +130,7 @@ export default function SedesPage() {
     setFormData({ codigo: sede.codigo, nombre: sede.nombre, activa: sede.activa });
     setIsCreating(false);
     setError("");
+    setFieldErrors({});
   };
 
   const cancelEdit = () => {
@@ -126,6 +138,7 @@ export default function SedesPage() {
     setIsCreating(false);
     setFormData({ codigo: "", nombre: "", activa: true });
     setError("");
+    setFieldErrors({});
   };
 
   if (loading) {
@@ -152,6 +165,8 @@ export default function SedesPage() {
             onClick={() => {
               setIsCreating(true);
               setFormData({ codigo: "", nombre: "", activa: true });
+              setError("");
+              setFieldErrors({});
             }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
@@ -161,11 +176,7 @@ export default function SedesPage() {
         )}
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
+      <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {success && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">

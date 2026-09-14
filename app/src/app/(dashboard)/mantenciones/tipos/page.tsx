@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { Plus, Edit, Trash2, Save, X } from "lucide-react";
 import { MantencionesTabs } from "@/components/mantenciones";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
 // Tipos de mantención (9-sep-2026): antes era un enum fijo en el codigo/
 // base de datos (Preventiva, Correctiva, etc.). Javier pidio que sea un
@@ -31,6 +33,7 @@ export default function TiposMantencionPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState(FORM_INICIAL);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   useEffect(() => {
     fetchTipos();
@@ -68,9 +71,11 @@ export default function TiposMantencionPage() {
         setIsCreating(false);
         setFormData(FORM_INICIAL);
         setError("");
+        setFieldErrors({});
       } else {
-        const data = await res.json();
-        setError(data.error || "Error al crear tipo de mantención");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear tipo de mantención");
+        setError(message);
+        setFieldErrors(fe);
       }
     } catch (err) {
       setError("Error al crear tipo de mantención");
@@ -96,9 +101,11 @@ export default function TiposMantencionPage() {
         setEditingId(null);
         setFormData(FORM_INICIAL);
         setError("");
+        setFieldErrors({});
       } else {
-        const data = await res.json();
-        setError(data.error || "Error al actualizar tipo de mantención");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar tipo de mantención");
+        setError(message);
+        setFieldErrors(fe);
       }
     } catch (err) {
       setError("Error al actualizar tipo de mantención");
@@ -117,8 +124,9 @@ export default function TiposMantencionPage() {
       if (res.ok) {
         await fetchTipos();
       } else {
-        const data = await res.json();
-        setError(data.error || "Error al cambiar el estado del tipo");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al cambiar el estado del tipo");
+        setError(message);
+        setFieldErrors(fe);
       }
     } catch (err) {
       setError("Error al cambiar el estado del tipo");
@@ -137,8 +145,9 @@ export default function TiposMantencionPage() {
       if (res.ok) {
         await fetchTipos();
       } else {
-        const data = await res.json();
-        setError(data.error || "Error al eliminar tipo de mantención");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al eliminar tipo de mantención");
+        setError(message);
+        setFieldErrors(fe);
       }
     } catch (err) {
       setError("Error al eliminar tipo de mantención");
@@ -154,6 +163,7 @@ export default function TiposMantencionPage() {
     });
     setIsCreating(false);
     setError("");
+    setFieldErrors({});
   };
 
   const cancelEdit = () => {
@@ -161,6 +171,7 @@ export default function TiposMantencionPage() {
     setIsCreating(false);
     setFormData(FORM_INICIAL);
     setError("");
+    setFieldErrors({});
   };
 
   if (loading) {
@@ -202,11 +213,7 @@ export default function TiposMantencionPage() {
         )}
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
+      <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* Formulario de creación */}
       {isCreating && (

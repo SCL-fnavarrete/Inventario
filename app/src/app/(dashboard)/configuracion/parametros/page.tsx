@@ -10,6 +10,8 @@ import {
   Shield,
   Loader2,
 } from "lucide-react";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
 // Reescrito por completo (14-sep-2026, pedido explicito de Javier al
 // revisar que le faltaba al modulo Configuracion): la version anterior era
@@ -63,6 +65,7 @@ export default function ParametrosPage() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [form, setForm] = useState<Parametros>({
     empresaNombre: "",
@@ -113,17 +116,20 @@ export default function ParametrosPage() {
   async function handleSave() {
     setSaving(true);
     setError("");
+    setFieldErrors({});
     try {
       const res = await fetch("/api/configuracion/parametros", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Error al guardar la configuración");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al guardar la configuración");
+        setError(message);
+        setFieldErrors(fe);
         return;
       }
+      const data = await res.json();
       setForm((prev) => ({ ...prev, updatedAt: data.updatedAt, updatedPor: data.updatedPor }));
       setSuccess("Configuración guardada exitosamente");
       setTimeout(() => setSuccess(""), 3000);
@@ -150,11 +156,7 @@ export default function ParametrosPage() {
         <p className="text-gray-600 mt-1">Datos de la empresa y seguridad de acceso</p>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-          {error}
-        </div>
-      )}
+      <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
       {success && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
           {success}

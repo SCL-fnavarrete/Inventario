@@ -69,6 +69,47 @@ interface CuerpoError {
   details?: unknown;
 }
 
+/** Un error asociado a un campo especifico de un formulario (SPEC 2.37). */
+export interface CampoError {
+  field: string;
+  message: string;
+}
+
+/**
+ * Convierte los `issues` de un ZodError al formato uniforme que espera el
+ * frontend (14-sep-2026, SPEC 2.37, pedido explicito de Javier: "si hay
+ * error en un campo debe indicar el error, el tipo de error y cual es el
+ * campo que genero ese error"). Antes cada ruta mandaba
+ * `validationResult.error.issues` tal cual (con `path` como array), y el
+ * frontend en su enorme mayoria ni siquiera lo leia -- solo mostraba
+ * "Datos invalidos" a secas. Con esto, cada issue queda como
+ * `{ field, message }`, donde `field` es el path unido con "." (ej.
+ * "categoriaId", o "assets.0.assetId" para un array anidado).
+ */
+export function zodIssuesToCampoErrores(
+  issues: readonly { path: (string | number)[]; message: string }[]
+): CampoError[] {
+  return issues.map((issue) => ({
+    field: issue.path.length > 0 ? issue.path.join('.') : '(general)',
+    message: issue.message,
+  }));
+}
+
+/**
+ * Respuesta unificada para cuando `schema.safeParse(body)` falla (SPEC
+ * 2.37). Reemplaza el `NextResponse.json({ error: "Datos invalidos",
+ * details: validationResult.error.issues }, { status: 400 })` que estaba
+ * repetido manualmente en ~24 rutas -- mismo mensaje, pero ahora con
+ * `details` ya en el formato `{ field, message }[]` que entiende
+ * `parseApiError` en el frontend (`src/lib/utils/apiErrors.ts`).
+ */
+export function respuestaDatosInvalidos(error: ZodError): NextResponse<CuerpoError> {
+  return NextResponse.json(
+    { error: 'Datos inválidos', details: zodIssuesToCampoErrores(error.issues) },
+    { status: 400 }
+  );
+}
+
 /**
  * Traduce cualquier error a una respuesta con el formato unificado.
  *
@@ -93,20 +134,27 @@ export function handleApiError(
   }
 
   if (error instanceof ZodError) {
-    return NextResponse.json(
-      { error: 'Datos invalidos', details: error.issues },
-      { status: 400 }
-    );
+    return respuestaDatosInvalidos(error);
   }
 
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === 'P2002') {
-      const campos = (error.meta?.target as string[] | undefined)?.join(', ');
+      const camposArr = (error.meta?.target as string[] | undefined) ?? [];
+      const campos = camposArr.join(', ');
       return NextResponse.json(
         {
           error: campos
             ? `Ya existe un registro con ese valor en: ${campos}`
             : 'Ya existe un registro con ese valor unico',
+          // SPEC 2.37: aunque Prisma no da un mensaje por campo especifico,
+          // al menos se identifica CUAL campo duplicado es, para que el
+          // frontend lo pueda marcar en el formulario.
+          ...(camposArr.length > 0 && {
+            details: camposArr.map((field) => ({
+              field,
+              message: 'Ya existe un registro con este valor',
+            })),
+          }),
         },
         { status: 409 }
       );

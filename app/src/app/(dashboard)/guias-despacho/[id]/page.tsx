@@ -16,6 +16,7 @@ import {
   Monitor,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { parseApiError } from "@/lib/utils/apiErrors";
 import { especificacionesActivoTexto } from "@/lib/utils/assetSpecs";
 import {
   ESTADO_GUIA_LABELS,
@@ -104,8 +105,14 @@ export default function GuiaDespachoDetailPage({
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Error al actualizar");
+        // Este formulario muestra el error con alert(), no con un cartel --
+        // se agrega igual el detalle por campo (si vino en `details`) al
+        // mensaje para que sea visible.
+        const { message, fieldErrors } = await parseApiError(res, "Error al actualizar");
+        const detalle = Object.entries(fieldErrors)
+          .map(([field, msg]) => `${field}: ${msg}`)
+          .join("; ");
+        throw new Error(detalle ? `${message} (${detalle})` : message);
       }
 
       await fetchGuide();

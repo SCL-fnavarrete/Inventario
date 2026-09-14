@@ -14,13 +14,14 @@ import {
   Smartphone,
   Monitor,
   Package,
-  AlertCircle,
   Loader2,
   CheckCircle,
   ChevronRight,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
 type Asset = {
   id: string;
@@ -87,6 +88,7 @@ export default function ProgramarMantencionPage() {
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loadingAsset, setLoadingAsset] = useState(false);
   const [tiposMantencion, setTiposMantencion] = useState<TipoMantencion[]>([]);
   const [loadingTipos, setLoadingTipos] = useState(true);
@@ -145,16 +147,21 @@ export default function ProgramarMantencionPage() {
   async function fetchEmployees() {
     setLoadingEmployees(true);
     setError("");
+    setFieldErrors({});
     try {
       const res = await fetch(
         "/api/empleados?estado=activo&limit=100&sortBy=nombres&sortOrder=asc"
       );
-      if (!res.ok) throw new Error("Error al cargar empleados");
+      if (!res.ok) {
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al cargar empleados");
+        setFieldErrors(fe);
+        throw new Error(message);
+      }
       const data = await res.json();
       setEmployees(data.data || []);
     } catch (err) {
       console.error("Error fetching employees:", err);
-      setError("Error al cargar la lista de empleados");
+      setError(err instanceof Error ? err.message : "Error al cargar la lista de empleados");
     } finally {
       setLoadingEmployees(false);
     }
@@ -163,15 +170,24 @@ export default function ProgramarMantencionPage() {
   async function loadAssetById(id: string) {
     setLoadingAsset(true);
     setError("");
+    setFieldErrors({});
     try {
       const res = await fetch(`/api/activos/${id}`);
-      if (!res.ok) throw new Error("Activo no encontrado");
+      if (!res.ok) {
+        const { message, fieldErrors: fe } = await parseApiError(res, "Activo no encontrado");
+        setFieldErrors(fe);
+        throw new Error(message);
+      }
       const asset = await res.json();
       setSelectedAsset(asset);
       setStep(2);
     } catch (err) {
       console.error("Error loading asset:", err);
-      setError("Error al cargar el activo. Por favor, selecciónalo manualmente.");
+      setError(
+        err instanceof Error
+          ? `${err.message}. Por favor, selecciónalo manualmente.`
+          : "Error al cargar el activo. Por favor, selecciónalo manualmente."
+      );
     } finally {
       setLoadingAsset(false);
     }
@@ -182,14 +198,19 @@ export default function ProgramarMantencionPage() {
     setEmployeeAssets([]);
     setLoadingEmployeeAssets(true);
     setError("");
+    setFieldErrors({});
     try {
       const res = await fetch(`/api/empleados/${emp.id}`);
-      if (!res.ok) throw new Error("Error al cargar activos");
+      if (!res.ok) {
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al cargar activos");
+        setFieldErrors(fe);
+        throw new Error(message);
+      }
       const data = await res.json();
       setEmployeeAssets(data.activosActuales || []);
     } catch (err) {
       console.error("Error fetching employee assets:", err);
-      setError("Error al cargar los activos del empleado");
+      setError(err instanceof Error ? err.message : "Error al cargar los activos del empleado");
     } finally {
       setLoadingEmployeeAssets(false);
     }
@@ -199,6 +220,7 @@ export default function ProgramarMantencionPage() {
     setSelectedEmployee(null);
     setEmployeeAssets([]);
     setError("");
+    setFieldErrors({});
   }
 
   function handleSelectAsset(asset: Asset) {
@@ -225,6 +247,7 @@ export default function ProgramarMantencionPage() {
 
     setSubmitting(true);
     setError("");
+    setFieldErrors({});
 
     try {
       const res = await fetch("/api/mantenciones", {
@@ -239,12 +262,14 @@ export default function ProgramarMantencionPage() {
         }),
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        setError(data.error || "Error al programar mantención");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al programar mantención");
+        setError(message);
+        setFieldErrors(fe);
         return;
       }
+
+      const data = await res.json();
 
       router.push(`/mantenciones/${data.id}`);
     } catch (err) {
@@ -334,9 +359,8 @@ export default function ProgramarMantencionPage() {
               </div>
 
               {error && (
-                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
-                  <AlertCircle size={20} />
-                  {error}
+                <div className="mb-4">
+                  <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
                 </div>
               )}
 
@@ -448,9 +472,8 @@ export default function ProgramarMantencionPage() {
               </div>
 
               {error && (
-                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
-                  <AlertCircle size={20} />
-                  {error}
+                <div className="mb-4">
+                  <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
                 </div>
               )}
 
@@ -683,9 +706,8 @@ export default function ProgramarMantencionPage() {
           </div>
 
           {error && (
-            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
-              <AlertCircle size={20} />
-              {error}
+            <div className="mt-4">
+              <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
             </div>
           )}
 

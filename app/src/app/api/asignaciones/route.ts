@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createAssignmentSchema, assignmentFiltersSchema } from "@/lib/validations/assignment";
 import { executeAssignment } from "@/lib/services/workflowExecutionService";
 import { Prisma } from "@prisma/client";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { sedeWhere, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { normalizeRut } from '@/lib/utils/rut';
 import { removeAccents, matchNoAccent } from '@/lib/utils/text';
@@ -33,10 +33,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!filtersResult.success) {
-      return NextResponse.json(
-        { error: "Parámetros inválidos", details: filtersResult.error.issues },
-        { status: 400 }
-      );
+      return respuestaDatosInvalidos(filtersResult.error);
     }
 
     const filters = filtersResult.data;
@@ -175,10 +172,7 @@ export async function POST(request: NextRequest) {
     const validationResult = createAssignmentSchema.safeParse(body);
 
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: "Datos inválidos", details: validationResult.error.issues },
-        { status: 400 }
-      );
+      return respuestaDatosInvalidos(validationResult.error);
     }
 
     const data = validationResult.data;

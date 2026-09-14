@@ -17,6 +17,8 @@ import {
   PackagePlus,
   Shirt,
 } from "lucide-react";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
 type Sede = {
   id: string;
@@ -80,6 +82,7 @@ export default function NuevaCompraPage() {
   const isAdmin = session?.user?.role === "admin";
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [availableAssets, setAvailableAssets] = useState<Asset[]>([]);
@@ -96,6 +99,7 @@ export default function NuevaCompraPage() {
   const [showNewAssetForm, setShowNewAssetForm] = useState(false);
   const [creatingAsset, setCreatingAsset] = useState(false);
   const [newAssetError, setNewAssetError] = useState<string | null>(null);
+  const [newAssetFieldErrors, setNewAssetFieldErrors] = useState<FieldErrors>({});
   // Specs por categoria (14-sep-2026, pedido explicito de Javier): antes
   // este alta rapida solo pedia categoria/marca/modelo/serie, a diferencia
   // de /activos/nuevo, que si tiene secciones propias por categoria (ver
@@ -287,6 +291,7 @@ export default function NuevaCompraPage() {
 
     setCreatingAsset(true);
     setNewAssetError(null);
+    setNewAssetFieldErrors({});
 
     try {
       const res = await fetch("/api/activos", {
@@ -322,8 +327,10 @@ export default function NuevaCompraPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Error al crear el equipo");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear el equipo");
+        setNewAssetError(message);
+        setNewAssetFieldErrors(fe);
+        return;
       }
 
       const asset = await res.json();
@@ -371,6 +378,7 @@ export default function NuevaCompraPage() {
     e.preventDefault();
     setSaving(true);
     setError(null);
+    setFieldErrors({});
 
     try {
       const payload = {
@@ -400,8 +408,10 @@ export default function NuevaCompraPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Error al crear la compra");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear la compra");
+        setError(message);
+        setFieldErrors(fe);
+        return;
       }
 
       const purchase = await res.json();
@@ -429,12 +439,7 @@ export default function NuevaCompraPage() {
         </div>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
-          <p className="text-red-700">{error}</p>
-        </div>
-      )}
+      <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Datos de la factura */}
@@ -578,12 +583,7 @@ export default function NuevaCompraPage() {
               compra y HTML no permite formularios anidados. */}
           {showNewAssetForm && (
             <div className="mb-4 p-4 bg-green-50 rounded-lg space-y-3">
-              {newAssetError && (
-                <div className="flex items-center gap-2 text-sm text-red-700">
-                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                  <p>{newAssetError}</p>
-                </div>
-              )}
+              <ApiErrorSummary error={newAssetError} fieldErrors={newAssetFieldErrors} />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">

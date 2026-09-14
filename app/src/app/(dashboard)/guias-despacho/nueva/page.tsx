@@ -13,6 +13,8 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { SelectorActivos } from "@/components/guias-despacho/SelectorActivos";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
 type Sede = {
   id: string;
@@ -51,6 +53,7 @@ export default function NuevaGuiaDespachoPage() {
   const emisor = session?.user?.name || session?.user?.email || "";
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [sedes, setSedes] = useState<Sede[]>([]);
 
   // Sede origen: desde SPEC 2.29 cualquier rol con visibilidad total
@@ -132,6 +135,7 @@ export default function NuevaGuiaDespachoPage() {
 
     setSubmitting(true);
     setError(null);
+    setFieldErrors({});
 
     try {
       const body = {
@@ -153,11 +157,14 @@ export default function NuevaGuiaDespachoPage() {
         body: JSON.stringify(body),
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        throw new Error(data.error || "Error al crear guía de despacho");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear guía de despacho");
+        setError(message);
+        setFieldErrors(fe);
+        return;
       }
+
+      const data = await res.json();
 
       setResult({
         success: true,
@@ -234,11 +241,7 @@ export default function NuevaGuiaDespachoPage() {
         </div>
       </div>
 
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-          {error}
-        </div>
-      )}
+      <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
 
       {/* Sección: Sede origen */}
       <div className="bg-white rounded-lg shadow p-6 space-y-4">
