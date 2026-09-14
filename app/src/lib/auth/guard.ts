@@ -87,7 +87,7 @@ export interface CampoError {
  * "categoriaId", o "assets.0.assetId" para un array anidado).
  */
 export function zodIssuesToCampoErrores(
-  issues: readonly { path: (string | number)[]; message: string }[]
+  issues: readonly { path: readonly PropertyKey[]; message: string }[]
 ): CampoError[] {
   return issues.map((issue) => ({
     field: issue.path.length > 0 ? issue.path.join('.') : '(general)',

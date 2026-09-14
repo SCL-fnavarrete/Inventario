@@ -250,7 +250,7 @@ export default function AuditoriaPage() {
               ) : (
                 eventos.map((ev) => {
                   const abierto = expandido === ev.id;
-                  const tieneDetalle = ev.datosAnteriores || ev.datosNuevos;
+                  const tieneDetalle = Boolean(ev.datosAnteriores || ev.datosNuevos);
                   return (
                     <Fragment key={ev.id}>
                       <tr className="hover:bg-gray-50">
