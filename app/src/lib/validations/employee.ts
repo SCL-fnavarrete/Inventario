@@ -80,8 +80,10 @@ export const updateEmployeeSchema = z.object({
   proximaMantencionEpp: fechaOpcional,
   // Reasignar la sede de un empleado ya creado (ej. se traslada de
   // Concepcion a Santiago). Solo admin puede enviarlo -- la ruta ignora
-  // este campo si lo envia un tecnico. null = transversal/sin sede.
-  sedeId: z.string().uuid("Sede inválida").optional().nullable(),
+  // este campo si lo envia un tecnico. Ya no se acepta null: el select del
+  // formulario no ofrece "Sin sede" (ver SPEC 2.9) -- un empleado siempre
+  // debe quedar con una sede real asignada, nunca transversal.
+  sedeId: z.string().uuid("Sede inválida").optional(),
 });
 
 // Schema para filtros de búsqueda

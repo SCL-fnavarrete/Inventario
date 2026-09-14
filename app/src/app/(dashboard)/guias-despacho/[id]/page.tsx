@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -15,6 +16,7 @@ import {
   Monitor,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { especificacionesActivoTexto } from "@/lib/utils/assetSpecs";
 import {
   ESTADO_GUIA_LABELS,
   ESTADO_GUIA_COLORS,
@@ -61,6 +63,7 @@ export default function GuiaDespachoDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const { data: session } = useSession();
   const [guide, setGuide] = useState<DispatchGuideDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -137,6 +140,14 @@ export default function GuiaDespachoDetailPage({
     );
   }
 
+  // Confirmar recepción es una acción de la sede DESTINO: aunque la sede
+  // emisora también puede ver la guía (para saber que se despachó), no
+  // tiene sentido que confirme algo que le llegó a otra sede. El backend
+  // ya lo valida (403); esto solo evita mostrar un botón que va a fallar.
+  const esAdmin = session?.user?.role === "admin";
+  const puedeConfirmarRecepcion =
+    esAdmin || session?.user?.sedeId === guide.sedeDestino.id;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -173,15 +184,21 @@ export default function GuiaDespachoDetailPage({
       {guide.estado === EstadoGuia.despachado && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-blue-800 mb-3">
-            Los equipos ya están disponibles en {guide.sedeDestino.nombre}.
-            Cuando el paquete llegue físicamente, confirma la recepción.
+            ¿Ya llegó el paquete a {guide.sedeDestino.nombre}? Los equipos ya
+            están disponibles ahí; confirma la recepción cuando lo tengas en tus manos.
           </p>
-          <button
-            onClick={() => setShowConfirmModal(true)}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-          >
-            Confirmar Recepción
-          </button>
+          {puedeConfirmarRecepcion ? (
+            <button
+              onClick={() => setShowConfirmModal(true)}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              Confirmar Recepción
+            </button>
+          ) : (
+            <p className="text-sm text-blue-700 italic">
+              Solo un técnico de {guide.sedeDestino.nombre} puede confirmar la recepción.
+            </p>
+          )}
         </div>
       )}
 
@@ -311,22 +328,15 @@ export default function GuiaDespachoDetailPage({
             <tbody className="divide-y divide-gray-200">
               {guide.items.map((item) => {
                 const asset = item.asset;
-                const categoria = asset.categoria.nombre.toLowerCase();
 
-                let specs = "-";
-                if (categoria === "notebook") {
-                  const parts = [];
-                  if (asset.procesador) parts.push(`Proc: ${asset.procesador}`);
-                  if (asset.ram) parts.push(`RAM: ${asset.ram}`);
-                  if (asset.discoDuro) parts.push(`Disco: ${asset.discoDuro}`);
-                  if (asset.sistemaOperativo) parts.push(`SO: ${asset.sistemaOperativo}`);
-                  specs = parts.join(" | ") || "-";
-                } else if (categoria === "celular") {
-                  const parts = [];
-                  if (asset.numeroTelefono) parts.push(`Tel: ${asset.numeroTelefono}`);
-                  if (asset.tipoPlan) parts.push(`Plan: ${asset.tipoPlan}`);
-                  specs = parts.join(" | ") || "-";
-                }
+                // Antes esto solo sabia armar specs para Notebook/Celular
+                // (14-sep-2026, SPEC 2.26): un Monitor o un periferico
+                // mostraban "-" aunque la API ya traia pulgadas/
+                // conectividad. Se reemplaza por el mismo helper que ya
+                // usan el detalle de Activos y el selector de Guias
+                // (assetSpecs.ts, SPEC 2.19) para no mantener esta lista
+                // duplicada en un tercer lugar.
+                const specs = especificacionesActivoTexto(asset) || "-";
 
                 return (
                   <tr key={item.id} className="hover:bg-gray-50">

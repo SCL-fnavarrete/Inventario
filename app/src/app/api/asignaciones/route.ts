@@ -5,6 +5,8 @@ import { executeAssignment } from "@/lib/services/workflowExecutionService";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { sedeWhere, assertSedeAccess } from '@/lib/auth/sedeScope';
+import { normalizeRut } from '@/lib/utils/rut';
+import { removeAccents, matchNoAccent } from '@/lib/utils/text';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,22 +74,27 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (filters.search) {
-      where.OR = [
-        { employee: { rut: { contains: filters.search, mode: "insensitive" } } },
-        { employee: { nombres: { contains: filters.search, mode: "insensitive" } } },
-        { employee: { apellidoPaterno: { contains: filters.search, mode: "insensitive" } } },
-        { asset: { numeroSerie: { contains: filters.search, mode: "insensitive" } } },
-        { asset: { marca: { contains: filters.search, mode: "insensitive" } } },
-        { asset: { modelo: { contains: filters.search, mode: "insensitive" } } },
-      ];
-    }
+    // El termino de busqueda se filtra en memoria, igual que /api/empleados
+    // (11-sep-2026): comparar `filters.search` tal cual contra
+    // `employee.rut` con un simple `contains` no funcionaba, porque el RUT
+    // se guarda formateado ("12.345.678-9") y el usuario casi siempre lo
+    // escribe sin puntos. `normalizeRut` saca puntos/guion de ambos lados
+    // antes de comparar. De paso, nombre/apellido quedan sin distinguir
+    // acentos (`matchNoAccent`), igual que en Empleados. La cantidad de
+    // asignaciones de esta empresa es chica, asi que traerlas todas (ya
+    // acotadas por sede y por los demas filtros) y filtrar en memoria es
+    // viable -- no se creo un indice ni columna normalizada para esto.
+    const terminoBusqueda = filters.search?.trim() ?? "";
 
-    const [assignments, total] = await Promise.all([
-      prisma.assignment.findMany({
+    let assignments;
+    let total;
+
+    if (terminoBusqueda) {
+      const normalizedSearch = normalizeRut(terminoBusqueda);
+      const searchSinAcentos = removeAccents(terminoBusqueda.toLowerCase());
+
+      const todas = await prisma.assignment.findMany({
         where,
-        skip,
-        take: filters.limit,
         orderBy: { [filters.sortBy]: filters.sortOrder },
         include: {
           asset: {
@@ -97,9 +104,42 @@ export async function GET(request: NextRequest) {
           },
           employee: true,
         },
-      }),
-      prisma.assignment.count({ where }),
-    ]);
+      });
+
+      const filtradas = todas.filter((a) => {
+        const rutNormalizado = a.employee.rut ? normalizeRut(a.employee.rut) : "";
+        if (normalizedSearch && rutNormalizado.includes(normalizedSearch)) return true;
+
+        if (matchNoAccent(a.employee.nombres, searchSinAcentos)) return true;
+        if (matchNoAccent(a.employee.apellidoPaterno, searchSinAcentos)) return true;
+        if (matchNoAccent(a.asset.numeroSerie, searchSinAcentos)) return true;
+        if (matchNoAccent(a.asset.marca, searchSinAcentos)) return true;
+        if (matchNoAccent(a.asset.modelo, searchSinAcentos)) return true;
+
+        return false;
+      });
+
+      total = filtradas.length;
+      assignments = filtradas.slice(skip, skip + filters.limit);
+    } else {
+      [assignments, total] = await Promise.all([
+        prisma.assignment.findMany({
+          where,
+          skip,
+          take: filters.limit,
+          orderBy: { [filters.sortBy]: filters.sortOrder },
+          include: {
+            asset: {
+              include: {
+                categoria: true,
+              },
+            },
+            employee: true,
+          },
+        }),
+        prisma.assignment.count({ where }),
+      ]);
+    }
 
     return NextResponse.json({
       data: assignments,

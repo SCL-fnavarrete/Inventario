@@ -28,7 +28,6 @@ export default function VentaActivoPage() {
   const [monto, setMonto] = useState('');
   const [moneda, setMoneda] = useState('CLP');
   const [fechaVenta, setFechaVenta] = useState(new Date().toISOString().split('T')[0]);
-  const [documentoVenta, setDocumentoVenta] = useState('');
 
   useEffect(() => {
     fetch(`/api/activos/${id}`)
@@ -59,7 +58,6 @@ export default function VentaActivoPage() {
           monto: parseFloat(monto),
           moneda,
           fechaVenta,
-          documentoVenta: documentoVenta || undefined,
         }),
       });
 
@@ -172,17 +170,6 @@ export default function VentaActivoPage() {
               onChange={(e) => setFechaVenta(e.target.value)}
               className="w-full border rounded-lg p-3 text-sm"
               required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Documento de venta (URL)</label>
-            <input
-              type="url"
-              value={documentoVenta}
-              onChange={(e) => setDocumentoVenta(e.target.value)}
-              className="w-full border rounded-lg p-3 text-sm"
-              placeholder="https://drive.google.com/..."
             />
           </div>
 

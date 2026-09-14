@@ -13,7 +13,6 @@ type AssetInfo = {
   estado: string;
   imei?: string | null;
   numeroTelefono?: string | null;
-  operador?: string | null;
 };
 
 type Props = {

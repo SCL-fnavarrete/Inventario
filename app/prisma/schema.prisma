@@ -1,4 +1,4 @@
-generator client {
+generator client {0009
   provider = "prisma-client-js"
 }
 
@@ -115,12 +115,27 @@ model Asset {
   numeroTelefono      String?             @map("numero_telefono")
   numeroActivacion    String?             @map("numero_activacion")
   tipoPlan            String?             @map("tipo_plan")
-  operador            String?             // Operador de celular (Entel, Movistar, etc)
+  // Campo "operador" (Entel/Movistar/WOM/Claro) eliminado 14-sep-2026,
+  // pedido explicito de Javier -- ver migracion
+  // 20260914000000_activos_quitar_operador_celular y SPEC 2.20.
   tieneCargador       Boolean             @default(true) @map("tiene_cargador")
+  // Conectividad compartida por los perifericos simples (Mouse, Teclado,
+  // Webcam, Audifonos) -- un solo campo en vez de cuatro secciones casi
+  // idénticas, porque a esas categorias "basta con colocar su identificador
+  // unico" (palabras de Javier) mas este dato. Impresora tuvo especificaciones
+  // propias por un momento el mismo dia (tipo/conexion/IP) pero Javier decidio
+  // que no eran necesarias -- se revirtio (ver migracion
+  // 20260911230000_activos_revertir_specs_impresora y SPEC 2.11).
+  conectividad        String?
   estado              EstadoActivo        @default(disponible)
   condicion           CondicionActivo     @default(nuevo)
   ubicacionFisica     String?             @map("ubicacion_fisica")
   microsoft365        Boolean             @default(false) @map("microsoft_365")
+  // Nombre del plan/licencia (ej. "Premium", "E3") -- antes se perdia: el
+  // Excel de Notebooks lo trae, pero solo se guardaba el booleano de arriba.
+  // Ver migracion 20260914010000_activos_agregar_tipo_licencia_microsoft365
+  // y SPEC 2.23 (14-sep-2026, pedido explicito de Javier).
+  tipoLicenciaMicrosoft365 String?        @map("tipo_licencia_microsoft365")
   intuneEnrolled      Boolean             @default(false) @map("intune_enrolled")
   listaDistribucion   String?             @map("lista_distribucion")
   antivirus           String?             // Software antivirus instalado
@@ -128,6 +143,12 @@ model Asset {
   fechaCompra         DateTime?           @map("fecha_compra")
   fechaGarantiaFin    DateTime?           @map("fecha_garantia_fin")
   fechaBaja           DateTime?           @map("fecha_baja")
+  // Fecha en que se vendio el activo (la que ingresa quien registra la
+  // venta, no la fecha del sistema). Antes no existia ninguna columna para
+  // esto y el historial guardaba siempre la fecha de hoy (14-sep-2026,
+  // SPEC 2.25). Comprador/monto/moneda siguen solo en AssetHistory, igual
+  // que antes -- Javier solo pidio la fecha, no un documento.
+  fechaVenta          DateTime?           @map("fecha_venta")
   // Retira el activo de los listados sin borrar la fila ni su historial.
   // Para duplicados de importacion; ver SPEC 2.7.7. No reemplaza al estado
   // `baja`, que es un estado del ciclo de vida del equipo.
@@ -161,43 +182,54 @@ model Asset {
   @@map("assets")
 }
 
+// Directorio de proveedores independiente. Hasta el 11-sep-2026 estaba
+// vinculado a Purchase; se desvinculo porque el area de soporte no
+// necesita asociar una compra a un proveedor (ver nota en Purchase). La
+// API `/api/proveedores` sigue funcionando como CRUD de este catalogo,
+// simplemente ya no la consume el flujo de compras.
 model Supplier {
-  id             String     @id @default(uuid())
-  rutEmpresa     String?    @map("rut_empresa")
-  razonSocial    String     @map("razon_social")
-  nombreContacto String?    @map("nombre_contacto")
+  id             String   @id @default(uuid())
+  rutEmpresa     String?  @map("rut_empresa")
+  razonSocial    String   @map("razon_social")
+  nombreContacto String?  @map("nombre_contacto")
   email          String?
   telefono       String?
   direccion      String?
-  createdAt      DateTime   @default(now()) @map("created_at")
-  purchases      Purchase[]
+  createdAt      DateTime @default(now()) @map("created_at")
 
   @@map("suppliers")
 }
 
+// Compras (11-sep-2026, pedido explicito de Javier): se simplifico a solo
+// dos datos -- la factura (para relacionarla) y los equipos que vinieron
+// con ella. Se eliminaron el proveedor y todo dato financiero (monto
+// total, moneda, metodo de pago, precio unitario por equipo): "el tema del
+// dinero no es un dato que nos interese" para el area de soporte. Antes de
+// este cambio esos campos ya estaban restringidos a admin (11-sep-2026,
+// cambio anterior); ahora directamente no existen. Ver migracion
+// 20260911200000_compras_solo_factura_y_equipos.
 model Purchase {
   id             String          @id @default(uuid())
-  supplierId     String?         @map("supplier_id")
   numeroFactura  String?         @map("numero_factura")
   fechaFactura   DateTime        @map("fecha_factura")
-  montoTotal     Decimal?        @map("monto_total") @db.Decimal(12, 2)
-  moneda         Moneda          @default(CLP)
+  // RUT del proveedor que emitio la factura (11-sep-2026, pedido explicito
+  // de Javier). Es solo texto libre validado con el mismo digito
+  // verificador que el rut de un empleado (ver validations/rut.ts) -- no
+  // referencia al catalogo Supplier, que sigue desvinculado de compras
+  // (ver nota de la v1.9 en el changelog).
+  rutProveedor   String?         @map("rut_proveedor")
   tipoCompra     TipoCompra      @default(FACTURA) @map("tipo_compra")
-  metodoPago     MetodoPago      @default(TRANSFERENCIA) @map("metodo_pago")
   descripcion    String?
   compradoPor    String?         @map("comprado_por")
   ordenCompra    String?         @map("orden_compra")
-  documentoUrl   String?         @map("documento_url")
-  // Sede a la que se le atribuye la compra (9-sep-2026, ver sedeScope.ts):
-  // Compras es admin-only, asi que en la practica siempre la elige el
-  // admin de una lista (no se hereda de una sesion de tecnico como en
-  // Activos/Empleados). Nullable a proposito -- una compra realmente
-  // transversal (ej. licencias de software para toda la empresa) puede
-  // quedar sin sede.
+  // Sede a la que se le atribuye la compra (9-sep-2026, ver sedeScope.ts).
+  // Obligatoria para admin desde el 11-sep-2026 (sedeIdParaCrear con
+  // requerido: true, igual que activos/empleados/solicitudes/guias) --
+  // sigue nullable en la columna solo por compatibilidad con filas
+  // creadas antes de esa regla.
   sedeId         String?         @map("sede_id")
   createdAt      DateTime        @default(now()) @map("created_at")
   purchaseAssets PurchaseAsset[]
-  supplier       Supplier?       @relation(fields: [supplierId], references: [id])
   sede           Sede?           @relation(fields: [sedeId], references: [id])
 
   @@index([sedeId])
@@ -205,13 +237,12 @@ model Purchase {
 }
 
 model PurchaseAsset {
-  id             String   @id @default(uuid())
-  purchaseId     String   @map("purchase_id")
-  assetId        String   @map("asset_id")
-  precioUnitario Decimal? @map("precio_unitario") @db.Decimal(12, 2)
-  createdAt      DateTime @default(now()) @map("created_at")
-  asset          Asset    @relation(fields: [assetId], references: [id])
-  purchase       Purchase @relation(fields: [purchaseId], references: [id])
+  id         String   @id @default(uuid())
+  purchaseId String   @map("purchase_id")
+  assetId    String   @map("asset_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  asset      Asset    @relation(fields: [assetId], references: [id])
+  purchase   Purchase @relation(fields: [purchaseId], references: [id])
 
   @@map("purchase_assets")
 }
@@ -229,6 +260,13 @@ model Assignment {
   recibidoPor             String?           @map("recibido_por")
   estadoDevolucion        EstadoDevolucion? @map("estado_devolucion")
   observacionesDevolucion String?           @map("observaciones_devolucion")
+  // Condicion del cargador -- solo tiene sentido si el activo es un
+  // notebook con tieneCargador = true; para el resto queda null. No es un
+  // activo propio, es un atributo de esta entrega/devolucion puntual y no
+  // afecta el estado/condicion del Activo. Ver SPEC 2.5.3 regla 9.
+  condicionCargadorEntrega    EstadoDevolucionTipo? @map("condicion_cargador_entrega")
+  condicionCargadorDevolucion EstadoDevolucionTipo? @map("condicion_cargador_devolucion")
+  observacionesCargador       String?               @map("observaciones_cargador")
   activo                  Boolean           @default(true)
   actaEntregaUrl          String?           @map("acta_entrega_url")
   actaDevolucionUrl       String?           @map("acta_devolucion_url")
@@ -355,6 +393,14 @@ model Maintenance {
   proveedorExterno  String?          @map("proveedor_externo")
   estado            EstadoMantencion @default(pendiente)
   resultado         String?
+  // Resultado estructurado (14-sep-2026, SPEC 2.25): "reparado" |
+  // "no_reparable" | "pendiente_repuestos" (ver resultadoMantencionEnum).
+  // `resultado` de arriba sigue siendo la descripcion libre de que se hizo;
+  // esto es lo que decide que pasa con el activo al completar. Nullable
+  // porque las mantenciones ya completadas antes de este cambio no lo tienen.
+  resultadoTipo     String?          @map("resultado_tipo")
+  // Motivo de la baja, obligatorio solo cuando resultadoTipo=no_reparable.
+  motivoBaja        String?          @map("motivo_baja")
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
   asset             Asset            @relation(fields: [assetId], references: [id])
@@ -677,22 +723,9 @@ enum CondicionActivo {
   danado
 }
 
-enum Moneda {
-  CLP
-  USD
-}
-
 enum TipoCompra {
   FACTURA
   GASTO_MENOR
-}
-
-enum MetodoPago {
-  EFECTIVO
-  TRANSFERENCIA
-  TARJETA_CREDITO
-  CAJA_CHICA
-  REEMBOLSO_PENDIENTE
 }
 
 enum TipoMovimiento {
@@ -753,6 +786,11 @@ enum TipoEvento {
   // Cambio de sede fisica del activo, via guia de despacho tipo traslado
   // recibida. Ver SPEC 2.9.
   traslado
+  // Vinculacion de un activo YA EXISTENTE a una compra/factura (14-sep-2026,
+  // SPEC 2.25). Antes solo quedaba historial cuando el activo se CREABA
+  // desde el alta rapida de Nueva Compra -- vincular uno ya existente no
+  // dejaba ningun rastro de esa asociacion.
+  compra
 }
 
 enum TipoSolicitud {

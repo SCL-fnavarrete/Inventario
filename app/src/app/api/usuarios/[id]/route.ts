@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { validarPasswordFuerte } from '@/lib/validations/password';
 
 // Roles válidos del sistema (solo dos: admin ve todo, tecnico es soporte
 // restringido a su sede -- ver sedeScope()).
@@ -102,7 +103,14 @@ export async function PUT(
     if (typeof activo === "boolean") {
       updateData.activo = activo;
     }
-    if (password && password.length >= 6) {
+    // Misma regla que al crear un usuario (14-sep-2026, SPEC 2.26): antes
+    // solo exigia 6 caracteres sin complejidad, dejando cambiar una
+    // contraseña fuerte por una debil al editar.
+    if (password) {
+      const errorPassword = validarPasswordFuerte(password);
+      if (errorPassword) {
+        return NextResponse.json({ error: errorPassword }, { status: 400 });
+      }
       updateData.passwordHash = await bcrypt.hash(password, 12);
     }
 

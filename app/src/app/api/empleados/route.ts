@@ -3,24 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { createEmployeeSchema, employeeFiltersSchema } from "@/lib/validations/employee";
 import { Prisma } from "@prisma/client";
 import { normalizeRut } from "@/lib/utils/rut";
+import { removeAccents, matchNoAccent } from "@/lib/utils/text";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { sedeWhere, sedeIdParaCrear } from '@/lib/auth/sedeScope';
-
-/**
- * Quita acentos/diacríticos de un string.
- * "César" → "cesar", "González" → "gonzalez"
- */
-function removeAccents(str: string): string {
-  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-}
-
-/**
- * Compara un campo contra un término de búsqueda, ambos sin acentos.
- */
-function matchNoAccent(field: string | null | undefined, searchTermNoAccent: string): boolean {
-  if (!field) return false;
-  return removeAccents(field).includes(searchTermNoAccent);
-}
 
 // GET /api/empleados - Listar empleados con filtros y paginación
 export async function GET(request: NextRequest) {
@@ -232,9 +217,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // La sede se hereda de quien registra al empleado; no se ofrece como
-    // campo del formulario. Ver SPEC 2.9.
-    const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId);
+    // La sede se hereda de quien registra al empleado; admin debe elegirla
+    // explicitamente (requerido: true) -- ver nota en sedeIdParaCrear. Ver
+    // SPEC 2.9.
+    const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId, {
+      requerido: true,
+    });
 
     // Crear empleado
     const employee = await prisma.employee.create({

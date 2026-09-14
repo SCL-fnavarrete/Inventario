@@ -5,14 +5,17 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 // Pestanas del "modulo" Activos en sentido amplio: Equipos (el activo en si),
-// Personal (empleados, ver activos/empleados/page.tsx), y ahora Kit de
-// Bienvenida / EPP -- se agregaron aca (9-sep-2026) siguiendo el mismo
-// patron que Personal: sacar del menu de Configuracion (que quedo
-// admin-only) lo que un tecnico si necesita usar en el dia a dia, y dejarlo
-// como una vista mas dentro de Activos. Compartido entre las 4 paginas para
-// no repetir el mismo bloque de tabs en cada una.
+// Personal (empleados, ver activos/empleados/page.tsx), Kit de Bienvenida /
+// EPP (9-sep-2026, siguiendo el mismo patron que Personal: sacar del menu de
+// Configuracion -- que quedo admin-only -- lo que un tecnico si necesita
+// usar en el dia a dia), y Asignaciones (11-sep-2026, pedido explicito de
+// Javier: la tabla de asignaciones vigentes vivia como una segunda tabla al
+// fondo de Equipos y quedaba desordenado; pasa a su propia pestana, igual
+// que Personal/Kit/EPP). Compartido entre las 5 paginas para no repetir el
+// mismo bloque de tabs en cada una.
 const TABS = [
   { href: "/activos", label: "Equipos" },
+  { href: "/activos/asignaciones", label: "Asignaciones" },
   { href: "/activos/empleados", label: "Personal" },
   { href: "/activos/kit-bienvenida", label: "Kit de Bienvenida" },
   { href: "/activos/epp", label: "EPP" },

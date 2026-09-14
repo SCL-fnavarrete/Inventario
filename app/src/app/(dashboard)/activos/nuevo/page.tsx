@@ -47,10 +47,11 @@ export default function NuevoActivoPage() {
     numeroTelefono: "",
     pulgadas: "",
     observaciones: "",
-    operador: "",
     antivirus: "",
     incidencia: "",
     nombreEquipo: "",
+    conectividad: "",
+    tipoLicenciaMicrosoft365: "",
   });
 
   useEffect(() => {
@@ -94,7 +95,9 @@ export default function NuevoActivoPage() {
       const payload = {
         categoriaId: formData.categoriaId,
         // Solo tiene efecto si quien crea es admin -- el backend ignora este
-        // campo para un tecnico y usa siempre su propia sede. Ver SPEC 2.9.
+        // campo para un tecnico y usa siempre su propia sede. Para admin es
+        // obligatorio (select sin opcion en blanco); si de todos modos
+        // llegara vacio el backend lo rechaza. Ver SPEC 2.9.
         sedeId: formData.sedeId || undefined,
         marca: formData.marca,
         modelo: formData.modelo,
@@ -112,10 +115,15 @@ export default function NuevoActivoPage() {
         numeroTelefono: formData.numeroTelefono || null,
         pulgadas: formData.pulgadas || null,
         observaciones: formData.observaciones || null,
-        operador: formData.operador || null,
         antivirus: formData.antivirus || null,
         incidencia: formData.incidencia || null,
         nombreEquipo: formData.nombreEquipo || null,
+        conectividad: formData.conectividad || null,
+        // No hay (todavia) un campo aparte de "tiene M365 si/no" en este
+        // formulario -- se deriva de si se cargo el nombre del plan. Ver
+        // SPEC 2.23.
+        tipoLicenciaMicrosoft365: formData.tipoLicenciaMicrosoft365 || null,
+        microsoft365: Boolean(formData.tipoLicenciaMicrosoft365),
       };
 
       const res = await fetch("/api/activos", {
@@ -142,6 +150,15 @@ export default function NuevoActivoPage() {
   const isNotebook = selectedCategory?.nombre.toLowerCase() === "notebook";
   const isCelular = selectedCategory?.nombre.toLowerCase() === "celular";
   const isMonitor = selectedCategory?.nombre.toLowerCase() === "monitor";
+  // Perifericos simples: alcanza con un solo campo de conectividad, no una
+  // seccion propia por cada uno -- ver SPEC 2.11 (pedido explicito de
+  // Javier: "basta con colocar su identificador unico" para estos).
+  // Impresora tuvo una seccion propia el mismo dia pero Javier decidio que
+  // no era necesaria; se revirtio.
+  const PERIFERICOS_SIMPLES = ["mouse", "teclado", "webcam", "audífonos"];
+  const isPerifericoSimple = selectedCategory
+    ? PERIFERICOS_SIMPLES.includes(selectedCategory.nombre.toLowerCase())
+    : false;
 
   return (
     <div className="space-y-6">
@@ -297,15 +314,18 @@ export default function NuevoActivoPage() {
             {isAdmin && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Sede
+                  Sede <span className="text-red-500">*</span>
                 </label>
                 <select
                   name="sedeId"
                   value={formData.sedeId}
                   onChange={handleChange}
+                  required
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="">Sin sede (solo lo verás tú)</option>
+                  <option value="" disabled>
+                    Selecciona una sede...
+                  </option>
                   {sedes.map((sede) => (
                     <option key={sede.id} value={sede.id}>
                       {sede.nombre}
@@ -313,7 +333,7 @@ export default function NuevoActivoPage() {
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-gray-500">
-                  Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú.
+                  Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú, y es obligatorio para que el equipo quede visible para la sede correspondiente.
                 </p>
               </div>
             )}
@@ -405,6 +425,19 @@ export default function NuevoActivoPage() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Licencia Microsoft 365
+                </label>
+                <input
+                  type="text"
+                  name="tipoLicenciaMicrosoft365"
+                  value={formData.tipoLicenciaMicrosoft365}
+                  onChange={handleChange}
+                  placeholder="ej: Premium (vacío si no tiene)"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
             </div>
           </div>
         )}
@@ -453,24 +486,6 @@ export default function NuevoActivoPage() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Operador
-                </label>
-                <select
-                  name="operador"
-                  value={formData.operador}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Seleccionar operador</option>
-                  <option value="Entel">Entel</option>
-                  <option value="Movistar">Movistar</option>
-                  <option value="WOM">WOM</option>
-                  <option value="Claro">Claro</option>
-                  <option value="Otro">Otro</option>
-                </select>
-              </div>
             </div>
           </div>
         )}
@@ -494,6 +509,33 @@ export default function NuevoActivoPage() {
                   placeholder="ej: 24"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Especificaciones Tecnicas - Perifericos simples (Mouse, Teclado, Webcam, Audifonos) */}
+        {isPerifericoSimple && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Especificaciones Tecnicas - {selectedCategory?.nombre}
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Conectividad
+                </label>
+                <select
+                  name="conectividad"
+                  value={formData.conectividad}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Seleccionar conectividad</option>
+                  <option value="usb">USB</option>
+                  <option value="bluetooth">Bluetooth</option>
+                  <option value="cable">Cable</option>
+                </select>
               </div>
             </div>
           </div>

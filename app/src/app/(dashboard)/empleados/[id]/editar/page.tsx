@@ -152,8 +152,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           fechaEntregaKit: formData.fechaEntregaKit || null,
           fechaEntregaEpp: formData.fechaEntregaEpp || null,
           proximaMantencionEpp: formData.proximaMantencionEpp || null,
-          // El backend ignora este campo si quien edita no es admin.
-          sedeId: formData.sedeId || null,
+          // El backend ignora este campo si quien edita no es admin. Para
+          // admin es obligatorio (select sin opcion "Sin sede") -- ya no se
+          // manda null a proposito, para no dejar empleados sin sede; el
+          // spread de formData ya incluye sedeId con el valor real elegido.
         }),
       });
 
@@ -489,15 +491,18 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           {esAdmin && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Sede
+                Sede <span className="text-red-500">*</span>
               </label>
               <select
                 name="sedeId"
                 value={formData.sedeId}
                 onChange={handleChange}
+                required
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="">Sin sede</option>
+                <option value="" disabled>
+                  Selecciona una sede...
+                </option>
                 {sedes.map((sede) => (
                   <option key={sede.id} value={sede.id}>
                     {sede.nombre}
@@ -507,7 +512,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               <p className="mt-1 text-xs text-gray-500">
                 Reasigna a qué sede pertenece este empleado (ej. si se traslada
                 de Concepción a Santiago). Solo administradores pueden
-                cambiarlo.
+                cambiarlo, y siempre debe quedar asignada a alguna.
               </p>
             </div>
           )}

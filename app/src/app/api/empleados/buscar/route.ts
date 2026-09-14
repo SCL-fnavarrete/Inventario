@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { formatearRut, limpiarRut, validarDigitoVerificador } from "@/lib/validations/rut";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // GET /api/empleados/buscar?rut=21.523.308-1 - Buscar empleado por RUT
 export async function GET(request: NextRequest) {
   try {
-    await requirePermission('empleados', 'read');
+    const session = await requirePermission('empleados', 'read');
 
     const searchParams = request.nextUrl.searchParams;
     const rut = searchParams.get("rut");
@@ -70,6 +71,11 @@ export async function GET(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    // Esta busqueda no validaba sede: un tecnico podia consultar la ficha
+    // completa (con todos sus equipos) de un empleado de cualquier sede
+    // buscandolo por RUT (2.24.1).
+    assertSedeAccess(session, employee.sedeId, 'Empleado no encontrado');
 
     return NextResponse.json(employee);
   } catch (error) {

@@ -39,10 +39,11 @@ export default function EditarActivoPage({
     numeroTelefono: "",
     pulgadas: "",
     observaciones: "",
-    operador: "",
     antivirus: "",
     incidencia: "",
     nombreEquipo: "",
+    conectividad: "",
+    tipoLicenciaMicrosoft365: "",
   });
 
   useEffect(() => {
@@ -86,10 +87,11 @@ export default function EditarActivoPage({
           numeroTelefono: asset.numeroTelefono || "",
           pulgadas: asset.pulgadas?.toString() || "",
           observaciones: asset.observaciones || "",
-          operador: asset.operador || "",
           antivirus: asset.antivirus || "",
           incidencia: asset.incidencia || "",
           nombreEquipo: asset.nombreEquipo || "",
+          conectividad: asset.conectividad || "",
+          tipoLicenciaMicrosoft365: asset.tipoLicenciaMicrosoft365 || "",
         });
       }
     } catch (err) {
@@ -131,10 +133,14 @@ export default function EditarActivoPage({
         numeroTelefono: formData.numeroTelefono || null,
         pulgadas: formData.pulgadas || null,
         observaciones: formData.observaciones || null,
-        operador: formData.operador || null,
         antivirus: formData.antivirus || null,
         incidencia: formData.incidencia || null,
         nombreEquipo: formData.nombreEquipo || null,
+        conectividad: formData.conectividad || null,
+        // Igual que en Nuevo Activo: no hay checkbox propio de "tiene M365"
+        // en este formulario, se deriva de si hay un plan cargado. SPEC 2.23.
+        tipoLicenciaMicrosoft365: formData.tipoLicenciaMicrosoft365 || null,
+        microsoft365: Boolean(formData.tipoLicenciaMicrosoft365),
       };
 
       const res = await fetch(`/api/activos/${id}`, {
@@ -169,6 +175,10 @@ export default function EditarActivoPage({
   const isNotebook = selectedCategory?.nombre.toLowerCase() === "notebook";
   const isCelular = selectedCategory?.nombre.toLowerCase() === "celular";
   const isMonitor = selectedCategory?.nombre.toLowerCase() === "monitor";
+  const PERIFERICOS_SIMPLES = ["mouse", "teclado", "webcam", "audífonos"];
+  const isPerifericoSimple = selectedCategory
+    ? PERIFERICOS_SIMPLES.includes(selectedCategory.nombre.toLowerCase())
+    : false;
 
   return (
     <div className="space-y-6">
@@ -416,6 +426,19 @@ export default function EditarActivoPage({
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Licencia Microsoft 365
+                </label>
+                <input
+                  type="text"
+                  name="tipoLicenciaMicrosoft365"
+                  value={formData.tipoLicenciaMicrosoft365}
+                  onChange={handleChange}
+                  placeholder="ej: Premium (vacío si no tiene)"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
             </div>
           </div>
         )}
@@ -464,24 +487,6 @@ export default function EditarActivoPage({
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Operador
-                </label>
-                <select
-                  name="operador"
-                  value={formData.operador}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Seleccionar operador</option>
-                  <option value="Entel">Entel</option>
-                  <option value="Movistar">Movistar</option>
-                  <option value="WOM">WOM</option>
-                  <option value="Claro">Claro</option>
-                  <option value="Otro">Otro</option>
-                </select>
-              </div>
             </div>
           </div>
         )}
@@ -504,6 +509,33 @@ export default function EditarActivoPage({
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Especificaciones Tecnicas - Perifericos simples (Mouse, Teclado, Webcam, Audifonos) */}
+        {isPerifericoSimple && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Especificaciones Tecnicas - {selectedCategory?.nombre}
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Conectividad
+                </label>
+                <select
+                  name="conectividad"
+                  value={formData.conectividad}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Seleccionar conectividad</option>
+                  <option value="usb">USB</option>
+                  <option value="bluetooth">Bluetooth</option>
+                  <option value="cable">Cable</option>
+                </select>
               </div>
             </div>
           </div>

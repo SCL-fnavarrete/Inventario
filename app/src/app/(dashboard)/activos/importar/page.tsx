@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -24,6 +25,12 @@ type Category = {
   requiereImei: boolean;
 };
 
+type Sede = {
+  id: string;
+  codigo: string;
+  nombre: string;
+};
+
 type ImportResult = {
   success: boolean;
   imported: number;
@@ -39,6 +46,14 @@ type PreviewData = {
 
 export default function ImportarActivosPage() {
   const router = useRouter();
+  const { data: session } = useSession();
+  // La sede se hereda de quien importa; admin debe elegirla explicitamente,
+  // igual que en Nuevo Activo/Nueva Compra (ver sedeIdParaCrear). Sin esto,
+  // los activos y empleados importados quedaban con sedeId null e invisibles
+  // para cualquier tecnico. Ver SPEC 2.22 (14-sep-2026).
+  const isAdmin = session?.user?.role === "admin";
+  const [sedeId, setSedeId] = useState("");
+  const [sedes, setSedes] = useState<Sede[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [sheetName, setSheetName] = useState("");
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
@@ -71,6 +86,21 @@ export default function ImportarActivosPage() {
     }
     fetchCategories();
   }, []);
+
+  useEffect(() => {
+    async function fetchSedes() {
+      try {
+        const res = await fetch("/api/sedes?activas=true");
+        if (res.ok) {
+          const data = await res.json();
+          setSedes(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error("Error al cargar sedes:", err);
+      }
+    }
+    if (isAdmin) fetchSedes();
+  }, [isAdmin]);
 
   // Campos requeridos por categoría ("*" significa todas las categorías)
   const allRequiredFields = [
@@ -189,6 +219,10 @@ export default function ImportarActivosPage() {
       setError("Selecciona un archivo, hoja y categoría");
       return;
     }
+    if (isAdmin && !sedeId) {
+      setError("Selecciona la sede a la que se importarán estos equipos");
+      return;
+    }
 
     setParsing(true);
     setError("");
@@ -283,6 +317,10 @@ export default function ImportarActivosPage() {
       setError("Datos incompletos");
       return;
     }
+    if (isAdmin && !sedeId) {
+      setError("Selecciona la sede a la que se importarán estos equipos");
+      return;
+    }
 
     // Validar campos requeridos
     const missingRequired = requiredFields.filter(
@@ -304,6 +342,7 @@ export default function ImportarActivosPage() {
       formData.append("sheetName", sheetName);
       formData.append("categoria", categoria);
       formData.append("mapping", JSON.stringify(columnMapping));
+      if (sedeId) formData.append("sedeId", sedeId);
 
       const res = await fetch("/api/activos/importar", {
         method: "POST",
@@ -345,6 +384,7 @@ export default function ImportarActivosPage() {
         body: JSON.stringify({
           categoria,
           rows: correctedRows,
+          sedeId: sedeId || undefined,
         }),
       });
 
@@ -624,13 +664,37 @@ export default function ImportarActivosPage() {
                   ))}
                 </select>
               </div>
+              {isAdmin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sede *
+                  </label>
+                  <select
+                    value={sedeId}
+                    onChange={(e) => setSedeId(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Seleccionar sede</option>
+                    {sedes.map((sede) => (
+                      <option key={sede.id} value={sede.id}>
+                        {sede.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Todos los equipos de este archivo quedarán en esta sede. Un
+                    técnico hereda automáticamente la suya.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
           {file && sheetName && categoria && !preview && (
             <button
               onClick={handlePreview}
-              disabled={parsing}
+              disabled={parsing || (isAdmin && !sedeId)}
+              title={isAdmin && !sedeId ? "Primero elige la sede de destino" : undefined}
               className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {parsing ? "Procesando..." : "Vista previa"}
@@ -813,7 +877,8 @@ export default function ImportarActivosPage() {
           </button>
           <button
             onClick={handleImport}
-            disabled={loading}
+            disabled={loading || (isAdmin && !sedeId)}
+            title={isAdmin && !sedeId ? "Primero elige la sede de destino" : undefined}
             className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
           >
             <Download size={20} />

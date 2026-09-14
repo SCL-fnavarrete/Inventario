@@ -4,6 +4,7 @@ import { assetVentaSchema } from '@/lib/validations/assetTransition';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { requirePermission, handleApiError, ConflictError } from '@/lib/auth/guard';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // SPEC 2.7.4: Proceso de Venta
 export async function POST(
@@ -39,6 +40,10 @@ export async function POST(
     if (!asset) {
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
     }
+
+    // Esta ruta no validaba sede: un tecnico que conociera/adivinara el id
+    // de un activo de otra sede podia venderlo igual (2.24.1).
+    assertSedeAccess(session, asset.sedeId, 'Activo no encontrado');
 
     // Un registro descartado es basura de importacion: no genera movimientos.
     if (asset.deletedAt) {
@@ -83,6 +88,10 @@ export async function POST(
         where: { id },
         data: {
           estado: 'vendido',
+          // Antes no se guardaba en ninguna parte -- se usaba siempre la
+          // fecha de hoy en el historial, ignorando la que se ingresaba
+          // aca (SPEC 2.25).
+          fechaVenta: data.fechaVenta,
         },
         include: { categoria: true },
       });
@@ -93,6 +102,8 @@ export async function POST(
         data.comprador,
         Number(data.monto),
         usuario,
+        data.fechaVenta,
+        data.moneda,
         tx
       );
 

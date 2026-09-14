@@ -13,7 +13,7 @@ Una empresa de servicios IT necesita gestionar el ciclo de vida completo de acti
 1. **Trazabilidad completa**: Saber por cuántas manos ha pasado cada activo
 2. **Disponibilidad en tiempo real**: Dashboard de equipos disponibles, asignados, en mantención, dados de baja
 3. **Gestión de entregas/devoluciones**: Actas digitales con estados de condición
-4. **Correlación financiera**: Vincular activos con facturas y proveedores
+4. **Correlación con facturas**: Saber con qué factura llegó cada activo (sin correlación financiera ni de proveedor -- ver 2.10, cambio 11-sep-2026)
 5. **Mantenciones**: Programar y trackear mantenciones físicas y lógicas
 6. **Reportes para RRHH**: Generar fichas de entrega/devolución para gestión de descuentos
 
@@ -46,7 +46,7 @@ Lectura (R) · Escritura (W) · Borrado (D).
 | tiposMantencion | RWD | RWD | R | — | R |
 | desvinculaciones | RWD | RW | R | R | R |
 | guias | RWD | RW | R | — | R |
-| compras | RWD | — | R | — | R |
+| compras | RWD | RW | R | — | R |
 | proveedores | RWD | R | R | — | R |
 | categorias | RWD | R | R | — | R |
 | usuarios | RWD | — | — | — | — |
@@ -64,8 +64,12 @@ Lectura (R) · Escritura (W) · Borrado (D).
    crean/editan/eliminan por igual, porque es una lista operativa del día a día
    (no configuración del sistema) y el técnico es quien registra las
    mantenciones. Un tipo en uso se retira con `activo = false`, no se borra.
-3. **`compras`, `usuarios` y `configuracion` quedan fuera del alcance del
-   técnico**: son información financiera, de identidad y de sistema.
+3. **`usuarios` y `configuracion` quedan fuera del alcance del técnico**: son
+   información de identidad y de sistema. `compras` sí es alcance del técnico
+   desde el 11-sep-2026 (ver 2.10) — puede registrar y ver sus propias
+   compras (RW, nunca D), sin restricción de campos: el modelo ya no tiene
+   proveedor ni dato financiero (monto, moneda, método de pago, precio
+   unitario) para ningún rol, admin incluido -- se eliminaron del todo.
 4. **`reportes` no tiene escritura para nadie**: un reporte se deriva de los
    datos, no se edita.
 5. **Las transiciones del workflow no se autorizan con esta matriz.** La regla
@@ -164,7 +168,10 @@ CREATE TABLE assets (
     tipo_plan VARCHAR(50),                     -- Ej: "Full"
     operador VARCHAR(50),                     -- Operador de telefonía (Entel, Movistar, WOM, etc.)
     tiene_cargador BOOLEAN DEFAULT true,
-    
+
+    -- Conectividad: compartido por Mouse, Teclado, Webcam, Audífonos (11-sep-2026, ver 2.11)
+    conectividad VARCHAR(20),                  -- "usb" | "bluetooth" | "cable"
+
     -- Estado y ubicación
     estado ENUM('disponible', 'asignado', 'en_mantencion', 'reutilizable', 'baja', 'vendido') DEFAULT 'disponible',
     condicion ENUM('nuevo', 'usado', 'dañado') DEFAULT 'nuevo',
@@ -191,6 +198,11 @@ CREATE TABLE assets (
 ```
 
 ### PROVEEDORES (suppliers)
+
+Directorio independiente (ver 2.10): hasta el 11-sep-2026 estaba
+referenciado desde `purchases`; ya no lo esta, se mantiene como catalogo
+propio sin usarse hoy desde ningun otro modulo.
+
 ```sql
 CREATE TABLE suppliers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -205,20 +217,24 @@ CREATE TABLE suppliers (
 ```
 
 ### FACTURAS/COMPRAS (purchases)
+
+Simplificada el 11-sep-2026 (ver 2.10): sin proveedor (catálogo) ni dato
+financiero, solo la factura (para relacionarla) y su sede. El mismo día se
+agregó `rut_proveedor` (texto libre, validado con dígito verificador, sin
+referencia al catálogo `suppliers`) y se eliminó `documento_url`, que ya
+no se usaba (ver 2.10.1).
+
 ```sql
 CREATE TABLE purchases (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    supplier_id UUID REFERENCES suppliers(id),
+    sede_id UUID REFERENCES sedes(id),         -- Nullable solo por compatibilidad con filas antiguas: admin ahora debe elegir sede al crear (ver 2.10.1)
     numero_factura VARCHAR(50),                -- Opcional: gastos menores pueden no tener factura
     fecha_factura DATE NOT NULL,
-    monto_total DECIMAL(12,2),
-    moneda ENUM('CLP', 'USD') DEFAULT 'CLP',
+    rut_proveedor VARCHAR(15),                 -- Texto libre validado (dígito verificador), sin catálogo (11-sep-2026)
     tipo_compra ENUM('FACTURA', 'GASTO_MENOR') DEFAULT 'FACTURA',
-    metodo_pago ENUM('EFECTIVO', 'TRANSFERENCIA', 'TARJETA_CREDITO', 'CAJA_CHICA', 'REEMBOLSO_PENDIENTE') DEFAULT 'TRANSFERENCIA',
     descripcion TEXT,                          -- Descripción libre de la compra
     comprado_por VARCHAR(100),                 -- Nombre de quien realizó la compra
     orden_compra VARCHAR(50),
-    documento_url VARCHAR(500),                -- Link al PDF de la factura
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -229,7 +245,6 @@ CREATE TABLE purchase_assets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     purchase_id UUID REFERENCES purchases(id),
     asset_id UUID REFERENCES assets(id),
-    precio_unitario DECIMAL(12,2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -253,7 +268,15 @@ CREATE TABLE assignments (
     recibido_por VARCHAR(100),
     estado_devolucion ENUM('ok', 'dañado', 'incompleto'),
     observaciones_devolucion TEXT,             -- Ej: "Formateado", "Reasignado"
-    
+
+    -- Condición del cargador (solo aplica si el activo es un notebook con
+    -- tiene_cargador = true; para el resto de categorías queda NULL). Ver
+    -- regla 9 en 2.5.3. No es un activo propio -- es un atributo de esta
+    -- entrega/devolución puntual.
+    condicion_cargador_entrega ENUM('ok', 'dañado', 'no_aplica', 'pendiente'),
+    condicion_cargador_devolucion ENUM('ok', 'dañado', 'no_aplica', 'pendiente'),
+    observaciones_cargador TEXT,                -- Ej: "Cable pelado", "No traía cargador"
+
     -- Estado del registro
     activo BOOLEAN DEFAULT true,               -- false cuando se devuelve
     
@@ -597,6 +620,7 @@ CANCELACIÓN (los tres tipos):
 6. **Acumulación:** `assignment_ids` en `workflow_requests` es acumulativo; cada assignment creado se agrega al array, nunca se sobreescribe.
 7. **Cancelación:** cualquier solicitud (de los tres tipos) puede cancelarse mientras `assignment_ids` y `kit_return_ids` sigan vacíos -- es decir, mientras no haya ejecutado ningún efecto secundario real sobre el inventario todavía. Exige un motivo (texto libre, obligatorio) que queda en `workflow_transitions.comentario`. Pasa a `estado = 'cancelada'` y `fecha_cierre = now()`; no modifica activos ni empleados. Si la solicitud ya ejecutó algo (tiene `assignment_ids` y/o `kit_return_ids`), no se puede cancelar por esta vía -- hay que revertir manualmente cada acción (devolver el activo, etc.) antes de poder cerrarla.
 8. **Reincorporación (onboarding):** un `onboarding` puede apuntar a un `employee` ya existente que esté `desvinculado` (alguien que trabajó antes y vuelve) en vez de crear uno nuevo -- necesario porque `rut`/`correo_personal`/`correo_empresa` son únicos, así que "crear de nuevo" a esa persona choca con su registro anterior. Al crear el ticket, si el `employee_id` elegido está `desvinculado`, se reactiva (`estado -> activo`, `fecha_termino -> null`) dentro de la misma transacción que crea la solicitud. Para `cambio_equipo` y `offboarding` el empleado desvinculado sigue bloqueado (regla previa a esta, sin numerar aparte): no tiene sentido cambiarle el equipo o desvincular de nuevo a alguien que ya no está activo.
+9. **Condición del cargador:** cuando el activo entregado/devuelto en un `assignment` es un notebook con `tiene_cargador = true`, se puede registrar por separado la condición de su cargador (`condicion_cargador_entrega` al crear la asignación, `condicion_cargador_devolucion` al devolverla), con una observación libre opcional (`observaciones_cargador`). El cargador no es un activo propio en el inventario -- es solo un atributo de esa entrega/devolución puntual, igual que cualquier otro dato del acta. A diferencia de `estado_devolucion` del equipo, la condición del cargador **no** cambia el `estado` ni la `condicion` del Activo ni gatilla baja: es puramente informativo, para que quede constancia en el acta y en el historial. Se implementa primero en onboarding (entrega); `cambio_equipo` y `offboarding` quedan pendientes de extender con el mismo patrón.
 
 ### 2.5.4 Estructura del campo `datos_accion` por transición con efecto
 
@@ -607,6 +631,13 @@ El campo `datos_accion JSONB` en `workflow_transitions` transporta los datos var
 {
   assetIds: string[]       // requerido: IDs de activos a asignar
   lugarEntrega?: string    // opcional: lugar de entrega
+  // Condición del cargador por activo entregado (solo se usa para los
+  // assetIds que sean notebook con tiene_cargador = true; el resto se
+  // ignora). Ver regla 9 en 2.5.3.
+  condicionCargador?: Record<string, {
+    condicion: 'ok' | 'danado' | 'no_aplica'
+    observaciones?: string
+  }>
 }
 ```
 
@@ -806,13 +837,13 @@ El sistema opera sobre varias sedes físicas (ej. Santiago, Concepción, Rancagu
 
 ### 2.8.2 Regla de aislamiento
 
-La sede de un registro **no se elige libremente en su formulario**: se hereda de la sede del usuario que lo crea. Un `admin` sin sede propia puede elegirla explícitamente (o dejar el registro transversal, sin sede). Esto evita que un técnico cruce registros a otra sede por error.
+La sede de un registro **no se elige libremente en su formulario**: se hereda de la sede del usuario que lo crea. Un `admin` sin sede propia debe elegirla explícitamente -- el selector que ve (en activos, empleados y solicitudes) no ofrece una opción "sin sede"/en blanco, y el backend rechaza la creación si de todos modos llega vacía. Antes se permitía dejarlo transversal (sin sede), pero en la práctica eso dejaba el registro visible solo para ese admin: el filtro por sede de un técnico nunca calza con `sedeId = null`, así que ningún técnico llegaba a verlo ni gestionarlo -- quedaba huérfano sin que nadie lo notara. Ver nota (11-sep-2026) en `sedeIdParaCrear`.
 
 Único punto de verdad: `src/lib/auth/sedeScope.ts`, con cuatro funciones que consumen todas las rutas de API afectadas:
 - `tieneVisibilidadTotal(session)` — true solo para `admin`.
 - `sedeWhere(session)` — fragmento de `where` para listados: `{}` para admin, `{ sedeId: session.user.sedeId }` para técnico.
 - `assertSedeAccess(session, registroSedeId, mensaje)` — exige que un registro ya cargado pertenezca a la sede de la sesión; lanza 404 (no 403) para no revelar que el registro existe en otra sede.
-- `sedeIdParaCrear(session, sedeIdSolicitada?)` — decide la sede de un registro nuevo: la del técnico (ignorando cualquier valor del body), o la que el admin haya elegido.
+- `sedeIdParaCrear(session, sedeIdSolicitada?, opts?)` — decide la sede de un registro nuevo: la del técnico (ignorando cualquier valor del body), o la que el admin haya elegido. Con `opts.requerido = true` (activo en los cinco módulos operativos que ofrecen el selector a admin: activos, empleados, solicitudes, guías de despacho -- sede origen -- y compras, desde el 11-sep-2026), rechaza la creación con 400 si el admin no eligió ninguna.
 
 Aplica a: `activos`, `empleados`, `solicitudes`, `mantenciones`, `asignaciones`, `desvinculaciones`, `guias` (guías de despacho), `compras` y `kit EPP`. No aplica a datos maestros globales (categorías, proveedores) ni a `usuarios`/`configuración`.
 
@@ -847,7 +878,9 @@ No existe campo "Tipo de Despacho" (se eliminó el enum `TipoDespacho` — `asig
 
 ### 2.9.2 Efecto al crear (POST) — aplica de inmediato
 
-Precondición: todos los activos seleccionados deben existir, pertenecer a la sede del emisor (salvo admin) y estar en estado `disponible`. Si alguno no cumple, la creación se rechaza completa (400).
+Precondición: todos los activos seleccionados deben existir, pertenecer a la sede del emisor y estar en estado `disponible`. Si alguno no cumple, la creación se rechaza completa (400).
+
+La sede emisora ya no puede quedar en blanco para admin (cambio 11-sep-2026, igual que en 2.8.2): el formulario de Nueva Guía de Despacho le pide elegir explícitamente una "Sede origen" antes de mostrarle el inventario disponible, que además queda acotado a esa sede (no puede mezclar equipos de sedes distintas en un mismo despacho). `POST /api/guias-despacho` usa `sedeIdParaCrear(session, body.sedeId, { requerido: true })`.
 
 Dentro de una transacción:
 1. Se crea el registro `DispatchGuide` con `estado = despachado`.
@@ -872,6 +905,335 @@ A diferencia del resto de los módulos con aislamiento por sede (2.8), una guía
 ### 2.9.5 Sin documento PDF
 
 La guía es solo un registro dentro del sistema (listado + detalle) — no genera ningún documento PDF descargable.
+
+---
+
+## 2.10 Compras (`purchases`): acceso de técnico y modelo simplificado (11-sep-2026)
+
+Registrar una compra pasó de ser exclusivo de `admin` a ser trabajo operativo compartido con `tecnico` (matriz 1.3.1: `compras` es `RW` para técnico, no solo `R`). El caso de uso: llega un despacho de otra sede y el técnico necesita dejarlo registrado — con qué factura vino y para qué activos — igual que cualquier otro módulo con aislamiento por sede (2.8), sin depender de que el administrador lo cargue.
+
+**Aislamiento por sede.** Igual que el resto de 2.8: un técnico solo ve y crea compras de su propia sede (`sedeWhere`/`sedeIdParaCrear` en `GET`/`POST /api/compras`, `assertSedeAccess` en las rutas de detalle `[id]` y `[id]/activos`). La sede es obligatoria para admin (11-sep-2026, ver 2.8.2): `sedeIdParaCrear` se usa con `{ requerido: true }`, igual que en activos/empleados/solicitudes/guías -- el selector no ofrece "sin sede" y el backend rechaza la creación (y también el intento de vaciarla al editar) si de todos modos llega en blanco. Antes de este ajuste se permitía dejarla transversal; se corrigió por el mismo motivo que en los demás módulos (2.8.2): un registro sin sede sólo lo veía el admin que lo creó, ningún técnico.
+
+**Vinculación de activos restringida a la propia sede.** Un técnico solo puede vincular a una compra activos cuyo `sedeId` coincida con el suyo (`POST /api/compras` y `POST /api/compras/:id/activos` rechazan con 400 "Algunos activos no pertenecen a tu sede" si no calza). Admin no tiene esa restricción.
+
+**El modelo se redujo a solo dos datos (mismo día, pedido explícito de Javier, minutos después del cambio anterior).** La primera versión de este cambio dejó los campos financieros (`montoTotal`, `moneda`, `metodoPago`, `precioUnitario`) visibles solo para admin. Javier pidió ir más allá: "el tema del dinero no es un dato que nos interese" — ni para admin ni para técnico. Al área de soporte solo le importan dos cosas: **la factura, para relacionarla, y los equipos que vinieron con ella.** Tampoco le importa el proveedor ("los proveedores tampoco importa, la verdad").
+
+Por eso, `Purchase` **ya no tiene** `supplierId`/`supplier`, `montoTotal`, `moneda` ni `metodoPago`, y `PurchaseAsset` **ya no tiene** `precioUnitario` — no es una restricción de UI por rol, los campos no existen en el modelo (migración `20260911200000_compras_solo_factura_y_equipos`, sin backfill posible porque el dato deja de tener uso). Es igual para admin y técnico — ya no hay ningún campo que restringir por rol dentro de compras; el único límite entre ambos es el aislamiento por sede de arriba, y el botón "Eliminar" en el detalle, detrás de `<Can recurso="compras" accion="delete">` porque borrar sigue siendo exclusivo de `admin`.
+
+**El directorio de proveedores (`Supplier`/`suppliers`) no se borró, se desvinculó.** Sigue existiendo como catálogo independiente con su propio CRUD (`/api/proveedores`, `/configuracion/proveedores`), simplemente ya no lo referencia `Purchase` ni se usa desde el flujo de compras. Se conservó porque no hay endpoints que romper al mantenerlo — no porque haya un plan concreto de reutilizarlo.
+
+El endpoint de reportes `GET /api/reportes/compras` no tiene ninguna pantalla que lo consuma (no hay un "Reportes → Compras" en `/reportes`); se simplificó igual, a conteos por período y resumen, para que compilara contra el modelo nuevo en vez de dejarlo roto o borrarlo.
+
+### 2.10.1 RUT del proveedor, eliminación del documento y alta de equipos en el mismo formulario (11-sep-2026)
+
+Mismo día, cambio posterior al de arriba, también pedido explícito de Javier: *"en el registro de la factura, yo aplicaría la borrada del documento, pero agregaría el RUT del proveedor. Y también la idea es que en esa misma formulario pueda agregar los equipos que me llegaron."*
+
+**Se eliminó `documentoUrl`.** El campo "URL del Documento (PDF)" no se usaba y se sacó por completo del modelo (`Purchase.documentoUrl`), del formulario de creación, de la vista de detalle (botón "Ver Documento") y de la vista de lista. Migración `20260911210000_compras_rut_proveedor_sin_documento`.
+
+**Se agregó `rutProveedor` como texto libre, sin catálogo.** Igual criterio que la desvinculación de `Supplier` en 2.10: Javier fue explícito en que no quiere un selector contra el catálogo de proveedores ("texto simple, obviamente, algún tipo de validación para validar que el rut es válido"). El campo es opcional, valida formato y dígito verificador con la misma utilidad que el RUT de un empleado (`rutOptionalSchema` en `src/lib/validations/rut.ts`, reutilizada tal cual — no se escribió una validación nueva), y no referencia `suppliers.id`. Se agregó a los filtros de búsqueda de la lista (`GET /api/compras?search=`) y a la vista de detalle (bajo "Datos de la Factura", solo si tiene valor).
+
+**Alta de equipos nuevos dentro del mismo formulario de compra.** Antes, "Vincular Activos" en `/compras/nueva` solo permitía buscar y enlazar activos ya existentes. Ahora hay un segundo modo, "Crear Equipo Nuevo": un mini-formulario inline (categoría, marca, modelo, N° de serie opcional) que llama a `POST /api/activos` — el mismo endpoint que usa `/activos/nuevo` — en vez de duplicar la lógica de creación dentro de la transacción de compras. Esto significa que el activo creado desde compras hereda automáticamente las mismas reglas que un activo creado desde su propio formulario: asignación de sede (`sedeIdParaCrear` con `{ requerido: true }`), validación de N° de serie duplicado, y registro en el historial (`assetHistoryService.registrarCreacion`). El botón "Crear Equipo Nuevo" está deshabilitado para admin hasta que elija una sede (la compra necesita saber a qué sede pertenece el activo nuevo antes de poder crearlo), con un aviso explicando por qué.
+
+---
+
+## 2.11 Formulario de Activos: especificaciones por categoría (11-sep-2026)
+
+Pedido explícito de Javier, mientras revisaba el formulario de Activos: *"tenemos audífonos, celular, impresora, monitor, mouse, etcétera... deberíamos hacer un formulario específico para cada activo... un formulario general con... y luego, aparte, dependiendo qué seleccionamos, desplegar otro tipo de formulario."*
+
+**El patrón ya existía para tres categorías antes de este cambio.** `/activos/nuevo` y `/activos/:id/editar` tienen una sección "Información General" (categoría, marca, modelo, N° de serie, etc.) común a todo activo, y debajo, condicionada a `selectedCategory.nombre`, una sección de especificaciones propia para Notebook (procesador, RAM, disco, sistema operativo, antivirus, nombre de equipo), Celular (IMEI, teléfono, almacenamiento, operador) y Monitor (pulgadas). Lo que faltaba era extender ese mismo patrón al resto de las categorías del catálogo (`Impresora`, `Mouse`, `Teclado`, `Docking Station`, `Webcam`, `Audífonos`), que hasta ahora solo tenían el formulario general.
+
+**Se agregó, y en el mismo día se revirtió, una sección propia para Impresora.** La primera versión de este cambio agregaba tipo (`laser`/`tinta`), conexión (`usb`/`red`) e IP. Javier la revisó y decidió que no era necesaria ("no creo que sea necesario para una impresora"): se eliminaron los tres campos de `Asset`, su sección en el formulario y la validación (migración `20260911220000_activos_specs_impresora_perifericos` que los agregó, revertida por `20260911230000_activos_revertir_specs_impresora`). Impresora queda con solo el formulario general, igual que antes de este cambio.
+
+**Para los periféricos simples (Mouse, Teclado, Webcam, Audífonos) se agregó un solo campo compartido: Conectividad** (`usb`/`bluetooth`/`cable`), en vez de cuatro secciones casi idénticas. Javier fue explícito en que a estos "no es necesario" un formulario propio -- textualmente: *"basta con colocar su identificador único que cada equipo lo tiene"* (el N° de serie, que ya vive en la sección general) -- y luego confirmó que sí quería agregar este único campo a los cuatro. Campo nuevo en `Asset`: `conectividad`. Este campo no se revirtió.
+
+**Docking Station queda sin campos propios por ahora.** No se mencionó explícitamente en la conversación que originó este cambio; si en el futuro se necesita, sigue el mismo patrón (condicional por `selectedCategory.nombre`, campo(s) nuevo(s) en `Asset`, migración).
+
+**La vista de detalle (`/activos/:id`) tenía un gap que se corrigió de paso.** El bloque "Especificaciones Técnicas" solo mostraba `procesador`/`discoDuro`/`ram`/`pulgadas`/`sistemaOperativo` -- ni siquiera los campos de Celular (IMEI, teléfono, operador) se veían ahí, a pesar de estar guardados. Se amplió para incluir también `antivirus`, `nombreEquipo`, `imei`, `numeroTelefono`, `operador` y `conectividad` -- todos condicionados a que el activo tenga el dato, sin asumir su categoría. Este ajuste no se revirtió: sigue vigente aunque Impresora ya no tenga specs propias.
+
+**Fuera de alcance de este cambio:** los reportes de exportación (`GET /api/reportes/inventario/excel`), las actas/anexos de entrega y los selectores de equipos en Guías de Despacho/Solicitudes no se tocaron -- siguen mostrando solo las specs de Notebook.
+
+### 2.11.1 `prisma/seed.ts`: de datos de ejemplo a seed mínimo de producción (11-sep-2026)
+
+Javier preguntó dónde se definen los activos que se crean automáticamente al inicializar la base de datos, y en un primer momento pidió que por defecto ya existieran algunos. Respuesta: `prisma/seed.ts` -- y de hecho ya creaba 8 activos de ejemplo (3 notebooks, 2 celulares, 3 monitores), además de 2 usuarios, 4 empleados y un catálogo de Kit de Bienvenida/EPP.
+
+**Primer hallazgo: el seed nunca creaba ninguna `Sede`.** El usuario técnico de ejemplo, los 4 empleados y los 8 activos quedaban con `sedeId = null`. Con el aislamiento por sede obligatorio desde 2.8.2/2.9, eso significa que iniciar sesión con ese técnico en una base recién inicializada no mostraba ni un activo ni un empleado (`sedeWhere()` filtra por la sede propia, que nunca calza con `null`); solo el admin, con visibilidad total, veía algo. Como primer arreglo se agregaron dos sedes de ejemplo (Santiago, Rancagua) y se les asignó `sedeId` a todo lo demás.
+
+**Javier reconsideró el enfoque completo poco después:** pidió redefinir el seed "como ha cambiado tanto la app", y al revisar qué necesitaba realmente quedar ahí, decidió sacar todo lo que ya se puede crear a mano desde la propia aplicación -- sedes y catálogo de Kit/EPP tienen pantalla en Configuración (`/configuracion/sedes`, `/configuracion/kit-epp`, con sus respectivos `POST /api/sedes` y `POST /api/kit-items`), y empleados/activos los va a cargar él mismo con datos reales. No tiene sentido que el sistema arranque con datos de mentira que hay que borrar antes de usarlo en serio.
+
+**El seed quedó reducido a lo mínimo sin lo cual la aplicación no se puede operar desde la UI:**
+1. El catálogo de categorías de activos (Notebook, Celular, Monitor, Impresora, Mouse, Teclado, Docking Station, Webcam, Audífonos). ~~La única pieza de este archivo que **no** tiene pantalla propia para crearla en Configuración (se verificó explícitamente: no existe ningún `POST` para `AssetCategory` fuera de este seed).~~ **Corrección (11-sep-2026, v1.17): esta afirmación es incorrecta.** Sí existe un CRUD completo en Configuración > Categorías (`GET/POST/PUT/DELETE /api/categorias`, con su propia pantalla en `configuracion/categorias`) -- no se verificó bien en su momento. Se mantiene igual como parte mínima del seed porque es un dato de arranque razonable, no porque sea la única forma de crearlas.
+2. Un único usuario administrador (`admin@sclconsultores.com`, contraseña por defecto `admin123` -- el seed ahora imprime un recordatorio de cambiarla).
+
+Ya no se crean aquí: sedes, catálogo de Kit/EPP, empleados ni activos de ejemplo. Los imports de Prisma que esos bloques necesitaban (`CategoriaKit`, `TipoContrato`, `EstadoActivo`, `CondicionActivo`) se quitaron del archivo junto con el código que los usaba.
+
+### 2.11.2 `prisma/seed.ts`: se sacan "Impresora" y "Docking Station" del catálogo de categorías por defecto (11-sep-2026)
+
+Pedido explícito de Javier, por voz: *"solamente quiero inicializar con el usuario administrador y con las categorías de los activos que están por defecto, pero quitando el que se llama... e impresora"* -- la transcripción no permitía identificar con certeza el nombre de la segunda categoría (no existe ninguna llamada "documentation" en el catálogo), así que se preguntó explícitamente antes de tocar el archivo. Javier confirmó: **Docking Station** e **Impresora**.
+
+El catálogo que crea `prisma/seed.ts` (2.11.1) queda en 7 categorías: Notebook, Celular, Monitor, Mouse, Teclado, Webcam, Audífonos. El resto del seed (usuario admin) no cambia.
+
+**Esto no elimina la categoría del sistema, solo del seed.** `AssetCategory` es una tabla, no un enum fijo. Si más adelante se necesita "Impresora" o "Docking Station", **se pueden recrear directamente desde Configuración > Categorías** (ver corrección en 2.11.1, punto 1) sin tocar este archivo ni la base de datos a mano; nacerían sin ninguna sección de especificaciones propia en el formulario de Activos, igual que hoy. Una base de datos que ya tenga activos con esas categorías (creados antes de este cambio, o por un seed anterior) no se ve afectada: el seed usa `upsert` y nunca borra categorías existentes.
+
+## 2.12 Activos: se saca la reasignación directa y el panel de Acciones Rápidas (11-sep-2026)
+
+Pedido explícito de Javier, revisando la pantalla de Activos: de las tres acciones por fila en el listado (`/activos`) -- Ver detalle, Editar, y Reasignar/Iniciar solicitud según el estado del equipo -- pidió sacar la de **reasignar**, porque *"la idea es hacerlo desde solicitudes"*. Ver detalle y Editar quedan igual.
+
+**Se quitó el botón "Reasignar a otra persona"** (visible solo para activos en estado `asignado`) de la columna de acciones de `/activos`, junto con el modal que abría (`ReasignarActivoForm` dentro de un `Modal`) y el estado que lo controlaba (`reasignarModalAssetId`). El botón "Iniciar solicitud de entrega" (para `disponible`/`reutilizable`) no se tocó en este punto -- ver 2.12.1, donde se termina sacando también.
+
+**Se quitó también el panel completo "Acciones Rápidas"** de `/activos/:id` (detalle del activo) -- un activo en estado `asignado` mostraba ahí cuatro botones (Registrar devolución, Reasignar equipo, Dar de baja, Enviar a mantención); Javier lo vio y pidió sacarlo, indicando que ya no es necesario. Antes de borrarlo se verificó que ninguna de esas acciones quedara inalcanzable: **Dar de baja**, **Registrar venta** y **Enviar a mantención** ya existían como acciones de fila en el listado `/activos` (modal o `router.push`, independientes de este panel), y **Registrar devolución** también (`router.push` a `/asignaciones/devolucion`). Solo **Reasignar equipo** perdía su único acceso -- que es exactamente el que se retiró a propósito en el punto anterior. **Asignar a empleado** enlazaba a `/solicitudes/nueva`, ya cubierto por "Iniciar solicitud de entrega" en el listado.
+
+**Queda como código huérfano, sin decisión tomada todavía:** la página `/activos/:id/reasignar`, el componente `ReasignarActivoForm` y el endpoint `PUT /api/activos/:id/reasignar` -- ya no los enlaza ninguna pantalla, pero no se borraron (Javier no lo pidió). Si la reasignación directa queda completamente reemplazada por el flujo de Solicitudes, valdría la pena eliminarlos en un cambio aparte.
+
+### 2.12.1 Aclaración: en el listado de Activos solo quedan dos acciones por fila (11-sep-2026)
+
+Javier aclaró el mismo día que el cambio anterior se quedó corto: la idea no era sacar solo "Reasignar", sino dejar **únicamente dos** acciones por fila en `/activos` -- Ver detalle y Editar -- y sacar cualquier otra que aparezca o pueda aparecer, "tanto del código como de la parte visual".
+
+Se quitó también el botón **"Iniciar solicitud de entrega"** (visible para `disponible`/`reutilizable`, enlazaba a `/solicitudes/nueva`) de la columna de acciones, junto con el ícono `UserPlus` (sin otro uso en el archivo, se sacó del import). La fila queda con exactamente dos acciones para cualquier estado del activo: Ver detalle y Editar.
+
+**Se revisaron las otras dos vistas de la lista de Activos (tarjetas y kanban) y ninguna necesitó cambios:** la vista de tarjetas usa `AssetCard` en modo no compacto, que ya mostraba solo Ver y Editar (nunca tuvo una tercera acción). La vista kanban usa `AssetCard` en modo `compact`, que no muestra ninguna acción -- el cambio de estado ahí es por arrastrar la tarjeta a otra columna, no por botones.
+
+## 2.13 Asignaciones pasa a ser una pestaña propia dentro de Activos, y se corrige su buscador (11-sep-2026)
+
+Pedido explícito de Javier, viendo la segunda tabla al fondo de `/activos`: *"tenía pensado mejor sacarla de ahí y agregar otra sub pestaña, al igual que Personal y [Kit de Bienvenida/]EPP, etcétera. Sería mucho más ordenado."*
+
+**`AsignacionesTable` se saca del fondo de `/activos` y pasa a vivir en `/activos/asignaciones`, como quinta pestaña de `ActivosTabs`** (Equipos, Asignaciones, Personal, Kit de Bienvenida, EPP). El componente en sí no cambió, solo dónde se renderiza -- la nueva página (`activos/asignaciones/page.tsx`) sigue el mismo patrón que `activos/empleados/page.tsx` y `activos/epp|kit-bienvenida/page.tsx`: `<ActivosTabs />` seguido del contenido. Sin header de página propio, porque `AsignacionesTable` ya trae su propio título "Asignaciones" como encabezado de tarjeta -- agregar otro arriba lo hubiera duplicado.
+
+Esto es un vaivén respecto a una decisión anterior (documentada en el comentario de cabecera de `AsignacionesTable.tsx`): esa tabla había reemplazado a un módulo standalone "Asignaciones" en el Sidebar, sacado de la navegación por duplicar lo que ya vivía en Activos. La diferencia es que ahora **sigue siendo parte del módulo Activos** (una pestaña más, no un ítem de navegación aparte) -- no se reabre el módulo standalone, solo se le da su propio espacio dentro de Activos en vez de compartir página con Equipos.
+
+### 2.13.1 El buscador de Asignaciones no encontraba por RUT
+
+Javier reportó que el buscador de la tabla ("Buscar por RUT, nombre o equipo...") "parece que no busca por RUT de la persona". Causa: `GET /api/asignaciones` comparaba el término escrito **tal cual** contra `employee.rut` con un `contains` de Prisma -- pero `Employee.rut` se guarda siempre formateado ("12.345.678-9", ver `rutSchema`/`rutOptionalSchema` en `lib/validations/rut.ts`), y un usuario casi nunca escribe los puntos al buscar. `"123456789"` nunca es substring de `"12.345.678-9"`.
+
+Este mismo problema ya se había resuelto para el buscador de Empleados (`GET /api/empleados`): trae los registros ya acotados por sede/filtros, y compara en memoria contra el RUT normalizado (`normalizeRut`, sin puntos ni guión) y el resto de los campos sin distinguir acentos. Las funciones locales que hacían esa segunda parte (`removeAccents`, `matchNoAccent`) vivían solo en `api/empleados/route.ts`; se extrajeron a `lib/utils/text.ts` para poder reutilizarlas, y `api/empleados/route.ts` ahora importa de ahí en vez de tener su propia copia.
+
+`GET /api/asignaciones` se corrigió con el mismo patrón: cuando hay término de búsqueda, trae las asignaciones ya acotadas por sede y por los demás filtros (`activo`, `tipoMovimiento`, fechas, etc.) y filtra en memoria por RUT normalizado del empleado, nombre/apellido sin acentos, y N° de serie/marca/modelo del activo sin acentos. Sin término de búsqueda, sigue usando la consulta paginada de Prisma tal como antes. No se creó columna ni índice normalizado -- la cantidad de asignaciones de esta empresa es chica, igual que se justificó para Empleados.
+
+**No se revisó si el mismo problema existe en otros buscadores del sistema** (Guías de Despacho, Solicitudes, el listado de Activos, etc.) -- quedó fuera de alcance de este cambio, que se limitó a lo que Javier reportó.
+
+## 2.14 Buscadores de Asignaciones, Personal y Equipos: mismo comportamiento, con debounce (11-sep-2026)
+
+Javier notó, comparando Asignaciones contra Personal y Equipos, que los tres buscadores se comportaban distinto: *"tengo que presionar enter para que se apliquen [los filtros]... en asignaciones es instantáneo"*. Investigando, los tres resultaron tener una regla distinta:
+
+- **Asignaciones** buscaba en cada tecla, sin ningún freno: un `useEffect` con `search` (el estado que cambia en cada `onChange`) como dependencia. Se sentía instantáneo, pero significaba una petición completa al servidor por cada letra escrita.
+- **Personal** y **Equipos** exigían enviar el formulario (Enter) para aplicar la búsqueda: el `useEffect` que dispara el fetch no incluía el estado del input entre sus dependencias, solo se ejecutaba desde el `onSubmit`.
+
+Ninguna de las dos reglas es la ideal: una desperdicia peticiones, la otra obliga a un paso extra que el usuario no espera. Se preguntó a Javier cuál prefería y su respuesta fue **debounce en las tres** -- buscar automáticamente, pero recién ~350ms después de que el usuario deja de escribir, no en cada tecla.
+
+**Se creó `useDebouncedValue` (`src/hooks/useDebouncedValue.ts`)**, un hook genérico (`useDebouncedValue<T>(value, delayMs = 350)`) que devuelve `value` retrasado ese tiempo, para no repetir el mismo `setTimeout`/`clearTimeout` tres veces. Se aplicó en:
+
+- **`AsignacionesTable.tsx`**: el `useEffect` que pedía los datos pasa a depender de `debouncedSearch` en vez de `search` (que sigue actualizándose en cada tecla, para que el input no se sienta trabado).
+- **`activos/empleados/page.tsx`** (Personal): mismo cambio -- el `useEffect` del fetch ahora incluye `debouncedSearch`. El formulario (`handleSearch`, Enter) se mantiene y sigue funcionando, pero ahora fuerza la búsqueda de inmediato con el valor actual del input (`fetchEmployees(search)`) en vez de depender del valor debounced, que podría estar desactualizado si el usuario presiona Enter antes de que venza la pausa.
+- **`activos/page.tsx`** (Equipos): caso más particular porque la búsqueda se guarda en la URL (`?search=...`), no solo en estado local -- así el filtro sobrevive a recargar la página o compartir el link. Se agregó `debouncedSearchInput` (debounce de `searchInput`, lo que el usuario escribe) y un `useEffect` que empuja ese valor a la URL vía `updateUrlParams` cuando difiere de `searchQuery` (el valor ya confirmado en la URL). El formulario/Enter existente sigue funcionando igual, actualizando la URL al toque.
+
+**No se tocó el buscador de ninguna otra pantalla** (Guías de Despacho, Solicitudes, Mantenciones, etc.) -- ninguno fue mencionado, y cada uno tendría que revisarse por separado para saber cuál de las dos reglas tenía.
+
+### 2.14.1 El mismo debounce se extiende a Solicitudes, Guías de Despacho, Mantenciones y Compras (11-sep-2026)
+
+Pedido explícito de Javier: aplicar el mismo debounce a esos cuatro módulos. Se revisó cada uno para ver cuál de las dos reglas tenía (igual que se hizo para Asignaciones/Personal/Equipos en 2.14):
+
+- **Solicitudes, Mantenciones y Compras** buscaban en cada tecla sin ningún freno (una petición por letra) -- mismo caso que Asignaciones antes de 2.14. Se agregó `debouncedSearch` (`useDebouncedValue(search, 350)`) y se reemplazó `search` por `debouncedSearch` en la dependencia que dispara el fetch (el `useEffect` en Mantenciones/Compras, el `useCallback`+`useEffect` en Solicitudes) y en el parámetro que se manda a la API. Ninguno de los tres tenía un botón "buscar ahora" ni un flujo que necesitara bypasear el debounce, así que no se agregó parámetro de override.
+- **Guías de Despacho** exigía Enter (`<form onSubmit={handleSearch}>`) -- mismo caso que Personal/Equipos antes de 2.14. Se agregó `debouncedSearchTerm` a la dependencia del fetch, y `fetchGuides` gana un parámetro opcional `searchOverride` para los dos casos que necesitan el valor exacto del input en el momento, sin esperar el debounce: el Enter explícito (`handleSearch`) y el botón "Limpiar filtros" (que antes llamaba `fetchGuides()` justo después de vaciar `searchTerm`, y sin el override habría buscado todavía con el término debounced anterior).
+
+No se tocaron los filtros que no son de texto libre (estado, tipo, sede, fechas, `showVencidas`) en ninguno de los cuatro -- siguen aplicándose de inmediato al cambiar, como ya funcionaban.
+
+## 2.15 Reportes pasa a ser una subpestaña del Dashboard (11-sep-2026)
+
+Pedido explícito de Javier: *"la idea sería mover ese módulo de reportes a dashboard como subpestaña, y el botón de ver reporte que hay en el dashboard, quítalo"*. El módulo Reportes (`/reportes`, generación de Excel de inventario/stock/trazabilidad/empleados/RRHH/obsoletos) vivía como una sección aparte: entrada propia en el menú lateral y un botón "Ver Reportes" en el Dashboard que llevaba ahí.
+
+- **Se creó `DashboardTabs` (`src/components/dashboard/DashboardTabs.tsx`)**, siguiendo el mismo patrón ya usado en Activos (`ActivosTabs`): una barra con dos pestañas, "Resumen" (`/`) y "Reportes" (`/reportes`). Se agregó a las dos páginas de nivel superior (`app/(dashboard)/page.tsx` y `app/(dashboard)/reportes/page.tsx`). Las páginas de detalle de cada reporte (`/reportes/inventario`, `/reportes/stock`, etc.) no la necesitan: ya tienen su propio link "Volver" hacia `/reportes`.
+- **Se quitó el botón "Ver Reportes"** del header del Dashboard (junto con el ícono `FileText`, que quedaba sin otro uso en ese archivo) -- ya no es necesario, la navegación ahora es por la pestaña.
+- **Se quitó la entrada "Reportes" del menú lateral** (`Sidebar.tsx`, junto con el ícono `BarChart3`): se preguntó explícitamente a Javier si debía sacarse o dejarse como acceso adicional, y confirmó sacarla -- mismo criterio que Personal/Kit de Bienvenida/EPP dentro de Activos, que tampoco tienen entrada propia en el menú. El recurso de permisos `reportes` no cambió (sigue controlando quién ve el Dashboard); solo cambió el punto de entrada en la UI. Se ajustó además el cálculo de "item activo" del menú: la entrada "Dashboard" (href `/`) ahora también queda resaltada estando en `/reportes`, por ser su subpestaña.
+- **No se tocaron las rutas** (`/reportes` y sus sub-páginas siguen existiendo tal cual, incluida la exportación a Excel) ni el contenido de la página de Reportes -- el pedido era de organización/navegación, no de datos ni de URLs.
+
+## 2.16 Resumen del Dashboard: se corrige el estado "vendido", se agrega su tarjeta y se optimizan las consultas (11-sep-2026)
+
+Javier pidió un análisis de la pestaña Resumen buscando errores y bugs de código, y luego pidió aplicar todas las correcciones detectadas. El análisis encontró un bug de datos y varias ineficiencias de consultas; el pedido de aplicarlas vino con una aclaración sobre el bug: la lógica de que un activo **vendido** no sume en las tarjetas operativas ni en "Stock por Categoría" está bien tal como estaba -- *"al final hacer un activo vendido ya no debería aparecer más"* -- pero faltaba una tarjeta que mostrara cuántos equipos se han vendido, y el estado "vendido" no aparecía en ningún gráfico pese a que el propio `EstadosChart` ya tenía lista la etiqueta "Vendidos" sin usar.
+
+**Bug de datos corregido (parcialmente, según lo pedido):**
+
+- El pie chart "Distribución por Estado" no incluía "vendido" -- se agrega como sexto estado (`estadosData`), con color gris para diferenciarlo de los otros cinco.
+- "Stock por Categoría" (barras apiladas) solo sumaba disponible/asignado/en_mantención/baja, dejando afuera **reutilizable** -- por eso su suma no calzaba con "Activos por Categoría" (que sí cuenta todos los estados). Se agrega "Reutilizable" a ese gráfico. "Vendido" queda deliberadamente **afuera** de "Stock por Categoría", igual que del desglose de tarjetas -- un equipo vendido no es stock, según lo confirmado con Javier.
+- **Nueva tarjeta "Equipos Vendidos"**, reemplazando a "Empleados Activos" en la segunda fila de KPIs (enlaza a `/activos?estado=vendido`). Los conteos de empleados que esa tarjeta usaba (`totalEmployees`/`activeEmployees`) se eliminan por completo: ningún otro lugar del Resumen los necesitaba.
+
+**Optimizaciones de consultas** (`getStats()` + `getAlertas()` se fusionan en una única `getDashboardData()`):
+
+- Antes eran dos funciones independientes llamadas en secuencia (`await getStats(); await getAlertas();`) sin necesidad -- ninguna depende de la otra. Al fusionarlas en un solo `Promise.all`, además se eliminan consultas duplicadas que existían *entre* ambas: el `OR` de Termination "pendiente" se pedía dos veces (un `count()` en `getStats` y un `findMany(take:5)` en `getAlertas`), y "Mantenciones pendientes" se pedía como `count()` más dos `findMany(take:5)` adicionales para vencidas/próximas -- las tres con el mismo `estado: "pendiente"`.
+- El desglose de activos por estado (6 `count()` sueltos: total, disponible, asignado, en_mantención, baja, reutilizable) y el de "Stock por Categoría" (un N+1: hasta 4 `count()` más *por cada categoría*, es decir 4×N consultas) se reemplazan por un único `prisma.asset.groupBy(["categoriaId", "estado"])`, agregado en memoria -- mismo patrón que ya usa `reportes/page.tsx` con un solo campo de agrupación. "Activos por Categoría" (el total por categoría, todos los estados) también sale de este mismo groupBy en vez de un `_count` de Prisma aparte.
+- Mantenciones y devoluciones pendientes se piden una sola vez cada una (sin el límite de 5 en la consulta); el conteo total y los primeros 5 de cada alerta se derivan en memoria -- mismo patrón de "traer y filtrar en JS" ya usado en `/api/empleados` y `/api/asignaciones`.
+- "Asig. Últimos 30 días" deja de ser una consulta aparte: se deriva filtrando en memoria el resultado de "Asignaciones últimos 6 meses" (los 30 días son un subconjunto).
+- Resultado: de hasta ~46 consultas por carga del Resumen (con 7 categorías) a **8 consultas fijas**, sin importar cuántas categorías o activos existan.
+- Corrección menor de consistencia: las consultas de Mantenciones y Asignaciones no excluían activos con `deletedAt` (duplicados descartados de una importación, SPEC 2.7.7) como sí lo hacen todas las consultas de Asset -- se agrega `ACTIVOS_VIGENTES` también ahí.
+
+No se tocó nada fuera de la pestaña Resumen (Reportes, Activos, etc. quedan igual).
+
+## 2.17 El bug de búsqueda por RUT se extiende a Solicitudes y Guías de Despacho (14-sep-2026)
+
+Pedido explícito de Javier, retomando un pendiente que había quedado fuera de alcance en la sección 2.13.1: revisar si el mismo bug de búsqueda por RUT (comparar el texto escrito tal cual contra un RUT guardado formateado, con un `contains` simple) existía en otros buscadores del sistema.
+
+**Se revisaron los cuatro módulos pendientes:**
+
+- **Solicitudes** (`/api/solicitudes`) -- **tenía el mismo bug.** Buscaba con `{ employee: { rut: { contains: filters.search, mode: 'insensitive' } } }` contra `employee.rut`, que se guarda formateado ("12.345.678-9"). Corregido con el mismo patrón ya usado en Empleados/Asignaciones: cuando hay término de búsqueda, se trae todo lo demás ya acotado por los filtros no-textuales (sede, tipo, estado, fechas) sin paginar, y se filtra en memoria comparando `normalizeRut` para el RUT y `matchNoAccent` para número de ticket/nombre/apellido/observaciones; sin término de búsqueda, sigue el camino paginado original de Prisma.
+- **Guías de Despacho** (`/api/guias-despacho`) -- **también tenía el bug**, sobre `receptorRut` (formateado al crear la guía con `formatearRut`). Misma corrección: en memoria con `normalizeRut` para el RUT y `matchNoAccent` para número de guía/OT Chilexpress/nombre del receptor.
+- **Activos** (`/api/activos`) -- **no tenía el bug, porque no aplica**: su buscador filtra por `numeroSerie`/`marca`/`modelo`/`numeroActivoInterno`, campos propios del activo; no busca por RUT de ningún empleado.
+- **Mantenciones** -- mismo caso que Activos: su buscador no incluye ningún campo de RUT.
+
+**Resultado:** el bug quedaba en 2 de 4 módulos revisados; ambos corregidos con el mismo patrón ya establecido (no se inventó una solución nueva). Empleados y Asignaciones ya estaban corregidos desde antes (2.13.1); con esto, todos los buscadores del sistema que comparan contra un RUT usan la misma lógica.
+
+## 2.18 Código huérfano de la reasignación directa: confirmado y desconectado, pendiente de borrar (14-sep-2026)
+
+Pedido explícito de Javier: resolver el pendiente de la sección 2.12 sobre la página `/activos/:id/reasignar`, el componente `ReasignarActivoForm` y el endpoint `PUT /api/activos/:id/reasignar`.
+
+**Se confirmó de nuevo que están completamente huérfanos.** Se revisó el listado de Activos y su vista de detalle (los dos lugares que antes enlazaban a esto) y ningún otro archivo del proyecto los menciona, aparte del export en el índice de componentes.
+
+**Se quitó el export de `ReasignarActivoForm`** de `src/components/activos/index.ts` -- ya nada fuera de su propio archivo puede importarlo, aunque el archivo en sí sigue existiendo.
+
+**No se pudieron borrar los 3 archivos/carpetas en el momento.** El workspace del dispositivo de Javier seguía sin poder abrirse (mismo problema de la actualización de Windows del 8-sep, ver regla operativa #1 de esta sesión) y el flujo de respaldo (`device_stage_files` → editar la copia → `device_commit_files`) solo permitía leer y **escribir** archivos, no borrarlos. En ese momento quedaron pendientes de eliminar a mano:
+
+- `app/src/app/(dashboard)/activos/[id]/reasignar/` (carpeta completa)
+- `app/src/app/api/activos/[id]/reasignar/` (carpeta completa)
+- `app/src/components/activos/ReasignarActivoForm.tsx`
+
+**Corrección (14-sep-2026, auditoría de la sección 2.24):** al revisar el módulo Asignaciones se confirmó que los 3 ya no existen en el disco de Javier -- se borraron en algún momento entre esta sección y la auditoría (probablemente a mano), pero esta nota nunca se actualizó para reflejarlo. Se deja esta corrección en vez de reescribir el texto original, para no perder el rastro de qué pasó.
+
+## 2.19 Se extienden las specs por categoría a Excel y a los selectores de Guías/Solicitudes (14-sep-2026)
+
+Javier retomó el pendiente que había quedado "fuera de alcance" en la sección 2.11: *"ahora el tema de extender las especificaciones"*. Antes de tocar nada se le preguntó qué quería decir exactamente con eso, porque la frase con la que lo planteó ("definir qué activos estarán por defecto al iniciar el sistema") sonaba a reabrir 2.11.1 (el seed ya no crea activos de ejemplo, a propósito). Confirmó que no era eso: era decidir qué categorías/specs se extienden a los tres lugares que 2.11 había dejado afuera, y pidió una recomendación de qué specs agregar y por qué.
+
+**Se revisaron los 5 archivos involucrados antes de recomendar nada:**
+
+- `GET /api/reportes/inventario/excel` -- ya tenía IMEI y N° Teléfono (Celular), pero le faltaban Pulgadas (Monitor), Plan/Operador (Celular) y Conectividad (Mouse/Teclado/Webcam/Audífonos).
+- `SelectorActivos.tsx` (equipos en Nueva Guía de Despacho) -- su columna "Info" solo cubría Notebook (RAM+Disco) y Celular (teléfono); Monitor y periféricos no mostraban nada, y el tipo `Asset` del componente ni siquiera tenía los campos `pulgadas`/`operador`/`conectividad`.
+- `SeleccionarCambioEquipo.tsx` y `SeleccionarEquiposOnboarding.tsx` (selectores de Solicitudes) -- resultaron ser los más completos: ya mostraban Procesador/RAM/Disco/SO/IMEI/Teléfono/Plan/Operador/Pulgadas. Les faltaba solo Conectividad, y estaban inconsistentes entre sí (Onboarding con etiquetas tipo "RAM: 8GB", Cambio de Equipo con los valores pegados sin etiqueta), pese a compartir casi el mismo código.
+- **`AnexoEntregaTemplate.tsx` -- hallazgo no pedido: es código huérfano, nunca conectado a ningún endpoint.** Se buscó en todo el proyecto quién lo importa y no hay ningún resultado fuera de su propio archivo -- ninguna ruta de API genera este PDF con `renderToBuffer`/`renderToStream` ni lo sirve de ninguna forma. Extenderle las specs habría sido trabajo sobre código que nadie ejecuta. **No se tocó.** De paso se encontró que los otros tres templates de `lib/templates/` (`ComprobanteEntregaTemplate.tsx`, `ComprobanteCambioTemplate.tsx`, `ActaDevolucionTemplate.tsx`) están en la misma situación -- ninguno tiene un caller. Esto queda como pendiente sin decisión (ver Changelog): no se sabe si estos cuatro archivos son trabajo a medio conectar o quedaron obsoletos tras el rediseño de Guías de Despacho de la v1.5 (2.9.5 documenta explícitamente que ese módulo se quedó "sin documento PDF").
+
+**Se creó `lib/utils/assetSpecs.ts`** como fuente única de "qué specs le corresponden a un activo según su categoría" (`especificacionesActivo`, con etiqueta; `especificacionesActivoTexto`, en texto plano unido con " · "; `etiquetaConectividad`, para el valor legible de `usb`/`bluetooth`/`cable`) -- mismo criterio que ya se usó para `normalizeRut`/`matchNoAccent` en 2.13.1: una sola función que las pantallas consumen, en vez de que cada una mantenga su propia lista a medio completar.
+
+**Cambios aplicados, todos usando ese helper (salvo Excel, ver nota):**
+
+- `GET /api/reportes/inventario/excel`: se agregan columnas Pulgadas, Plan, Operador y Conectividad. Se mantienen como columnas separadas (no como un solo texto unido) porque en Excel eso es lo que permite filtrar/ordenar por cada dato -- a diferencia de las otras cuatro pantallas, aquí no se usa `especificacionesActivoTexto` completo, solo `etiquetaConectividad` para el valor de Conectividad.
+- `SelectorActivos.tsx`: se agregan `pulgadas`/`operador`/`conectividad` al tipo `Asset`, y la columna "Info" ahora también muestra pulgadas para Monitor y la conectividad para cualquier periférico que la tenga.
+- `SeleccionarCambioEquipo.tsx` y `SeleccionarEquiposOnboarding.tsx`: sus funciones locales de especificaciones se reemplazan por el helper compartido -- ambos quedan con Conectividad incluida y con el mismo formato etiquetado (se unifica hacia el de Onboarding, que era el más claro).
+- `/activos/:id` (vista de detalle): de paso se notó que el bloque "Especificaciones Técnicas" (ampliado en 2.11) no incluía `tipoPlan` pese a mostrar el resto de los campos de Celular -- se agrega.
+
+**Fuera de alcance de este cambio:** no se decidió nada sobre los 4 templates PDF huérfanos (Anexo de Entrega, Comprobante de Entrega, Comprobante de Cambio, Acta de Devolución) -- ni conectarlos, ni borrarlos, ni extenderles las specs. Queda pendiente de que Javier decida qué hacer con ellos.
+
+## 2.20 Se elimina el campo Operador de Celular (14-sep-2026)
+
+Pedido explícito de Javier, planteado por voz mientras se revisaba el tema de Proveedores en Compras (sección aparte, ver nota al final): *"y si mejor le quitamos el proveedor al teléfono?"*. Se le preguntó explícitamente para confirmar, porque "proveedor" podía referirse al catálogo `Supplier` que se estaba discutiendo justo antes -- confirmó que se refería al campo **Operador** de la categoría Celular (Entel/Movistar/WOM/Claro), no al proveedor de Compras.
+
+**Se optó por el borrado completo** (columna en `Asset` + formularios + migración), no solo ocultarlo de las pantallas, porque Javier confirmó de memoria que ningún Celular existente tiene el dato cargado. Esto no se pudo verificar directamente contra la base de datos -- el workspace del dispositivo seguía sin poder abrirse (mismo problema de Windows del 8-sep, ver regla operativa #1 de esta sesión) -- así que la confirmación quedó en la palabra de Javier, no en una consulta.
+
+**Se quitó `operador` de:**
+- `Asset` en `schema.prisma` (migración `20260914000000_activos_quitar_operador_celular`, `ALTER TABLE assets DROP COLUMN operador`).
+- `lib/validations/asset.ts` (ya no se valida).
+- Formularios `/activos/nuevo` y `/activos/:id/editar` -- se quita el campo entero (label + `<select>` con las opciones Entel/Movistar/WOM/Claro/Otro) de la sección de specs de Celular, y su entrada en el estado del formulario.
+- `POST /api/activos` y `PUT /api/activos/:id` -- ya no lo escriben.
+- Vista de detalle `/activos/:id` -- ya no aparece en "Especificaciones Técnicas".
+- Los 4 lugares tocados el mismo día en la sección 2.19 (`lib/utils/assetSpecs.ts`, el Excel de inventario, y los tipos de `SelectorActivos.tsx`/`SeleccionarCambioEquipo.tsx`/`SeleccionarEquiposOnboarding.tsx`) -- alcanzaron a tener este campo unas horas antes de que se pidiera sacarlo.
+
+**El resto de las specs de Celular no se tocó**: IMEI, N° Teléfono, N° Activación, Tipo de Plan y Tiene Cargador siguen igual.
+
+**Nota sobre Proveedores en Compras:** la conversación había empezado revisando si convenía agregar un selector de Proveedor (catálogo `Supplier`) a Nueva Compra, con una subpestaña dentro de Compras como la de Kit/EPP en Activos. Javier decidió dejarlo así por ahora -- **no se implementó nada de eso**, `Supplier`/`/api/proveedores`/`/configuracion/proveedores` siguen exactamente como estaban (catálogo independiente, desvinculado de Compras desde la v1.9).
+
+## 2.21 El alta rápida de equipo en Nueva Compra gana las specs por categoría (14-sep-2026)
+
+Javier preguntó, revisando el módulo de Compras: *"en el módulo de las compras no implementaste los formularios personalizados para agregar nuevos equipos en caso de comprar y para qué equipos hay formularios?"*. Se confirmó el gap: el "Crear Equipo Nuevo" embebido en `/compras/nueva` (agregado en la v1.11, sección 2.10.1) solo pedía **Categoría, Marca, Modelo y N° de Serie** -- los mismos 4 campos sin importar la categoría elegida, a diferencia de `/activos/nuevo` y `/activos/:id/editar`, que sí tienen secciones propias por categoría desde la sección 2.11.
+
+**Se respondió primero qué categorías tienen formulario propio (sin tocar nada):** Notebook (procesador, RAM, disco, sistema operativo, antivirus, nombre de equipo), Celular (IMEI, teléfono, almacenamiento -- ver nota abajo), Monitor (pulgadas), y Mouse/Teclado/Webcam/Audífonos comparten un solo campo (Conectividad); Impresora y Docking Station no tienen specs propias. Javier confirmó que quería exactamente eso replicado en Compras.
+
+**Se extendió el alta rápida de `/compras/nueva`** para mostrar las mismas secciones condicionales por categoría que `/activos/nuevo`, con el mismo criterio de detección (nombre de categoría en minúscula) y los mismos campos -- reutilizando `POST /api/activos`, que ya aceptaba estos campos desde siempre (el formulario simplemente no los estaba mandando). No se agregaron `numeroActivacion` ni `tipoPlan` de Celular porque **tampoco existen en el formulario de origen** (`/activos/nuevo`/editar) -- ese es un gap previo, no introducido por este cambio, y queda fuera de alcance a menos que Javier lo pida.
+
+**No se tocó nada del resto de Compras:** los campos generales de la factura (N° factura, fecha, RUT proveedor, orden de compra), la búsqueda de activos existentes, ni el flujo de guardado de la compra.
+
+## 2.22 El importador de Excel de Activos ahora respeta la Sede (14-sep-2026)
+
+Javier subió dos Excel para evaluar si podían importarse (*"estos son los excels que debere importar para el sistema, dime como voy y si esposible realizar la importacion de alguno"*) y, antes de intentar una importación real, se revisó `/api/activos/importar` (y su ruta hermana de reintento, `/api/activos/importar/batch`) contra el aislamiento por Sede (2.8/2.9): **ninguna de las dos asignaba `sedeId`** a los activos ni a los empleados que crea -- exactamente el mismo bug que 2.11.1 encontró en `seed.ts`. Un activo o empleado con `sedeId = null` es invisible para cualquier técnico (solo admin, con visibilidad total, lo ve): una importación de 239 notebooks habría quedado así, sin que nadie lo notara hasta buscarlos y no encontrarlos. Javier confirmó arreglar esto antes de importar (*"Sí, arréglalo primero"*).
+
+**Cambios:**
+- `/activos/importar` (pantalla): gana un selector de "Sede" -- visible y obligatorio solo para admin (un técnico hereda la suya, igual que en Nuevo Activo/Nueva Compra/Nuevo Empleado); bloquea "Vista previa" e "Importar" hasta elegirla.
+- `POST /api/activos/importar`: resuelve la sede con `sedeIdParaCrear(session, sedeId, { requerido: true })` y la asigna tanto al `Employee` que crea (si el Excel trae un empleado nuevo) como al `Asset`.
+- `POST /api/activos/importar/batch` (reintento de filas corregidas desde el panel de errores): mismo fix -- recibe `sedeId` en el body y lo aplica igual, para que una fila reimportada no quede en una sede distinta (o sin sede) respecto del resto del lote.
+- `GET /api/activos/importar/preview` no se tocó: solo lee y previsualiza el Excel, no escribe nada en la base.
+
+**Sobre los dos Excel evaluados** (sin importar nada todavía):
+- `Consolidado inventario Notebook 2026.xlsx` (239 notebooks): compatible con el importador actual, con tres salvedades detectadas al inspeccionar los datos reales: (1) la columna "ID-Interno" es la que en realidad trae el Estado (Activo/Baja/Disponible/Mantención/etc.) pese a su nombre, y la columna literal "Estado" trae la Condición (Usado/Nuevo/Seminuevo) -- hay que mapearlas manualmente al revés de lo que el auto-mapeo sugeriría; (2) unas 4 filas traen un estado no reconocido por el vocabulario actual y quedarán para corrección manual vía el panel de errores; (3) 1 fila sin Marca será rechazada. Pendiente de que Javier ejecute la importación real con estos mapeos.
+- `Conciliacion_lineas_celulares Final 2.xlsx`: **no se puede importar como Activos** -- es conciliación de líneas telefónicas/facturación (número de línea, plan, tráfico de datos/voz/SMS, estado de la línea), sin ninguna columna de Marca/Modelo/N° de Serie/IMEI, que el importador exige siempre. Javier confirmó que no tiene, por ahora, otro archivo con los datos físicos de los celulares -- queda pendiente de que aparezca ese archivo.
+
+**Fuera de alcance:** no se tocó la lógica de interpretación de Estado/Condición/RUT/Microsoft 365 (`lib/importacion/activos.ts`), ni la búsqueda de empleados existentes por RUT (que no se acota por sede -- un empleado ya cargado en otra sede se sigue encontrando y reutilizando tal cual estaba antes de este cambio).
+
+## 2.23 Se agrega el tipo de licencia de Microsoft 365 (14-sep-2026)
+
+Al revisar el Excel de Notebooks para la importación (2.22), Javier notó que la columna "Microsoft 365 Empresa" trae el nombre del plan (*"Premium"* en 179 filas) y pidió explícitamente: *"recuerda considerar los datos como decir el tipo de licencia microsoft 365 empresa"*. Hasta ahora el sistema solo guardaba un booleano Sí/No (`microsoft365`) -- tanto en la base como en los tres lugares que ya leían esa columna (`lib/importacion/activos.ts` vía `tieneMicrosoft365`, usado por ambas rutas de importación), así que el nombre del plan se perdía siempre, no solo al importar. Se le preguntó a Javier qué hacer y confirmó agregar un campo nuevo.
+
+**Se agrega `tipoLicenciaMicrosoft365`** (texto libre, opcional) al modelo `Asset` (migración `20260914010000_activos_agregar_tipo_licencia_microsoft365`), junto al `microsoft365` booleano existente -- no lo reemplaza, porque ese booleano ya se usa en el listado de Activos y en los reportes/exportaciones para filtrar.
+
+**Cambios:**
+- `lib/validations/asset.ts`, `POST /api/activos`, `PUT /api/activos/:id`: aceptan y persisten el campo nuevo, igual que el resto de las specs de Notebook.
+- `/activos/nuevo`, `/activos/:id/editar` y el alta rápida de `/compras/nueva` (sección de Notebook): ganan el campo "Licencia Microsoft 365". **Hallazgo no pedido:** ninguno de estos tres formularios tenía forma de setear el booleano `microsoft365` -- solo se podía cargar por importación o directo por API. En vez de agregar un checkbox aparte, se decidió derivar `microsoft365` de si este campo viene con texto (`Boolean(tipoLicenciaMicrosoft365)`): más simple para quien carga el dato, un solo campo en vez de dos. **Advertencia:** un activo que ya tuviera `microsoft365 = true` sin este campo cargado (por ejemplo, seteado directo por API antes de este cambio) se vería con el toggle en "No" la próxima vez que se edite desde estas pantallas hasta que se le cargue el plan -- no se conocen casos así hoy (el sistema recién se está poblando), pero queda documentado por si aparece.
+- `POST /api/activos/importar` y `POST /api/activos/importar/batch`: guardan el valor tal cual venía en la columna mapeada a "Microsoft 365" del Excel, además de seguir derivando el booleano con `tieneMicrosoft365` como ya hacían.
+- `lib/utils/assetSpecs.ts`: se agrega a la lista de specs de Notebook (etiqueta "Microsoft 365") -- lo heredan automáticamente `/activos/:id`, `SeleccionarCambioEquipo.tsx` y `SeleccionarEquiposOnboarding.tsx` (ver SPEC 2.19).
+- `GET /api/reportes/inventario/excel` y `GET /api/activos/exportar`: se agrega la columna "Licencia Microsoft 365" junto a la columna booleana existente.
+
+**Fuera de alcance:** el badge "M365" del listado de Activos (`/activos`) no se tocó -- sigue mostrando solo Sí/No, no el nombre del plan. `SelectorActivos.tsx` (selector de equipos de Guías de Despacho) tampoco -- no usa el helper de `assetSpecs.ts`, tiene su propia lógica de "Info" enfocada en pulgadas/conectividad.
+
+## 2.24 Auditoría de los 9 módulos y corrección de 5 fugas de aislamiento por sede (14-sep-2026)
+
+Javier preguntó *"de momento que hemos corregido? ... están todos los módulos listos?"* y, al aclarársele que las correcciones del día habían sido puntuales (no una auditoría completa), pidió expresamente esa auditoría: *"empieza por todos"*.
+
+**Se revisaron los 9 módulos del sistema** (Activos, Empleados, Asignaciones, Solicitudes, Guías de Despacho, Compras, Mantenciones, Dashboard/Reportes, Configuración) contra 6 dimensiones fijas: CRUD completo vs. lo documentado, aislamiento por sede, validaciones/manejo de errores, código huérfano, consistencia entre pantallas, y transacciones/historial. Metodología: lectura de código (no pruebas funcionales en navegador -- el workspace del dispositivo seguía sin poder abrirse, mismo problema del 8-sep).
+
+**Se confirmó que Configuración > Usuarios ya existe** (contrario a la suposición inicial de Javier de que "falta la parte de configuración"): CRUD completo en `/configuracion/usuarios` y `/api/usuarios`, con sede obligatoria para cualquier rol no-admin.
+
+**Se encontraron 5 fugas críticas de aislamiento por sede** -- rutas que nunca aplicaban `sedeWhere`/`assertSedeAccess`, así que un técnico podía ver, exportar o accionar sobre datos de otras sedes. Javier confirmó corregirlas de inmediato (*"si, aplica los filtros necesarios"*):
+
+- `GET /api/activos/exportar`: el Excel de exportación de Activos no filtraba por sede. Se agrega `sedeWhere(session)` al `where`.
+- `GET /api/empleados/buscar`: la búsqueda de empleado por RUT no filtraba por sede -- un técnico podía consultar la ficha completa (con todos sus equipos) de un empleado de cualquier sede. Se agrega `assertSedeAccess(session, employee.sedeId, ...)` tras encontrarlo.
+- `GET /api/reportes/inventario/excel`, `GET /api/reportes/rrhh/excel`, `GET /api/reportes/trazabilidad`: ninguno de los tres reportes filtraba por sede, pese a que `tecnico` tiene permiso de lectura sobre `reportes` -- la más seria de las cinco, porque es una descarga completa de la empresa. Se agrega `sedeWhere(session)` al Excel de inventario; `{ employee: sedeWhere(session) }` al de RRHH (`Termination` no tiene `sedeId` propio, se filtra vía su relación a `Employee`, mismo criterio que Asignaciones/Mantenciones/Dashboard); y un `AND` con `sedeWhere(session)` a la búsqueda de trazabilidad.
+- `POST /api/activos/[id]/baja` y `POST /api/activos/[id]/venta`: ninguna de las dos validaba sede antes de ejecutar la acción -- un técnico que conociera o adivinara el id de un activo de otra sede podía darlo de baja o venderlo igual. Se agrega `assertSedeAccess(session, asset.sedeId, ...)` en ambas, justo después de cargar el activo.
+- `GET /api/solicitudes/stats`: las 4 consultas de estadísticas (por tipo, por estado, total, abiertas) no filtraban por sede, a diferencia del listado normal de Solicitudes que sí lo hacía. Se agrega `sedeWhere(session)` a las 4.
+
+**Hallazgos adicionales de la auditoría, NO corregidos todavía (fuera de alcance de este pedido puntual, quedan para que Javier priorice):**
+
+- **Venta de activos:** el formulario pide moneda, fecha de venta y documento, pero `assetHistoryService.registrarVenta` los descarta -- nunca se persisten, y la fecha de venta guardada siempre es la de hoy, no la ingresada.
+- **Mantenciones:** marcar un resultado como "no reparable" o "pendiente de repuestos" no dispara las transiciones que documenta 2.7.5 (`baja` en el primer caso, quedar abierta en el segundo) -- siempre cierra a "completada".
+- **Solicitudes:** `POST /api/solicitudes/[id]/transicion` (que muta el estado del ticket) usa el permiso `'read'` en vez de `'write'`, inconsistente con el resto de rutas de escritura del módulo. Además, `POST /api/solicitudes/[id]/kit-epp` no verifica que el ticket no esté ya cerrado antes de entregar (el `PATCH` de "no aplica" sí lo hace).
+- **Empleados:** ninguna acción (crear, editar, reasignar de sede, dar de baja) deja registro en un historial/auditoría, a diferencia de Activos.
+- **Compras:** vincular un activo ya existente a una compra no deja registro en `AssetHistory` (solo lo hace la creación de un activo nuevo).
+- Hallazgos menores (documentados por los agentes de auditoría, sin acción): política de contraseña más débil al editar un usuario que al crearlo; la vista de detalle de una Guía de Despacho no muestra specs de Monitor/periféricos aunque el selector de activos sí las tiene; un endpoint duplicado sin uso en Guías (`/api/guias-despacho/numero`); botones de Editar/Borrar visibles para técnico en Categorías/Proveedores/Sedes aunque el servidor los bloquea igual (403 al hacer clic); y la sección 2.18 de este mismo documento quedó desactualizada -- los 3 archivos que decía "pendientes de borrar" ya no existen en el disco.
+
+**Fuera de alcance:** no se tocó nada del modelo de Compras (su regla de sede es intencionalmente distinta al resto, ver 2.10) ni de Mantenciones/Dashboard más allá de lo ya confirmado sólido en la auditoría.
+
+## 2.25 Se corrigen 4 de los hallazgos "medios" de la auditoría 2.24 (14-sep-2026)
+
+Javier revisó la lista de hallazgos medios de la sección 2.24 y dio instrucciones puntuales para cada uno: *"al vender un activo no es necesario documento, solo basta con poner la fecha en la que fue vendido, deberia dar de baja lo del mantenimiento en caso a ver un boton que diga no reparable y lo de debaja, en solicitudes entonces cambialo a write para que sea mejor, empleado no es necesario historial, el activo si, lo del kit no te entendi"*.
+
+**Venta de activos:** se saca por completo el campo "Documento de venta" (URL) del formulario y del schema (`assetVentaSchema`) -- Javier confirmó que no hace falta. Se agrega la columna `fecha_venta` a `Asset` (migración `20260914020000_activos_agregar_fecha_venta`): antes no existía ningún lugar donde guardar esa fecha, y `assetHistoryService.registrarVenta` siempre grababa `new Date()` (la fecha de hoy) en el historial, ignorando la fecha que la persona ingresaba en el formulario. Ahora se persiste la fecha real, tanto en la columna del activo como en el historial (junto con la moneda, que tampoco se guardaba antes).
+
+**Mantenciones -- "No reparable" ahora da de baja el equipo:** se agrega un selector de resultado (Reparado / Faltan repuestos / No reparable) al formulario de "Completar Mantención", reemplazando la lógica anterior que SIEMPRE devolvía el activo a disponible/asignado/reutilizable sin importar lo que dijera el texto libre de "Resultado" -- si alguien escribía "no reparable" a mano, el equipo igual quedaba operativo. Se agregan las columnas `resultado_tipo` y `motivo_baja` a `Maintenance` (migración `20260914030000_mantenciones_resultado_estructurado`). Al completar con "No reparable" (motivo obligatorio), el activo pasa a `baja` en la misma transacción -- se reutiliza `validateTransition('en_mantencion', 'baja', ...)`, que ya existía en `assetStateMachine.ts` con este caso exacto documentado ("Mantención: no reparable") pero nunca había sido invocado desde esta ruta. Con "Faltan repuestos", el activo se queda en `en_mantencion` (no vuelve a servicio) en vez de disponible/asignado/reutilizable. Se elimina `maintenanceCloseSchema` de `assetTransition.ts`, que planteaba la misma idea pero nunca estuvo conectado a la ruta real (código huérfano) -- `completeMaintenanceSchema` en `maintenance.ts` reutiliza directamente el enum `resultadoMantencionEnum`.
+
+**Solicitudes -- permiso de transición:** `POST /api/solicitudes/[id]/transicion` pasa de `requirePermission('solicitudes', 'read')` a `'write'`, consistente con el resto de rutas de escritura del módulo (cancelar, kit-epp, etc.).
+
+**Empleados:** Javier confirmó que no hace falta historial ahí -- se deja como está, sin cambios.
+
+**Compras -- historial al vincular un activo existente:** antes solo quedaba registro en `AssetHistory` cuando un activo se creaba desde el alta rápida de Nueva Compra; vincular uno ya existente (`POST /api/compras/[id]/activos`) no dejaba ningún rastro. Se agrega el valor `compra` a `TipoEvento` (migración `20260914040000_asset_history_agregar_evento_compra`) y un nuevo método `assetHistoryService.registrarVinculacionCompra`, invocado por cada activo vinculado dentro de la misma transacción.
+
+**Sin resolver, pendiente de que Javier lo explique de nuevo:** el hallazgo de Kit/EPP (`POST /api/solicitudes/[id]/kit-epp` no verifica que el ticket no esté ya cerrado antes de entregar, a diferencia del `PATCH` de "no aplica" que sí lo hace) -- Javier indicó que no entendió la explicación original, así que no se tocó nada todavía.
+
+**Corrección (14-sep-2026, mismo día):** al revisar el código para implementar este último punto, se confirmó que **la validación ya existía** en `kit-epp/route.ts` líneas 45-47, igual que en el `PATCH`. El hallazgo original de la auditoría 2.24 era incorrecto -- no había ningún bug ahí. No se hizo ningún cambio.
+
+## 2.26 Se corrigen los 5 hallazgos "menores" de la auditoría 2.24 (14-sep-2026)
+
+Javier pidió explícitamente bloquear el acceso al módulo de administración para técnico (*"el modulo de administracion no puede ser accedido por ningun tecnico hay que bloquear esa vista como un guard, los botones se dejan pero no deberia pasar nadie a esa vista solo admin"*), hacer más informativa la vista de detalle de Guías de Despacho, y resolver el resto de los hallazgos menores "usando tu criterio pensando en soluciones escalables y eficientes".
+
+**Guard de Configuración -- ya existía, otro hallazgo de la auditoría 2.24 que era incorrecto.** Al revisar `app/src/app/(dashboard)/configuracion/layout.tsx` para implementar el guard pedido, se confirmó que ya existe: un chequeo del lado del servidor (`can(session.user.role, "configuracion", "read")`) que redirige a `/` a cualquier usuario que no sea admin, aplicado a TODO el árbol de Configuración (sedes, categorías, proveedores, usuarios, kit-epp, parámetros, microsoft-sync, mantenimiento de datos) desde un único layout -- exactamente la solución "escalable" que se hubiera propuesto. El Sidebar tampoco muestra el link a técnico. El hallazgo de la auditoría 2.24 (que un técnico podía *abrir* estas pantallas) era incorrecto -- la auditoría solo miró cada `page.tsx` por separado y no vio que el layout padre ya bloqueaba el acceso antes de que cualquier página se renderizara. No se hizo ningún cambio de código para esto -- ya estaba resuelto.
+
+**Guías de Despacho -- vista de detalle ahora muestra las specs completas.** La tabla de equipos de una guía armaba las "Especificaciones" a mano, con una rama para Notebook y otra para Celular únicamente -- un Monitor o un periférico mostraban "-" aunque la API ya traía sus datos (pulgadas, conectividad). Se reemplaza esa lógica por `especificacionesActivoTexto()`, el mismo helper compartido que ya usan el detalle de Activos y el selector de equipos de esta misma pantalla (`assetSpecs.ts`, SPEC 2.19) -- una sola fuente de verdad en vez de una tercera copia de la lista de campos. Se completa también el tipo `DispatchGuideAsset` (`types/guia-despacho.ts`), al que le faltaban `pulgadas`, `conectividad` y `tipoLicenciaMicrosoft365` -- la API ya los devolvía, solo el tipo de TypeScript no los declaraba.
+
+**Contraseña de usuario -- misma regla al crear y al editar.** Antes crear un usuario exigía 12+ caracteres con mayúscula/minúscula/número/símbolo, pero editar uno solo exigía 6 caracteres sin ninguna otra regla -- se podía debilitar la contraseña de un usuario al editarlo. Se extrae la regla a una función compartida (`lib/validations/password.ts`, `validarPasswordFuerte`) y ambas rutas (`POST` y `PUT /api/usuarios`) la reutilizan, para que no puedan volver a desincronizarse.
+
+**Endpoint duplicado en Guías -- unificado en vez de borrado.** `GET /api/guias-despacho/numero` tenía la misma lógica de generar el próximo número de guía que ya vivía, duplicada, dentro de `POST /api/guias-despacho` -- sin ningún caller real. Como no se puede borrar archivos por el flujo de respaldo actual (ver regla operativa #1), se optó por la solución más útil: extraer la lógica a `lib/services/guiaDespachoService.ts` (`generarNumeroGuia`) y hacer que **ambas** rutas la llamen -- el endpoint deja de estar duplicado y de paso queda disponible por si una futura pantalla necesita previsualizar el número antes de crear la guía.
+
+**Corrección de la nota desactualizada (sección 2.18):** se agregó una nota confirmando que los 3 archivos de la reasignación directa que quedaron "pendientes de borrar" ya no existen en el disco de Javier -- se borraron en algún momento sin que se actualizara el documento.
 
 ---
 
@@ -1646,6 +2008,75 @@ nunca debió existir como fila separada.
 
 ## Changelog SPEC
 
+- **v1.32 (2026-09-14):**
+  - Corrección al hallazgo de Kit/EPP de la sección 2.25: al revisar el código para arreglarlo se confirmó que la validación de ticket cerrado ya existía en el `POST` -- el hallazgo original era incorrecto, no había bug.
+  - Sección 2.26 (nueva): se resuelven los 5 hallazgos "menores" de la auditoría 2.24. Dos resultaron ser hallazgos incorrectos de la propia auditoría (el guard de Configuración ya bloqueaba a técnico del lado del servidor, vía `configuracion/layout.tsx` -- nunca se necesitó código nuevo). Los otros tres sí se corrigen: la vista de detalle de Guías de Despacho ahora muestra specs completas de cualquier categoría (reutilizando `assetSpecs.ts`); la contraseña de un usuario exige la misma fortaleza al editar que al crear (`validarPasswordFuerte` compartida); y el endpoint duplicado `/api/guias-despacho/numero` se unifica con la lógica real en vez de quedar como código muerto (`generarNumeroGuia`). Se corrige también la nota desactualizada de la sección 2.18.
+- **v1.31 (2026-09-14):**
+  - Sección 2.25 (nueva): se corrigen 4 de los hallazgos "medios" que dejó abierta la auditoría 2.24, con instrucciones puntuales de Javier para cada uno. Venta de activos: se saca el campo "documento" (innecesario) y se persiste la fecha real de venta (antes se descartaba y el historial siempre usaba la fecha de hoy) -- nueva columna `Asset.fechaVenta`. Mantenciones: un resultado "No reparable" ahora efectivamente da de baja el equipo (antes SIEMPRE volvía a servicio sin importar el texto libre) -- nuevas columnas `Maintenance.resultadoTipo`/`motivoBaja`, reutilizando una transición que la máquina de estados ya documentaba pero que nunca se invocaba. Solicitudes: se corrige el permiso incorrecto (`read`→`write`) en la ruta de transición. Compras: se registra en `AssetHistory` cuando se vincula un activo ya existente (antes solo quedaba rastro al crear uno nuevo) -- nuevo valor `compra` en `TipoEvento`. Empleados: sin cambios, Javier confirmó que no hace falta historial ahí. El hallazgo de Kit/EPP queda sin resolver -- Javier no entendió la explicación original.
+- **v1.30 (2026-09-14):**
+  - Sección 2.24 (nueva): auditoría de código de los 9 módulos del sistema, pedida explícitamente por Javier (*"empieza por todos"*) tras preguntar qué estaba corregido hasta el momento. Se confirma que Configuración > Usuarios ya existe (no era un gap). Se encuentran y corrigen 5 fugas críticas de aislamiento por sede -- rutas que no filtraban por sede en absoluto: exportar Activos, buscar Empleado por RUT, los 3 reportes Excel/trazabilidad, dar de baja/vender un activo por id, y las estadísticas de Solicitudes. Quedan documentados varios hallazgos adicionales (datos de venta descartados, resultado de mantención sin efecto, permiso incorrecto en transición de solicitudes, falta de historial en Empleados y en vinculación de Compras, más hallazgos menores) sin corregir, pendientes de que Javier priorice.
+- **v1.29 (2026-09-14):**
+  - Sección 2.23 (nueva): se agrega `tipoLicenciaMicrosoft365` (texto libre) a `Asset` -- el Excel de Notebooks trae el nombre del plan ("Premium") y se perdía siempre, no solo al importar, porque el sistema solo guardaba un booleano Sí/No. Se agrega a validaciones, API, formularios de Notebook (`/activos/nuevo`, `/activos/:id/editar`, alta rápida de `/compras/nueva`), al helper compartido de specs, al importador y a los dos reportes Excel. De paso se resuelve que ninguno de esos tres formularios podía setear el booleano `microsoft365` manualmente -- se deriva ahora de si hay un plan cargado, en vez de agregar un checkbox aparte. Pedido explícito de Javier, al revisar el Excel de Notebooks.
+- **v1.28 (2026-09-14):**
+  - Sección 2.22 (nueva): `POST /api/activos/importar` y `POST /api/activos/importar/batch` no asignaban `sedeId` a los activos ni empleados creados (mismo bug que 2.11.1 en `seed.ts`), dejándolos invisibles para cualquier técnico. Se agrega selector de Sede (obligatorio para admin) a `/activos/importar` y se resuelve con `sedeIdParaCrear` en ambas rutas. De paso, evaluación de los dos Excel que Javier subió: el de Notebooks (239 filas) es compatible con salvedades de mapeo manual Estado/Condición; el de conciliación de líneas de Celular no se puede importar como Activos porque no trae Marca/Modelo/Serie/IMEI. Pedido explícito de Javier, antes de una importación real.
+- **v1.27 (2026-09-14):**
+  - Sección 2.21 (nueva): el alta rápida de equipo en `/compras/nueva` ("Crear Equipo Nuevo") gana las mismas secciones condicionales por categoría que `/activos/nuevo` (Notebook, Celular, Monitor, periféricos con Conectividad) -- antes solo pedía categoría/marca/modelo/serie sin importar la categoría. Reutiliza `POST /api/activos`, que ya aceptaba estos campos. No se agregó `numeroActivacion`/`tipoPlan` de Celular porque tampoco están en el formulario de origen (`/activos/nuevo`). Pedido explícito de Javier, tras preguntar por qué no estaban y para qué categorías existen formularios propios.
+- **v1.26 (2026-09-14):**
+  - Sección 2.20 (nueva): se elimina el campo Operador (operador telefónico) de la categoría Celular -- columna en `Asset` (migración `20260914000000_activos_quitar_operador_celular`), validación, formularios de Activos, vista de detalle, y los 4 lugares donde se había agregado unas horas antes en la 2.19. Javier confirmó de memoria que no había datos que perder; no se pudo verificar contra la base porque el workspace del dispositivo seguía caído. De paso se descarta -- por ahora -- la idea de agregar un selector de Proveedor (`Supplier`) a Compras con su propia subpestaña, que fue lo que abrió la conversación; `Supplier`/Compras quedan exactamente como estaban. Pedido explícito de Javier.
+- **v1.25 (2026-09-14):**
+  - Sección 2.19 (nueva): se extienden las specs por categoría (dejadas "fuera de alcance" en 2.11) a `GET /api/reportes/inventario/excel` (Pulgadas, Plan, Operador, Conectividad), al selector de equipos de Nueva Guía de Despacho (Monitor y periféricos, que no mostraban nada) y a los dos selectores de Solicitudes (les faltaba solo Conectividad; se unifica el formato entre ambos). Se crea `lib/utils/assetSpecs.ts` como fuente única de estas specs, consumida por las cuatro pantallas. Se agrega `tipoPlan` a la vista de detalle de Activos, que había quedado afuera de la ampliación de la 2.11. Pedido explícito de Javier, con recomendación previa de qué specs extender y por qué.
+  - Hallazgo no pedido, sin acción tomada: `AnexoEntregaTemplate.tsx` (y los otros tres templates PDF de `lib/templates/`: `ComprobanteEntregaTemplate`, `ComprobanteCambioTemplate`, `ActaDevolucionTemplate`) son código huérfano -- ningún endpoint los importa ni los renderiza. No se extendieron ni se tocaron; queda pendiente que Javier decida si se conectan, se completan o se eliminan.
+- **v1.24 (2026-09-14):**
+  - Sección 2.17 (nueva): el bug de búsqueda por RUT (2.13.1) se confirma también presente en Solicitudes (`employee.rut`) y Guías de Despacho (`receptorRut`) -- se corrige con el mismo patrón en memoria (`normalizeRut` + `matchNoAccent`) ya usado en Empleados/Asignaciones. Activos y Mantenciones no lo tenían porque sus buscadores no incluyen ningún campo de RUT. Pedido explícito de Javier.
+  - Sección 2.18 (nueva): se confirma que la reasignación directa (`/activos/:id/reasignar`, `ReasignarActivoForm`, `PUT /api/activos/:id/reasignar`) sigue completamente huérfana; se quita su export del índice de componentes, pero no se pudieron borrar los 3 archivos porque el workspace del dispositivo seguía caído (mismo problema del 8-sep) y el flujo de respaldo no permite borrar, solo escribir. Pedido explícito de Javier.
+- **v1.23 (2026-09-11):**
+  - Sección 2.16 (nueva): análisis de la pestaña Resumen a pedido de Javier -- se corrige que "vendido" no aparecía en ningún gráfico (se agrega al pie chart; se confirma con Javier que NO debe sumar en "Stock por Categoría" ni en las tarjetas operativas, misma lógica de siempre), se agrega "Reutilizable" a "Stock por Categoría" (faltaba, por eso no calzaba con "Activos por Categoría"), se agrega la tarjeta "Equipos Vendidos" (reemplaza a "Empleados Activos"), y se fusionan `getStats()`/`getAlertas()` en una sola `getDashboardData()` que reduce hasta ~46 consultas por carga a 8 fijas (elimina el N+1 de Stock por Categoría, las consultas duplicadas de Mantenciones/Devoluciones entre ambas funciones, y la ejecución secuencial). Pedido explícito de Javier.
+- **v1.22 (2026-09-11):**
+  - Sección 2.15 (nueva): el módulo Reportes pasa a ser una subpestaña del Dashboard (`DashboardTabs`, mismo patrón que `ActivosTabs`), en vez de una sección aparte. Se quita el botón "Ver Reportes" del Dashboard y la entrada "Reportes" del menú lateral (confirmado explícitamente con Javier); el item "Dashboard" del menú ahora también queda activo en `/reportes`. Pedido explícito de Javier.
+- **v1.21 (2026-09-11):**
+  - Sección 2.14.1 (nueva): se extiende el debounce de 2.14 a Solicitudes, Guías de Despacho, Mantenciones y Compras. Solicitudes/Mantenciones/Compras buscaban en cada tecla sin freno; Guías de Despacho exigía Enter. Los cuatro quedan con `useDebouncedValue`; Guías de Despacho además gana un parámetro de override en `fetchGuides` para el Enter explícito y "Limpiar filtros". Pedido explícito de Javier.
+- **v1.20 (2026-09-11):**
+  - Sección 2.14 (nueva): se unifica el comportamiento de los buscadores de Asignaciones, Personal y Equipos, que eran inconsistentes entre sí (Asignaciones buscaba en cada tecla sin freno, Personal y Equipos exigían Enter). Se crea `useDebouncedValue` (`src/hooks/useDebouncedValue.ts`) y se aplica en los tres: buscan solos, ~350ms después de que el usuario deja de escribir. Pedido explícito de Javier tras comparar los tres comportamientos.
+- **v1.19 (2026-09-11):**
+  - Sección 2.13 (nueva): `AsignacionesTable` se saca del fondo de `/activos` y pasa a ser una quinta pestaña propia (`/activos/asignaciones`) en `ActivosTabs`, junto a Equipos/Personal/Kit de Bienvenida/EPP. Pedido explícito de Javier: "sería mucho más ordenado". El componente no cambió, solo dónde vive.
+  - Sección 2.13.1 (nueva): se corrige el buscador de esa tabla, que no encontraba por RUT -- comparaba el texto escrito tal cual contra `employee.rut` (guardado formateado con puntos) con un `contains` simple. Se aplica el mismo patrón ya usado en `/api/empleados` (filtrar en memoria por RUT normalizado + texto sin acentos). Se extrajeron `removeAccents`/`matchNoAccent` de `api/empleados/route.ts` a `lib/utils/text.ts` para no duplicar la lógica entre ambas rutas.
+- **v1.18 (2026-09-11):**
+  - Sección 2.12.1 (nueva): Javier aclaró que la v1.17 se quedó corta -- la idea era dejar solo dos acciones por fila en `/activos` (Ver detalle, Editar), no solo sacar Reasignar. Se quita también "Iniciar solicitud de entrega" de la columna de acciones del listado (junto con el ícono `UserPlus`, sin otro uso). Se revisaron las vistas de tarjetas y kanban: ninguna necesitó cambios, ya cumplían la regla.
+- **v1.17 (2026-09-11):**
+  - Sección 2.12 (nueva): en `/activos` se quita el botón "Reasignar a otra persona" de la columna de acciones (pedido explícito de Javier: "la idea es hacerlo desde solicitudes"), junto con su modal (`ReasignarActivoForm`) y su estado. En `/activos/:id` se quita el panel completo "Acciones Rápidas" (Javier: "ya no es necesario"), verificando primero que Dar de baja, Registrar venta, Enviar a mantención y Registrar devolución siguen alcanzables desde el listado -- solo Reasignar equipo perdía su único acceso, a propósito. La página `/activos/:id/reasignar`, `ReasignarActivoForm` y su endpoint quedan huérfanos sin borrar, pendiente de decisión.
+  - Corrección a la sección 2.11.1, punto 1: la afirmación de que no existe pantalla/endpoint para crear `AssetCategory` fuera del seed es **falsa** -- existe CRUD completo en Configuración > Categorías (`/api/categorias`, con GET/POST/PUT/DELETE). No se verificó bien en su momento (repite el mismo tipo de error ya corregido para Sedes/Kit-EPP en la v1.15). Se corrige también la sección 2.11.2, que heredaba la misma afirmación.
+- **v1.16 (2026-09-11):**
+  - Sección 2.11.2 (nueva): `prisma/seed.ts` deja de incluir "Impresora" y "Docking Station" en el catálogo de categorías por defecto -- queda en 7 (Notebook, Celular, Monitor, Mouse, Teclado, Webcam, Audífonos). Pedido explícito de Javier por voz; la transcripción no identificaba con certeza la segunda categoría a quitar ("documentation" no existe en el catálogo), se preguntó explícitamente y se confirmó Docking Station. No hay migración -- es solo dato de seed, no schema; no afecta bases de datos que ya tengan activos en esas categorías.
+- **v1.15 (2026-09-11):**
+  - Sección 2.11.1: se reemplaza el enfoque de la v1.14 (agregar sedes de ejemplo al seed) por uno más profundo, a pedido explícito de Javier ("vamos a definir el seed nuevamente, como ha cambiado tanto la app"). `prisma/seed.ts` ya no crea sedes, catálogo de Kit/EPP, usuario técnico, empleados ni activos de ejemplo -- todo eso se crea a mano desde la aplicación (Configuración > Sedes/Kit-EPP, o los formularios de Empleados/Activos con datos reales). Queda solo lo que la UI no puede crear por sí sola: el catálogo de categorías de activos y un único usuario admin.
+  - Se corrige una afirmación incorrecta de la v1.14: sí existe pantalla y endpoint (`POST /api/sedes`, `POST /api/kit-items`) para crear sedes y artículos de Kit/EPP a mano; no hacía falta el seed para eso.
+- **v1.14 (2026-09-11):**
+  - Sección 2.11.1 (nueva): `prisma/seed.ts` no creaba ninguna `Sede`, dejando al usuario técnico de ejemplo, los 4 empleados y los 8 activos de ejemplo con `sedeId = null` -- con el aislamiento por sede vigente (2.8/2.8.2), eso significa que ese técnico no veía nada al iniciar sesión en una base recién inicializada. Se agregan dos sedes (Santiago, Rancagua) y se asignan a esos registros según su `ubicacion`/`ubicacionFisica`. Sin migración: `Sede` ya existía, es solo dato de seed. Pedido explícito de Javier: preguntó dónde se definen los activos que se crean al inicializar la base y pidió que por defecto ya existan algunos -- que, de hecho, ya existían; el gap era la sede.
+  - `WelcomeKitItem` tiene el mismo tipo de gap (también es "por sede" y el seed no le asigna una) y queda sin corregir en este cambio -- no fue parte de lo pedido.
+- **v1.13 (2026-09-11):**
+  - Sección 2.11: se revierte la sección de specs propias de Impresora agregada en la v1.12 (`tipoImpresora`, `conexionImpresora`, `ipImpresora`) -- Javier la revisó y decidió que no era necesaria ("no creo que sea necesario para una impresora"). Migración `20260911230000_activos_revertir_specs_impresora`, que elimina las tres columnas agregadas por `20260911220000_activos_specs_impresora_perifericos`. El campo `conectividad` (Mouse/Teclado/Webcam/Audífonos) y la ampliación de specs en la vista de detalle, ambos de la v1.12, no se tocaron.
+  - Apéndice de SQL histórico (Parte 2): se quitan `tipo_impresora`, `conexion_impresora` e `ip_impresora` de la definición de `assets` (quedan como si la v1.12 nunca los hubiera agregado); `conectividad` se mantiene.
+- **v1.12 (2026-09-11):**
+  - Sección 2.11 (nueva): en `Asset` se agregan specs propias de Impresora (`tipoImpresora`, `conexionImpresora`, `ipImpresora`) y un campo compartido `conectividad` para los periféricos simples (Mouse, Teclado, Webcam, Audífonos). Migración `20260911220000_activos_specs_impresora_perifericos`. Extiende a estas categorías el patrón de formulario general + sección condicional por categoría que ya existía para Notebook/Celular/Monitor. Pedido explícito de Javier: "deberíamos hacer un formulario específico para cada activo... un formulario general con... y luego, aparte, dependiendo qué seleccionamos, desplegar otro tipo de formulario."
+  - Sección 2.11: se corrige un gap en `/activos/:id` -- el bloque "Especificaciones Técnicas" no mostraba los campos de Celular (IMEI, teléfono, operador) ni antivirus/nombre de equipo, aunque estuvieran guardados. Se amplía para incluir esos campos más los cuatro nuevos de este cambio.
+  - Apéndice de SQL histórico (Parte 2): se agregan `tipo_impresora`, `conexion_impresora`, `ip_impresora` y `conectividad` a la definición de `assets`.
+- **v1.11 (2026-09-11):**
+  - Sección 2.10.1 (nueva): en `Purchase` se elimina `documentoUrl` (no se usaba) y se agrega `rutProveedor` (texto libre, opcional, validado con dígito verificador vía `rutOptionalSchema` -- reutilizada de `src/lib/validations/rut.ts`, sin referencia al catálogo `Supplier`). Migración `20260911210000_compras_rut_proveedor_sin_documento`. Pedido explícito de Javier: "aplicaría la borrada del documento, pero agregaría el RUT del proveedor... texto simple, algún tipo de validación para validar que el rut es válido."
+  - Sección 2.10.1: `/compras/nueva` ahora permite crear un activo nuevo (categoría, marca, modelo, N° de serie) sin salir del formulario, reutilizando `POST /api/activos` en vez de duplicar su lógica -- hereda asignación de sede, validación de N° de serie duplicado e historial. Pedido explícito de Javier: "la idea es que en esa misma formulario pueda agregar los equipos que me llegaron."
+  - Apéndice de SQL histórico (Parte 2): se actualiza la definición de `purchases` -- se agrega `rut_proveedor`, se elimina `documento_url`.
+- **v1.10 (2026-09-11):**
+  - Sección 2.8.2/2.10: la sede pasa a ser obligatoria para admin también en `compras` (`sedeIdParaCrear` ahora se usa con `{ requerido: true }`, igual que en activos/empleados/solicitudes/guías) -- el selector de Nueva Compra ya no ofrece "Sin sede (transversal)", y `PUT /api/compras/:id` rechaza que admin la vacíe explícitamente. Pedido explícito de Javier: la lógica de sede en compras debía ser "la misma, al final" que en el resto de los módulos -- admin elige entre las sedes existentes, un técnico queda registrado con la suya automáticamente.
+- **v1.9 (2026-09-11):**
+  - Sección 2.10: se reduce aún más el modelo `Purchase` -- se eliminan `supplierId`/`supplier`, `montoTotal`, `moneda` y `metodoPago`, y de `PurchaseAsset` se elimina `precioUnitario` (migración `20260911200000_compras_solo_factura_y_equipos`). No es una restricción de UI por rol como en la v1.8: los campos ya no existen para ningún rol, admin incluido. Pedido explícito de Javier el mismo día, minutos después de la v1.8: "el tema del dinero no es un dato que nos interese" y "los proveedores tampoco importa". Al área de soporte solo le sirve la factura (para relacionarla) y los equipos que vinieron con ella.
+  - Sección 1.3.1, regla 3: se actualiza para reflejar que ya no hay campos que restringir por rol dentro de `compras` -- el único límite entre admin y técnico es el aislamiento por sede (2.8).
+  - Sección 1.2: el objetivo de negocio "Correlación financiera: vincular activos con facturas y proveedores" se reescribe como "Correlación con facturas", sin dato financiero ni de proveedor.
+  - El modelo `Supplier`/tabla `suppliers` no se eliminó -- queda como catálogo independiente sin usarse desde compras (su API y su pantalla en Configuración siguen intactas). El endpoint `GET /api/reportes/compras`, sin ninguna pantalla que lo consuma, se simplificó a conteos por período en vez de romperse o eliminarse.
+  - Apéndice de SQL histórico (Parte 2): se corrigen las definiciones de `purchases` y `purchase_assets`, que habían quedado desactualizadas desde antes de este cambio (les faltaba incluso `sede_id`, de la v1.5).
+- **v1.8 (2026-09-11):**
+  - Sección 2.10 (nueva): Compras — acceso de técnico. `compras` pasa de `R` a `RW` para técnico en la matriz 1.3.1 (regla 3 actualizada); el técnico queda acotado a las compras y activos de su propia sede (2.8), pero sin visibilidad de los campos financieros (`montoTotal`, `moneda`, `metodoPago`, `precioUnitario`), reservados a `admin` en la UI y en la API. Borrado sigue siendo exclusivo de `admin`. (Superado por la v1.9 el mismo día: esos campos se eliminaron del modelo por completo.)
+- **v1.7 (2026-09-11):**
+  - Sección 2.8.2: la sede deja de ser opcional para `admin` en `activos`, `empleados`, `solicitudes` y guías de despacho (sede origen) -- el selector ya no ofrece "sin sede" y `sedeIdParaCrear` acepta un tercer parámetro `opts.requerido` que rechaza la creación con 400 si admin no eligió ninguna. Antes, un registro creado por admin sin sede quedaba huérfano: ningún técnico lo veía, porque el filtro por sede nunca calza con `sedeId = null`.
+  - Sección 2.9.2: Nueva Guía de Despacho gana un campo "Sede origen" obligatorio para admin (antes no existía ningún selector de sede emisora en el flujo de admin); el selector de equipos queda acotado a esa sede.
 - **v1.6 (2026-09-10):**
   - Sección 2.1: se documenta el modelo `maintenance_types` (catálogo editable, global, con retiro lógico `activo`) y el cambio de `maintenances.tipo` (enum fijo) a `maintenances.tipo_id` (FK). El refactor se hizo el 9-sep-2026 pero no estaba en el SPEC.
   - Sección 1.3.1: se agrega el recurso `tiposMantencion` a la matriz de permisos (`RWD` para admin y técnico) y la excepción a la regla 2 — el técnico sí puede borrar tipos de mantención, por ser catálogo operativo y no configuración del sistema.

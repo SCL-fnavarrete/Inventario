@@ -13,6 +13,7 @@ import {
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { etiquetaConectividad } from "@/lib/utils/assetSpecs";
 
 type Asset = {
   id: string;
@@ -26,6 +27,8 @@ type Asset = {
   sistemaOperativo: string | null;
   numeroTelefono: string | null;
   tipoPlan: string | null;
+  pulgadas: string | number | null;
+  conectividad: string | null;
   estado: string;
   condicion: string;
   categoria: {
@@ -37,6 +40,11 @@ type Asset = {
 interface SelectorActivosProps {
   selectedAssets: Asset[];
   onSelectionChange: (assets: Asset[]) => void;
+  // Acota el inventario a una sede especifica -- lo usa el admin en Nueva
+  // Guia de Despacho una vez que elige la sede origen (ver SPEC 2.9), para
+  // no poder mezclar en un mismo despacho equipos de sedes distintas. Un
+  // tecnico no necesita pasarlo: /api/activos ya lo acota solo a lo suyo.
+  sedeId?: string;
 }
 
 function getCategoryIcon(categoryName: string) {
@@ -74,6 +82,7 @@ function getConditionBadge(condicion: string) {
 export function SelectorActivos({
   selectedAssets,
   onSelectionChange,
+  sedeId,
 }: SelectorActivosProps) {
   const [loading, setLoading] = useState(false);
   const [availableAssets, setAvailableAssets] = useState<Asset[]>([]);
@@ -84,7 +93,8 @@ export function SelectorActivos({
   useEffect(() => {
     fetchAssets();
     fetchCategories();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sedeId]);
 
   async function fetchAssets() {
     setLoading(true);
@@ -92,8 +102,12 @@ export function SelectorActivos({
       // Solo "disponible": una guia de despacho exige que el activo este
       // disponible al crearla (ver POST /api/guias-despacho), asi que no
       // tiene sentido ofrecer "reutilizable" aca -- ese caso pasa primero
-      // por el flujo que lo deja disponible.
-      const disponibles = await fetch("/api/activos?estado=disponible&limit=200").then((r) => r.json());
+      // por el flujo que lo deja disponible. El filtro de sede solo tiene
+      // efecto para admin (ver /api/activos); para tecnico ya viene acotado
+      // por sesion.
+      const params = new URLSearchParams({ estado: "disponible", limit: "200" });
+      if (sedeId) params.set("sedeId", sedeId);
+      const disponibles = await fetch(`/api/activos?${params}`).then((r) => r.json());
       setAvailableAssets(disponibles.data || []);
     } catch (err) {
       console.error("Error fetching assets:", err);
@@ -274,12 +288,19 @@ export function SelectorActivos({
               const isSelected = selectedAssets.some((a) => a.id === asset.id);
               const categoria = asset.categoria.nombre.toLowerCase();
 
-              // Info adicional según categoría
+              // Info adicional según categoría (14-sep-2026, SPEC 2.19):
+              // antes solo cubría Notebook y Celular, dejando Monitor y los
+              // periféricos (Mouse/Teclado/Webcam/Audífonos) sin nada en
+              // esta columna aunque tuvieran su dato propio cargado.
               let extraInfo = "";
               if (categoria === "notebook" && asset.procesador) {
                 extraInfo = `${asset.ram || ""} ${asset.discoDuro || ""}`.trim();
               } else if (categoria === "celular" && asset.numeroTelefono) {
                 extraInfo = asset.numeroTelefono;
+              } else if (categoria === "monitor" && asset.pulgadas) {
+                extraInfo = `${asset.pulgadas}"`;
+              } else if (asset.conectividad) {
+                extraInfo = etiquetaConectividad(asset.conectividad);
               }
 
               return (

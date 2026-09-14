@@ -2,12 +2,17 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { sedeWhere } from '@/lib/auth/sedeScope';
 
 export async function GET() {
   try {
-    await requirePermission('reportes', 'read');
+    const session = await requirePermission('reportes', 'read');
 
+    // Termination no tiene sedeId propio -- se filtra via su relacion a
+    // Employee (mismo criterio que Asignaciones/Mantenciones/Dashboard).
+    // Este reporte no filtraba por sede en absoluto (2.24.1).
     const desvinculaciones = await prisma.termination.findMany({
+      where: { employee: sedeWhere(session) },
       include: {
         employee: {
           select: {

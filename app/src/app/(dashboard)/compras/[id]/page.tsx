@@ -5,25 +5,21 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
-  Edit,
   Trash2,
   Loader2,
-  Building2,
   FileText,
-  Calendar,
-  DollarSign,
   Package,
   Plus,
   X,
   Search,
   AlertCircle,
-  ExternalLink,
   Laptop,
   Smartphone,
   Monitor,
   Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Can } from "@/components/auth/Can";
 
 type Asset = {
   id: string;
@@ -45,17 +41,7 @@ type Asset = {
 type PurchaseAsset = {
   id: string;
   assetId: string;
-  precioUnitario: number | null;
   asset: Asset;
-};
-
-type Supplier = {
-  id: string;
-  razonSocial: string;
-  rutEmpresa: string | null;
-  email: string | null;
-  telefono: string | null;
-  direccion: string | null;
 };
 
 type Sede = {
@@ -68,16 +54,12 @@ type Purchase = {
   id: string;
   numeroFactura: string;
   fechaFactura: string;
-  montoTotal: number | null;
-  moneda: "CLP" | "USD";
   ordenCompra: string | null;
-  documentoUrl: string | null;
-  supplier: Supplier;
+  rutProveedor: string | null;
   sede: Sede | null;
   purchaseAssets: PurchaseAsset[];
   stats: {
     cantidadActivos: number;
-    montoTotalActivos: number;
   };
 };
 
@@ -87,14 +69,6 @@ function formatDate(dateString: string): string {
     month: "long",
     day: "numeric",
   });
-}
-
-function formatCurrency(amount: number | null, moneda: string): string {
-  if (!amount) return "-";
-  return new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: moneda,
-  }).format(amount);
 }
 
 function getCategoryIcon(categoryName: string) {
@@ -187,7 +161,6 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           assetIds: [asset.id],
-          precioUnitario: null,
         }),
       });
 
@@ -290,33 +263,23 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             <h1 className="text-2xl font-bold text-gray-900">
               Factura {purchase.numeroFactura}
             </h1>
-            <p className="text-gray-600">{purchase.supplier.razonSocial}</p>
           </div>
         </div>
         <div className="flex gap-2">
-          {purchase.documentoUrl && (
-            <a
-              href={purchase.documentoUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+          <Can recurso="compras" accion="delete">
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
             >
-              <ExternalLink size={20} />
-              Ver Documento
-            </a>
-          )}
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
-          >
-            <Trash2 size={20} />
-            Eliminar
-          </button>
+              <Trash2 size={20} />
+              Eliminar
+            </button>
+          </Can>
         </div>
       </div>
 
       {/* Info Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Datos de la Factura */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -340,48 +303,16 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                 )}
               </dd>
             </div>
-            <div>
-              <dt className="text-sm text-gray-500">Monto Total</dt>
-              <dd className="font-medium text-lg text-green-600">
-                {formatCurrency(purchase.montoTotal, purchase.moneda)}
-              </dd>
-            </div>
+            {purchase.rutProveedor && (
+              <div>
+                <dt className="text-sm text-gray-500">RUT del Proveedor</dt>
+                <dd className="font-medium">{purchase.rutProveedor}</dd>
+              </div>
+            )}
             {purchase.ordenCompra && (
               <div>
                 <dt className="text-sm text-gray-500">Orden de Compra</dt>
                 <dd className="font-medium">{purchase.ordenCompra}</dd>
-              </div>
-            )}
-          </dl>
-        </div>
-
-        {/* Datos del Proveedor */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-gray-400" />
-            Proveedor
-          </h2>
-          <dl className="space-y-3">
-            <div>
-              <dt className="text-sm text-gray-500">Razón Social</dt>
-              <dd className="font-medium">{purchase.supplier.razonSocial}</dd>
-            </div>
-            {purchase.supplier.rutEmpresa && (
-              <div>
-                <dt className="text-sm text-gray-500">RUT</dt>
-                <dd className="font-medium">{purchase.supplier.rutEmpresa}</dd>
-              </div>
-            )}
-            {purchase.supplier.email && (
-              <div>
-                <dt className="text-sm text-gray-500">Email</dt>
-                <dd className="font-medium">{purchase.supplier.email}</dd>
-              </div>
-            )}
-            {purchase.supplier.telefono && (
-              <div>
-                <dt className="text-sm text-gray-500">Teléfono</dt>
-                <dd className="font-medium">{purchase.supplier.telefono}</dd>
               </div>
             )}
           </dl>
@@ -397,12 +328,6 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             <div>
               <dt className="text-sm text-gray-500">Cantidad de Activos</dt>
               <dd className="font-medium text-2xl">{purchase.stats.cantidadActivos}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-gray-500">Total Activos</dt>
-              <dd className="font-medium text-lg">
-                {formatCurrency(purchase.stats.montoTotalActivos, purchase.moneda)}
-              </dd>
             </div>
           </dl>
         </div>
@@ -504,9 +429,6 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                     Asignado a
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                    Precio Unitario
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                     Acciones
                   </th>
                 </tr>
@@ -556,9 +478,6 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                         ) : (
                           "-"
                         )}
-                      </td>
-                      <td className="px-4 py-4 text-right font-medium">
-                        {formatCurrency(pa.precioUnitario, purchase.moneda)}
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">

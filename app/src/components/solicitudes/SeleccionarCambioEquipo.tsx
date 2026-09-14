@@ -16,6 +16,7 @@ import {
   AlertCircle,
   ArrowRight,
 } from "lucide-react";
+import { especificacionesActivoTexto } from "@/lib/utils/assetSpecs";
 
 type AsignacionActiva = {
   id: string;
@@ -41,8 +42,9 @@ type ActivoDisponible = {
   imei: string | null;
   numeroTelefono: string | null;
   tipoPlan: string | null;
-  operador: string | null;
   pulgadas: string | number | null;
+  conectividad: string | null;
+  tipoLicenciaMicrosoft365: string | null;
 };
 
 type Categoria = { id: string; nombre: string };
@@ -74,19 +76,12 @@ function iconoDe(nombre: string): React.ReactNode {
   return ICONOS[nombre] || <Package className="h-4 w-4" />;
 }
 
-function especificaciones(a: ActivoDisponible): string {
-  const partes: string[] = [];
-  if (a.procesador) partes.push(a.procesador);
-  if (a.ram) partes.push(a.ram);
-  if (a.discoDuro) partes.push(a.discoDuro);
-  if (a.sistemaOperativo) partes.push(a.sistemaOperativo);
-  if (a.imei) partes.push(`IMEI ${a.imei}`);
-  if (a.numeroTelefono) partes.push(a.numeroTelefono);
-  if (a.tipoPlan) partes.push(a.tipoPlan);
-  if (a.operador) partes.push(a.operador);
-  if (a.pulgadas) partes.push(`${a.pulgadas}"`);
-  return partes.join(" · ");
-}
+// La lista de campos que se muestran por categoría vive en
+// especificacionesActivoTexto (@/lib/utils/assetSpecs) -- antes estaba
+// duplicada aquí (sin Conectividad, y sin etiquetas) y en
+// SeleccionarEquiposOnboarding (con etiquetas), desincronizadas entre sí.
+// Unificado 14-sep-2026, SPEC 2.19.
+const especificaciones = especificacionesActivoTexto;
 
 /**
  * Selector de "Cambio de Equipo". Funciona en dos pasos: primero el tecnico

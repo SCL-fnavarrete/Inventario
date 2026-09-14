@@ -15,6 +15,10 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
+import {
+  especificacionesActivo as especificacionesEtiquetadasActivo,
+  especificacionesActivoTexto,
+} from "@/lib/utils/assetSpecs";
 
 type ActivoDisponible = {
   id: string;
@@ -28,9 +32,13 @@ type ActivoDisponible = {
   imei: string | null;
   numeroTelefono: string | null;
   tipoPlan: string | null;
-  operador: string | null;
   pulgadas: string | number | null;
+  conectividad: string | null;
+  tieneCargador: boolean;
+  tipoLicenciaMicrosoft365: string | null;
 };
+
+type CondicionCargador = 'ok' | 'danado' | 'no_aplica';
 
 type Categoria = { id: string; nombre: string };
 
@@ -50,28 +58,12 @@ function iconoDe(nombre: string): React.ReactNode {
   return ICONOS[nombre] || <Package className="h-4 w-4" />;
 }
 
-// Especificaciones con etiqueta (Procesador: i5, RAM: 8GB...) en vez de solo
-// los valores sueltos, para que se entienda que es cada dato sin tener que
-// adivinar por el formato (un "8GB" solo no dice si es RAM o disco).
-function especificacionesEtiquetadas(a: ActivoDisponible): { etiqueta: string; valor: string }[] {
-  const partes: { etiqueta: string; valor: string }[] = [];
-  if (a.procesador) partes.push({ etiqueta: "Procesador", valor: a.procesador });
-  if (a.ram) partes.push({ etiqueta: "Memoria RAM", valor: a.ram });
-  if (a.discoDuro) partes.push({ etiqueta: "Disco", valor: a.discoDuro });
-  if (a.sistemaOperativo) partes.push({ etiqueta: "Sistema Operativo", valor: a.sistemaOperativo });
-  if (a.imei) partes.push({ etiqueta: "IMEI", valor: a.imei });
-  if (a.numeroTelefono) partes.push({ etiqueta: "Número", valor: a.numeroTelefono });
-  if (a.tipoPlan) partes.push({ etiqueta: "Plan", valor: a.tipoPlan });
-  if (a.operador) partes.push({ etiqueta: "Operador", valor: a.operador });
-  if (a.pulgadas) partes.push({ etiqueta: "Pantalla", valor: `${a.pulgadas}"` });
-  return partes;
-}
-
-function especificaciones(a: ActivoDisponible): string {
-  return especificacionesEtiquetadas(a)
-    .map(({ etiqueta, valor }) => `${etiqueta}: ${valor}`)
-    .join(" · ");
-}
+// La lista de campos que se muestran por categoría (con y sin etiqueta)
+// vive en @/lib/utils/assetSpecs -- antes estaba duplicada aquí (con
+// etiquetas, pero sin Conectividad) y en SeleccionarCambioEquipo (sin
+// etiquetas), desincronizadas entre sí. Unificado 14-sep-2026, SPEC 2.19.
+const especificacionesEtiquetadas = especificacionesEtiquetadasActivo;
+const especificaciones = especificacionesActivoTexto;
 
 /**
  * Selector de equipos disponibles para la etapa "Gestion TI" de una
@@ -90,7 +82,10 @@ export function SeleccionarEquiposOnboarding({
 }: {
   categoriasRequeridas: string[];
   submitting: boolean;
-  onSubmit: (assetIds: string[]) => void;
+  onSubmit: (
+    assetIds: string[],
+    condicionCargador: Record<string, { condicion: CondicionCargador; observaciones?: string }>
+  ) => void;
 }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -98,6 +93,12 @@ export function SeleccionarEquiposOnboarding({
     Record<string, ActivoDisponible[]>
   >({});
   const [seleccion, setSeleccion] = useState<Record<string, string>>({});
+  // Condicion del cargador, guardada por categoria (que en la practica es
+  // "Notebook") -- se traduce a assetId recien al enviar, ya que mientras
+  // se elige el equipo la clave natural es la categoria.
+  const [condicionCargador, setCondicionCargador] = useState<
+    Record<string, { condicion: CondicionCargador; observaciones: string }>
+  >({});
 
   const categoriasKey = categoriasRequeridas.join("|");
 
@@ -220,6 +221,46 @@ export function SeleccionarEquiposOnboarding({
                     )}
                   </div>
                 )}
+
+                {seleccionado?.tieneCargador && (
+                  <div className="mt-2 border border-gray-200 rounded-lg p-3">
+                    <p className="text-xs font-medium text-gray-600 mb-2">
+                      Estado del cargador
+                    </p>
+                    <select
+                      value={condicionCargador[nombreCategoria]?.condicion || "ok"}
+                      onChange={(e) =>
+                        setCondicionCargador((prev) => ({
+                          ...prev,
+                          [nombreCategoria]: {
+                            condicion: e.target.value as CondicionCargador,
+                            observaciones: prev[nombreCategoria]?.observaciones || "",
+                          },
+                        }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-2"
+                    >
+                      <option value="ok">Ok</option>
+                      <option value="danado">Dañado</option>
+                      <option value="no_aplica">No aplica / no venía</option>
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Observación (opcional)"
+                      value={condicionCargador[nombreCategoria]?.observaciones || ""}
+                      onChange={(e) =>
+                        setCondicionCargador((prev) => ({
+                          ...prev,
+                          [nombreCategoria]: {
+                            condicion: prev[nombreCategoria]?.condicion || "ok",
+                            observaciones: e.target.value,
+                          },
+                        }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -229,9 +270,27 @@ export function SeleccionarEquiposOnboarding({
       <button
         type="button"
         disabled={submitting || ningunaSeleccion}
-        onClick={() =>
-          onSubmit(categoriasRequeridas.filter((c) => seleccion[c]).map((c) => seleccion[c]))
-        }
+        onClick={() => {
+          const categoriasElegidas = categoriasRequeridas.filter((c) => seleccion[c]);
+          const assetIds = categoriasElegidas.map((c) => seleccion[c]);
+          // Se traduce de categoria -> assetId recien aca, que es el momento
+          // en que ambos datos (cual activo, que condicion de cargador) ya
+          // estan resueltos.
+          const condicionCargadorPorAsset: Record<
+            string,
+            { condicion: CondicionCargador; observaciones?: string }
+          > = {};
+          for (const categoria of categoriasElegidas) {
+            const cond = condicionCargador[categoria];
+            if (cond) {
+              condicionCargadorPorAsset[seleccion[categoria]] = {
+                condicion: cond.condicion,
+                observaciones: cond.observaciones || undefined,
+              };
+            }
+          }
+          onSubmit(assetIds, condicionCargadorPorAsset);
+        }}
         className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
       >
         {submitting ? (

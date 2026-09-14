@@ -12,6 +12,7 @@ import { limpiarRut } from "@/lib/validations/rut";
 import { Prisma } from "@prisma/client";
 import type { CorrectedRow, ImportRowStatus, ImportBatchResult } from "@/types/import";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { sedeIdParaCrear } from '@/lib/auth/sedeScope';
 
 // El vocabulario del Excel vive en @/lib/importacion/activos, compartido con
 // la ruta de importacion normal. Antes esta ruta tenia su propia copia y las
@@ -22,7 +23,11 @@ export async function POST(request: NextRequest) {
     const session = await requirePermission('activos', 'write');
 
     const body = await request.json();
-    const { categoria, rows } = body as { categoria: string; rows: CorrectedRow[] };
+    const { categoria, rows, sedeId: sedeIdSolicitada } = body as {
+      categoria: string;
+      rows: CorrectedRow[];
+      sedeId?: string;
+    };
 
     if (!categoria || !rows || rows.length === 0) {
       return NextResponse.json(
@@ -30,6 +35,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Misma sede que se eligio para la importacion original (ver SPEC 2.22) --
+    // esta ruta reimporta las filas corregidas del mismo lote, asi que debe
+    // heredar la misma sede en vez de quedar sin asignar.
+    const sedeId = sedeIdParaCrear(session, sedeIdSolicitada, { requerido: true });
 
     // Obtener o crear categoría
     let categoryRecord = await prisma.assetCategory.findFirst({
@@ -194,6 +204,7 @@ export async function POST(request: NextRequest) {
               ubicacion: row.data.comuna || null,
               tipoContrato: "contrato",
               estado: "activo",
+              sede: { connect: { id: sedeId! } },
             };
           }
         }
@@ -230,6 +241,9 @@ export async function POST(request: NextRequest) {
         const sistemaOperativo = row.data.sistemaOperativo || null;
         const ubicacionFisica = row.data.comuna || null;
         const microsoft365 = tieneMicrosoft365(row.data.microsoft365);
+        // Nombre del plan tal cual venia en el Excel (SPEC 2.23) -- se
+        // perdia por completo al reducirlo al booleano de arriba.
+        const tipoLicenciaMicrosoft365 = row.data.microsoft365 || null;
         const fechaCompraStr = row.data.fechaCompra || row.data.fechaEntrega || "";
         const fechaCompra = fechaCompraStr ? parseDDMMYYYYToDate(fechaCompraStr) : null;
 
@@ -247,6 +261,7 @@ export async function POST(request: NextRequest) {
           const asset = await tx.asset.create({
             data: {
               categoriaId: categoryRecord.id,
+              sedeId,
               marca,
               modelo,
               numeroSerie,
@@ -261,6 +276,7 @@ export async function POST(request: NextRequest) {
               sistemaOperativo,
               ubicacionFisica,
               microsoft365,
+              tipoLicenciaMicrosoft365,
               fechaCompra,
               observaciones: row.data.observaciones || null,
               empleadoActualId: empleadoId,

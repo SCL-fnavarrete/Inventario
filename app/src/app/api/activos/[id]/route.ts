@@ -224,6 +224,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           ...(validatedData.microsoft365 !== undefined && {
             microsoft365: validatedData.microsoft365,
           }),
+          ...(validatedData.tipoLicenciaMicrosoft365 !== undefined && {
+            tipoLicenciaMicrosoft365: validatedData.tipoLicenciaMicrosoft365 || null,
+          }),
           ...(validatedData.intuneEnrolled !== undefined && {
             intuneEnrolled: validatedData.intuneEnrolled,
           }),
@@ -233,7 +236,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           ...(validatedData.observaciones !== undefined && {
             observaciones: validatedData.observaciones || null,
           }),
-          ...(validatedData.operador !== undefined && { operador: validatedData.operador || null }),
           ...(validatedData.antivirus !== undefined && {
             antivirus: validatedData.antivirus || null,
           }),
@@ -242,6 +244,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           }),
           ...(validatedData.nombreEquipo !== undefined && {
             nombreEquipo: validatedData.nombreEquipo || null,
+          }),
+          ...(validatedData.conectividad !== undefined && {
+            conectividad: validatedData.conectividad || null,
           }),
         },
       });

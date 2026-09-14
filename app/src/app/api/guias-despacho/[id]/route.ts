@@ -4,7 +4,7 @@ import { EstadoGuia } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import type { SesionAutenticada } from '@/lib/auth/guard';
 import { tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
-import { NotFoundError } from '@/lib/errors';
+import { NotFoundError, ForbiddenError } from '@/lib/errors';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -24,6 +24,23 @@ function assertGuiaAccess(
   const sedeId = session.user.sedeId;
   if (!sedeId || (guide.sedeId !== sedeId && guide.sedeDestinoId !== sedeId)) {
     throw new NotFoundError(mensaje);
+  }
+}
+
+/**
+ * Confirmar recepción es una acción de la sede DESTINO únicamente -- quien
+ * despachó ya hizo su parte al crear la guía. Sin este chequeo, un técnico
+ * de la sede emisora también podía marcar "recibido" porque ya tenía acceso
+ * de lectura/escritura a la guía vía assertGuiaAccess (que permite ambas
+ * sedes a propósito, para que la destino pueda VER la guía).
+ */
+function assertPuedeConfirmarRecepcion(
+  session: SesionAutenticada,
+  guide: { sedeDestinoId: string }
+): void {
+  if (tieneVisibilidadTotal(session)) return;
+  if (session.user.sedeId !== guide.sedeDestinoId) {
+    throw new ForbiddenError('Solo la sede destino puede confirmar la recepción de esta guía');
   }
 }
 
@@ -90,6 +107,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     assertGuiaAccess(session, existingGuide);
+    assertPuedeConfirmarRecepcion(session, existingGuide);
 
     if (existingGuide.estado !== EstadoGuia.despachado) {
       return NextResponse.json(

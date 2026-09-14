@@ -6,7 +6,7 @@ import {
 } from "@/lib/validations/purchase";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { sedeWhere, sedeIdParaCrear } from '@/lib/auth/sedeScope';
+import { sedeWhere, sedeIdParaCrear, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 // GET /api/compras - Listar compras/facturas con filtros y paginación
@@ -18,15 +18,10 @@ export async function GET(request: NextRequest) {
 
     const filtersResult = purchaseFiltersSchema.safeParse({
       search: searchParams.get("search") || undefined,
-      supplierId: searchParams.get("supplierId") || undefined,
       sedeId: searchParams.get("sedeId") || undefined,
-      moneda: searchParams.get("moneda") || undefined,
       tipoCompra: searchParams.get("tipoCompra") || undefined,
-      metodoPago: searchParams.get("metodoPago") || undefined,
       fechaDesde: searchParams.get("fechaDesde") || undefined,
       fechaHasta: searchParams.get("fechaHasta") || undefined,
-      montoMin: searchParams.get("montoMin") || undefined,
-      montoMax: searchParams.get("montoMax") || undefined,
       page: searchParams.get("page") || 1,
       limit: searchParams.get("limit") || 10,
       sortBy: searchParams.get("sortBy") || "fechaFactura",
@@ -43,30 +38,17 @@ export async function GET(request: NextRequest) {
     const filters = filtersResult.data;
     const skip = (filters.page - 1) * filters.limit;
 
-    // Construir condiciones de búsqueda
-    // sedeWhere() es hoy un no-op (compras es admin-only, tieneVisibilidadTotal
-    // siempre true) -- se deja igual que en Activos/Empleados/etc. por si el
-    // dia de mañana un tecnico tambien puede leer compras de su sede.
+    // Construir condiciones de búsqueda. Aislamiento por sede (11-sep-2026,
+    // compras ya no es admin-only): un tecnico solo ve las compras de su
+    // propia sede, admin ve todas -- igual criterio que Activos/Empleados.
     const where: Prisma.PurchaseWhereInput = { ...sedeWhere(session) };
-
-    if (filters.supplierId) {
-      where.supplierId = filters.supplierId;
-    }
 
     if (filters.sedeId) {
       where.sedeId = filters.sedeId;
     }
 
-    if (filters.moneda) {
-      where.moneda = filters.moneda;
-    }
-
     if (filters.tipoCompra) {
       where.tipoCompra = filters.tipoCompra;
-    }
-
-    if (filters.metodoPago) {
-      where.metodoPago = filters.metodoPago;
     }
 
     if (filters.search) {
@@ -75,7 +57,7 @@ export async function GET(request: NextRequest) {
         { ordenCompra: { contains: filters.search, mode: "insensitive" } },
         { descripcion: { contains: filters.search, mode: "insensitive" } },
         { compradoPor: { contains: filters.search, mode: "insensitive" } },
-        { supplier: { razonSocial: { contains: filters.search, mode: "insensitive" } } },
+        { rutProveedor: { contains: filters.search, mode: "insensitive" } },
       ];
     }
 
@@ -90,29 +72,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Filtro por rango de montos
-    if (filters.montoMin !== undefined || filters.montoMax !== undefined) {
-      where.montoTotal = {};
-      if (filters.montoMin !== undefined) {
-        where.montoTotal.gte = filters.montoMin;
-      }
-      if (filters.montoMax !== undefined) {
-        where.montoTotal.lte = filters.montoMax;
-      }
-    }
-
     // Ejecutar consulta
     const [purchases, total] = await Promise.all([
       prisma.purchase.findMany({
         where,
         include: {
-          supplier: {
-            select: {
-              id: true,
-              razonSocial: true,
-              rutEmpresa: true,
-            },
-          },
           sede: {
             select: { id: true, nombre: true, codigo: true },
           },
@@ -127,15 +91,6 @@ export async function GET(request: NextRequest) {
       prisma.purchase.count({ where }),
     ]);
 
-    // Calcular totales para estadísticas
-    const stats = await prisma.purchase.aggregate({
-      where,
-      _sum: {
-        montoTotal: true,
-      },
-      _count: true,
-    });
-
     return NextResponse.json({
       data: purchases,
       pagination: {
@@ -145,8 +100,7 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(total / filters.limit),
       },
       stats: {
-        totalCompras: stats._count,
-        montoTotal: stats._sum.montoTotal || 0,
+        totalCompras: total,
       },
     });
   } catch (error) {
@@ -171,20 +125,7 @@ export async function POST(request: NextRequest) {
     }
 
     const data = validationResult.data;
-
-    // Verificar que el proveedor existe (si se proporciona)
-    if (data.supplierId) {
-      const supplier = await prisma.supplier.findUnique({
-        where: { id: data.supplierId },
-      });
-
-      if (!supplier) {
-        return NextResponse.json(
-          { error: "Proveedor no encontrado" },
-          { status: 404 }
-        );
-      }
-    }
+    const esAdmin = tieneVisibilidadTotal(session);
 
     // Verificar que la sede existe (si se proporciona)
     if (data.sedeId) {
@@ -199,7 +140,7 @@ export async function POST(request: NextRequest) {
       const assetIds = data.assets.map((a) => a.assetId);
       const existingAssets = await prisma.asset.findMany({
         where: { ...ACTIVOS_VIGENTES, id: { in: assetIds } },
-        select: { id: true },
+        select: { id: true, sedeId: true },
       });
 
       const existingAssetIds = new Set(existingAssets.map((a) => a.id));
@@ -211,6 +152,19 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         );
       }
+
+      // Defensa en profundidad: un tecnico solo puede asociar a la compra
+      // activos de su propia sede, aunque el selector del formulario ya
+      // venga filtrado. Ver SPEC 2.9.
+      if (!esAdmin) {
+        const ajenos = existingAssets.filter((a) => a.sedeId !== session.user.sedeId);
+        if (ajenos.length > 0) {
+          return NextResponse.json(
+            { error: "Algunos activos no pertenecen a tu sede" },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     // Crear la compra en una transacción
@@ -218,22 +172,19 @@ export async function POST(request: NextRequest) {
       // Crear la compra
       const newPurchase = await tx.purchase.create({
         data: {
-          supplierId: data.supplierId,
-          // Compras es admin-only, asi que sedeIdParaCrear() siempre toma
-          // la rama "admin": respeta el sedeId elegido en el formulario, o
-          // null si se deja transversal. Se reusa la misma funcion que
-          // Activos/Empleados/etc. para no duplicar la regla.
-          sedeId: sedeIdParaCrear(session, data.sedeId),
+          // Tecnico: siempre su propia sede (se ignora cualquier sedeId
+          // del body). Admin: obligado a elegir una entre las sedes
+          // existentes -- ya no puede dejarla transversal (11-sep-2026,
+          // alineado con activos/empleados/solicitudes/guias, ver SPEC
+          // 2.8.2). Se reusa la misma funcion que esos modulos.
+          sedeId: sedeIdParaCrear(session, data.sedeId, { requerido: true }),
           numeroFactura: data.numeroFactura,
           fechaFactura: data.fechaFactura,
-          montoTotal: data.montoTotal,
-          moneda: data.moneda,
-          tipoCompra: data.tipoCompra,
-          metodoPago: data.metodoPago,
+          rutProveedor: data.rutProveedor,
           descripcion: data.descripcion,
           compradoPor: data.compradoPor,
           ordenCompra: data.ordenCompra,
-          documentoUrl: data.documentoUrl,
+          tipoCompra: data.tipoCompra,
         },
       });
 
@@ -243,7 +194,6 @@ export async function POST(request: NextRequest) {
           data: data.assets.map((asset) => ({
             purchaseId: newPurchase.id,
             assetId: asset.assetId,
-            precioUnitario: asset.precioUnitario,
           })),
         });
 
@@ -262,13 +212,6 @@ export async function POST(request: NextRequest) {
       return await tx.purchase.findUnique({
         where: { id: newPurchase.id },
         include: {
-          supplier: {
-            select: {
-              id: true,
-              razonSocial: true,
-              rutEmpresa: true,
-            },
-          },
           sede: {
             select: { id: true, nombre: true, codigo: true },
           },

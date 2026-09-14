@@ -13,6 +13,7 @@ import {
 import { limpiarRut } from "@/lib/validations/rut";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { sedeIdParaCrear } from '@/lib/auth/sedeScope';
 
 // Filas de inicio conocidas por categoría
 // Todas las categorías usan fila 0 (primera fila) como encabezado por defecto
@@ -54,6 +55,15 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // La sede se hereda de quien importa; admin debe elegirla explicitamente
+    // en la pantalla de Importar, igual que en Nuevo Activo/Nueva Compra --
+    // ver sedeIdParaCrear. Sin esto, los activos y empleados importados
+    // quedaban con sedeId null e invisibles para cualquier tecnico (SPEC
+    // 2.22, mismo bug que 2.11.1 en seed.ts).
+    const sedeId = sedeIdParaCrear(session, formData.get("sedeId") as string | null, {
+      requerido: true,
+    });
 
     // Validar tamaño del archivo
     if (file.size > MAX_FILE_SIZE) {
@@ -345,6 +355,7 @@ export async function POST(request: NextRequest) {
               ubicacion: getValue("comuna") || null,
               tipoContrato: "contrato",
               estado: "activo",
+              sede: { connect: { id: sedeId! } },
             };
           }
         }
@@ -365,7 +376,11 @@ export async function POST(request: NextRequest) {
         // La columna "Microsoft 365" de estos Excel no trae SI/NO sino el
         // nombre del plan ("Premium" en 388 filas). Leerla como booleano
         // estricto convertia todas esas licencias en false.
-        const microsoft365 = tieneMicrosoft365(getValue("microsoft365"));
+        const valorMicrosoft365 = getValue("microsoft365");
+        const microsoft365 = tieneMicrosoft365(valorMicrosoft365);
+        // El nombre del plan se guarda tal cual (SPEC 2.23) -- antes se
+        // perdia por completo al reducirlo al booleano de arriba.
+        const tipoLicenciaMicrosoft365 = valorMicrosoft365 || null;
 
         // Fecha de compra (puede venir como "Fecha de entrega" en el Excel)
         const fechaCompraStr = getValue("fechaCompra") || getValue("fechaEntrega");
@@ -420,6 +435,7 @@ export async function POST(request: NextRequest) {
         const asset = await tx.asset.create({
           data: {
             categoriaId: categoryRecord.id,
+            sedeId,
             marca,
             modelo,
             numeroSerie,
@@ -434,6 +450,7 @@ export async function POST(request: NextRequest) {
             sistemaOperativo,
             ubicacionFisica,
             microsoft365,
+            tipoLicenciaMicrosoft365,
             fechaCompra,
             observaciones: getValue("observaciones") || null,
             empleadoActualId: empleadoId,

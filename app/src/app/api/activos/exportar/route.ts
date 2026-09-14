@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { sedeWhere } from '@/lib/auth/sedeScope';
 
 // Mapeo de estados para mostrar en español
 const ESTADO_LABELS: Record<string, string> = {
@@ -22,15 +23,18 @@ const CONDICION_LABELS: Record<string, string> = {
 
 export async function GET(request: NextRequest) {
   try {
-    await requirePermission('activos', 'read');
+    const session = await requirePermission('activos', 'read');
 
     const searchParams = request.nextUrl.searchParams;
     const estado = searchParams.get("estado") || "";
     const categoriaId = searchParams.get("categoriaId") || "";
 
     // Construir filtros
-    // Los registros descartados no se exportan (SPEC 2.7.7).
-    const where: Record<string, unknown> = { ...ACTIVOS_VIGENTES };
+    // Los registros descartados no se exportan (SPEC 2.7.7). Ademas, un
+    // tecnico solo exporta su propia sede (2.24.1) -- antes este endpoint no
+    // filtraba por sede y un tecnico podia descargar el inventario completo
+    // de la empresa.
+    const where: Record<string, unknown> = { ...ACTIVOS_VIGENTES, ...sedeWhere(session) };
     if (estado) {
       where.estado = estado;
     }
@@ -74,6 +78,8 @@ export async function GET(request: NextRequest) {
       "N° Teléfono": asset.numeroTelefono || "",
       "Ubicación Física": asset.ubicacionFisica || "",
       "Microsoft 365": asset.microsoft365 ? "Sí" : "No",
+      // SPEC 2.23 (14-sep-2026): nombre del plan (ej. "Premium").
+      "Licencia Microsoft 365": asset.tipoLicenciaMicrosoft365 || "",
       "Intune Enrolled": asset.intuneEnrolled ? "Sí" : "No",
       "Fecha Compra": asset.fechaCompra
         ? new Date(asset.fechaCompra).toLocaleDateString("es-CL")
@@ -108,6 +114,7 @@ export async function GET(request: NextRequest) {
       { wch: 15 }, // N° Teléfono
       { wch: 15 }, // Ubicación Física
       { wch: 12 }, // Microsoft 365
+      { wch: 20 }, // Licencia Microsoft 365
       { wch: 12 }, // Intune Enrolled
       { wch: 12 }, // Fecha Compra
       { wch: 12 }, // Fin Garantía

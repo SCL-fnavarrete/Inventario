@@ -2,34 +2,31 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   ArrowLeft,
   Save,
   Loader2,
-  Building2,
   FileText,
-  Calendar,
-  DollarSign,
   Package,
   Plus,
   X,
   Search,
   AlertCircle,
+  PackagePlus,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-type Supplier = {
-  id: string;
-  razonSocial: string;
-  rutEmpresa: string | null;
-};
 
 type Sede = {
   id: string;
   nombre: string;
   codigo: string;
   activa: boolean;
+};
+
+type Category = {
+  id: string;
+  nombre: string;
 };
 
 type Asset = {
@@ -45,23 +42,84 @@ type Asset = {
 type SelectedAsset = {
   assetId: string;
   asset: Asset;
-  precioUnitario: number | null;
 };
 
 export default function NuevaCompraPage() {
   const router = useRouter();
+  const { data: session } = useSession();
+  // Tecnico (11-sep-2026): registra la compra con lo esencial -- factura y
+  // con que activos vino. La sede ni siquiera se le pregunta, se hereda de
+  // la suya en el backend, igual que en Activos/Empleados/Solicitudes.
+  //
+  // Compras se simplifico el 11-sep-2026 (pedido explicito de Javier) a
+  // solo dos datos -- la factura, para relacionarla, y los equipos que
+  // vinieron con ella. Se eliminaron el catalogo de proveedor y todo dato
+  // financiero (monto, moneda, precio unitario): "el tema del dinero no es
+  // un dato que nos interese" para el area de soporte. El mismo dia se
+  // agrego el RUT del proveedor (texto libre) y se quito el campo de
+  // documento, que no se usaba. Ver SPEC 2.10.
+  const isAdmin = session?.user?.role === "admin";
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [availableAssets, setAvailableAssets] = useState<Asset[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(false);
   const [assetSearch, setAssetSearch] = useState("");
   const [showAssetSearch, setShowAssetSearch] = useState(false);
 
+  // Alta de equipo nuevo directamente desde este formulario (11-sep-2026,
+  // pedido explicito de Javier): el equipo que llego con la factura muchas
+  // veces todavia no existe como Activo -- antes habia que crearlo primero
+  // en Activos > Nuevo y volver aca a vincularlo. Este modo llama al mismo
+  // POST /api/activos que usa esa pantalla, asi que reusa sus reglas
+  // (sede, numero de serie duplicado, historial) sin duplicarlas aca.
+  const [showNewAssetForm, setShowNewAssetForm] = useState(false);
+  const [creatingAsset, setCreatingAsset] = useState(false);
+  const [newAssetError, setNewAssetError] = useState<string | null>(null);
+  // Specs por categoria (14-sep-2026, pedido explicito de Javier): antes
+  // este alta rapida solo pedia categoria/marca/modelo/serie, a diferencia
+  // de /activos/nuevo, que si tiene secciones propias por categoria (ver
+  // SPEC 2.11). Mismos campos y mismo criterio de categoria que esa
+  // pantalla -- ver SPEC 2.21.
+  const [newAssetForm, setNewAssetForm] = useState({
+    categoriaId: "",
+    marca: "",
+    modelo: "",
+    numeroSerie: "",
+    procesador: "",
+    ram: "",
+    almacenamiento: "",
+    sistemaOperativo: "",
+    antivirus: "",
+    nombreEquipo: "",
+    tipoLicenciaMicrosoft365: "",
+    imei: "",
+    numeroTelefono: "",
+    pulgadas: "",
+    conectividad: "",
+  });
+
+  function handleNewAssetChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) {
+    const { name, value } = e.target;
+    setNewAssetForm((prev) => ({ ...prev, [name]: value }));
+  }
+
+  const selectedNewAssetCategory = categories.find(
+    (c) => c.id === newAssetForm.categoriaId
+  );
+  const isNewAssetNotebook = selectedNewAssetCategory?.nombre.toLowerCase() === "notebook";
+  const isNewAssetCelular = selectedNewAssetCategory?.nombre.toLowerCase() === "celular";
+  const isNewAssetMonitor = selectedNewAssetCategory?.nombre.toLowerCase() === "monitor";
+  const PERIFERICOS_SIMPLES = ["mouse", "teclado", "webcam", "audífonos"];
+  const isNewAssetPerifericoSimple = selectedNewAssetCategory
+    ? PERIFERICOS_SIMPLES.includes(selectedNewAssetCategory.nombre.toLowerCase())
+    : false;
+
   // Form data
   const [formData, setFormData] = useState({
-    supplierId: "",
     // A que sede se le atribuye la compra (9-sep-2026). Compras es
     // admin-only, asi que aca siempre se elige de una lista -- no se
     // autocompleta desde la sesion como en Activos/Empleados, porque quien
@@ -69,17 +127,15 @@ export default function NuevaCompraPage() {
     sedeId: "",
     numeroFactura: "",
     fechaFactura: new Date().toISOString().split("T")[0],
-    montoTotal: "",
-    moneda: "CLP" as "CLP" | "USD",
+    rutProveedor: "",
     ordenCompra: "",
-    documentoUrl: "",
   });
 
   const [selectedAssets, setSelectedAssets] = useState<SelectedAsset[]>([]);
 
   useEffect(() => {
-    fetchSuppliers();
     fetchSedes();
+    fetchCategories();
   }, []);
 
   async function fetchSedes() {
@@ -92,21 +148,21 @@ export default function NuevaCompraPage() {
     }
   }
 
+  async function fetchCategories() {
+    try {
+      const res = await fetch("/api/categorias");
+      const data = await res.json();
+      setCategories(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+    }
+  }
+
   useEffect(() => {
     if (assetSearch.length >= 2) {
       searchAssets();
     }
   }, [assetSearch]);
-
-  async function fetchSuppliers() {
-    try {
-      const res = await fetch("/api/proveedores?limit=100");
-      const data = await res.json();
-      setSuppliers(data.data || []);
-    } catch (error) {
-      console.error("Error fetching suppliers:", error);
-    }
-  }
 
   async function searchAssets() {
     setLoadingAssets(true);
@@ -133,7 +189,6 @@ export default function NuevaCompraPage() {
       {
         assetId: asset.id,
         asset,
-        precioUnitario: null,
       },
     ]);
     setAssetSearch("");
@@ -145,14 +200,92 @@ export default function NuevaCompraPage() {
     setSelectedAssets((prev) => prev.filter((a) => a.assetId !== assetId));
   }
 
-  function updateAssetPrice(assetId: string, price: string) {
-    setSelectedAssets((prev) =>
-      prev.map((a) =>
-        a.assetId === assetId
-          ? { ...a, precioUnitario: price ? parseFloat(price) : null }
-          : a
-      )
-    );
+  async function createNewAsset() {
+    if (!newAssetForm.categoriaId || !newAssetForm.marca || !newAssetForm.modelo) {
+      setNewAssetError("Categoría, marca y modelo son obligatorios.");
+      return;
+    }
+
+    setCreatingAsset(true);
+    setNewAssetError(null);
+
+    try {
+      const res = await fetch("/api/activos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          categoriaId: newAssetForm.categoriaId,
+          marca: newAssetForm.marca,
+          modelo: newAssetForm.modelo,
+          numeroSerie: newAssetForm.numeroSerie || null,
+          // Specs por categoria (14-sep-2026, SPEC 2.21) -- el backend
+          // ignora los campos que no correspondan a Asset, asi que no hace
+          // falta condicionar por categoria aca, igual que en /activos/nuevo.
+          procesador: newAssetForm.procesador || null,
+          ram: newAssetForm.ram || null,
+          discoDuro: newAssetForm.almacenamiento || null,
+          sistemaOperativo: newAssetForm.sistemaOperativo || null,
+          antivirus: newAssetForm.antivirus || null,
+          nombreEquipo: newAssetForm.nombreEquipo || null,
+          // Igual que en /activos/nuevo (SPEC 2.23): no hay checkbox propio
+          // de "tiene M365", se deriva de si se cargo el nombre del plan.
+          tipoLicenciaMicrosoft365: newAssetForm.tipoLicenciaMicrosoft365 || null,
+          microsoft365: Boolean(newAssetForm.tipoLicenciaMicrosoft365),
+          imei: newAssetForm.imei || null,
+          numeroTelefono: newAssetForm.numeroTelefono || null,
+          pulgadas: newAssetForm.pulgadas || null,
+          conectividad: newAssetForm.conectividad || null,
+          // El equipo llega a la misma sede que la compra: para tecnico el
+          // backend la ignora y usa la suya; para admin es la que eligio
+          // arriba (obligatoria, ver SPEC 2.8.2/2.10).
+          ...(isAdmin && { sedeId: formData.sedeId || undefined }),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Error al crear el equipo");
+      }
+
+      const asset = await res.json();
+      setSelectedAssets((prev) => [
+        ...prev,
+        {
+          assetId: asset.id,
+          asset: {
+            id: asset.id,
+            numeroSerie: asset.numeroSerie,
+            marca: asset.marca,
+            modelo: asset.modelo,
+            categoria: categories.find((c) => c.id === asset.categoriaId) || {
+              nombre: "",
+            },
+          },
+        },
+      ]);
+      setNewAssetForm({
+        categoriaId: "",
+        marca: "",
+        modelo: "",
+        numeroSerie: "",
+        procesador: "",
+        ram: "",
+        almacenamiento: "",
+        sistemaOperativo: "",
+        antivirus: "",
+        nombreEquipo: "",
+        tipoLicenciaMicrosoft365: "",
+        imei: "",
+        numeroTelefono: "",
+        pulgadas: "",
+        conectividad: "",
+      });
+      setShowNewAssetForm(false);
+    } catch (err) {
+      setNewAssetError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setCreatingAsset(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -162,17 +295,18 @@ export default function NuevaCompraPage() {
 
     try {
       const payload = {
-        supplierId: formData.supplierId,
-        sedeId: formData.sedeId || null,
+        // El backend ignora sedeId si quien crea no es admin (ver POST
+        // /api/compras) -- no se envia para un tecnico directamente, ya
+        // que ni siquiera se le muestra. Para admin es obligatorio (select
+        // sin opcion en blanco); si de todos modos llegara vacio el
+        // backend lo rechaza. Ver SPEC 2.8.2/2.10.
+        ...(isAdmin && { sedeId: formData.sedeId || undefined }),
         numeroFactura: formData.numeroFactura,
         fechaFactura: formData.fechaFactura,
-        montoTotal: formData.montoTotal ? parseFloat(formData.montoTotal) : null,
-        moneda: formData.moneda,
+        rutProveedor: formData.rutProveedor || null,
         ordenCompra: formData.ordenCompra || null,
-        documentoUrl: formData.documentoUrl || null,
         assets: selectedAssets.map((a) => ({
           assetId: a.assetId,
-          precioUnitario: a.precioUnitario,
         })),
       };
 
@@ -195,11 +329,6 @@ export default function NuevaCompraPage() {
       setSaving(false);
     }
   }
-
-  const totalActivos = selectedAssets.reduce(
-    (sum, a) => sum + (a.precioUnitario || 0),
-    0
-  );
 
   return (
     <div className="space-y-6">
@@ -233,54 +362,32 @@ export default function NuevaCompraPage() {
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Proveedor */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Proveedor <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.supplierId}
-                onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })}
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Seleccionar proveedor</option>
-                {suppliers.map((supplier) => (
-                  <option key={supplier.id} value={supplier.id}>
-                    {supplier.razonSocial} {supplier.rutEmpresa ? `(${supplier.rutEmpresa})` : ""}
+            {/* Sede -- solo admin la elige; un tecnico la hereda de la suya */}
+            {isAdmin && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Sede <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.sedeId}
+                  onChange={(e) => setFormData({ ...formData, sedeId: e.target.value })}
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="" disabled>
+                    Selecciona una sede...
                   </option>
-                ))}
-              </select>
-              <Link
-                href="/configuracion/proveedores"
-                className="text-xs text-blue-600 hover:text-blue-800 mt-1 inline-block"
-              >
-                + Agregar nuevo proveedor
-              </Link>
-            </div>
-
-            {/* Sede */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Sede
-              </label>
-              <select
-                value={formData.sedeId}
-                onChange={(e) => setFormData({ ...formData, sedeId: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Sin sede (transversal)</option>
-                {sedes.map((sede) => (
-                  <option key={sede.id} value={sede.id}>
-                    {sede.nombre}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-500 mt-1">
-                A qué sede se le atribuye esta compra. Déjalo vacío si es transversal (ej.
-                licencias de software para toda la empresa).
-              </p>
-            </div>
+                  {sedes.map((sede) => (
+                    <option key={sede.id} value={sede.id}>
+                      {sede.nombre}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú, y es obligatorio.
+                </p>
+              </div>
+            )}
 
             {/* Número de Factura */}
             <div>
@@ -325,52 +432,16 @@ export default function NuevaCompraPage() {
               />
             </div>
 
-            {/* Moneda */}
+            {/* RUT Proveedor */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Moneda
-              </label>
-              <select
-                value={formData.moneda}
-                onChange={(e) => setFormData({ ...formData, moneda: e.target.value as "CLP" | "USD" })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="CLP">CLP (Peso Chileno)</option>
-                <option value="USD">USD (Dólar)</option>
-              </select>
-            </div>
-
-            {/* Monto Total */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Monto Total
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                  {formData.moneda === "CLP" ? "$" : "US$"}
-                </span>
-                <input
-                  type="number"
-                  value={formData.montoTotal}
-                  onChange={(e) => setFormData({ ...formData, montoTotal: e.target.value })}
-                  placeholder="0"
-                  min="0"
-                  step="0.01"
-                  className="w-full pl-12 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* URL Documento */}
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                URL del Documento (PDF)
+                RUT del Proveedor
               </label>
               <input
-                type="url"
-                value={formData.documentoUrl}
-                onChange={(e) => setFormData({ ...formData, documentoUrl: e.target.value })}
-                placeholder="https://..."
+                type="text"
+                value={formData.rutProveedor}
+                onChange={(e) => setFormData({ ...formData, rutProveedor: e.target.value })}
+                placeholder="Ej: 76.123.456-7"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -384,15 +455,316 @@ export default function NuevaCompraPage() {
               <Package className="h-5 w-5 text-gray-400" />
               Activos Vinculados
             </h2>
-            <button
-              type="button"
-              onClick={() => setShowAssetSearch(true)}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
-            >
-              <Plus size={16} />
-              Agregar Activo
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNewAssetForm(false);
+                  setShowAssetSearch(true);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
+              >
+                <Plus size={16} />
+                Buscar Existente
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAssetSearch(false);
+                  setShowNewAssetForm(true);
+                }}
+                disabled={isAdmin && !formData.sedeId}
+                title={isAdmin && !formData.sedeId ? "Primero elige la sede de la compra" : undefined}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <PackagePlus size={16} />
+                Crear Equipo Nuevo
+              </button>
+            </div>
           </div>
+
+          {isAdmin && !formData.sedeId && (
+            <div className="mb-4 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <p>Elige la sede de la compra arriba para poder dar de alta un equipo nuevo.</p>
+            </div>
+          )}
+
+          {/* Alta de equipo nuevo -- el equipo todavia no existe como Activo.
+              Es un div, no un <form>: ya estamos dentro del <form> de la
+              compra y HTML no permite formularios anidados. */}
+          {showNewAssetForm && (
+            <div className="mb-4 p-4 bg-green-50 rounded-lg space-y-3">
+              {newAssetError && (
+                <div className="flex items-center gap-2 text-sm text-red-700">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  <p>{newAssetError}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Categoría <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={newAssetForm.categoriaId}
+                    onChange={(e) =>
+                      setNewAssetForm({ ...newAssetForm, categoriaId: e.target.value })
+                    }
+                    required
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="" disabled>
+                      Selecciona una categoría...
+                    </option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    N° Serie
+                  </label>
+                  <input
+                    type="text"
+                    value={newAssetForm.numeroSerie}
+                    onChange={(e) =>
+                      setNewAssetForm({ ...newAssetForm, numeroSerie: e.target.value })
+                    }
+                    placeholder="Opcional"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Marca <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newAssetForm.marca}
+                    onChange={(e) => setNewAssetForm({ ...newAssetForm, marca: e.target.value })}
+                    required
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Modelo <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newAssetForm.modelo}
+                    onChange={(e) => setNewAssetForm({ ...newAssetForm, modelo: e.target.value })}
+                    required
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Specs por categoria -- mismos campos y mismo criterio que
+                  /activos/nuevo (SPEC 2.11), agregados aca el 14-sep-2026
+                  (SPEC 2.21) porque antes esta alta rapida solo pedia los 4
+                  campos genericos de arriba. */}
+              {isNewAssetNotebook && (
+                <div className="p-3 bg-white border border-gray-200 rounded-lg space-y-3">
+                  <p className="text-xs font-medium text-gray-600">Especificaciones - Notebook</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Procesador</label>
+                      <input
+                        type="text"
+                        name="procesador"
+                        value={newAssetForm.procesador}
+                        onChange={handleNewAssetChange}
+                        placeholder="ej: Intel Core i7-1165G7"
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">RAM</label>
+                      <input
+                        type="text"
+                        name="ram"
+                        value={newAssetForm.ram}
+                        onChange={handleNewAssetChange}
+                        placeholder="ej: 16GB"
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Almacenamiento</label>
+                      <input
+                        type="text"
+                        name="almacenamiento"
+                        value={newAssetForm.almacenamiento}
+                        onChange={handleNewAssetChange}
+                        placeholder="ej: 512GB SSD"
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Sistema Operativo</label>
+                      <input
+                        type="text"
+                        name="sistemaOperativo"
+                        value={newAssetForm.sistemaOperativo}
+                        onChange={handleNewAssetChange}
+                        placeholder="ej: Windows 11 Pro"
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Antivirus</label>
+                      <input
+                        type="text"
+                        name="antivirus"
+                        value={newAssetForm.antivirus}
+                        onChange={handleNewAssetChange}
+                        placeholder="ej: Windows Defender"
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Nombre del Equipo</label>
+                      <input
+                        type="text"
+                        name="nombreEquipo"
+                        value={newAssetForm.nombreEquipo}
+                        onChange={handleNewAssetChange}
+                        placeholder="ej: NB-SCL-001"
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Licencia Microsoft 365</label>
+                      <input
+                        type="text"
+                        name="tipoLicenciaMicrosoft365"
+                        value={newAssetForm.tipoLicenciaMicrosoft365}
+                        onChange={handleNewAssetChange}
+                        placeholder="ej: Premium (vacío si no tiene)"
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isNewAssetCelular && (
+                <div className="p-3 bg-white border border-gray-200 rounded-lg space-y-3">
+                  <p className="text-xs font-medium text-gray-600">Especificaciones - Celular</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">IMEI</label>
+                      <input
+                        type="text"
+                        name="imei"
+                        value={newAssetForm.imei}
+                        onChange={handleNewAssetChange}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Número de Teléfono</label>
+                      <input
+                        type="text"
+                        name="numeroTelefono"
+                        value={newAssetForm.numeroTelefono}
+                        onChange={handleNewAssetChange}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Almacenamiento</label>
+                      <input
+                        type="text"
+                        name="almacenamiento"
+                        value={newAssetForm.almacenamiento}
+                        onChange={handleNewAssetChange}
+                        placeholder="ej: 128GB"
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isNewAssetMonitor && (
+                <div className="p-3 bg-white border border-gray-200 rounded-lg space-y-3">
+                  <p className="text-xs font-medium text-gray-600">Especificaciones - Monitor</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Pulgadas</label>
+                      <input
+                        type="text"
+                        name="pulgadas"
+                        value={newAssetForm.pulgadas}
+                        onChange={handleNewAssetChange}
+                        placeholder="ej: 24"
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isNewAssetPerifericoSimple && (
+                <div className="p-3 bg-white border border-gray-200 rounded-lg space-y-3">
+                  <p className="text-xs font-medium text-gray-600">
+                    Especificaciones - {selectedNewAssetCategory?.nombre}
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Conectividad</label>
+                      <select
+                        name="conectividad"
+                        value={newAssetForm.conectividad}
+                        onChange={handleNewAssetChange}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Seleccionar conectividad</option>
+                        <option value="usb">USB</option>
+                        <option value="bluetooth">Bluetooth</option>
+                        <option value="cable">Cable</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-xs text-gray-500">
+                El equipo queda dado de alta en Activos (disponible, sede de esta compra) y vinculado a esta factura.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNewAssetForm(false);
+                    setNewAssetError(null);
+                  }}
+                  className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={createNewAsset}
+                  disabled={creatingAsset}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                >
+                  {creatingAsset ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <PackagePlus size={16} />
+                  )}
+                  Agregar Equipo
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Búsqueda de activos */}
           {showAssetSearch && (
@@ -473,17 +845,6 @@ export default function NuevaCompraPage() {
                       {item.asset.categoria.nombre} • {item.asset.numeroSerie || "Sin serie"}
                     </p>
                   </div>
-                  <div className="w-40">
-                    <input
-                      type="number"
-                      value={item.precioUnitario || ""}
-                      onChange={(e) => updateAssetPrice(item.assetId, e.target.value)}
-                      placeholder="Precio unitario"
-                      min="0"
-                      step="0.01"
-                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
                   <button
                     type="button"
                     onClick={() => removeAsset(item.assetId)}
@@ -498,14 +859,6 @@ export default function NuevaCompraPage() {
                 <span className="text-sm text-gray-500">
                   {selectedAssets.length} activo(s) seleccionado(s)
                 </span>
-                {totalActivos > 0 && (
-                  <span className="text-sm font-medium text-gray-700">
-                    Total: {new Intl.NumberFormat("es-CL", {
-                      style: "currency",
-                      currency: formData.moneda,
-                    }).format(totalActivos)}
-                  </span>
-                )}
               </div>
             </div>
           ) : (
@@ -529,7 +882,7 @@ export default function NuevaCompraPage() {
           </Link>
           <button
             type="submit"
-            disabled={saving || !formData.supplierId || !formData.numeroFactura}
+            disabled={saving || !formData.numeroFactura}
             className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? (

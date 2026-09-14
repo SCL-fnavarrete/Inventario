@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { validarPasswordFuerte } from '@/lib/validations/password';
 
 // Roles válidos del sistema (solo dos: admin ve todo, tecnico es soporte
 // restringido a su sede -- ver sedeScope()).
@@ -54,24 +55,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!password || password.length < 12) {
-      return NextResponse.json(
-        { error: "La contraseña debe tener al menos 12 caracteres" },
-        { status: 400 }
-      );
-    }
-
-    // Validar complejidad de contraseña
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-    const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
-
-    if (!hasUpperCase || !hasLowerCase || !hasNumber || !hasSymbol) {
-      return NextResponse.json(
-        { error: "La contraseña debe contener mayúscula, minúscula, número y símbolo" },
-        { status: 400 }
-      );
+    const errorPassword = validarPasswordFuerte(password);
+    if (errorPassword) {
+      return NextResponse.json({ error: errorPassword }, { status: 400 });
     }
 
     // Validar rol si se proporciona

@@ -4,6 +4,7 @@ import { assetBajaSchema } from '@/lib/validations/assetTransition';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { requirePermission, handleApiError, ConflictError } from '@/lib/auth/guard';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // SPEC 2.7.3: Proceso de Baja
 export async function POST(
@@ -40,6 +41,10 @@ export async function POST(
     if (!asset) {
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
     }
+
+    // Esta ruta no validaba sede: un tecnico que conociera/adivinara el id
+    // de un activo de otra sede podia darlo de baja igual (2.24.1).
+    assertSedeAccess(session, asset.sedeId, 'Activo no encontrado');
 
     // Un registro descartado es basura de importacion: no genera movimientos.
     if (asset.deletedAt) {

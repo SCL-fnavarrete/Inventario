@@ -16,6 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 type Assignment = {
   id: string;
@@ -87,6 +88,10 @@ export function AsignacionesTable() {
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 5, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  // El input responde a cada tecla (setSearch abajo), pero lo que dispara la
+  // peticion es esta version debounced -- antes buscaba en cada tecla sin
+  // ningun freno, una peticion por letra. Ver useDebouncedValue.
+  const debouncedSearch = useDebouncedValue(search, 350);
 
   useEffect(() => {
     let cancelado = false;
@@ -98,7 +103,7 @@ export function AsignacionesTable() {
           limit: String(pagination.limit),
           activo: "true",
         });
-        if (search) params.append("search", search);
+        if (debouncedSearch) params.append("search", debouncedSearch);
         const res = await fetch(`/api/asignaciones?${params}`);
         if (!res.ok) return;
         const data = await res.json();
@@ -116,7 +121,7 @@ export function AsignacionesTable() {
       cancelado = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.page, search]);
+  }, [pagination.page, debouncedSearch]);
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">

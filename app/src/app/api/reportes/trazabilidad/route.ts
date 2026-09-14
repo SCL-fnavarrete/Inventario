@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { sedeWhere } from '@/lib/auth/sedeScope';
 
 export async function GET(request: NextRequest) {
   try {
-    await requirePermission('reportes', 'read');
+    const session = await requirePermission('reportes', 'read');
 
     const searchParams = request.nextUrl.searchParams;
     const search = searchParams.get("search");
@@ -16,12 +17,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Buscar activo por n\u00famero de serie o IMEI
+    // Buscar activo por n\u00famero de serie o IMEI. Antes no filtraba por
+    // sede: un tecnico podia trazar cualquier activo de la empresa (2.24.1).
     const asset = await prisma.asset.findFirst({
       where: {
-        OR: [
-          { numeroSerie: { contains: search, mode: "insensitive" } },
-          { imei: { contains: search, mode: "insensitive" } },
+        AND: [
+          sedeWhere(session),
+          {
+            OR: [
+              { numeroSerie: { contains: search, mode: "insensitive" } },
+              { imei: { contains: search, mode: "insensitive" } },
+            ],
+          },
         ],
       },
       include: {

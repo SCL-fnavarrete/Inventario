@@ -7,20 +7,29 @@ import { GuiaDespachoTable } from "@/components/guias-despacho/GuiaDespachoTable
 import { ESTADO_GUIA_LABELS, type DispatchGuideListItem } from "@/types/guia-despacho";
 import { EstadoGuia } from "@prisma/client";
 import { Can } from "@/components/auth/Can";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 export default function GuiasDespachoPage() {
   const [guides, setGuides] = useState<DispatchGuideListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  // El input responde a cada tecla; lo que dispara la busqueda es esta
+  // version debounced -- antes exigia enviar el formulario (Enter). Ver
+  // useDebouncedValue y SPEC 2.14.
+  const debouncedSearchTerm = useDebouncedValue(searchTerm, 350);
   const [estadoFilter, setEstadoFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     fetchGuides();
-  }, [page, estadoFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, estadoFilter, debouncedSearchTerm]);
 
-  async function fetchGuides() {
+  // `searchOverride` es para el Enter explicito (handleSearch) y para
+  // "Limpiar filtros": sin el, buscarian con el valor debounced anterior en
+  // vez de con lo que el usuario realmente quiere en ese momento.
+  async function fetchGuides(searchOverride?: string) {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -32,8 +41,9 @@ export default function GuiasDespachoPage() {
         params.append("estado", estadoFilter);
       }
 
-      if (searchTerm) {
-        params.append("busqueda", searchTerm);
+      const terminoBusqueda = searchOverride ?? debouncedSearchTerm;
+      if (terminoBusqueda) {
+        params.append("busqueda", terminoBusqueda);
       }
 
       const res = await fetch(`/api/guias-despacho?${params}`);
@@ -48,10 +58,13 @@ export default function GuiasDespachoPage() {
     }
   }
 
+  // El formulario ya no es necesario para que la busqueda se aplique (eso
+  // ahora lo hace el debounce), pero se deja: Enter sigue funcionando y
+  // fuerza la busqueda de inmediato con lo escrito en el momento.
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     setPage(1);
-    fetchGuides();
+    fetchGuides(searchTerm);
   }
 
   return (
@@ -114,7 +127,7 @@ export default function GuiasDespachoPage() {
                 setSearchTerm("");
                 setEstadoFilter("all");
                 setPage(1);
-                fetchGuides();
+                fetchGuides("");
               }}
               className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
               title="Limpiar filtros"

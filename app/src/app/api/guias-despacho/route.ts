@@ -6,7 +6,10 @@ import type { SesionAutenticada } from '@/lib/auth/guard';
 import { tieneVisibilidadTotal, sedeIdParaCrear } from '@/lib/auth/sedeScope';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
+import { generarNumeroGuia } from '@/lib/services/guiaDespachoService';
 import { formatearRut, validarDigitoVerificador } from '@/lib/validations/rut';
+import { normalizeRut } from '@/lib/utils/rut';
+import { removeAccents, matchNoAccent } from '@/lib/utils/text';
 
 /**
  * Visibilidad de una guia de despacho: a diferencia del resto de modulos
@@ -37,32 +40,61 @@ export async function GET(request: NextRequest) {
       condiciones.push({ estado });
     }
 
-    if (busqueda) {
-      condiciones.push({
-        OR: [
-          { numero: { contains: busqueda, mode: "insensitive" } },
-          { otChilexpress: { contains: busqueda, mode: "insensitive" } },
-          { receptorNombre: { contains: busqueda, mode: "insensitive" } },
-          { receptorRut: { contains: busqueda, mode: "insensitive" } },
-        ],
-      });
-    }
-
     const where = { AND: condiciones };
 
-    const [guides, total] = await Promise.all([
-      prisma.dispatchGuide.findMany({
+    const includeGuia = {
+      _count: { select: { items: true } },
+      sedeDestino: true,
+    } as const;
+
+    // El termino de busqueda se filtra en memoria en vez de mandarlo a
+    // Prisma como `contains` (11-sep-2026, mismo patron ya usado en
+    // /api/empleados, /api/asignaciones y /api/solicitudes): `receptorRut`
+    // se guarda formateado ("12.345.678-9", ver `formatearRut` en el POST
+    // de abajo), asi que un `contains` directo contra lo que el usuario
+    // escribe (casi siempre sin puntos) nunca hacia match. `normalizeRut`
+    // saca puntos/guion de ambos lados antes de comparar; numero/OT
+    // Chilexpress/receptor quedan sin distinguir acentos (`matchNoAccent`).
+    const terminoBusqueda = busqueda?.trim() ?? "";
+
+    let guides;
+    let total;
+
+    if (terminoBusqueda) {
+      const normalizedSearch = normalizeRut(terminoBusqueda);
+      const searchSinAcentos = removeAccents(terminoBusqueda.toLowerCase());
+
+      const todas = await prisma.dispatchGuide.findMany({
         where,
-        include: {
-          _count: { select: { items: true } },
-          sedeDestino: true,
-        },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.dispatchGuide.count({ where }),
-    ]);
+        include: includeGuia,
+      });
+
+      const filtradas = todas.filter((g) => {
+        if (matchNoAccent(g.numero, searchSinAcentos)) return true;
+        if (matchNoAccent(g.otChilexpress, searchSinAcentos)) return true;
+        if (matchNoAccent(g.receptorNombre, searchSinAcentos)) return true;
+
+        const rutNormalizado = g.receptorRut ? normalizeRut(g.receptorRut) : "";
+        if (normalizedSearch && rutNormalizado.includes(normalizedSearch)) return true;
+
+        return false;
+      });
+
+      total = filtradas.length;
+      guides = filtradas.slice((page - 1) * limit, (page - 1) * limit + limit);
+    } else {
+      [guides, total] = await Promise.all([
+        prisma.dispatchGuide.findMany({
+          where,
+          include: includeGuia,
+          orderBy: { createdAt: "desc" },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        prisma.dispatchGuide.count({ where }),
+      ]);
+    }
 
     return NextResponse.json({
       data: guides,
@@ -131,24 +163,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generar número de guía
-    const year = new Date().getFullYear();
-    const lastGuide = await prisma.dispatchGuide.findFirst({
-      where: {
-        numero: {
-          startsWith: `GD-${year}-`,
-        },
-      },
-      orderBy: { numero: "desc" },
-    });
-
-    let nextNumber = 1;
-    if (lastGuide) {
-      const lastNumber = parseInt(lastGuide.numero.split("-")[2]);
-      nextNumber = lastNumber + 1;
-    }
-
-    const numero = `GD-${year}-${nextNumber.toString().padStart(5, "0")}`;
+    // Generar número de guía (14-sep-2026, SPEC 2.26: unificado con
+    // GET /api/guias-despacho/numero, que tenía esta misma lógica
+    // duplicada sin usarla -- ver generarNumeroGuia()).
+    const numero = await generarNumeroGuia();
 
     // Verificar que los activos existen y están disponibles -- no se puede
     // despachar algo que ya esta asignado, en mantencion, de baja, etc.
@@ -171,9 +189,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Defensa en profundidad: un no-admin no puede despachar activos que no
-    // sean de su propia sede, aunque el selector ya venga filtrado. Ver
-    // SPEC 2.9.
-    const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId);
+    // sean de su propia sede, aunque el selector ya venga filtrado. Para
+    // admin la sede origen ahora es obligatoria (requerido: true) -- el
+    // formulario ya la pide (Nueva Guia de Despacho); dejarla en null hacia
+    // que la guia quedara sin sede emisora, invisible para cualquier
+    // tecnico "de origen" y permitia mezclar equipos de sedes distintas en
+    // un mismo despacho. Ver SPEC 2.9.
+    const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId, {
+      requerido: true,
+    });
     if (sedeId && assets.some((a) => a.sedeId !== sedeId)) {
       return NextResponse.json(
         { error: "Algunos activos no pertenecen a tu sede" },

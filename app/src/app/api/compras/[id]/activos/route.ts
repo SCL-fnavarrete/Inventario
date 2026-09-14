@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { linkAssetsToPurchaseSchema, purchaseAssetSchema } from "@/lib/validations/purchase";
+import { linkAssetsToPurchaseSchema } from "@/lib/validations/purchase";
 import { z } from "zod";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { assetHistoryService } from '@/lib/services/assetHistoryService';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -12,7 +14,7 @@ interface RouteParams {
 // GET /api/compras/[id]/activos - Listar activos de una compra
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('compras', 'read');
+    const session = await requirePermission('compras', 'read');
 
     const { id } = await params;
 
@@ -27,6 +29,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
 
     const purchaseAssets = await prisma.purchaseAsset.findMany({
       where: { purchaseId: id },
@@ -48,18 +52,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       orderBy: { createdAt: "asc" },
     });
 
-    // Calcular totales
-    const totalActivos = purchaseAssets.length;
-    const montoTotal = purchaseAssets.reduce(
-      (sum, pa) => sum + (pa.precioUnitario?.toNumber() || 0),
-      0
-    );
-
     return NextResponse.json({
       data: purchaseAssets,
       stats: {
-        totalActivos,
-        montoTotal,
+        totalActivos: purchaseAssets.length,
       },
     });
   } catch (error) {
@@ -70,7 +66,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // POST /api/compras/[id]/activos - Vincular activos a una compra
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('compras', 'write');
+    const session = await requirePermission('compras', 'write');
 
     const { id } = await params;
     const body = await request.json();
@@ -87,6 +83,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
+    const esAdmin = tieneVisibilidadTotal(session);
+
     const validationResult = linkAssetsToPurchaseSchema.safeParse(body);
 
     if (!validationResult.success) {
@@ -101,7 +100,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Verificar que los activos existen
     const existingAssets = await prisma.asset.findMany({
       where: { ...ACTIVOS_VIGENTES, id: { in: data.assetIds } },
-      select: { id: true, numeroSerie: true },
+      select: { id: true, numeroSerie: true, sedeId: true },
     });
 
     const existingAssetIds = new Set(existingAssets.map((a) => a.id));
@@ -112,6 +111,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         { error: "Algunos activos no existen", missingAssets },
         { status: 404 }
       );
+    }
+
+    // Defensa en profundidad: un tecnico solo puede vincular activos de su
+    // propia sede. Ver SPEC 2.9.
+    if (!esAdmin) {
+      const ajenos = existingAssets.filter((a) => a.sedeId !== session.user.sedeId);
+      if (ajenos.length > 0) {
+        return NextResponse.json(
+          { error: "Algunos activos no pertenecen a tu sede" },
+          { status: 400 }
+        );
+      }
     }
 
     // Verificar que los activos no estén ya vinculados a esta compra
@@ -141,7 +152,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         data: data.assetIds.map((assetId) => ({
           purchaseId: id,
           assetId,
-          precioUnitario: data.precioUnitario,
         })),
       });
 
@@ -150,6 +160,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         where: { id: { in: data.assetIds } },
         data: { fechaCompra: purchase.fechaFactura },
       });
+
+      // Antes esto no dejaba rastro en AssetHistory -- solo la creación de
+      // un activo nuevo desde Nueva Compra lo registraba (SPEC 2.25).
+      const usuario = session.user?.email || undefined;
+      for (const assetId of data.assetIds) {
+        await assetHistoryService.registrarVinculacionCompra(
+          assetId,
+          purchase.numeroFactura,
+          usuario,
+          tx
+        );
+      }
 
       // Retornar los activos vinculados
       return await tx.purchaseAsset.findMany({
@@ -174,7 +196,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/compras/[id]/activos - Desvincular activos de una compra
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('compras', 'delete');
+    const session = await requirePermission('compras', 'delete');
 
     const { id } = await params;
     const searchParams = request.nextUrl.searchParams;
@@ -191,6 +213,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    // Borrar/desvincular sigue siendo solo-admin (ver permissions.ts), asi
+    // que esto es un no-op hoy -- se deja por consistencia.
+    assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
 
     // Si no se especifican activos, desvincular todos
     let assetIds: string[] | undefined;

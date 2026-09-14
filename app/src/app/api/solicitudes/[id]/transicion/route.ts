@@ -18,7 +18,7 @@ export async function POST(
 ) {
 
   try {
-    const session = await requirePermission('solicitudes', 'read');
+    const session = await requirePermission('solicitudes', 'write');
     const { id } = await params;
     const body = await request.json();
 
@@ -205,7 +205,12 @@ export async function POST(
       ) {
         // Create assignments for selected assets (entrega total o parcial)
         const assets = (datosAccion?.assetIds as string[]) || [];
+        const condicionCargadorPorAsset =
+          (datosAccion?.condicionCargador as
+            | Record<string, { condicion: 'ok' | 'danado' | 'no_aplica'; observaciones?: string }>
+            | undefined) || {};
         for (const assetId of assets) {
+          const cargador = condicionCargadorPorAsset[assetId];
           const assignment = await executeAssignment(tx, {
             assetId,
             employeeId: workflowRequest.employeeId,
@@ -214,6 +219,8 @@ export async function POST(
             entregadoPor: systemUser.nombre,
             tipoMovimiento: 'ingreso',
             motivo: `Onboarding - ${workflowRequest.numero}`,
+            condicionCargadorEntrega: cargador?.condicion || null,
+            observacionesCargador: cargador?.observaciones || null,
           });
           assignmentIds.push(assignment.id);
         }

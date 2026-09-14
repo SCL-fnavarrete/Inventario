@@ -1,22 +1,18 @@
 import { z } from "zod";
+import { rutOptionalSchema } from "./rut";
 
-// Enum de moneda
-export const MonedaEnum = z.enum(["CLP", "USD"]);
 export const TipoCompraEnum = z.enum(["FACTURA", "GASTO_MENOR"]);
-export const MetodoPagoEnum = z.enum([
-  "EFECTIVO",
-  "TRANSFERENCIA",
-  "TARJETA_CREDITO",
-  "CAJA_CHICA",
-  "REEMBOLSO_PENDIENTE",
-]);
 
 // Schema para crear una compra/factura
+// Compras se simplifico el 11-sep-2026 (pedido explicito de Javier) a solo
+// dos datos: la factura (para relacionarla) y los equipos que vinieron con
+// ella. Se eliminaron el catalogo de proveedor y todo dato financiero
+// (monto, moneda, metodo de pago, precio unitario) -- ver nota en el
+// modelo Purchase. El mismo dia se agrego `rutProveedor` como texto libre
+// (sin catalogo) y se quito `documentoUrl`, que ya no se usaba.
 export const createPurchaseSchema = z.object({
-  supplierId: z.string().uuid("ID de proveedor inválido").optional().nullable(),
-  // A que sede se le atribuye la compra (9-sep-2026). Compras es
-  // admin-only, asi que siempre se elige de una lista en el formulario;
-  // opcional para permitir compras transversales sin sede.
+  // A que sede se le atribuye la compra (9-sep-2026). Opcional para
+  // permitir compras transversales sin sede.
   sedeId: z.string().uuid("Sede inválida").optional().nullable(),
   numeroFactura: z
     .string()
@@ -24,14 +20,11 @@ export const createPurchaseSchema = z.object({
     .optional()
     .nullable(),
   fechaFactura: z.string().transform((val) => new Date(val)),
-  montoTotal: z
-    .number()
-    .positive("El monto debe ser positivo")
-    .optional()
-    .nullable(),
-  moneda: MonedaEnum.default("CLP"),
+  // RUT de quien emitio la factura (11-sep-2026). Texto libre validado con
+  // digito verificador -- no referencia al catalogo Supplier. Ver nota en
+  // el modelo Purchase.
+  rutProveedor: rutOptionalSchema,
   tipoCompra: TipoCompraEnum.default("FACTURA"),
-  metodoPago: MetodoPagoEnum.default("TRANSFERENCIA"),
   descripcion: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
   compradoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   ordenCompra: z
@@ -40,18 +33,10 @@ export const createPurchaseSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => val || null),
-  documentoUrl: z
-    .string()
-    .url("URL inválida")
-    .max(500, "Máximo 500 caracteres")
-    .optional()
-    .nullable()
-    .transform((val) => val || null),
 });
 
 // Schema para actualizar una compra/factura
 export const updatePurchaseSchema = z.object({
-  supplierId: z.string().uuid("ID de proveedor inválido").optional().nullable(),
   sedeId: z.string().uuid("Sede inválida").optional().nullable(),
   numeroFactura: z
     .string()
@@ -62,26 +47,13 @@ export const updatePurchaseSchema = z.object({
     .string()
     .optional()
     .transform((val) => (val ? new Date(val) : undefined)),
-  montoTotal: z
-    .number()
-    .positive("El monto debe ser positivo")
-    .optional()
-    .nullable(),
-  moneda: MonedaEnum.optional(),
+  rutProveedor: rutOptionalSchema,
   tipoCompra: TipoCompraEnum.optional(),
-  metodoPago: MetodoPagoEnum.optional(),
   descripcion: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
   compradoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   ordenCompra: z
     .string()
     .max(50, "Máximo 50 caracteres")
-    .optional()
-    .nullable()
-    .transform((val) => val || null),
-  documentoUrl: z
-    .string()
-    .url("URL inválida")
-    .max(500, "Máximo 500 caracteres")
     .optional()
     .nullable()
     .transform((val) => val || null),
@@ -92,21 +64,11 @@ export const linkAssetsToPurchaseSchema = z.object({
   assetIds: z
     .array(z.string().uuid("ID de activo inválido"))
     .min(1, "Debe seleccionar al menos un activo"),
-  precioUnitario: z
-    .number()
-    .positive("El precio debe ser positivo")
-    .optional()
-    .nullable(),
 });
 
 // Schema para un solo activo vinculado
 export const purchaseAssetSchema = z.object({
   assetId: z.string().uuid("ID de activo inválido"),
-  precioUnitario: z
-    .number()
-    .positive("El precio debe ser positivo")
-    .optional()
-    .nullable(),
 });
 
 // Schema para crear compra con activos incluidos
@@ -120,19 +82,14 @@ export const createPurchaseWithAssetsSchema = createPurchaseSchema.extend({
 // Schema para filtros de búsqueda de compras
 export const purchaseFiltersSchema = z.object({
   search: z.string().optional(),
-  supplierId: z.string().uuid().optional(),
   sedeId: z.string().uuid().optional(),
-  moneda: MonedaEnum.optional(),
   tipoCompra: TipoCompraEnum.optional(),
-  metodoPago: MetodoPagoEnum.optional(),
   fechaDesde: z.string().optional(),
   fechaHasta: z.string().optional(),
-  montoMin: z.coerce.number().optional(),
-  montoMax: z.coerce.number().optional(),
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(10),
   sortBy: z
-    .enum(["fechaFactura", "createdAt", "montoTotal", "numeroFactura"])
+    .enum(["fechaFactura", "createdAt", "numeroFactura"])
     .default("fechaFactura"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });

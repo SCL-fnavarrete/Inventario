@@ -8,6 +8,7 @@ interface DashboardChartsProps {
     disponibles: number;
     asignados: number;
     mantencion: number;
+    reutilizable: number;
     baja: number;
   }[];
   estadosData: {

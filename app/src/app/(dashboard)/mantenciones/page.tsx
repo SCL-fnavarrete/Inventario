@@ -24,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Can } from "@/components/auth/Can";
 import { MantencionesTabs } from "@/components/mantenciones";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 type TipoMantencion = {
   id: string;
@@ -113,6 +114,10 @@ export default function MantencionesPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  // El input responde a cada tecla; lo que dispara la busqueda es esta
+  // version debounced -- antes buscaba en cada tecla sin ningun freno, una
+  // peticion por letra. Ver useDebouncedValue y SPEC 2.14.
+  const debouncedSearch = useDebouncedValue(search, 350);
   const [filterTipoId, setFilterTipoId] = useState("");
   const [filterEstado, setFilterEstado] = useState("");
   const [showVencidas, setShowVencidas] = useState(false);
@@ -126,7 +131,8 @@ export default function MantencionesPage() {
   useEffect(() => {
     fetchMaintenances();
     fetchStats();
-  }, [search, filterTipoId, filterEstado, showVencidas, page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, filterTipoId, filterEstado, showVencidas, page]);
 
   async function fetchTipos() {
     try {
@@ -146,7 +152,7 @@ export default function MantencionesPage() {
         limit: "10",
       });
 
-      if (search) params.append("search", search);
+      if (debouncedSearch) params.append("search", debouncedSearch);
       if (filterTipoId) params.append("tipoId", filterTipoId);
       if (filterEstado) params.append("estado", filterEstado);
       if (showVencidas) params.append("vencidas", "true");

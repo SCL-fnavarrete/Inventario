@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createAssetSchema } from "@/lib/validations/asset";
 import { assetHistoryService } from "@/lib/services/assetHistoryService";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { sedeWhere, sedeIdParaCrear } from '@/lib/auth/sedeScope';
+import { sedeWhere, sedeIdParaCrear, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 /**
@@ -61,6 +61,17 @@ export async function GET(request: NextRequest) {
 
     if (empleadoActualId) {
       where.empleadoActualId = empleadoActualId;
+    }
+
+    // Filtro explicito de sede por query param -- solo tiene efecto para
+    // admin (que ve todas por defecto y necesita poder acotar, ej. el
+    // selector de equipos de una Guia de Despacho una vez elegida la sede
+    // origen). Para un tecnico se ignora en silencio: su propia sede ya
+    // viene forzada por sedeWhere() arriba y no debe poder pisarse con un
+    // sedeId arbitrario del query string.
+    const sedeIdFiltro = searchParams.get("sedeId") || "";
+    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
+      where.sedeId = sedeIdFiltro;
     }
 
     const [assets, total] = await Promise.all([
@@ -124,9 +135,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // La sede se hereda de quien crea el activo (admin puede elegirla); no
-    // se ofrece como campo del formulario. Ver SPEC 2.9.
-    const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId);
+    // La sede se hereda de quien crea el activo; admin debe elegirla
+    // explicitamente (requerido: true), igual que un tecnico con la suya --
+    // ver nota en sedeIdParaCrear sobre por que ya no se permite dejarla en
+    // blanco. Ver SPEC 2.9.
+    const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId, {
+      requerido: true,
+    });
 
     const asset = await prisma.asset.create({
       data: {
@@ -153,13 +168,14 @@ export async function POST(request: NextRequest) {
         pulgadas: validatedData.pulgadas || null,
         ubicacionFisica: validatedData.ubicacionFisica || null,
         microsoft365: validatedData.microsoft365 || false,
+        tipoLicenciaMicrosoft365: validatedData.tipoLicenciaMicrosoft365 || null,
         intuneEnrolled: validatedData.intuneEnrolled || false,
         listaDistribucion: validatedData.listaDistribucion || null,
         observaciones: validatedData.observaciones || null,
-        operador: validatedData.operador || null,
         antivirus: validatedData.antivirus || null,
         incidencia: validatedData.incidencia || null,
         nombreEquipo: validatedData.nombreEquipo || null,
+        conectividad: validatedData.conectividad || null,
       },
     });
 

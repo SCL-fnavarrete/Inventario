@@ -114,13 +114,28 @@ export default async function DetalleActivoPage({
     notFound();
   }
 
-  // Crear objeto de especificaciones basado en campos del schema
+  // Crear objeto de especificaciones basado en campos del schema. Cubre las
+  // specs de las categorias con formulario propio -- Notebook, Celular,
+  // Monitor, Impresora y los perifericos simples (Mouse/Teclado/Webcam/
+  // Audifonos) -- mostrando solo lo que el activo tenga, sin asumir su
+  // categoria: dos activos de la misma categoria pueden tener campos
+  // distintos llenos si se crearon en momentos distintos del sistema.
   const especificaciones: Record<string, string> = {};
   if (asset.procesador) especificaciones.procesador = asset.procesador;
   if (asset.discoDuro) especificaciones.discoDuro = asset.discoDuro;
   if (asset.ram) especificaciones.ram = asset.ram;
   if (asset.pulgadas) especificaciones.pulgadas = String(asset.pulgadas);
   if (asset.sistemaOperativo) especificaciones.sistemaOperativo = asset.sistemaOperativo;
+  if (asset.antivirus) especificaciones.antivirus = asset.antivirus;
+  if (asset.nombreEquipo) especificaciones.nombreEquipo = asset.nombreEquipo;
+  if (asset.imei) especificaciones.imei = asset.imei;
+  if (asset.numeroTelefono) especificaciones.numeroTelefono = asset.numeroTelefono;
+  if (asset.tipoPlan) especificaciones.tipoPlan = asset.tipoPlan;
+  if (asset.conectividad) especificaciones.conectividad = asset.conectividad;
+  // SPEC 2.23 (14-sep-2026): nombre del plan de Microsoft 365 (ej. "Premium").
+  if (asset.tipoLicenciaMicrosoft365) {
+    especificaciones.microsoft365 = asset.tipoLicenciaMicrosoft365;
+  }
 
   return (
     <div className="space-y-6">
@@ -363,69 +378,6 @@ export default async function DetalleActivoPage({
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Acciones Rápidas */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Acciones Rápidas
-            </h2>
-            <div className="space-y-2">
-              {(asset.estado === "disponible" || asset.estado === "reutilizable") && (
-                <Link
-                  href="/solicitudes/nueva"
-                  className="block w-full py-2 px-4 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 text-center transition-colors"
-                >
-                  Asignar a empleado
-                </Link>
-              )}
-              {asset.estado === "reutilizable" && (
-                <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg mt-1">
-                  Este equipo fue devuelto con observaciones. Revisar antes de asignar.
-                </div>
-              )}
-              {asset.estado === "asignado" && (
-                <>
-                  <Link
-                    href={`/asignaciones/devolucion?id=${asset.assignments[0]?.id}`}
-                    className="block w-full py-2 px-4 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 text-center transition-colors"
-                  >
-                    Registrar devolución
-                  </Link>
-                  <Link
-                    href={`/activos/${asset.id}/reasignar`}
-                    className="block w-full py-2 px-4 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 text-center transition-colors"
-                  >
-                    Reasignar equipo
-                  </Link>
-                </>
-              )}
-              {(asset.estado === "disponible" || asset.estado === "reutilizable" || asset.estado === "asignado") && (
-                <Link
-                  href={`/activos/${asset.id}/baja`}
-                  className="block w-full py-2 px-4 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 text-center transition-colors"
-                >
-                  Dar de baja
-                </Link>
-              )}
-              {(asset.estado === "baja" || asset.estado === "reutilizable") && (
-                <Link
-                  href={`/activos/${asset.id}/venta`}
-                  className="block w-full py-2 px-4 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 text-center transition-colors"
-                >
-                  Registrar venta
-                </Link>
-              )}
-              {(asset.estado === "disponible" || asset.estado==="asignado")&&(
-                <Link
-                  href={`/mantenciones/programar?activoId=${asset.id}`}
-                  className="block w-full py-2 px-4 bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100 text-center transition-colors"
-                >
-                  Enviar a mantención
-                </Link>
-              )}
-              
-            </div>
           </div>
         </div>
       </div>

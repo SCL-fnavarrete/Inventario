@@ -7,25 +7,15 @@ import {
   Plus,
   Search,
   FileText,
-  Building2,
-  DollarSign,
   Package,
   Loader2,
   ChevronLeft,
   ChevronRight,
-  Eye,
   Calendar,
-  TrendingUp,
-  Filter,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Can } from "@/components/auth/Can";
-
-type Supplier = {
-  id: string;
-  razonSocial: string;
-  rutEmpresa: string | null;
-};
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 type Sede = {
   id: string;
@@ -38,11 +28,8 @@ type Purchase = {
   id: string;
   numeroFactura: string;
   fechaFactura: string;
-  montoTotal: number | null;
-  moneda: "CLP" | "USD";
+  rutProveedor: string | null;
   ordenCompra: string | null;
-  documentoUrl: string | null;
-  supplier: Supplier;
   sede: Sede | null;
   _count: {
     purchaseAssets: number;
@@ -51,54 +38,36 @@ type Purchase = {
 
 type Stats = {
   totalCompras: number;
-  montoTotal: number;
 };
 
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("es-CL");
 }
 
-function formatCurrency(amount: number | null, moneda: string): string {
-  if (!amount) return "-";
-  return new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: moneda,
-  }).format(amount);
-}
-
 export default function ComprasPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [filterSupplier, setFilterSupplier] = useState("");
+  // El input responde a cada tecla; lo que dispara la busqueda es esta
+  // version debounced -- antes buscaba en cada tecla sin ningun freno, una
+  // peticion por letra. Ver useDebouncedValue y SPEC 2.14.
+  const debouncedSearch = useDebouncedValue(search, 350);
   const [filterSede, setFilterSede] = useState("");
-  const [filterMoneda, setFilterMoneda] = useState("");
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    fetchSuppliers();
     fetchSedes();
   }, []);
 
   useEffect(() => {
     fetchPurchases();
-  }, [search, filterSupplier, filterSede, filterMoneda, fechaDesde, fechaHasta, page]);
-
-  async function fetchSuppliers() {
-    try {
-      const res = await fetch("/api/proveedores?limit=100");
-      const data = await res.json();
-      setSuppliers(data.data || []);
-    } catch (error) {
-      console.error("Error fetching suppliers:", error);
-    }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, filterSede, fechaDesde, fechaHasta, page]);
 
   async function fetchSedes() {
     try {
@@ -118,10 +87,8 @@ export default function ComprasPage() {
         limit: "10",
       });
 
-      if (search) params.append("search", search);
-      if (filterSupplier) params.append("supplierId", filterSupplier);
+      if (debouncedSearch) params.append("search", debouncedSearch);
       if (filterSede) params.append("sedeId", filterSede);
-      if (filterMoneda) params.append("moneda", filterMoneda);
       if (fechaDesde) params.append("fechaDesde", fechaDesde);
       if (fechaHasta) params.append("fechaHasta", fechaHasta);
 
@@ -147,13 +114,6 @@ export default function ComprasPage() {
           <p className="text-gray-600">Gestión de facturas y vinculación con activos</p>
         </div>
         <div className="flex gap-2">
-          <Link
-            href="/configuracion/proveedores"
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-          >
-            <Building2 size={20} />
-            Proveedores
-          </Link>
           <Can recurso="compras">
             <Link
               href="/compras/nueva"
@@ -167,7 +127,7 @@ export default function ComprasPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-white rounded-lg shadow p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -176,32 +136,6 @@ export default function ComprasPage() {
             </div>
             <div className="p-3 bg-blue-100 rounded-full">
               <FileText className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Monto Total</p>
-              <p className="text-2xl font-bold text-green-600">
-                {formatCurrency(stats?.montoTotal || 0, "CLP")}
-              </p>
-            </div>
-            <div className="p-3 bg-green-100 rounded-full">
-              <DollarSign className="h-6 w-6 text-green-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Proveedores</p>
-              <p className="text-2xl font-bold text-purple-600">{suppliers.length}</p>
-            </div>
-            <div className="p-3 bg-purple-100 rounded-full">
-              <Building2 className="h-6 w-6 text-purple-600" />
             </div>
           </div>
         </div>
@@ -229,7 +163,7 @@ export default function ComprasPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Buscar por N° factura, orden de compra..."
+                placeholder="Buscar por N° factura, RUT proveedor, orden de compra..."
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -238,22 +172,6 @@ export default function ComprasPage() {
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-
-            <select
-              value={filterSupplier}
-              onChange={(e) => {
-                setFilterSupplier(e.target.value);
-                setPage(1);
-              }}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Todos los proveedores</option>
-              {suppliers.map((supplier) => (
-                <option key={supplier.id} value={supplier.id}>
-                  {supplier.razonSocial}
-                </option>
-              ))}
-            </select>
 
             <select
               value={filterSede}
@@ -269,19 +187,6 @@ export default function ComprasPage() {
                   {sede.nombre}
                 </option>
               ))}
-            </select>
-
-            <select
-              value={filterMoneda}
-              onChange={(e) => {
-                setFilterMoneda(e.target.value);
-                setPage(1);
-              }}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Todas las monedas</option>
-              <option value="CLP">CLP</option>
-              <option value="USD">USD</option>
             </select>
           </div>
 
@@ -311,13 +216,11 @@ export default function ComprasPage() {
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            {(fechaDesde || fechaHasta || filterSupplier || filterSede || filterMoneda || search) && (
+            {(fechaDesde || fechaHasta || filterSede || search) && (
               <button
                 onClick={() => {
                   setSearch("");
-                  setFilterSupplier("");
                   setFilterSede("");
-                  setFilterMoneda("");
                   setFechaDesde("");
                   setFechaHasta("");
                   setPage(1);
@@ -360,16 +263,13 @@ export default function ComprasPage() {
                       N° Factura
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Proveedor
+                      RUT Proveedor
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Sede
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Fecha
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                      Monto
                     </th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
                       Activos
@@ -391,15 +291,8 @@ export default function ComprasPage() {
                           <span className="font-medium text-sm">{purchase.numeroFactura}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-4">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            {purchase.supplier.razonSocial}
-                          </p>
-                          {purchase.supplier.rutEmpresa && (
-                            <p className="text-xs text-gray-500">{purchase.supplier.rutEmpresa}</p>
-                          )}
-                        </div>
+                      <td className="px-4 py-4 text-sm text-gray-500">
+                        {purchase.rutProveedor || "-"}
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-500">
                         {purchase.sede ? purchase.sede.nombre : (
@@ -408,14 +301,6 @@ export default function ComprasPage() {
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-500">
                         {formatDate(purchase.fechaFactura)}
-                      </td>
-                      <td className="px-4 py-4 text-right">
-                        <span className={cn(
-                          "font-medium text-sm",
-                          purchase.moneda === "USD" ? "text-blue-600" : "text-gray-900"
-                        )}>
-                          {formatCurrency(purchase.montoTotal, purchase.moneda)}
-                        </span>
                       </td>
                       <td className="px-4 py-4 text-center">
                         <span className={cn(
@@ -432,17 +317,6 @@ export default function ComprasPage() {
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {purchase.documentoUrl && (
-                            <a
-                              href={purchase.documentoUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-2 text-gray-400 hover:text-gray-600"
-                              title="Ver documento"
-                            >
-                              <FileText size={18} />
-                            </a>
-                          )}
                           <Link
                             href={`/compras/${purchase.id}`}
                             className="text-blue-600 hover:text-blue-800 text-sm font-medium"

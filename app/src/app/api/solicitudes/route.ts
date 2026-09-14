@@ -6,6 +6,8 @@ import { executeAssignment, executeKitDelivery, executeReturn, executeKitReturn 
 import { Prisma, Employee } from '@prisma/client';
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { sedeWhere, sedeIdParaCrear, assertSedeAccess } from '@/lib/auth/sedeScope';
+import { normalizeRut } from '@/lib/utils/rut';
+import { removeAccents, matchNoAccent } from '@/lib/utils/text';
 
 async function generateNumero(): Promise<string> {
   const year = new Date().getFullYear();
@@ -62,41 +64,71 @@ export async function GET(request: NextRequest) {
       if (filters.fechaHasta) where.createdAt.lte = new Date(filters.fechaHasta);
     }
 
-    if (filters.search) {
-      where.OR = [
-        { numero: { contains: filters.search, mode: 'insensitive' } },
-        { employee: { nombres: { contains: filters.search, mode: 'insensitive' } } },
-        { employee: { apellidoPaterno: { contains: filters.search, mode: 'insensitive' } } },
-        { employee: { rut: { contains: filters.search, mode: 'insensitive' } } },
-        { observaciones: { contains: filters.search, mode: 'insensitive' } },
-      ];
-    }
-
-    const [data, total] = await Promise.all([
-      prisma.workflowRequest.findMany({
-        where,
-        skip,
-        take: filters.limit,
-        orderBy: { [filters.sortBy]: filters.sortOrder },
-        include: {
-          employee: {
-            select: {
-              id: true,
-              rut: true,
-              nombres: true,
-              apellidoPaterno: true,
-              apellidoMaterno: true,
-              cargo: true,
-              correoPersonal: true,
-            },
-          },
-          solicitante: { select: { id: true, nombre: true, rol: true } },
-          responsableActual: { select: { id: true, nombre: true, rol: true } },
-          _count: { select: { comments: true, pendientes: true } },
+    const includeSolicitud = {
+      employee: {
+        select: {
+          id: true,
+          rut: true,
+          nombres: true,
+          apellidoPaterno: true,
+          apellidoMaterno: true,
+          cargo: true,
+          correoPersonal: true,
         },
-      }),
-      prisma.workflowRequest.count({ where }),
-    ]);
+      },
+      solicitante: { select: { id: true, nombre: true, rol: true } },
+      responsableActual: { select: { id: true, nombre: true, rol: true } },
+      _count: { select: { comments: true, pendientes: true } },
+    } as const;
+
+    // El termino de busqueda se filtra en memoria en vez de mandarlo a
+    // Prisma como `contains` (11-sep-2026, mismo patron ya usado en
+    // /api/empleados y /api/asignaciones): `employee.rut` se guarda
+    // formateado ("12.345.678-9") y el usuario casi siempre lo escribe sin
+    // puntos, asi que un `contains` directo nunca hacia match. `normalizeRut`
+    // saca puntos/guion de ambos lados antes de comparar; numero/nombre/
+    // apellido/observaciones quedan sin distinguir acentos (`matchNoAccent`).
+    const terminoBusqueda = filters.search?.trim() ?? "";
+
+    let data;
+    let total;
+
+    if (terminoBusqueda) {
+      const normalizedSearch = normalizeRut(terminoBusqueda);
+      const searchSinAcentos = removeAccents(terminoBusqueda.toLowerCase());
+
+      const todas = await prisma.workflowRequest.findMany({
+        where,
+        orderBy: { [filters.sortBy]: filters.sortOrder },
+        include: includeSolicitud,
+      });
+
+      const filtradas = todas.filter((s) => {
+        if (matchNoAccent(s.numero, searchSinAcentos)) return true;
+        if (matchNoAccent(s.observaciones, searchSinAcentos)) return true;
+        if (matchNoAccent(s.employee.nombres, searchSinAcentos)) return true;
+        if (matchNoAccent(s.employee.apellidoPaterno, searchSinAcentos)) return true;
+
+        const rutNormalizado = s.employee.rut ? normalizeRut(s.employee.rut) : "";
+        if (normalizedSearch && rutNormalizado.includes(normalizedSearch)) return true;
+
+        return false;
+      });
+
+      total = filtradas.length;
+      data = filtradas.slice(skip, skip + filters.limit);
+    } else {
+      [data, total] = await Promise.all([
+        prisma.workflowRequest.findMany({
+          where,
+          skip,
+          take: filters.limit,
+          orderBy: { [filters.sortBy]: filters.sortOrder },
+          include: includeSolicitud,
+        }),
+        prisma.workflowRequest.count({ where }),
+      ]);
+    }
 
     return NextResponse.json({
       data,
@@ -176,9 +208,13 @@ export async function POST(request: NextRequest) {
     const numero = await generateNumero();
     const estadoInicial = getInitialState(data.tipo);
 
-    // La sede se hereda de quien crea la solicitud; no se ofrece como campo
-    // del formulario. Ver SPEC 2.9.
-    const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId);
+    // La sede se hereda de quien crea la solicitud; admin debe elegirla
+    // explicitamente (requerido: true) -- si queda en null el ticket
+    // termina visible solo para el admin y ningun tecnico lo ve nunca. Ver
+    // nota en sedeIdParaCrear y SPEC 2.9.
+    const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId, {
+      requerido: true,
+    });
 
     // Campos comunes a los tres tipos. "employee" se agrega recien dentro de
     // la transaccion, una vez resuelto el id (existente o recien creado).

@@ -3,12 +3,17 @@ import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { etiquetaConectividad } from '@/lib/utils/assetSpecs';
+import { sedeWhere } from '@/lib/auth/sedeScope';
 
 export async function GET() {
   try {
-    await requirePermission('reportes', 'read');
+    const session = await requirePermission('reportes', 'read');
 
+    // Este reporte no filtraba por sede: un tecnico podia descargar el
+    // inventario completo de la empresa (2.24.1).
     const activos = await prisma.asset.findMany({
+      where: sedeWhere(session),
       include: {
         categoria: true,
         assignments: {
@@ -38,7 +43,16 @@ export async function GET() {
       RAM: a.ram || "",
       "Disco Duro": a.discoDuro || "",
       "Sistema Operativo": a.sistemaOperativo || "",
+      // Pulgadas (Monitor), Plan (Celular) y Conectividad
+      // (Mouse/Teclado/Webcam/Aud\u00edfonos) se agregan aqu\u00ed (14-sep-2026,
+      // SPEC 2.19) porque antes el Excel solo mostraba campos de Notebook y
+      // Celular b\u00e1sico, dejando estas categor\u00edas sin sus specs propias.
+      // (El campo Operador que hubo aqu\u00ed se quit\u00f3 el mismo d\u00eda, SPEC 2.20:
+      // se elimin\u00f3 de Celular por completo.)
+      Pulgadas: a.pulgadas ? `${a.pulgadas}"` : "",
       "N\u00b0 Tel\u00e9fono": a.numeroTelefono || "",
+      Plan: a.tipoPlan || "",
+      Conectividad: a.conectividad ? etiquetaConectividad(a.conectividad) : "",
       Estado: a.estado,
       Condici\u00f3n: a.condicion,
       "Ubicaci\u00f3n F\u00edsica": a.ubicacionFisica || "",
@@ -53,6 +67,10 @@ export async function GET() {
         ? new Date(a.fechaGarantiaFin).toLocaleDateString("es-CL")
         : "",
       "Microsoft 365": a.microsoft365 ? "S\u00ed" : "No",
+      // Nombre del plan (ej. "Premium") -- se agrega el mismo d\u00eda que el
+      // campo (14-sep-2026, SPEC 2.23): antes no exist\u00eda ning\u00fan lugar
+      // donde se guardara, se perd\u00eda al importar.
+      "Licencia Microsoft 365": a.tipoLicenciaMicrosoft365 || "",
       Observaciones: a.observaciones || "",
     }));
 

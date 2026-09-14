@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ActivosTabs } from "@/components/activos";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 
 // Esta pagina reemplaza al antiguo modulo "Empleados" (creacion manual e
@@ -103,6 +104,12 @@ export default function PersonalPage() {
   });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  // El input responde a cada tecla; lo que dispara la busqueda es esta
+  // version debounced -- antes no buscaba nada hasta enviar el formulario
+  // (Enter). Ver useDebouncedValue y SPEC 2.13.2 (el mismo problema de
+  // Personal/Equipos/Asignaciones: o buscaban en cada tecla sin freno, o
+  // exigian Enter).
+  const debouncedSearch = useDebouncedValue(search, 350);
   const [estadoFilter, setEstadoFilter] = useState("");
   const [tipoContratoFilter, setTipoContratoFilter] = useState("");
   const [ubicacionFilter, setUbicacionFilter] = useState("");
@@ -118,7 +125,8 @@ export default function PersonalPage() {
 
   useEffect(() => {
     fetchEmployees();
-  }, [pagination.page, estadoFilter, tipoContratoFilter, ubicacionFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.page, debouncedSearch, estadoFilter, tipoContratoFilter, ubicacionFilter]);
 
   useEffect(() => {
     // El detalle de ubicaciones ya no se muestra al tecnico -- no vale la
@@ -220,14 +228,18 @@ export default function PersonalPage() {
     }
   }
 
-  async function fetchEmployees() {
+  // `searchOverride` es para el Enter explicito (handleSearch): sin el, un
+  // Enter presionado antes de que venza el debounce buscaria con el valor
+  // debounced anterior, no con lo que el usuario realmente escribio.
+  async function fetchEmployees(searchOverride?: string) {
     setLoading(true);
     try {
       const params = new URLSearchParams({
         page: pagination.page.toString(),
         limit: pagination.limit.toString(),
       });
-      if (search) params.append("search", search);
+      const terminoBusqueda = searchOverride ?? debouncedSearch;
+      if (terminoBusqueda) params.append("search", terminoBusqueda);
       if (estadoFilter) params.append("estado", estadoFilter);
       if (tipoContratoFilter) params.append("tipoContrato", tipoContratoFilter);
       if (ubicacionFilter) params.append("ubicacion", ubicacionFilter);
@@ -243,10 +255,14 @@ export default function PersonalPage() {
     }
   }
 
+  // El formulario ya no es necesario para que la busqueda se aplique (eso
+  // ahora lo hace el debounce), pero se deja: Enter sigue funcionando y
+  // fuerza la busqueda de inmediato con lo que esta escrito en el momento,
+  // sin esperar los 350ms.
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     setPagination((prev) => ({ ...prev, page: 1 }));
-    fetchEmployees();
+    fetchEmployees(search);
   }
 
   function handleStatClick(filterType: "activo" | "desvinculado" | "reset") {
@@ -276,8 +292,8 @@ export default function PersonalPage() {
         </div>
       </div>
 
-      {/* Tabs del modulo: Equipos / Personal (esta pagina) / Kit de
-          Bienvenida / EPP (ver ActivosTabs -- compartido entre las 4) */}
+      {/* Tabs del modulo: Equipos / Asignaciones / Personal (esta pagina) /
+          Kit de Bienvenida / EPP (ver ActivosTabs -- compartido entre las 5) */}
       <ActivosTabs />
 
       {/* Stats - Interactive Cards */}
@@ -391,7 +407,10 @@ export default function PersonalPage() {
               type="text"
               placeholder="Buscar por RUT, nombre, correo, cargo..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPagination((prev) => ({ ...prev, page: 1 }));
+              }}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>

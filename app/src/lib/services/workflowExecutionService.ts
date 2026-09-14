@@ -11,6 +11,12 @@ export type ExecuteAssignmentParams = {
   entregadoPor?: string | null;
   tipoMovimiento: 'ingreso' | 'cambio' | 'reemplazo' | 'temporal';
   motivo?: string | null;
+  // Condicion del cargador al momento de la entrega -- solo se usa si el
+  // activo es un notebook con tieneCargador = true; para el resto se
+  // ignora silenciosamente (ver SPEC 2.5.3 regla 9). No es un activo
+  // propio, no afecta el estado del Activo.
+  condicionCargadorEntrega?: 'ok' | 'danado' | 'no_aplica' | null;
+  observacionesCargador?: string | null;
 };
 
 export type ExecuteReturnParams = {
@@ -138,6 +144,11 @@ export async function executeAssignment(
       `No se puede entregar equipo a ${employee.nombres} ${employee.apellidoPaterno}: su estado es "${employee.estado}"`
     );
 
+  // Solo se guarda si el activo realmente es un notebook con cargador --
+  // si se manda por error para otra categoria (o un notebook sin cargador),
+  // se ignora en silencio en vez de dejar un dato sin sentido en el acta.
+  const aplicaCargador = asset.tieneCargador;
+
   const assignment = await tx.assignment.create({
     data: {
       assetId: params.assetId,
@@ -148,6 +159,10 @@ export async function executeAssignment(
       tipoMovimiento: params.tipoMovimiento,
       motivo: params.motivo,
       activo: true,
+      ...(aplicaCargador && {
+        condicionCargadorEntrega: params.condicionCargadorEntrega || null,
+        observacionesCargador: params.observacionesCargador || null,
+      }),
     },
     include: {
       asset: { include: { categoria: true } },

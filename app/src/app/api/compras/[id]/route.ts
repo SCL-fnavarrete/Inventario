@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updatePurchaseSchema } from "@/lib/validations/purchase";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { ValidationError } from '@/lib/errors';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -10,14 +12,13 @@ interface RouteParams {
 // GET /api/compras/[id] - Obtener compra por ID con sus activos
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('compras', 'read');
+    const session = await requirePermission('compras', 'read');
 
     const { id } = await params;
 
     const purchase = await prisma.purchase.findUnique({
       where: { id },
       include: {
-        supplier: true,
         sede: {
           select: { id: true, nombre: true, codigo: true },
         },
@@ -48,13 +49,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Calcular estadísticas de la compra
+    assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
+
+    // Estadísticas de la compra. Sin dato financiero (11-sep-2026): solo
+    // cuenta cuántos activos vienen con la factura.
     const stats = {
       cantidadActivos: purchase.purchaseAssets.length,
-      montoTotalActivos: purchase.purchaseAssets.reduce(
-        (sum, pa) => sum + (pa.precioUnitario?.toNumber() || 0),
-        0
-      ),
     };
 
     return NextResponse.json({
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // PUT /api/compras/[id] - Actualizar compra
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('compras', 'write');
+    const session = await requirePermission('compras', 'write');
 
     const { id } = await params;
     const body = await request.json();
@@ -86,6 +86,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    assertSedeAccess(session, existingPurchase.sedeId, 'Compra no encontrada');
+
     const validationResult = updatePurchaseSchema.safeParse(body);
 
     if (!validationResult.success) {
@@ -97,20 +99,6 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const data = validationResult.data;
 
-    // Verificar que el proveedor existe si se va a cambiar
-    if (data.supplierId) {
-      const supplier = await prisma.supplier.findUnique({
-        where: { id: data.supplierId },
-      });
-
-      if (!supplier) {
-        return NextResponse.json(
-          { error: "Proveedor no encontrado" },
-          { status: 404 }
-        );
-      }
-    }
-
     // Verificar que la sede existe si se va a cambiar
     if (data.sedeId) {
       const sede = await prisma.sede.findUnique({ where: { id: data.sedeId } });
@@ -119,27 +107,29 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Actualizar la compra
+    // Actualizar la compra. Para tecnico se ignora en silencio el sedeId
+    // (no puede mover la compra a otra sede) -- mismo criterio que en la
+    // creacion. Ya no hay campos financieros que restringir (11-sep-2026).
+    // Para admin, sede es obligatoria (11-sep-2026, igual que al crear):
+    // si manda explicitamente sedeId: null se rechaza en vez de vaciarla.
+    const esAdmin = tieneVisibilidadTotal(session);
+    if (esAdmin && data.sedeId === null) {
+      throw new ValidationError('Debes seleccionar una sede.');
+    }
+
     const purchase = await prisma.purchase.update({
       where: { id },
       data: {
-        ...(data.supplierId !== undefined && { supplierId: data.supplierId }),
-        ...(data.sedeId !== undefined && { sedeId: data.sedeId }),
+        ...(esAdmin && data.sedeId !== undefined && { sedeId: data.sedeId }),
         ...(data.numeroFactura !== undefined && { numeroFactura: data.numeroFactura }),
         ...(data.fechaFactura !== undefined && { fechaFactura: data.fechaFactura }),
-        ...(data.montoTotal !== undefined && { montoTotal: data.montoTotal }),
-        ...(data.moneda !== undefined && { moneda: data.moneda }),
+        ...(data.rutProveedor !== undefined && { rutProveedor: data.rutProveedor }),
+        ...(data.tipoCompra !== undefined && { tipoCompra: data.tipoCompra }),
+        ...(data.descripcion !== undefined && { descripcion: data.descripcion }),
+        ...(data.compradoPor !== undefined && { compradoPor: data.compradoPor }),
         ...(data.ordenCompra !== undefined && { ordenCompra: data.ordenCompra }),
-        ...(data.documentoUrl !== undefined && { documentoUrl: data.documentoUrl }),
       },
       include: {
-        supplier: {
-          select: {
-            id: true,
-            razonSocial: true,
-            rutEmpresa: true,
-          },
-        },
         sede: {
           select: { id: true, nombre: true, codigo: true },
         },
@@ -164,7 +154,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/compras/[id] - Eliminar compra
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('compras', 'delete');
+    const session = await requirePermission('compras', 'delete');
 
     const { id } = await params;
 
@@ -182,6 +172,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    // Borrar sigue siendo solo-admin (ver permissions.ts), asi que esto es
+    // un no-op hoy -- se deja por consistencia con el resto de las rutas.
+    assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
 
     // Eliminar en transacción (primero los activos vinculados, luego la compra)
     await prisma.$transaction(async (tx) => {

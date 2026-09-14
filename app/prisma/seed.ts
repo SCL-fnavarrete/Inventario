@@ -1,8 +1,42 @@
-import { PrismaClient, SystemRole, CategoriaKit, TipoContrato, EstadoActivo, CondicionActivo } from "@prisma/client";
+import { PrismaClient, SystemRole } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+/**
+ * Seed minimo, pensado para producción (11-sep-2026, redefinido a pedido
+ * explícito de Javier: "vamos a definir el seed nuevamente, como ha
+ * cambiado tanto la app").
+ *
+ * Antes este archivo también creaba: una sede de ejemplo por bodega, un
+ * usuario técnico de prueba, un catálogo de Kit de Bienvenida/EPP, 4
+ * empleados ficticios y 8 activos ficticios (notebooks, celulares,
+ * monitores). Javier los sacó a todos explícitamente porque ya existe
+ * pantalla en Configuración para crear cada uno de esos catálogos a mano
+ * (Sedes, Kit/EPP), y porque los empleados y activos reales los va a crear
+ * él mismo -- no tiene sentido que el sistema arranque con datos de
+ * mentira que hay que borrar antes de usarlo en serio.
+ *
+ * Lo que queda es lo mínimo sin lo cual el sistema no se puede operar
+ * desde la UI:
+ *   1. El catálogo de categorías de activos (Notebook, Celular, etc.) --
+ *      es la única pieza de este archivo que NO tiene una pantalla propia
+ *      para crearla en Configuración (se buscó explícitamente: no existe
+ *      POST alguno para AssetCategory fuera de este seed).
+ *   2. Un usuario administrador -- sin esto no hay con qué iniciar sesión
+ *      la primera vez, y todo lo demás (sedes, empleados, activos, kit)
+ *      se crea desde la UI una vez adentro.
+ *
+ * Sedes, Kit/EPP, empleados y activos ya NO se crean aquí -- se crean
+ * desde Configuración (Sedes, Kit/EPP) o desde sus propios formularios
+ * (Empleados, Activos) con los datos reales de la empresa.
+ *
+ * Actualización 11-sep-2026 (a pedido explícito de Javier): se sacaron del
+ * catálogo por defecto las categorías "Impresora" y "Docking Station". El
+ * catálogo de categorías no tiene pantalla propia en Configuración (ver
+ * nota más arriba), así que si se necesitan más adelante hay que agregarlas
+ * a mano en la base de datos o volver a incluirlas aquí y correr el seed.
+ */
 async function main() {
   console.log("Iniciando seed de datos...");
 
@@ -21,30 +55,17 @@ async function main() {
     },
   });
   console.log("Usuario admin creado:", adminUser.email);
-
-  // Crear usuario técnico de ejemplo
-  const tecnicoUser = await prisma.systemUser.upsert({
-    where: { email: "tecnico@sclconsultores.com" },
-    update: {},
-    create: {
-      email: "tecnico@sclconsultores.com",
-      passwordHash: hashedPassword,
-      nombre: "Técnico IT",
-      rol: SystemRole.tecnico,
-      activo: true,
-    },
-  });
-  console.log("Usuario técnico creado:", tecnicoUser.email);
+  console.log(
+    "  -> Cambia la contraseña por defecto ('admin123') apenas inicies sesión."
+  );
 
   // 2. Crear categorías de activos
   const categorias = [
     { nombre: "Notebook", descripcion: "Computadores portátiles", requiereSerie: true, requiereImei: false },
     { nombre: "Celular", descripcion: "Teléfonos móviles corporativos", requiereSerie: true, requiereImei: true },
     { nombre: "Monitor", descripcion: "Pantallas y monitores", requiereSerie: true, requiereImei: false },
-    { nombre: "Impresora", descripcion: "Impresoras y multifuncionales", requiereSerie: true, requiereImei: false },
     { nombre: "Mouse", descripcion: "Mouse y dispositivos de entrada", requiereSerie: false, requiereImei: false },
     { nombre: "Teclado", descripcion: "Teclados", requiereSerie: false, requiereImei: false },
-    { nombre: "Docking Station", descripcion: "Estaciones de acoplamiento", requiereSerie: true, requiereImei: false },
     { nombre: "Webcam", descripcion: "Cámaras web", requiereSerie: true, requiereImei: false },
     { nombre: "Audífonos", descripcion: "Audífonos y headsets", requiereSerie: false, requiereImei: false },
   ];
@@ -58,211 +79,11 @@ async function main() {
   }
   console.log("Categorías de activos creadas:", categorias.length);
 
-  // 3. Crear items de kit de bienvenida y EPP
-  const kitItems = [
-    { nombre: "Mouse", categoria: CategoriaKit.kit_bienvenida },
-    { nombre: "Teclado", categoria: CategoriaKit.kit_bienvenida },
-    { nombre: "Audífonos", categoria: CategoriaKit.kit_bienvenida },
-    { nombre: "Mousepad", categoria: CategoriaKit.kit_bienvenida },
-    { nombre: "Mochila", categoria: CategoriaKit.kit_bienvenida },
-    { nombre: "Casco", categoria: CategoriaKit.epp },
-    { nombre: "Chaleco reflectante", categoria: CategoriaKit.epp },
-    { nombre: "Zapatos de seguridad", categoria: CategoriaKit.epp },
-    { nombre: "Guantes", categoria: CategoriaKit.epp },
-    { nombre: "Lentes de seguridad", categoria: CategoriaKit.epp },
-  ];
-
-  for (const item of kitItems) {
-    await prisma.welcomeKitItem.upsert({
-      where: { id: item.nombre }, // Esto fallará, usaremos create con manejo de error
-      update: {},
-      create: item,
-    }).catch(() => {
-      // Item ya existe, ignorar
-    });
-  }
-  console.log("Items de kit/EPP creados:", kitItems.length);
-
-  // 4. Crear empleados de ejemplo
-  const empleados = [
-    {
-      rut: "12.345.678-9",
-      nombres: "Juan Carlos",
-      apellidoPaterno: "González",
-      apellidoMaterno: "Pérez",
-      correoPersonal: "juan.gonzalez@empresa.cl",
-      cargo: "Desarrollador Senior",
-      jefatura: "Gerencia TI",
-      ubicacion: "Santiago",
-      tipoContrato: TipoContrato.contrato,
-      fechaIngreso: new Date("2023-01-15"),
-    },
-    {
-      rut: "11.222.333-4",
-      nombres: "María José",
-      apellidoPaterno: "López",
-      apellidoMaterno: "Silva",
-      correoPersonal: "maria.lopez@empresa.cl",
-      cargo: "Analista de Sistemas",
-      jefatura: "Gerencia TI",
-      ubicacion: "Santiago",
-      tipoContrato: TipoContrato.contrato,
-      fechaIngreso: new Date("2022-06-01"),
-    },
-    {
-      rut: "15.666.777-8",
-      nombres: "Pedro Antonio",
-      apellidoPaterno: "Martínez",
-      apellidoMaterno: "Rojas",
-      correoPersonal: "pedro.martinez@empresa.cl",
-      cargo: "Soporte TI",
-      jefatura: "Gerencia TI",
-      ubicacion: "Rancagua",
-      tipoContrato: TipoContrato.contrato,
-      fechaIngreso: new Date("2024-03-01"),
-    },
-    {
-      rut: "18.999.000-1",
-      nombres: "Carolina Andrea",
-      apellidoPaterno: "Vargas",
-      apellidoMaterno: "Muñoz",
-      correoPersonal: "carolina.vargas@empresa.cl",
-      cargo: "Gerente de Proyectos",
-      jefatura: "Gerencia General",
-      ubicacion: "Santiago",
-      tipoContrato: TipoContrato.contrato,
-      fechaIngreso: new Date("2021-09-15"),
-    },
-  ];
-
-  for (const emp of empleados) {
-    await prisma.employee.upsert({
-      where: { rut: emp.rut },
-      update: {},
-      create: emp,
-    });
-  }
-  console.log("Empleados creados:", empleados.length);
-
-  // 5. Obtener categorías para crear activos
-  const catNotebook = await prisma.assetCategory.findUnique({ where: { nombre: "Notebook" } });
-  const catCelular = await prisma.assetCategory.findUnique({ where: { nombre: "Celular" } });
-  const catMonitor = await prisma.assetCategory.findUnique({ where: { nombre: "Monitor" } });
-
-  if (catNotebook && catCelular && catMonitor) {
-    // 6. Crear activos de ejemplo
-    const activos = [
-      {
-        categoriaId: catNotebook.id,
-        numeroSerie: "PF3KXYZ1",
-        marca: "Lenovo",
-        modelo: "ThinkPad T14",
-        procesador: "Intel Core i7-1365U",
-        ram: "16GB",
-        discoDuro: "512GB SSD",
-        sistemaOperativo: "Windows 11 Pro",
-        estado: EstadoActivo.disponible,
-        condicion: CondicionActivo.nuevo,
-        ubicacionFisica: "Bodega Santiago",
-        fechaCompra: new Date("2024-01-15"),
-      },
-      {
-        categoriaId: catNotebook.id,
-        numeroSerie: "PF3KXYZ2",
-        marca: "Lenovo",
-        modelo: "ThinkPad T14",
-        procesador: "Intel Core i7-1365U",
-        ram: "16GB",
-        discoDuro: "512GB SSD",
-        sistemaOperativo: "Windows 11 Pro",
-        estado: EstadoActivo.disponible,
-        condicion: CondicionActivo.nuevo,
-        ubicacionFisica: "Bodega Santiago",
-        fechaCompra: new Date("2024-01-15"),
-      },
-      {
-        categoriaId: catNotebook.id,
-        numeroSerie: "PF3KXYZ3",
-        marca: "HP",
-        modelo: "EliteBook 840 G10",
-        procesador: "Intel Core i5-1345U",
-        ram: "8GB",
-        discoDuro: "256GB SSD",
-        sistemaOperativo: "Windows 11 Pro",
-        estado: EstadoActivo.disponible,
-        condicion: CondicionActivo.usado,
-        ubicacionFisica: "Bodega Santiago",
-        fechaCompra: new Date("2023-06-20"),
-      },
-      {
-        categoriaId: catCelular.id,
-        numeroSerie: "DNPXCELL001",
-        imei: "351234567890123",
-        marca: "Apple",
-        modelo: "iPhone 13",
-        numeroTelefono: "+56912345678",
-        tipoPlan: "Corporativo 10GB",
-        estado: EstadoActivo.disponible,
-        condicion: CondicionActivo.nuevo,
-        ubicacionFisica: "Bodega Santiago",
-        fechaCompra: new Date("2024-02-01"),
-      },
-      {
-        categoriaId: catCelular.id,
-        numeroSerie: "DNPXCELL002",
-        imei: "351234567890124",
-        marca: "Samsung",
-        modelo: "Galaxy S23",
-        numeroTelefono: "+56987654321",
-        tipoPlan: "Corporativo 5GB",
-        estado: EstadoActivo.disponible,
-        condicion: CondicionActivo.nuevo,
-        ubicacionFisica: "Bodega Santiago",
-        fechaCompra: new Date("2024-02-01"),
-      },
-      {
-        categoriaId: catMonitor.id,
-        numeroSerie: "CN-0MON001",
-        marca: "Dell",
-        modelo: "P2422H 24\"",
-        estado: EstadoActivo.disponible,
-        condicion: CondicionActivo.nuevo,
-        ubicacionFisica: "Bodega Santiago",
-        fechaCompra: new Date("2024-01-10"),
-      },
-      {
-        categoriaId: catMonitor.id,
-        numeroSerie: "CN-0MON002",
-        marca: "Dell",
-        modelo: "P2722H 27\"",
-        estado: EstadoActivo.disponible,
-        condicion: CondicionActivo.nuevo,
-        ubicacionFisica: "Bodega Santiago",
-        fechaCompra: new Date("2024-01-10"),
-      },
-      {
-        categoriaId: catMonitor.id,
-        numeroSerie: "CN-0MON003",
-        marca: "LG",
-        modelo: "27UK650 27\" 4K",
-        estado: EstadoActivo.disponible,
-        condicion: CondicionActivo.usado,
-        ubicacionFisica: "Bodega Rancagua",
-        fechaCompra: new Date("2022-08-15"),
-      },
-    ];
-
-    for (const activo of activos) {
-      await prisma.asset.upsert({
-        where: { numeroSerie: activo.numeroSerie },
-        update: {},
-        create: activo,
-      });
-    }
-    console.log("Activos creados:", activos.length);
-  }
-
   console.log("Seed completado exitosamente!");
+  console.log(
+    "Próximo paso: inicia sesión como admin y crea desde Configuración las sedes, " +
+      "el catálogo de Kit/EPP, y luego los empleados y activos reales de la empresa."
+  );
 }
 
 main()

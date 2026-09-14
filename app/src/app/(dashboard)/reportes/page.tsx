@@ -14,6 +14,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { DashboardTabs } from "@/components/dashboard/DashboardTabs";
 
 async function getReporteSummary() {
   const [
@@ -142,6 +143,11 @@ export default async function ReportesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Pestanas Resumen / Reportes (11-sep-2026, SPEC 2.15): Reportes paso
+          de ser una seccion aparte del menu lateral a ser una subpestana
+          del Dashboard -- ver DashboardTabs. */}
+      <DashboardTabs />
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Reportes</h1>

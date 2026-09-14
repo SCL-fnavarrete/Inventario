@@ -30,6 +30,12 @@ export interface DispatchGuideAsset {
   sistemaOperativo: string | null;
   numeroTelefono: string | null;
   tipoPlan: string | null;
+  // Faltaban Monitor/perifericos (14-sep-2026, SPEC 2.26): la vista de
+  // detalle de una guia solo sabia mostrar specs de Notebook/Celular, pese
+  // a que la API ya devolvia estos campos -- ver assetSpecs.ts.
+  pulgadas: string | number | null;
+  conectividad: string | null;
+  tipoLicenciaMicrosoft365: string | null;
   condicion: CondicionActivo;
   categoria: {
     id: string;

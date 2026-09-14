@@ -17,6 +17,43 @@ function formatDate(date: Date | string | null): string {
   return new Date(date).toLocaleDateString('es-CL');
 }
 
+const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const MESES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+
+// Fecha larga en español ("Miércoles, 10 de septiembre de 2026"), para la
+// redaccion de la intro del comprobante -- mismo formato que se usaba a
+// mano en la herramienta externa que este documento reemplaza.
+function formatDateLarga(date: Date | string | null): string {
+  if (!date) return '—';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '—';
+  return `${DIAS[d.getDay()]}, ${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`;
+}
+
+// Descripcion de equipo en una sola linea, igual al criterio que ya se usa
+// en el detalle de Guias de Despacho -- especificaciones tecnicas para
+// notebooks, datos de linea para celulares.
+function descripcionAsset(asset: {
+  procesador: string | null;
+  ram: string | null;
+  discoDuro: string | null;
+  sistemaOperativo: string | null;
+  numeroTelefono: string | null;
+  operador: string | null;
+}): string {
+  const partes: string[] = [];
+  if (asset.procesador) partes.push(`Proc: ${asset.procesador}`);
+  if (asset.ram) partes.push(`RAM: ${asset.ram}`);
+  if (asset.discoDuro) partes.push(`Disco: ${asset.discoDuro}`);
+  if (asset.sistemaOperativo) partes.push(`SO: ${asset.sistemaOperativo}`);
+  if (asset.numeroTelefono) partes.push(`Tel: ${asset.numeroTelefono}`);
+  if (asset.operador) partes.push(`Operador: ${asset.operador}`);
+  return partes.join(' | ');
+}
+
 // Nombre y correo de quien gestiona/recibe la operacion, para dejar registro
 // verificable en la firma del documento (no solo el nombre, que puede repetirse
 // entre personas).
@@ -86,22 +123,30 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
   });
 
   const assets = solicitud.employee.assignments.map((a) => ({
-    tipo: a.asset.categoria.nombre,
+    equipo: a.asset.categoria.nombre,
     marca: a.asset.marca,
-    modelo: a.asset.modelo,
-    numeroSerie: a.asset.numeroSerie,
-    estado: a.asset.condicion,
-    imei: a.asset.imei,
-    numeroTelefono: a.asset.numeroTelefono,
-    operador: a.asset.operador,
+    descripcion: descripcionAsset(a.asset),
+    entregado: 'OK',
   }));
+
+  // Coordinacion "por OT" (medioEntrega === 'chilexpress'): se agrega la
+  // clausula de OT a la intro, igual que la variante "entrega_ot" de la
+  // herramienta externa -- pero leyendo el dato real de la solicitud en
+  // vez de pedirlo de nuevo.
+  const otNumero =
+    solicitud.medioEntrega === 'chilexpress' ? solicitud.otChilexpressEntrega : null;
 
   const element = React.createElement(ComprobanteEntregaTemplate, {
     empleadoNombre: `${solicitud.employee.nombres} ${solicitud.employee.apellidoPaterno}`,
     empleadoRut: solicitud.employee.rut || '—',
-    fechaEntrega: formatDate(new Date()),
+    fecha: formatDateLarga(new Date()),
+    otNumero,
     assets,
-    gestionadoPor: nombreConCorreo(solicitud.responsableActual || solicitud.solicitante),
+    observacion: solicitud.observaciones || 'n/a',
+    // Comprobante de entrega: fiel a la plantilla externa, que solo firma
+    // con nombre y empresa (sin correo) -- a diferencia de los otros
+    // documentos, que si usan nombreConCorreo() para trazabilidad.
+    gestionadoPor: (solicitud.responsableActual || solicitud.solicitante).nombre,
   });
 
   return renderPdf(element);

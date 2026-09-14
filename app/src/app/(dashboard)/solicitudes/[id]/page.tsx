@@ -13,6 +13,7 @@ import {
   Circle,
   AlertCircle,
   User,
+  Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SeleccionarEquiposOnboarding } from '@/components/solicitudes/SeleccionarEquiposOnboarding';
@@ -580,7 +581,10 @@ export default function SolicitudDetailPage() {
   // Gestion TI para completar el resto despues, en vez de bloquear todo el
   // paso por un solo producto sin stock. Cuando ya se cubrieron todas las
   // categorias requeridas, se cierra la etapa automaticamente.
-  const handleEntregarEquipos = async (assetIds: string[]) => {
+  const handleEntregarEquipos = async (
+    assetIds: string[],
+    condicionCargador?: Record<string, { condicion: 'ok' | 'danado' | 'no_aplica'; observaciones?: string }>
+  ) => {
     if (!data) return;
     setTransitioning(true);
     setError('');
@@ -601,7 +605,10 @@ export default function SolicitudDetailPage() {
         const resEntrega = await fetch(`/api/solicitudes/${id}/transicion`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nuevoEstado: 'gestion_ti', datosAccion: { assetIds } }),
+          body: JSON.stringify({
+            nuevoEstado: 'gestion_ti',
+            datosAccion: { assetIds, condicionCargador },
+          }),
         });
         if (!resEntrega.ok) {
           const err = await resEntrega.json();
@@ -1186,14 +1193,26 @@ export default function SolicitudDetailPage() {
                   Listo para cerrar el ticket.
                 </p>
               )}
-              <button
-                onClick={() => handleTransition('registro_rrhh')}
-                disabled={transitioning || kitOEppPendiente}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ChevronRight className="h-4 w-4" />
-                {transitioning ? 'Cerrando...' : 'Cerrar ticket'}
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <a
+                  href={`/api/solicitudes/${data.id}/documento/comprobante-entrega`}
+                  className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  <Download className="h-4 w-4" />
+                  Generar plantilla
+                </a>
+                <button
+                  onClick={() => handleTransition('registro_rrhh')}
+                  disabled={transitioning || kitOEppPendiente}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                  {transitioning ? 'Cerrando...' : 'Cerrar ticket'}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Descarga el comprobante con los datos ya rellenados para adjuntarlo al aviso a RRHH.
+              </p>
             </div>
           ) : data.tipo === 'offboarding' && !isClosed && data.estado === 'solicitud_emitida' ? (
             <div className="bg-white rounded-lg shadow p-6">

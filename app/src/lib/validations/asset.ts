@@ -52,8 +52,10 @@ export const assetSchema = z.object({
   numeroTelefono: z.string().max(20, "Maximo 20 caracteres").optional().nullable(),
   numeroActivacion: z.string().max(20, "Maximo 20 caracteres").optional().nullable(),
   tipoPlan: z.string().max(50, "Maximo 50 caracteres").optional().nullable(),
-  operador: z.string().max(50, "Maximo 50 caracteres").optional().nullable(),
   tieneCargador: z.boolean().optional(),
+
+  // Conectividad compartida: Mouse, Teclado, Webcam, Audifonos (11-sep-2026)
+  conectividad: z.string().max(20, "Maximo 20 caracteres").optional().nullable(),
 
   // Estado y ubicacion
   estado: estadoActivoEnum.optional().default("disponible"),
@@ -62,6 +64,8 @@ export const assetSchema = z.object({
 
   // Software/Licencias
   microsoft365: z.boolean().optional(),
+  // Nombre del plan/licencia (ej. "Premium", "E3") -- SPEC 2.23 (14-sep-2026).
+  tipoLicenciaMicrosoft365: z.string().max(100, "Maximo 100 caracteres").optional().nullable(),
   intuneEnrolled: z.boolean().optional(),
   listaDistribucion: z.string().max(200, "Maximo 200 caracteres").optional().nullable(),
 

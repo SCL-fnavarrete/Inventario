@@ -88,8 +88,15 @@ La aplicación estará disponible en `http://localhost:3000`
 ## Usuario por Defecto
 
 Después de ejecutar el seed, podrás acceder con:
-- **Email**: admin@inventario.cl
+- **Email**: admin@sclconsultores.com
 - **Password**: admin123
+
+Cambia la contraseña apenas inicies sesión. El seed (11-sep-2026) solo crea
+este usuario y el catálogo de categorías de activos -- ya no crea sedes,
+catálogo de Kit/EPP, empleados ni activos de ejemplo. El primer paso
+después de iniciar sesión es crear, desde Configuración, las sedes y el
+catálogo de Kit/EPP de tu empresa, y luego registrar empleados y activos
+reales desde sus propios formularios.
 
 ## Scripts Disponibles
 
@@ -260,6 +267,23 @@ MICROSOFT_TENANT_ID="..."
 MICROSOFT_CLIENT_ID="..."
 MICROSOFT_CLIENT_SECRET="..."
 ```
+
+### Primer despliegue: migraciones + seed
+
+Antes de que alguien pueda iniciar sesión, la base de producción necesita
+las migraciones aplicadas y el seed cargado (crea el catálogo de categorías
+de activos y el usuario admin -- ver "Usuario por Defecto" arriba). Sin
+esto la aplicación queda desplegada pero inutilizable: no hay con qué
+iniciar sesión ni categorías para dar de alta un activo.
+
+```bash
+npx prisma migrate deploy
+npm run db:seed
+```
+
+Corre esto una sola vez por base de datos (no en cada despliegue): el seed
+usa `upsert` sobre el admin y las categorías, así que volver a ejecutarlo
+no duplica nada, pero tampoco hace falta.
 
 ### Despliegue en Vercel
 Root Directory debe estar configurado como `app` en Project Settings.

@@ -221,22 +221,54 @@ export const assetHistoryService = {
 
   /**
    * Registra la venta de un activo
+   *
+   * `fechaVenta` (14-sep-2026, SPEC 2.25) es la fecha que la persona
+   * ingresa en el formulario -- antes este metodo no la recibia y siempre
+   * guardaba `new Date()` (la fecha de HOY), ignorando lo que se hubiera
+   * escrito. `moneda` tampoco se guardaba antes.
    */
   async registrarVenta(
     assetId: string,
-    comprador?: string,
-    monto?: number,
-    usuario?: string,
+    comprador: string | undefined,
+    monto: number | undefined,
+    usuario: string | undefined,
+    fechaVenta: Date,
+    moneda?: string,
     tx?: PrismaTx
   ) {
     return this.registrar({
       assetId,
       tipoEvento: 'venta',
-      descripcion: `Activo vendido${comprador ? ` a ${comprador}` : ''}${monto ? ` por $${monto.toLocaleString('es-CL')}` : ''}`,
+      descripcion: `Activo vendido${comprador ? ` a ${comprador}` : ''}${monto ? ` por ${moneda || 'CLP'} ${monto.toLocaleString('es-CL')}` : ''}`,
       datosNuevos: {
         comprador,
         monto,
-        fechaVenta: new Date().toISOString(),
+        moneda,
+        fechaVenta: fechaVenta.toISOString(),
+      },
+      usuarioSistema: usuario,
+    }, tx)
+  },
+
+  /**
+   * Registra la vinculación de un activo YA EXISTENTE a una compra/factura
+   * (14-sep-2026, SPEC 2.25). La creación de un activo nuevo desde el alta
+   * rápida de Nueva Compra ya registraba su propio evento `creacion`; esto
+   * cubre el caso que faltaba, que no dejaba ningún rastro.
+   */
+  async registrarVinculacionCompra(
+    assetId: string,
+    numeroFactura: string | null | undefined,
+    usuario?: string,
+    tx?: PrismaTx
+  ) {
+    return this.registrar({
+      assetId,
+      tipoEvento: 'compra',
+      descripcion: `Vinculado a compra${numeroFactura ? ` (factura ${numeroFactura})` : ''}`,
+      datosNuevos: {
+        numeroFactura,
+        fecha: new Date().toISOString(),
       },
       usuarioSistema: usuario,
     }, tx)

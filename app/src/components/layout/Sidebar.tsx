@@ -9,7 +9,6 @@ import {
   Laptop,
   Wrench,
   ShoppingCart,
-  BarChart3,
   Settings,
   LogOut,
   Menu,
@@ -26,6 +25,12 @@ import type { LucideIcon } from "lucide-react";
 // Cada entrada declara el recurso de la matriz de permisos que representa, en
 // vez de una lista de roles propia. Asi el menu y la API salen de la misma
 // fuente: si aqui aparece "Compras", GET /api/compras no va a responder 403.
+//
+// "Reportes" ya no tiene entrada propia (11-sep-2026, SPEC 2.15): paso a ser
+// una subpestana del Dashboard (ver DashboardTabs), mismo patron que Personal/
+// Kit de Bienvenida/EPP dentro de Activos, que tampoco tienen entrada aca. El
+// recurso "reportes" de la matriz de permisos sigue siendo el mismo -- solo
+// cambio el punto de entrada en la UI.
 const menuItems: Array<{
   href: string;
   label: string;
@@ -38,7 +43,6 @@ const menuItems: Array<{
   { href: "/guias-despacho", label: "Guias de Despacho", icon: FileText, recurso: "guias" },
   { href: "/mantenciones", label: "Mantenciones", icon: Wrench, recurso: "mantenciones" },
   { href: "/compras", label: "Compras", icon: ShoppingCart, recurso: "compras" },
-  { href: "/reportes", label: "Reportes", icon: BarChart3, recurso: "reportes" },
   { href: "/configuracion", label: "Configuracion", icon: Settings, recurso: "configuracion" },
 ];
 
@@ -94,8 +98,12 @@ export function Sidebar() {
             {menuItems
               .filter((item) => puedeVer(item.recurso))
               .map((item) => {
+              // El item "Dashboard" (href "/") tambien queda activo en
+              // /reportes: Reportes es una subpestana suya (ver
+              // DashboardTabs), no una seccion propia del menu.
               const isActive = pathname === item.href ||
-                (item.href !== "/" && pathname.startsWith(item.href));
+                (item.href !== "/" && pathname.startsWith(item.href)) ||
+                (item.href === "/" && pathname.startsWith("/reportes"));
               const Icon = item.icon;
 
               return (

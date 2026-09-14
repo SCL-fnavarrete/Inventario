@@ -31,6 +31,8 @@ export const assetBajaSchema = z
   });
 
 // SPEC: Sección 2.7.4 — Proceso de Venta
+// El campo "documento de venta" (URL) se saca el 14-sep-2026 (SPEC 2.25):
+// Javier confirmo que no hace falta, solo la fecha en que se vendio.
 export const assetVentaSchema = z.object({
   comprador: z.string().min(1, 'El comprador es requerido').max(200),
   monto: z.number().positive('El monto debe ser positivo'),
@@ -40,29 +42,17 @@ export const assetVentaSchema = z.object({
     if (isNaN(date.getTime())) throw new Error('Fecha de venta inválida');
     return date;
   }),
-  documentoVenta: z.string().url('URL inválida').optional().nullable(),
 });
 
 // SPEC: Sección 2.7.5 — Cierre de Mantención
+//
+// `resultadoMantencionEnum` se reutiliza directamente en
+// `completeMaintenanceSchema` (lib/validations/maintenance.ts) desde el
+// 14-sep-2026 (SPEC 2.25) -- antes existía un `maintenanceCloseSchema` acá
+// con la misma idea pero nunca estuvo conectado a la ruta real de
+// completar mantención (código huérfano); se quitó para no dejar dos
+// versiones de la misma validación.
 export const resultadoMantencionEnum = z.enum(['reparado', 'no_reparable', 'pendiente_repuestos']);
-
-export const maintenanceCloseSchema = z
-  .object({
-    resultadoEstructurado: resultadoMantencionEnum,
-    realizadoPor: z.string().min(1, 'Realizado por es requerido').max(100),
-    costo: z.number().min(0).optional().nullable(),
-    proveedorExterno: z.string().max(200).optional().nullable(),
-    proximaMantencion: z.string().optional().nullable(),
-    motivoBaja: z.string().max(500).optional().nullable(),
-    resultado: z.string().optional().nullable(),
-  })
-  .refine(
-    (data) => data.resultadoEstructurado !== 'no_reparable' || (data.motivoBaja && data.motivoBaja.length > 0),
-    {
-      message: 'Motivo de baja requerido cuando resultado es no_reparable',
-      path: ['motivoBaja'],
-    }
-  );
 
 // SPEC: Sección 2.7.6 — Reasignación
 export const assetReassignmentSchema = z.object({
@@ -83,7 +73,6 @@ export const assetReassignmentSchema = z.object({
 export type AssetTransitionInput = z.infer<typeof assetTransitionSchema>;
 export type AssetBajaInput = z.infer<typeof assetBajaSchema>;
 export type AssetVentaInput = z.infer<typeof assetVentaSchema>;
-export type MaintenanceCloseInput = z.infer<typeof maintenanceCloseSchema>;
 export type AssetReassignmentInput = z.infer<typeof assetReassignmentSchema>;
 export type MotivoBaja = z.infer<typeof motivoBajaEnum>;
 export type ResultadoMantencion = z.infer<typeof resultadoMantencionEnum>;

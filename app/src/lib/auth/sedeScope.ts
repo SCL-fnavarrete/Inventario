@@ -56,14 +56,26 @@ export function assertSedeAccess(
  *   body -- el formulario no debe ofrecer el campo). Si no tiene sede
  *   asignada, se rechaza la creacion con un mensaje util en vez de crear un
  *   registro huerfano que nadie va a poder ver despues.
- * - Admin: puede elegir explicitamente (crea "para" una sede), o dejarlo
- *   sin sede si el registro es realmente transversal.
+ * - Admin: elige explicitamente la sede (crea "para" esa sede). Antes se
+ *   permitia dejarlo en blanco ("sin sede, transversal"), pero en la
+ *   practica eso dejaba el registro visible solo para el admin -- ningun
+ *   tecnico lo veia nunca, porque su filtro por sede nunca calza con
+ *   `sedeId = null`. Por eso ahora `requerido` (activado en los 4 modulos
+ *   operativos que ofrecen el selector a admin: activos, empleados,
+ *   solicitudes y guias-despacho -- sede origen) exige elegir una sede
+ *   real, igual que un no-admin. Queda `false` por defecto solo por si a
+ *   futuro se agrega otro caller sin selector todavia en su formulario.
+ *   Ver SPEC 2.8.2 y 2.9.2 (11-sep-2026).
  */
 export function sedeIdParaCrear(
   session: SesionAutenticada,
-  sedeIdSolicitada?: string | null
+  sedeIdSolicitada?: string | null,
+  opts?: { requerido?: boolean }
 ): string | null {
   if (tieneVisibilidadTotal(session)) {
+    if (opts?.requerido && !sedeIdSolicitada) {
+      throw new ValidationError('Debes seleccionar una sede.');
+    }
     return sedeIdSolicitada || null;
   }
   if (!session.user.sedeId) {

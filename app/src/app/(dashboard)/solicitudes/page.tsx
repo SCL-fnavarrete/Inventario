@@ -12,9 +12,11 @@ import {
   ClipboardList,
   LayoutGrid,
   List,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Can } from "@/components/auth/Can";
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 type WorkflowRequest = {
   id: string;
@@ -83,6 +85,10 @@ export default function SolicitudesPage() {
   });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  // El input responde a cada tecla; lo que dispara la busqueda es esta
+  // version debounced -- antes buscaba en cada tecla sin ningun freno, una
+  // peticion por letra. Ver useDebouncedValue y SPEC 2.14.
+  const debouncedSearch = useDebouncedValue(search, 350);
   const [filterTipo, setFilterTipo] = useState('');
   const [filterEstado, setFilterEstado] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -93,7 +99,7 @@ export default function SolicitudesPage() {
       setLoading(true);
       try {
         const params = new URLSearchParams({ page: String(page), limit: '10' });
-        if (search) params.set('search', search);
+        if (debouncedSearch) params.set('search', debouncedSearch);
         if (filterTipo) params.set('tipo', filterTipo);
         if (filterEstado) params.set('estado', filterEstado);
 
@@ -107,7 +113,7 @@ export default function SolicitudesPage() {
         setLoading(false);
       }
     },
-    [search, filterTipo, filterEstado]
+    [debouncedSearch, filterTipo, filterEstado]
   );
 
   useEffect(() => {
@@ -299,12 +305,29 @@ export default function SolicitudesPage() {
                       {new Date(req.createdAt).toLocaleDateString('es-CL')}
                     </td>
                     <td className="px-4 py-3">
-                      <Link
-                        href={`/solicitudes/${req.id}`}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <Notebook className="h-4 w-4" />
-                      </Link>
+                      <div className="flex items-center gap-3">
+                        <Link
+                          href={`/solicitudes/${req.id}`}
+                          className="text-blue-600 hover:text-blue-800"
+                          title="Ver solicitud"
+                        >
+                          <Notebook className="h-4 w-4" />
+                        </Link>
+                        {/* Descarga directa de la plantilla del acta sin entrar
+                            al detalle -- por ahora solo onboarding, que es el
+                            unico tipo con la plantilla ya conectada a datos
+                            reales (comprobante-entrega). Cambio de equipo y
+                            offboarding quedan pendientes de extender. */}
+                        {req.tipo === 'onboarding' && (
+                          <a
+                            href={`/api/solicitudes/${req.id}/documento/comprobante-entrega`}
+                            className="text-gray-500 hover:text-gray-700"
+                            title="Descargar plantilla de acta"
+                          >
+                            <FileText className="h-4 w-4" />
+                          </a>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -573,6 +573,14 @@ export default function NuevaSolicitudPage() {
       }
     }
 
+    // Defensa en profundidad ademas del "required" del select: si es admin
+    // y no eligio sede, no se manda -- evita que quede un ticket sin sede
+    // (invisible para el tecnico) por un descuido. Ver SPEC 2.9.
+    if (isAdmin && !sedeId) {
+      setFieldErrors({ sedeId: 'Debes seleccionar una sede' });
+      return;
+    }
+
     if (tipo === 'onboarding' && modoEmpleadoOnboarding === 'existente') {
       if (!selectedEmployee) {
         setFieldErrors({ employeeId: 'Elige el empleado que se reincorpora' });
@@ -1474,13 +1482,18 @@ export default function NuevaSolicitudPage() {
 
           {isAdmin && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sede</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sede <span className="text-red-500">*</span>
+              </label>
               <select
                 value={sedeId}
                 onChange={(e) => setSedeId(e.target.value)}
+                required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
               >
-                <option value="">Sin sede (solo lo verás tú)</option>
+                <option value="" disabled>
+                  Selecciona una sede...
+                </option>
                 {sedes.map((sede) => (
                   <option key={sede.id} value={sede.id}>
                     {sede.nombre}
@@ -1488,7 +1501,7 @@ export default function NuevaSolicitudPage() {
                 ))}
               </select>
               <p className="text-xs text-gray-500 mt-1">
-                Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú.
+                Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú, y es obligatorio para que el técnico de esa sede pueda ver y gestionar el ticket.
               </p>
             </div>
           )}
@@ -1949,13 +1962,18 @@ export default function NuevaSolicitudPage() {
 
           {isAdmin && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sede</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sede <span className="text-red-500">*</span>
+              </label>
               <select
                 value={sedeId}
                 onChange={(e) => setSedeId(e.target.value)}
+                required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
               >
-                <option value="">Sin sede (solo lo verás tú)</option>
+                <option value="" disabled>
+                  Selecciona una sede...
+                </option>
                 {sedes.map((sede) => (
                   <option key={sede.id} value={sede.id}>
                     {sede.nombre}
@@ -1963,7 +1981,7 @@ export default function NuevaSolicitudPage() {
                 ))}
               </select>
               <p className="text-xs text-gray-500 mt-1">
-                Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú.
+                Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú, y es obligatorio para que el técnico de esa sede pueda ver y gestionar el ticket.
               </p>
             </div>
           )}

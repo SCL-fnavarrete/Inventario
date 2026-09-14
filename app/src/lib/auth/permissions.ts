@@ -105,10 +105,19 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
     delete: ADMIN,
   },
 
-  // Informacion financiera: fuera del alcance operativo del tecnico.
+  // Registrar una compra es trabajo operativo del tecnico (11-sep-2026,
+  // pedido explicito de Javier): llega un despacho de otra sede y necesita
+  // quedar registrado con que factura vino y para que activos, igual que
+  // cualquier otro modulo scopeado por sede. Mismo dia, Javier pidio ademas
+  // simplificar el dato en si: se eliminaron proveedor y todo campo
+  // financiero (monto, moneda, metodo de pago, precio unitario) del modelo
+  // completo -- "el tema del dinero no es un dato que nos interese". Ya no
+  // hay nada que la UI/API tengan que filtrar por rol dentro del recurso;
+  // compras es simplemente RW para tecnico. Borrar una compra queda
+  // reservado a admin.
   compras: {
-    read: ADMIN,
-    write: ADMIN,
+    read: AMBOS,
+    write: AMBOS,
     delete: ADMIN,
   },
 

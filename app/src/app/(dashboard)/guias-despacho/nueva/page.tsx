@@ -43,9 +43,16 @@ type Asset = {
 export default function NuevaGuiaDespachoPage() {
   const { data: session } = useSession();
   const emisor = session?.user?.name || session?.user?.email || "";
+  const isAdmin = session?.user?.role === "admin";
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sedes, setSedes] = useState<Sede[]>([]);
+
+  // Sede origen: solo la elige admin (un tecnico despacha siempre desde la
+  // suya, forzado en el backend). Sin esto una guia de admin quedaba con
+  // sedeId null -- mezclando en un mismo despacho equipos de sedes
+  // distintas y sin quedar visible para ningun tecnico "emisor". Ver SPEC 2.9.
+  const [sedeOrigenId, setSedeOrigenId] = useState("");
 
   const [selectedAssets, setSelectedAssets] = useState<Asset[]>([]);
 
@@ -81,8 +88,10 @@ export default function NuevaGuiaDespachoPage() {
   }
 
   // Un tecnico no puede despacharse a su propia sede (la valida tambien el
-  // backend); si es admin no tiene sede propia y ve todas.
-  const sedesDestinoDisponibles = sedes.filter((s) => s.id !== session?.user?.sedeId);
+  // backend); si es admin, se excluye la sede origen que eligio.
+  const sedesDestinoDisponibles = sedes.filter(
+    (s) => s.id !== (isAdmin ? sedeOrigenId : session?.user?.sedeId)
+  );
   const sedeDestinoNombre = sedes.find((s) => s.id === dispatchData.sedeDestinoId)?.nombre;
 
   const formularioCompleto =
@@ -91,9 +100,14 @@ export default function NuevaGuiaDespachoPage() {
     !!dispatchData.fechaDespacho &&
     !!dispatchData.sedeDestinoId &&
     !!receptor.nombre &&
-    !!receptor.rut;
+    !!receptor.rut &&
+    (!isAdmin || !!sedeOrigenId);
 
   async function handleSubmit() {
+    if (isAdmin && !sedeOrigenId) {
+      setError("Selecciona la sede origen del despacho.");
+      return;
+    }
     if (!formularioCompleto) {
       setError("Completa los equipos, los datos del despacho y del receptor antes de confirmar.");
       return;
@@ -112,6 +126,9 @@ export default function NuevaGuiaDespachoPage() {
         assetIds: selectedAssets.map((a) => a.id),
         receptorNombre: receptor.nombre,
         receptorRut: receptor.rut,
+        // Solo tiene efecto si quien crea es admin -- el backend usa
+        // siempre la sede propia del tecnico. Ver SPEC 2.9.
+        ...(isAdmin ? { sedeId: sedeOrigenId } : {}),
       };
 
       const res = await fetch("/api/guias-despacho", {
@@ -207,16 +224,62 @@ export default function NuevaGuiaDespachoPage() {
         </div>
       )}
 
+      {/* Sección: Sede origen (solo admin) */}
+      {isAdmin && (
+        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <MapPin className="text-blue-600" size={20} />
+            Sede origen
+          </h2>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Sede origen <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={sedeOrigenId}
+              onChange={(e) => {
+                setSedeOrigenId(e.target.value);
+                // Los equipos ya elegidos pueden ser de una sede distinta a
+                // la nueva -- se limpian para no arrastrar una seleccion
+                // que ya no corresponde.
+                setSelectedAssets([]);
+              }}
+              required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="" disabled>
+                Selecciona una sede...
+              </option>
+              {sedes.map((sede) => (
+                <option key={sede.id} value={sede.id}>
+                  {sede.nombre}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Un técnico despacha siempre desde su propia sede; como admin debes elegir desde cuál sede sale este despacho, para no mezclar equipos de sedes distintas en una misma guía.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Sección: Equipos */}
       <div className="bg-white rounded-lg shadow p-6 space-y-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Package className="text-blue-600" size={20} />
           Equipos a despachar
         </h2>
-        <SelectorActivos
-          selectedAssets={selectedAssets}
-          onSelectionChange={setSelectedAssets}
-        />
+        {isAdmin && !sedeOrigenId ? (
+          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+            Selecciona primero la sede origen para ver el inventario disponible.
+          </p>
+        ) : (
+          <SelectorActivos
+            selectedAssets={selectedAssets}
+            onSelectionChange={setSelectedAssets}
+            sedeId={isAdmin ? sedeOrigenId : undefined}
+          />
+        )}
       </div>
 
       {/* Sección: Datos del Despacho */}

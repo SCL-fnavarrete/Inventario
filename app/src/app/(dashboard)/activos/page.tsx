@@ -12,8 +12,6 @@ import {
   ChevronRight,
   Eye,
   Edit,
-  UserPlus,
-  Repeat,
   Laptop,
   Smartphone,
   Monitor,
@@ -33,11 +31,11 @@ import {
   Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard, AsignacionesTable, ActivosTabs } from "@/components/activos";
+import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard, ActivosTabs } from "@/components/activos";
 import { Can } from "@/components/auth/Can";
 import { Modal } from "@/components/ui/Modal";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { BajaActivoForm } from "@/components/activos/BajaActivoForm";
-import { ReasignarActivoForm } from "@/components/activos/ReasignarActivoForm";
 import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 
 type Asset = {
@@ -196,11 +194,14 @@ function ActivosPageContent() {
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [searchInput, setSearchInput] = useState(searchQuery);
+  // El input responde a cada tecla; lo que dispara la busqueda (via URL, mas
+  // abajo) es esta version debounced -- antes no pasaba nada hasta enviar
+  // el formulario (Enter). Ver useDebouncedValue.
+  const debouncedSearchInput = useDebouncedValue(searchInput, 350);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"table" | "cards" | "kanban">("table");
   const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS);
   const [bajaModalAssetId, setBajaModalAssetId] = useState<string | null>(null);
-  const [reasignarModalAssetId, setReasignarModalAssetId] = useState<string | null>(null);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
@@ -223,6 +224,17 @@ function ActivosPageContent() {
 
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }, [router, pathname, searchParams]);
+
+  // Aplica la busqueda a la URL sola despues de la pausa del debounce --
+  // antes exigia Enter (handleSearch, mas abajo, lo sigue permitiendo para
+  // quien quiera forzarla al toque). El commit real sigue siendo la URL, asi
+  // que atras/adelante del navegador y compartir el link con un filtro
+  // aplicado no cambia.
+  useEffect(() => {
+    if (debouncedSearchInput === searchQuery) return;
+    updateUrlParams({ search: debouncedSearchInput || null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearchInput]);
 
   // Fetch stats
   useEffect(() => {
@@ -536,8 +548,8 @@ function ActivosPageContent() {
         </div>
       </div>
 
-      {/* Tabs del modulo: Equipos (esta pagina) / Personal / Kit de
-          Bienvenida / EPP (ver ActivosTabs -- compartido entre las 4) */}
+      {/* Tabs del modulo: Equipos (esta pagina) / Asignaciones / Personal /
+          Kit de Bienvenida / EPP (ver ActivosTabs -- compartido entre las 5) */}
       <ActivosTabs />
 
       {/* Stats Bar */}
@@ -951,24 +963,6 @@ function ActivosPageContent() {
                               >
                                 <Edit size={16} />
                               </Link>
-                              {(asset.estado === "disponible" || asset.estado === "reutilizable") && (
-                                <button
-                                  onClick={() => router.push("/solicitudes/nueva")}
-                                  className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                  title="Iniciar solicitud de entrega"
-                                >
-                                  <UserPlus size={16} />
-                                </button>
-                              )}
-                              {asset.estado === "asignado" && (
-                                <button
-                                  onClick={() => setReasignarModalAssetId(asset.id)}
-                                  className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                  title="Reasignar a otra persona"
-                                >
-                                  <Repeat size={16} />
-                                </button>
-                              )}
                             </div>
                           </td>
                         )}
@@ -1311,10 +1305,6 @@ function ActivosPageContent() {
         </div>
       )}
 
-      <div className="mt-8">
-        <AsignacionesTable />
-      </div>
-
       <Modal
         isOpen={!!bajaModalAssetId}
         onClose={() => setBajaModalAssetId(null)}
@@ -1333,29 +1323,6 @@ function ActivosPageContent() {
               const statsData = await statsRes.json();
               setStats(statsData);
               setBajaModalAssetId(null);
-            }}
-          />
-        )}
-      </Modal>  
-      
-      <Modal
-        isOpen={!!reasignarModalAssetId}
-        onClose={() => setReasignarModalAssetId(null)}
-        title="Reasignar Equipo"
-        size="lg"
-      >
-        {reasignarModalAssetId && (
-          <ReasignarActivoForm
-            assetId={reasignarModalAssetId}
-            onCancel={() => setReasignarModalAssetId(null)}
-            onSuccess={async () => {
-              setAllAssets((prev) =>
-                prev.map((a) => (a.id === reasignarModalAssetId ? { ...a, estado: "asignado" as Asset["estado"] } : a))
-              );
-              const statsRes = await fetch("/api/activos/stats");
-              const statsData = await statsRes.json();
-              setStats(statsData);
-              setReasignarModalAssetId(null);
             }}
           />
         )}

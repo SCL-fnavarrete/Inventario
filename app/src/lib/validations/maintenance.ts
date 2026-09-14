@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { resultadoMantencionEnum } from "./assetTransition";
 
 // El tipo de mantencion (Preventiva, Correctiva, etc.) ya no es un enum
 // fijo (9-sep-2026): ahora es una fila de MaintenanceType, referenciada
@@ -72,17 +73,35 @@ export const updateMaintenanceSchema = z.object({
 });
 
 // Schema para completar una mantención
-export const completeMaintenanceSchema = z.object({
-  fechaRealizada: z.string().transform((val) => new Date(val)),
-  realizadoPor: z.string().min(1, "Requerido").max(100, "Máximo 100 caracteres"),
-  resultado: z.string().min(1, "El resultado es requerido").max(1000, "Máximo 1000 caracteres"),
-  costo: costoSchema,
-  proximaMantencion: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
-});
+//
+// SPEC 2.25 (14-sep-2026): "resultado" sigue siendo la descripción libre de
+// qué se hizo, pero ahora también se pide "resultadoTipo" (estructurado:
+// reparado / no_reparable / pendiente_repuestos) porque antes el activo
+// SIEMPRE volvía a disponible/asignado/reutilizable al completar, sin
+// importar lo que dijera el texto libre -- no existía forma de que
+// "reparación no reparable" diera de baja el equipo. Pedido explícito de
+// Javier: un botón "No reparable" que sí lo dé de baja.
+export const completeMaintenanceSchema = z
+  .object({
+    fechaRealizada: z.string().transform((val) => new Date(val)),
+    realizadoPor: z.string().min(1, "Requerido").max(100, "Máximo 100 caracteres"),
+    resultado: z.string().min(1, "El resultado es requerido").max(1000, "Máximo 1000 caracteres"),
+    resultadoTipo: resultadoMantencionEnum,
+    motivoBaja: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
+    costo: costoSchema,
+    proximaMantencion: z.string().optional().nullable().transform((val) => {
+      if (!val) return null;
+      const date = new Date(val);
+      return isNaN(date.getTime()) ? null : date;
+    }),
+  })
+  .refine(
+    (data) => data.resultadoTipo !== "no_reparable" || (data.motivoBaja && data.motivoBaja.length > 0),
+    {
+      message: 'Motivo de baja requerido cuando el resultado es "No reparable"',
+      path: ["motivoBaja"],
+    }
+  );
 
 // Schema para filtros de búsqueda
 export const maintenanceFiltersSchema = z.object({

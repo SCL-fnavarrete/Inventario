@@ -108,6 +108,8 @@ export default function MantencionDetallePage({
     fechaRealizada: new Date().toISOString().split("T")[0],
     realizadoPor: "",
     resultado: "",
+    resultadoTipo: "reparado" as "reparado" | "no_reparable" | "pendiente_repuestos",
+    motivoBaja: "",
     proximaMantencion: "",
   });
 
@@ -129,6 +131,8 @@ export default function MantencionDetallePage({
         fechaRealizada: new Date().toISOString().split("T")[0],
         realizadoPor: data.realizadoPor || "",
         resultado: "",
+        resultadoTipo: "reparado",
+        motivoBaja: "",
         proximaMantencion: "",
       });
     } catch (err) {
@@ -184,6 +188,8 @@ export default function MantencionDetallePage({
           fechaRealizada: completeForm.fechaRealizada,
           realizadoPor: completeForm.realizadoPor,
           resultado: completeForm.resultado,
+          resultadoTipo: completeForm.resultadoTipo,
+          motivoBaja: completeForm.resultadoTipo === "no_reparable" ? completeForm.motivoBaja : null,
           proximaMantencion: completeForm.proximaMantencion || null,
         }),
       });
@@ -568,6 +574,77 @@ export default function MantencionDetallePage({
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  ¿Qué pasa con el equipo? *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCompleteForm((prev) => ({ ...prev, resultadoTipo: "reparado" }))}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium ${
+                      completeForm.resultadoTipo === "reparado"
+                        ? "bg-green-600 text-white border-green-600"
+                        : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    Reparado
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCompleteForm((prev) => ({ ...prev, resultadoTipo: "pendiente_repuestos" }))
+                    }
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium ${
+                      completeForm.resultadoTipo === "pendiente_repuestos"
+                        ? "bg-amber-500 text-white border-amber-500"
+                        : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    Faltan repuestos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCompleteForm((prev) => ({ ...prev, resultadoTipo: "no_reparable" }))}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium ${
+                      completeForm.resultadoTipo === "no_reparable"
+                        ? "bg-red-600 text-white border-red-600"
+                        : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    No reparable
+                  </button>
+                </div>
+                {completeForm.resultadoTipo === "pendiente_repuestos" && (
+                  <p className="text-xs text-amber-700 mt-2">
+                    El equipo queda en &quot;En Mantención&quot; (no vuelve a servicio) hasta que se complete una próxima mantención.
+                  </p>
+                )}
+                {completeForm.resultadoTipo === "no_reparable" && (
+                  <p className="text-xs text-red-700 mt-2">
+                    El equipo se dará de baja automáticamente al completar esta mantención.
+                  </p>
+                )}
+              </div>
+
+              {completeForm.resultadoTipo === "no_reparable" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Motivo de la baja *
+                  </label>
+                  <textarea
+                    required
+                    rows={2}
+                    placeholder="Por qué no se puede reparar..."
+                    value={completeForm.motivoBaja}
+                    onChange={(e) =>
+                      setCompleteForm((prev) => ({ ...prev, motivoBaja: e.target.value }))
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
