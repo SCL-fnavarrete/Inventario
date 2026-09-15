@@ -341,7 +341,7 @@ export async function POST(
         // Recepcion de equipos: se califica el estado de cada asignacion
         // activa del empleado de forma individual (no solo 3 categorias
         // fijas). Cada una se devuelve con executeReturn, que ya deja el
-        // Activo en "baja" si esta danado o "reutilizable" si esta ok --
+        // Activo en "baja" si esta danado o "disponible" si esta ok --
         // igual que en el flujo de Cambio de Equipo. El EPP entregado se
         // devuelve igual, con executeKitReturn (el Kit de Bienvenida no se
         // devuelve, es consumible).
@@ -420,7 +420,7 @@ export async function POST(
 
       // Al cerrar un offboarding, el empleado pasa a desvinculado -- ya no
       // trabaja en la empresa, y los equipos que tenia ya quedaron libres
-      // (reutilizable/baja) en el paso de recepcion de equipos.
+      // (disponible/baja) en el paso de recepcion de equipos.
       if (isFinal && workflowRequest.tipo === 'offboarding') {
         await tx.employee.update({
           where: { id: workflowRequest.employeeId },

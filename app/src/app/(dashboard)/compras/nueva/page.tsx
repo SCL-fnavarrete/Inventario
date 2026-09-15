@@ -115,7 +115,6 @@ export default function NuevaCompraPage() {
     almacenamiento: "",
     sistemaOperativo: "",
     antivirus: "",
-    nombreEquipo: "",
     tipoLicenciaMicrosoft365: "",
     imei: "",
     numeroTelefono: "",
@@ -310,7 +309,6 @@ export default function NuevaCompraPage() {
           discoDuro: newAssetForm.almacenamiento || null,
           sistemaOperativo: newAssetForm.sistemaOperativo || null,
           antivirus: newAssetForm.antivirus || null,
-          nombreEquipo: newAssetForm.nombreEquipo || null,
           // Igual que en /activos/nuevo (SPEC 2.23): no hay checkbox propio
           // de "tiene M365", se deriva de si se cargo el nombre del plan.
           tipoLicenciaMicrosoft365: newAssetForm.tipoLicenciaMicrosoft365 || null,
@@ -359,7 +357,6 @@ export default function NuevaCompraPage() {
         almacenamiento: "",
         sistemaOperativo: "",
         antivirus: "",
-        nombreEquipo: "",
         tipoLicenciaMicrosoft365: "",
         imei: "",
         numeroTelefono: "",
@@ -472,7 +469,7 @@ export default function NuevaCompraPage() {
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú, y es obligatorio.
+                  Obligatorio: sede a la que se atribuye esta compra. Define qué catálogo de Kit/EPP se ofrece más abajo.
                 </p>
               </div>
             )}
@@ -707,17 +704,6 @@ export default function NuevaCompraPage() {
                         value={newAssetForm.antivirus}
                         onChange={handleNewAssetChange}
                         placeholder="ej: Windows Defender"
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Nombre del Equipo</label>
-                      <input
-                        type="text"
-                        name="nombreEquipo"
-                        value={newAssetForm.nombreEquipo}
-                        onChange={handleNewAssetChange}
-                        placeholder="ej: NB-SCL-001"
                         className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       />
                     </div>

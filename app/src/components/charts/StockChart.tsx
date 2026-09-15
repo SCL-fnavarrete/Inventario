@@ -17,11 +17,8 @@ interface StockChartProps {
     disponibles: number;
     asignados: number;
     mantencion: number;
-    // Faltaba en el desglose por categoria (11-sep-2026, SPEC 2.16): la
-    // suma de las barras no calzaba con el total de "Activos por
-    // Categoria". "Vendido" queda deliberadamente afuera de este grafico:
-    // un equipo vendido ya no es stock.
-    reutilizable: number;
+    // "Vendido" queda deliberadamente afuera de este grafico: un equipo
+    // vendido ya no es stock.
     baja: number;
   }[];
 }
@@ -46,7 +43,6 @@ export function StockChart({ data }: StockChartProps) {
         <Bar dataKey="disponibles" name="Disponibles" fill="#22c55e" stackId="a" />
         <Bar dataKey="asignados" name="Asignados" fill="#3b82f6" stackId="a" />
         <Bar dataKey="mantencion" name="Mantención" fill="#f97316" stackId="a" />
-        <Bar dataKey="reutilizable" name="Reutilizable" fill="#8b5cf6" stackId="a" />
         <Bar dataKey="baja" name="Baja" fill="#ef4444" stackId="a" />
       </BarChart>
     </ResponsiveContainer>

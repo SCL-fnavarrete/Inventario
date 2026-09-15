@@ -136,21 +136,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Si se está actualizando el correo personal, verificar que no exista otro empleado con ese correo
-    if (data.correoPersonal && data.correoPersonal !== existingEmployee.correoPersonal) {
-      const existingByEmail = await prisma.employee.findUnique({
-        where: { correoPersonal: data.correoPersonal },
-      });
-
-      if (existingByEmail) {
-        return NextResponse.json(
-          { error: "Ya existe otro empleado con este correo personal" },
-          { status: 409 }
-        );
-      }
-    }
-
-    // Si se está actualizando el correo de empresa, verificar que no exista otro empleado con ese correo
+    // El correo de empresa es ahora el correo obligatorio y unico del
+    // empleado (15-sep-2026, SPEC 2.39): las planillas de TI siempre traen
+    // la cuenta corporativa y es con la que se identifica a la persona en
+    // soporte. Se comprueba el duplicado solo si el valor viene y cambio.
     if (data.correoEmpresa && data.correoEmpresa !== existingEmployee.correoEmpresa) {
       const existingByCorreoEmpresa = await prisma.employee.findUnique({
         where: { correoEmpresa: data.correoEmpresa },
@@ -159,6 +148,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       if (existingByCorreoEmpresa) {
         return NextResponse.json(
           { error: "Ya existe otro empleado con este correo de empresa" },
+          { status: 409 }
+        );
+      }
+    }
+
+    // El correo personal pasa a ser opcional, pero sigue siendo unico cuando
+    // el empleado si lo tiene registrado
+    if (data.correoPersonal && data.correoPersonal !== existingEmployee.correoPersonal) {
+      const existingByEmail = await prisma.employee.findUnique({
+        where: { correoPersonal: data.correoPersonal },
+      });
+
+      if (existingByEmail) {
+        return NextResponse.json(
+          { error: "Ya existe otro empleado con este correo personal" },
           { status: 409 }
         );
       }

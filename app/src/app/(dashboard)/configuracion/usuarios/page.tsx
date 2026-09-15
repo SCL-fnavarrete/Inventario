@@ -14,6 +14,19 @@ const usuarioFieldLabels: Record<string, string> = {
   activo: "Activo",
 };
 
+/**
+ * Confirmacion pendiente (15-sep-2026, SPEC 2.40). Eliminar un usuario se
+ * preguntaba con `confirm()` del navegador, que bloquea la ventana y no se
+ * parece a ningun otro cartel del sistema. Mismo formato que el modal de
+ * compras (SPEC 2.38).
+ */
+type Confirmacion = {
+  titulo: string;
+  mensaje: string;
+  textoBoton: string;
+  onConfirm: () => void | Promise<void>;
+};
+
 type Sede = {
   id: string;
   codigo: string;
@@ -45,7 +58,7 @@ const roleColors: Record<string, string> = {
 
 const roleDescriptions: Record<string, string> = {
   admin: "CRUD completo, reportes, configuración, ve todas las sedes",
-  tecnico: "Trabajo operativo de soporte, restringido a su propia sede",
+  tecnico: "Trabajo operativo de soporte; ve todas las sedes, sin acceso a Configuración",
 };
 
 export default function UsuariosPage() {
@@ -65,6 +78,7 @@ export default function UsuariosPage() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [success, setSuccess] = useState("");
+  const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -180,8 +194,17 @@ export default function UsuariosPage() {
     }
   };
 
+  const pedirEliminar = (user: SystemUser) => {
+    setConfirmacion({
+      titulo: "Eliminar usuario",
+      mensaje: `${user.nombre} (${user.email}) pierde el acceso al sistema y su cuenta se borra. No se puede deshacer; si solo quieres bloquearlo temporalmente, desactívalo en vez de eliminarlo.`,
+      textoBoton: "Eliminar",
+      onConfirm: () => handleDelete(user.id),
+    });
+  };
+
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Está seguro de eliminar este usuario?")) return;
+    setConfirmacion(null);
 
     try {
       const res = await fetch(`/api/usuarios/${id}`, {
@@ -394,7 +417,7 @@ export default function UsuariosPage() {
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  Define qué activos, empleados, solicitudes y guías podrá ver y crear este usuario.
+                  Sede que se propone por defecto en los formularios de este usuario. No limita lo que puede ver: desde el rediseño de visibilidad, admin y técnico ven todas las sedes.
                 </p>
               </div>
             )}
@@ -502,7 +525,7 @@ export default function UsuariosPage() {
                       <Edit size={18} />
                     </button>
                     <button
-                      onClick={() => handleDelete(user.id)}
+                      onClick={() => pedirEliminar(user)}
                       className="p-1 text-red-600 hover:bg-red-50 rounded"
                       title="Eliminar"
                     >
@@ -522,6 +545,33 @@ export default function UsuariosPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Confirmacion de eliminacion, con el mismo formato que el resto del
+          sistema en vez del confirm() del navegador (15-sep-2026, SPEC 2.40). */}
+      {confirmacion && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {confirmacion.titulo}
+            </h3>
+            <p className="text-gray-600 mb-4">{confirmacion.mensaje}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmacion(null)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => confirmacion.onConfirm()}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                {confirmacion.textoBoton}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

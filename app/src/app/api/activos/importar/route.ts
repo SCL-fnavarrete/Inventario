@@ -264,7 +264,7 @@ export async function POST(request: NextRequest) {
           results.skipped++;
           results.errors.push({
             row: rowNum,
-            message: `Estado no reconocido: "${lecturaEstado.valor}". Se espera un estado (Disponible, Asignado, En mantencion, Reutilizable, Baja, Vendido) o una condicion (Nuevo, Usado, Seminuevo, Danado)`,
+            message: `Estado no reconocido: "${lecturaEstado.valor}". Se espera un estado (Disponible, Asignado, En mantencion, Baja, Vendido) o una condicion (Nuevo, Usado, Seminuevo, Danado)`,
             type: "invalid_format",
             data: { marca, modelo, numeroSerie },
           });
@@ -329,18 +329,21 @@ export async function POST(request: NextRequest) {
               continue;
             }
 
-            // El correo es unico en la base. Si el Excel no lo trae se genera
-            // uno derivado del RUT: siempre el mismo para la misma persona, de
-            // modo que reimportar el archivo no cree un empleado distinto cada
-            // vez (antes se usaba Date.now(), que si lo hacia).
+            // El correo de empresa es obligatorio y unico en la base
+            // (15-sep-2026, SPEC 2.39: antes se generaba aqui el correo
+            // personal). Si el Excel no lo trae se genera uno derivado del
+            // RUT: siempre el mismo para la misma persona, de modo que
+            // reimportar el archivo no cree un empleado distinto cada vez
+            // (antes se usaba Date.now(), que si lo hacia). El correo
+            // personal no se setea: casi nunca esta en las planillas.
             const base = `${nombres.toLowerCase().replace(/\s+/g, ".")}.${apellidoPaterno.toLowerCase()}`;
-            let correoPersonal = getValue("correo") || `${base}@empresa.cl`;
+            let correoEmpresa = getValue("correo") || `${base}@empresa.cl`;
             const correoTomado = await prisma.employee.findUnique({
-              where: { correoPersonal },
+              where: { correoEmpresa },
               select: { id: true },
             });
             if (correoTomado) {
-              correoPersonal = `${base}.${limpiarRut(rutEmpleado).toLowerCase()}@empresa.cl`;
+              correoEmpresa = `${base}.${limpiarRut(rutEmpleado).toLowerCase()}@empresa.cl`;
             }
 
             datosEmpleadoNuevo = {
@@ -348,7 +351,7 @@ export async function POST(request: NextRequest) {
               nombres,
               apellidoPaterno,
               apellidoMaterno: getValue("apellidoM") || null,
-              correoPersonal,
+              correoEmpresa,
               cargo: getValue("cargo") || null,
               jefatura: getValue("jefatura") || null,
               supervisor: getValue("supervisor") || null,

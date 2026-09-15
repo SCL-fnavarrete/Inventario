@@ -21,7 +21,6 @@ async function getStockData() {
     const disponibles = cat.assets.filter((a) => a.estado === "disponible").length;
     const asignados = cat.assets.filter((a) => a.estado === "asignado").length;
     const enMantencion = cat.assets.filter((a) => a.estado === "en_mantencion").length;
-    const reutilizables = cat.assets.filter((a) => a.estado === "reutilizable").length;
     const baja = cat.assets.filter((a) => a.estado === "baja").length;
 
     // Agrupar por ubicación
@@ -37,7 +36,6 @@ async function getStockData() {
       disponibles,
       asignados,
       enMantencion,
-      reutilizables,
       baja,
       ubicaciones,
     };
@@ -49,7 +47,6 @@ async function getStockData() {
     disponibles: stockData.reduce((acc, c) => acc + c.disponibles, 0),
     asignados: stockData.reduce((acc, c) => acc + c.asignados, 0),
     enMantencion: stockData.reduce((acc, c) => acc + c.enMantencion, 0),
-    reutilizables: stockData.reduce((acc, c) => acc + c.reutilizables, 0),
     baja: stockData.reduce((acc, c) => acc + c.baja, 0),
   };
 
@@ -103,10 +100,6 @@ export default async function ReporteStockPage() {
           <p className="text-sm text-orange-600">Mantención</p>
           <p className="text-2xl font-bold text-orange-700">{totales.enMantencion}</p>
         </div>
-        <div className="bg-purple-50 rounded-lg shadow p-4 text-center">
-          <p className="text-sm text-purple-600">Reutilizables</p>
-          <p className="text-2xl font-bold text-purple-700">{totales.reutilizables}</p>
-        </div>
         <div className="bg-red-50 rounded-lg shadow p-4 text-center">
           <p className="text-sm text-red-600">Baja</p>
           <p className="text-2xl font-bold text-red-700">{totales.baja}</p>
@@ -139,9 +132,6 @@ export default async function ReporteStockPage() {
                 <th className="px-6 py-3 text-center text-xs font-medium text-orange-600 uppercase">
                   Mantención
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-purple-600 uppercase">
-                  Reutilizables
-                </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-red-600 uppercase">
                   Baja
                 </th>
@@ -172,11 +162,6 @@ export default async function ReporteStockPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-center">
-                    <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 bg-purple-100 text-purple-800 rounded-full font-medium">
-                      {row.reutilizables}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-center">
                     <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 bg-red-100 text-red-800 rounded-full font-medium">
                       {row.baja}
                     </span>
@@ -197,9 +182,6 @@ export default async function ReporteStockPage() {
                 </td>
                 <td className="px-6 py-4 text-sm text-center text-orange-700">
                   {totales.enMantencion}
-                </td>
-                <td className="px-6 py-4 text-sm text-center text-purple-700">
-                  {totales.reutilizables}
                 </td>
                 <td className="px-6 py-4 text-sm text-center text-red-700">
                   {totales.baja}

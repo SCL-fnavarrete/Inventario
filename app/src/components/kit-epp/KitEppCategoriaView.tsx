@@ -14,6 +14,19 @@ type Sede = {
   nombre: string;
 };
 
+/**
+ * Confirmacion pendiente (15-sep-2026, SPEC 2.40). Eliminar un articulo se
+ * preguntaba con `confirm()` del navegador, que bloquea la ventana entera y
+ * no se parece a ningun otro cartel del sistema. Mismo formato que el modal
+ * de compras (SPEC 2.38).
+ */
+type Confirmacion = {
+  titulo: string;
+  mensaje: string;
+  textoBoton: string;
+  onConfirm: () => void | Promise<void>;
+};
+
 type KitItem = {
   id: string;
   nombre: string;
@@ -58,6 +71,10 @@ export function KitEppCategoriaView({
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState(formInicial);
   const [error, setError] = useState("");
+  const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
+  // Mensaje informativo (no es un error): hoy solo se usa para avisar que un
+  // articulo se guardo en una sede distinta a la que filtra el menu.
+  const [aviso, setAviso] = useState("");
   // Selector de sede del nav (Etapa 2): elegir una sede ahi filtra tambien
   // este catalogo, igual que ya pasa en Activos.
   const { sedeSeleccionada } = useSedeSeleccionada();
@@ -108,6 +125,22 @@ export function KitEppCategoriaView({
         body: JSON.stringify({ ...formData, sedeId: formData.sedeId || undefined }),
       });
       if (res.ok) {
+        // Aviso cuando el articulo se guarda en una sede distinta a la que
+        // filtra el menu (15-sep-2026, QA funcional, SPEC 2.38): en ese caso
+        // la fila recien creada NO aparece en la tabla, porque la tabla esta
+        // filtrada por la sede del selector. Sin este aviso parecia que el
+        // guardado habia fallado y el usuario lo creaba de nuevo.
+        const sedeGuardada = formData.sedeId || null;
+        if (sedeSeleccionada && sedeGuardada !== sedeSeleccionada) {
+          const nombreSede = sedeGuardada
+            ? sedes.find((s) => s.id === sedeGuardada)?.nombre || "otra sede"
+            : "sin sede";
+          setAviso(
+            `"${formData.nombre.trim()}" se guardó correctamente en ${nombreSede}. No aparece en esta lista porque el menú está filtrando por otra sede.`
+          );
+        } else {
+          setAviso("");
+        }
         await fetchItems();
         setIsCreating(false);
         setFormData(formInicial);
@@ -148,8 +181,17 @@ export function KitEppCategoriaView({
     }
   };
 
+  const pedirEliminar = (item: KitItem) => {
+    setConfirmacion({
+      titulo: "Eliminar artículo",
+      mensaje: `"${item.nombre}" se borra del catálogo junto con su stock (${item.cantidad} unidad${item.cantidad === 1 ? "" : "es"}) y deja de poder asignarse en las solicitudes de onboarding. No se puede deshacer.`,
+      textoBoton: "Eliminar",
+      onConfirm: () => handleDelete(item.id),
+    });
+  };
+
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Está seguro de eliminar este artículo?")) return;
+    setConfirmacion(null);
     try {
       const res = await fetch(`/api/kit-items/${id}`, { method: "DELETE" });
       if (res.ok) {
@@ -219,6 +261,19 @@ export function KitEppCategoriaView({
         </div>
       )}
 
+      {aviso && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg flex items-start justify-between gap-3">
+          <span>{aviso}</span>
+          <button
+            onClick={() => setAviso("")}
+            className="text-blue-600 hover:text-blue-800 flex-shrink-0"
+            aria-label="Cerrar aviso"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -270,7 +325,7 @@ export function KitEppCategoriaView({
                       onChange={(e) => setFormData({ ...formData, sedeId: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
-                      <option value="">Sin sede (solo lo verás tú)</option>
+                      <option value="">Sin sede (no aparece al filtrar por sede)</option>
                       {sedes.map((sede) => (
                         <option key={sede.id} value={sede.id}>
                           {sede.nombre}
@@ -278,7 +333,7 @@ export function KitEppCategoriaView({
                       ))}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      Un técnico hereda automáticamente su propia sede; este campo solo lo ves tú.
+                      Sede a la que pertenece este stock. Si lo dejas sin sede, no aparecerá cuando filtres por una sede en el menú.
                     </p>
                   </div>
                 )}
@@ -420,7 +475,7 @@ export function KitEppCategoriaView({
                                 falle con un 403. */}
                             {isAdmin && (
                               <button
-                                onClick={() => handleDelete(item.id)}
+                                onClick={() => pedirEliminar(item)}
                                 className="p-1 text-red-600 hover:bg-red-50 rounded"
                                 title="Eliminar"
                               >
@@ -444,6 +499,33 @@ export function KitEppCategoriaView({
             </table>
           </div>
         </>
+      )}
+
+      {/* Confirmacion de eliminacion, con el mismo formato que el resto del
+          sistema en vez del confirm() del navegador (15-sep-2026, SPEC 2.40). */}
+      {confirmacion && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {confirmacion.titulo}
+            </h3>
+            <p className="text-gray-600 mb-4">{confirmacion.mensaje}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmacion(null)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => confirmacion.onConfirm()}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                {confirmacion.textoBoton}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

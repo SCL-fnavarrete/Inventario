@@ -22,7 +22,6 @@ const ESTADO_LABELS: Record<string, string> = {
   disponible: "Disponibles",
   asignado: "Asignados",
   en_mantencion: "En Mantención",
-  reutilizable: "Reutilizables",
   baja: "Baja",
   vendido: "Vendidos",
 };

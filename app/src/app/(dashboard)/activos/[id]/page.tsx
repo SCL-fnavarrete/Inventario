@@ -16,12 +16,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { EstadoActivo, CondicionActivo, TipoEvento } from "@prisma/client";
+import { formatearFecha } from "@/lib/utils/fechas";
 
 const estadoColors: Record<EstadoActivo, string> = {
   disponible: "bg-green-100 text-green-800",
   asignado: "bg-blue-100 text-blue-800",
   en_mantencion: "bg-yellow-100 text-yellow-800",
-  reutilizable: "bg-purple-100 text-purple-800",
   baja: "bg-red-100 text-red-800",
   vendido: "bg-gray-100 text-gray-800",
 };
@@ -30,7 +30,6 @@ const estadoLabels: Record<EstadoActivo, string> = {
   disponible: "Disponible",
   asignado: "Asignado",
   en_mantencion: "En Mantención",
-  reutilizable: "Reutilizable",
   baja: "Baja",
   vendido: "Vendido",
 };
@@ -224,7 +223,7 @@ export default async function DetalleActivoPage({
               <p className="text-sm text-gray-500">Fecha Compra</p>
               <p className="font-medium text-gray-900">
                 {asset.fechaCompra
-                  ? new Date(asset.fechaCompra).toLocaleDateString("es-CL")
+                  ? formatearFecha(asset.fechaCompra)
                   : "No registrada"}
               </p>
             </div>
@@ -241,12 +240,6 @@ export default async function DetalleActivoPage({
               Información General
             </h2>
             <dl className="grid grid-cols-2 gap-4">
-              <div>
-                <dt className="text-sm text-gray-500">Código Interno</dt>
-                <dd className="font-medium text-gray-900">
-                  {asset.numeroActivoInterno || "-"}
-                </dd>
-              </div>
               <div>
                 <dt className="text-sm text-gray-500">Número de Serie</dt>
                 <dd className="font-medium text-gray-900">{asset.numeroSerie}</dd>
@@ -325,7 +318,7 @@ export default async function DetalleActivoPage({
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-gray-900">
-                        {new Date(asig.fechaEntrega).toLocaleDateString("es-CL")}
+                        {formatearFecha(asig.fechaEntrega)}
                       </p>
                       <span
                         className={cn(

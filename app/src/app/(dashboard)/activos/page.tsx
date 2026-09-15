@@ -38,10 +38,10 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import { BajaActivoForm } from "@/components/activos/BajaActivoForm";
 import type { EstadoActivo, CondicionActivo } from "@prisma/client";
+import { formatearFecha } from "@/lib/utils/fechas";
 
 type Asset = {
   id: string;
-  numeroActivoInterno: string | null;
   marca: string;
   modelo: string;
   numeroSerie: string | null;
@@ -66,7 +66,9 @@ type Asset = {
     id: string;
     nombres: string;
     apellidoPaterno: string;
-    correoPersonal: string;
+    // El correo de empresa es el identificador visible (15-sep-2026, SPEC 2.39)
+    correoEmpresa: string;
+    correoPersonal?: string | null;
     cargo: string | null;
   } | null;
 };
@@ -77,7 +79,6 @@ type StatsData = {
     disponible: number;
     asignado: number;
     en_mantencion: number;
-    reutilizable: number;
     baja: number;
     vendido: number;
   };
@@ -105,7 +106,6 @@ const estadoColors: Record<EstadoActivo, string> = {
   disponible: "bg-green-100 text-green-800",
   asignado: "bg-blue-100 text-blue-800",
   en_mantencion: "bg-yellow-100 text-yellow-800",
-  reutilizable: "bg-purple-100 text-purple-800",
   baja: "bg-red-100 text-red-800",
   vendido: "bg-gray-100 text-gray-800",
 };
@@ -114,7 +114,6 @@ const estadoLabels: Record<EstadoActivo, string> = {
   disponible: "Disponible",
   asignado: "Asignado",
   en_mantencion: "En Mantenci\u00f3n",
-  reutilizable: "Reutilizable",
   baja: "Baja",
   vendido: "Vendido",
 };
@@ -158,7 +157,9 @@ function getCategoryIcon(categoryName: string) {
 
 const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: "tipo", label: "Tipo", visible: true, required: true },
-  { id: "identificacion", label: "C\u00f3digo/Serie", visible: true, required: true },
+  // Sin el codigo interno (15-sep-2026, SPEC 2.40) el equipo se identifica
+  // solo por su numero de serie.
+  { id: "identificacion", label: "N\u00b0 Serie", visible: true, required: true },
   { id: "marca", label: "Marca/Modelo", visible: true, required: true },
   { id: "estado", label: "Estado", visible: true, required: true },
   { id: "condicion", label: "Condici\u00f3n", visible: true },
@@ -169,6 +170,23 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: "software", label: "Software", visible: false },
   { id: "acciones", label: "Acciones", visible: true, required: true },
 ];
+
+/**
+ * URL de las estadisticas, respetando el selector de sede del nav.
+ *
+ * 15-sep-2026 (QA funcional, SPEC 2.38): las tarjetas de arriba y los
+ * contadores por categoria ignoraban ese selector -- con "Concepcion"
+ * elegido, la tabla decia "No se encontraron activos" mientras la tarjeta
+ * seguia diciendo "Total 1" (el activo de Santiago). Se centraliza aca
+ * porque la pantalla vuelve a pedir las stats en 4 momentos distintos
+ * (carga inicial, y despues de crear / editar / eliminar un activo) y las
+ * cuatro tienen que filtrar igual.
+ */
+function urlStats(sedeSeleccionada: string | null): string {
+  return sedeSeleccionada
+    ? `/api/activos/stats?sedeId=${encodeURIComponent(sedeSeleccionada)}`
+    : "/api/activos/stats";
+}
 
 function ActivosPageContent() {
   const router = useRouter();
@@ -208,6 +226,10 @@ function ActivosPageContent() {
   const [bajaModalAssetId, setBajaModalAssetId] = useState<string | null>(null);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  // Aviso de por que no se pudo mover una tarjeta en el Kanban. Antes esto
+  // salia en un alert() del navegador, que bloquea la ventana y no se parece
+  // a ningun otro mensaje del sistema (15-sep-2026, SPEC 2.40).
+  const [kanbanError, setKanbanError] = useState<string | null>(null);
 
   // Update URL params
   const updateUrlParams = useCallback((updates: Record<string, string | null>) => {
@@ -245,7 +267,7 @@ function ActivosPageContent() {
     async function fetchStats() {
       setStatsLoading(true);
       try {
-        const res = await fetch("/api/activos/stats");
+        const res = await fetch(urlStats(sedeSeleccionada));
         const data = await res.json();
         setStats(data);
       } catch (error) {
@@ -255,7 +277,7 @@ function ActivosPageContent() {
       }
     }
     fetchStats();
-  }, []);
+  }, [sedeSeleccionada]);
 
   // Fetch assets
   useEffect(() => {
@@ -354,7 +376,7 @@ function ActivosPageContent() {
           )
         );
         // Refresh stats
-        const statsRes = await fetch("/api/activos/stats");
+        const statsRes = await fetch(urlStats(sedeSeleccionada));
         const statsData = await statsRes.json();
         setStats(statsData);
       }
@@ -367,43 +389,12 @@ function ActivosPageContent() {
   */
 
   async function handleStatusChange(assetId: string, newStatus: string){
+    setKanbanError(null);
     const asset = allAssets.find((a) => a.id == assetId);
     if (!asset) return;
     const currentStatus = asset.estado;
 
-    //No necesita pantalla intermedia, no hace falta ningun dato extra
-    if (currentStatus == "reutilizable" && newStatus == "disponible"){
-      setIsUpdatingStatus(true);
-      try{
-        const res = await fetch(`/api/activos/${assetId}`,{
-          method : "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ estado: newStatus }),
-        });
-
-        if (res.ok) {
-          setAllAssets((prev)=>
-          prev.map((a)=>
-          a.id===assetId ? { ...a, estado:newStatus as Asset["estado"]} : a
-        )
-      );
-      const statsRes = await fetch("/api/activos/stats");
-      const statsData = await statsRes.json();
-      setStats(statsData);
-      } else{
-        const data = await res.json().catch(() => null);
-        alert(data?.error ?? "No se pudo actualizar el estado del activo");
-      }
-    } catch (error){
-      console.error("Error updating status:", error);
-      alert("Error de conexión al actualizar el activo");
-    } finally {
-      setIsUpdatingStatus(false);
-    }
-    return;
-  }
-
-  //entregar un equipo disponible: debe quedar registrado como solicitud
+    //entregar un equipo disponible: debe quedar registrado como solicitud
   //(folio, pendientes de kit/EPP, confirmacion RRHH). No se asigna directo.
   if (currentStatus === "disponible" && newStatus === "asignado"){
     router.push("/solicitudes/nueva");
@@ -416,8 +407,9 @@ function ActivosPageContent() {
     return;
   }
 
-  //Devolucion de un equipo asignado (a reutilizable o dado de baja)
-  if (currentStatus==="asignado" && (newStatus ==="reutilizable" || newStatus==="baja")){
+  //Devolucion de un equipo asignado (vuelve a disponible, o se da de baja
+  //si volvio danado). Ver SPEC 2.40.
+  if (currentStatus==="asignado" && (newStatus ==="disponible" || newStatus==="baja")){
     try{
       const res = await fetch(`/api/asignaciones?assetId=${assetId}&activo=true&limit=1`);
       const data = await res.json();
@@ -425,25 +417,17 @@ function ActivosPageContent() {
       if (asignacionId){
         router.push(`/asignaciones/devolucion?id=${asignacionId}`);
       }else{
-        alert("No se encontro la asignacion activa de este equipo");
+        setKanbanError("No se encontró la asignación activa de este equipo.");
       }
     }catch(error){
       console.error("Error buscando la asignacion:",error);
-      alert("Error al buscar la asignacion del equipo");
+      setKanbanError("No se pudo buscar la asignación del equipo. Revisa la conexión e inténtalo de nuevo.");
     }
     return;
   }
 
-  //entregar un equipo reutilizable: es una asignacion nueva, no una
-  //reasignacion, porque el equipo ya no esta en manos de nadie. Debe
-  //quedar registrado como solicitud, igual que el caso "disponible".
-  if (currentStatus === "reutilizable" && newStatus === "asignado"){
-    router.push("/solicitudes/nueva");
-    return;
-  }
-
   //dar de baja: se necesita un motivo
-  if (newStatus === "baja" && (currentStatus === "reutilizable" || currentStatus === "en_mantencion" || currentStatus === "disponible")) {
+  if (newStatus === "baja" && (currentStatus === "en_mantencion" || currentStatus === "disponible")) {
     setBajaModalAssetId(assetId);
     return;
   }
@@ -461,7 +445,9 @@ function ActivosPageContent() {
   }
 
   //Cualquier otra combinacion no tiene un camino definido todavia
-  alert(`No se puede pasar de "${currentStatus}" a "${newStatus}" desde el Kanban`);
+  setKanbanError(
+    `Desde el Kanban no se puede pasar un activo de "${estadoLabels[currentStatus as EstadoActivo] ?? currentStatus}" a "${estadoLabels[newStatus as EstadoActivo] ?? newStatus}". Si el cambio corresponde, hazlo desde la pantalla del módulo que lleva ese registro.`
+  );
 }
 
 
@@ -529,7 +515,7 @@ function ActivosPageContent() {
         </div>
         <div className="flex gap-2">
           <a
-            href={`/api/activos/exportar?estado=${estadoFilter}&categoriaId=${categoriaFilter}`}
+            href={`/api/activos/exportar?estado=${estadoFilter}&categoriaId=${categoriaFilter}${sedeSeleccionada ? `&sedeId=${sedeSeleccionada}` : ""}`}
             className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
           >
             <Download size={20} />
@@ -556,6 +542,19 @@ function ActivosPageContent() {
 
       {/* Tabs del modulo: Equipos (esta pagina) / Asignaciones / Personal /
           Kit de Bienvenida / EPP (ver ActivosTabs -- compartido entre las 5) */}
+      {kanbanError && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg flex items-start justify-between gap-3">
+          <span>{kanbanError}</span>
+          <button
+            onClick={() => setKanbanError(null)}
+            className="text-amber-600 hover:text-amber-800 flex-shrink-0 font-medium"
+            aria-label="Cerrar aviso"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       <ActivosTabs />
 
       {/* Stats Bar */}
@@ -785,12 +784,9 @@ function ActivosPageContent() {
                         {visibleColumns.find((c) => c.id === "identificacion") && (
                           <td className="px-4 py-3 whitespace-nowrap align-top">
                             <div>
-                              {asset.numeroActivoInterno && (
-                                <p className="text-sm font-medium text-gray-900">
-                                  {asset.numeroActivoInterno}
-                                </p>
-                              )}
-                              <p className="text-xs text-gray-500">
+                              {/* El numero de serie pasa a ser el dato principal
+                                  de identificacion (15-sep-2026, SPEC 2.40). */}
+                              <p className="text-sm font-medium text-gray-900">
                                 {asset.numeroSerie || "-"}
                               </p>
                               {asset.imei && (
@@ -907,7 +903,7 @@ function ActivosPageContent() {
                               <div className="flex items-center gap-1 text-sm text-gray-600">
                                 <Calendar size={14} className="text-gray-400" />
                                 <span>
-                                  {new Date(asset.fechaCompra).toLocaleDateString("es-CL")}
+                                  {formatearFecha(asset.fechaCompra)}
                                 </span>
                               </div>
                             ) : (
@@ -1009,9 +1005,7 @@ function ActivosPageContent() {
                                     <div className="flex justify-between">
                                       <dt className="text-gray-500">Garantía hasta:</dt>
                                       <dd className="text-gray-900">
-                                        {new Date(asset.fechaGarantiaFin).toLocaleDateString(
-                                          "es-CL"
-                                        )}
+                                        {formatearFecha(asset.fechaGarantiaFin)}
                                       </dd>
                                     </div>
                                   )}
@@ -1050,7 +1044,7 @@ function ActivosPageContent() {
                                     <div className="flex justify-between">
                                       <dt className="text-gray-500">Email:</dt>
                                       <dd className="text-gray-900 truncate max-w-[200px]">
-                                        {asset.empleadoActual.correoPersonal}
+                                        {asset.empleadoActual.correoEmpresa ?? asset.empleadoActual.correoPersonal ?? ''}
                                       </dd>
                                     </div>
                                   </dl>
@@ -1325,7 +1319,7 @@ function ActivosPageContent() {
               setAllAssets((prev) =>
                 prev.map((a) => (a.id === bajaModalAssetId ? { ...a, estado: "baja" as Asset["estado"] } : a))
               );
-              const statsRes = await fetch("/api/activos/stats");
+              const statsRes = await fetch(urlStats(sedeSeleccionada));
               const statsData = await statsRes.json();
               setStats(statsData);
               setBajaModalAssetId(null);

@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { formatearFecha } from "@/lib/utils/fechas";
 
 type Maintenance = {
   id: string;
@@ -53,7 +54,9 @@ type Maintenance = {
       nombres: string;
       apellidoPaterno: string;
       apellidoMaterno: string | null;
-      correoPersonal: string;
+      // El correo de empresa es el obligatorio (15-sep-2026, SPEC 2.39)
+      correoEmpresa: string;
+      correoPersonal?: string | null;
       cargo: string | null;
     } | null;
   };
@@ -81,7 +84,7 @@ function getCategoryIcon(categoryName: string) {
 
 function formatDate(dateString: string | null): string {
   if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("es-CL");
+  return formatearFecha(dateString);
 }
 
 function formatCurrency(amount: number | null): string {

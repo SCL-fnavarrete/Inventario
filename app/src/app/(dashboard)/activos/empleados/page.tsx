@@ -34,7 +34,9 @@ type Employee = {
   nombres: string;
   apellidoPaterno: string;
   apellidoMaterno: string | null;
-  correoPersonal: string;
+  // El correo de empresa es el obligatorio (15-sep-2026, SPEC 2.39)
+  correoEmpresa: string;
+  correoPersonal?: string | null;
   cargo: string | null;
   jefatura: string | null;
   ubicacion: string | null;
@@ -534,7 +536,7 @@ export default function PersonalPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-gray-600">{employee.correoPersonal}</p>
+                      <p className="text-sm text-gray-600">{employee.correoEmpresa ?? employee.correoPersonal ?? ''}</p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>

@@ -16,15 +16,13 @@ describe('assetStateMachine — canTransitionAsset', () => {
     ['disponible', 'en_mantencion'],
     // Baja sin uso previo: un equipo puede descartarse sin haber sido asignado.
     ['disponible', 'baja'],
-    ['asignado', 'reutilizable'],
+    // SPEC 2.40: devolver en buen estado deja el equipo en disponible.
+    ['asignado', 'disponible'],
     ['asignado', 'baja'],
     ['asignado', 'en_mantencion'],
     ['en_mantencion', 'disponible'],
     ['en_mantencion', 'asignado'],
     ['en_mantencion', 'baja'],
-    ['reutilizable', 'asignado'],
-    ['reutilizable', 'disponible'],
-    ['reutilizable', 'baja'],
     ['baja', 'vendido'],
   ];
 
@@ -35,16 +33,10 @@ describe('assetStateMachine — canTransitionAsset', () => {
   // Transiciones inválidas
   const invalidTransitions: [EstadoActivo, EstadoActivo][] = [
     ['disponible', 'vendido'],
-    ['disponible', 'reutilizable'],
     ['asignado', 'vendido'],
-    ['asignado', 'disponible'],
     ['en_mantencion', 'vendido'],
-    ['en_mantencion', 'reutilizable'],
-    ['reutilizable', 'vendido'],
-    ['reutilizable', 'en_mantencion'],
     ['baja', 'disponible'],
     ['baja', 'asignado'],
-    ['baja', 'reutilizable'],
     ['baja', 'en_mantencion'],
     ['vendido', 'disponible'],
     ['vendido', 'asignado'],
@@ -61,16 +53,12 @@ describe('assetStateMachine — getValidTransitions', () => {
     expect(getValidTransitions('disponible')).toEqual(['asignado', 'en_mantencion', 'baja']);
   });
 
-  test('asignado puede ir a reutilizable, baja y en_mantencion', () => {
-    expect(getValidTransitions('asignado')).toEqual(['reutilizable', 'baja', 'en_mantencion']);
+  test('asignado puede ir a disponible, baja y en_mantencion', () => {
+    expect(getValidTransitions('asignado')).toEqual(['disponible', 'baja', 'en_mantencion']);
   });
 
   test('en_mantencion puede ir a disponible, asignado y baja', () => {
     expect(getValidTransitions('en_mantencion')).toEqual(['disponible', 'asignado', 'baja']);
-  });
-
-  test('reutilizable puede ir a asignado, disponible y baja', () => {
-    expect(getValidTransitions('reutilizable')).toEqual(['asignado', 'disponible', 'baja']);
   });
 
   test('baja solo puede ir a vendido', () => {
@@ -144,9 +132,9 @@ describe('assetStateMachine — validateTransition', () => {
     expect(result.valid).toBe(true);
   });
 
-  // SPEC 2.7.7: asignado→reutilizable requiere devolución
-  test('asignado→reutilizable sin devolución es inválida', () => {
-    const result = validateTransition('asignado', 'reutilizable', {
+  // SPEC 2.7.7 / 2.40: asignado→disponible requiere devolución
+  test('asignado→disponible sin devolución es inválida', () => {
+    const result = validateTransition('asignado', 'disponible', {
       ...baseContext,
       hasActiveAssignment: true,
     });
@@ -154,8 +142,8 @@ describe('assetStateMachine — validateTransition', () => {
     expect(result.errors[0]).toContain('devolución');
   });
 
-  test('asignado→reutilizable con devolución danado es inválida (debe ir a baja)', () => {
-    const result = validateTransition('asignado', 'reutilizable', {
+  test('asignado→disponible con devolución danado es inválida (debe ir a baja)', () => {
+    const result = validateTransition('asignado', 'disponible', {
       ...baseContext,
       hasActiveAssignment: true,
       estadoDevolucion: 'danado',
@@ -164,26 +152,11 @@ describe('assetStateMachine — validateTransition', () => {
     expect(result.errors[0]).toContain('baja');
   });
 
-  test('asignado→reutilizable con devolución ok es válida', () => {
-    const result = validateTransition('asignado', 'reutilizable', {
+  test('asignado→disponible con devolución ok es válida', () => {
+    const result = validateTransition('asignado', 'disponible', {
       ...baseContext,
       hasActiveAssignment: true,
       estadoDevolucion: 'ok',
-    });
-    expect(result.valid).toBe(true);
-  });
-
-  // SPEC 2.7.3: reutilizable→baja requiere motivo
-  test('reutilizable→baja sin motivo es inválida', () => {
-    const result = validateTransition('reutilizable', 'baja', baseContext);
-    expect(result.valid).toBe(false);
-    expect(result.errors[0]).toContain('motivo');
-  });
-
-  test('reutilizable→baja con motivo es válida', () => {
-    const result = validateTransition('reutilizable', 'baja', {
-      ...baseContext,
-      motivo: 'obsolescencia',
     });
     expect(result.valid).toBe(true);
   });

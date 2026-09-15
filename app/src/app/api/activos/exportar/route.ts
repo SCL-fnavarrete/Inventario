@@ -3,14 +3,14 @@ import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
-import { sedeWhere } from '@/lib/auth/sedeScope';
+import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { formatearFecha } from "@/lib/utils/fechas";
 
 // Mapeo de estados para mostrar en español
 const ESTADO_LABELS: Record<string, string> = {
   disponible: "Disponible",
   asignado: "Asignado",
   en_mantencion: "En Mantención",
-  reutilizable: "Reutilizable",
   baja: "Baja",
   vendido: "Vendido",
 };
@@ -42,6 +42,16 @@ export async function GET(request: NextRequest) {
       where.categoriaId = categoriaId;
     }
 
+    // Filtro de sede del selector global del nav (15-sep-2026, QA
+    // funcional, SPEC 2.38). Antes el boton "Exportar" armaba el link sin
+    // `sedeId`, asi que con una sede elegida en el nav la pantalla mostraba
+    // una sede y el Excel descargado traia todas. Mismo criterio que
+    // /api/activos: solo aplica para quien tiene visibilidad total.
+    const sedeIdFiltro = searchParams.get("sedeId") || "";
+    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
+      where.sedeId = sedeIdFiltro;
+    }
+
     // Obtener activos con sus relaciones
     const assets = await prisma.asset.findMany({
       where,
@@ -58,7 +68,6 @@ export async function GET(request: NextRequest) {
 
     // Transformar datos para Excel
     const excelData = assets.map((asset) => ({
-      "Código Interno": asset.numeroActivoInterno || "",
       "N° Serie": asset.numeroSerie || "",
       Categoría: asset.categoria.nombre,
       Marca: asset.marca,
@@ -82,10 +91,10 @@ export async function GET(request: NextRequest) {
       "Licencia Microsoft 365": asset.tipoLicenciaMicrosoft365 || "",
       "Intune Enrolled": asset.intuneEnrolled ? "Sí" : "No",
       "Fecha Compra": asset.fechaCompra
-        ? new Date(asset.fechaCompra).toLocaleDateString("es-CL")
+        ? formatearFecha(asset.fechaCompra)
         : "",
       "Fin Garantía": asset.fechaGarantiaFin
-        ? new Date(asset.fechaGarantiaFin).toLocaleDateString("es-CL")
+        ? formatearFecha(asset.fechaGarantiaFin)
         : "",
       Observaciones: asset.observaciones || "",
     }));
@@ -96,7 +105,6 @@ export async function GET(request: NextRequest) {
 
     // Ajustar ancho de columnas
     const colWidths = [
-      { wch: 15 }, // Código Interno
       { wch: 20 }, // N° Serie
       { wch: 12 }, // Categoría
       { wch: 12 }, // Marca

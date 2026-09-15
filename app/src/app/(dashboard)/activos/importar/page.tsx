@@ -695,8 +695,8 @@ export default function ImportarActivosPage() {
                     ))}
                   </select>
                   <p className="mt-1 text-xs text-gray-500">
-                    Todos los equipos de este archivo quedarán en esta sede. Un
-                    técnico hereda automáticamente la suya.
+                    Todos los equipos de este archivo quedarán en esta sede,
+                    sea quien sea que haga la importación.
                   </p>
                 </div>
               )}

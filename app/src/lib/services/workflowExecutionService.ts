@@ -11,6 +11,11 @@ export type ExecuteAssignmentParams = {
   entregadoPor?: string | null;
   tipoMovimiento: 'ingreso' | 'cambio' | 'reemplazo' | 'temporal';
   motivo?: string | null;
+  // Nombre de red del equipo (hostname). Se define al ENTREGAR, no al crear
+  // el activo, porque se arma con el nombre de quien lo va a usar -- un
+  // equipo en bodega todavia no tiene nombre (15-sep-2026, SPEC 2.40). Si
+  // no viene, el activo conserva el que ya tenia.
+  nombreEquipo?: string | null;
   // Condicion del cargador al momento de la entrega -- solo se usa si el
   // activo es un notebook con tieneCargador = true; para el resto se
   // ignora silenciosamente (ver SPEC 2.5.3 regla 9). No es un activo
@@ -130,7 +135,11 @@ export async function executeAssignment(
   });
 
   if (!asset) throw new NotFoundError('Activo no encontrado');
-  if (asset.estado !== 'disponible' && asset.estado !== 'reutilizable') {
+  // 15-sep-2026 (SPEC 2.40): "disponible" es el unico estado asignable,
+  // desde que se elimino "reutilizable" (era indistinguible de disponible a
+  // la hora de entregar, y solo servia para que el equipo devuelto no
+  // contara como stock en el Dashboard).
+  if (asset.estado !== 'disponible') {
     throw new ConflictError(`El activo no está disponible. Estado actual: ${asset.estado}`);
   }
 
@@ -175,6 +184,9 @@ export async function executeAssignment(
     data: {
       estado: 'asignado',
       empleadoActualId: params.employeeId,
+      // Solo se pisa si la entrega trae un nombre: si el tecnico lo dejo en
+      // blanco, el equipo conserva el que ya tenia.
+      ...(params.nombreEquipo ? { nombreEquipo: params.nombreEquipo } : {}),
     },
   });
 
@@ -276,7 +288,9 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
     },
   });
 
-  const nuevoEstado: 'reutilizable' | 'baja' = params.estadoDevolucion === 'danado' ? 'baja' : 'reutilizable';
+  // Devolver en buen estado deja el equipo listo para entregar de nuevo:
+  // vuelve directo a "disponible" (SPEC 2.40). Danado sigue yendo a baja.
+  const nuevoEstado: 'disponible' | 'baja' = params.estadoDevolucion === 'danado' ? 'baja' : 'disponible';
 
   await tx.asset.update({
     where: { id: assignment.assetId },
@@ -442,7 +456,7 @@ export async function executeTerminationReturn(
       },
     });
 
-    let nuevoEstadoActivo: 'disponible' | 'reutilizable' | 'baja' = 'reutilizable';
+    let nuevoEstadoActivo: 'disponible' | 'baja' = 'disponible';
     if (estadoDevolucion === 'danado') nuevoEstadoActivo = 'baja';
 
     await tx.asset.update({

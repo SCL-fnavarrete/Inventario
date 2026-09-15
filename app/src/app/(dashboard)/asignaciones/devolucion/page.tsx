@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { formatearFecha } from "@/lib/utils/fechas";
 
 type Assignment = {
   id: string;
@@ -54,7 +55,9 @@ type Employee = {
   nombres: string;
   apellidoPaterno: string;
   apellidoMaterno: string | null;
-  correoPersonal: string;
+  // El correo de empresa es el obligatorio (15-sep-2026, SPEC 2.39)
+  correoEmpresa: string;
+  correoPersonal?: string | null;
   cargo: string | null;
 };
 
@@ -72,7 +75,7 @@ function getCategoryIcon(categoryName: string) {
 }
 
 function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("es-CL");
+  return formatearFecha(dateString);
 }
 
 export default function DevolucionPage() {

@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { parseApiError } from "@/lib/utils/apiErrors";
 import ReturnAssetModal, { ReturnAssetData } from "@/components/ReturnAssetModal";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
+import { formatearFecha } from "@/lib/utils/fechas";
 
 type NotebookAsignado = {
   asignacionId: string;
@@ -145,7 +146,7 @@ const tipoContratoLabels: Record<TipoContrato, string> = {
 
 function formatDate(dateString: string | null): string {
   if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("es-CL");
+  return formatearFecha(dateString);
 }
 
 export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: string }> }) {

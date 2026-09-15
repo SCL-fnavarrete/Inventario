@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Can } from "@/components/auth/Can";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { formatearFecha } from "@/lib/utils/fechas";
 
 type Sede = {
   id: string;
@@ -41,7 +42,7 @@ type Stats = {
 };
 
 function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("es-CL");
+  return formatearFecha(dateString);
 }
 
 export default function ComprasPage() {

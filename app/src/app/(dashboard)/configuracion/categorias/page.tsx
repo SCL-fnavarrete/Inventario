@@ -5,6 +5,19 @@ import { Plus, Edit, Trash2, Save, X } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
+/**
+ * Confirmacion pendiente (15-sep-2026, SPEC 2.40). Esta pantalla usaba
+ * `confirm()` del navegador, que se ve distinto al resto del sistema y
+ * bloquea la ventana entera. Mismo formato que el modal de compras
+ * (SPEC 2.38) para que todas las confirmaciones se vean iguales.
+ */
+type Confirmacion = {
+  titulo: string;
+  mensaje: string;
+  textoBoton: string;
+  onConfirm: () => void | Promise<void>;
+};
+
 type Category = {
   id: string;
   nombre: string;
@@ -31,6 +44,7 @@ export default function CategoriasPage() {
   const [formData, setFormData] = useState(FORM_INICIAL);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
 
   useEffect(() => {
     fetchCategories();
@@ -110,8 +124,17 @@ export default function CategoriasPage() {
     }
   };
 
+  const pedirEliminar = (category: Category) => {
+    setConfirmacion({
+      titulo: "Eliminar categoría",
+      mensaje: `La categoría "${category.nombre}" se borra del catálogo y deja de aparecer al crear o editar activos. No se puede deshacer; los activos ya registrados no se tocan (por eso el botón queda deshabilitado si la categoría tiene activos).`,
+      textoBoton: "Eliminar",
+      onConfirm: () => handleDelete(category.id),
+    });
+  };
+
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Está seguro de eliminar esta categoría?")) return;
+    setConfirmacion(null);
 
     try {
       const res = await fetch(`/api/categorias/${id}`, {
@@ -408,7 +431,7 @@ export default function CategoriasPage() {
                           <Edit size={18} />
                         </button>
                         <button
-                          onClick={() => handleDelete(category.id)}
+                          onClick={() => pedirEliminar(category)}
                           className="p-1 text-red-600 hover:bg-red-50 rounded"
                           title="Eliminar"
                           disabled={(category._count?.assets || 0) > 0}
@@ -431,6 +454,33 @@ export default function CategoriasPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Confirmacion de eliminacion, con el mismo formato que el resto del
+          sistema en vez del confirm() del navegador (15-sep-2026, SPEC 2.40). */}
+      {confirmacion && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {confirmacion.titulo}
+            </h3>
+            <p className="text-gray-600 mb-4">{confirmacion.mensaje}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmacion(null)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => confirmacion.onConfirm()}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                {confirmacion.textoBoton}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

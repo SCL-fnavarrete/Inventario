@@ -204,6 +204,7 @@ export async function POST(request: NextRequest) {
         entregadoPor: data.entregadoPor,
         tipoMovimiento: data.tipoMovimiento,
         motivo: data.motivo,
+        nombreEquipo: data.nombreEquipo,
       });
     });
 

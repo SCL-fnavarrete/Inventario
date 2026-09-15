@@ -10,6 +10,7 @@ import {
   Package,
   ChevronRight,
 } from "lucide-react";
+import { formatearFecha } from "@/lib/utils/fechas";
 
 interface Maintenance {
   id: string;
@@ -159,7 +160,7 @@ export function AlertsPanel({
                 </p>
                 <p className="text-xs text-yellow-600">
                   {m.fechaProgramada
-                    ? new Date(m.fechaProgramada).toLocaleDateString("es-CL")
+                    ? formatearFecha(m.fechaProgramada)
                     : "Sin fecha"}
                 </p>
               </div>

@@ -29,7 +29,6 @@ export default function EditarActivoPage({
     marca: "",
     modelo: "",
     numeroSerie: "",
-    codigoInterno: "",
     estado: "disponible",
     condicion: "nuevo",
     fechaCompra: "",
@@ -73,7 +72,6 @@ export default function EditarActivoPage({
           marca: asset.marca,
           modelo: asset.modelo,
           numeroSerie: asset.numeroSerie || "",
-          codigoInterno: asset.numeroActivoInterno || "",
           estado: asset.estado,
           condicion: asset.condicion,
           fechaCompra: asset.fechaCompra
@@ -124,7 +122,6 @@ export default function EditarActivoPage({
         marca: formData.marca,
         modelo: formData.modelo,
         numeroSerie: formData.numeroSerie || null,
-        numeroActivoInterno: formData.codigoInterno || null,
         estado: formData.estado,
         condicion: formData.condicion,
         fechaCompra: formData.fechaCompra || null,
@@ -274,18 +271,6 @@ export default function EditarActivoPage({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Codigo Interno
-              </label>
-              <input
-                type="text"
-                name="codigoInterno"
-                value={formData.codigoInterno}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Estado
               </label>
               <select
@@ -297,7 +282,6 @@ export default function EditarActivoPage({
                 <option value="disponible">Disponible</option>
                 <option value="asignado">Asignado</option>
                 <option value="en_mantencion">En Mantencion</option>
-                <option value="reutilizable">Reutilizable</option>
                 <option value="baja">Baja</option>
                 <option value="vendido">Vendido</option>
               </select>

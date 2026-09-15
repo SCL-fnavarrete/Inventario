@@ -32,8 +32,11 @@ export const createEmployeeSchema = z.object({
   nombres: z.string().min(1, "El nombre es requerido").max(100, "Máximo 100 caracteres"),
   apellidoPaterno: z.string().min(1, "El apellido paterno es requerido").max(100, "Máximo 100 caracteres"),
   apellidoMaterno: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
-  correoPersonal: z.string().email("Email inválido").max(150, "Máximo 150 caracteres"),
-  correoEmpresa: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional().nullable(),
+  // 15-sep-2026 (SPEC 2.39): el obligatorio es el correo de EMPRESA, no el
+  // personal. Es el que siempre existe en las planillas de TI y con el que
+  // se identifica a la persona; el particular muchas veces nadie lo registro.
+  correoPersonal: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional().nullable(),
+  correoEmpresa: z.string().email("Email inválido").max(150, "Máximo 150 caracteres"),
   cargo: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   jefatura: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   supervisor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
@@ -43,7 +46,10 @@ export const createEmployeeSchema = z.object({
   subArea: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   direccionParticular: z.string().max(300, "Máximo 300 caracteres").optional().nullable(),
   listasDistribucion: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
-  tipoContrato: TipoContratoEnum,
+  // Opcional desde el 15-sep-2026 (SPEC 2.39): las planillas de origen no
+  // traen este dato y forzarlo obligaba a inventarlo. Lo completan los
+  // tecnicos cuando lo saben.
+  tipoContrato: TipoContratoEnum.optional().nullable(),
   fechaIngreso: fechaOpcional,
   fechaTermino: fechaOpcional,
   estado: EstadoEmpleadoEnum.default("activo"),
@@ -59,8 +65,11 @@ export const updateEmployeeSchema = z.object({
   nombres: z.string().min(1, "El nombre es requerido").max(100, "Máximo 100 caracteres").optional(),
   apellidoPaterno: z.string().min(1, "El apellido paterno es requerido").max(100, "Máximo 100 caracteres").optional(),
   apellidoMaterno: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
-  correoPersonal: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional(),
-  correoEmpresa: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional().nullable(),
+  correoPersonal: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional().nullable(),
+  // En la edicion sigue siendo `.optional()` (como todo el resto de este
+  // schema, que permite actualizaciones parciales), pero ya no acepta null:
+  // un empleado no puede quedarse sin correo de empresa.
+  correoEmpresa: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional(),
   cargo: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   jefatura: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   supervisor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
@@ -70,7 +79,7 @@ export const updateEmployeeSchema = z.object({
   subArea: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   direccionParticular: z.string().max(300, "Máximo 300 caracteres").optional().nullable(),
   listasDistribucion: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
-  tipoContrato: TipoContratoEnum.optional(),
+  tipoContrato: TipoContratoEnum.optional().nullable(),
   fechaIngreso: fechaOpcional,
   fechaTermino: fechaOpcional,
   estado: EstadoEmpleadoEnum.optional(),
@@ -95,7 +104,7 @@ export const employeeFiltersSchema = z.object({
   jefatura: z.string().optional(),
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(10),
-  sortBy: z.enum(["nombres", "rut", "correoPersonal", "cargo", "fechaIngreso", "createdAt"]).default("nombres"),
+  sortBy: z.enum(["nombres", "rut", "correoPersonal", "correoEmpresa", "cargo", "fechaIngreso", "createdAt"]).default("nombres"),
   sortOrder: z.enum(["asc", "desc"]).default("asc"),
 });
 
@@ -105,12 +114,19 @@ export const importEmployeeSchema = z.object({
   nombres: z.string().min(1, "El nombre es requerido"),
   apellidoPaterno: z.string().min(1, "El apellido paterno es requerido"),
   apellidoMaterno: z.string().optional().nullable(),
-  correoPersonal: z.string().email("Email inválido"),
+  // 15-sep-2026 (SPEC 2.39): la planilla trae la cuenta corporativa, asi que
+  // el correo obligatorio de la importacion es el de empresa. El particular
+  // queda opcional, igual que en el alta manual.
+  correoEmpresa: z.string().email("Email inválido"),
+  correoPersonal: z.string().email("Email inválido").optional().nullable(),
   cargo: z.string().optional().nullable(),
   jefatura: z.string().optional().nullable(),
   supervisor: z.string().optional().nullable(),
   ubicacion: z.string().optional().nullable(),
-  tipoContrato: z.string().transform((val) => {
+  // Si la planilla no trae el tipo de contrato, se deja sin dato en vez de
+  // asumir "contrato" -- ver SPEC 2.39.
+  tipoContrato: z.string().optional().nullable().transform((val) => {
+    if (!val) return null;
     const lower = val.toLowerCase();
     if (lower === "contrato" || lower === "boleta") {
       return lower as "contrato" | "boleta";
@@ -120,7 +136,7 @@ export const importEmployeeSchema = z.object({
     if (lower.includes("boleta") || lower.includes("externo") || lower.includes("honorario")) {
       return "boleta" as const;
     }
-    return "contrato" as const; // Default (planta, proyecto, indefinido, etc.)
+    return "contrato" as const; // planta, proyecto, indefinido, etc.
   }),
   fechaIngreso: z.string().optional().nullable().transform((val) => {
     if (!val) return null;

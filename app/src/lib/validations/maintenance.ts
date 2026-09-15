@@ -77,7 +77,7 @@ export const updateMaintenanceSchema = z.object({
 // SPEC 2.25 (14-sep-2026): "resultado" sigue siendo la descripción libre de
 // qué se hizo, pero ahora también se pide "resultadoTipo" (estructurado:
 // reparado / no_reparable / pendiente_repuestos) porque antes el activo
-// SIEMPRE volvía a disponible/asignado/reutilizable al completar, sin
+// SIEMPRE volvía a disponible/asignado al completar, sin
 // importar lo que dijera el texto libre -- no existía forma de que
 // "reparación no reparable" diera de baja el equipo. Pedido explícito de
 // Javier: un botón "No reparable" que sí lo dé de baja.

@@ -77,6 +77,9 @@ export async function GET(request: NextRequest) {
           apellidoPaterno: true,
           apellidoMaterno: true,
           cargo: true,
+          // El correo de empresa es el identificador visible del empleado
+          // (15-sep-2026, SPEC 2.39); el personal puede venir vacio
+          correoEmpresa: true,
           correoPersonal: true,
         },
       },

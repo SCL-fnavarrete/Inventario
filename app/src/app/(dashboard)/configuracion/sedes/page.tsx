@@ -155,9 +155,9 @@ export default function SedesPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Sedes</h1>
           <p className="text-gray-600 mt-1">
-            Cada activo, empleado, solicitud y guía de despacho queda ligado a la sede de quien
-            lo registra. Un usuario solo ve y crea datos de su propia sede; el administrador ve
-            todas.
+            Cada activo, empleado, solicitud y guía de despacho queda ligado a una sede, que se
+            elige explícitamente al crearlo. Admin y técnico ven todas las sedes; el selector del
+            menú filtra lo que se muestra en pantalla, no lo que cada usuario puede ver.
           </p>
         </div>
         {!isCreating && !editingId && (

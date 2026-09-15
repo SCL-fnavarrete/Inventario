@@ -100,12 +100,18 @@ const especificaciones = especificacionesActivoTexto;
  */
 export function SeleccionarCambioEquipo({
   asignacionesActivas,
+  sedeId,
   submitting,
   onSubmit,
   showSubmitButton = true,
   onChange,
 }: {
   asignacionesActivas: AsignacionActiva[];
+  /**
+   * Sede de la SOLICITUD: solo se ofrecen equipos de esa bodega. Ver
+   * SPEC 2.40.
+   */
+  sedeId?: string | null;
   submitting: boolean;
   onSubmit?: (
     oldAssignmentId: string,
@@ -149,16 +155,17 @@ export function SeleccionarCambioEquipo({
           if (!cancelado) setDisponibles([]);
           return;
         }
-        const [disponiblesRes, reutilizablesRes] = await Promise.all([
-          fetch(`/api/activos?categoriaId=${categoria.id}&estado=disponible&limit=100`),
-          fetch(`/api/activos?categoriaId=${categoria.id}&estado=reutilizable&limit=100`),
-        ]);
-        const [disponiblesData, reutilizablesData] = await Promise.all([
-          disponiblesRes.json(),
-          reutilizablesRes.json(),
-        ]);
+        const params = new URLSearchParams({
+          categoriaId: categoria.id,
+          estado: "disponible",
+          limit: "100",
+        });
+        // Solo el inventario de la sede de la solicitud (SPEC 2.40).
+        if (sedeId) params.set("sedeId", sedeId);
+        const disponiblesRes = await fetch(`/api/activos?${params}`);
+        const disponiblesData = await disponiblesRes.json();
         if (!cancelado) {
-          setDisponibles([...(disponiblesData.data || []), ...(reutilizablesData.data || [])]);
+          setDisponibles(disponiblesData.data || []);
         }
       } catch {
         if (!cancelado) setError("No se pudo cargar el inventario disponible");
@@ -171,7 +178,7 @@ export function SeleccionarCambioEquipo({
       cancelado = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [oldAssignmentId]);
+  }, [oldAssignmentId, sedeId]);
 
   // Modo embebido: cada vez que cambia algo de la seleccion, se informa al
   // padre la seleccion completa, o null si todavia falta algo. onChange es

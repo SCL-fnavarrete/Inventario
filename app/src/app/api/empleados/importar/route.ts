@@ -121,7 +121,10 @@ export async function POST(request: NextRequest) {
         const rut = formatearRut(rutRaw);
         const nombres = valorColumna(row, COLUMNAS_EMPLEADO.nombres);
         const apellidoPaterno = valorColumna(row, COLUMNAS_EMPLEADO.apellidoPaterno);
-        const correoPersonal = valorColumna(row, COLUMNAS_EMPLEADO.correoPersonal);
+        // 15-sep-2026 (SPEC 2.39): la columna de correo de la planilla trae
+        // la cuenta corporativa, que es la obligatoria en el modelo. El
+        // correo particular no viene en ninguna planilla.
+        const correoEmpresa = valorColumna(row, COLUMNAS_EMPLEADO.correoPersonal);
 
         // Validar campos requeridos
         if (!nombres) {
@@ -132,8 +135,8 @@ export async function POST(request: NextRequest) {
           results.errors.push({ row: rowNum, rut, error: "Apellido paterno requerido" });
           continue;
         }
-        if (!correoPersonal) {
-          results.errors.push({ row: rowNum, rut, error: "Correo requerido" });
+        if (!correoEmpresa) {
+          results.errors.push({ row: rowNum, rut, error: "Correo de empresa requerido" });
           continue;
         }
 
@@ -183,7 +186,7 @@ export async function POST(request: NextRequest) {
           rut,
           nombres,
           apellidoPaterno,
-          correoPersonal: correoPersonal.toLowerCase(),
+          correoEmpresa: correoEmpresa.toLowerCase(),
           ...(apellidoMaterno !== undefined && { apellidoMaterno }),
           ...(cargo !== undefined && { cargo }),
           ...(jefatura !== undefined && { jefatura }),
@@ -207,35 +210,26 @@ export async function POST(request: NextRequest) {
           });
           results.updated++;
         } else {
-          // Verificar correo personal único
+          // Verificar correo de empresa único
           const existingByEmail = await prisma.employee.findUnique({
-            where: { correoPersonal: employeeData.correoPersonal },
+            where: { correoEmpresa: employeeData.correoEmpresa },
           });
 
           if (existingByEmail) {
             results.errors.push({
               row: rowNum,
               rut,
-              error: `Correo ${employeeData.correoPersonal} ya existe para otro empleado`,
+              error: `Correo ${employeeData.correoEmpresa} ya existe para otro empleado`,
             });
             continue;
           }
 
-          // El tipo de contrato es obligatorio en la base y no tiene valor por
-          // defecto: al crear tiene que venir. Al actualizar, en cambio, su
-          // ausencia significa "no lo toques", y por eso solo se exige aqui.
-          if (tipoContrato === undefined) {
-            results.errors.push({
-              row: rowNum,
-              rut,
-              error: "Falta el tipo de contrato (columna ausente o celda vacia)",
-            });
-            continue;
-          }
-
-          // Crear
+          // 15-sep-2026 (SPEC 2.39): el tipo de contrato dejo de ser
+          // obligatorio. Si la planilla no lo trae, el empleado se crea sin
+          // el y lo completa un tecnico despues, en vez de rechazar la fila o
+          // inventar un valor.
           await prisma.employee.create({
-            data: { ...employeeData, tipoContrato },
+            data: employeeData,
           });
           results.created++;
         }

@@ -47,7 +47,6 @@ export async function GET(request: NextRequest) {
         { numeroSerie: { contains: search, mode: "insensitive" } },
         { marca: { contains: search, mode: "insensitive" } },
         { modelo: { contains: search, mode: "insensitive" } },
-        { numeroActivoInterno: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -86,6 +85,9 @@ export async function GET(request: NextRequest) {
               id: true,
               nombres: true,
               apellidoPaterno: true,
+              // Se pide tambien el correo de empresa porque es el que las
+              // pantallas muestran como identificador (15-sep-2026, SPEC 2.39)
+              correoEmpresa: true,
               correoPersonal: true,
               cargo: true
             },
@@ -150,7 +152,6 @@ export async function POST(request: NextRequest) {
         marca: validatedData.marca,
         modelo: validatedData.modelo,
         numeroSerie: validatedData.numeroSerie || null,
-        numeroActivoInterno: validatedData.numeroActivoInterno || null,
         estado: validatedData.estado || "disponible",
         condicion: validatedData.condicion || "nuevo",
         fechaCompra: validatedData.fechaCompra ? new Date(validatedData.fechaCompra) : null,

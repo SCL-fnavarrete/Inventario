@@ -13,6 +13,19 @@ import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 // en Configuracion, que es admin-only. Ver MaintenanceType en
 // schema.prisma y el recurso de permisos "tiposMantencion".
 
+/**
+ * Confirmacion pendiente (15-sep-2026, SPEC 2.40). Antes se preguntaba con
+ * `confirm()` del navegador: se veia distinto al resto del sistema y
+ * bloqueaba la ventana entera. Mismo formato que el modal de compras
+ * (SPEC 2.38).
+ */
+type Confirmacion = {
+  titulo: string;
+  mensaje: string;
+  textoBoton: string;
+  onConfirm: () => void | Promise<void>;
+};
+
 type TipoMantencion = {
   id: string;
   nombre: string;
@@ -34,6 +47,7 @@ export default function TiposMantencionPage() {
   const [formData, setFormData] = useState(FORM_INICIAL);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
 
   useEffect(() => {
     fetchTipos();
@@ -134,8 +148,17 @@ export default function TiposMantencionPage() {
     }
   };
 
+  const pedirEliminar = (tipo: TipoMantencion) => {
+    setConfirmacion({
+      titulo: "Eliminar tipo de mantención",
+      mensaje: `El tipo "${tipo.nombre}" se borra del catálogo y deja de aparecer al programar una mantención. No se puede deshacer; si solo quieres dejar de usarlo, desactívalo y las mantenciones ya registradas lo conservan.`,
+      textoBoton: "Eliminar",
+      onConfirm: () => handleDelete(tipo.id),
+    });
+  };
+
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Está seguro de eliminar este tipo de mantención?")) return;
+    setConfirmacion(null);
 
     try {
       const res = await fetch(`/api/mantenciones/tipos/${id}`, {
@@ -357,7 +380,7 @@ export default function TiposMantencionPage() {
                           <Edit size={18} />
                         </button>
                         <button
-                          onClick={() => handleDelete(tipo.id)}
+                          onClick={() => pedirEliminar(tipo)}
                           className="p-1 text-red-600 hover:bg-red-50 rounded"
                           title={
                             (tipo._count?.maintenances || 0) > 0
@@ -387,6 +410,33 @@ export default function TiposMantencionPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Confirmacion de eliminacion, con el mismo formato que el resto del
+          sistema en vez del confirm() del navegador (15-sep-2026, SPEC 2.40). */}
+      {confirmacion && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {confirmacion.titulo}
+            </h3>
+            <p className="text-gray-600 mb-4">{confirmacion.mensaje}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmacion(null)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => confirmacion.onConfirm()}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                {confirmacion.textoBoton}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

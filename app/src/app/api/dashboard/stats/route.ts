@@ -14,7 +14,6 @@ export async function GET() {
       assignedAssets,
       maintenanceAssets,
       bajaAssets,
-      reutilizableAssets,
       totalEmployees,
       activeEmployees,
       pendingMaintenance,
@@ -27,7 +26,6 @@ export async function GET() {
       prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, estado: "asignado" } }),
       prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, estado: "en_mantencion" } }),
       prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, estado: "baja" } }),
-      prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, estado: "reutilizable" } }),
       prisma.employee.count(),
       prisma.employee.count({ where: { estado: "activo" } }),
       prisma.maintenance.count({ where: { estado: "pendiente" } }),
@@ -89,7 +87,6 @@ export async function GET() {
       { estado: "disponible", cantidad: availableAssets, color: "#22c55e" },
       { estado: "asignado", cantidad: assignedAssets, color: "#3b82f6" },
       { estado: "en_mantencion", cantidad: maintenanceAssets, color: "#f97316" },
-      { estado: "reutilizable", cantidad: reutilizableAssets, color: "#8b5cf6" },
       { estado: "baja", cantidad: bajaAssets, color: "#ef4444" },
     ].filter((e) => e.cantidad > 0);
 
@@ -122,8 +119,6 @@ export async function GET() {
         availableAssets,
         assignedAssets,
         maintenanceAssets,
-        bajaAssets,
-        reutilizableAssets,
         totalEmployees,
         activeEmployees,
         pendingMaintenance,

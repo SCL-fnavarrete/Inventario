@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { sedeWhere } from '@/lib/auth/sedeScope';
+import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await requirePermission('activos', 'read');
 
@@ -14,7 +14,22 @@ export async function GET() {
     // tarjetas mostraban el total de todas las sedes aunque el listado ya
     // estuviera bien filtrado.
     const sw = sedeWhere(session);
-    const whereVigentes = { ...ACTIVOS_VIGENTES, ...sw };
+    const whereVigentes: Record<string, unknown> = { ...ACTIVOS_VIGENTES, ...sw };
+
+    // Filtro de sede del selector global del nav (15-sep-2026, QA
+    // funcional, SPEC 2.38). Mismo criterio que /api/activos: solo se
+    // acepta para quien tiene visibilidad total -- para el resto la sede
+    // ya viene forzada por sedeWhere() y no debe poder pisarse con un
+    // sedeId arbitrario del query string.
+    //
+    // Sin esto, el listado quedaba filtrado por sede pero las tarjetas de
+    // arriba seguian contando todas las sedes: con "Concepcion" elegido, la
+    // tabla decia "No se encontraron activos" y la tarjeta seguia diciendo
+    // "Total 1".
+    const sedeIdFiltro = request.nextUrl.searchParams.get("sedeId") || "";
+    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
+      whereVigentes.sedeId = sedeIdFiltro;
+    }
 
     // Obtener total de activos
     const total = await prisma.asset.count({ where: whereVigentes });
@@ -32,7 +47,6 @@ export async function GET() {
       disponible: 0,
       asignado: 0,
       en_mantencion: 0,
-      reutilizable: 0,
       baja: 0,
       vendido:0,
     };

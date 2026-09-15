@@ -6,6 +6,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
+import { formatearFecha } from "@/lib/utils/fechas";
 
 // Extender tipos de jsPDF para lastAutoTable
 declare module "jspdf" {
@@ -22,7 +23,7 @@ interface RouteParams {
 
 function formatDate(date: Date | null): string {
   if (!date) return "-";
-  return new Date(date).toLocaleDateString("es-CL", {
+  return formatearFecha(date, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -106,7 +107,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const empleadoData = [
       ["RUT:", assignment.employee.rut || "-"],
       ["Nombre:", `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno} ${assignment.employee.apellidoMaterno || ""}`],
-      ["Correo:", assignment.employee.correoPersonal],
+      // En el acta va el correo corporativo, que es el que identifica a la
+      // persona en soporte; el personal casi nunca esta registrado
+      // (15-sep-2026, SPEC 2.39)
+      ["Correo:", assignment.employee.correoEmpresa ?? assignment.employee.correoPersonal ?? "-"],
       ["Cargo:", assignment.employee.cargo || "-"],
       ["Jefatura:", assignment.employee.jefatura || "-"],
       ["Ubicación:", assignment.employee.ubicacion || "-"],

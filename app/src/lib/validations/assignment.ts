@@ -30,6 +30,10 @@ export const createAssignmentSchema = z.object({
   employeeId: z.string().uuid("ID de empleado inválido"),
   fechaEntrega: fechaObligatoria,
   lugarEntrega: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
+  // Nombre de red del equipo (hostname). Se ingresa al ENTREGAR, no al crear
+  // el activo, porque se arma con el nombre de quien lo va a usar -- un
+  // equipo en bodega todavia no tiene nombre (15-sep-2026, SPEC 2.40).
+  nombreEquipo: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   entregadoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   tipoMovimiento: TipoMovimientoEnum,
   motivo: z.string().optional().nullable(),

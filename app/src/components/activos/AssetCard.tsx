@@ -23,7 +23,6 @@ import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 interface AssetData {
   id: string;
   numeroSerie: string | null;
-  numeroActivoInterno: string | null;
   marca: string;
   modelo: string;
   estado: EstadoActivo;
@@ -39,6 +38,8 @@ interface AssetData {
     id: string;
     nombres: string;
     apellidoPaterno: string;
+    // El correo de empresa es el identificador visible (15-sep-2026, SPEC 2.39)
+    correoEmpresa?: string | null;
     correoPersonal?: string | null;
     cargo?: string | null;
   } | null;
@@ -97,7 +98,9 @@ const conditionLabels: Record<CondicionActivo, string> = {
 
 export function AssetCard({ asset, compact = false }: AssetCardProps) {
   const hasSpecs = asset.procesador || asset.ram || asset.discoDuro;
-  const displayCode = asset.numeroActivoInterno || asset.numeroSerie || "Sin c\u00f3digo";
+  // Eliminado el codigo interno (15-sep-2026, SPEC 2.40): el equipo se
+  // identifica unicamente por su numero de serie.
+  const displayCode = asset.numeroSerie || "Sin n\u00b0 de serie";
 
   if (compact) {
     return (

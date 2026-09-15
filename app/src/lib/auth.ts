@@ -125,16 +125,26 @@ export const authOptions: NextAuthOptions = {
           where: { email },
         });
 
+        // Mismo mensaje para "el correo no existe", "la cuenta esta
+        // desactivada" y "la contrasena no coincide" (15-sep-2026, QA
+        // funcional). Antes se respondia "Usuario no encontrado o inactivo"
+        // vs "Contrasena incorrecta", y esa diferencia permitia averiguar
+        // que correos son cuentas reales del sistema probandolos uno por
+        // uno (enumeracion de usuarios). El detalle real sigue disponible
+        // en el registro de intentos fallidos, no en la respuesta al
+        // navegador. Ver SPEC 2.38.
+        const CREDENCIALES_INVALIDAS = "Correo o contraseña incorrectos";
+
         if (!user || !user.activo) {
           recordFailedAttempt(email, lockoutMs);
-          throw new Error("Usuario no encontrado o inactivo");
+          throw new Error(CREDENCIALES_INVALIDAS);
         }
 
         const isPasswordValid = await compare(credentials.password, user.passwordHash);
 
         if (!isPasswordValid) {
           recordFailedAttempt(email, lockoutMs);
-          throw new Error("Contraseña incorrecta");
+          throw new Error(CREDENCIALES_INVALIDAS);
         }
 
         // Limpiar intentos al login exitoso

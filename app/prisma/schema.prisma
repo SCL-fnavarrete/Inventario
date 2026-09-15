@@ -39,8 +39,14 @@ model Employee {
   nombres              String          @map("nombre")
   apellidoPaterno      String          @map("apellido_paterno")
   apellidoMaterno      String?         @map("apellido_materno")
-  correoPersonal       String          @unique @map("correo_personal")
-  correoEmpresa        String?         @unique @map("correo_empresa")
+  // 15-sep-2026 (SPEC 2.39): se invierte cual de los dos correos es
+  // obligatorio. Antes el obligatorio era el personal y el de empresa
+  // opcional, al reves de como son los datos reales: el consolidado de
+  // inventario (y cualquier planilla de soporte) trae la cuenta corporativa,
+  // que es la que siempre existe y con la que se identifica a la persona en
+  // el area de TI; el correo particular muchas veces nadie lo registro.
+  correoPersonal       String?         @unique @map("correo_personal")
+  correoEmpresa        String          @unique @map("correo_empresa")
   cargo                String?
   jefatura             String?
   supervisor           String?
@@ -50,7 +56,13 @@ model Employee {
   subArea              String?         @map("sub_area")
   direccionParticular  String?         @map("direccion_particular")
   listasDistribucion   String?         @map("listas_distribucion")
-  tipoContrato         TipoContrato    @map("tipo_contrato")
+  // Opcional desde el 15-sep-2026 (SPEC 2.39), pedido explicito de Javier:
+  // "como no esta en el Excel... si lo dejamos opcional, inserta de manera
+  // correcta los datos ahora y mas adelante los tecnicos tendran que
+  // ingresarla". Era obligatorio, lo que obligaba a inventar un valor
+  // ("contrato") para gente de la que no consta como esta contratada. Solo
+  // se usa como etiqueta/filtro en pantalla, no condiciona ninguna regla.
+  tipoContrato         TipoContrato?   @map("tipo_contrato")
   fechaIngreso         DateTime?       @map("fecha_ingreso")
   fechaTermino         DateTime?       @map("fecha_termino")
   estado               EstadoEmpleado  @default(activo)
@@ -104,7 +116,6 @@ model Asset {
   categoriaId         String              @map("categoria_id")
   numeroSerie         String?             @unique @map("numero_serie")
   imei                String?
-  numeroActivoInterno String?             @map("numero_activo_interno")
   marca               String
   modelo              String
   procesador          String?
@@ -801,11 +812,17 @@ enum EstadoEmpleado {
   licencia
 }
 
+// 15-sep-2026 (SPEC 2.40): se elimina "reutilizable". Era indistinguible de
+// "disponible" para entregar un equipo (el formulario de asignacion aceptaba
+// los dos) pero NO contaba como stock en las alertas del Dashboard, asi que
+// con equipos devueltos y listos el sistema igual avisaba "Sin Stock". Lo
+// que ese estado queria decir -- que el equipo ya se uso -- lo dice
+// `condicion` (nuevo/usado/danado), que es una dimension aparte del ciclo
+// de vida.
 enum EstadoActivo {
   disponible
   asignado
   en_mantencion
-  reutilizable
   baja
   vendido
 }

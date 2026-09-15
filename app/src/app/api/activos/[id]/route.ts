@@ -178,9 +178,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           ...(validatedData.numeroSerie !== undefined && {
             numeroSerie: validatedData.numeroSerie || null,
           }),
-          ...(validatedData.numeroActivoInterno !== undefined && {
-            numeroActivoInterno: validatedData.numeroActivoInterno || null,
-          }),
           ...(validatedData.estado && { estado: validatedData.estado }),
           ...(validatedData.condicion && { condicion: validatedData.condicion }),
           ...(validatedData.fechaCompra !== undefined && {

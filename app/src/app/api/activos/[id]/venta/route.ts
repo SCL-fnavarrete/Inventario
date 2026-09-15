@@ -47,10 +47,10 @@ export async function POST(
       throw new ConflictError('Este activo esta descartado y no admite movimientos');
     }
 
-    // SPEC: Solo se puede vender desde baja o reutilizable
-    if (asset.estado !== 'baja' && asset.estado !== 'reutilizable') {
+    // SPEC: Solo se puede vender desde baja
+    if (asset.estado !== 'baja') {
       return NextResponse.json(
-        { error: `El activo debe estar en estado "baja" o "reutilizable" para vender. Estado actual: ${asset.estado}` },
+        { error: `El activo debe estar en estado "baja" para vender. Estado actual: ${asset.estado}` },
         { status: 400 }
       );
     }

@@ -188,12 +188,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     doc.setFont("helvetica", "bold");
     doc.text("Correo:", leftCol, yPos);
     doc.setFont("helvetica", "normal");
-    doc.text(employee.correoPersonal, leftCol + 30, yPos);
+    // Los dos campos pueden venir vacios desde SPEC 2.39 (el correo
+    // obligatorio paso a ser el de empresa, y el tipo de contrato es
+    // opcional), asi que el PDF necesita un texto de respaldo.
+    doc.text(employee.correoEmpresa || employee.correoPersonal || "Sin correo", leftCol + 30, yPos);
 
     doc.setFont("helvetica", "bold");
     doc.text("Tipo Contrato:", midCol, yPos);
     doc.setFont("helvetica", "normal");
-    doc.text(employee.tipoContrato, midCol + 35, yPos);
+    doc.text(employee.tipoContrato || "Sin especificar", midCol + 35, yPos);
 
     // Fila 4
     yPos += 7;

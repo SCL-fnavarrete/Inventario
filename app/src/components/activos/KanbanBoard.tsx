@@ -5,7 +5,6 @@ import {
   CheckCircle,
   UserCheck,
   Wrench,
-  RefreshCw,
   XCircle,
   Loader2,
   GripVertical
@@ -16,7 +15,6 @@ import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 interface AssetData {
   id: string;
   numeroSerie: string | null;
-  numeroActivoInterno: string | null;
   marca: string;
   modelo: string;
   estado: EstadoActivo;
@@ -32,6 +30,8 @@ interface AssetData {
     id: string;
     nombres: string;
     apellidoPaterno: string;
+    // El correo de empresa es el identificador visible (15-sep-2026, SPEC 2.39)
+    correoEmpresa?: string | null;
     correoPersonal?: string | null;
     cargo?: string | null;
   } | null;
@@ -43,7 +43,7 @@ interface KanbanBoardProps {
   isUpdating?: boolean;
 }
 
-type StatusType = "disponible" | "asignado" | "en_mantencion" | "reutilizable" | "baja";
+type StatusType = "disponible" | "asignado" | "en_mantencion" | "baja";
 
 const columns: {
   id: StatusType;
@@ -76,14 +76,6 @@ const columns: {
     color: "text-amber-600",
     bgColor: "bg-amber-50",
     borderColor: "border-amber-200",
-  },
-  {
-    id: "reutilizable",
-    label: "Reutilizable",
-    icon: RefreshCw,
-    color: "text-purple-600",
-    bgColor: "bg-purple-50",
-    borderColor: "border-purple-200",
   },
   {
     id: "baja",
@@ -139,7 +131,7 @@ export function KanbanBoard({ assets, onStatusChange, isUpdating }: KanbanBoardP
       acc[col.id] = assets.filter((a) => a.estado === col.id);
       return acc;
     },
-    { disponible: [], asignado: [], en_mantencion: [], reutilizable: [], baja: [] }
+    { disponible: [], asignado: [], en_mantencion: [], baja: [] }
   );
 
   return (

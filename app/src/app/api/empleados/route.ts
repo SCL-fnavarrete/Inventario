@@ -194,27 +194,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verificar si ya existe un empleado con el mismo correo personal
-    const existingByEmail = await prisma.employee.findUnique({
-      where: { correoPersonal: data.correoPersonal },
+    // Verificar si ya existe un empleado con el mismo correo de empresa.
+    // 15-sep-2026 (SPEC 2.39): este es el correo obligatorio, asi que es el
+    // que siempre hay que comprobar; el personal solo si viene.
+    const existingByCorreoEmpresa = await prisma.employee.findUnique({
+      where: { correoEmpresa: data.correoEmpresa },
     });
 
-    if (existingByEmail) {
+    if (existingByCorreoEmpresa) {
       return NextResponse.json(
-        { error: "Ya existe un empleado con este correo personal" },
+        { error: "Ya existe un empleado con este correo de empresa" },
         { status: 409 }
       );
     }
 
-    // Verificar si ya existe un empleado con el mismo correo de empresa
-    if (data.correoEmpresa) {
-      const existingByCorreoEmpresa = await prisma.employee.findUnique({
-        where: { correoEmpresa: data.correoEmpresa },
+    if (data.correoPersonal) {
+      const existingByEmail = await prisma.employee.findUnique({
+        where: { correoPersonal: data.correoPersonal },
       });
 
-      if (existingByCorreoEmpresa) {
+      if (existingByEmail) {
         return NextResponse.json(
-          { error: "Ya existe un empleado con este correo de empresa" },
+          { error: "Ya existe un empleado con este correo personal" },
           { status: 409 }
         );
       }

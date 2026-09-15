@@ -26,6 +26,7 @@ import { Can } from "@/components/auth/Can";
 import { MantencionesTabs } from "@/components/mantenciones";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
+import { formatearFecha } from "@/lib/utils/fechas";
 
 type TipoMantencion = {
   id: string;
@@ -92,7 +93,7 @@ function getCategoryIcon(categoryName: string) {
 
 function formatDate(dateString: string | null): string {
   if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("es-CL");
+  return formatearFecha(dateString);
 }
 
 function formatCurrency(amount: number | null): string {

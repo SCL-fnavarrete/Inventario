@@ -8,6 +8,7 @@ import {
   ESTADO_GUIA_COLORS,
   type DispatchGuideListItem,
 } from "@/types/guia-despacho";
+import { formatearFecha } from "@/lib/utils/fechas";
 
 interface GuiaDespachoTableProps {
   guides: DispatchGuideListItem[];
@@ -15,7 +16,7 @@ interface GuiaDespachoTableProps {
 }
 
 function formatDate(date: Date | string): string {
-  return new Date(date).toLocaleDateString("es-CL", {
+  return formatearFecha(date, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

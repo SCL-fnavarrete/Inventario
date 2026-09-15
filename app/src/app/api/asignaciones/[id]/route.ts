@@ -4,6 +4,7 @@ import { returnAssignmentSchema } from "@/lib/validations/assignment";
 import { executeReturn } from "@/lib/services/workflowExecutionService";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
+import { formatearFecha } from "@/lib/utils/fechas";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -94,7 +95,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (data.fechaDevolucion < existingAssignment.fechaEntrega) {
       return NextResponse.json(
         {
-          error: `La fecha de devolución no puede ser anterior a la de entrega (${existingAssignment.fechaEntrega.toLocaleDateString("es-CL")})`,
+          error: `La fecha de devolución no puede ser anterior a la de entrega (${formatearFecha(existingAssignment.fechaEntrega)})`,
         },
         { status: 400 }
       );
@@ -105,7 +106,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // divergido: esta comprobaba que la asignacion siguiera activa y la otra
     // no, y esta escribia en el historial que el estado anterior era
     // "asignado" sin mirar cual era en realidad. El destino del activo
-    // (SPEC 2.7.7: danado -> baja, el resto -> reutilizable) tambien se decide
+    // (SPEC 2.7.7: danado -> baja, el resto -> disponible) tambien se decide
     // ahora en un solo lugar.
     const result = await prisma.$transaction((tx) =>
       executeReturn(tx, {

@@ -1,7 +1,8 @@
+import { cookies } from "next/headers";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import type { SesionAutenticada } from "@/lib/auth/guard";
-import { sedeWhere } from "@/lib/auth/sedeScope";
+import { sedeWhere, tieneVisibilidadTotal } from "@/lib/auth/sedeScope";
 import { prisma } from "@/lib/prisma";
 import {
   Laptop,
@@ -56,7 +57,7 @@ import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
  *    se reemplaza por "Equipos Vendidos" (ver mas abajo), y ningun otro
  *    lugar del Resumen los necesitaba.
  */
-async function getDashboardData(session: SesionAutenticada) {
+async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string | null) {
   // Aislamiento por sede (SPEC 2.9): admin ve todo el inventario, tecnico
   // solo lo de su sede. `sw` es el filtro directo (Asset/Employee/
   // WelcomeKitItem/WorkflowRequest tienen su propio sedeId); Maintenance y
@@ -67,7 +68,19 @@ async function getDashboardData(session: SesionAutenticada) {
   // no a Mantenciones/Asignaciones, dejando pasar duplicados descartados de
   // una importacion (SPEC 2.7.7) en "Asig. Ultimos 30d" y en el grafico de
   // movimientos.
-  const sw = sedeWhere(session);
+  // Filtro del selector de sede del nav (15-sep-2026, QA funcional, SPEC
+  // 2.38). El Resumen ignoraba ese selector: con "Concepcion" elegido seguia
+  // contando el inventario de Santiago, mientras Activos ya filtraba bien.
+  // Como esto corre en el servidor (no hay localStorage), la sede llega por
+  // cookie -- ver SedeSeleccionadaProvider.
+  //
+  // Igual que en /api/activos: solo se respeta para quien tiene visibilidad
+  // total; para el resto manda sedeWhere(session), que no se puede pisar
+  // con una cookie.
+  const sw = {
+    ...sedeWhere(session),
+    ...(sedeIdFiltro && tieneVisibilidadTotal(session) ? { sedeId: sedeIdFiltro } : {}),
+  };
   const swAsset = { asset: { ...sw, ...ACTIVOS_VIGENTES } };
   const swEmployee = { employee: sw };
 
@@ -156,7 +169,6 @@ async function getDashboardData(session: SesionAutenticada) {
   const assignedAssets = totalPorEstado("asignado");
   const maintenanceAssets = totalPorEstado("en_mantencion");
   const bajaAssets = totalPorEstado("baja");
-  const reutilizableAssets = totalPorEstado("reutilizable");
   // Un activo vendido ya no forma parte del parque operativo -- por eso no
   // suma en las tarjetas de arriba ni en "Stock por Categoria" (esa logica
   // se mantiene tal cual, pedido explicito de Javier). Lo que faltaba era
@@ -173,11 +185,9 @@ async function getDashboardData(session: SesionAutenticada) {
     return { id: cat.id, nombre: cat.nombre, stockMinimo: cat.stockMinimo, total };
   });
 
-  // "Stock por Categoria" (grafico de barras apiladas): antes solo sumaba
-  // disponible/asignado/en_mantencion/baja, dejando afuera "reutilizable"
-  // -- por eso la suma de esas barras no calzaba con el total de "Activos
-  // por Categoria". Se agrega reutilizable; "vendido" queda deliberadamente
-  // afuera (mismo criterio de arriba: un vendido no es stock).
+  // "Stock por Categoria" (grafico de barras apiladas): "vendido" queda
+  // deliberadamente afuera (mismo criterio de arriba: un vendido no es
+  // stock).
   const stockByCategory = categoriesRaw.map((cat) => {
     const conteos = conteosPorCategoria.get(cat.id) ?? {};
     return {
@@ -187,7 +197,6 @@ async function getDashboardData(session: SesionAutenticada) {
       disponibles: conteos["disponible"] ?? 0,
       asignados: conteos["asignado"] ?? 0,
       mantencion: conteos["en_mantencion"] ?? 0,
-      reutilizable: conteos["reutilizable"] ?? 0,
       baja: conteos["baja"] ?? 0,
     };
   });
@@ -196,6 +205,10 @@ async function getDashboardData(session: SesionAutenticada) {
   // los DISPONIBLES de cada categoria): sin stock es 0 disponibles; stock
   // bajo es cuando quedan pocos pero no cero, segun el umbral configurable
   // de cada categoria (stockMinimo, ver Configuracion > Categorias).
+  // (15-sep-2026, SPEC 2.40) Este conteo era la razon de fondo para borrar
+  // "reutilizable": los equipos devueltos y listos para entregar no se
+  // contaban aqui, asi que el sistema avisaba "Sin Stock: Notebook" con
+  // diez notebooks en bodega. Ahora esos equipos son "disponible".
   const sinStockCategorias = stockByCategory
     .filter((c) => c.disponibles === 0)
     .map((c) => ({ id: c.categoriaId, nombre: c.categoria }));
@@ -211,7 +224,6 @@ async function getDashboardData(session: SesionAutenticada) {
     { estado: "disponible", cantidad: availableAssets, color: "#22c55e" },
     { estado: "asignado", cantidad: assignedAssets, color: "#3b82f6" },
     { estado: "en_mantencion", cantidad: maintenanceAssets, color: "#f97316" },
-    { estado: "reutilizable", cantidad: reutilizableAssets, color: "#8b5cf6" },
     { estado: "baja", cantidad: bajaAssets, color: "#ef4444" },
     { estado: "vendido", cantidad: vendidoAssets, color: "#6b7280" },
   ].filter((e) => e.cantidad > 0);
@@ -303,7 +315,6 @@ async function getDashboardData(session: SesionAutenticada) {
     assignedAssets,
     maintenanceAssets,
     bajaAssets,
-    reutilizableAssets,
     vendidoAssets,
     pendingMaintenance,
     pendingTerminations,
@@ -349,7 +360,12 @@ export default async function DashboardPage() {
   // asi que el cast es seguro -- ver requireSession() en guard.ts, que hace
   // lo mismo para las rutas de API.
   const session = (await getServerSession(authOptions)) as SesionAutenticada;
-  const data = await getDashboardData(session);
+  // Sede elegida en el selector del nav. Viaja por cookie porque este es un
+  // server component (ver SedeSeleccionadaProvider); leerla ademas hace que
+  // Next re-renderice el Resumen cuando cambia, en vez de servir una version
+  // cacheada con los totales de otra sede.
+  const sedeIdFiltro = (await cookies()).get("inventario-sede-seleccionada")?.value || null;
+  const data = await getDashboardData(session, sedeIdFiltro);
 
   const totalAlertas =
     data.mantencionesVencidas.length +
@@ -447,20 +463,6 @@ export default async function DashboardPage() {
             </div>
             <div className="p-2 bg-orange-100 rounded-full">
               <Wrench className="h-5 w-5 text-orange-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500">Reutilizables</p>
-              <p className="text-2xl font-bold text-purple-600">
-                {data.reutilizableAssets}
-              </p>
-            </div>
-            <div className="p-2 bg-purple-100 rounded-full">
-              <TrendingUp className="h-5 w-5 text-purple-600" />
             </div>
           </div>
         </div>

@@ -70,17 +70,23 @@ const especificaciones = especificacionesActivoTexto;
  * solicitud de onboarding. Por cada categoria de `categoriasRequeridas`
  * (cualquier categoria real de inventario: Notebook, Celular, Monitor,
  * Impresora, Mouse, Teclado, Docking Station, Webcam, Audifonos, etc.)
- * muestra un desplegable con los activos en estado disponible o
- * reutilizable, con sus especificaciones, para elegir cual se entrega.
+ * muestra un desplegable con los activos disponibles DE LA SEDE DE LA
+ * SOLICITUD, con sus especificaciones, para elegir cual se entrega.
  * Si una categoria no tiene stock disponible se muestra un mensaje breve
  * en vez del desplegable, en lugar de dejar seleccionar algo inexistente.
  */
 export function SeleccionarEquiposOnboarding({
   categoriasRequeridas,
+  sedeId,
   submitting,
   onSubmit,
 }: {
   categoriasRequeridas: string[];
+  /**
+   * Sede de la SOLICITUD (no la del selector del menu): solo se ofrecen
+   * equipos de la bodega que atiende a esta persona. Ver SPEC 2.40.
+   */
+  sedeId?: string | null;
   submitting: boolean;
   onSubmit: (
     assetIds: string[],
@@ -119,15 +125,18 @@ export function SeleccionarEquiposOnboarding({
             resultado[nombreCategoria] = [];
             continue;
           }
-          const [disponiblesRes, reutilizablesRes] = await Promise.all([
-            fetch(`/api/activos?categoriaId=${categoria.id}&estado=disponible&limit=100`),
-            fetch(`/api/activos?categoriaId=${categoria.id}&estado=reutilizable&limit=100`),
-          ]);
-          const [disponiblesData, reutilizablesData] = await Promise.all([
-            disponiblesRes.json(),
-            reutilizablesRes.json(),
-          ]);
-          resultado[nombreCategoria] = [...(disponiblesData.data || []), ...(reutilizablesData.data || [])];
+          const params = new URLSearchParams({
+            categoriaId: categoria.id,
+            estado: "disponible",
+            limit: "100",
+          });
+          // Solo el inventario de la sede de la solicitud: antes se pedia
+          // sin sede y el tecnico veia (y podia entregar) equipos de las
+          // tres sedes. Ver SPEC 2.40.
+          if (sedeId) params.set("sedeId", sedeId);
+          const disponiblesRes = await fetch(`/api/activos?${params}`);
+          const disponiblesData = await disponiblesRes.json();
+          resultado[nombreCategoria] = disponiblesData.data || [];
         }
         if (!cancelado) setDisponiblesPorCategoria(resultado);
       } catch {
@@ -141,7 +150,7 @@ export function SeleccionarEquiposOnboarding({
       cancelado = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoriasKey]);
+  }, [categoriasKey, sedeId]);
 
   if (categoriasRequeridas.length === 0) {
     return (

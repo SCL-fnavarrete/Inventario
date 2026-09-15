@@ -100,11 +100,9 @@ export function SelectorActivos({
     setLoading(true);
     try {
       // Solo "disponible": una guia de despacho exige que el activo este
-      // disponible al crearla (ver POST /api/guias-despacho), asi que no
-      // tiene sentido ofrecer "reutilizable" aca -- ese caso pasa primero
-      // por el flujo que lo deja disponible. El filtro de sede solo tiene
-      // efecto para admin (ver /api/activos); para tecnico ya viene acotado
-      // por sesion.
+      // disponible al crearla (ver POST /api/guias-despacho). El filtro de
+      // sede solo tiene efecto para admin (ver /api/activos); para tecnico ya
+      // viene acotado por sesion.
       const params = new URLSearchParams({ estado: "disponible", limit: "200" });
       if (sedeId) params.set("sedeId", sedeId);
       const disponibles = await fetch(`/api/activos?${params}`).then((r) => r.json());

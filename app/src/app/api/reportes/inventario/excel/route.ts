@@ -5,6 +5,7 @@ import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import { etiquetaConectividad } from '@/lib/utils/assetSpecs';
 import { sedeWhere } from '@/lib/auth/sedeScope';
+import { formatearFecha } from "@/lib/utils/fechas";
 
 export async function GET() {
   try {
@@ -61,10 +62,10 @@ export async function GET() {
         : "",
       "RUT Asignado": a.assignments[0]?.employee?.rut || "",
       "Fecha Compra": a.fechaCompra
-        ? new Date(a.fechaCompra).toLocaleDateString("es-CL")
+        ? formatearFecha(a.fechaCompra)
         : "",
       "Fin Garant\u00eda": a.fechaGarantiaFin
-        ? new Date(a.fechaGarantiaFin).toLocaleDateString("es-CL")
+        ? formatearFecha(a.fechaGarantiaFin)
         : "",
       "Microsoft 365": a.microsoft365 ? "S\u00ed" : "No",
       // Nombre del plan (ej. "Premium") -- se agrega el mismo d\u00eda que el

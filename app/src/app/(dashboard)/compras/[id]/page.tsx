@@ -22,14 +22,23 @@ import { cn } from "@/lib/utils";
 import { Can } from "@/components/auth/Can";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { formatearFecha } from "@/lib/utils/fechas";
 
-/** Arma un mensaje de alert() incluyendo el detalle por campo, si lo hay. */
-function alertMessage(message: string, fieldErrors: FieldErrors): string {
-  const detail = Object.entries(fieldErrors)
-    .map(([field, msg]) => `${field}: ${msg}`)
-    .join("\n");
-  return detail ? `${message}\n${detail}` : message;
-}
+/**
+ * Confirmacion pendiente (15-sep-2026, QA funcional, SPEC 2.38).
+ *
+ * Esta pantalla usaba `confirm()` y `alert()` del navegador, a diferencia del
+ * resto del sistema, que muestra los errores en un cartel dentro de la
+ * pagina (ver ApiErrorSummary, SPEC 2.37). Ademas de verse distinto, esos
+ * dialogos nativos bloquean la ventana entera y no pueden mostrar el detalle
+ * por campo que el backend ya devuelve.
+ */
+type Confirmacion = {
+  titulo: string;
+  mensaje: string;
+  textoBoton: string;
+  onConfirm: () => void | Promise<void>;
+};
 
 type Asset = {
   id: string;
@@ -92,7 +101,7 @@ type Purchase = {
 };
 
 function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("es-CL", {
+  return formatearFecha(dateString, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -116,7 +125,6 @@ const estadoConfig: Record<string, { label: string; color: string; bgColor: stri
   disponible: { label: "Disponible", color: "text-green-700", bgColor: "bg-green-100" },
   asignado: { label: "Asignado", color: "text-blue-700", bgColor: "bg-blue-100" },
   en_mantencion: { label: "En Mantención", color: "text-orange-700", bgColor: "bg-orange-100" },
-  reutilizable: { label: "Reutilizable", color: "text-purple-700", bgColor: "bg-purple-100" },
   baja: { label: "Baja", color: "text-red-700", bgColor: "bg-red-100" },
   vendido: { label: "Vendido", color: "text-gray-700", bgColor: "bg-gray-100" },
 };
@@ -130,6 +138,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
 
   // Para agregar activos
   const [showAssetSearch, setShowAssetSearch] = useState(false);
@@ -202,7 +211,8 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
       if (!res.ok) {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al vincular activo");
-        throw new Error(alertMessage(message, fe));
+        setFieldErrors(fe);
+        throw new Error(message);
       }
 
       // Refrescar datos
@@ -211,14 +221,26 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       setShowAssetSearch(false);
       setAvailableAssets([]);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Error al vincular activo");
+      setError(err instanceof Error ? err.message : "Error al vincular activo");
     } finally {
       setAddingAsset(false);
     }
   }
 
+  function pedirDesvincularActivo(assetId: string) {
+    setConfirmacion({
+      titulo: "Desvincular activo",
+      mensaje:
+        "El activo se desvincula de esta factura, pero no se elimina ni cambia de estado: sigue en el inventario tal como está.",
+      textoBoton: "Desvincular",
+      onConfirm: () => removeAssetFromPurchase(assetId),
+    });
+  }
+
   async function removeAssetFromPurchase(assetId: string) {
-    if (!confirm("¿Está seguro de desvincular este activo?")) return;
+    setConfirmacion(null);
+    setError(null);
+    setFieldErrors({});
 
     try {
       const res = await fetch(`/api/compras/${id}/activos?assetIds=${assetId}`, {
@@ -227,13 +249,14 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
       if (!res.ok) {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al desvincular activo");
-        throw new Error(alertMessage(message, fe));
+        setFieldErrors(fe);
+        throw new Error(message);
       }
 
       // Refrescar datos
       await fetchPurchase();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Error al desvincular activo");
+      setError(err instanceof Error ? err.message : "Error al desvincular activo");
     }
   }
 
@@ -262,7 +285,8 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
       if (!res.ok) {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al agregar artículo de Kit/EPP");
-        throw new Error(alertMessage(message, fe));
+        setFieldErrors(fe);
+        throw new Error(message);
       }
 
       await fetchPurchase();
@@ -270,14 +294,26 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       setKitItemCantidad("1");
       setShowKitItemPicker(false);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Error al agregar artículo de Kit/EPP");
+      setError(err instanceof Error ? err.message : "Error al agregar artículo de Kit/EPP");
     } finally {
       setAddingKitItem(false);
     }
   }
 
+  function pedirDesvincularKitItem(lineId: string) {
+    setConfirmacion({
+      titulo: "Desvincular artículo de Kit/EPP",
+      mensaje:
+        "Se restará del stock la cantidad que esta línea había sumado. El stock nunca baja de 0, por si ya se entregó parte de lo comprado.",
+      textoBoton: "Desvincular",
+      onConfirm: () => removeKitItemFromPurchase(lineId),
+    });
+  }
+
   async function removeKitItemFromPurchase(lineId: string) {
-    if (!confirm("¿Desvincular este artículo? Se restará del stock la cantidad que esta línea había sumado (sin bajar de 0).")) return;
+    setConfirmacion(null);
+    setError(null);
+    setFieldErrors({});
 
     try {
       const res = await fetch(`/api/compras/${id}/kit-items?lineIds=${lineId}`, {
@@ -286,12 +322,13 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
       if (!res.ok) {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al desvincular artículo de Kit/EPP");
-        throw new Error(alertMessage(message, fe));
+        setFieldErrors(fe);
+        throw new Error(message);
       }
 
       await fetchPurchase();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Error al desvincular artículo de Kit/EPP");
+      setError(err instanceof Error ? err.message : "Error al desvincular artículo de Kit/EPP");
     }
   }
 
@@ -373,6 +410,11 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
           </Can>
         </div>
       </div>
+
+      {/* Errores de las acciones de esta pantalla (vincular/desvincular
+          activos y articulos de Kit/EPP). Antes salian en un alert() del
+          navegador -- ver nota arriba, SPEC 2.38. */}
+      {error && <ApiErrorSummary error={error} fieldErrors={fieldErrors} />}
 
       {/* Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -589,7 +631,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                             <Eye size={18} />
                           </Link>
                           <button
-                            onClick={() => removeAssetFromPurchase(pa.assetId)}
+                            onClick={() => pedirDesvincularActivo(pa.assetId)}
                             className="p-1.5 text-gray-400 hover:text-red-600"
                             title="Desvincular"
                           >
@@ -719,7 +761,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                     <td className="px-4 py-4 text-sm text-gray-500">{pk.item.cantidad}</td>
                     <td className="px-4 py-4 text-right">
                       <button
-                        onClick={() => removeKitItemFromPurchase(pk.id)}
+                        onClick={() => pedirDesvincularKitItem(pk.id)}
                         className="p-1.5 text-gray-400 hover:text-red-600"
                         title="Desvincular"
                       >
@@ -747,6 +789,34 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
           </div>
         )}
       </div>
+
+      {/* Confirmacion de desvincular activo / articulo de Kit/EPP. Mismo
+          formato que el modal de eliminar factura de mas abajo, en vez del
+          confirm() del navegador que usaba antes (SPEC 2.38). */}
+      {confirmacion && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {confirmacion.titulo}
+            </h3>
+            <p className="text-gray-600 mb-4">{confirmacion.mensaje}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmacion(null)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => confirmacion.onConfirm()}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                {confirmacion.textoBoton}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de confirmación de eliminación */}
       {showDeleteConfirm && (

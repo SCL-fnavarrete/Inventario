@@ -104,7 +104,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       // SPEC 2.25: que pasa con el activo depende del resultado
       // estructurado, no solo de si tenia dueño -- antes SIEMPRE volvia a
-      // disponible/asignado/reutilizable, incluso si el texto libre decia
+      // disponible/asignado, incluso si el texto libre decia
       // "no reparable".
       if (data.resultadoTipo === "no_reparable") {
         // No reparable: el activo se da de baja, igual que
@@ -127,14 +127,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         // este intento de mantencion, pero el activo se queda en
         // "en_mantencion" -- no vuelve a servicio hasta una proxima
         // mantencion que si lo repare.
-        let nuevoEstado: "disponible" | "asignado" | "reutilizable" | "en_mantencion" = "disponible";
+        // (15-sep-2026, SPEC 2.40) Un equipo sin dueño vuelve a "disponible"
+        // aunque su condicion sea "usado": que ya se haya usado lo dice el
+        // campo `condicion`, independiente del estado.
+        let nuevoEstado: "disponible" | "asignado" | "en_mantencion" = "disponible";
 
         if (data.resultadoTipo === "pendiente_repuestos") {
           nuevoEstado = "en_mantencion";
         } else if (maintenance.asset.empleadoActualId) {
           nuevoEstado = "asignado";
-        } else if (maintenance.asset.condicion === "usado") {
-          nuevoEstado = "reutilizable";
         }
 
         await tx.asset.update({

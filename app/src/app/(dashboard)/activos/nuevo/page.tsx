@@ -40,7 +40,6 @@ export default function NuevoActivoPage() {
     marca: "",
     modelo: "",
     numeroSerie: "",
-    codigoInterno: "",
     estado: "disponible",
     condicion: "nuevo",
     fechaCompra: "",
@@ -55,7 +54,6 @@ export default function NuevoActivoPage() {
     observaciones: "",
     antivirus: "",
     incidencia: "",
-    nombreEquipo: "",
     conectividad: "",
     tipoLicenciaMicrosoft365: "",
   });
@@ -117,7 +115,6 @@ export default function NuevoActivoPage() {
         marca: formData.marca,
         modelo: formData.modelo,
         numeroSerie: formData.numeroSerie || null,
-        numeroActivoInterno: formData.codigoInterno || null,
         estado: formData.estado,
         condicion: formData.condicion,
         fechaCompra: formData.fechaCompra || null,
@@ -132,7 +129,6 @@ export default function NuevoActivoPage() {
         observaciones: formData.observaciones || null,
         antivirus: formData.antivirus || null,
         incidencia: formData.incidencia || null,
-        nombreEquipo: formData.nombreEquipo || null,
         conectividad: formData.conectividad || null,
         // No hay (todavia) un campo aparte de "tiene M365 si/no" en este
         // formulario -- se deriva de si se cargo el nombre del plan. Ver
@@ -259,18 +255,6 @@ export default function NuevoActivoPage() {
                 value={formData.numeroSerie}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Codigo Interno
-              </label>
-              <input
-                type="text"
-                name="codigoInterno"
-                value={formData.codigoInterno}
-                onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -423,19 +407,10 @@ export default function NuevoActivoPage() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nombre del Equipo
-                </label>
-                <input
-                  type="text"
-                  name="nombreEquipo"
-                  value={formData.nombreEquipo}
-                  onChange={handleChange}
-                  placeholder="ej: NB-SCL-001"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+              {/* El nombre de red del equipo se pide al ENTREGARLO, no al
+                  crearlo: se arma con el nombre de quien lo va a usar, y un
+                  equipo recien comprado en bodega todavia no lo tiene. Ver
+                  AsignarActivoForm (15-sep-2026, SPEC 2.40). */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Licencia Microsoft 365

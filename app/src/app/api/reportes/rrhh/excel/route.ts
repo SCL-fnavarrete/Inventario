@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { sedeWhere } from '@/lib/auth/sedeScope';
+import { formatearFecha } from "@/lib/utils/fechas";
 
 export async function GET() {
   try {
@@ -35,11 +36,9 @@ export async function GET() {
       Cargo: d.employee.cargo || "",
       Ubicaci\u00f3n: d.employee.ubicacion || "",
       Jefatura: d.employee.jefatura || "",
-      "Fecha Desvinculaci\u00f3n": new Date(d.fechaDesvinculacion).toLocaleDateString(
-        "es-CL"
-      ),
+      "Fecha Desvinculaci\u00f3n": formatearFecha(d.fechaDesvinculacion),
       "Fecha Devoluci\u00f3n": d.fechaDevolucionEquipos
-        ? new Date(d.fechaDevolucionEquipos).toLocaleDateString("es-CL")
+        ? formatearFecha(d.fechaDevolucionEquipos)
         : "Pendiente",
       "Estado Notebook": d.estadoNotebook,
       "Estado Celular": d.estadoCelular,
@@ -52,7 +51,7 @@ export async function GET() {
       "Motivo Descuento": d.motivoDescuento || "",
       "Notificado RRHH": d.notificadoRrhh ? "S\u00ed" : "No",
       "Fecha Notificaci\u00f3n": d.fechaNotificacionRrhh
-        ? new Date(d.fechaNotificacionRrhh).toLocaleDateString("es-CL")
+        ? formatearFecha(d.fechaNotificacionRrhh)
         : "",
       Observaciones: d.observaciones || "",
     }));
@@ -69,9 +68,7 @@ export async function GET() {
         Nombre: `${d.employee.nombres} ${d.employee.apellidoPaterno}`,
         Monto: d.montoDescuento?.toString() || "0",
         Motivo: d.motivoDescuento || "",
-        "Fecha Desvinculaci\u00f3n": new Date(d.fechaDesvinculacion).toLocaleDateString(
-          "es-CL"
-        ),
+        "Fecha Desvinculaci\u00f3n": formatearFecha(d.fechaDesvinculacion),
       }));
 
     if (descuentos.length > 0) {

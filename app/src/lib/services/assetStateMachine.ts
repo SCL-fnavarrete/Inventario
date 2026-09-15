@@ -27,7 +27,14 @@ const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
     { to: 'baja', description: 'Dar de baja sin uso previo' },
   ],
   asignado: [
-    { to: 'reutilizable', description: 'Devolver equipo (ok/incompleto)' },
+    // 15-sep-2026 (SPEC 2.40): devolver en buen estado deja el equipo en
+    // "disponible", no en el extinto "reutilizable". Ese estado era
+    // indistinguible de disponible para entregar (el formulario de
+    // asignacion aceptaba los dos) pero NO contaba como stock en las
+    // alertas del Dashboard: con equipos devueltos listos para entregar,
+    // el sistema igual avisaba "Sin Stock". Que el equipo sea usado lo
+    // dice `condicion`, que es un campo aparte.
+    { to: 'disponible', description: 'Devolver equipo (ok/incompleto)' },
     { to: 'baja', description: 'Devolver equipo (dañado) → baja' },
     { to: 'en_mantencion', description: 'Enviar a mantención' },
   ],
@@ -35,11 +42,6 @@ const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
     { to: 'disponible', description: 'Mantención completada (sin asignación previa)' },
     { to: 'asignado', description: 'Mantención completada (con asignación previa)' },
     { to: 'baja', description: 'Mantención: no reparable' },
-  ],
-  reutilizable: [
-    { to: 'asignado', description: 'Reasignar a empleado' },
-    { to: 'disponible', description: 'Pasar a disponible' },
-    { to: 'baja', description: 'Dar de baja' },
   ],
   baja: [{ to: 'vendido', description: 'Registrar venta' }],
   vendido: [], // Estado terminal
@@ -54,20 +56,13 @@ const TRANSITION_PRECONDITIONS: Record<string, (ctx: TransitionContext) => strin
     }
     return errors;
   },
-  'asignado→reutilizable': (ctx) => {
+  'asignado→disponible': (ctx) => {
     const errors: string[] = [];
     if (ctx.hasActiveAssignment && !ctx.estadoDevolucion) {
       errors.push('Requiere registrar devolución del equipo');
     }
     if (ctx.estadoDevolucion === 'danado') {
-      errors.push('Equipo dañado no puede ir a reutilizable, debe ir a baja');
-    }
-    return errors;
-  },
-  'reutilizable→baja': (ctx) => {
-    const errors: string[] = [];
-    if (!ctx.motivo) {
-      errors.push('Requiere motivo obligatorio para dar de baja');
+      errors.push('Equipo dañado no puede volver a disponible, debe ir a baja');
     }
     return errors;
   },

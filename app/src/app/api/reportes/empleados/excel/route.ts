@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { formatearFecha } from "@/lib/utils/fechas";
 
 export async function GET() {
   try {
@@ -48,19 +49,19 @@ export async function GET() {
         "Notebook Modelo": notebook?.asset.modelo || "",
         "Notebook Serie": notebook?.asset.numeroSerie || "",
         "Notebook Fecha": notebook
-          ? new Date(notebook.fechaEntrega).toLocaleDateString("es-CL")
+          ? formatearFecha(notebook.fechaEntrega)
           : "",
         "Celular Marca": celular?.asset.marca || "",
         "Celular Modelo": celular?.asset.modelo || "",
         "Celular Tel\u00e9fono": celular?.asset.numeroTelefono || "",
         "Celular Fecha": celular
-          ? new Date(celular.fechaEntrega).toLocaleDateString("es-CL")
+          ? formatearFecha(celular.fechaEntrega)
           : "",
         "Monitor Marca": monitor?.asset.marca || "",
         "Monitor Modelo": monitor?.asset.modelo || "",
         "Monitor Serie": monitor?.asset.numeroSerie || "",
         "Monitor Fecha": monitor
-          ? new Date(monitor.fechaEntrega).toLocaleDateString("es-CL")
+          ? formatearFecha(monitor.fechaEntrega)
           : "",
         "Total Equipos": emp.assignments.length,
       };

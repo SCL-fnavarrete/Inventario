@@ -45,7 +45,7 @@ export default function VentaActivoPage() {
       });
   }, [id]);
 
-  const canSell = asset?.estado === 'baja' || asset?.estado === 'reutilizable';
+  const canSell = asset?.estado === 'baja';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,7 +101,7 @@ export default function VentaActivoPage() {
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
           <XCircle className="text-red-500" size={20} />
           <p className="text-red-700">
-            El activo debe estar en estado &quot;Baja&quot; o &quot;Reutilizable&quot; para vender. Estado actual: {asset.estado}
+            El activo debe estar en estado &quot;Baja&quot; para vender. Estado actual: {asset.estado}
           </p>
         </div>
       )}

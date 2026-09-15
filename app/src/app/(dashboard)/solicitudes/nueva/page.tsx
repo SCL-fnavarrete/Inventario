@@ -33,8 +33,10 @@ type Employee = {
   apellidoPaterno: string;
   apellidoMaterno: string | null;
   cargo: string | null;
-  correoPersonal: string;
-  correoEmpresa: string | null;
+  // 15-sep-2026 (SPEC 2.39): el correo de empresa es el obligatorio; el
+  // particular quedo opcional porque casi nunca esta registrado.
+  correoEmpresa: string;
+  correoPersonal: string | null;
   estado?: string;
 };
 
@@ -97,10 +99,11 @@ type EquipoDisponible = {
   tipoPlan: string | null;
   operador: string | null;
   pulgadas: string | number | null;
-  // De donde salio: "disponible" es nuevo, nunca asignado; "reutilizable" ya
-  // se uso y volvio en buen estado (ver assetStateMachine). Se muestra para
-  // que el tecnico sepa que esta eligiendo un equipo usado.
-  estadoActivo: 'disponible' | 'reutilizable';
+  // Si el equipo es nuevo o usado. 15-sep-2026 (SPEC 2.40): antes esto se
+  // deducia del ESTADO ("reutilizable" = usado), que mezclaba dos cosas
+  // distintas; ahora sale del campo `condicion`, que es el que de verdad
+  // describe como esta el equipo.
+  condicion: 'nuevo' | 'usado' | 'danado';
 };
 
 function especificacionesEquipo(a: EquipoDisponible): string {
@@ -362,8 +365,8 @@ export default function NuevaSolicitudPage() {
           nombres: newEmp.nombres,
           apellidoPaterno: newEmp.apellidoPaterno,
           apellidoMaterno: newEmp.apellidoMaterno || null,
-          correoPersonal: newEmp.correoPersonal,
-          correoEmpresa: newEmp.correoEmpresa || null,
+          correoEmpresa: newEmp.correoEmpresa,
+          correoPersonal: newEmp.correoPersonal || null,
           rut: newEmp.rut || null,
           cargo: newEmp.cargo || null,
           ubicacion: newEmp.ubicacion || null,
@@ -456,21 +459,13 @@ export default function NuevaSolicitudPage() {
   // total), para mostrar stock en "Equipos Requeridos" sin que el usuario
   // tenga que salir del formulario a revisar el modulo de Activos.
   //
-  // "disponible" es solo el equipo nuevo, nunca asignado. El equipo usado
-  // que ya se devolvio y quedo en buen estado vuelve como "reutilizable"
-  // (ver assetStateMachine / executeReturn) -- es asignable igual que uno
-  // nuevo (executeAssignment acepta ambos estados), pero antes esta pantalla
-  // solo consultaba "disponible": si todo el stock de una categoria era
-  // reutilizable (nada "disponible"), mostraba "0 disponibles" y el boton de
-  // avanzar igual dejaba pasar sin poder elegir nada, aunque en Activos si
-  // habia equipo para asignar.
+  // Desde SPEC 2.40 "disponible" es el unico estado asignable: el equipo
+  // devuelto en buen estado vuelve directo a disponible, sin pasar por el
+  // extinto "reutilizable". Que sea nuevo o usado lo dice `condicion`.
   useEffect(() => {
     if (categorias.length === 0) return;
     let cancelado = false;
-    const mapearItem = (
-      a: EquipoDisponible,
-      estadoActivo: 'disponible' | 'reutilizable'
-    ): EquipoDisponible => ({
+    const mapearItem = (a: EquipoDisponible): EquipoDisponible => ({
       id: a.id,
       marca: a.marca,
       modelo: a.modelo,
@@ -484,24 +479,23 @@ export default function NuevaSolicitudPage() {
       tipoPlan: a.tipoPlan,
       operador: a.operador,
       pulgadas: a.pulgadas,
-      estadoActivo,
+      condicion: a.condicion,
     });
     Promise.all(
       categorias.map((cat) =>
+        // El stock que se muestra es el de la sede elegida para la solicitud
+        // (SPEC 2.40): antes contaba el de las tres sedes juntas, asi que
+        // decia "hay 8 notebooks" cuando en esa bodega no habia ninguno.
         Promise.all([
-          fetch(`/api/activos?categoriaId=${cat.id}&estado=disponible&limit=5`)
+          fetch(
+            `/api/activos?categoriaId=${cat.id}&estado=disponible&limit=5${sedeId ? `&sedeId=${sedeId}` : ''}`
+          )
             .then((res) => (res.ok ? res.json() : { pagination: { total: 0 }, data: [] }))
             .catch(() => ({ pagination: { total: 0 }, data: [] })),
-          fetch(`/api/activos?categoriaId=${cat.id}&estado=reutilizable&limit=5`)
-            .then((res) => (res.ok ? res.json() : { pagination: { total: 0 }, data: [] }))
-            .catch(() => ({ pagination: { total: 0 }, data: [] })),
-        ]).then(([disponibles, reutilizables]) => ({
+        ]).then(([disponibles]) => ({
           id: cat.id,
-          total: (disponibles.pagination?.total ?? 0) + (reutilizables.pagination?.total ?? 0),
-          items: [
-            ...(disponibles.data || []).map((a: EquipoDisponible) => mapearItem(a, 'disponible')),
-            ...(reutilizables.data || []).map((a: EquipoDisponible) => mapearItem(a, 'reutilizable')),
-          ],
+          total: disponibles.pagination?.total ?? 0,
+          items: (disponibles.data || []).map((a: EquipoDisponible) => mapearItem(a)),
         }))
       )
     ).then((resultados) => {
@@ -515,7 +509,7 @@ export default function NuevaSolicitudPage() {
     return () => {
       cancelado = true;
     };
-  }, [categorias]);
+  }, [categorias, sedeId]);
 
   // Catalogo de Kit de Bienvenida / EPP con stock, para poder elegir
   // articulos y cantidades especificas al crear el ticket (igual que con los
@@ -524,7 +518,8 @@ export default function NuevaSolicitudPage() {
   useEffect(() => {
     if (tipo !== 'onboarding') return;
     let cancelado = false;
-    fetch('/api/kit-items')
+    // Catalogo de Kit/EPP de la sede de la solicitud (SPEC 2.40).
+    fetch(`/api/kit-items${sedeId ? `?sedeId=${sedeId}` : ''}`)
       .then((res) => (res.ok ? res.json() : []))
       .then((items: { id: string; nombre: string; categoria: 'kit_bienvenida' | 'epp'; cantidad: number }[]) => {
         if (!cancelado) setKitCatalog(items);
@@ -535,7 +530,7 @@ export default function NuevaSolicitudPage() {
     return () => {
       cancelado = true;
     };
-  }, [tipo]);
+  }, [tipo, sedeId]);
 
   const handleCancelOnboarding = () => {
     setTipo('');
@@ -568,10 +563,11 @@ export default function NuevaSolicitudPage() {
       if (
         !onboardingEmp.nombres.trim() ||
         !onboardingEmp.apellidoPaterno.trim() ||
-        !onboardingEmp.correoPersonal.trim() ||
+        // 15-sep-2026 (SPEC 2.39): el obligatorio es el correo de empresa.
+        !onboardingEmp.correoEmpresa.trim() ||
         !onboardingEmp.cargo.trim()
       ) {
-        setOnboardingEmpError('Nombres, apellido paterno, correo y cargo son obligatorios.');
+        setOnboardingEmpError('Nombres, apellido paterno, correo de empresa y cargo son obligatorios.');
         return;
       }
       if (!fechaIngreso) {
@@ -654,8 +650,8 @@ export default function NuevaSolicitudPage() {
             nombres: onboardingEmp.nombres,
             apellidoPaterno: onboardingEmp.apellidoPaterno,
             apellidoMaterno: onboardingEmp.apellidoMaterno || null,
-            correoPersonal: onboardingEmp.correoPersonal,
-            correoEmpresa: onboardingEmp.correoEmpresa || null,
+            correoEmpresa: onboardingEmp.correoEmpresa,
+            correoPersonal: onboardingEmp.correoPersonal || null,
             rut: onboardingEmp.rut || null,
             cargo: onboardingEmp.cargo || null,
             supervisor: onboardingEmp.supervisor || null,
@@ -946,7 +942,7 @@ export default function NuevaSolicitudPage() {
                         )}
                       </p>
                       <p className="text-sm text-gray-500">
-                        {selectedEmployee.rut || '—'} · {selectedEmployee.correoPersonal}
+                        {selectedEmployee.rut || '—'} · {selectedEmployee.correoEmpresa ?? selectedEmployee.correoPersonal ?? ''}
                         {selectedEmployee.cargo ? ` · ${selectedEmployee.cargo}` : ''}
                       </p>
                     </div>
@@ -993,7 +989,7 @@ export default function NuevaSolicitudPage() {
                               <span className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
                                 <span>{emp.rut || 'Sin RUT'}</span>
                                 <span>·</span>
-                                <span>{emp.correoPersonal}</span>
+                                <span>{emp.correoEmpresa ?? emp.correoPersonal ?? ''}</span>
                                 {emp.cargo && (
                                   <>
                                     <span>·</span>
@@ -1113,22 +1109,22 @@ export default function NuevaSolicitudPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Correo Personal *</label>
-                <input
-                  type="email"
-                  value={onboardingEmp.correoPersonal}
-                  onChange={(e) => setOnboardingEmp({ ...onboardingEmp, correoPersonal: e.target.value })}
-                  placeholder="nombre.personal@gmail.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Correo Empresa</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Correo Empresa *</label>
                 <input
                   type="email"
                   value={onboardingEmp.correoEmpresa}
                   onChange={(e) => setOnboardingEmp({ ...onboardingEmp, correoEmpresa: e.target.value })}
-                  placeholder="nombre@empresa.cl (si ya se creó)"
+                  placeholder="nombre@sclconsultores.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Correo Personal</label>
+                <input
+                  type="email"
+                  value={onboardingEmp.correoPersonal}
+                  onChange={(e) => setOnboardingEmp({ ...onboardingEmp, correoPersonal: e.target.value })}
+                  placeholder="nombre.personal@gmail.com (opcional)"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
@@ -1351,7 +1347,7 @@ export default function NuevaSolicitudPage() {
                                   <span>
                                     {item.marca} {item.modelo}
                                     {item.numeroSerie ? ` — N° serie ${item.numeroSerie}` : ''}
-                                    {item.estadoActivo === 'reutilizable' && (
+                                    {item.condicion === 'usado' && (
                                       <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700">
                                         Usado
                                       </span>
@@ -1566,7 +1562,7 @@ export default function NuevaSolicitudPage() {
                     {selectedEmployee.apellidoMaterno ? ` ${selectedEmployee.apellidoMaterno}` : ''}
                   </p>
                   <p className="text-sm text-gray-500">
-                    {selectedEmployee.rut || '—'} · {selectedEmployee.correoPersonal}
+                    {selectedEmployee.rut || '—'} · {selectedEmployee.correoEmpresa ?? selectedEmployee.correoPersonal ?? ''}
                     {selectedEmployee.cargo ? ` · ${selectedEmployee.cargo}` : ''}
                   </p>
                 </div>
@@ -1613,7 +1609,7 @@ export default function NuevaSolicitudPage() {
                           <span className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
                             <span>{emp.rut || 'Sin RUT'}</span>
                             <span>·</span>
-                            <span>{emp.correoPersonal}</span>
+                            <span>{emp.correoEmpresa ?? emp.correoPersonal ?? ''}</span>
                             {emp.cargo && (
                               <>
                                 <span>·</span>
@@ -2093,13 +2089,13 @@ export default function NuevaSolicitudPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Correo Personal *
+                  Correo Empresa *
                 </label>
                 <input
                   type="email"
-                  value={newEmp.correoPersonal}
-                  onChange={(e) => setNewEmp({ ...newEmp, correoPersonal: e.target.value })}
-                  placeholder="nombre@empresa.cl"
+                  value={newEmp.correoEmpresa ?? ''}
+                  onChange={(e) => setNewEmp({ ...newEmp, correoEmpresa: e.target.value })}
+                  placeholder="nombre@sclconsultores.com"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>

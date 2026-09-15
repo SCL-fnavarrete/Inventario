@@ -26,7 +26,6 @@ export async function GET() {
       Asignados: cat.assets.filter((a) => a.estado === "asignado").length,
       "En Mantenci\u00f3n": cat.assets.filter((a) => a.estado === "en_mantencion")
         .length,
-      Reutilizables: cat.assets.filter((a) => a.estado === "reutilizable").length,
       Baja: cat.assets.filter((a) => a.estado === "baja").length,
       Vendidos: cat.assets.filter((a) => a.estado === "vendido").length,
     }));
@@ -38,7 +37,6 @@ export async function GET() {
       Disponibles: stockData.reduce((sum, r) => sum + r.Disponibles, 0),
       Asignados: stockData.reduce((sum, r) => sum + r.Asignados, 0),
       "En Mantenci\u00f3n": stockData.reduce((sum, r) => sum + r["En Mantenci\u00f3n"], 0),
-      Reutilizables: stockData.reduce((sum, r) => sum + r.Reutilizables, 0),
       Baja: stockData.reduce((sum, r) => sum + r.Baja, 0),
       Vendidos: stockData.reduce((sum, r) => sum + r.Vendidos, 0),
     });

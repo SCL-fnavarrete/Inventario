@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
           rowResult.errors.push({
             type: "invalid_format",
             field: "estado",
-            message: `Estado no reconocido: "${lecturaEstado.valor}". Se espera un estado (Disponible, Asignado, En mantencion, Reutilizable, Baja, Vendido) o una condicion (Nuevo, Usado, Seminuevo, Danado)`,
+            message: `Estado no reconocido: "${lecturaEstado.valor}". Se espera un estado (Disponible, Asignado, En mantencion, Baja, Vendido) o una condicion (Nuevo, Usado, Seminuevo, Danado)`,
             value: lecturaEstado.valor,
           });
           rowResult.status = "error";
@@ -182,14 +182,19 @@ export async function POST(request: NextRequest) {
               continue;
             }
 
+            // El correo generado al vuelo es el de empresa, que es el
+            // obligatorio y unico en la base (15-sep-2026, SPEC 2.39). Misma
+            // estrategia anti-duplicado de siempre: base derivada del nombre
+            // y, si ya esta tomada, se le agrega el RUT. El correo personal
+            // no se setea porque las planillas de TI no lo traen.
             const base = `${nombres.toLowerCase().replace(/\s+/g, ".")}.${apellidoPaterno.toLowerCase()}`;
-            let correoPersonal = row.data.correo || `${base}@empresa.cl`;
+            let correoEmpresa = row.data.correo || `${base}@empresa.cl`;
             const correoTomado = await prisma.employee.findUnique({
-              where: { correoPersonal },
+              where: { correoEmpresa },
               select: { id: true },
             });
             if (correoTomado) {
-              correoPersonal = `${base}.${limpiarRut(rutEmpleado).toLowerCase()}@empresa.cl`;
+              correoEmpresa = `${base}.${limpiarRut(rutEmpleado).toLowerCase()}@empresa.cl`;
             }
 
             datosEmpleadoNuevo = {
@@ -197,7 +202,7 @@ export async function POST(request: NextRequest) {
               nombres,
               apellidoPaterno,
               apellidoMaterno: row.data.apellidoM || row.data.apellidoMaterno || null,
-              correoPersonal,
+              correoEmpresa,
               cargo: row.data.cargo || null,
               jefatura: row.data.jefatura || null,
               supervisor: row.data.supervisor || null,

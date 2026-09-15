@@ -1444,6 +1444,71 @@ Pedido explícito de Javier: *"cuando ocurre un error ya sea ingresar un dato in
 
 ---
 
+## 2.38 Correcciones de la primera prueba funcional end-to-end (15-sep-2026)
+
+Pedido explícito de Javier: *"antes de importar datos quiero que hagas pruebas funcionales para ver si funciona todo correctamente"*, y después de recibir los hallazgos: *"si, hay que arreglar las 9"*.
+
+**Contexto:** primera pasada de QA manual sobre el sistema corriendo (navegador contra `localhost:3000`, base de datos vacía), recorriendo login, Activos, Kit/EPP, Compras, Configuración y Auditoría, como administrador y como técnico de una sede. Confirmó que lo entregado los días anteriores funciona (errores por campo de 2.37, stock de Kit/EPP por compra de 2.36 sumando y revirtiendo, auditoría registrando cada acción con su responsable, permisos de técnico bloqueados con 403 en Configuración) y dejó 9 defectos, todos corregidos acá.
+
+**1. Fechas mostradas un día antes (el más grave).** Una factura guardada como `2026-09-15T00:00:00.000Z` se mostraba en pantalla como "14 de septiembre de 2026". Las fechas de calendario se guardan a medianoche UTC y Chile está en UTC-3/-4, así que `new Date(x).toLocaleDateString("es-CL")` las corría un día hacia atrás. Estaba repetido en 30 archivos sin ningún punto común donde corregirlo, afectando fecha de factura, de entrega, de compra, fin de garantía, próxima mantención y fecha de ingreso, tanto en pantalla como en los Excel exportados y los PDF generados.
+- Nuevo `src/lib/utils/fechas.ts`, único punto de verdad, con la distinción explícita entre los dos tipos de fecha del sistema: `formatearFecha` (fecha de calendario, se lee en UTC) y `formatearFechaHora` (marca de tiempo real como `createdAt` o último acceso, que sí se muestra en hora local de quien mira). También `formatearFechaLarga`, `formatearFechaCorta` y `aValorInputDate`.
+- Convertidos 32 usos en 21 archivos. Se dejaron deliberadamente en hora local los 9 casos que son marcas de tiempo reales (`createdAt` de solicitudes y kit, fecha de cierre, último acceso de usuarios) y los `new Date()` de "documento generado el ..." en las plantillas PDF.
+
+**2. Los contadores de Activos ignoraban el selector de sede.** Con "Concepción" elegido, la tabla decía "No se encontraron activos" mientras las tarjetas seguían mostrando "Total 1" y "Notebook 1" (el activo de Santiago). `/api/activos/stats` no leía el parámetro `sedeId` y el frontend lo llamaba en 4 lugares sin mandarlo ni re-pedirlo al cambiar de sede. Se agrega el filtro al endpoint (mismo criterio que `/api/activos`: solo se acepta para quien tiene visibilidad total) y en el frontend se centraliza en un helper `urlStats(sedeSeleccionada)`, con `sedeSeleccionada` en las dependencias del efecto.
+
+**3. El Dashboard ignoraba el selector de sede.** Mismo síntoma, causa distinta: el Resumen es un server component y consulta la base en el servidor, donde no existe `localStorage`. La sede elegida ahora viaja además en una cookie (`SedeSeleccionadaProvider` la escribe junto con `localStorage`), que el Dashboard lee con `cookies()`. El setter llama a `router.refresh()` para que el server component se vuelva a renderizar al cambiar de sede. La cookie es solo un filtro de presentación, no una credencial: el backend sigue validando con la sesión (`sedeScope.ts`), así que una cookie manipulada no da acceso a nada nuevo.
+
+**4. Exportar a Excel ignoraba el selector de sede.** El botón armaba el link sin `sedeId`, así que la pantalla mostraba una sede y el archivo descargado traía todas. Se agrega el parámetro al link y el soporte correspondiente en `/api/activos/exportar`.
+
+**5. Textos de ayuda que contradecían el rediseño de visibilidad (SPEC 2.29).** Siete textos en cinco pantallas (Configuración > Sedes, Configuración > Usuarios, el modal de Kit/EPP, Compras > Nueva e Importar Activos) seguían diciendo que el técnico "está restringido a su propia sede" o que "hereda automáticamente la suya", cuando desde el 14-sep el técnico ve todas las sedes y elige la sede explícitamente al crear. Reescritos para describir lo que el sistema hace hoy.
+
+**6. Guardar en una sede distinta a la filtrada parecía un error.** Al crear un artículo de Kit/EPP en Santiago con el menú filtrando por Concepción, se guardaba correctamente (201) pero desaparecía de la lista sin ningún mensaje -- el usuario asumía que había fallado y lo creaba de nuevo, duplicando stock. Ahora aparece un aviso que dice dónde quedó guardado y por qué no se ve en esa lista.
+
+**7. El login revelaba qué correos existen.** Respondía "Usuario no encontrado o inactivo" para un correo inexistente y "Contraseña incorrecta" para uno real, lo que permite descubrir qué cuentas existen probando correos uno por uno (enumeración de usuarios). Ahora los tres casos (correo inexistente, cuenta desactivada, contraseña incorrecta) responden "Correo o contraseña incorrectos". El bloqueo por intentos fallidos sigue con su mensaje propio, y el registro interno de intentos no cambia.
+
+**8. El detalle de Compras usaba `confirm()` y `alert()` del navegador.** Era la única pantalla que lo hacía: bloquean la ventana entera y no pueden mostrar el detalle por campo que el backend ya devuelve desde 2.37. Los 4 `alert()` pasan al cartel `<ApiErrorSummary>` en pantalla y los 2 `confirm()` a un modal propio, con el mismo formato que el modal de eliminar factura que ya existía en esa pantalla.
+
+**9. El cartel de error mostraba el nombre interno del campo.** Decía "marca: Maximo 50 caracteres" en vez de "Marca: Máximo 50 caracteres". `<ApiErrorSummary>` ya aceptaba un `fieldLabels`, pero ningún formulario se lo pasaba; se agrega un diccionario base con los ~45 campos que se repiten en todo el sistema (que cada formulario puede pisar), con soporte para rutas anidadas de Zod (`kitItems.0.cantidad`). Además se corrigen 20 mensajes de `validations/asset.ts` que decían "Maximo" sin tilde.
+
+**Dato confirmado durante la prueba:** los códigos reales de las sedes son `STGO` (Santiago), `CCP` (Concepción) y `PERU`. Queda pendiente decidir si se agregan Santiago y Concepción al `seed.ts` (ver la nota de la v1.41, que las dejó fuera justamente por no conocer sus códigos).
+
+
+---
+
+## 2.39 El correo de empresa pasa a ser el obligatorio; tipo de contrato opcional (15-sep-2026)
+
+Pedido explícito de Javier, al revisar el modelo antes de importar el inventario real: *"el del correo tendría que ser al revés. El del correo personal, opcional, y el del correo de la empresa, obligatorio"*, y sobre el tipo de contrato: *"como no está en el Excel, lo que podríamos hacer es dejarlo opcional... si lo dejamos opcional, inserta de manera correcta los datos ahora y más adelante los técnicos tendrán que ingresarla"*.
+
+**El problema:** el modelo pedía como obligatorio el `correoPersonal` y dejaba opcional el `correoEmpresa`, justo al revés de como son los datos reales. El consolidado de inventario de la empresa (y cualquier planilla de soporte) trae la cuenta corporativa, que es la que siempre existe y con la que TI identifica a cada persona; el correo particular no lo registró nadie. Lo mismo con `tipoContrato`, que era obligatorio y la planilla no lo trae: cumplirlo obligaba a inventar un valor para ~110 personas.
+
+**Cambios** (migración `20260915000000_correo_empresa_obligatorio_y_contrato_opcional`):
+- `Employee.correoEmpresa` pasa a `String @unique` (obligatorio); `Employee.correoPersonal` pasa a `String? @unique` (opcional). La migración incluye un paso de respaldo que completa el correo de empresa con el personal en las filas que ya existieran, para que el `NOT NULL` no falle en una base con empleados cargados.
+- `Employee.tipoContrato` pasa a `TipoContrato?`. Es un campo que solo se usa como etiqueta y filtro en pantalla: no condiciona permisos ni ninguna regla de negocio.
+- Se invierte cuál de los dos correos se valida y contra cuál se comprueba el duplicado, en el alta y la edición de empleados, y en los dos formularios de empleado que viven dentro de Solicitudes.
+- Las dos rutas de importación masiva de activos, que crean empleados al vuelo, generan ahora el correo automático sobre `correoEmpresa` (misma estrategia anti-duplicado: `nombre@empresa.cl`, y si choca, `nombre.rut@empresa.cl`).
+- Las ~10 pantallas que mostraban el correo como identificador de la persona (buscadores para asignar equipo, tarjetas, kanban, acta de entrega en PDF) muestran ahora `correoEmpresa ?? correoPersonal`, y las consultas que las alimentan piden ambos campos.
+
+---
+
+## 2.40 Correcciones y simplificaciones de la segunda pasada de QA (15-sep-2026)
+
+Hallazgos de Javier probando el sistema a mano, y las decisiones de modelo que salieron de esa conversación.
+
+**1. El onboarding ofrecía equipos y stock de todas las sedes.** Al ejecutar una solicitud de onboarding, el selector de equipos pedía `/api/activos?categoriaId=X&estado=disponible` sin mandar ninguna sede, y el catálogo de Kit/EPP hacía `fetch('/api/kit-items')` igual de abierto: eran 9 llamadas en 4 archivos. El técnico veía —y podía entregar— inventario de las tres sedes, y el descuento de Kit/EPP podía restar de la bodega equivocada. Ahora todas filtran por la **sede de la solicitud**, que es la correcta: no el selector del menú, que es solo un filtro de pantalla. Si el onboarding es de alguien de Concepción, se ofrece stock de Concepción aunque el menú esté en Santiago.
+
+**2. Se elimina el estado `reutilizable`.** Observación de Javier mirando el Kanban: *"disponibles son todos los equipos que se pueden asignar. Y reutilizables son los equipos usados que también se pueden usar. O sea, no tiene lógica tener esos dos"*. Tenía razón, y además estaba causando un defecto: el formulario de asignación ya aceptaba ambos estados por igual (`ESTADOS_ASIGNABLES = ["disponible", "reutilizable"]`), pero las alertas de stock del Dashboard contaban **solo** los `disponible` — con diez notebooks devueltos y listos para entregar, el sistema igual avisaba "Sin Stock: Notebook". De fondo era el mismo error que Javier ya había detectado con el estado y la condición: `reutilizable` metía *cómo está el equipo* (usado) dentro de *en qué punto de su ciclo de vida está*, cuando eso ya lo dice el campo `condicion`. Migración `20260915010000_elimina_estado_reutilizable`: las filas pasan a `disponible` y se recrea el enum sin ese valor (Postgres no permite quitar un valor de un enum con `ALTER TYPE`). Devolver un equipo en buen estado ahora lo deja directo en `disponible`; dañado sigue yendo a `baja`. Los estados quedan en cinco: disponible, asignado, en mantención, baja, vendido.
+
+**3. Se elimina el campo "Código Interno" del activo.** Pedido explícito: *"borrar campo código interno - no se usa"*. Se verificó que además no tiene datos de origen: la columna del consolidado llamada "ID-Interno" no contiene un código sino el estado del equipo (Activo/Baja/Disponible/Mantención). Los equipos se identifican por número de serie. Migración `20260915020000_elimina_codigo_interno_activo`.
+
+**4. El nombre de red del equipo se pide al entregarlo, no al crearlo.** Observación de Javier: *"ese es un nombre de equipo que se coloca cuando se asigna a la persona, no al crear el activo"*. El campo sale del formulario de alta de activo (y del alta rápida dentro de Compras) y aparece en el formulario de asignación, donde **se propone solo** a partir de la persona que recibe el equipo. La convención se tomó de los datos reales: de 106 equipos con nombre en el consolidado, 98 siguen exactamente `SCL` + inicial del nombre + apellido paterno (`SCL-CROJAS`, `SCL-ALEIVA`); las excepciones son choques de apellido, donde se agrega la inicial del materno — por eso el campo queda editable en vez de calcularse solo. Sigue siendo opcional y editable después desde la ficha del activo, que es por donde entran los 121 nombres que trae el Excel.
+
+**5. Los 14 `alert()` y `confirm()` nativos que quedaban.** Pedido explícito: *"cambiar los alerts por mensajes con estilo"*. Repartidos en 7 pantallas (Activos, Compras, Guías de Despacho, Kit/EPP, Tipos de Mantención, Usuarios y Categorías). Todos pasan al cartel `<ApiErrorSummary>` en pantalla y al modal de confirmación propio, con textos que explican la consecuencia real de la acción en vez de "¿Está seguro?".
+
+**Queda pendiente de decisión:** la pantalla de venta aceptaba activos en estado `baja` **o** `reutilizable`; al desaparecer el segundo quedó aceptando solo `baja`, que es lo conservador. Falta confirmar con la empresa si se venden equipos usados que aún funcionan sin darlos de baja antes.
+
+
+---
+
 # PARTE 3: ARQUITECTURA TÉCNICA (ARCHITECTURE)
 
 ## 3.1 Stack Tecnológico Recomendado
@@ -2215,6 +2280,11 @@ nunca debió existir como fila separada.
 
 ## Changelog SPEC
 
+- **v1.45 (2026-09-15):**
+  - Sección 2.39 (nueva): se invierte cuál de los dos correos del empleado es obligatorio — pasa a serlo `correoEmpresa` y `correoPersonal` queda opcional (*"el del correo tendría que ser al revés"*), porque las planillas de TI traen la cuenta corporativa y el correo particular no lo registra nadie. `tipoContrato` pasa a opcional por la misma razón (*"como no está en el Excel... lo dejamos opcional"*), en vez de inventar un valor para ~110 personas. Migración `20260915000000`.
+  - Sección 2.40 (nueva): segunda pasada de QA manual. El onboarding ofrecía equipos y Kit/EPP de todas las sedes (9 llamadas sin `sedeId` en 4 archivos) y ahora filtra por la sede de la solicitud. Se elimina el estado `reutilizable`, que era indistinguible de `disponible` para entregar pero no contaba como stock en el Dashboard, y que metía la condición del equipo dentro de su ciclo de vida (migración `20260915010000`); los estados quedan en cinco. Se elimina el campo "Código Interno", que no tenía datos de origen (migración `20260915020000`). El nombre de red del equipo se pide al asignarlo, con autosugerencia `SCL-<inicial><apellido>` deducida de los datos reales (98 de 106 equipos siguen esa convención). Y se reemplazan los 14 `alert()`/`confirm()` nativos que quedaban en 7 pantallas.
+- **v1.44 (2026-09-15):**
+  - Sección 2.38 (nueva): primera prueba funcional end-to-end sobre el sistema corriendo, pedida explícitamente por Javier (*"antes de importar datos quiero que hagas pruebas funcionales"*), y corrección de los 9 defectos que encontró (*"si, hay que arreglar las 9"*). El más grave: todas las fechas de calendario se mostraban un día antes por leer en hora local una marca guardada a medianoche UTC -- repetido en 30 archivos, ahora centralizado en `lib/utils/fechas.ts` con la distinción entre fecha de calendario (UTC) y marca de tiempo real (hora local). Además: los contadores de Activos, el Dashboard y la exportación a Excel ignoraban el selector de sede (el Dashboard, por ser server component, ahora lee la sede de una cookie); 7 textos de ayuda contradecían el rediseño de visibilidad de 2.29; crear un registro en una sede distinta a la filtrada parecía fallar; el login permitía enumerar qué correos existen; el detalle de Compras usaba `confirm()`/`alert()` nativos; y el cartel de error mostraba el nombre interno del campo. Se confirman los códigos reales de sede: `STGO`, `CCP`, `PERU`.
 - **v1.43 (2026-09-14):**
   - Sección 2.37 (nueva): pedido explícito de Javier, *"si hay error en un campo debe indicar el error, el tipo de error y cual es el campo que genero ese error"*. El backend ya mandaba el detalle util (issues de Zod) pero ~22 formularios lo ignoraban y mostraban un cartel generico. Nueva funcion `respuestaDatosInvalidos` en `guard.ts` (formato uniforme `{field, message}[]`, reemplaza 24 ocurrencias repetidas a mano en 21 rutas), mas dos piezas reutilizables en el frontend (`parseApiError` en `lib/utils/apiErrors.ts` y `<ApiErrorSummary>` en `components/ui/`), aplicadas a los formularios de Activos, Empleados, Compras, Configuracion, Mantenciones, Guias de Despacho y Solicitudes (detalle). `solicitudes/nueva` no se toco, ya funcionaba bien con codigo propio.
 - **v1.42 (2026-09-14):**

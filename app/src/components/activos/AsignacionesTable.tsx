@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
+import { formatearFecha } from "@/lib/utils/fechas";
 
 type Assignment = {
   id: string;
@@ -72,7 +73,7 @@ function iconoCategoria(nombre: string) {
 
 function formatDate(dateString: string | null): string {
   if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("es-CL");
+  return formatearFecha(dateString);
 }
 
 /**

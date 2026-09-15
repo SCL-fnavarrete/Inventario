@@ -17,7 +17,6 @@ interface StatsData {
     disponible: number;
     asignado: number;
     en_mantencion: number;
-    reutilizable: number;
     baja: number;
     vendido: number;
   };
@@ -55,12 +54,6 @@ const statusConfig = {
     color: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100",
     activeColor: "bg-amber-600 text-white border-amber-600",
   },
-  reutilizable: {
-    label: "Reutilizable",
-    icon: RefreshCw,
-    color: "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100",
-    activeColor: "bg-purple-600 text-white border-purple-600",
-  },
   baja: {
     label: "Baja",
     icon: XCircle,
@@ -91,7 +84,6 @@ export function StatsBar({ data, isLoading, selectedStatus, onStatusClick }: Sta
     { key: "disponible", value: data.byStatus.disponible },
     { key: "asignado", value: data.byStatus.asignado },
     { key: "en_mantencion", value: data.byStatus.en_mantencion },
-    { key: "reutilizable", value: data.byStatus.reutilizable },
     { key: "baja", value: data.byStatus.baja },
     { key: "vendido", value:data.byStatus.vendido},
   ];

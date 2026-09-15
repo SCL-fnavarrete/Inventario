@@ -6,6 +6,7 @@ import { ComprobanteEntregaTemplate } from '@/lib/templates/ComprobanteEntregaTe
 import { ComprobanteCambioTemplate } from '@/lib/templates/ComprobanteCambioTemplate';
 import { ActaDevolucionTemplate } from '@/lib/templates/ActaDevolucionTemplate';
 import { prisma } from '@/lib/prisma';
+import { formatearFecha } from "@/lib/utils/fechas";
 
 // Helper to cast React.createElement result for @react-pdf/renderer
 function renderPdf(element: React.ReactElement) {
@@ -14,7 +15,7 @@ function renderPdf(element: React.ReactElement) {
 
 function formatDate(date: Date | string | null): string {
   if (!date) return '—';
-  return new Date(date).toLocaleDateString('es-CL');
+  return formatearFecha(date);
 }
 
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];

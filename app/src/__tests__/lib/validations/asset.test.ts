@@ -11,7 +11,6 @@ describe('Asset Validation - estadoActivoEnum', () => {
       'disponible',
       'asignado',
       'en_mantencion',
-      'reutilizable',
       'baja',
       'vendido',
     ]
@@ -24,6 +23,15 @@ describe('Asset Validation - estadoActivoEnum', () => {
 
   test('should reject invalid estado', () => {
     const result = estadoActivoEnum.safeParse('invalido')
+    expect(result.success).toBe(false)
+  })
+
+  // (15-sep-2026, SPEC 2.40) "reutilizable" se fusiono en "disponible": era
+  // identico en la practica y hacia que las alertas de stock, que solo
+  // contaban "disponible", avisaran "Sin Stock" con equipos listos para
+  // entregar. Que el equipo ya se uso lo dice `condicion`.
+  test('should reject the removed estado reutilizable', () => {
+    const result = estadoActivoEnum.safeParse('reutilizable')
     expect(result.success).toBe(false)
   })
 })
@@ -61,7 +69,6 @@ describe('Asset Validation - createAssetSchema', () => {
       ...validAsset,
       numeroSerie: 'PF3BXB9T',
       imei: '354964992749902',
-      numeroActivoInterno: 'IT-001',
       procesador: 'Intel Core i7-1260P',
       discoDuro: '512 GB',
       ram: '16 GB',

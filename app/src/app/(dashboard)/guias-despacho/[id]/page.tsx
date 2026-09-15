@@ -16,7 +16,8 @@ import {
   Monitor,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { parseApiError } from "@/lib/utils/apiErrors";
+import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
+import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { especificacionesActivoTexto } from "@/lib/utils/assetSpecs";
 import {
   ESTADO_GUIA_LABELS,
@@ -24,10 +25,11 @@ import {
   type DispatchGuideDetail,
 } from "@/types/guia-despacho";
 import { EstadoGuia } from "@prisma/client";
+import { formatearFecha } from "@/lib/utils/fechas";
 
 function formatDate(date: Date | string | null): string {
   if (!date) return "-";
-  return new Date(date).toLocaleDateString("es-CL", {
+  return formatearFecha(date, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -69,6 +71,13 @@ export default function GuiaDespachoDetailPage({
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  // Esta pantalla mostraba los errores con alert() del navegador, distinto
+  // al resto del sistema y sin poder listar el detalle por campo que la API
+  // ya devuelve en `details` (15-sep-2026, SPEC 2.40). Con estado propio el
+  // error se muestra en el mismo cartel ApiErrorSummary que usan los demas
+  // formularios, sin bloquear la ventana.
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [recepcionData, setRecepcionData] = useState({
     recibidoPor: "",
     fechaRecepcion: new Date().toISOString().slice(0, 16),
@@ -85,8 +94,12 @@ export default function GuiaDespachoDetailPage({
       if (!res.ok) throw new Error("Error al cargar guía");
       const data = await res.json();
       setGuide(data);
-    } catch (error) {
-      console.error("Error fetching guide:", error);
+    } catch (err) {
+      // Si la carga falla, antes solo quedaba registro en la consola y la
+      // pagina decia "Guia no encontrada" aunque el problema fuera de red
+      // (15-sep-2026, SPEC 2.40): ahora el motivo se ve en el cartel.
+      console.error("Error fetching guide:", err);
+      setError(err instanceof Error ? err.message : "Error al cargar guía");
     } finally {
       setLoading(false);
     }
@@ -94,6 +107,8 @@ export default function GuiaDespachoDetailPage({
 
   async function handleConfirmarRecepcion() {
     setUpdating(true);
+    setError(null);
+    setFieldErrors({});
     try {
       const res = await fetch(`/api/guias-despacho/${id}`, {
         method: "PATCH",
@@ -105,20 +120,20 @@ export default function GuiaDespachoDetailPage({
       });
 
       if (!res.ok) {
-        // Este formulario muestra el error con alert(), no con un cartel --
-        // se agrega igual el detalle por campo (si vino en `details`) al
-        // mensaje para que sea visible.
-        const { message, fieldErrors } = await parseApiError(res, "Error al actualizar");
-        const detalle = Object.entries(fieldErrors)
-          .map(([field, msg]) => `${field}: ${msg}`)
-          .join("; ");
-        throw new Error(detalle ? `${message} (${detalle})` : message);
+        // El detalle por campo ya no se aplasta dentro de un solo string:
+        // el cartel lo lista campo por campo con su nombre legible
+        // (15-sep-2026, SPEC 2.40). El modal queda abierto para que se
+        // pueda corregir el dato sin volver a abrirlo.
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar");
+        setError(message);
+        setFieldErrors(fe);
+        return;
       }
 
       await fetchGuide();
       setShowConfirmModal(false);
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Error al actualizar");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al actualizar");
     } finally {
       setUpdating(false);
     }
@@ -136,7 +151,13 @@ export default function GuiaDespachoDetailPage({
   if (!guide) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">Guía de despacho no encontrada</p>
+        {error ? (
+          <div className="max-w-md mx-auto text-left">
+            <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
+          </div>
+        ) : (
+          <p className="text-gray-500">Guía de despacho no encontrada</p>
+        )}
         <Link
           href="/guias-despacho"
           className="mt-4 inline-block text-blue-600 hover:text-blue-800"
@@ -184,6 +205,13 @@ export default function GuiaDespachoDetailPage({
           </div>
         </div>
       </div>
+
+      {/* Cartel de error de la pagina. Cuando el modal de recepcion esta
+          abierto el error se muestra adentro del modal (si no, quedaria
+          tapado por el fondo oscuro) -- 15-sep-2026, SPEC 2.40. */}
+      {!showConfirmModal && (
+        <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
+      )}
 
       {/* Acción disponible: confirmar recepción. Es puramente informativo
           -- los equipos ya quedaron disponibles en la sede destino al
@@ -382,6 +410,11 @@ export default function GuiaDespachoDetailPage({
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">Confirmar Recepción</h3>
+            {error && (
+              <div className="mb-4">
+                <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
+              </div>
+            )}
             <div className="space-y-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

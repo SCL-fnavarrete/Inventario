@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { formatearFecha } from "@/lib/utils/fechas";
 
 export async function GET() {
   try {
@@ -63,7 +64,7 @@ export async function GET() {
         Modelo: a.modelo,
         "Sistema Operativo": a.sistemaOperativo || "",
         "Fecha Compra": a.fechaCompra
-          ? new Date(a.fechaCompra).toLocaleDateString("es-CL")
+          ? formatearFecha(a.fechaCompra)
           : "",
         "Antig\u00fcedad (a\u00f1os)": antiguedad !== null ? antiguedad : "",
         Estado: a.estado,

@@ -22,6 +22,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatearFecha } from "@/lib/utils/fechas";
 
 type Assignment = {
   id: string;
@@ -69,7 +70,9 @@ type Assignment = {
     nombres: string;
     apellidoPaterno: string;
     apellidoMaterno: string | null;
-    correoPersonal: string;
+    // El correo de empresa es el obligatorio (15-sep-2026, SPEC 2.39)
+    correoEmpresa: string;
+    correoPersonal?: string | null;
     cargo: string | null;
     jefatura: string | null;
     ubicacion: string | null;
@@ -93,7 +96,7 @@ const tipoMovimientoColors: Record<string, string> = {
 // EstadoDevolucionEnum tiene 3 valores (ok | incompleto | danado); el badge
 // anterior era un ternario binario que mostraba "Dañado" para cualquier
 // devolucion que no fuera "ok", incluyendo "incompleto" (que en realidad
-// manda el activo a reutilizable, no a baja).
+// manda el activo a disponible, no a baja).
 const estadoDevolucionInfo: Record<string, { label: string; className: string }> = {
   ok: { label: "Buen estado", className: "bg-green-100 text-green-800" },
   incompleto: { label: "Incompleto", className: "bg-amber-100 text-amber-800" },
@@ -115,7 +118,7 @@ function getCategoryIcon(categoryName: string) {
 
 function formatDate(dateString: string | null): string {
   if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("es-CL", {
+  return formatearFecha(dateString, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -284,7 +287,7 @@ export default function AsignacionDetailPage({
             <div className="grid grid-cols-2 gap-4 pt-4 border-t">
               <div className="flex items-center gap-2 text-sm">
                 <Mail className="h-4 w-4 text-gray-400" />
-                <span className="text-gray-600">{assignment.employee.correoPersonal}</span>
+                <span className="text-gray-600">{assignment.employee.correoEmpresa ?? assignment.employee.correoPersonal ?? ''}</span>
               </div>
               {assignment.employee.cargo && (
                 <div className="flex items-center gap-2 text-sm">

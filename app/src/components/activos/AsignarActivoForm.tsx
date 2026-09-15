@@ -32,7 +32,10 @@ type Employee = {
   apellidoPaterno: string;
   apellidoMaterno: string | null;
   rut: string | null;
-  correoPersonal: string;
+  // El correo de empresa es el obligatorio y el que se muestra como
+  // identificador de la persona (15-sep-2026, SPEC 2.39)
+  correoEmpresa: string;
+  correoPersonal?: string | null;
   cargo: string | null;
 };
 
@@ -43,8 +46,40 @@ const TIPOS_MOVIMIENTO = [
   { value: "temporal", label: "Prestamo temporal" },
 ] as const;
 
-/** Estados desde los que un equipo puede entregarse (los mismos que valida la API). */
-const ESTADOS_ASIGNABLES = ["disponible", "reutilizable"];
+/**
+ * Estados desde los que un equipo puede entregarse (los mismos que valida la API).
+ * (15-sep-2026, SPEC 2.40) Antes tambien aceptaba "reutilizable", un estado que
+ * en la practica era identico a "disponible": lo que intentaba decir -- que el
+ * equipo ya se uso -- lo dice el campo `condicion`, independiente del estado.
+ */
+const ESTADOS_ASIGNABLES = ["disponible"];
+
+/**
+ * Propone el nombre de red del equipo a partir de la persona que lo recibe
+ * (15-sep-2026, SPEC 2.40).
+ *
+ * Por que aca y no al crear el activo: el nombre se pone cuando el equipo se
+ * entrega, porque se arma con el nombre de quien lo va a usar. Un equipo
+ * recien comprado, en bodega, todavia no tiene nombre.
+ *
+ * La convencion sale de los datos reales de la empresa: de 106 equipos con
+ * nombre en el consolidado de inventario, 98 siguen exactamente
+ * SCL + inicial del nombre + apellido paterno (SCL-CROJAS, SCL-ALEIVA). Las
+ * excepciones son choques de apellido, donde le agregan la inicial del
+ * materno -- por eso el campo queda editable en vez de calcularse solo.
+ */
+export function sugerirNombreEquipo(nombres: string, apellidoPaterno: string): string {
+  const limpiar = (t: string) =>
+    (t || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^A-Za-z]/g, "")
+      .toUpperCase();
+  const inicial = limpiar(nombres).charAt(0);
+  const apellido = limpiar(apellidoPaterno);
+  if (!inicial || !apellido) return "";
+  return `SCL-${inicial}${apellido}`;
+}
 
 function hoyISO(): string {
   const d = new Date();
@@ -77,6 +112,9 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
   const [lugarEntrega, setLugarEntrega] = useState("");
   const [entregadoPor, setEntregadoPor] = useState("");
   const [motivo, setMotivo] = useState("");
+  // Nombre del equipo en la red (hostname). Se propone solo al elegir a la
+  // persona y queda editable -- ver sugerirNombreEquipo.
+  const [nombreEquipo, setNombreEquipo] = useState("");
 
   useEffect(() => {
     fetch(`/api/activos/${assetId}`)
@@ -129,6 +167,9 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
           lugarEntrega: lugarEntrega.trim() || null,
           entregadoPor: entregadoPor.trim() || null,
           motivo: motivo.trim() || null,
+          // El nombre de red viaja con la entrega y la API lo guarda en el
+          // activo (SPEC 2.40).
+          nombreEquipo: nombreEquipo.trim() || null,
         }),
       });
 
@@ -167,7 +208,7 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
       {!asignable && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800">
           Este equipo esta en estado <strong>{asset.estado}</strong> y solo se pueden
-          entregar equipos disponibles o reutilizables. Si ya esta asignado y quieres
+          entregar equipos disponibles. Si ya esta asignado y quieres
           pasarlo a otra persona, usa Reasignar.
         </div>
       )}
@@ -208,7 +249,16 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                   {employees.map((emp) => (
                     <button
                       key={emp.id}
-                      onClick={() => setSelectedEmployee(emp)}
+                      onClick={() => {
+                        setSelectedEmployee(emp);
+                        // Se propone el nombre de red de una vez; si el
+                        // tecnico ya escribio uno, no se pisa.
+                        setNombreEquipo((actual) =>
+                          actual.trim()
+                            ? actual
+                            : sugerirNombreEquipo(emp.nombres, emp.apellidoPaterno)
+                        );
+                      }}
                       className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
                         selectedEmployee?.id === emp.id ? "bg-indigo-50" : ""
                       }`}
@@ -314,6 +364,24 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nombre del equipo en la red
+                </label>
+                <input
+                  type="text"
+                  value={nombreEquipo}
+                  onChange={(e) => setNombreEquipo(e.target.value)}
+                  placeholder="Ej: SCL-CROJAS"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Se propone según la convención de la empresa (SCL + inicial del nombre +
+                  apellido). Puedes cambiarlo si ya está tomado. Opcional: si el equipo se
+                  renombra después, se puede completar desde la ficha del activo.
+                </p>
               </div>
 
               <div>

@@ -40,7 +40,6 @@ const PALABRA_CANONICA_ESTADO: Record<EstadoActivo, string> = {
   disponible: "disponible",
   asignado: "asignado",
   en_mantencion: "en mantencion",
-  reutilizable: "reutilizable",
   baja: "baja",
   vendido: "vendido",
 };

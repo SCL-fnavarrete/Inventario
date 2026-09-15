@@ -20,12 +20,19 @@ import { SeleccionarEquiposOnboarding } from '@/components/solicitudes/Seleccion
 import { SeleccionarCambioEquipo } from '@/components/solicitudes/SeleccionarCambioEquipo';
 import { parseApiError, type FieldErrors } from '@/lib/utils/apiErrors';
 import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
+import { formatearFecha } from "@/lib/utils/fechas";
 
 type WorkflowDetail = {
   id: string;
   numero: string;
   tipo: string;
   estado: string;
+  /**
+   * Sede a la que pertenece la solicitud. Decide de que bodega se ofrecen
+   * los equipos y el stock de Kit/EPP al ejecutarla -- no el selector de
+   * sede del menu, que es solo un filtro de pantalla. Ver SPEC 2.40.
+   */
+  sedeId: string | null;
   observaciones: string | null;
   createdAt: string;
   updatedAt: string;
@@ -298,7 +305,9 @@ export default function SolicitudDetailPage() {
   useEffect(() => {
     if (!data || data.tipo !== 'onboarding') return;
     if (!data.kitBienvenidaSolicitado && !data.eppSolicitado) return;
-    fetch('/api/kit-items')
+    // Solo el stock de la sede de la solicitud (SPEC 2.40): antes se pedia
+    // el catalogo completo y se ofrecia (y descontaba) kit de otras sedes.
+    fetch(`/api/kit-items${data.sedeId ? `?sedeId=${data.sedeId}` : ''}`)
       .then((res) => (res.ok ? res.json() : []))
       .then(setKitCatalog)
       .catch(() => setKitCatalog([]));
@@ -333,7 +342,7 @@ export default function SolicitudDetailPage() {
       });
       const actualizado = await fetchData();
       if (actualizado) {
-        fetch('/api/kit-items')
+        fetch(`/api/kit-items${actualizado.sedeId ? `?sedeId=${actualizado.sedeId}` : ''}`)
           .then((res) => (res.ok ? res.json() : []))
           .then(setKitCatalog)
           .catch(() => {});
@@ -562,7 +571,7 @@ export default function SolicitudDetailPage() {
   // Recepcion de equipos (offboarding): califica cada asignacion activa del
   // empleado (ok / danado) con observaciones opcionales, y avanza a
   // equipo_recibido. executeReturn se encarga de dejar cada Activo en "baja"
-  // si esta danado o "reutilizable" si esta ok.
+  // si esta danado o "disponible" si esta ok.
   // EPP realmente pendiente de devolver: entregado y de categoria EPP -- el
   // Kit de Bienvenida es consumible (nunca se pide de vuelta) y lo ya
   // devuelto no deberia volver a aparecer en esta lista.
@@ -964,6 +973,7 @@ export default function SolicitudDetailPage() {
               )}
               <SeleccionarEquiposOnboarding
                 categoriasRequeridas={categoriasPendientes}
+                sedeId={data.sedeId}
                 submitting={transitioning}
                 onSubmit={handleEntregarEquipos}
               />
@@ -1178,6 +1188,7 @@ export default function SolicitudDetailPage() {
               </p>
               <SeleccionarCambioEquipo
                 asignacionesActivas={data.employee.assignments}
+                sedeId={data.sedeId}
                 submitting={transitioning}
                 onSubmit={handleCambiarEquipo}
               />
@@ -1335,7 +1346,7 @@ export default function SolicitudDetailPage() {
               <p className="text-sm text-gray-500 mb-3">
                 Califica el estado de cada equipo que devuelve {data.employee.nombres}{' '}
                 {data.employee.apellidoPaterno}. Los dañados se dan de baja automáticamente; el
-                resto queda reutilizable.
+                resto queda disponible.
               </p>
               {(() => {
                 // "no_devuelto" deja la asignacion activa a proposito (el
@@ -1946,7 +1957,7 @@ export default function SolicitudDetailPage() {
                     <div>
                       <dt className="text-gray-500">Fecha Ingreso</dt>
                       <dd className="text-gray-900">
-                        {new Date(data.fechaIngreso).toLocaleDateString('es-CL')}
+                        {formatearFecha(data.fechaIngreso)}
                       </dd>
                     </div>
                   )}
@@ -1988,7 +1999,7 @@ export default function SolicitudDetailPage() {
                     <div>
                       <dt className="text-gray-500">Fecha Desvinculación</dt>
                       <dd className="text-gray-900">
-                        {new Date(data.fechaDesvinculacion).toLocaleDateString('es-CL')}
+                        {formatearFecha(data.fechaDesvinculacion)}
                       </dd>
                     </div>
                   )}
@@ -2071,7 +2082,7 @@ export default function SolicitudDetailPage() {
                       {a.estadoDevolucion === 'no_devuelto'
                         ? 'Sigue asignado, a la espera de recuperarlo'
                         : a.fechaDevolucion &&
-                          `Devuelto el ${new Date(a.fechaDevolucion).toLocaleDateString('es-CL')}`}
+                          `Devuelto el ${formatearFecha(a.fechaDevolucion)}`}
                       {a.recibidoPor && ` · Registrado por ${a.recibidoPor}`}
                     </span>
                     {a.observacionesDevolucion && (
@@ -2161,7 +2172,7 @@ export default function SolicitudDetailPage() {
                       {data.equipoCambioAnterior.estadoDevolucion === 'no_devuelto'
                         ? 'Sigue asignado, a la espera de recuperarlo'
                         : data.equipoCambioAnterior.fechaDevolucion &&
-                          `Devuelto el ${new Date(data.equipoCambioAnterior.fechaDevolucion).toLocaleDateString('es-CL')}`}
+                          `Devuelto el ${formatearFecha(data.equipoCambioAnterior.fechaDevolucion)}`}
                       {data.equipoCambioAnterior.recibidoPor &&
                         ` · Registrado por ${data.equipoCambioAnterior.recibidoPor}`}
                     </span>
@@ -2182,7 +2193,7 @@ export default function SolicitudDetailPage() {
                     <span className="block text-xs text-gray-500 mt-0.5">
                       {data.equipoCambioNuevo.asset.numeroSerie &&
                         `S/N: ${data.equipoCambioNuevo.asset.numeroSerie} · `}
-                      Entregado el {new Date(data.equipoCambioNuevo.fechaEntrega).toLocaleDateString('es-CL')}
+                      Entregado el {formatearFecha(data.equipoCambioNuevo.fechaEntrega)}
                       {data.equipoCambioNuevo.entregadoPor && ` · Por ${data.equipoCambioNuevo.entregadoPor}`}
                     </span>
                   </div>
