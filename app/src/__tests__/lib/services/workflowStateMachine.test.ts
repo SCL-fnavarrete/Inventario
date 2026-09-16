@@ -49,30 +49,31 @@ describe('workflowStateMachine — isFinalState', () => {
   });
 });
 
+// 15-sep-2026 (SPEC 2.42): coordinando_entrega, coordinando_cambio y
+// coordinacion_en_curso se eliminaron -- la coordinacion de fecha/medio/
+// lugar se pide junto con la asignacion/ejecucion del equipo, en la misma
+// transicion, no como etapa aparte.
 describe('workflowStateMachine — getStatesForType', () => {
-  test('onboarding tiene exactamente 5 estados en orden correcto', () => {
+  test('onboarding tiene exactamente 4 estados en orden correcto', () => {
     expect(getStatesForType('onboarding')).toEqual([
       'solicitud_recibida',
       'gestion_ti',
-      'coordinando_entrega',
       'equipos_entregados',
       'registro_rrhh',
     ]);
   });
 
-  test('cambio_equipo tiene exactamente 4 estados (incluye Coordinando Cambio)', () => {
+  test('cambio_equipo tiene exactamente 3 estados', () => {
     expect(getStatesForType('cambio_equipo')).toEqual([
       'incidencia_detectada',
-      'coordinando_cambio',
       'cambio_ejecutado',
       'confirmacion_rrhh',
     ]);
   });
 
-  test('offboarding tiene exactamente 4 estados (incluye Coordinacion en Curso)', () => {
+  test('offboarding tiene exactamente 3 estados', () => {
     expect(getStatesForType('offboarding')).toEqual([
       'solicitud_emitida',
-      'coordinacion_en_curso',
       'equipo_recibido',
       'consolidacion_cierre',
     ]);
@@ -91,12 +92,8 @@ describe('workflowStateMachine — canTransition (transiciones permitidas)', () 
     expect(canTransition('onboarding', 'solicitud_recibida', 'gestion_ti', 'admin')).toBe(true);
   });
 
-  test('tecnico puede avanzar gestion_ti → coordinando_entrega (onboarding)', () => {
-    expect(canTransition('onboarding', 'gestion_ti', 'coordinando_entrega', 'tecnico')).toBe(true);
-  });
-
-  test('tecnico puede avanzar coordinando_entrega → equipos_entregados (onboarding)', () => {
-    expect(canTransition('onboarding', 'coordinando_entrega', 'equipos_entregados', 'tecnico')).toBe(true);
+  test('tecnico puede avanzar gestion_ti → equipos_entregados (onboarding, ya incluye coordinar entrega)', () => {
+    expect(canTransition('onboarding', 'gestion_ti', 'equipos_entregados', 'tecnico')).toBe(true);
   });
 
   test('tecnico puede avanzar equipos_entregados → registro_rrhh (onboarding)', () => {
@@ -107,34 +104,18 @@ describe('workflowStateMachine — canTransition (transiciones permitidas)', () 
     expect(canTransition('onboarding', 'equipos_entregados', 'registro_rrhh', 'admin')).toBe(true);
   });
 
-  // Cambio equipo: incidencia_detectada -> coordinando_cambio -> cambio_ejecutado
-  test('tecnico puede avanzar incidencia_detectada → coordinando_cambio', () => {
-    expect(canTransition('cambio_equipo', 'incidencia_detectada', 'coordinando_cambio', 'tecnico')).toBe(true);
-  });
-
-  test('tecnico puede avanzar coordinando_cambio → cambio_ejecutado', () => {
-    expect(canTransition('cambio_equipo', 'coordinando_cambio', 'cambio_ejecutado', 'tecnico')).toBe(true);
-  });
-
-  test('NO se puede saltar coordinando_cambio: incidencia_detectada → cambio_ejecutado directo', () => {
-    expect(canTransition('cambio_equipo', 'incidencia_detectada', 'cambio_ejecutado', 'tecnico')).toBe(false);
+  // Cambio equipo: incidencia_detectada -> cambio_ejecutado (ya incluye coordinar el cambio)
+  test('tecnico puede avanzar incidencia_detectada → cambio_ejecutado', () => {
+    expect(canTransition('cambio_equipo', 'incidencia_detectada', 'cambio_ejecutado', 'tecnico')).toBe(true);
   });
 
   test('tecnico puede avanzar cambio_ejecutado → confirmacion_rrhh', () => {
     expect(canTransition('cambio_equipo', 'cambio_ejecutado', 'confirmacion_rrhh', 'tecnico')).toBe(true);
   });
 
-  // Offboarding: solicitud_emitida -> coordinacion_en_curso -> equipo_recibido
-  test('tecnico puede avanzar solicitud_emitida → coordinacion_en_curso', () => {
-    expect(canTransition('offboarding', 'solicitud_emitida', 'coordinacion_en_curso', 'tecnico')).toBe(true);
-  });
-
-  test('tecnico puede avanzar coordinacion_en_curso → equipo_recibido', () => {
-    expect(canTransition('offboarding', 'coordinacion_en_curso', 'equipo_recibido', 'tecnico')).toBe(true);
-  });
-
-  test('NO se puede saltar coordinacion_en_curso: solicitud_emitida → equipo_recibido directo', () => {
-    expect(canTransition('offboarding', 'solicitud_emitida', 'equipo_recibido', 'tecnico')).toBe(false);
+  // Offboarding: solicitud_emitida -> equipo_recibido (ya incluye coordinar la devolucion)
+  test('tecnico puede avanzar solicitud_emitida → equipo_recibido', () => {
+    expect(canTransition('offboarding', 'solicitud_emitida', 'equipo_recibido', 'tecnico')).toBe(true);
   });
 
   test('tecnico puede avanzar equipo_recibido → consolidacion_cierre', () => {
@@ -151,10 +132,6 @@ describe('workflowStateMachine — canTransition (transiciones permitidas)', () 
 describe('workflowStateMachine — canTransition (transiciones inválidas)', () => {
   test('NO se puede saltar gestion_ti: solicitud_recibida → equipos_entregados', () => {
     expect(canTransition('onboarding', 'solicitud_recibida', 'equipos_entregados', 'admin')).toBe(false);
-  });
-
-  test('NO se puede saltar coordinando_entrega: gestion_ti → equipos_entregados', () => {
-    expect(canTransition('onboarding', 'gestion_ti', 'equipos_entregados', 'admin')).toBe(false);
   });
 
   test('NO hay retroceso: registro_rrhh → gestion_ti', () => {
@@ -175,13 +152,8 @@ describe('workflowStateMachine — canTransition (transiciones inválidas)', () 
 });
 
 describe('workflowStateMachine — getNextStates', () => {
-  test('tecnico en gestion_ti puede ir a coordinando_entrega', () => {
+  test('tecnico en gestion_ti puede ir a equipos_entregados', () => {
     const next = getNextStates('onboarding', 'gestion_ti', 'tecnico');
-    expect(next).toEqual(['coordinando_entrega']);
-  });
-
-  test('tecnico en coordinando_entrega puede ir a equipos_entregados', () => {
-    const next = getNextStates('onboarding', 'coordinando_entrega', 'tecnico');
     expect(next).toEqual(['equipos_entregados']);
   });
 
@@ -195,13 +167,8 @@ describe('workflowStateMachine — getNextStates', () => {
     expect(next).toEqual([]);
   });
 
-  test('tecnico en incidencia_detectada puede ir a coordinando_cambio', () => {
+  test('tecnico en incidencia_detectada puede ir a cambio_ejecutado', () => {
     const next = getNextStates('cambio_equipo', 'incidencia_detectada', 'tecnico');
-    expect(next).toEqual(['coordinando_cambio']);
-  });
-
-  test('tecnico en coordinando_cambio puede ir a cambio_ejecutado', () => {
-    const next = getNextStates('cambio_equipo', 'coordinando_cambio', 'tecnico');
     expect(next).toEqual(['cambio_ejecutado']);
   });
 
@@ -210,13 +177,8 @@ describe('workflowStateMachine — getNextStates', () => {
     expect(next).toEqual(['consolidacion_cierre']);
   });
 
-  test('tecnico en solicitud_emitida puede ir a coordinacion_en_curso', () => {
+  test('tecnico en solicitud_emitida puede ir a equipo_recibido', () => {
     const next = getNextStates('offboarding', 'solicitud_emitida', 'tecnico');
-    expect(next).toEqual(['coordinacion_en_curso']);
-  });
-
-  test('tecnico en coordinacion_en_curso puede ir a equipo_recibido', () => {
-    const next = getNextStates('offboarding', 'coordinacion_en_curso', 'tecnico');
     expect(next).toEqual(['equipo_recibido']);
   });
 });

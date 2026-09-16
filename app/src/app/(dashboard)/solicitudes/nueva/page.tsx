@@ -38,6 +38,10 @@ type Employee = {
   correoEmpresa: string;
   correoPersonal: string | null;
   estado?: string;
+  // 16-sep-2026 (SPEC 2.44): se usa para fijar la Sede de la solicitud a la
+  // del empleado en Cambio de Equipo/Desvinculacion -- ya pertenece a una,
+  // no tiene sentido dejarla elegible.
+  sedeId?: string | null;
 };
 
 // Asignacion activa del empleado (con su id propio, distinto del id del
@@ -52,6 +56,7 @@ type EmployeeAssignment = {
     modelo: string;
     numeroSerie: string | null;
     categoria: { nombre: string };
+    tieneCargador: boolean;
   };
 };
 
@@ -104,6 +109,7 @@ type EquipoDisponible = {
   // distintas; ahora sale del campo `condicion`, que es el que de verdad
   // describe como esta el equipo.
   condicion: 'nuevo' | 'usado' | 'danado';
+  tieneCargador: boolean;
 };
 
 function especificacionesEquipo(a: EquipoDisponible): string {
@@ -187,6 +193,10 @@ export default function NuevaSolicitudPage() {
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [devolucionEstados, setDevolucionEstados] = useState<Record<string, 'ok' | 'danado' | 'no_devuelto'>>({});
   const [devolucionObservaciones, setDevolucionObservaciones] = useState<Record<string, string>>({});
+  // Condicion del cargador al devolver (16-sep-2026, SPEC 2.48) -- solo se
+  // pide si el equipo es un notebook con tieneCargador.
+  const [devolucionCargador, setDevolucionCargador] = useState<Record<string, 'ok' | 'danado' | 'no_aplica'>>({});
+  const [devolucionCargadorObservaciones, setDevolucionCargadorObservaciones] = useState<Record<string, string>>({});
   // EPP entregado y pendiente de devolver (offboarding)
   const [employeeEppAssignments, setEmployeeEppAssignments] = useState<EmployeeKitAssignment[]>([]);
   const [devolucionEppEstados, setDevolucionEppEstados] = useState<Record<string, 'ok' | 'danado' | 'no_devuelto'>>({});
@@ -235,6 +245,19 @@ export default function NuevaSolicitudPage() {
   // (no solo la categoria) y queda reservado desde que se crea el ticket,
   // sin pasar por Gestion TI. Mapa categoriaId -> assetId elegido.
   const [equipoSeleccionado, setEquipoSeleccionado] = useState<Record<string, string>>({});
+  // Condicion del cargador del equipo elegido, por categoria (16-sep-2026,
+  // SPEC 2.48) -- solo se pide si el equipo reservado es un notebook con
+  // tieneCargador.
+  const [cargadorOnboarding, setCargadorOnboarding] = useState<
+    Record<string, { condicion: 'ok' | 'danado' | 'no_aplica'; observaciones: string }>
+  >({});
+  // Coordinacion de entrega (15-sep-2026, SPEC 2.42.1): se pide aca mismo,
+  // junto con la eleccion de equipos, en vez de en un paso aparte despues.
+  const [fechaEntregaCoordinada, setFechaEntregaCoordinada] = useState('');
+  const [medioEntrega, setMedioEntrega] = useState<'presencial' | 'chilexpress'>('presencial');
+  const [lugarEntrega, setLugarEntrega] = useState('');
+  const [otChilexpressEntrega, setOtChilexpressEntrega] = useState('');
+  const [ciudadEntrega, setCiudadEntrega] = useState('');
   // Kit de Bienvenida y EPP: aparte de Equipos Requeridos porque no son
   // Activos (ver /configuracion/kit-epp). Igual que con los equipos, si hay
   // stock se puede elegir de una los articulos y cantidades especificas y
@@ -253,6 +276,13 @@ export default function NuevaSolicitudPage() {
 
   // Cambio equipo fields
   const [motivoCambio, setMotivoCambio] = useState('');
+  // Coordinacion de cambio (SPEC 2.42.1): igual patron, junto con la
+  // seleccion del equipo de reemplazo.
+  const [fechaCambioCoordinada, setFechaCambioCoordinada] = useState('');
+  const [medioCambio, setMedioCambio] = useState<'presencial' | 'chilexpress'>('presencial');
+  const [lugarCambio, setLugarCambio] = useState('');
+  const [otCambioChilexpress, setOtCambioChilexpress] = useState('');
+  const [ciudadCambio, setCiudadCambio] = useState('');
   // Si se completa (equipo viejo + estado + equipo nuevo), el cambio se
   // ejecuta de inmediato al crear el ticket; si se deja en null, el ticket
   // nace en "Incidencia Detectada" como antes.
@@ -260,9 +290,19 @@ export default function NuevaSolicitudPage() {
 
   // Offboarding fields
   const [fechaDesvinculacion, setFechaDesvinculacion] = useState('');
-  const [medioDevolucion, setMedioDevolucion] = useState('');
+  // 16-sep-2026 (SPEC 2.44): solo dos medios -- Presencial o Chilexpress,
+  // igual que en Onboarding/Cambio de Equipo. Se saca "Otro Courier": no
+  // tenia campos propios (compartia Ubicacion con Chilexpress) y duplicaba
+  // sin necesidad la misma decision presencial/despacho de los otros flujos.
+  const [medioDevolucion, setMedioDevolucion] = useState<'presencial' | 'chilexpress'>('presencial');
   const [otChilexpress, setOtChilexpress] = useState('');
   const [ciudadDevolucion, setCiudadDevolucion] = useState('');
+  // Coordinacion de devolucion (15-sep-2026, SPEC 2.42.1): fecha/lugar en
+  // el mismo formulario de creacion -- medioDevolucion/otChilexpress/
+  // ciudadDevolucion ya existian aca arriba desde antes (comparten columna
+  // con la coordinacion: son el mismo dato "como vuelve el equipo").
+  const [fechaDevolucionCoordinada, setFechaDevolucionCoordinada] = useState('');
+  const [lugarDevolucion, setLugarDevolucion] = useState('');
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -339,6 +379,13 @@ export default function NuevaSolicitudPage() {
     setSearchEmployee('');
     setShowResults(false);
     if (tipo === 'offboarding' || tipo === 'cambio_equipo') fetchEmployeeAssignments(emp.id);
+    // Desvinculacion y Cambio de Equipo son sobre un empleado que YA
+    // pertenece a una sede -- no tiene sentido dejarla elegible aparte
+    // (16-sep-2026, SPEC 2.44/2.45, pedido de Javier). Se fija sola al
+    // elegirlo.
+    if ((tipo === 'offboarding' || tipo === 'cambio_equipo') && emp.sedeId) {
+      setSedeId(emp.sedeId);
+    }
   };
 
   const clearEmployee = () => {
@@ -480,6 +527,7 @@ export default function NuevaSolicitudPage() {
       operador: a.operador,
       pulgadas: a.pulgadas,
       condicion: a.condicion,
+      tieneCargador: a.tieneCargador,
     });
     Promise.all(
       categorias.map((cat) =>
@@ -601,6 +649,69 @@ export default function NuevaSolicitudPage() {
       }
     }
 
+    // Coordinacion de entrega (SPEC 2.42.1): si se reservo al menos un
+    // equipo, la fecha/medio/lugar son obligatorios -- mismo criterio que
+    // ya se exigia despues, en "Coordinando Entrega".
+    if (tipo === 'onboarding' && Object.values(equipoSeleccionado).length > 0) {
+      if (!fechaEntregaCoordinada) {
+        setError(
+          medioEntrega === 'presencial'
+            ? 'Falta la fecha y hora de entrega'
+            : 'Falta la fecha estimada de entrega'
+        );
+        return;
+      }
+      if (medioEntrega === 'presencial' && !lugarEntrega.trim()) {
+        setError('Falta el lugar de entrega');
+        return;
+      }
+      if (medioEntrega === 'chilexpress' && !otChilexpressEntrega.trim()) {
+        setError('Falta el N° de OT Chilexpress');
+        return;
+      }
+      if (medioEntrega === 'chilexpress' && !ciudadEntrega.trim()) {
+        setError('Falta la ubicación de destino');
+        return;
+      }
+    }
+
+    // 16-sep-2026 (SPEC 2.45), pedido de Javier: elegir el equipo a
+    // cambiar (viejo + estado en que vuelve + reemplazo) deja de ser
+    // opcional -- sin eso, no se puede crear la solicitud. Si no hay
+    // reemplazo disponible en el inventario de la sede, cambioSeleccion
+    // nunca se completa (SeleccionarCambioEquipo ya lo avisa mas abajo) y
+    // este chequeo bloquea la creacion, en vez de dejar nacer un ticket sin
+    // equipo asignado.
+    if (tipo === 'cambio_equipo' && !cambioSeleccion) {
+      setFieldErrors({ cambioSeleccion: 'Elige el equipo a cambiar, su estado y el reemplazo' });
+      return;
+    }
+
+    // Coordinacion de cambio (SPEC 2.42.1): siempre se pide, ya que
+    // cambioSeleccion ahora es obligatorio.
+    if (tipo === 'cambio_equipo' && cambioSeleccion) {
+      if (!fechaCambioCoordinada) {
+        setError(
+          medioCambio === 'presencial'
+            ? 'Falta la fecha y hora del cambio'
+            : 'Falta la fecha estimada de llegada'
+        );
+        return;
+      }
+      if (medioCambio === 'presencial' && !lugarCambio.trim()) {
+        setError('Falta el lugar del cambio');
+        return;
+      }
+      if (medioCambio === 'chilexpress' && !otCambioChilexpress.trim()) {
+        setError('Falta el N° de OT Chilexpress');
+        return;
+      }
+      if (medioCambio === 'chilexpress' && !ciudadCambio.trim()) {
+        setError('Falta la ubicación de destino');
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     try {
@@ -616,6 +727,18 @@ export default function NuevaSolicitudPage() {
 
       let body: Record<string, unknown> = base;
 
+      // Condicion del cargador por asset (SPEC 2.48): cargadorOnboarding
+      // esta guardado por categoria (cat.id), hay que traducirlo a
+      // assetId, que es como lo espera el backend.
+      const condicionCargadorPorAsset: Record<
+        string,
+        { condicion: 'ok' | 'danado' | 'no_aplica'; observaciones?: string }
+      > = {};
+      for (const [catId, assetId] of Object.entries(equipoSeleccionado)) {
+        const cargador = cargadorOnboarding[catId];
+        if (cargador) condicionCargadorPorAsset[assetId] = cargador;
+      }
+
       if (tipo === 'onboarding' && modoEmpleadoOnboarding === 'existente') {
         // Reincorporacion: se manda el employeeId del registro ya existente
         // (no nuevoEmpleado) -- el backend lo detecta, lo reactiva
@@ -630,6 +753,15 @@ export default function NuevaSolicitudPage() {
           ubicacionDestino: null,
           categoriasRequeridas,
           assetIdsSeleccionados: Object.values(equipoSeleccionado),
+          condicionCargadorPorAsset,
+          ...(Object.values(equipoSeleccionado).length > 0 && {
+            fechaEntregaCoordinada: fechaEntregaCoordinada || undefined,
+            medioEntrega,
+            lugarEntrega: medioEntrega === 'presencial' ? lugarEntrega || undefined : undefined,
+            otChilexpressEntrega:
+              medioEntrega === 'chilexpress' ? otChilexpressEntrega || undefined : undefined,
+            ciudadEntrega: medioEntrega === 'chilexpress' ? ciudadEntrega || undefined : undefined,
+          }),
           kitBienvenidaSolicitado,
           eppSolicitado,
           kitItemsSeleccionados: Object.entries(kitCantidadesSeleccionadas)
@@ -670,6 +802,15 @@ export default function NuevaSolicitudPage() {
           ubicacionDestino: onboardingEmp.direccionParticular || null,
           categoriasRequeridas,
           assetIdsSeleccionados: Object.values(equipoSeleccionado),
+          condicionCargadorPorAsset,
+          ...(Object.values(equipoSeleccionado).length > 0 && {
+            fechaEntregaCoordinada: fechaEntregaCoordinada || undefined,
+            medioEntrega,
+            lugarEntrega: medioEntrega === 'presencial' ? lugarEntrega || undefined : undefined,
+            otChilexpressEntrega:
+              medioEntrega === 'chilexpress' ? otChilexpressEntrega || undefined : undefined,
+            ciudadEntrega: medioEntrega === 'chilexpress' ? ciudadEntrega || undefined : undefined,
+          }),
           kitBienvenidaSolicitado,
           eppSolicitado,
           // Cada articulo elegido aca (con su cantidad) se entrega de
@@ -696,6 +837,20 @@ export default function NuevaSolicitudPage() {
             newAssetId: cambioSeleccion.newAssetId,
             estadoDevolucionAnterior: cambioSeleccion.estadoDevolucion,
             observacionesDevolucionAnterior: cambioSeleccion.observaciones || undefined,
+            // Condicion del cargador (SPEC 2.48), si el equipo la trae.
+            condicionCargadorAnterior: cambioSeleccion.condicionCargadorAnterior || undefined,
+            observacionesCargadorAnterior:
+              cambioSeleccion.observacionesCargadorAnterior || undefined,
+            condicionCargadorNuevo: cambioSeleccion.condicionCargadorNuevo || undefined,
+            observacionesCargadorNuevo: cambioSeleccion.observacionesCargadorNuevo || undefined,
+            // Coordinacion de cambio (SPEC 2.42.1): junto con la seleccion
+            // del equipo de reemplazo, en el mismo formulario.
+            fechaCambioCoordinada: fechaCambioCoordinada || undefined,
+            medioCambio,
+            lugarCambio: medioCambio === 'presencial' ? lugarCambio || undefined : undefined,
+            otCambioChilexpress:
+              medioCambio === 'chilexpress' ? otCambioChilexpress || undefined : undefined,
+            ciudadCambio: medioCambio === 'chilexpress' ? ciudadCambio || undefined : undefined,
           }),
         };
       } else if (tipo === 'offboarding') {
@@ -703,9 +858,11 @@ export default function NuevaSolicitudPage() {
           ...base,
           employeeId,
           fechaDesvinculacion,
-          medioDevolucion: medioDevolucion || null,
-          otChilexpress: otChilexpress || null,
-          ciudadDevolucion: ciudadDevolucion || null,
+          medioDevolucion,
+          otChilexpress: medioDevolucion === 'chilexpress' ? otChilexpress || undefined : undefined,
+          ciudadDevolucion: medioDevolucion === 'chilexpress' ? ciudadDevolucion || undefined : undefined,
+          fechaDevolucionCoordinada: fechaDevolucionCoordinada || undefined,
+          lugarDevolucion: medioDevolucion === 'presencial' ? lugarDevolucion || undefined : undefined,
           // Solo se envian los equipos que efectivamente se calificaron; si
           // se dejaron sin calificar, el ticket nace igual (solicitud_emitida)
           // y se completan despues desde el detalle.
@@ -715,6 +872,11 @@ export default function NuevaSolicitudPage() {
               assignmentId: a.id,
               estadoDevolucion: devolucionEstados[a.id],
               observaciones: devolucionObservaciones[a.id] || undefined,
+              // Condicion del cargador (SPEC 2.48), si el equipo la trae.
+              condicionCargador: a.asset.tieneCargador ? devolucionCargador[a.id] || undefined : undefined,
+              observacionesCargador: a.asset.tieneCargador
+                ? devolucionCargadorObservaciones[a.id] || undefined
+                : undefined,
             })),
           devolucionesEpp: employeeEppAssignments
             .filter((k) => devolucionEppEstados[k.id])
@@ -1384,12 +1546,145 @@ export default function NuevaSolicitudPage() {
                           )}
                         </div>
                       )}
+                      {/* Estado del cargador del equipo reservado
+                          (16-sep-2026, SPEC 2.48) -- solo si es un notebook
+                          con cargador. */}
+                      {seleccionado &&
+                        disp?.items.find((item) => item.id === seleccionado)?.tieneCargador && (
+                          <div className="ml-6 mt-1 mb-1 border border-gray-200 rounded-lg p-2">
+                            <p className="text-xs font-medium text-gray-600 mb-1">
+                              Estado del cargador
+                            </p>
+                            <select
+                              value={cargadorOnboarding[cat.id]?.condicion || 'ok'}
+                              onChange={(e) =>
+                                setCargadorOnboarding((prev) => ({
+                                  ...prev,
+                                  [cat.id]: {
+                                    condicion: e.target.value as 'ok' | 'danado' | 'no_aplica',
+                                    observaciones: prev[cat.id]?.observaciones || '',
+                                  },
+                                }))
+                              }
+                              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded mb-1"
+                            >
+                              <option value="ok">Ok</option>
+                              <option value="danado">Dañado</option>
+                              <option value="no_aplica">No aplica / no venía</option>
+                            </select>
+                            <input
+                              type="text"
+                              value={cargadorOnboarding[cat.id]?.observaciones || ''}
+                              onChange={(e) =>
+                                setCargadorOnboarding((prev) => ({
+                                  ...prev,
+                                  [cat.id]: {
+                                    condicion: prev[cat.id]?.condicion || 'ok',
+                                    observaciones: e.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder="Observación (opcional)"
+                              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded"
+                            />
+                          </div>
+                        )}
                     </div>
                   );
                 })}
               </div>
             )}
           </div>
+
+          {/* Coordinacion de entrega (15-sep-2026, SPEC 2.42.1): se pide
+              aca mismo, junto con la eleccion de equipos, en vez de en un
+              paso aparte ("Coordinando Entrega") despues -- solo tiene
+              sentido si ya se reservo al menos un equipo. */}
+          {Object.values(equipoSeleccionado).length > 0 && (
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-900 mb-1">Coordinar Entrega</h3>
+              <p className="text-xs text-gray-500 mb-3">
+                Define cuándo y cómo se le hará llegar el equipo reservado.
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {medioEntrega === 'presencial' ? 'Fecha y hora de entrega' : 'Fecha y hora de entrega estimada'}
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={fechaEntregaCoordinada}
+                    onChange={(e) => setFechaEntregaCoordinada(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Medio</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="medioEntregaNueva"
+                        checked={medioEntrega === 'presencial'}
+                        onChange={() => setMedioEntrega('presencial')}
+                      />
+                      Presencial
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="medioEntregaNueva"
+                        checked={medioEntrega === 'chilexpress'}
+                        onChange={() => setMedioEntrega('chilexpress')}
+                      />
+                      Despacho (Chilexpress)
+                    </label>
+                  </div>
+                </div>
+                {medioEntrega === 'presencial' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Lugar de entrega
+                    </label>
+                    <input
+                      type="text"
+                      value={lugarEntrega}
+                      onChange={(e) => setLugarEntrega(e.target.value)}
+                      placeholder="ej: Oficina Santiago, piso 4"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        N° de OT Chilexpress
+                      </label>
+                      <input
+                        type="text"
+                        value={otChilexpressEntrega}
+                        onChange={(e) => setOtChilexpressEntrega(e.target.value)}
+                        placeholder="ej: CH-2026-004567"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Ubicación de destino
+                      </label>
+                      <input
+                        type="text"
+                        value={ciudadEntrega}
+                        onChange={(e) => setCiudadEntrega(e.target.value)}
+                        placeholder="ej: Hotel HD Express, Concepción"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Kit de Bienvenida / EPP: aparte de Equipos Requeridos, no son Activos */}
           <div className="border-t pt-4">
@@ -1702,14 +1997,23 @@ export default function NuevaSolicitudPage() {
                 />
               </div>
 
-              {/* Equipo a cambiar + reemplazo: opcional. Si se completa, el
-                  cambio se ejecuta de inmediato al crear el ticket; si se
-                  deja incompleto, el ticket nace en "Incidencia Detectada"
-                  y se completa despues desde el detalle. */}
+              {/* Equipo a cambiar + reemplazo: 16-sep-2026 (SPEC 2.45),
+                  pedido de Javier -- deja de ser opcional. Antes, si se
+                  dejaba incompleto, el ticket nacia en "Incidencia
+                  Detectada" para completarse despues; ahora hace falta
+                  elegir equipo viejo + estado + reemplazo para poder crear
+                  la solicitud (ver validacion en handleSubmit). Si no hay
+                  reemplazo disponible en el inventario de la sede,
+                  SeleccionarCambioEquipo lo avisa mas abajo y, al no poder
+                  completarse la seleccion, la solicitud simplemente no se
+                  puede crear todavia. */}
               {selectedEmployee && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Equipo a cambiar (opcional -- si no lo eliges ahora, se hace después)
+                  <label className={cn(
+                    'block text-sm font-medium mb-2',
+                    fieldErrors.cambioSeleccion ? 'text-red-600' : 'text-gray-700'
+                  )}>
+                    Equipo a cambiar *
                   </label>
                   {loadingAssignments ? (
                     <div className="flex items-center gap-2 text-gray-500 text-sm py-3">
@@ -1721,10 +2025,108 @@ export default function NuevaSolicitudPage() {
                       asignacionesActivas={employeeAssignments}
                       submitting={submitting}
                       showSubmitButton={false}
-                      onChange={setCambioSeleccion}
+                      onChange={(sel) => {
+                        setCambioSeleccion(sel);
+                        if (sel) setFieldErrors((prev) => { const { cambioSeleccion: _, ...rest } = prev; return rest; });
+                      }}
                     />
                   )}
                 </div>
+              )}
+
+              {/* Coordinacion de cambio (15-sep-2026, SPEC 2.42.1;
+                  16-sep-2026, SPEC 2.46: ya no depende de que
+                  cambioSeleccion este completo -- antes se ocultaba hasta
+                  elegir equipo viejo + estado + reemplazo, lo que la hacia
+                  parecer "que falta" si aun no habia stock de reemplazo.
+                  Ahora se muestra siempre junto con la seleccion del
+                  equipo, igual que "Coordinar Entrega" en Onboarding y
+                  "Coordinar Devolucion" en Offboarding -- mismo patron
+                  visual (hr + h4) y de campos (radio Presencial/Chilexpress,
+                  fecha, lugar u OT+ciudad). El cambio se ejecuta de
+                  inmediato al crear la solicitud. */}
+              {selectedEmployee && (
+                <>
+                  <hr className="border-gray-200" />
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-1">Coordinar Entrega del Reemplazo</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {medioCambio === 'presencial' ? 'Fecha y hora del cambio' : 'Fecha estimada de llegada'}
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={fechaCambioCoordinada}
+                        onChange={(e) => setFechaCambioCoordinada(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Medio</label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name="medioCambioNueva"
+                            checked={medioCambio === 'presencial'}
+                            onChange={() => setMedioCambio('presencial')}
+                          />
+                          Presencial
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name="medioCambioNueva"
+                            checked={medioCambio === 'chilexpress'}
+                            onChange={() => setMedioCambio('chilexpress')}
+                          />
+                          Despacho (Chilexpress)
+                        </label>
+                      </div>
+                    </div>
+                    {medioCambio === 'presencial' ? (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Lugar</label>
+                        <input
+                          type="text"
+                          value={lugarCambio}
+                          onChange={(e) => setLugarCambio(e.target.value)}
+                          placeholder="ej: Oficina Santiago, piso 4"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            N° de OT Chilexpress
+                          </label>
+                          <input
+                            type="text"
+                            value={otCambioChilexpress}
+                            onChange={(e) => setOtCambioChilexpress(e.target.value)}
+                            placeholder="ej: CH-2026-004567"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Ubicación de destino
+                          </label>
+                          <input
+                            type="text"
+                            value={ciudadCambio}
+                            onChange={(e) => setCiudadCambio(e.target.value)}
+                            placeholder="ej: Hotel HD Express, Concepción"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -1825,6 +2227,42 @@ export default function NuevaSolicitudPage() {
                                     placeholder="Observaciones (opcional)"
                                     className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
                                   />
+                                  {/* Estado del cargador (16-sep-2026, SPEC
+                                      2.48) -- solo si el equipo es un
+                                      notebook con cargador. */}
+                                  {asset.tieneCargador && (
+                                    <div className="border border-gray-200 rounded-lg p-2 bg-white">
+                                      <p className="text-xs font-medium text-gray-600 mb-1">
+                                        Estado del cargador
+                                      </p>
+                                      <select
+                                        value={devolucionCargador[a.id] || 'ok'}
+                                        onChange={(e) =>
+                                          setDevolucionCargador((prev) => ({
+                                            ...prev,
+                                            [a.id]: e.target.value as 'ok' | 'danado' | 'no_aplica',
+                                          }))
+                                        }
+                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded mb-1"
+                                      >
+                                        <option value="ok">Ok</option>
+                                        <option value="danado">Dañado</option>
+                                        <option value="no_aplica">No aplica / no lo devolvió</option>
+                                      </select>
+                                      <input
+                                        type="text"
+                                        value={devolucionCargadorObservaciones[a.id] || ''}
+                                        onChange={(e) =>
+                                          setDevolucionCargadorObservaciones((prev) => ({
+                                            ...prev,
+                                            [a.id]: e.target.value,
+                                          }))
+                                        }
+                                        placeholder="Observación del cargador (opcional)"
+                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                                      />
+                                    </div>
+                                  )}
                               </div>
                             </div>
                           );
@@ -1904,86 +2342,153 @@ export default function NuevaSolicitudPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={cn(
-                    'block text-sm font-medium mb-1',
-                    fieldErrors.fechaDesvinculacion ? 'text-red-600' : 'text-gray-700'
-                  )}>
-                    Fecha Desvinculacion *
-                  </label>
-                  <input
-                    type="date"
-                    value={fechaDesvinculacion}
-                    onChange={(e) => { setFechaDesvinculacion(e.target.value); setFieldErrors((prev) => { const { fechaDesvinculacion: _, ...rest } = prev; return rest; }); }}
-                    className={cn('w-full px-3 py-2 border rounded-lg', fieldErrors.fechaDesvinculacion ? 'border-red-500 bg-red-50' : 'border-gray-300')}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Medio de Devolución
-                  </label>
-                  <select
-                    value={medioDevolucion}
-                    onChange={(e) => setMedioDevolucion(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="">Seleccionar</option>
-                    <option value="presencial">Presencial</option>
-                    <option value="chilexpress">Chilexpress</option>
-                    <option value="otro_courier">Otro Courier</option>
-                  </select>
-                </div>
-                {medioDevolucion === 'chilexpress' && (
+              <div>
+                <label className={cn(
+                  'block text-sm font-medium mb-1',
+                  fieldErrors.fechaDesvinculacion ? 'text-red-600' : 'text-gray-700'
+                )}>
+                  Fecha Desvinculacion *
+                </label>
+                <input
+                  type="date"
+                  value={fechaDesvinculacion}
+                  onChange={(e) => { setFechaDesvinculacion(e.target.value); setFieldErrors((prev) => { const { fechaDesvinculacion: _, ...rest } = prev; return rest; }); }}
+                  className={cn('w-full px-3 py-2 border rounded-lg max-w-xs', fieldErrors.fechaDesvinculacion ? 'border-red-500 bg-red-50' : 'border-gray-300')}
+                />
+              </div>
+
+              {/* Coordinacion de devolucion (16-sep-2026, SPEC 2.44): en su
+                  propia tarjeta, separada con un <hr> de los datos de arriba
+                  -- antes todo quedaba mezclado en una sola grilla de 2
+                  columnas sin distincion visual entre "datos de la
+                  desvinculacion" y "como/cuando se devuelve el equipo".
+                  Mismo patron presencial/chilexpress (radio, no select) que
+                  ya usan Onboarding y Cambio de Equipo. */}
+              <hr className="border-gray-200" />
+              <div>
+                <h4 className="font-medium text-gray-900 mb-1">Coordinar Devolución</h4>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Medio</label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="radio"
+                          name="medioDevolucionNueva"
+                          checked={medioDevolucion === 'presencial'}
+                          onChange={() => setMedioDevolucion('presencial')}
+                        />
+                        Presencial
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="radio"
+                          name="medioDevolucionNueva"
+                          checked={medioDevolucion === 'chilexpress'}
+                          onChange={() => setMedioDevolucion('chilexpress')}
+                        />
+                        Despacho (Chilexpress)
+                      </label>
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      OT Chilexpress
+                      {medioDevolucion === 'presencial'
+                        ? 'Fecha y hora de la devolución'
+                        : 'Fecha estimada de llegada'}
                     </label>
                     <input
-                      type="text"
-                      value={otChilexpress}
-                      onChange={(e) => setOtChilexpress(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      type="datetime-local"
+                      value={fechaDevolucionCoordinada}
+                      onChange={(e) => setFechaDevolucionCoordinada(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                     />
                   </div>
-                )}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ubicación
-                  </label>
-                  <input
-                    type="text"
-                    value={ciudadDevolucion}
-                    onChange={(e) => setCiudadDevolucion(e.target.value)}
-                    placeholder="ej: Oficina Santiago, o ciudad de destino si es despacho"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
+                  {medioDevolucion === 'presencial' ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Lugar de devolución
+                      </label>
+                      <input
+                        type="text"
+                        value={lugarDevolucion}
+                        onChange={(e) => setLugarDevolucion(e.target.value)}
+                        placeholder="ej: Oficina Santiago, piso 4"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          N° de OT Chilexpress
+                        </label>
+                        <input
+                          type="text"
+                          value={otChilexpress}
+                          onChange={(e) => setOtChilexpress(e.target.value)}
+                          placeholder="ej: CH-2026-004567"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Ubicación de destino
+                        </label>
+                        <input
+                          type="text"
+                          value={ciudadDevolucion}
+                          onChange={(e) => setCiudadDevolucion(e.target.value)}
+                          placeholder="ej: Hotel HD Express, Concepción"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
           )}
 
+          {/* 16-sep-2026 (SPEC 2.44/2.45): en Desvinculacion y Cambio de
+              Equipo la sede ya no se elige -- el empleado ya pertenece a
+              una (se fijo sola al elegirlo en selectEmployee), y dejarla
+              editable permitia armar un ticket con la sede de la solicitud
+              distinta a la del empleado, algo sin sentido en ninguno de los
+              dos flujos (a diferencia de Onboarding, donde recien se esta
+              definiendo). */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Sede <span className="text-red-500">*</span>
             </label>
-            <select
-              value={sedeId}
-              onChange={(e) => setSedeId(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            >
-              <option value="" disabled>
-                Selecciona una sede...
-              </option>
-              {sedes.map((sede) => (
-                <option key={sede.id} value={sede.id}>
-                  {sede.nombre}
+            {(tipo === 'offboarding' || tipo === 'cambio_equipo') && selectedEmployee ? (
+              <input
+                type="text"
+                value={sedes.find((s) => s.id === sedeId)?.nombre || 'Cargando...'}
+                disabled
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600"
+              />
+            ) : (
+              <select
+                value={sedeId}
+                onChange={(e) => setSedeId(e.target.value)}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="" disabled>
+                  Selecciona una sede...
                 </option>
-              ))}
-            </select>
+                {sedes.map((sede) => (
+                  <option key={sede.id} value={sede.id}>
+                    {sede.nombre}
+                  </option>
+                ))}
+              </select>
+            )}
             <p className="text-xs text-gray-500 mt-1">
-              Obligatorio: a qué sede pertenece esta solicitud.
+              {(tipo === 'offboarding' || tipo === 'cambio_equipo') && selectedEmployee
+                ? 'Es la sede del empleado.'
+                : 'Obligatorio: a qué sede pertenece esta solicitud.'}
             </p>
           </div>
 

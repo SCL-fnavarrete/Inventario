@@ -30,6 +30,16 @@ export type ExecuteReturnParams = {
   recibidoPor?: string | null;
   estadoDevolucion: 'ok' | 'danado' | 'incompleto' | 'no_devuelto';
   observacionesDevolucion?: string | null;
+  // Condicion del cargador al momento de la devolucion -- mismo criterio
+  // que condicionCargadorEntrega en ExecuteAssignmentParams: solo se usa
+  // si el activo es un notebook con tieneCargador = true, para el resto se
+  // ignora en silencio (ver SPEC 2.5.3 regla 9). 16-sep-2026 (SPEC 2.48):
+  // hasta ahora esto solo se pedia al entregar -- Offboarding y Cambio de
+  // Equipo se quedaban sin registrar el cargador al devolver el equipo
+  // viejo, pese a que el campo condicionCargadorDevolucion ya existia en
+  // el modelo desde que se implemento el lado de la entrega.
+  condicionCargadorDevolucion?: 'ok' | 'danado' | 'no_aplica' | null;
+  observacionesCargador?: string | null;
   // Si se pasa, se exige que la asignacion sea de este empleado -- evita que
   // un offboarding/cambio de equipo de una persona devuelva por error (o a
   // proposito, via API directa) el equipo de otra.
@@ -238,6 +248,11 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
   // el equipo aparece despues, se devuelve normalmente desde Asignaciones
   // (la asignacion sigue activa, ese flujo funciona igual que con cualquier
   // otra asignacion vigente).
+  // Igual que en executeAssignment: solo se guarda si el activo
+  // realmente es un notebook con cargador, para no dejar un dato sin
+  // sentido en el acta (SPEC 2.5.3 regla 9).
+  const aplicaCargadorDevolucion = assignment.asset.tieneCargador;
+
   if (params.estadoDevolucion === 'no_devuelto') {
     const actualizada = await tx.assignment.update({
       where: { id: params.assignmentId },
@@ -245,6 +260,10 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
         recibidoPor: params.recibidoPor,
         estadoDevolucion: params.estadoDevolucion,
         observacionesDevolucion: params.observacionesDevolucion,
+        ...(aplicaCargadorDevolucion && {
+          condicionCargadorDevolucion: params.condicionCargadorDevolucion || null,
+          observacionesCargador: params.observacionesCargador || null,
+        }),
       },
       include: {
         asset: { include: { categoria: true } },
@@ -281,6 +300,10 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       recibidoPor: params.recibidoPor,
       estadoDevolucion: params.estadoDevolucion,
       observacionesDevolucion: params.observacionesDevolucion,
+      ...(aplicaCargadorDevolucion && {
+        condicionCargadorDevolucion: params.condicionCargadorDevolucion || null,
+        observacionesCargador: params.observacionesCargador || null,
+      }),
     },
     include: {
       asset: { include: { categoria: true } },

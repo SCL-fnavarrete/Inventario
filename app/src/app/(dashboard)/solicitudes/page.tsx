@@ -59,17 +59,17 @@ const tipoColors: Record<string, string> = {
   offboarding: 'bg-orange-100 text-orange-800',
 };
 
+// 15-sep-2026 (SPEC 2.42): coordinando_entrega, coordinando_cambio y
+// coordinacion_en_curso se eliminaron -- ver workflowStateMachine.ts.
 const estadoLabels: Record<string, string> = {
   solicitud_recibida: 'Solicitud Recibida',
   gestion_ti: 'Gestión TI',
-  coordinando_entrega: 'Coordinando Entrega',
   equipos_entregados: 'Equipos Entregados',
   registro_rrhh: 'Ticket Cerrado',
   incidencia_detectada: 'Incidencia Detectada',
   cambio_ejecutado: 'Cambio Ejecutado',
   confirmacion_rrhh: 'Ticket Cerrado',
   solicitud_emitida: 'Solicitud Emitida',
-  coordinacion_en_curso: 'Coordinación en Curso',
   equipo_recibido: 'Equipo Recibido',
   consolidacion_cierre: 'Consolidación y Cierre',
 };
@@ -318,20 +318,36 @@ export default function SolicitudesPage() {
                         >
                           <Notebook className="h-4 w-4" />
                         </Link>
-                        {/* Descarga directa de la plantilla del acta sin entrar
-                            al detalle -- por ahora solo onboarding, que es el
-                            unico tipo con la plantilla ya conectada a datos
-                            reales (comprobante-entrega). Cambio de equipo y
-                            offboarding quedan pendientes de extender. */}
-                        {req.tipo === 'onboarding' && (
-                          <a
-                            href={`/api/solicitudes/${req.id}/documento/comprobante-entrega`}
-                            className="text-gray-500 hover:text-gray-700"
-                            title="Descargar plantilla de acta"
-                          >
-                            <FileText className="h-4 w-4" />
-                          </a>
-                        )}
+                        {/* Descarga directa del comprobante sin entrar al
+                            detalle. 16-sep-2026 (SPEC 2.47): antes solo
+                            onboarding tenia su plantilla conectada a un
+                            boton -- se extiende a los 3 tipos, con el mismo
+                            criterio de "listo" que la tarjeta "Documentos"
+                            del detalle (equipo ya entregado/devuelto/
+                            cambiado). */}
+                        {(() => {
+                          const docTipo =
+                            req.tipo === 'onboarding' &&
+                            (req.estado === 'equipos_entregados' || req.estado === 'registro_rrhh')
+                              ? 'comprobante-entrega'
+                              : req.tipo === 'offboarding' &&
+                                  (req.estado === 'equipo_recibido' || req.estado === 'consolidacion_cierre')
+                                ? 'acta-devolucion'
+                                : req.tipo === 'cambio_equipo' &&
+                                    (req.estado === 'cambio_ejecutado' || req.estado === 'confirmacion_rrhh')
+                                  ? 'comprobante-cambio'
+                                  : null;
+                          if (!docTipo) return null;
+                          return (
+                            <a
+                              href={`/api/solicitudes/${req.id}/documento/${docTipo}`}
+                              className="text-gray-500 hover:text-gray-700"
+                              title="Descargar comprobante"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </a>
+                          );
+                        })()}
                       </div>
                     </td>
                   </tr>

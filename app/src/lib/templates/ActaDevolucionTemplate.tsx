@@ -1,128 +1,103 @@
 import React from 'react';
 import { Document, Page, Text, View } from '@react-pdf/renderer';
-import { styles, EMPRESA } from './pdfStyles';
+import { EMPRESA } from './pdfStyles';
+import { sclStyles as styles, LogoSCL } from './pdfSclBrand';
 
 type AssetInfo = {
-  tipo: string;
+  equipo: string;
   marca: string;
-  modelo: string;
-  numeroSerie: string | null;
-  estadoDevolucion: string;
+  descripcion: string;
+  estado: string;
 };
 
 type Props = {
   empleadoNombre: string;
   empleadoRut: string;
-  fechaInicio: string;
   fechaTermino: string;
   fechaDevolucion: string;
   assets: AssetInfo[];
-  observaciones: string | null;
+  observacion: string;
   recibidoPor: string;
 };
+
+/**
+ * Acta de devolucion -- se adjunta al aviso de desvinculacion a RRHH.
+ * 16-sep-2026 (SPEC 2.49): antes usaba un diseño generico (pdfStyles.ts,
+ * sin logo); ahora comparte el mismo formato que el Comprobante de Entrega
+ * (onboarding) -- logo SCL, colores, tipografia y tabla -- pedido de
+ * Javier, "todas las solicitudes deben seguir el mismo formato que tiene
+ * los de onboarding".
+ */
 
 export function ActaDevolucionTemplate({
   empleadoNombre,
   empleadoRut,
-  fechaInicio,
   fechaTermino,
   fechaDevolucion,
   assets,
-  observaciones,
+  observacion,
   recibidoPor,
 }: Props) {
   return (
     <Document>
-      <Page size="LETTER" style={styles.page}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerLeft}>{EMPRESA.nombre}</Text>
-            <Text style={{ fontSize: 9, color: '#6b7280' }}>RUT: {EMPRESA.rut}</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <Text>Fecha: {fechaDevolucion}</Text>
-          </View>
-        </View>
+      <Page size="A4" style={styles.page}>
+        <LogoSCL />
 
-        <Text style={styles.title}>ACTA DE DEVOLUCIÓN DE EQUIPOS</Text>
+        <Text style={styles.docTitle}>ACTA DE DEVOLUCIÓN DE EQUIPOS</Text>
 
-        <Text style={styles.text}>
-          Se deja constancia de la devolución de equipos de trabajo por parte del/la trabajador(a){' '}
-          <Text style={styles.textBold}>{empleadoNombre}</Text>, RUT{' '}
-          <Text style={styles.textBold}>{empleadoRut}</Text>.
+        <Text style={styles.docIntro}>
+          A través del presente con fecha {fechaDevolucion}, <Text style={styles.bold}>{EMPRESA.nombre}</Text>{' '}
+          deja constancia de la devolución de equipamiento por parte de{' '}
+          <Text style={styles.bold}>{empleadoNombre}</Text> RUT{' '}
+          <Text style={styles.bold}>{empleadoRut}</Text>, con motivo de su desvinculación con fecha
+          de término <Text style={styles.bold}>{fechaTermino}</Text>:
         </Text>
 
-        <View style={{ marginTop: 8 }}>
-          <Text style={styles.text}>
-            Fecha ingreso: <Text style={styles.textBold}>{fechaInicio}</Text>
-          </Text>
-          <Text style={styles.text}>
-            Fecha término: <Text style={styles.textBold}>{fechaTermino}</Text>
-          </Text>
-          <Text style={styles.text}>
-            Fecha devolución equipos: <Text style={styles.textBold}>{fechaDevolucion}</Text>
-          </Text>
-        </View>
-
-        <View style={{ marginTop: 12 }}>
-          <Text style={styles.subtitle}>Equipos Devueltos</Text>
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderCell, { width: '20%' }]}>Tipo</Text>
-              <Text style={[styles.tableHeaderCell, { width: '20%' }]}>Marca</Text>
-              <Text style={[styles.tableHeaderCell, { width: '25%' }]}>Modelo</Text>
-              <Text style={[styles.tableHeaderCell, { width: '20%' }]}>N° Serie</Text>
-              <Text style={[styles.tableHeaderCell, { width: '15%' }]}>Estado</Text>
+        <Text style={styles.equipLabel}>Equipo devuelto:</Text>
+        <View style={styles.table}>
+          <View style={styles.tableHeaderRow}>
+            <Text style={[styles.tableHeaderCell, { width: '18%' }]}>Equipo</Text>
+            <Text style={[styles.tableHeaderCell, { width: '15%' }]}>Marca</Text>
+            <Text style={[styles.tableHeaderCell, { width: '53%', textAlign: 'left' }]}>
+              Descripción de equipo
+            </Text>
+            <Text style={[styles.tableHeaderCell, { width: '14%' }]}>Estado</Text>
+          </View>
+          {assets.map((asset, i) => (
+            <View key={i} style={styles.tableRow}>
+              <Text style={[styles.tableCell, { width: '18%', textAlign: 'center' }]}>
+                {asset.equipo}
+              </Text>
+              <Text style={[styles.tableCell, { width: '15%', textAlign: 'center' }]}>
+                {asset.marca || '—'}
+              </Text>
+              <Text style={[styles.tableCell, { width: '53%' }]}>{asset.descripcion || '—'}</Text>
+              <Text style={[styles.tableCell, { width: '14%', textAlign: 'center' }]}>
+                {asset.estado}
+              </Text>
             </View>
-            {assets.map((asset, i) => (
-              <View key={i} style={styles.tableRow}>
-                <Text style={[styles.tableCell, { width: '20%' }]}>{asset.tipo}</Text>
-                <Text style={[styles.tableCell, { width: '20%' }]}>{asset.marca}</Text>
-                <Text style={[styles.tableCell, { width: '25%' }]}>{asset.modelo}</Text>
-                <Text style={[styles.tableCell, { width: '20%' }]}>
-                  {asset.numeroSerie || '—'}
-                </Text>
-                <Text style={[styles.tableCell, { width: '15%' }]}>
-                  {asset.estadoDevolucion === 'ok' ? 'OK' : asset.estadoDevolucion === 'danado' ? 'No OK' : asset.estadoDevolucion}
-                </Text>
-              </View>
-            ))}
-          </View>
+          ))}
         </View>
 
-        {observaciones && (
-          <View style={{ marginTop: 12 }}>
-            <Text style={styles.subtitle}>Observaciones</Text>
-            <Text style={styles.text}>{observaciones}</Text>
-          </View>
-        )}
-
-        <View style={{ marginTop: 12, padding: 8, backgroundColor: '#f9fafb', borderRadius: 4 }}>
-          <Text style={{ fontSize: 9, color: '#374151' }}>
-            Recepción de equipos realizada por:{' '}
-            <Text style={{ fontFamily: 'Helvetica-Bold' }}>{recibidoPor}</Text>
-          </Text>
-        </View>
-
-        <View style={styles.signatureSection}>
-          <View style={styles.signatureBlock}>
-            <View style={styles.signatureLine} />
-            <Text style={styles.signatureLabel}>{empleadoNombre}</Text>
-            <Text style={styles.signatureLabel}>RUT: {empleadoRut}</Text>
-            <Text style={styles.signatureLabel}>Trabajador</Text>
-          </View>
-          <View style={styles.signatureBlock}>
-            <View style={styles.signatureLine} />
-            <Text style={styles.signatureLabel}>Recepción realizada por:</Text>
-            <Text style={styles.signatureLabel}>{recibidoPor}</Text>
-            <Text style={styles.signatureLabel}>{EMPRESA.nombre}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.footer}>
-          {EMPRESA.nombre} — {EMPRESA.rut} — Documento generado el{' '}
-          {new Date().toLocaleDateString('es-CL')}
+        <Text style={styles.docObs}>
+          <Text style={styles.bold}>Observación: </Text>
+          <Text style={styles.italic}>{observacion || 'n/a'}</Text>
         </Text>
+
+        <View style={styles.signatures}>
+          <View style={styles.signatureBlock}>
+            <View style={styles.signatureLine} />
+            <Text style={styles.signatureRole}>Firma del colaborador</Text>
+            <Text style={styles.signatureName}>{empleadoNombre}</Text>
+            <Text style={styles.signatureRut}>RUT {empleadoRut}</Text>
+          </View>
+          <View style={styles.signatureBlock}>
+            <View style={styles.signatureLine} />
+            <Text style={styles.signatureRole}>Recepción realizada por:</Text>
+            <Text style={styles.signatureName}>{recibidoPor}</Text>
+            <Text style={styles.signatureRut}>{EMPRESA.nombre}</Text>
+          </View>
+        </View>
       </Page>
     </Document>
   );

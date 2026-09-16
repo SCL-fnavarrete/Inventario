@@ -175,7 +175,7 @@ export async function POST(
 
     if (
       workflowRequest.tipo === 'cambio_equipo' &&
-      workflowRequest.estado === 'coordinando_cambio' &&
+      workflowRequest.estado === 'incidencia_detectada' &&
       nuevoEstado === 'cambio_ejecutado' &&
       datosAccion?.oldAssignmentId &&
       !datosAccion?.estadoDevolucion
@@ -225,11 +225,13 @@ export async function POST(
 
       if (
         workflowRequest.tipo === 'onboarding' &&
-        workflowRequest.estado === 'coordinando_entrega' &&
+        workflowRequest.estado === 'gestion_ti' &&
         nuevoEstado === 'equipos_entregados'
       ) {
         // Coordinacion de entrega: fecha/hora y, segun el medio, el lugar
-        // (presencial) o la OT de despacho (Chilexpress).
+        // (presencial) o la OT de despacho (Chilexpress). Se pide junto con
+        // la entrega de equipos, en la misma transicion -- ya no es una
+        // etapa aparte (15-sep-2026, SPEC 2.42).
         await tx.workflowRequest.update({
           where: { id },
           data: {
@@ -247,12 +249,14 @@ export async function POST(
       if (
         workflowRequest.tipo === 'cambio_equipo' &&
         workflowRequest.estado === 'incidencia_detectada' &&
-        nuevoEstado === 'coordinando_cambio'
+        nuevoEstado === 'cambio_ejecutado'
       ) {
-        // Coordinacion del cambio, ANTES de ejecutarlo: fecha/hora y, segun
-        // el medio, el lugar (presencial) o la OT + ciudad de despacho
-        // (Chilexpress). Simetrico a la coordinacion de entrega de
-        // onboarding y a la de devolucion de offboarding, mas abajo.
+        // Coordinacion del cambio: fecha/hora y, segun el medio, el lugar
+        // (presencial) o la OT + ciudad de despacho (Chilexpress). Se pide
+        // junto con la ejecucion del cambio, en la misma transicion -- ya no
+        // es una etapa aparte (15-sep-2026, SPEC 2.42). Simetrico a la
+        // coordinacion de entrega de onboarding y a la de devolucion de
+        // offboarding, mas abajo.
         await tx.workflowRequest.update({
           where: { id },
           data: {
@@ -269,12 +273,32 @@ export async function POST(
 
       if (
         workflowRequest.tipo === 'cambio_equipo' &&
-        workflowRequest.estado === 'coordinando_cambio' &&
+        workflowRequest.estado === 'incidencia_detectada' &&
         nuevoEstado === 'cambio_ejecutado'
       ) {
         // Return old asset and assign new one
         const oldAssignmentId = datosAccion?.oldAssignmentId as string | undefined;
         const newAssetId = datosAccion?.newAssetId as string | undefined;
+
+        // Condicion del cargador (16-sep-2026, SPEC 2.48) -- mismo criterio
+        // que en onboarding: solo se guarda si el equipo correspondiente es
+        // un notebook con tieneCargador, se ignora si no (ver SPEC 2.5.3
+        // regla 9). "Anterior" es el del equipo que se devuelve; "Nuevo" el
+        // del equipo de reemplazo.
+        const condicionCargadorAnterior = datosAccion?.condicionCargadorAnterior as
+          | 'ok'
+          | 'danado'
+          | 'no_aplica'
+          | undefined;
+        const observacionesCargadorAnterior =
+          (datosAccion?.observacionesCargadorAnterior as string) || null;
+        const condicionCargadorNuevo = datosAccion?.condicionCargadorNuevo as
+          | 'ok'
+          | 'danado'
+          | 'no_aplica'
+          | undefined;
+        const observacionesCargadorNuevo =
+          (datosAccion?.observacionesCargadorNuevo as string) || null;
 
         if (oldAssignmentId) {
           const estadoDevolucionViejo = datosAccion?.estadoDevolucion as
@@ -290,6 +314,8 @@ export async function POST(
             observacionesDevolucion: observacionesViejo
               ? `Cambio de equipo - ${workflowRequest.numero}: ${observacionesViejo}`
               : `Cambio de equipo - ${workflowRequest.numero}`,
+            condicionCargadorDevolucion: condicionCargadorAnterior || null,
+            observacionesCargador: observacionesCargadorAnterior,
             expectedEmployeeId: workflowRequest.employeeId,
           });
           assignmentIds.push(oldAssignmentId);
@@ -304,6 +330,8 @@ export async function POST(
             entregadoPor: systemUser.nombre,
             tipoMovimiento: 'cambio',
             motivo: workflowRequest.motivoCambio || `Cambio - ${workflowRequest.numero}`,
+            condicionCargadorEntrega: condicionCargadorNuevo || null,
+            observacionesCargador: observacionesCargadorNuevo,
           });
           assignmentIds.push(assignment.id);
         }
@@ -312,13 +340,15 @@ export async function POST(
       if (
         workflowRequest.tipo === 'offboarding' &&
         workflowRequest.estado === 'solicitud_emitida' &&
-        nuevoEstado === 'coordinacion_en_curso'
+        nuevoEstado === 'equipo_recibido'
       ) {
-        // Coordinacion de la devolucion, ANTES de recibir los equipos:
-        // fecha/hora y, segun el medio, el lugar (presencial) o la OT +
-        // ciudad de despacho (Chilexpress). medioDevolucion/otChilexpress/
-        // ciudadDevolucion ya se podian llenar al crear el ticket -- esta
-        // transicion los deja completar o actualizar si cambiaron.
+        // Coordinacion de la devolucion: fecha/hora y, segun el medio, el
+        // lugar (presencial) o la OT + ciudad de despacho (Chilexpress).
+        // medioDevolucion/otChilexpress/ciudadDevolucion ya se podian llenar
+        // al crear el ticket -- esta transicion los deja completar o
+        // actualizar si cambiaron. Se pide junto con la recepcion de los
+        // equipos, en la misma transicion -- ya no es una etapa aparte
+        // (15-sep-2026, SPEC 2.42).
         await tx.workflowRequest.update({
           where: { id },
           data: {
@@ -335,7 +365,7 @@ export async function POST(
 
       if (
         workflowRequest.tipo === 'offboarding' &&
-        workflowRequest.estado === 'coordinacion_en_curso' &&
+        workflowRequest.estado === 'solicitud_emitida' &&
         nuevoEstado === 'equipo_recibido'
       ) {
         // Recepcion de equipos: se califica el estado de cada asignacion
@@ -347,7 +377,14 @@ export async function POST(
         // devuelve, es consumible).
         const devoluciones =
           (datosAccion?.devoluciones as
-            | { assignmentId: string; estadoDevolucion: 'ok' | 'danado' | 'no_devuelto'; observaciones?: string }[]
+            | {
+                assignmentId: string;
+                estadoDevolucion: 'ok' | 'danado' | 'no_devuelto';
+                observaciones?: string;
+                // Condicion del cargador (16-sep-2026, SPEC 2.48).
+                condicionCargador?: 'ok' | 'danado' | 'no_aplica';
+                observacionesCargador?: string;
+              }[]
             | undefined) || [];
         for (const dev of devoluciones) {
           await executeReturn(tx, {
@@ -356,6 +393,8 @@ export async function POST(
             recibidoPor: systemUser.nombre,
             estadoDevolucion: dev.estadoDevolucion,
             observacionesDevolucion: dev.observaciones || null,
+            condicionCargadorDevolucion: dev.condicionCargador || null,
+            observacionesCargador: dev.observacionesCargador || null,
             expectedEmployeeId: workflowRequest.employeeId,
           });
           assignmentIds.push(dev.assignmentId);
@@ -397,7 +436,10 @@ export async function POST(
           select: { id: true },
         });
         if (asignacionesActivasRestantes.length > 0 || eppPendienteRestante.length > 0) {
-          estadoFinalEfectivo = 'coordinacion_en_curso';
+          // Antes de SPEC 2.42 esto dejaba el ticket en "coordinacion_en_curso"
+          // (esa etapa ya no existe): ahora se queda en "solicitud_emitida",
+          // que es el mismo estado en el que ya se piden fecha/medio/lugar.
+          estadoFinalEfectivo = 'solicitud_emitida';
         }
       }
 

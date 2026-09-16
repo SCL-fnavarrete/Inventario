@@ -76,7 +76,7 @@ type WorkflowDetail = {
     apellidoMaterno: string | null;
     cargo: string | null;
     correoPersonal: string;
-    assignments: { id: string; activo: boolean; estadoDevolucion: string | null; asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string } } }[];
+    assignments: { id: string; activo: boolean; estadoDevolucion: string | null; asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string }; tieneCargador: boolean } }[];
     // EPP entregado y aun no devuelto (offboarding). El Kit de Bienvenida
     // no aparece aca -- es consumible, no se devuelve.
     kitAssignments: { id: string; estado: string; item: { id: string; nombre: string; categoria: 'kit_bienvenida' | 'epp' } }[];
@@ -159,18 +159,17 @@ type WorkflowDetail = {
   } | null;
 };
 
+// 15-sep-2026 (SPEC 2.42): coordinando_entrega, coordinando_cambio y
+// coordinacion_en_curso se eliminaron -- ver workflowStateMachine.ts.
 const estadoLabels: Record<string, string> = {
   solicitud_recibida: 'Solicitud Recibida',
   gestion_ti: 'Gestión TI',
-  coordinando_entrega: 'Coordinando Entrega',
   equipos_entregados: 'Equipos Entregados',
   registro_rrhh: 'Ticket Cerrado',
   incidencia_detectada: 'Incidencia Detectada',
-  coordinando_cambio: 'Coordinando Cambio',
   cambio_ejecutado: 'Cambio Ejecutado',
   confirmacion_rrhh: 'Ticket Cerrado',
   solicitud_emitida: 'Solicitud Emitida',
-  coordinacion_en_curso: 'Coordinando Devolución',
   equipo_recibido: 'Equipo Recibido',
   consolidacion_cierre: 'Consolidación y Cierre',
 };
@@ -203,9 +202,9 @@ const pendienteLabels: Record<string, string> = {
 
 function getStatesForType(tipo: string): string[] {
   const map: Record<string, string[]> = {
-    onboarding: ['solicitud_recibida', 'gestion_ti', 'coordinando_entrega', 'equipos_entregados', 'registro_rrhh'],
-    cambio_equipo: ['incidencia_detectada', 'coordinando_cambio', 'cambio_ejecutado', 'confirmacion_rrhh'],
-    offboarding: ['solicitud_emitida', 'coordinacion_en_curso', 'equipo_recibido', 'consolidacion_cierre'],
+    onboarding: ['solicitud_recibida', 'gestion_ti', 'equipos_entregados', 'registro_rrhh'],
+    cambio_equipo: ['incidencia_detectada', 'cambio_ejecutado', 'confirmacion_rrhh'],
+    offboarding: ['solicitud_emitida', 'equipo_recibido', 'consolidacion_cierre'],
   };
   return map[tipo] || [];
 }
@@ -214,10 +213,12 @@ function getStatesForType(tipo: string): string[] {
 // ticket cerrado) en vez de las 4 etapas reales de la maquina de estados:
 // "equipos_entregados" y "registro_rrhh" comparten la etapa visual "Ticket Cerrado"
 // porque para el tecnico el trabajo ya esta hecho una vez entregado el equipo.
+// 15-sep-2026 (SPEC 2.42): "Coordinar Entrega" ya no es una etapa propia --
+// la fecha/medio/lugar se piden junto con la entrega de equipos, dentro de
+// "Gestión TI".
 const onboardingStages: { key: string; label: string; states: string[] }[] = [
   { key: 'creada', label: 'Solicitud Creada', states: ['solicitud_recibida'] },
   { key: 'gestion_ti', label: 'Gestión TI', states: ['gestion_ti'] },
-  { key: 'coordinando_entrega', label: 'Coordinar Entrega', states: ['coordinando_entrega'] },
   { key: 'ticket_cerrado', label: 'Ticket Cerrado', states: ['equipos_entregados', 'registro_rrhh'] },
 ];
 
@@ -275,6 +276,10 @@ export default function SolicitudDetailPage() {
   // asignacion activa del empleado, calificados de forma individual.
   const [devolucionEstados, setDevolucionEstados] = useState<Record<string, 'ok' | 'danado' | 'no_devuelto'>>({});
   const [devolucionObservaciones, setDevolucionObservaciones] = useState<Record<string, string>>({});
+  // Condicion del cargador al devolver (16-sep-2026, SPEC 2.48) -- solo se
+  // pide si el equipo es un notebook con tieneCargador.
+  const [devolucionCargador, setDevolucionCargador] = useState<Record<string, 'ok' | 'danado' | 'no_aplica'>>({});
+  const [devolucionCargadorObservaciones, setDevolucionCargadorObservaciones] = useState<Record<string, string>>({});
   // Mismo caso pero para EPP entregado y pendiente de devolver.
   const [devolucionEppEstados, setDevolucionEppEstados] = useState<Record<string, 'ok' | 'danado' | 'no_devuelto'>>({});
   const [devolucionEppObservaciones, setDevolucionEppObservaciones] = useState<Record<string, string>>({});
@@ -313,6 +318,43 @@ export default function SolicitudDetailPage() {
       .catch(() => setKitCatalog([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.id, data?.tipo, data?.kitBienvenidaSolicitado, data?.eppSolicitado]);
+
+  // Precarga la coordinacion (fecha/medio/lugar) si ya se completo al crear
+  // el ticket, en el mismo formulario de "Nueva Solicitud" (15-sep-2026,
+  // SPEC 2.42.1) -- asi, si todavia falta algo (una categoria sin equipo,
+  // por ejemplo) y el ticket entra a este detalle para completarlo, no se
+  // le vuelve a pedir la fecha que ya habia dado.
+  useEffect(() => {
+    if (!data) return;
+    const aDatetimeLocal = (iso: string | null) => (iso ? iso.slice(0, 16) : '');
+    if (data.tipo === 'onboarding' && data.fechaEntregaCoordinada) {
+      setFechaEntregaCoordinada((prev) => prev || aDatetimeLocal(data.fechaEntregaCoordinada));
+      setMedioEntrega((data.medioEntrega as 'presencial' | 'chilexpress') || 'presencial');
+      setLugarEntrega((prev) => prev || data.lugarEntrega || '');
+      setOtChilexpressEntrega((prev) => prev || data.otChilexpressEntrega || '');
+      setCiudadEntrega((prev) => prev || data.ciudadEntrega || '');
+    }
+    if (data.tipo === 'cambio_equipo' && data.fechaCambioCoordinada) {
+      setFechaCambioCoordinada((prev) => prev || aDatetimeLocal(data.fechaCambioCoordinada));
+      setMedioCambio((data.medioCambio as 'presencial' | 'chilexpress') || 'presencial');
+      setLugarCambio((prev) => prev || data.lugarCambio || '');
+      setOtCambioChilexpress((prev) => prev || data.otCambioChilexpress || '');
+      setCiudadCambio((prev) => prev || data.ciudadCambio || '');
+    }
+    if (data.tipo === 'offboarding' && data.fechaDevolucionCoordinada) {
+      setFechaDevolucionCoordinada((prev) => prev || aDatetimeLocal(data.fechaDevolucionCoordinada));
+      setMedioDevolucion((data.medioDevolucion as 'presencial' | 'chilexpress') || 'presencial');
+      setLugarDevolucion((prev) => prev || data.lugarDevolucion || '');
+      setOtChilexpressDevolucion((prev) => prev || data.otChilexpress || '');
+      setCiudadDevolucion((prev) => prev || data.ciudadDevolucion || '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    data?.id,
+    data?.fechaEntregaCoordinada,
+    data?.fechaCambioCoordinada,
+    data?.fechaDevolucionCoordinada,
+  ]);
 
   const handleEntregarKit = async (categoria: 'kit_bienvenida' | 'epp') => {
     if (!data) return;
@@ -501,44 +543,34 @@ export default function SolicitudDetailPage() {
     });
   };
 
-  // Etapa "Incidencia Detectada" del cambio de equipo: antes de ejecutar el
-  // cambio, se coordina cuando y como se va a hacer -- presencial (fecha,
-  // hora y lugar) u OT de despacho (numero de OT, ciudad destino y fecha
-  // estimada de llegada).
-  const handleCoordinarCambio = () => {
-    if (!fechaCambioCoordinada) {
-      setError(
-        medioCambio === 'presencial'
-          ? 'Indica la fecha y hora del cambio'
-          : 'Indica la fecha estimada de llegada'
-      );
-      return;
-    }
-    if (medioCambio === 'presencial' && !lugarCambio.trim()) {
-      setError('Indica el lugar del cambio presencial');
-      return;
-    }
-    if (medioCambio === 'chilexpress' && !otCambioChilexpress.trim()) {
-      setError('Indica el número de OT de Chilexpress');
-      return;
-    }
-    if (medioCambio === 'chilexpress' && !ciudadCambio.trim()) {
-      setError('Indica la ciudad de destino');
-      return;
-    }
-    handleTransition('coordinando_cambio', {
-      fechaCambioCoordinada,
-      medioCambio,
-      lugarCambio: medioCambio === 'presencial' ? lugarCambio : undefined,
-      otCambioChilexpress: medioCambio === 'chilexpress' ? otCambioChilexpress : undefined,
-      ciudadCambio: medioCambio === 'chilexpress' ? ciudadCambio : undefined,
-    });
-  };
+  // 15-sep-2026 (SPEC 2.42): handleCoordinarCambio se elimino -- su
+  // validacion se movio dentro de handleCambiarEquipo, que ahora hace las
+  // dos cosas juntas (coordinar y ejecutar) en una sola transicion.
 
-  // Etapa "Solicitud Emitida" del offboarding: antes de recibir los equipos,
-  // se coordina cuando y como se van a devolver -- mismo patron que Coordinar
-  // Cambio.
-  const handleCoordinarDevolucion = () => {
+  // 15-sep-2026 (SPEC 2.42): handleCoordinarDevolucion se elimino -- su
+  // validacion se movio dentro de handleRecibirEquipos, que ahora hace las
+  // dos cosas juntas (coordinar y recibir) en una sola transicion.
+
+  // Recepcion de equipos (offboarding): coordina fecha/medio/lugar y
+  // califica cada asignacion activa del empleado (ok / danado) con
+  // observaciones opcionales, y avanza a equipo_recibido. executeReturn se
+  // encarga de dejar cada Activo en "baja" si esta danado o "disponible" si
+  // esta ok.
+  // EPP realmente pendiente de devolver: entregado y de categoria EPP -- el
+  // Kit de Bienvenida es consumible (nunca se pide de vuelta) y lo ya
+  // devuelto no deberia volver a aparecer en esta lista.
+  const eppPendienteDevolver = data
+    ? data.employee.kitAssignments.filter(
+        (k) => k.estado === 'entregado' && k.item.categoria === 'epp'
+      )
+    : [];
+
+  // No hay un default silencioso: cada equipo/EPP necesita una seleccion
+  // explicita (validado tambien en el boton de abajo, que queda deshabilitado
+  // hasta que todos esten calificados) para que nunca se cierre algo como
+  // "buen estado" sin que alguien lo haya mirado.
+  const handleRecibirEquipos = () => {
+    if (!data) return;
     if (!fechaDevolucionCoordinada) {
       setError(
         medioDevolucion === 'presencial'
@@ -559,34 +591,6 @@ export default function SolicitudDetailPage() {
       setError('Indica la ciudad de destino');
       return;
     }
-    handleTransition('coordinacion_en_curso', {
-      fechaDevolucionCoordinada,
-      medioDevolucion,
-      lugarDevolucion: medioDevolucion === 'presencial' ? lugarDevolucion : undefined,
-      otChilexpress: medioDevolucion === 'chilexpress' ? otChilexpressDevolucion : undefined,
-      ciudadDevolucion: medioDevolucion === 'chilexpress' ? ciudadDevolucion : undefined,
-    });
-  };
-
-  // Recepcion de equipos (offboarding): califica cada asignacion activa del
-  // empleado (ok / danado) con observaciones opcionales, y avanza a
-  // equipo_recibido. executeReturn se encarga de dejar cada Activo en "baja"
-  // si esta danado o "disponible" si esta ok.
-  // EPP realmente pendiente de devolver: entregado y de categoria EPP -- el
-  // Kit de Bienvenida es consumible (nunca se pide de vuelta) y lo ya
-  // devuelto no deberia volver a aparecer en esta lista.
-  const eppPendienteDevolver = data
-    ? data.employee.kitAssignments.filter(
-        (k) => k.estado === 'entregado' && k.item.categoria === 'epp'
-      )
-    : [];
-
-  // No hay un default silencioso: cada equipo/EPP necesita una seleccion
-  // explicita (validado tambien en el boton de abajo, que queda deshabilitado
-  // hasta que todos esten calificados) para que nunca se cierre algo como
-  // "buen estado" sin que alguien lo haya mirado.
-  const handleRecibirEquipos = () => {
-    if (!data) return;
     const activos = data.employee.assignments.filter((a) => a.activo && !a.estadoDevolucion);
     const devoluciones = activos
       .filter((a) => devolucionEstados[a.id])
@@ -594,6 +598,11 @@ export default function SolicitudDetailPage() {
         assignmentId: a.id,
         estadoDevolucion: devolucionEstados[a.id],
         observaciones: devolucionObservaciones[a.id] || undefined,
+        // Condicion del cargador (SPEC 2.48), si el equipo la trae.
+        condicionCargador: a.asset.tieneCargador ? devolucionCargador[a.id] || undefined : undefined,
+        observacionesCargador: a.asset.tieneCargador
+          ? devolucionCargadorObservaciones[a.id] || undefined
+          : undefined,
       }));
     const devolucionesEpp = eppPendienteDevolver
       .filter((k) => devolucionEppEstados[k.id])
@@ -602,7 +611,15 @@ export default function SolicitudDetailPage() {
         estadoDevolucion: devolucionEppEstados[k.id],
         observaciones: devolucionEppObservaciones[k.id] || undefined,
       }));
-    handleTransition('equipo_recibido', { devoluciones, devolucionesEpp });
+    handleTransition('equipo_recibido', {
+      devoluciones,
+      devolucionesEpp,
+      fechaDevolucionCoordinada,
+      medioDevolucion,
+      lugarDevolucion: medioDevolucion === 'presencial' ? lugarDevolucion : undefined,
+      otChilexpress: medioDevolucion === 'chilexpress' ? otChilexpressDevolucion : undefined,
+      ciudadDevolucion: medioDevolucion === 'chilexpress' ? ciudadDevolucion : undefined,
+    });
   };
 
   // Etapa "Gestion TI" del onboarding: si la solicitud recien fue recibida,
@@ -665,12 +682,41 @@ export default function SolicitudDetailPage() {
   // Etapa "Incidencia Detectada" del cambio de equipo: el tecnico elige que
   // asignacion activa del empleado se devuelve y que activo nuevo se entrega,
   // y ambos datos se mandan juntos en la misma transicion de estado.
+  // 15-sep-2026 (SPEC 2.42): esta funcion antes solo ejecutaba el cambio
+  // (la fecha/medio/lugar ya se habian guardado antes, en la etapa
+  // "Coordinando Cambio"). Ahora ambas cosas se piden juntas: valida los
+  // mismos campos que antes validaba handleCoordinarCambio y los manda en
+  // la misma transicion.
   const handleCambiarEquipo = async (
     oldAssignmentId: string,
     newAssetId: string,
     estadoDevolucion: 'ok' | 'danado' | 'no_devuelto',
-    observacionesDevolucion: string
+    observacionesDevolucion: string,
+    condicionCargadorAnterior: 'ok' | 'danado' | 'no_aplica' | '',
+    observacionesCargadorAnterior: string,
+    condicionCargadorNuevo: 'ok' | 'danado' | 'no_aplica' | '',
+    observacionesCargadorNuevo: string
   ) => {
+    if (!fechaCambioCoordinada) {
+      setError(
+        medioCambio === 'presencial'
+          ? 'Indica la fecha y hora del cambio'
+          : 'Indica la fecha estimada de llegada'
+      );
+      return;
+    }
+    if (medioCambio === 'presencial' && !lugarCambio.trim()) {
+      setError('Indica el lugar del cambio presencial');
+      return;
+    }
+    if (medioCambio === 'chilexpress' && !otCambioChilexpress.trim()) {
+      setError('Indica el número de OT de Chilexpress');
+      return;
+    }
+    if (medioCambio === 'chilexpress' && !ciudadCambio.trim()) {
+      setError('Indica la ciudad de destino');
+      return;
+    }
     setTransitioning(true);
     setError('');
     setFieldErrors({});
@@ -685,6 +731,15 @@ export default function SolicitudDetailPage() {
             newAssetId,
             estadoDevolucion,
             observacionesDevolucion: observacionesDevolucion || undefined,
+            condicionCargadorAnterior: condicionCargadorAnterior || undefined,
+            observacionesCargadorAnterior: observacionesCargadorAnterior || undefined,
+            condicionCargadorNuevo: condicionCargadorNuevo || undefined,
+            observacionesCargadorNuevo: observacionesCargadorNuevo || undefined,
+            fechaCambioCoordinada,
+            medioCambio,
+            lugarCambio: medioCambio === 'presencial' ? lugarCambio : undefined,
+            otCambioChilexpress: medioCambio === 'chilexpress' ? otCambioChilexpress : undefined,
+            ciudadCambio: medioCambio === 'chilexpress' ? ciudadCambio : undefined,
           },
         }),
       });
@@ -979,23 +1034,14 @@ export default function SolicitudDetailPage() {
               />
             </div>
           ) : data.tipo === 'onboarding' && !isClosed && data.estado === 'gestion_ti' && categoriasPendientes.length === 0 ? (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <h3 className="font-medium text-green-900 mb-2">Todos los equipos fueron entregados</h3>
-              <p className="text-sm text-green-700 mb-3">
-                Ya se cubrieron todas las categorías requeridas. Continúa para coordinar la entrega.
-              </p>
-              <button
-                onClick={() => handleTransition('coordinando_entrega')}
-                disabled={transitioning}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-              >
-                <ChevronRight className="h-4 w-4" />
-                {transitioning ? 'Avanzando...' : 'Coordinar Entrega'}
-              </button>
-            </div>
-          ) : data.tipo === 'onboarding' && !isClosed && data.estado === 'coordinando_entrega' ? (
+            // 15-sep-2026 (SPEC 2.42): "Coordinar Entrega" ya no es un paso
+            // aparte -- la fecha/medio/lugar se completan aca mismo, junto
+            // con el cierre de la entrega de equipos, en un solo click.
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="font-semibold text-gray-900 mb-1">Coordinar Entrega</h3>
+              <p className="text-sm text-green-700 mb-1">
+                Ya se cubrieron todas las categorías requeridas.
+              </p>
               <p className="text-sm text-gray-500 mb-3">
                 Define cuándo y cómo se le hará llegar el equipo a {data.employee.nombres}{' '}
                 {data.employee.apellidoPaterno}.
@@ -1087,13 +1133,17 @@ export default function SolicitudDetailPage() {
               </div>
             </div>
           ) : data.tipo === 'cambio_equipo' && !isClosed && data.estado === 'incidencia_detectada' ? (
+            // 15-sep-2026 (SPEC 2.42): "Coordinar Cambio" ya no es un paso
+            // aparte de "Cambio de Equipo" -- la fecha/medio/lugar se
+            // completan en la misma tarjeta que la seleccion del equipo
+            // nuevo, y todo se confirma en un solo click.
             <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="font-semibold text-gray-900 mb-1">Coordinar Cambio</h3>
+              <h3 className="font-semibold text-gray-900 mb-1">Cambio de Equipo</h3>
               <p className="text-sm text-gray-500 mb-3">
-                Define cuándo y cómo se hará el cambio de equipo a {data.employee.nombres}{' '}
-                {data.employee.apellidoPaterno}, antes de ejecutarlo.
+                Define cuándo y cómo se hará el cambio, y elige que equipo de {data.employee.nombres}{' '}
+                {data.employee.apellidoPaterno} se va a cambiar y con que equipo nuevo se reemplaza.
               </p>
-              <div className="space-y-3">
+              <div className="space-y-3 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {medioCambio === 'presencial' ? 'Fecha y hora del cambio' : 'Fecha estimada de llegada'}
@@ -1169,23 +1219,7 @@ export default function SolicitudDetailPage() {
                     </div>
                   </>
                 )}
-                <button
-                  onClick={handleCoordinarCambio}
-                  disabled={transitioning}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                  {transitioning ? 'Guardando...' : 'Confirmar Coordinación'}
-                </button>
               </div>
-            </div>
-          ) : data.tipo === 'cambio_equipo' && !isClosed && data.estado === 'coordinando_cambio' ? (
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="font-semibold text-gray-900 mb-1">Cambio de Equipo</h3>
-              <p className="text-sm text-gray-500 mb-3">
-                Elige que equipo de {data.employee.nombres} {data.employee.apellidoPaterno} se va a
-                cambiar y con que equipo nuevo se reemplaza.
-              </p>
               <SeleccionarCambioEquipo
                 asignacionesActivas={data.employee.assignments}
                 sedeId={data.sedeId}
@@ -1227,13 +1261,6 @@ export default function SolicitudDetailPage() {
                 </p>
               )}
               <div className="flex flex-wrap items-center gap-3">
-                <a
-                  href={`/api/solicitudes/${data.id}/documento/comprobante-entrega`}
-                  className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50"
-                >
-                  <Download className="h-4 w-4" />
-                  Generar plantilla
-                </a>
                 <button
                   onClick={() => handleTransition('registro_rrhh')}
                   disabled={transitioning || kitOEppPendiente}
@@ -1243,18 +1270,20 @@ export default function SolicitudDetailPage() {
                   {transitioning ? 'Cerrando...' : 'Cerrar ticket'}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Descarga el comprobante con los datos ya rellenados para adjuntarlo al aviso a RRHH.
-              </p>
             </div>
           ) : data.tipo === 'offboarding' && !isClosed && data.estado === 'solicitud_emitida' ? (
+            // 15-sep-2026 (SPEC 2.42): "Coordinar Devolución" ya no es un
+            // paso aparte de "Recibir Equipos" -- la fecha/medio/lugar se
+            // completan en la misma tarjeta que la calificacion de cada
+            // equipo, y todo se confirma en un solo click.
             <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="font-semibold text-gray-900 mb-1">Coordinar Devolución</h3>
+              <h3 className="font-semibold text-gray-900 mb-1">Recibir Equipos</h3>
               <p className="text-sm text-gray-500 mb-3">
                 Define cuándo y cómo {data.employee.nombres} {data.employee.apellidoPaterno} va a
-                devolver sus equipos, antes de recibirlos.
+                devolver sus equipos, y califica el estado de cada uno. Los dañados se dan de baja
+                automáticamente; el resto queda disponible.
               </p>
-              <div className="space-y-3">
+              <div className="space-y-3 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {medioDevolucion === 'presencial' ? 'Fecha y hora de la devolución' : 'Fecha estimada de llegada'}
@@ -1330,24 +1359,7 @@ export default function SolicitudDetailPage() {
                     </div>
                   </>
                 )}
-                <button
-                  onClick={handleCoordinarDevolucion}
-                  disabled={transitioning}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                  {transitioning ? 'Guardando...' : 'Confirmar Coordinación'}
-                </button>
               </div>
-            </div>
-          ) : data.tipo === 'offboarding' && !isClosed && data.estado === 'coordinacion_en_curso' ? (
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="font-semibold text-gray-900 mb-1">Recibir Equipos</h3>
-              <p className="text-sm text-gray-500 mb-3">
-                Califica el estado de cada equipo que devuelve {data.employee.nombres}{' '}
-                {data.employee.apellidoPaterno}. Los dañados se dan de baja automáticamente; el
-                resto queda disponible.
-              </p>
               {(() => {
                 // "no_devuelto" deja la asignacion activa a proposito (el
                 // empleado se queda con el equipo) -- ya fue calificada en
@@ -1429,6 +1441,41 @@ export default function SolicitudDetailPage() {
                           placeholder="Observaciones (opcional)"
                           className="w-full text-sm border border-gray-300 rounded px-2 py-1"
                         />
+                        {/* Estado del cargador (16-sep-2026, SPEC 2.48) --
+                            solo si el equipo es un notebook con cargador. */}
+                        {a.asset.tieneCargador && (
+                          <div className="mt-2 border border-gray-200 rounded-lg p-2 bg-gray-50">
+                            <p className="text-xs font-medium text-gray-600 mb-1">
+                              Estado del cargador
+                            </p>
+                            <select
+                              value={devolucionCargador[a.id] || 'ok'}
+                              onChange={(e) =>
+                                setDevolucionCargador((prev) => ({
+                                  ...prev,
+                                  [a.id]: e.target.value as 'ok' | 'danado' | 'no_aplica',
+                                }))
+                              }
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded mb-1"
+                            >
+                              <option value="ok">Ok</option>
+                              <option value="danado">Dañado</option>
+                              <option value="no_aplica">No aplica / no lo devolvió</option>
+                            </select>
+                            <input
+                              type="text"
+                              value={devolucionCargadorObservaciones[a.id] || ''}
+                              onChange={(e) =>
+                                setDevolucionCargadorObservaciones((prev) => ({
+                                  ...prev,
+                                  [a.id]: e.target.value,
+                                }))
+                              }
+                              placeholder="Observación del cargador (opcional)"
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                            />
+                          </div>
+                        )}
                       </div>
                     ))}
                 </div>
@@ -1578,6 +1625,46 @@ export default function SolicitudDetailPage() {
               </div>
             )
           )}
+
+          {/* Documentos (16-sep-2026, SPEC 2.47): antes "Generar plantilla"
+              solo existia para Onboarding, en el paso previo a cerrar el
+              ticket -- Offboarding y Cambio de Equipo se quedaban sin forma
+              de descargar su comprobante. Se junta en una sola tarjeta, sin
+              depender de un paso especifico de la maquina de estados (para
+              Cambio de Equipo, que desde SPEC 2.45 se ejecuta y cierra de
+              inmediato al crearse, no hay "paso previo" al que engancharse).
+              Aparece apenas el equipo ya se entrego/devolvio/cambio, y sigue
+              disponible despues de cerrado el ticket por si hay que
+              volver a descargarlo. */}
+          {(() => {
+            const doc =
+              data.tipo === 'onboarding' &&
+              (data.estado === 'equipos_entregados' || data.estado === 'registro_rrhh')
+                ? { tipo: 'comprobante-entrega', label: 'Comprobante de Entrega' }
+                : data.tipo === 'offboarding' &&
+                    (data.estado === 'equipo_recibido' || data.estado === 'consolidacion_cierre')
+                  ? { tipo: 'acta-devolucion', label: 'Acta de Devolución' }
+                  : data.tipo === 'cambio_equipo' &&
+                      (data.estado === 'cambio_ejecutado' || data.estado === 'confirmacion_rrhh')
+                    ? { tipo: 'comprobante-cambio', label: 'Comprobante de Cambio' }
+                    : null;
+            if (!doc) return null;
+            return (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="font-semibold text-gray-900 mb-1">Documentos</h3>
+                <p className="text-sm text-gray-500 mb-3">
+                  Descarga el comprobante con los datos ya rellenados.
+                </p>
+                <a
+                  href={`/api/solicitudes/${data.id}/documento/${doc.tipo}`}
+                  className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  <Download className="h-4 w-4" />
+                  {doc.label}
+                </a>
+              </div>
+            );
+          })()}
 
           {/* Detalle articulo-por-articulo de lo requerido (RequestKitItem):
               solo aparece si el ticket se creo con esa lista. Cada articulo

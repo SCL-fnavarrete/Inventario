@@ -6,8 +6,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  FileText,
-  Undo2,
   Laptop,
   Smartphone,
   Monitor,
@@ -81,9 +79,15 @@ function formatDate(dateString: string | null): string {
  * reemplaza al modulo standalone "Asignaciones" (ver Sidebar), que se saco
  * de la navegacion porque duplicaba lo que ya vive aca (el formulario para
  * asignar un activo, AsignarActivoForm, ya vivia en Activos desde antes). El
- * detalle (`/asignaciones/[id]`) y el registro de devolucion
- * (`/asignaciones/devolucion`) se mantienen como paginas propias -- esta
- * tabla solo linkea a ellas, igual que hacia el listado viejo.
+ * detalle (`/asignaciones/[id]`) se mantiene como pagina propia y esta tabla
+ * linkea a el, igual que hacia el listado viejo.
+ *
+ * 15-sep-2026 (SPEC 2.41): se quito de aca el acceso a "Registrar
+ * devolucion". Una devolucion no es una accion suelta sobre una fila de esta
+ * tabla: ocurre dentro de un proceso que la justifica -- una desvinculacion
+ * o un cambio de equipo -- y es ahi donde queda registrada con su motivo y
+ * su trazabilidad. Tenerla aca dejaba devolver un equipo sin que constara
+ * por que.
  */
 export function AsignacionesTable() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -224,23 +228,6 @@ export function AsignacionesTable() {
                       >
                         <Eye size={16} />
                       </Link>
-                      <a
-                        href={`/api/asignaciones/${a.id}/acta?tipo=${a.activo ? "entrega" : "devolucion"}`}
-                        className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg"
-                        title="Descargar Acta"
-                        target="_blank"
-                      >
-                        <FileText size={16} />
-                      </a>
-                      {a.activo && (
-                        <Link
-                          href={`/asignaciones/devolucion?id=${a.id}`}
-                          className="p-2 text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg"
-                          title="Registrar devolución"
-                        >
-                          <Undo2 size={16} />
-                        </Link>
-                      )}
                     </div>
                   </td>
                 </tr>

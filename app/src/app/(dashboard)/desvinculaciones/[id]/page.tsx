@@ -16,7 +16,6 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  FileText,
   Loader2,
   DollarSign,
   Bell,
@@ -498,14 +497,6 @@ export default function DesvinculacionDetallePage({
           </div>
         </div>
         <div className="flex gap-2">
-          <a
-            href={`/api/desvinculaciones/${id}/reporte-rrhh`}
-            target="_blank"
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-          >
-            <FileText size={20} />
-            Reporte RRHH
-          </a>
           {!allProcessed && (
             <button
               onClick={() => setShowDeleteConfirm(true)}

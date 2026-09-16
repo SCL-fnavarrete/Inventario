@@ -81,9 +81,21 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         )
     );
 
-    // Kit de bienvenida y EPP - Simplificado con fechas
-    const kitEntregado = !!employee.fechaEntregaKit;
-    const eppEntregado = !!employee.fechaEntregaEpp;
+    // Kit de bienvenida y EPP: se deducen de lo que efectivamente se
+    // entrego (KitAssignment), no de las fechas sueltas del empleado
+    // (16-sep-2026, SPEC 2.43). Antes se leian fechaEntregaKit/
+    // fechaEntregaEpp, que solo se llenaban escribiendolas a mano en el
+    // formulario de editar empleado -- una entrega real hecha desde una
+    // Solicitud crea KitAssignment pero nunca tocaba esas fechas, asi que la
+    // ficha mostraba "Pendiente" aunque el kit ya estuviera entregado. Al
+    // sacarse esos campos del formulario, esta era la unica fuente que
+    // quedaba viva.
+    const kitEntregado = employee.kitAssignments.some(
+      (k) => k.item.categoria === 'kit_bienvenida' && k.estado === 'entregado'
+    );
+    const eppEntregado = employee.kitAssignments.some(
+      (k) => k.item.categoria === 'epp' && k.estado === 'entregado'
+    );
 
     const ficha = {
       // Datos personales
@@ -120,6 +132,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         pulgadas: notebook.asset.pulgadas,
         sistemaOperativo: notebook.asset.sistemaOperativo,
         microsoft365: notebook.asset.microsoft365,
+        // 15-sep-2026 (SPEC 2.41): la ficha mostraba solo el booleano
+        // ("Microsoft 365: Si"). Lo util es cual plan tiene, asi que
+        // ahora tambien viaja el nombre de la licencia.
+        tipoLicenciaMicrosoft365: notebook.asset.tipoLicenciaMicrosoft365,
         estado: notebook.asset.estado,
         condicion: notebook.asset.condicion,
         fechaEntrega: notebook.fechaEntrega,
@@ -171,17 +187,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         fechaEntrega: a.fechaEntrega,
       })),
 
-      // Kit de bienvenida - Simplificado
+      // Kit de bienvenida y EPP: solo el estado -- la fecha de entrega y la
+      // proxima mantencion se sacaron de estas tarjetas en SPEC 2.41.
       kitBienvenida: {
         entregado: kitEntregado,
-        fechaEntrega: employee.fechaEntregaKit,
       },
 
-      // EPP - Simplificado
       epp: {
         entregado: eppEntregado,
-        fechaEntrega: employee.fechaEntregaEpp,
-        proximaMantencion: employee.proximaMantencionEpp,
       },
 
       // Resumen

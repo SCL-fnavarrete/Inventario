@@ -1,12 +1,12 @@
 import React from 'react';
 import { Document, Page, Text, View } from '@react-pdf/renderer';
-import { styles, EMPRESA } from './pdfStyles';
+import { EMPRESA } from './pdfStyles';
+import { sclStyles as styles, LogoSCL } from './pdfSclBrand';
 
 type AssetInfo = {
-  tipo: string;
+  equipo: string;
   marca: string;
-  modelo: string;
-  numeroSerie: string | null;
+  descripcion: string;
   estado: string;
 };
 
@@ -20,6 +20,44 @@ type Props = {
   gestionadoPor: string;
 };
 
+/**
+ * Comprobante de cambio de equipo. 16-sep-2026 (SPEC 2.49): antes usaba un
+ * diseño generico (pdfStyles.ts, sin logo); ahora comparte el mismo
+ * formato que el Comprobante de Entrega (onboarding) -- logo SCL, colores,
+ * tipografia y tabla -- pedido de Javier, "todas las solicitudes deben
+ * seguir el mismo formato que tiene los de onboarding".
+ */
+
+function TablaEquipo({ label, asset }: { label: string; asset: AssetInfo }) {
+  return (
+    <>
+      <Text style={styles.equipLabel}>{label}</Text>
+      <View style={styles.table}>
+        <View style={styles.tableHeaderRow}>
+          <Text style={[styles.tableHeaderCell, { width: '18%' }]}>Equipo</Text>
+          <Text style={[styles.tableHeaderCell, { width: '15%' }]}>Marca</Text>
+          <Text style={[styles.tableHeaderCell, { width: '53%', textAlign: 'left' }]}>
+            Descripción de equipo
+          </Text>
+          <Text style={[styles.tableHeaderCell, { width: '14%' }]}>Estado</Text>
+        </View>
+        <View style={styles.tableRow}>
+          <Text style={[styles.tableCell, { width: '18%', textAlign: 'center' }]}>
+            {asset.equipo}
+          </Text>
+          <Text style={[styles.tableCell, { width: '15%', textAlign: 'center' }]}>
+            {asset.marca || '—'}
+          </Text>
+          <Text style={[styles.tableCell, { width: '53%' }]}>{asset.descripcion || '—'}</Text>
+          <Text style={[styles.tableCell, { width: '14%', textAlign: 'center' }]}>
+            {asset.estado}
+          </Text>
+        </View>
+      </View>
+    </>
+  );
+}
+
 export function ComprobanteCambioTemplate({
   empleadoNombre,
   empleadoRut,
@@ -29,83 +67,45 @@ export function ComprobanteCambioTemplate({
   equipoNuevo,
   gestionadoPor,
 }: Props) {
-  const renderEquipoTable = (asset: AssetInfo, label: string, estadoLabel: string) => (
-    <View style={{ marginBottom: 12 }}>
-      <Text style={styles.subtitle}>{label}</Text>
-      <View style={styles.table}>
-        <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderCell, { width: '20%' }]}>Tipo</Text>
-          <Text style={[styles.tableHeaderCell, { width: '20%' }]}>Marca</Text>
-          <Text style={[styles.tableHeaderCell, { width: '25%' }]}>Modelo</Text>
-          <Text style={[styles.tableHeaderCell, { width: '20%' }]}>N° Serie</Text>
-          <Text style={[styles.tableHeaderCell, { width: '15%' }]}>Estado</Text>
-        </View>
-        <View style={styles.tableRow}>
-          <Text style={[styles.tableCell, { width: '20%' }]}>{asset.tipo}</Text>
-          <Text style={[styles.tableCell, { width: '20%' }]}>{asset.marca}</Text>
-          <Text style={[styles.tableCell, { width: '25%' }]}>{asset.modelo}</Text>
-          <Text style={[styles.tableCell, { width: '20%' }]}>{asset.numeroSerie || '—'}</Text>
-          <Text style={[styles.tableCell, { width: '15%' }]}>{estadoLabel}</Text>
-        </View>
-      </View>
-    </View>
-  );
-
   return (
     <Document>
-      <Page size="LETTER" style={styles.page}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerLeft}>{EMPRESA.nombre}</Text>
-            <Text style={{ fontSize: 9, color: '#6b7280' }}>RUT: {EMPRESA.rut}</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <Text>Fecha: {fecha}</Text>
-          </View>
-        </View>
+      <Page size="A4" style={styles.page}>
+        <LogoSCL />
 
-        <Text style={styles.title}>COMPROBANTE DE CAMBIO DE EQUIPOS</Text>
+        <Text style={styles.docTitle}>COMPROBANTE DE CAMBIO DE EQUIPOS</Text>
 
-        <Text style={styles.text}>
-          Se deja constancia del cambio de equipo realizado al/la trabajador(a){' '}
-          <Text style={styles.textBold}>{empleadoNombre}</Text>, RUT{' '}
-          <Text style={styles.textBold}>{empleadoRut}</Text>.
+        <Text style={styles.docIntro}>
+          A través del presente con fecha {fecha}, <Text style={styles.bold}>{EMPRESA.nombre}</Text>{' '}
+          deja constancia del cambio de equipo realizado a{' '}
+          <Text style={styles.bold}>{empleadoNombre}</Text> RUT{' '}
+          <Text style={styles.bold}>{empleadoRut}</Text>, con motivo de:{' '}
+          <Text style={styles.bold}>{motivoCambio}</Text>.
         </Text>
 
-        <View style={{ marginTop: 12 }}>
-          <Text style={styles.subtitle}>Motivo del cambio</Text>
-          <Text style={styles.text}>{motivoCambio}</Text>
-        </View>
+        <TablaEquipo label="Equipo asignado (nuevo):" asset={equipoNuevo} />
+        <TablaEquipo label="Equipo devuelto (anterior):" asset={equipoAnterior} />
 
-        {renderEquipoTable(equipoNuevo, 'Equipo Asignado (Nuevo)', 'Entregado OK')}
-        {renderEquipoTable(equipoAnterior, 'Equipo Devuelto (Anterior)', 'Devolución OK')}
-
-        <View style={{ marginTop: 12, padding: 8, backgroundColor: '#f9fafb', borderRadius: 4 }}>
-          <Text style={{ fontSize: 8, color: '#6b7280', fontStyle: 'italic' }}>
-            Nota: Este documento es un respaldo del cambio de equipo realizado. El anexo de
-            contrato será generado posteriormente si corresponde.
+        <Text style={styles.docObsCompacto}>
+          <Text style={styles.italic}>
+            Este documento es un respaldo del cambio de equipo realizado. El anexo de contrato
+            será generado posteriormente si corresponde.
           </Text>
-        </View>
-
-        <View style={styles.signatureSection}>
-          <View style={styles.signatureBlock}>
-            <View style={styles.signatureLine} />
-            <Text style={styles.signatureLabel}>{empleadoNombre}</Text>
-            <Text style={styles.signatureLabel}>RUT: {empleadoRut}</Text>
-            <Text style={styles.signatureLabel}>Trabajador</Text>
-          </View>
-          <View style={styles.signatureBlock}>
-            <View style={styles.signatureLine} />
-            <Text style={styles.signatureLabel}>Gestión realizada por:</Text>
-            <Text style={styles.signatureLabel}>{gestionadoPor}</Text>
-            <Text style={styles.signatureLabel}>{EMPRESA.nombre}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.footer}>
-          {EMPRESA.nombre} — {EMPRESA.rut} — Documento generado el{' '}
-          {new Date().toLocaleDateString('es-CL')}
         </Text>
+
+        <View style={styles.signatures}>
+          <View style={styles.signatureBlock}>
+            <View style={styles.signatureLine} />
+            <Text style={styles.signatureRole}>Firma del colaborador</Text>
+            <Text style={styles.signatureName}>{empleadoNombre}</Text>
+            <Text style={styles.signatureRut}>RUT {empleadoRut}</Text>
+          </View>
+          <View style={styles.signatureBlock}>
+            <View style={styles.signatureLine} />
+            <Text style={styles.signatureRole}>Gestión realizada por:</Text>
+            <Text style={styles.signatureName}>{gestionadoPor}</Text>
+            <Text style={styles.signatureRut}>{EMPRESA.nombre}</Text>
+          </View>
+        </View>
       </Page>
     </Document>
   );

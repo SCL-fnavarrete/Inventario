@@ -113,6 +113,17 @@ export const maintenanceFiltersSchema = z.object({
   fechaHasta: z.string().optional(),
   pendientes: z.coerce.boolean().optional(),
   vencidas: z.coerce.boolean().optional(),
+  // Filtro de periodo (18-sep-2026, SPEC 2.51.1): misma ventana que ya usan
+  // las tarjetas "Proximas"/"Completadas" de /api/mantenciones/pendientes,
+  // ahora tambien aplicable al listado. Se envian juntos desde la pantalla
+  // (mismo valor); separados por si algun consumidor futuro los necesita
+  // distintos, igual que ya pasa en /pendientes.
+  // min(0), no min(1): 0 es el sentinel de "sin limite" (SPEC 2.51.2,
+  // filtro de periodo "Todas") -- con min(1) el propio schema rechazaba la
+  // peticion (400) apenas se mandaba dias=0, y el listado quedaba vacio en
+  // silencio (fetchMaintenances no revisa res.ok).
+  dias: z.coerce.number().min(0).optional(),
+  diasCompletadas: z.coerce.number().min(0).optional(),
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(10),
   sortBy: z.enum(["fechaProgramada", "fechaRealizada", "createdAt", "tipoId", "estado"]).default("fechaProgramada"),

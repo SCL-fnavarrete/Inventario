@@ -22,6 +22,8 @@ export async function GET(request: NextRequest) {
       fechaHasta: searchParams.get("fechaHasta") || undefined,
       pendientes: searchParams.get("pendientes") || undefined,
       vencidas: searchParams.get("vencidas") || undefined,
+      dias: searchParams.get("dias") || undefined,
+      diasCompletadas: searchParams.get("diasCompletadas") || undefined,
       page: searchParams.get("page") || 1,
       limit: searchParams.get("limit") || 10,
       sortBy: searchParams.get("sortBy") || "fechaProgramada",
@@ -95,6 +97,45 @@ export async function GET(request: NextRequest) {
       if (filters.fechaHasta) {
         where.fechaProgramada.lte = new Date(filters.fechaHasta);
       }
+    }
+
+    // Filtro de periodo (18-sep-2026, SPEC 2.51.1): antes el selector de
+    // periodo de la pantalla (Dia/Semana/Mes/...) solo acotaba las tarjetas
+    // "Proximas"/"Completadas" (via /api/mantenciones/pendientes) -- el
+    // listado de abajo seguia mostrando todo, sin importar el periodo
+    // elegido. Javier: "por lo que veo, solamente le esta aplicando este
+    // filtro a las tarjetas... deberia hacerlo a todo el modulo". Se aplica
+    // la misma logica que ya usan las tarjetas: vencidas y en_proceso se
+    // ven siempre (no tienen una ventana natural -- una vencida sigue
+    // siendo relevante sin importar hace cuanto vencio), proximas se
+    // acotan por fechaProgramada dentro de "dias" y completadas por
+    // fechaRealizada dentro de "diasCompletadas". Canceladas y pendientes
+    // sin fecha programada tampoco tienen ventana que aplicarles, asi que
+    // se mantienen visibles.
+    if (filters.dias || filters.diasCompletadas) {
+      const dias = filters.dias ?? filters.diasCompletadas ?? 30;
+      const diasCompletadas = filters.diasCompletadas ?? dias;
+      const hoy = new Date();
+      const fechaLimite = new Date();
+      fechaLimite.setDate(fechaLimite.getDate() + dias);
+      const fechaInicioCompletadas = new Date();
+      fechaInicioCompletadas.setDate(fechaInicioCompletadas.getDate() - diasCompletadas);
+
+      const periodoOR: Prisma.MaintenanceWhereInput[] = [
+        { fechaProgramada: { lt: hoy }, estado: { in: ["pendiente", "en_proceso"] } },
+        { estado: "en_proceso" },
+        { fechaProgramada: { gte: hoy, lte: fechaLimite }, estado: { in: ["pendiente", "en_proceso"] } },
+        { fechaProgramada: null, estado: "pendiente" },
+        { estado: "completada", fechaRealizada: { gte: fechaInicioCompletadas } },
+        { estado: "cancelada" },
+      ];
+
+      const condicionesAnd = Array.isArray(where.AND)
+        ? where.AND
+        : where.AND
+        ? [where.AND]
+        : [];
+      where.AND = [...condicionesAnd, { OR: periodoOR }];
     }
 
     // Ejecutar consulta

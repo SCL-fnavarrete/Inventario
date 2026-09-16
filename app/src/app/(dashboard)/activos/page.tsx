@@ -408,21 +408,11 @@ function ActivosPageContent() {
   }
 
   //Devolucion de un equipo asignado (vuelve a disponible, o se da de baja
-  //si volvio danado). Ver SPEC 2.40.
+  //si volvio danado). Ya no existe una pantalla de devolucion suelta -- una
+  //devolucion solo puede pasar dentro de una Solicitud (cambio de equipo o
+  //desvinculacion), que es donde queda el motivo y el documento (SPEC 2.41).
   if (currentStatus==="asignado" && (newStatus ==="disponible" || newStatus==="baja")){
-    try{
-      const res = await fetch(`/api/asignaciones?assetId=${assetId}&activo=true&limit=1`);
-      const data = await res.json();
-      const asignacionId = data?.data?.[0]?.id;
-      if (asignacionId){
-        router.push(`/asignaciones/devolucion?id=${asignacionId}`);
-      }else{
-        setKanbanError("No se encontró la asignación activa de este equipo.");
-      }
-    }catch(error){
-      console.error("Error buscando la asignacion:",error);
-      setKanbanError("No se pudo buscar la asignación del equipo. Revisa la conexión e inténtalo de nuevo.");
-    }
+    router.push("/solicitudes/nueva");
     return;
   }
 

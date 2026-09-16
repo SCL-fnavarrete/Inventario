@@ -620,7 +620,7 @@ CANCELACIÓN (los tres tipos):
 6. **Acumulación:** `assignment_ids` en `workflow_requests` es acumulativo; cada assignment creado se agrega al array, nunca se sobreescribe.
 7. **Cancelación:** cualquier solicitud (de los tres tipos) puede cancelarse mientras `assignment_ids` y `kit_return_ids` sigan vacíos -- es decir, mientras no haya ejecutado ningún efecto secundario real sobre el inventario todavía. Exige un motivo (texto libre, obligatorio) que queda en `workflow_transitions.comentario`. Pasa a `estado = 'cancelada'` y `fecha_cierre = now()`; no modifica activos ni empleados. Si la solicitud ya ejecutó algo (tiene `assignment_ids` y/o `kit_return_ids`), no se puede cancelar por esta vía -- hay que revertir manualmente cada acción (devolver el activo, etc.) antes de poder cerrarla.
 8. **Reincorporación (onboarding):** un `onboarding` puede apuntar a un `employee` ya existente que esté `desvinculado` (alguien que trabajó antes y vuelve) en vez de crear uno nuevo -- necesario porque `rut`/`correo_personal`/`correo_empresa` son únicos, así que "crear de nuevo" a esa persona choca con su registro anterior. Al crear el ticket, si el `employee_id` elegido está `desvinculado`, se reactiva (`estado -> activo`, `fecha_termino -> null`) dentro de la misma transacción que crea la solicitud. Para `cambio_equipo` y `offboarding` el empleado desvinculado sigue bloqueado (regla previa a esta, sin numerar aparte): no tiene sentido cambiarle el equipo o desvincular de nuevo a alguien que ya no está activo.
-9. **Condición del cargador:** cuando el activo entregado/devuelto en un `assignment` es un notebook con `tiene_cargador = true`, se puede registrar por separado la condición de su cargador (`condicion_cargador_entrega` al crear la asignación, `condicion_cargador_devolucion` al devolverla), con una observación libre opcional (`observaciones_cargador`). El cargador no es un activo propio en el inventario -- es solo un atributo de esa entrega/devolución puntual, igual que cualquier otro dato del acta. A diferencia de `estado_devolucion` del equipo, la condición del cargador **no** cambia el `estado` ni la `condicion` del Activo ni gatilla baja: es puramente informativo, para que quede constancia en el acta y en el historial. Se implementa primero en onboarding (entrega); `cambio_equipo` y `offboarding` quedan pendientes de extender con el mismo patrón.
+9. **Condición del cargador:** cuando el activo entregado/devuelto en un `assignment` es un notebook con `tiene_cargador = true`, se puede registrar por separado la condición de su cargador (`condicion_cargador_entrega` al crear la asignación, `condicion_cargador_devolucion` al devolverla), con una observación libre opcional (`observaciones_cargador`). El cargador no es un activo propio en el inventario -- es solo un atributo de esa entrega/devolución puntual, igual que cualquier otro dato del acta. A diferencia de `estado_devolucion` del equipo, la condición del cargador **no** cambia el `estado` ni la `condicion` del Activo ni gatilla baja: es puramente informativo, para que quede constancia en el acta y en el historial. Se implementó primero en onboarding (entrega, 15-sep-2026); `cambio_equipo` y `offboarding` se extendieron con el mismo patrón el 16-sep-2026 (ver SPEC 2.48), que además agregó el lado de la *devolución* -- hasta entonces `condicion_cargador_devolucion` existía en el modelo pero ningún flujo lo escribía.
 
 ### 2.5.4 Estructura del campo `datos_accion` por transición con efecto
 
@@ -905,6 +905,16 @@ A diferencia del resto de los módulos con aislamiento por sede (2.8), una guía
 ### 2.9.5 Sin documento PDF
 
 La guía es solo un registro dentro del sistema (listado + detalle) — no genera ningún documento PDF descargable.
+
+### 2.9.6 Fix UI: nombre de categoría oculto en el selector de equipos (18-sep-2026)
+
+Javier, probando el módulo: *"Sería bueno que en eso del guía de despacho salga el tipo de equipo. Sale el ícono, pero la idea es que también salga por nombre."* En `SelectorActivos` (el listado de equipos disponibles al crear una guía), el ícono de categoría siempre se mostraba, pero el nombre de la categoría al lado (`asset.categoria.nombre`) tenía la clase `hidden lg:inline` -- solo visible en pantallas ≥1024px, invisible en las demás. Se saca esa condición: el nombre queda siempre visible, sin importar el ancho de pantalla.
+
+**Segunda ubicación, mismo día:** Javier: *"¿Dónde se supone que agregaste el nombre ya que no sale acá en el guía de despacho? Cuando la estoy creando."* El primer fix solo tocó la tabla completa de equipos disponibles -- la franja de "equipos seleccionados" (los chips que aparecen arriba apenas se elige uno o más, que es lo que se ve de inmediato al crear la guía) tenía el mismo problema pero nunca mostraba el nombre de categoría, con o sin `hidden`: solo icono + marca/modelo + serie. Se agrega el nombre de categoría también ahí.
+
+### 2.9.7 Se quitan los botones de filtrar/limpiar del listado (18-sep-2026)
+
+Javier, probando el listado: *"En el dashboard de guía de despacho hay como dos íconos. Uno para filtro y otro para resetear. Encuentro que no es necesario ya que hay tan pocos filtros que se puede hacer de manera manual."* Se quitan ambos botones del listado (`/guias-despacho`): el de enviar el formulario (ícono `Filter`, redundante desde que la búsqueda ya debouncea sola, SPEC 2.14.1) y el de "Limpiar filtros" (ícono `RefreshCw`), que con solo un buscador de texto y un `<select>` de estado no aporta frente a limpiarlos a mano. El formulario sigue aceptando Enter (`handleSearch` no se tocó) y la búsqueda sigue debounceando automáticamente; solo se sacaron los botones.
 
 ---
 
@@ -2278,8 +2288,279 @@ nunca debió existir como fila separada.
 
 ---
 
+## 2.41 La devolución deja de ser una acción suelta, y limpieza de la ficha del empleado (15-sep-2026)
+
+Tercera pasada de QA de Javier, ya con el sistema corriendo. Todo lo de esta sección viene de una misma idea suya, dicha primero como regla de negocio y después aplicada pantalla por pantalla.
+
+**1. Una devolución solo ocurre dentro de un proceso.** Palabras de Javier: *"en asignaciones la unica manera de devolver un equipo es dando de baja a una persona o cambiando su equipo"*. Hasta ahora había un botón "Registrar Devolución" suelto en tres lugares — la flecha de la tabla de Asignaciones, el botón del detalle de la asignación, y cuatro botones "Devolver" en la ficha del empleado — que permitían devolver un equipo sin que existiera una desvinculación ni un cambio de equipo detrás. Eso deja devoluciones sin causa registrada: el equipo vuelve a `disponible` y no queda rastro de por qué dejó de estar con esa persona. Se quitan los seis puntos de entrada. La devolución se sigue ejecutando exactamente igual, pero solo desde el flujo de Solicitudes (desvinculación o cambio de equipo), que es donde sí queda el motivo, el documento y la transición.
+
+**2. Se elimina el acta de entrega por asignación.** Pedido explícito: *"el tema de crear esa acta con ese formato, bórralo. No se va a usar. Ya que ya lo tenemos en solicitudes"*. Era un segundo generador de documentos, hecho con jsPDF en vez de las plantillas React-PDF del resto del sistema, que producía un formato distinto para el mismo hecho. No deja hueco: Solicitudes ya genera los tres documentos del proceso (`generateAnexoEntrega`, `generateComprobanteCambio`, `generateActaDevolucion`). La ruta `/api/asignaciones/[id]/acta` queda como stub 410 con el mensaje que explica dónde está ahora, mismo criterio que se usó con Proveedores en 2.35.
+
+**3. La flecha de volver del detalle de asignación no llevaba a ninguna parte.** Apuntaba a `/asignaciones`, que no existe como página; el listado real es `/activos/asignaciones`. Corregido en los dos lugares donde aparecía.
+
+**4. Microsoft 365 en la ficha del empleado mostraba un Sí/No.** Pedido de Javier: *"la idea es que la licencia, más que un booleano, salga el texto que indica el tipo de licencia"*. El dato ya existía en el modelo (`tipoLicenciaMicrosoft365`, SPEC 2.23) y ya salía en la exportación a Excel, pero la API de la ficha no lo devolvía. Ahora la ficha muestra el nombre del plan; el Sí/No solo se usa como respaldo cuando hay licencia marcada pero sin plan registrado.
+
+**5. Las tarjetas de Kit de Bienvenida y EPP mostraban la fecha de entrega.** Razón de Javier para sacarla: *"eso se entrega el día que viene, que se coordina la entrega de equipo, así que no es necesario ese dato ahí"*. La fecha no aporta nada en esa vista porque coincide siempre con la entrega del equipo. Queda solo el estado (Entregado / Pendiente). **Corrección del mismo día:** la "Próxima Mantención" del EPP, que en un primer momento se dejó por ser la única fecha que "dice cuándo hay que hacer algo", también se sacó a pedido de Javier -- la ficha del empleado queda mostrando solo el estado en ambas tarjetas, sin ninguna fecha.
+
+**6. Se elimina también la página suelta `/asignaciones/devolucion`.** Al revisar el punto 1, quedaban tres accesos más que llevaban a la misma pantalla de devolución directa sin pasar por Solicitudes: el drag del Kanban de Activos (arrastrar un equipo asignado a "Disponible" o "Baja"), y el aviso de "tiene una asignación activa" al intentar dar de baja un activo (frontend y backend). Los tres ahora redirigen a `/solicitudes/nueva`, mismo criterio que ya usaba el propio Kanban para el drag de "entregar" (`disponible → asignado`). La página se elimina (no queda stub porque no tenía URL pública documentada ni enlaces externos, a diferencia del acta y el reporte RRHH).
+
+**7. Se elimina la dependencia `jspdf` / `jspdf-autotable` del `package.json`.** Javier lo pidió (*"conviene sacar la dependencia ya que solo estamos usando la de solicitudes"*). El único uso que quedaba era `/api/desvinculaciones/[id]/reporte-rrhh` (reporte RRHH en PDF de una desvinculación, botón en su detalle), que no tiene plantilla React-PDF equivalente todavía. Ese reporte también queda como stub 410 -- Javier decidió sacarlo ahora en vez de mantener la dependencia solo para esa ruta (*"borralo ya no sera necesario"*). Se elimina también `ReturnAssetModal.tsx`, componente que había quedado sin ningún lugar que lo usara tras el punto 1.
+
+
+---
+
+## 2.42 La coordinación de fecha/medio/lugar se fusiona con la asignación del equipo (15-sep-2026)
+
+Pedido de Javier probando Solicitudes: *"el tema de coordinar fecha... dejarlo para definirlo al inicio también cuando se asigna el equipo, para así hacemos todo de una en vez de varios pasos"*, confirmado para los tres tipos de solicitud, no solo onboarding.
+
+**El problema.** Los tres flujos (Onboarding, Cambio de Equipo, Desvinculación) tenían una etapa de workflow dedicada solo a coordinar fecha, medio (presencial u OT de despacho) y lugar de entrega/cambio/devolución, **separada** del paso en el que se elegía o ejecutaba el equipo:
+
+- Onboarding: `gestion_ti` (elegir/entregar equipos) → `coordinando_entrega` (fecha/medio/lugar) → `equipos_entregados`.
+- Cambio de equipo: `incidencia_detectada` (fecha/medio/lugar) → `coordinando_cambio` → `cambio_ejecutado` (elegir equipo nuevo y devolver el viejo).
+- Desvinculación: `solicitud_emitida` (fecha/medio/lugar) → `coordinacion_en_curso` → `equipo_recibido` (calificar cada equipo devuelto).
+
+Eso obligaba a un click y una pantalla extra por ticket, sin que la fecha dependiera de nada que se supiera recién en el paso siguiente.
+
+**La solución.** Se elimina la etapa de coordinación como estado propio en los tres flujos; los campos de fecha/medio/lugar se piden en la misma pantalla y se guardan en la misma transición que ya asignaba/ejecutaba el equipo:
+
+- Onboarding: `gestion_ti → equipos_entregados` directo. La tarjeta "Gestión TI" pasa a incluir el formulario de fecha/medio/lugar una vez cubiertas todas las categorías requeridas, con un solo botón para cerrar la etapa.
+- Cambio de equipo: `incidencia_detectada → cambio_ejecutado` directo. La misma tarjeta que hoy elige el equipo nuevo (`SeleccionarCambioEquipo`) ahora también pide fecha/medio/lugar arriba, y el botón que ya ejecutaba el cambio manda todo junto.
+- Desvinculación: `solicitud_emitida → equipo_recibido` directo. La tarjeta "Recibir Equipos" pasa a incluir fecha/medio/lugar además de la calificación de cada equipo/EPP devuelto.
+
+Los campos en sí (`fechaEntregaCoordinada`, `medioEntrega`, `lugarEntrega`, `otChilexpressEntrega`, `ciudadEntrega` y sus equivalentes para cambio/devolución) no cambiaron -- siguen siendo las mismas columnas de `WorkflowRequest` de SPEC 2.5.2 regla 9. Lo único que cambió es en qué transición se piden.
+
+**Estados eliminados del enum `EstadoSolicitud`:** `coordinando_entrega`, `coordinando_cambio`, `coordinacion_en_curso`. Postgres no permite quitar valores de un enum con `ALTER TYPE`, así que la migración (`20260915030000_fusiona_coordinacion_con_asignacion`) recrea el tipo, igual que se hizo con `reutilizable` en 2.40: las solicitudes de prueba que estuvieran en alguno de esos tres estados retroceden al estado anterior (el que ahora asume también la coordinación), y el historial de transiciones (`WorkflowTransition`, que sí conserva registros con esos valores) se remapea de la misma forma solo para que la conversión de columna no falle -- el texto de cada transición pasada no se reescribe.
+
+**Un efecto colateral corregido de paso:** `POST /api/solicitudes` (crear una solicitud de onboarding con equipos ya elegidos al momento de crear el ticket) saltaba directo a `coordinando_entrega` si esos equipos ya cubrían todas las categorías requeridas. Como esa etapa ya no existe, ahora ese caso también arranca en `gestion_ti` -- que es exactamente donde, con este cambio, se termina pidiendo la fecha/medio/lugar.
+
+
+## 2.42.1 La coordinación también se puede completar al crear el ticket, no solo después (15-sep-2026)
+
+Javier, probando la 2.42 con un onboarding real: *"pero se supone que eso me debería salir solamente en las nuevas solicitudes, porque tengo una creada que aún me pide la fecha"*. Al aclarar, el pedido real era otro: *"yo quería que eso se ingresara al inicio cuando se crea la solicitud y asigno equipos"* -- no que la fecha se pida en Gestión TI (como quedó en 2.42), sino en el mismo formulario de "Nueva Solicitud", en el momento en que ya se están eligiendo los equipos, para no tener que volver a abrir el ticket después. Confirmado para los tres flujos.
+
+**La solución.** `/solicitudes/nueva` gana los mismos campos de fecha/medio/lugar de la 2.42, mostrados justo debajo de la selección de equipo de cada flujo:
+
+- Onboarding: aparecen en cuanto se reserva al menos un equipo en "Equipos Requeridos". Si al enviar el formulario esos equipos cubren **todas** las categorías requeridas, el ticket nace directo en `equipos_entregados` (se salta Gestión TI por completo). Si falta alguna categoría, los datos igual se guardan -- Gestión TI, al completar lo que falta, ya no vuelve a pedirlos (quedan precargados desde `WorkflowRequest`).
+- Cambio de equipo: aparecen en cuanto se completa la selección de equipo viejo + nuevo (`SeleccionarCambioEquipo`, modo embebido). El ticket ya nacía en `confirmacion_rrhh` de inmediato en ese caso; ahora además queda con la coordinación guardada desde el principio.
+- Desvinculación: se agregan `fechaDevolucionCoordinada` y "Lugar de devolución" junto a los campos de devolución que ya existían ahí (`medioDevolucion`, `otChilexpress`, `ciudadDevolucion` -- SPEC 2.5.2 regla 9, sin cambios).
+
+No se agregaron campos nuevos a `WorkflowRequest`: son exactamente las mismas columnas de la 2.42, ahora aceptadas también por `POST /api/solicitudes` (antes solo la transición las guardaba). El caso de la 2.42 sigue intacto para cuando NO se coordina al crear (p.ej. onboarding con categorías sin equipo todavía, a la espera de stock): ahí la coordinación se sigue pidiendo en Gestión TI, exactamente como quedó en 2.42.
+
+**Sobre el ticket de prueba que Javier vio pidiendo la fecha:** era el mismo caso de siempre -- se creó con equipos elegidos pero sin este cambio todavía, así que entró a Gestión TI (2.42) a esperar la coordinación ahí. No es un bug: los tickets nuevos, creados después de este cambio, ya no necesitan ese paso si se coordina la entrega de una vez al crearlos.
+
+## 2.43 Desvincular deja de ser una edición del empleado (16-sep-2026)
+
+Javier, probando el módulo Personal: *"al editar los datos de empleado sale el botón de desvincular, este botón se debe sacar"*. Al preguntarle por el atajo equivalente que había más abajo en el mismo formulario, confirmó: *"si sacar eso y también el formulario de kit de bienvenida y epp"*.
+
+**El problema.** El formulario de editar empleado (`/empleados/[id]/editar`) permitía desvincular por dos caminos, ninguno de los cuales pasaba por una Solicitud:
+
+1. Un botón rojo "Desvincular" en el encabezado, que llamaba a `DELETE /api/empleados/[id]` -- un *soft delete* que dejaba al empleado en estado `desvinculado`.
+2. El desplegable "Estado", que ofrecía `Desvinculado` como una opción más, junto a Activo y En Licencia.
+
+Es la misma clase de agujero que SPEC 2.41 cerró para las devoluciones: una desvinculación no es un cambio de dato, es un proceso -- hay equipos que devolver, un estado en que vuelven y un motivo que registrar. Hacerlo desde el formulario dejaba al empleado marcado como desvinculado sin nada de eso. El `DELETE` al menos se negaba si el empleado tenía equipos activos, pero el desplegable ni eso: guardaba el estado sin mirar.
+
+**La solución.** Se saca el botón (con su modal de confirmación y su `handleDelete`) y se saca `Desvinculado` del desplegable, que queda en Activo / En Licencia. `PUT /api/empleados/[id]` rechaza ahora el *cambio* a `desvinculado` con un 400 que apunta a `/solicitudes/nueva`, y `DELETE /api/empleados/[id]` queda como stub 410 (mismo criterio que proveedores en 2.35 y el acta de asignación en 2.41: la ruta se retiró a propósito, no es un 404 de ruteo). La Solicitud de desvinculación no se ve afectada -- actualiza al empleado con Prisma dentro de la misma transacción que procesa las devoluciones, no a través de esta ruta.
+
+Un empleado que **ya** está desvinculado se sigue pudiendo editar: en ese caso el campo Estado se muestra de solo lectura, con la nota de que se reincorpora creando un onboarding. Sin eso, al haber sacado la opción del desplegable, guardar cualquier otro cambio lo habría devuelto a "activo" sin que nadie lo pidiera. El guard del backend distingue lo mismo: rechaza la transición a desvinculado, no el hecho de que el empleado ya lo esté.
+
+**Kit de Bienvenida y EPP.** Se saca también del formulario esa sección completa (Fecha Entrega Kit de Bienvenida, Fecha Entrega EPP, Próxima Mantención EPP) y los tres campos dejan de escribirse desde `PUT /api/empleados/[id]`. Eran tres fechas sueltas escritas a mano, sin relación con las entregas reales: una entrega hecha desde una Solicitud crea un `KitAssignment` y descuenta stock, pero nunca tocaba esas fechas.
+
+Eso destapó un defecto que ya existía: `GET /api/empleados/[id]/ficha` calculaba `kitEntregado`/`eppEntregado` **desde esas fechas**, así que las tarjetas Kit/EPP de la ficha decían "Pendiente" aunque el kit se hubiera entregado de verdad desde una Solicitud -- solo se ponían en "Entregado" si alguien escribía la fecha a mano. Ahora se deducen de los `KitAssignment` del empleado (`estado: 'entregado'`, separados por `item.categoria`), que es donde la entrega real queda registrada. La ficha ya consultaba esa relación; solo no la usaba para esto. De paso, la respuesta deja de mandar `fechaEntrega`/`proximaMantencion` en esas dos tarjetas, que el frontend ya no muestra desde 2.41.
+
+**Sin migración.** Las columnas `fechaEntregaKit`, `fechaEntregaEpp` y `proximaMantencionEpp` de `Employee` quedan en la base pero ya nadie las lee ni las escribe (siguen aceptadas en `employee.ts` por las validaciones de crear/actualizar, sin efecto). Se dejan a propósito para no meter una migración en medio de las pruebas manuales; quedan pendientes de eliminar junto con sus campos de validación cuando Javier lo decida.
+
+---
+
+## 2.44 Orden visual y consistencia en el formulario de Desvinculación (16-sep-2026)
+
+Javier, probando la Desvinculación de Valentina Cárdenas (caso 3 de la nueva coordinación al crear, SPEC 2.42.1): *"hay dos errores, primero hay que usar algo tipo hr para separar las cosas en el formulario separando coordinar devolucion, además solo deben haber dos metodo de devolucion chilexpress y presencial se coloca lugar de ubicacion y fecha y hora de devolucion, si es chilexpress el ot, la ubicacion destino y la fecha estimada de llegada, sale el campo sede pero como es de un empleado ya asignado a una sede este campo deberia estar marcado automaticamente"*.
+
+Tres correcciones puntuales al formulario de creación (`/solicitudes/nueva`, tipo Desvinculación):
+
+1. **Separación visual.** La coordinación de devolución (medio/fecha/lugar) vivía mezclada, en la misma grilla de 2 columnas, con "Fecha Desvinculación". Ahora queda en su propia tarjeta, separada con un `<hr>` y el título "Coordinar Devolución" -- mismo criterio de agrupar que ya usan Onboarding y Cambio de Equipo (SPEC 2.42.1), donde la coordinación vive en su propio bloque dentro de la tarjeta del equipo.
+2. **Dos medios, no tres.** "Medio de Devolución" era un `<select>` con Presencial / Chilexpress / **Otro Courier** -- el tercero no tenía campos propios (compartía "Ubicación" con Chilexpress) y quedaba fuera del patrón presencial-o-despacho de los otros dos flujos. Se saca, y el campo pasa a ser un radio (Presencial / Despacho Chilexpress) igual que en Onboarding y Cambio de Equipo. Con eso, "Ubicación" -- que antes se mostraba siempre, sin relación con el medio elegido -- ahora es exclusiva de Chilexpress ("Ubicación de destino"), y ya no compite con "Lugar de devolución" (exclusivo de Presencial, agregado en 2.42.1).
+3. **Sede automática.** El selector de Sede, en este formulario, decide a qué sede queda ligada la solicitud -- tiene sentido para Cambio de Equipo (que lo comparte) y para Onboarding, donde recién se está definiendo. Pero en Desvinculación el empleado **ya pertenece** a una sede, así que dejarla editable permitía armar, por descuido, un ticket con una sede distinta a la del empleado. Ahora se fija sola al elegir al empleado (misma sede que tiene registrada) y se muestra de solo lectura. Cambio de Equipo, que comparte el mismo bloque de Sede en el código, no se tocó -- Javier no pidió cambiar ese flujo y ahí sí tiene sentido que sea elegible (puede haber traslados en curso).
+
+Sin cambios de modelo ni de validaciones del backend -- son ajustes de formulario. `medioDevolucion` sigue siendo texto libre en el schema (`z.string()`, no un enum), como ya era desde antes de este cambio; solo la UI deja de ofrecer un tercer valor.
+
+---
+
+## 2.45 Elegir el equipo a cambiar deja de ser opcional (16-sep-2026)
+
+Javier, probando Cambio de Equipo, encontró el mismo problema que 2.44 ya había corregido en Desvinculación (la sede editable de un empleado que ya pertenece a una) y pidió, además: *"hay que implementar validaciones como si no hay un equipo disponible para cambiar simplemente no permite realizar el cambio y que si o si se deba elegir un equipo para cambiar para crear la solicitud por eso borra el mensaje que dice: Equipo a cambiar (opcional -- si no lo eliges ahora, se hace después)"*.
+
+**Sede.** Mismo fix que 2.44, extendido a Cambio de Equipo: al elegir al empleado, la Sede se fija sola a la suya y queda de solo lectura. Antes solo se había corregido en Desvinculación porque Javier no había pedido tocar Cambio de Equipo en ese momento; con este pedido, la razón (el empleado ya pertenece a una sede, no tiene sentido dejarla elegible aparte) aplica igual.
+
+**Equipo a cambiar, obligatorio.** Antes, el equipo viejo + su estado + el reemplazo eran opcionales al crear el ticket: si no se completaban, la solicitud nacía en `incidencia_detectada` para resolverse después desde el detalle. Ahora hacen falta los tres para poder crear la solicitud -- se saca el mensaje "(opcional -- si no lo eliges ahora, se hace después)" y `handleSubmit` bloquea el envío si `cambioSeleccion` no está completo. La validación se refuerza también en el backend: `oldAssignmentId`, `newAssetId` y `estadoDevolucionAnterior` pasan de opcionales a obligatorios en `cambioEquipoFields` (el superRefine que exigía "si viene alguno, deben venir los tres" queda redundante y se saca).
+
+Consecuencia directa, que es justo lo pedido: si no hay equipo de reemplazo disponible en el inventario de la sede, `SeleccionarCambioEquipo` ya avisaba "No hay equipo disponible de X" -- ahora, al ser obligatorio completar la selección, esa falta de stock bloquea la creación de la solicitud completa, no solo el cambio. Se agrega una línea al aviso ("No podrás crear la solicitud hasta que haya stock") cuando el componente se usa embebido en el formulario de creación.
+
+El estado inicial `incidencia_detectada` de `TipoSolicitud.cambio_equipo` no se eliminó -- las transiciones manuales que ya usaba (para tickets creados antes de este cambio) siguen funcionando igual desde el detalle. Lo que cambia es que, de ahora en adelante, ningún ticket nuevo nace ahí: siempre llega ya con el cambio ejecutado (`confirmacion_rrhh`), porque el equipo es obligatorio desde la creación.
+
+---
+
+## 2.46 Coordinar el cambio deja de depender de completar la selección de equipo (16-sep-2026)
+
+Javier, probando Cambio de Equipo tras 2.45: *"En el cambio de equipo también falta especificar, básicamente coordinar el cambio. Si va a ser presencial, lo mismo que con entrega o devolución, pero en este caso para cambio. Y la idea es que también se hagan el mismo formulario."*
+
+La tarjeta "Coordinar Entrega del Reemplazo" (fecha/medio/lugar u OT+ciudad) ya existía desde 2.42.1, pero solo se mostraba una vez completada la selección del equipo (`cambioSeleccion`: equipo viejo + su estado + reemplazo elegidos) -- a diferencia de Onboarding y Desvinculación, donde la coordinación se muestra siempre, apenas se elige al empleado. Si en la sede de prueba no había stock de reemplazo disponible, `cambioSeleccion` nunca llegaba a completarse y la tarjeta de coordinación no aparecía nunca, lo que la hacía parecer inexistente.
+
+Se saca esa dependencia: la tarjeta de coordinación ahora se muestra siempre que hay un empleado seleccionado (igual que en los otros dos flujos), separada con `<hr>` + `<h4>` en vez del `<h3>` suelto que tenía -- mismo patrón visual que "Coordinar Devolución" (2.44). Sin cambios de validación ni de modelo: `handleSubmit` seguía (y sigue) exigiendo `cambioSeleccion` completo antes de llegar a chequear los campos de coordinación, así que el comportamiento de creación de la solicitud no cambia, solo la visibilidad del formulario.
+
+---
+
+## 2.47 Documentos disponibles en los tres procesos (16-sep-2026)
+
+Javier: *"cierto que cada proceso genera una plantilla. Ya, por lo que veo, solo esa plantilla solo está en un boarding. Eso debería estar en los tres procesos, onboarding, offboarding y cambio de equipo."*
+
+Los cuatro documentos PDF (Anexo/Comprobante de Entrega, Comprobante de Cambio, Acta de Devolución) ya existían en el backend desde antes -- `documentGeneratorService.ts` y la ruta `GET /api/solicitudes/[id]/documento/[tipo]` los generaban los cuatro sin problema. Lo que faltaba era el botón: el detalle del ticket (`/solicitudes/[id]`) solo tenía el link de descarga ("Generar plantilla") en la tarjeta de cierre de Onboarding -- Offboarding y Cambio de Equipo no tenían ningún lugar en la pantalla desde donde pedir su comprobante.
+
+Se junta en una sola tarjeta "Documentos", independiente de la máquina de estados (antes el botón vivía pegado al paso previo a cerrar el ticket; para Cambio de Equipo, que desde SPEC 2.45 se ejecuta y cierra de inmediato al crearse, no existe ese "paso previo" al que engancharse). Aparece apenas el equipo ya se entregó/devolvió/cambió (`equipos_entregados`/`equipo_recibido`/`cambio_ejecutado`, o sus estados de cierre), y se mantiene visible después de cerrado el ticket por si hay que volver a descargar el documento.
+
+El mismo hueco existía también en el listado (`/solicitudes`): el ícono de descarga directa en la tabla, sin entrar al detalle, tenía el mismo comentario "por ahora solo onboarding" y el mismo criterio pendiente de extender. Se corrige con el mismo mapeo tipo→documento y el mismo criterio de "listo para descargar" que la tarjeta del detalle.
+
+---
+
+## 2.48 Estado del cargador al devolver, extendido a los tres procesos (16-sep-2026)
+
+Javier: *"cuando se cambia un equipo, o sea, en este caso en específico, cuando se cambia un notebook, normalmente también se pregunta el estado del cargador. Y eso también se imprime en la plantilla. Así que siempre que se elige un notebook, habría que hacer que se ingrese el cargador."* Al preguntarle en qué momentos y con qué formato: *"en los 3 procesos"*, con las mismas opciones que ya se usan para calificar el equipo mismo (Ok/Dañado/No aplica al entregar, Ok/Dañado/No aplica al devolver).
+
+Investigando, esto ya estaba parcialmente construido: el modelo `Assignment` tiene `condicionCargadorEntrega`, `condicionCargadorDevolucion` y `observacionesCargador` desde antes (regla 9 de SPEC 2.5.3), y Onboarding ya pedía el cargador al entregar equipos desde la pantalla de Gestión TI (`SeleccionarEquiposOnboarding.tsx`). Pero la regla decía explícitamente *"se implementa primero en onboarding (entrega); cambio_equipo y offboarding quedan pendientes"* -- y ni siquiera el lado de la **devolución** estaba conectado en ningún flujo: `executeReturn()` no tenía parámetro para el cargador, así que `condicionCargadorDevolucion` nunca se escribía, para ningún proceso.
+
+Se completa el patrón en las tres direcciones que faltaban:
+
+1. **`executeReturn()`** (workflowExecutionService.ts) acepta ahora `condicionCargadorDevolucion`/`observacionesCargador`, y los guarda solo si el activo es un notebook con `tieneCargador` (igual criterio que `executeAssignment`).
+2. **Offboarding:** se pide el estado del cargador junto a la calificación de cada equipo devuelto (Buen estado/Dañado/No devolvió), tanto al crear el ticket con los equipos ya en mano (`/solicitudes/nueva`) como en el paso "Recibir Equipos" del detalle.
+3. **Cambio de Equipo:** `SeleccionarCambioEquipo.tsx` (compartido entre creación y detalle) pide el cargador del equipo que se devuelve *y* del equipo de reemplazo, cada uno solo si ese equipo puntual tiene cargador.
+4. **Onboarding, al crear el ticket:** la selección de equipos en `/solicitudes/nueva` (que hasta ahora solo mandaba `assetIdsSeleccionados`, una lista plana de ids) también pide el cargador por equipo reservado -- antes solo se pedía en Gestión TI, un paso posterior; ahora se puede completar desde el inicio, igual que el resto de los datos (SPEC 2.42.1).
+5. **En las plantillas:** el Comprobante de Entrega (que debe ser fiel al formato de la herramienta externa, sin columnas nuevas) suma el dato como una línea más de la descripción del equipo ("Cargador: Ok"); el Acta de Devolución y el Comprobante de Cambio, que no tienen esa restricción, suman una columna "Cargador" a su tabla.
+
+El campo sigue siendo puramente informativo -- no cambia el estado ni la condición del Activo, ni gatilla baja, igual que ya establecía la regla 9. El Anexo de Entrega (`AnexoEntregaTemplate`/`generateAnexoEntrega`) no se tocó: es una plantilla que ya estaba sin ningún botón que la generara desde la interfaz (huérfana), fuera del alcance de este pedido.
+
+---
+
+## 2.49 Mismo formato visual en los tres documentos (16-sep-2026)
+
+Javier: *"todas las solicitudes deben seguir el mismo formato que tiene los de onboarding"*. Al confirmar el alcance: mismo diseño visual completo -- logo, colores, tipografía y tabla, no solo la redacción.
+
+El Comprobante de Entrega (onboarding) tenía un diseño propio -- logo SCL, paleta de colores, badges "SAP Partner"/"UiPath", tabla con bordes finos -- fiel a como lo pedía Javier desde que se implementó (debía calzar con la herramienta externa que reemplazó). El Acta de Devolución y el Comprobante de Cambio, en cambio, usaban el estilo genérico de `pdfStyles.ts`: sin logo, encabezado de texto plano, tabla con header azul sólido. Quedaban visualmente como dos sistemas de documentos distintos.
+
+Se extrae el logo, los colores y el estilo de tabla del Comprobante de Entrega a un módulo nuevo, `pdfSclBrand.tsx` (componente `LogoSCL` + estilos `sclStyles`), y se reescriben las otras dos plantillas sobre esa misma base: mismo encabezado con el logo, mismo título centrado, misma redacción de intro ("A través del presente con fecha..."), misma tabla de 4 columnas (Equipo / Marca / Descripción de equipo / Estado) y mismas firmas. El Comprobante de Entrega no cambió visualmente -- solo pasó a importar los estilos desde el módulo compartido en vez de tenerlos duplicados.
+
+La columna "Descripción de equipo" se usa distinto según el documento, a propósito: en la entrega (onboarding) sigue mostrando las especificaciones técnicas del equipo nuevo (procesador, RAM, etc. -- lo que ya tenía). En devolución y cambio, donde lo que importa es identificar el equipo físico concreto que se devuelve, muestra modelo y N° de serie. En ambos casos, si el equipo es un notebook con cargador, se agrega "Cargador: Ok/Dañado/No aplica" al final de la descripción (SPEC 2.48) -- se descarta el enfoque de columna aparte para Cargador que se había probado primero, porque el formato de la herramienta externa no tiene esa columna.
+
+---
+
+## 2.50 Bug: equipo devuelto vacío en Comprobante de Cambio, y firma sin correo (16-sep-2026)
+
+Javier, probando el Comprobante de Cambio: *"no sale la información del equipo devuelto. También en gestión realizada la idea es que solamente salga el nombre del usuario. No es necesario que salga el correo entre paréntesis."*
+
+**Equipo devuelto vacío.** `generateComprobanteCambio` buscaba el equipo anterior leyendo `datosAccion.oldAssignmentId` de la transición histórica `cambio_ejecutado` -- eso solo existe para tickets ejecutados manualmente desde el detalle (`incidencia_detectada` → `cambio_ejecutado`). Desde SPEC 2.45, un ticket creado con el equipo ya elegido se ejecuta y cierra de inmediato al crearse, sin pasar nunca por esa transición -- así que para todo ticket nuevo `datosAccion` venía vacío y "Equipo devuelto (anterior)" salía en blanco. Se corrige leyendo directamente `WorkflowRequest.assignmentIds`, que en los dos caminos de ejecución (creación directa y transición manual) guarda `[oldAssignmentId, newAssignmentId]` en ese orden -- sin depender del historial de transiciones.
+
+**Firma con correo.** El Comprobante de Cambio y el Acta de Devolución firmaban "Gestión realizada por: Nombre (correo@...)" -- el Comprobante de Entrega, en cambio, ya firmaba solo con el nombre, a pedido explícito de Javier desde que se implementó. Se uniforman los tres (y de paso el Anexo de Entrega, que aunque no tiene botón que lo genere, usa el mismo helper) para firmar solo con el nombre. Se elimina `nombreConCorreo()`, que quedó sin uso.
+
+---
+
+## 2.51 Filtro de período en las tarjetas de Mantenciones (16-sep-2026)
+
+Javier, probando el módulo de Mantenciones: *"Las tarjetas de mantenciones también [siguen el mismo formato]. Sin embargo, me gustaría cambiar dos tarjetas en particular. La tarjeta que dice próximas mantenciones y mantenciones completadas. Por defecto están por mes. Sin embargo, pienso que sería mejor una buena idea colocar como un filtro donde pueda indicar, por ejemplo, el día, semana, mes, trimestre, seis meses y el año. Pienso que sería un buen filtro, en vez de algo estático."*
+
+Las tarjetas "Próximas" y "Completadas" tenían una ventana fija: "Próximas (30 días)" y "Completadas (mes)". Primer intento: un selector de período en cada tarjeta -- Javier corrigió el lugar: *"la idea es que el filtro esté con los demás filtros, no en la tarjeta... y ya poniendo ese filtro del día, se va adaptando las tarjetas"*. Queda como un solo selector (Día / Semana / Mes / Trimestre / 6 meses / Año) en la barra de filtros de arriba, junto a Tipo y Estado, que controla las dos tarjetas a la vez -- no dos filtros independientes.
+
+De paso, revisando el endpoint (`GET /api/mantenciones/pendientes`), aparecieron dos bugs preexistentes que se corrigen de encargo:
+
+1. **"Completadas (mes)" nunca tuvo ventana de tiempo real.** El número salía de `porEstado`, un conteo agrupado por estado sin ningún filtro de fecha -- contaba **todas** las mantenciones completadas desde siempre, aunque la tarjeta dijera "(mes)". Se agrega un conteo propio, acotado por `fechaRealizada` dentro del período elegido.
+2. **La ruta no respetaba el selector de sede del nav.** A diferencia de `/api/mantenciones` (el listado), `pendientes` no leía ningún `sedeId` de la URL -- las cuatro tarjetas no cambiaban al elegir otra sede en el menú. Se agrega el mismo patrón que ya usa el listado (`sedeId` solo se aplica si la sesión tiene visibilidad total).
+
+---
+
+## 2.52 Programar Mantención: el punto de entrada pasa a ser el equipo, no el empleado (18-sep-2026)
+
+Javier, probando el módulo de Mantenciones: *"de hecho, las mantenciones solo se pueden hacer por empleados. Cosa que está bien, pero yo diría que lo mejor podría ser, eh, debería estar las dos opciones. Seleccionar el empleado y su equipo y otra solamente el equipo. ¿Qué opinas de eso?"* Repensándolo después: *"nos estamos guiando por el empleado, cosa que no debería ser así, ya que en sí el activo principal de este programa es el activo, o sea, los equipos. Yo diría que se debería buscar por equipo y no por empleado, para empezar."*
+
+El modelo `Maintenance` nunca tuvo `employeeId` -- se guarda solo por `assetId`, así que el backend ya soportaba programar una mantención sobre cualquier equipo sin pasar por un empleado. La limitación era puramente del wizard `/mantenciones/programar`: su Paso 1 exigía elegir primero un empleado para ver solo sus activos asignados, dejando fuera los equipos en bodega o sin asignar.
+
+Se reemplaza ese Paso 1 por un buscador de equipos directo (mismo patrón que `SelectorActivos` de Guías de Despacho): campo de texto por marca/modelo/serie/empleado asignado, más un filtro de categoría, sobre el listado completo de inventario (`GET /api/activos?limit=500`, sin filtro de estado -- un equipo disponible, asignado o incluso en mantención previa debe poder encontrarse ahí). Si el equipo tiene un empleado asignado, se muestra como dato informativo en la fila y en el resumen de los pasos 2 y 3, pero ya no es el punto de entrada ni un paso separado. El flujo por `?activoId=` (usado desde la ficha de un activo) no cambió.
+
+Pedido explícito de Javier, con corrección posterior del propio Javier sobre el diseño (single-mode por activo, no dos modos con empleado como alternativa).
+
+### 2.52.1 Fix: el buscador de equipos no respetaba la sede del nav (18-sep-2026)
+
+Javier probando el cambio anterior: *"Nos falta la opción de sede. Porque si no, vamos a ver todos los activos. Tengo dos opciones: agregar otro filtro indicando la sede, o que lo tome de manera automática con el selector que tenemos para todo."* Se optó por la segunda: se conecta `useSedeSeleccionada()` (el selector del nav) al buscador de equipos, igual que ya hacen Activos, Mantenciones (listado), Solicitudes, Asignaciones y Kit/EPP -- ninguna de esas pantallas tiene un filtro de sede propio, solo Guías de Despacho, donde la sede es un dato del documento y no un filtro de lista. `fetchAssets()` ahora manda `sedeId` a `GET /api/activos` cuando hay una sede elegida, y se re-ejecuta cada vez que el selector cambia.
+
+---
+
+## 2.51.1 Fix: el filtro de período (2.51) solo acotaba las tarjetas, no la tabla (18-sep-2026)
+
+Javier, probando Mantenciones: *"Si, por ejemplo, aprieto día, me salen las mantenciones de cualquier fecha. Semana también. Por lo que veo, solamente le está aplicando este filtro a las tarjetas. Cosa que debería hacer a todo, a todo el módulo mantenciones."* Correcto: el selector de período (SPEC 2.51) solo viajaba a `GET /api/mantenciones/pendientes` (las tarjetas "Próximas"/"Completadas"); el listado de abajo (`GET /api/mantenciones`) no lo recibía y seguía mostrando todas las mantenciones sin ninguna ventana de tiempo.
+
+Se extiende `GET /api/mantenciones` con los mismos parámetros `dias`/`diasCompletadas` que ya acepta `/pendientes`, aplicando la misma lógica: vencidas y en proceso se listan siempre, sin ventana (una vencida sigue siendo relevante sin importar hace cuánto venció, y lo mismo una en proceso); próximas quedan dentro de `dias` (por `fechaProgramada`); completadas quedan dentro de `diasCompletadas` (por `fechaRealizada`); canceladas y pendientes sin fecha programada tampoco tienen una ventana natural que aplicarles, así que también se mantienen siempre visibles. La pantalla manda el mismo valor de período que ya usaba para las tarjetas, y ahora también resetea a la página 1 al cambiarlo.
+
+---
+
+## 2.53 Completar Mantención: el formulario pasa a estar siempre visible, sin botón que lo abra (18-sep-2026)
+
+Javier: *"¿Qué tal si al iniciar la mantención no tenga que apretar el botón completar para llenar el formulario? Sino que el formulario ya esté ahí con los demás datos del activo y yo solo tengo que rellenarlo... Puede estar de inmediato con el detalle de la mantención. Yo lo lleno y listo. Y aprieto completar y listo. Nada más."*
+
+En `/mantenciones/:id`, el formulario de "Completar Mantención" vivía en un modal que solo aparecía al apretar el botón "Completar" en el header. Se saca el modal y el botón que lo abría: cuando la mantención está `en_proceso`, el formulario completo (fecha realizada, técnico, resultado, qué pasa con el equipo, motivo de baja si aplica, próxima mantención) se renderiza siempre como una tarjeta más en la columna izquierda del detalle, junto a "Información de la Mantención" y con los datos del activo ya visibles al costado derecho -- se llena y se aprieta "Completar Mantención" directamente, sin un paso previo para abrir el formulario. El botón "Cancelar" (que cancela la mantención completa, no cierra el formulario) se mantiene en el header. La lógica de envío (`POST /api/mantenciones/:id/completar`) no cambió, solo dónde vive el formulario en la página.
+
+### 2.53.1 "Realizado por" se llena solo, con el usuario de la sesión (18-sep-2026)
+
+Javier: *"hay un campo que dice quién realizó esta mantención... eso debería llenarse automáticamente. Al igual que donde sale la información de la mantención tiene asignado, eso se llena automático."* El campo "Realizado por" del formulario de completar pasa de ser un texto libre obligatorio a llenarse solo con el nombre de quien tiene la sesión abierta, igual que ya hace "Técnico Asignado" en `/mantenciones/programar` -- de solo lectura, sin que haya que escribirlo.
+
+### 2.51.2 Opción "Todas" en el filtro de período (18-sep-2026)
+
+Javier, tras el fix de 2.51.1: *"Al filtro de fechas nos falta un filtro, un valor universal que diga como todos, que muestre todas las mantenciones sin importar la fecha."* Se agrega "Historial completo" a las opciones del selector de período (junto a Día/Semana/Mes/Trimestre/6 meses/Año) -- nombre elegido con Javier tras descartar "Todas" por poco descriptivo. Internamente manda `dias=0`/`diasCompletadas=0`, que tanto `GET /api/mantenciones` como `GET /api/mantenciones/pendientes` interpretan como "sin ventana de tiempo": en el listado, `0 || 0` es falsy y el bloque de filtro de período no se aplica en absoluto (se ve todo, igual que antes de 2.51); en las tarjetas, "Próximas" deja de tener `fechaProgramada.lte` (cualquier fecha futura cuenta) y "Completadas" deja de tener el `fechaRealizada.gte` (cualquier fecha pasada cuenta).
+
+**Bug al probarlo, mismo día:** Javier: *"elijo filtro todas y no me sale nada."* `maintenanceFiltersSchema` validaba `dias`/`diasCompletadas` con `.min(1)` -- rechazaba el propio `0` que "Todas" mandaba, `GET /api/mantenciones` devolvía 400, y `fetchMaintenances()` no revisaba `res.ok`, así que la tabla simplemente quedaba vacía sin ningún error visible. Se corrige a `.min(0)` y se agrega el chequeo de `res.ok` (con `console.error` si falla) para que un fallo como este no vuelva a pasar desapercibido.
+
+---
+
 ## Changelog SPEC
 
+- **v1.66 (2026-09-18):**
+  - Sección 2.9.7 (nueva): se quitan los botones de "filtrar" (Filter) y "Limpiar filtros" (RefreshCw) del listado de Guías de Despacho -- el primero es redundante desde que la búsqueda debouncea sola, el segundo no aporta con solo dos filtros. Pedido de Javier: *"hay tan pocos filtros que se puede hacer de manera manual"*.
+- **v1.65 (2026-09-18):**
+  - Sección 2.9.6: segunda ubicación con el mismo problema -- los chips de "equipos seleccionados" (lo primero que se ve al crear una guía) nunca mostraron el nombre de categoría, solo ícono + marca/modelo + serie. Se agrega ahí también. Javier: *"¿Dónde se supone que agregaste el nombre ya que no sale acá?"*.
+- **v1.64 (2026-09-18):**
+  - Sección 2.9.6 (nueva): en el selector de equipos de Guías de Despacho, el nombre de la categoría junto al ícono estaba oculto bajo `lg` -- solo el ícono se veía en pantallas más chicas. Se saca la condición de ancho, queda siempre visible. Pedido de Javier: *"sale el ícono, pero la idea es que también salga por nombre"*.
+- **v1.63 (2026-09-18):**
+  - Sección 2.51.2: bugfix el mismo día -- "Todas" no mostraba nada. `maintenanceFiltersSchema` rechazaba `dias=0`/`diasCompletadas=0` con `.min(1)` (400 silencioso, `fetchMaintenances()` no revisaba `res.ok`). Se corrige a `.min(0)` y se agrega el chequeo de `res.ok`.
+- **v1.62 (2026-09-18):**
+  - Sección 2.51.2 (nueva): se agrega la opción "Todas" al selector de período de Mantenciones -- manda `dias=0`/`diasCompletadas=0`, que tanto el listado como las tarjetas interpretan como "sin ventana de tiempo". Pedido de Javier: *"nos falta un filtro, un valor universal que diga como todos, que muestre todas las mantenciones sin importar la fecha"*.
+- **v1.61 (2026-09-18):**
+  - Sección 2.53.1 (nueva): "Realizado por", en el formulario de Completar Mantención, pasa de texto libre obligatorio a llenarse solo con el usuario de la sesión (de solo lectura), igual que "Técnico Asignado" en Programar Mantención. Pedido de Javier: *"eso debería llenarse automáticamente... igual [que] tiene asignado, eso se llena automático"*.
+- **v1.60 (2026-09-18):**
+  - Sección 2.53 (nueva): en el detalle de una mantención `en_proceso`, el formulario de "Completar Mantención" deja de ser un modal detrás de un botón -- pasa a estar siempre visible como una tarjeta más de la página, junto al detalle del activo. Pedido de Javier: *"el formulario ya esté ahí... yo lo lleno y listo. Y aprieto completar y listo. Nada más"*.
+- **v1.59 (2026-09-18):**
+  - Sección 2.51.1 (nueva): el filtro de período de Mantenciones solo llegaba a las tarjetas "Próximas"/"Completadas" -- se extiende `GET /api/mantenciones` (el listado) con los mismos parámetros `dias`/`diasCompletadas`, misma lógica que las tarjetas. Pedido de Javier: *"solamente le está aplicando este filtro a las tarjetas... debería hacerlo a todo el módulo mantenciones"*.
+- **v1.58 (2026-09-18):**
+  - Sección 2.52.1 (nueva): el buscador de equipos de Programar Mantención (2.52) mostraba el inventario de todas las sedes -- se conecta al selector de sede del nav, igual que el resto de las pantallas de listado. Pedido de Javier: *"nos falta la opción de sede... que lo tome de manera automática con el selector que tenemos para todo"*.
+- **v1.57 (2026-09-18):**
+  - Sección 2.52 (nueva): en `/mantenciones/programar`, el Paso 1 deja de exigir elegir un empleado primero -- pasa a ser un buscador de equipos directo (marca/modelo/serie/empleado asignado + filtro de categoría), igual que `SelectorActivos` en Guías de Despacho. El backend (`Maintenance` no tiene `employeeId`) ya soportaba mantención sobre cualquier equipo; el gap era solo del wizard. Pedido de Javier, con una corrección propia sobre el diseño: primero pidió dos modos (por empleado / por equipo), luego decidió que el punto de entrada debía ser directamente el equipo -- *"el activo principal de este programa es el activo... se debería buscar por equipo y no por empleado, para empezar"*.
+- **v1.56 (2026-09-16):**
+  - Sección 2.51 (nueva): las tarjetas "Próximas" y "Completadas" de Mantenciones ganan un selector de período cada una (Día/Semana/Mes/Trimestre/6 meses/Año), en vez de una ventana fija (30 días / el mes). Pedido de Javier: *"colocar un filtro donde pueda indicar el día, semana, mes, trimestre, seis meses y el año, en vez de algo estático"*. De paso se corrigen dos bugs en `GET /api/mantenciones/pendientes`: "Completadas" nunca tuvo ventana de tiempo real (contaba todas las completadas de siempre), y la ruta no respetaba el selector de sede del nav.
+- **v1.55 (2026-09-16):**
+  - Sección 2.50 (nueva): dos bugs encontrados por Javier probando Comprobante de Cambio. (1) "Equipo devuelto" salía vacío para tickets creados por SPEC 2.45 (ejecución inmediata al crear) porque la búsqueda dependía de una transición `cambio_ejecutado` que esos tickets nunca generan -- se corrige leyendo `WorkflowRequest.assignmentIds` directamente. (2) La firma "Gestión realizada por" mostraba nombre y correo entre paréntesis en Comprobante de Cambio y Acta de Devolución, inconsistente con Comprobante de Entrega (que ya firmaba solo con nombre); se uniforman los tres y se elimina `nombreConCorreo()`.
+- **v1.54 (2026-09-16):**
+  - Sección 2.49 (nueva): Acta de Devolución y Comprobante de Cambio pasan a compartir el mismo diseño visual que el Comprobante de Entrega (onboarding) -- logo SCL, colores, tipografía y tabla, extraídos a `pdfSclBrand.tsx`. Antes usaban un estilo genérico sin logo. Pedido de Javier: *"todas las solicitudes deben seguir el mismo formato que tiene los de onboarding"*. Se revierte el enfoque de columna "Cargador" aparte (agregado en 2.48) a favor de sumarlo como texto dentro de "Descripción de equipo", igual que ya hacía la entrega, para no romper la tabla de 4 columnas del formato compartido.
+- **v1.53 (2026-09-16):**
+  - Sección 2.47 (nueva): tarjeta "Documentos" unificada en el detalle del ticket, con el link de descarga del comprobante correspondiente para los tres tipos de solicitud -- antes solo existía para Onboarding. Pedido de Javier: *"cada proceso genera una plantilla... eso debería estar en los tres procesos"*.
+  - Sección 2.48 (nueva): estado del cargador (Ok/Dañado/No aplica) al devolver un notebook, extendido a Offboarding y Cambio de Equipo (antes solo se pedía al entregar, y solo en Onboarding) -- `executeReturn()` gana el parámetro que le faltaba, y se agrega la UI en `/solicitudes/nueva`, el detalle del ticket y `SeleccionarCambioEquipo.tsx`. También se agrega en la creación de Onboarding, que hasta ahora no lo pedía (solo Gestión TI, un paso posterior). Se imprime en las plantillas PDF: como línea de la descripción en el Comprobante de Entrega (para no alterar su formato, fiel a una herramienta externa), y como columna nueva en el Acta de Devolución y el Comprobante de Cambio. Pedido de Javier: *"siempre que se elige un notebook, habría que hacer que se ingrese el cargador"*, confirmado para los tres procesos.
+- **v1.52 (2026-09-16):**
+  - Sección 2.46 (nueva): la tarjeta "Coordinar Entrega del Reemplazo" de Cambio de Equipo, agregada en 2.42.1, solo se mostraba tras completar la selección del equipo (`cambioSeleccion`), a diferencia de Onboarding/Desvinculación donde la coordinación se ve siempre. Pedido de Javier probando el flujo: *"también falta especificar... coordinar el cambio... la idea es que también se hagan el mismo formulario"* -- si no había stock de reemplazo en la sede de prueba, la tarjeta nunca llegaba a aparecer. Se saca esa dependencia (se muestra siempre que hay empleado elegido) y se le da el mismo estilo `<hr>` + `<h4>` que "Coordinar Devolución" (2.44). Sin cambios de validación ni de modelo.
+- **v1.51 (2026-09-16):**
+  - Sección 2.45 (nueva): en Cambio de Equipo, mismo fix de sede que 2.44 (se fija sola a la del empleado, solo lectura) y, a pedido explícito de Javier, elegir el equipo a cambiar deja de ser opcional -- *"si o si se deba elegir un equipo para cambiar para crear la solicitud"*. Se saca el mensaje "(opcional...)", `handleSubmit` bloquea el envío sin `cambioSeleccion` completo, y `oldAssignmentId`/`newAssetId`/`estadoDevolucionAnterior` pasan a obligatorios en el schema (el superRefine que los exigía en conjunto queda redundante). Consecuencia pedida explícitamente: si no hay equipo de reemplazo disponible en la sede, la falta de stock ahora bloquea la creación de la solicitud completa, no solo el cambio -- `SeleccionarCambioEquipo` lo avisa. Ningún ticket nuevo nace ya en `incidencia_detectada`; las transiciones manuales de tickets viejos en ese estado no se tocaron.
+- **v1.50 (2026-09-16):**
+  - Sección 2.44 (nueva): tres ajustes al formulario de creación de Desvinculación, pedidos por Javier probando el caso 3 de la coordinación al crear (2.42.1): la coordinación de devolución pasa a su propia tarjeta separada con un `<hr>` ("Coordinar Devolución"), en vez de mezclada en la misma grilla que "Fecha Desvinculación"; el "Medio de Devolución" pasa de `<select>` con tres opciones (Presencial/Chilexpress/Otro Courier) a un radio con solo Presencial/Chilexpress, igual que Onboarding y Cambio de Equipo, y "Ubicación" pasa a ser exclusiva de Chilexpress en vez de mostrarse siempre; y el selector de Sede, que en este flujo no tiene sentido dejar editable (el empleado ya pertenece a una), se fija solo al elegir al empleado y queda de solo lectura -- Cambio de Equipo, que comparte ese mismo bloque, sigue con el selector editable.
+- **v1.49 (2026-09-16):**
+  - Sección 2.43 (nueva): desvincular deja de ser una edición del empleado. Pedido de Javier probando el módulo Personal: *"al editar los datos de empleado sale el botón de desvincular, este botón se debe sacar"*, y al preguntarle por el atajo equivalente del desplegable Estado, *"si sacar eso y también el formulario de kit de bienvenida y epp"*. Se quitan los dos caminos que permitían desvincular sin Solicitud (el botón con su `DELETE`, ahora stub 410, y la opción `Desvinculado` del desplegable), y `PUT /api/empleados/[id]` rechaza el cambio a ese estado. Un empleado ya desvinculado se sigue pudiendo editar, con el campo Estado de solo lectura. Se saca además la sección Kit de Bienvenida / EPP del formulario (tres fechas escritas a mano, sin relación con las entregas reales), lo que destapó que la ficha del empleado calculaba el estado de esas tarjetas desde esas mismas fechas -- decía "Pendiente" aunque el kit se hubiera entregado desde una Solicitud; ahora se deduce de los `KitAssignment`. Sin migración: las tres columnas quedan en la base, sin lectores ni escritores, pendientes de eliminar.
+- **v1.48 (2026-09-15):**
+  - Sección 2.42.1 (nueva): la coordinación de fecha/medio/lugar (2.42) ahora también se puede completar en el mismo formulario de "Nueva Solicitud", al momento de elegir el equipo -- no solo después, en Gestión TI/Cambio/Recibir Equipos. Pedido de Javier tras probar un onboarding real: *"yo quería que eso se ingresara al inicio cuando se crea la solicitud y asigno equipos"*, confirmado para los tres flujos. Onboarding salta directo a `equipos_entregados` al crear si los equipos elegidos cubren todas las categorías y se coordinó la entrega; cambio de equipo y desvinculación guardan la coordinación desde ya (sin cambiar de estado, ya se ejecutaban/cerraban de inmediato). Sin campos nuevos en el modelo ni migración -- son las mismas columnas de 2.42, ahora también aceptadas por `POST /api/solicitudes`.
+- **v1.47 (2026-09-15):**
+  - Sección 2.42 (nueva): se fusiona la coordinación de fecha/medio/lugar con el paso en que se asigna/ejecuta el equipo, en los tres flujos de Solicitudes. Pedido de Javier: *"el tema de coordinar fecha... dejarlo para definirlo al inicio también cuando se asigna el equipo, para así hacemos todo de una en vez de varios pasos"*, confirmado para los tres tipos. Se eliminan del enum `EstadoSolicitud` los estados `coordinando_entrega`, `coordinando_cambio` y `coordinacion_en_curso` (migración `20260915030000`); las transiciones pasan a ser `gestion_ti → equipos_entregados`, `incidencia_detectada → cambio_ejecutado` y `solicitud_emitida → equipo_recibido` directas, cada una pidiendo fecha/medio/lugar en la misma pantalla y la misma transición que ya hacía el trabajo. De paso, se corrige la sección 2.40/2.41 (ítem 5): la "Próxima Mantención" del EPP, que se había dejado en la ficha del empleado, también se sacó a pedido de Javier -- esa tarjeta queda mostrando solo el estado.
+- **v1.46 (2026-09-15):**
+  - Sección 2.41 (nueva): la devolución deja de existir como acción suelta. Regla de Javier: *"en asignaciones la unica manera de devolver un equipo es dando de baja a una persona o cambiando su equipo"*. Se quitan los seis puntos de entrada del módulo de Asignaciones que permitían devolver sin proceso detrás (flecha de la tabla, botón del detalle, cuatro botones "Devolver" en la ficha del empleado), más los tres accesos a la página suelta `/asignaciones/devolucion` (drag del Kanban, aviso al dar de baja en frontend y backend), que se elimina; todo redirige ahora a `/solicitudes/nueva`. Se elimina el acta de entrega por asignación (*"bórralo. No se va a usar. Ya que ya lo tenemos en solicitudes"*), un segundo generador hecho con jsPDF que duplicaba en otro formato lo que ya hacen las tres plantillas React-PDF de Solicitudes; la ruta queda como stub 410. Se corrige la flecha de volver del detalle de asignación, que apuntaba a una página inexistente. En la ficha del empleado, Microsoft 365 ahora muestra el nombre del plan en vez de un Sí/No, y las tarjetas de Kit/EPP dejan solo el estado, sin la fecha de entrega. Se elimina la dependencia `jspdf`/`jspdf-autotable` del `package.json` junto con el reporte RRHH de desvinculaciones que era su único uso restante (también queda como stub 410), y el componente `ReturnAssetModal.tsx`, huérfano tras la limpieza.
 - **v1.45 (2026-09-15):**
   - Sección 2.39 (nueva): se invierte cuál de los dos correos del empleado es obligatorio — pasa a serlo `correoEmpresa` y `correoPersonal` queda opcional (*"el del correo tendría que ser al revés"*), porque las planillas de TI traen la cuenta corporativa y el correo particular no lo registra nadie. `tipoContrato` pasa a opcional por la misma razón (*"como no está en el Excel... lo dejamos opcional"*), en vez de inventar un valor para ~110 personas. Migración `20260915000000`.
   - Sección 2.40 (nueva): segunda pasada de QA manual. El onboarding ofrecía equipos y Kit/EPP de todas las sedes (9 llamadas sin `sedeId` en 4 archivos) y ahora filtra por la sede de la solicitud. Se elimina el estado `reutilizable`, que era indistinguible de `disponible` para entregar pero no contaba como stock en el Dashboard, y que metía la condición del equipo dentro de su ciclo de vida (migración `20260915010000`); los estados quedan en cinco. Se elimina el campo "Código Interno", que no tenía datos de origen (migración `20260915020000`). El nombre de red del equipo se pide al asignarlo, con autosugerencia `SCL-<inicial><apellido>` deducida de los datos reales (98 de 106 equipos siguen esa convención). Y se reemplazan los 14 `alert()`/`confirm()` nativos que quedaban en 7 pantallas.

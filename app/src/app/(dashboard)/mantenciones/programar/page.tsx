@@ -16,12 +16,12 @@ import {
   Package,
   Loader2,
   CheckCircle,
-  ChevronRight,
-  Users,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 
 type Asset = {
   id: string;
@@ -31,6 +31,7 @@ type Asset = {
   estado: string;
   condicion: string;
   categoria: {
+    id: string;
     nombre: string;
   };
   empleadoActual: {
@@ -39,23 +40,6 @@ type Asset = {
     nombres: string;
     apellidoPaterno: string;
   } | null;
-};
-
-type Employee = {
-  id: string;
-  rut: string;
-  nombres: string;
-  apellidoPaterno: string;
-  apellidoMaterno: string | null;
-  // El correo de empresa es el obligatorio (15-sep-2026, SPEC 2.39)
-  correoEmpresa: string;
-  correoPersonal?: string | null;
-  cargo: string | null;
-  ubicacion: string | null;
-  _count: {
-    assignments: number;
-    activosActuales: number;
-  };
 };
 
 // Los tipos de mantencion ya no son una lista fija (9-sep-2026): se
@@ -95,13 +79,20 @@ export default function ProgramarMantencionPage() {
   const [tiposMantencion, setTiposMantencion] = useState<TipoMantencion[]>([]);
   const [loadingTipos, setLoadingTipos] = useState(true);
 
-  // Employee selection states
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const [employeeAssets, setEmployeeAssets] = useState<Asset[]>([]);
-  const [employeeSearch, setEmployeeSearch] = useState("");
-  const [loadingEmployees, setLoadingEmployees] = useState(true);
-  const [loadingEmployeeAssets, setLoadingEmployeeAssets] = useState(false);
+  // Selección de activo (18-sep-2026, SPEC 2.52): el punto de entrada del
+  // wizard es el equipo, no el empleado -- el activo principal de este
+  // programa son los equipos, y una mantención puede aplicar tanto a un
+  // equipo asignado como a uno en bodega sin empleado asociado.
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [loadingAssets, setLoadingAssets] = useState(true);
+  const [assetSearch, setAssetSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [categories, setCategories] = useState<{ id: string; nombre: string }[]>([]);
+  // Selector de sede del nav (18-sep-2026, SPEC 2.52.1): sin esto, el
+  // buscador de equipos mostraba el inventario completo de todas las
+  // sedes, inconsistente con Activos/Mantenciones(listado)/Solicitudes/
+  // Asignaciones/Kit-EPP, que ya filtran por este mismo selector global.
+  const { sedeSeleccionada } = useSedeSeleccionada();
 
   const [formData, setFormData] = useState({
     tipoId: "",
@@ -110,11 +101,57 @@ export default function ProgramarMantencionPage() {
     realizadoPor: "",
   });
 
-  // Load employees on mount
+  // Load categories + tipos once; assets se recargan tambien cuando cambia
+  // la sede seleccionada en el nav.
   useEffect(() => {
-    fetchEmployees();
+    fetchCategories();
     fetchTipos();
   }, []);
+
+  useEffect(() => {
+    fetchAssets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sedeSeleccionada]);
+
+  async function fetchAssets() {
+    setLoadingAssets(true);
+    setError("");
+    setFieldErrors({});
+    try {
+      // limit=500: mismo tope maximo que usa /api/activos (ver comentario en
+      // ese route), para poder filtrar en cliente como hace SelectorActivos.
+      // Sin filtro de estado: un equipo asignado, disponible o incluso en
+      // mantencion previa debe poder encontrarse aca, es el mismo listado
+      // completo de inventario, no solo lo "disponible". sedeId: mismo
+      // patron que el resto de las pantallas de listado (null = todas).
+      const params = new URLSearchParams({ limit: "500" });
+      if (sedeSeleccionada) params.set("sedeId", sedeSeleccionada);
+      const res = await fetch(`/api/activos?${params}`);
+      if (!res.ok) {
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al cargar equipos");
+        setFieldErrors(fe);
+        throw new Error(message);
+      }
+      const data = await res.json();
+      setAssets(data.data || []);
+    } catch (err) {
+      console.error("Error fetching assets:", err);
+      setError(err instanceof Error ? err.message : "Error al cargar la lista de equipos");
+    } finally {
+      setLoadingAssets(false);
+    }
+  }
+
+  async function fetchCategories() {
+    try {
+      const res = await fetch("/api/categorias");
+      if (res.ok) {
+        setCategories(await res.json());
+      }
+    } catch (err) {
+      console.error("Error fetching categories:", err);
+    }
+  }
 
   async function fetchTipos() {
     setLoadingTipos(true);
@@ -146,29 +183,6 @@ export default function ProgramarMantencionPage() {
     }
   }, [searchParams]);
 
-  async function fetchEmployees() {
-    setLoadingEmployees(true);
-    setError("");
-    setFieldErrors({});
-    try {
-      const res = await fetch(
-        "/api/empleados?estado=activo&limit=100&sortBy=nombres&sortOrder=asc"
-      );
-      if (!res.ok) {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al cargar empleados");
-        setFieldErrors(fe);
-        throw new Error(message);
-      }
-      const data = await res.json();
-      setEmployees(data.data || []);
-    } catch (err) {
-      console.error("Error fetching employees:", err);
-      setError(err instanceof Error ? err.message : "Error al cargar la lista de empleados");
-    } finally {
-      setLoadingEmployees(false);
-    }
-  }
-
   async function loadAssetById(id: string) {
     setLoadingAsset(true);
     setError("");
@@ -195,52 +209,33 @@ export default function ProgramarMantencionPage() {
     }
   }
 
-  async function handleSelectEmployee(emp: Employee) {
-    setSelectedEmployee(emp);
-    setEmployeeAssets([]);
-    setLoadingEmployeeAssets(true);
-    setError("");
-    setFieldErrors({});
-    try {
-      const res = await fetch(`/api/empleados/${emp.id}`);
-      if (!res.ok) {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al cargar activos");
-        setFieldErrors(fe);
-        throw new Error(message);
-      }
-      const data = await res.json();
-      setEmployeeAssets(data.activosActuales || []);
-    } catch (err) {
-      console.error("Error fetching employee assets:", err);
-      setError(err instanceof Error ? err.message : "Error al cargar los activos del empleado");
-    } finally {
-      setLoadingEmployeeAssets(false);
-    }
-  }
-
-  function handleBackToEmployees() {
-    setSelectedEmployee(null);
-    setEmployeeAssets([]);
-    setError("");
-    setFieldErrors({});
-  }
-
   function handleSelectAsset(asset: Asset) {
     setSelectedAsset(asset);
     setStep(2);
   }
 
-  // Filter employees by search term (client-side)
-  const filteredEmployees = employees.filter((emp) => {
-    if (!employeeSearch.trim()) return true;
-    const search = employeeSearch.toLowerCase();
-    return (
-      emp.nombres.toLowerCase().includes(search) ||
-      emp.apellidoPaterno.toLowerCase().includes(search) ||
-      (emp.apellidoMaterno?.toLowerCase().includes(search) ?? false) ||
-      (emp.rut?.toLowerCase().includes(search) ?? false) ||
-      (emp.cargo?.toLowerCase().includes(search) ?? false)
-    );
+  // Filter assets by search term + categoria (client-side, igual que
+  // SelectorActivos en Guias de Despacho).
+  const filteredAssets = assets.filter((asset) => {
+    const matchesSearch =
+      !assetSearch.trim() ||
+      (() => {
+        const search = assetSearch.toLowerCase();
+        return (
+          asset.marca.toLowerCase().includes(search) ||
+          asset.modelo.toLowerCase().includes(search) ||
+          (asset.numeroSerie?.toLowerCase().includes(search) ?? false) ||
+          (asset.empleadoActual
+            ? `${asset.empleadoActual.nombres} ${asset.empleadoActual.apellidoPaterno}`
+                .toLowerCase()
+                .includes(search)
+            : false)
+        );
+      })();
+
+    const matchesCategory = categoryFilter === "all" || asset.categoria.id === categoryFilter;
+
+    return matchesSearch && matchesCategory;
   });
 
   async function handleSubmit(e: React.FormEvent) {
@@ -336,217 +331,124 @@ export default function ProgramarMantencionPage() {
         ))}
       </div>
 
-      {/* Step 1: Select Employee → then Asset */}
+      {/* Step 1: Select Asset (18-sep-2026, SPEC 2.52) */}
       {step === 1 && (
         <div className="bg-white rounded-lg shadow p-6">
-          {!selectedEmployee ? (
-            <>
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
-                  1
-                </span>
-                Seleccionar Empleado
-              </h2>
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
+              1
+            </span>
+            Seleccionar Equipo
+          </h2>
 
-              {/* Search filter */}
-              <div className="mb-4 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Filtrar por nombre, RUT o cargo..."
-                  value={employeeSearch}
-                  onChange={(e) => setEmployeeSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                />
-              </div>
+          {/* Search + category filter */}
+          <div className="mb-4 flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Buscar por marca, modelo, serie o empleado asignado..."
+                value={assetSearch}
+                onChange={(e) => setAssetSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+              />
+            </div>
+            <div className="relative">
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="appearance-none h-full pl-4 pr-9 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white cursor-pointer"
+              >
+                <option value="all">Todas las categorías</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.nombre}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+            </div>
+          </div>
 
-              {error && (
-                <div className="mb-4">
-                  <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
-                </div>
+          {error && (
+            <div className="mb-4">
+              <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
+            </div>
+          )}
+
+          {/* Asset list */}
+          {loadingAssets ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              <span className="ml-3 text-gray-600">Cargando equipos...</span>
+            </div>
+          ) : filteredAssets.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <Package className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              <p className="font-medium text-gray-700">
+                {assetSearch || categoryFilter !== "all"
+                  ? "No se encontraron equipos"
+                  : "No hay equipos registrados"}
+              </p>
+              {(assetSearch || categoryFilter !== "all") && (
+                <p className="text-sm mt-1">Intenta con otros términos de búsqueda o filtros</p>
               )}
-
-              {/* Employee list */}
-              {loadingEmployees ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                  <span className="ml-3 text-gray-600">Cargando empleados...</span>
-                </div>
-              ) : filteredEmployees.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                  <p className="font-medium text-gray-700">
-                    {employeeSearch
-                      ? "No se encontraron empleados"
-                      : "No hay empleados activos"}
-                  </p>
-                  {employeeSearch && (
-                    <p className="text-sm mt-1">Intenta con otros términos de búsqueda</p>
-                  )}
-                </div>
-              ) : (
-                <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
-                  {filteredEmployees.map((emp) => (
-                    <button
-                      key={emp.id}
-                      onClick={() => handleSelectEmployee(emp)}
-                      className="w-full flex items-center gap-3 p-4 hover:bg-blue-50 transition-colors text-left"
-                    >
-                      <div className="flex-shrink-0 w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                        <User className="h-5 w-5 text-gray-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate">
-                          {emp.nombres} {emp.apellidoPaterno}
-                          {emp.apellidoMaterno ? ` ${emp.apellidoMaterno}` : ""}
-                        </p>
-                        <p className="text-sm text-gray-500 truncate">
-                          {emp.cargo || "Sin cargo"} &bull; {emp.rut}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {emp._count.activosActuales > 0 && (
-                          <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
-                            {emp._count.activosActuales}{" "}
-                            activo{emp._count.activosActuales !== 1 ? "s" : ""}
-                          </span>
-                        )}
-                        <ChevronRight className="h-5 w-5 text-gray-400" />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Count info */}
-              {!loadingEmployees && filteredEmployees.length > 0 && (
-                <div className="mt-4 text-sm text-gray-500 text-center">
-                  Mostrando {filteredEmployees.length} empleado
-                  {filteredEmployees.length !== 1 ? "s" : ""}
-                  {employeeSearch ? ` de ${employees.length}` : ""}
-                </div>
-              )}
-
-              {/* Help text */}
-              <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
-                <div className="flex gap-3">
-                  <Users className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-blue-900">
-                      Selecciona un empleado
+            </div>
+          ) : (
+            <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+              {filteredAssets.map((asset) => (
+                <button
+                  key={asset.id}
+                  onClick={() => handleSelectAsset(asset)}
+                  className="w-full flex items-center gap-3 p-4 hover:bg-blue-50 transition-colors text-left"
+                >
+                  <span className="flex-shrink-0 text-gray-400">
+                    {getCategoryIcon(asset.categoria.nombre)}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 truncate">
+                      {asset.marca} {asset.modelo}
                     </p>
-                    <p className="text-sm text-blue-700 mt-1">
-                      Elige al empleado para ver sus activos asignados y programar una mantención.
+                    <p className="text-sm text-gray-500 truncate">
+                      <span className="font-medium">{asset.categoria.nombre}</span>
+                      {" • "}
+                      <span>{asset.numeroSerie || "Sin número de serie"}</span>
+                      {asset.empleadoActual && (
+                        <>
+                          {" • "}
+                          <User className="inline h-3.5 w-3.5 -mt-0.5 mr-0.5" />
+                          {asset.empleadoActual.nombres} {asset.empleadoActual.apellidoPaterno}
+                        </>
+                      )}
                     </p>
                   </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
-                  1
-                </span>
-                Seleccionar Activo
-              </h2>
-
-              {/* Selected employee info */}
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg flex items-center gap-3">
-                <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                  <User className="h-5 w-5 text-blue-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900">
-                    {selectedEmployee.nombres} {selectedEmployee.apellidoPaterno}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {selectedEmployee.cargo || "Sin cargo"} &bull;{" "}
-                    {selectedEmployee.rut}
-                  </p>
-                </div>
-                <button
-                  onClick={handleBackToEmployees}
-                  className="text-sm text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
-                >
-                  Cambiar empleado
-                </button>
-              </div>
-
-              {error && (
-                <div className="mb-4">
-                  <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
-                </div>
-              )}
-
-              {/* Employee's assets */}
-              {loadingEmployeeAssets ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                  <span className="ml-3 text-gray-600">Cargando activos...</span>
-                </div>
-              ) : employeeAssets.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  <Package className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                  <p className="font-medium text-gray-700">
-                    Este empleado no tiene activos asignados
-                  </p>
-                  <p className="text-sm mt-1">
-                    Selecciona otro empleado para ver sus activos
-                  </p>
-                  <button
-                    onClick={handleBackToEmployees}
-                    className="mt-4 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Volver a empleados
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-600 mb-3">
-                    Selecciona el activo para programar la mantención:
-                  </p>
-                  {employeeAssets.map((asset) => (
-                    <button
-                      key={asset.id}
-                      onClick={() => handleSelectAsset(asset)}
-                      className="w-full flex items-center gap-3 p-4 rounded-lg border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
+                  <div className="flex-shrink-0">
+                    <span
+                      className={cn(
+                        "px-2.5 py-1 text-xs font-medium rounded-full whitespace-nowrap",
+                        asset.estado === "disponible" &&
+                          "bg-green-100 text-green-700",
+                        asset.estado === "asignado" &&
+                          "bg-blue-100 text-blue-700",
+                        asset.estado === "en_mantencion" &&
+                          "bg-orange-100 text-orange-700"
+                      )}
                     >
-                      <span className="flex-shrink-0 text-gray-400">
-                        {getCategoryIcon(asset.categoria.nombre)}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate">
-                          {asset.marca} {asset.modelo}
-                        </p>
-                        <p className="text-sm text-gray-600 truncate">
-                          <span className="font-medium">{asset.categoria.nombre}</span>
-                          {" \u2022 "}
-                          <span>
-                            {asset.numeroSerie || "Sin número de serie"}
-                          </span>
-                        </p>
-                      </div>
-                      <div className="flex-shrink-0">
-                        <span
-                          className={cn(
-                            "px-2.5 py-1 text-xs font-medium rounded-full whitespace-nowrap",
-                            asset.estado === "disponible" &&
-                              "bg-green-100 text-green-700",
-                            asset.estado === "asignado" &&
-                              "bg-blue-100 text-blue-700",
-                            asset.estado === "en_mantencion" &&
-                              "bg-orange-100 text-orange-700"
-                          )}
-                        >
-                          {asset.estado}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
+                      {asset.estado}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Count info */}
+          {!loadingAssets && filteredAssets.length > 0 && (
+            <div className="mt-4 text-sm text-gray-500 text-center">
+              Mostrando {filteredAssets.length} equipo
+              {filteredAssets.length !== 1 ? "s" : ""}
+              {assetSearch || categoryFilter !== "all" ? ` de ${assets.length}` : ""}
+            </div>
           )}
         </div>
       )}
@@ -573,6 +475,13 @@ export default function ProgramarMantencionPage() {
                 </p>
                 <p className="text-sm text-gray-500">
                   {selectedAsset.numeroSerie || "Sin serie"}
+                  {selectedAsset.empleadoActual && (
+                    <>
+                      {" • "}
+                      {selectedAsset.empleadoActual.nombres}{" "}
+                      {selectedAsset.empleadoActual.apellidoPaterno}
+                    </>
+                  )}
                 </p>
               </div>
             </div>

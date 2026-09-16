@@ -23,6 +23,9 @@ const EXCLUIDAS = [
   // stubs que solo devuelven 410 Gone, sin logica ni permisos que auditar.
   path.join('proveedores', 'route.ts'),
   path.join('proveedores', '[id]', 'route.ts'),
+  // Acta por asignacion eliminada (SPEC 2.41): mismo caso, stub 410 sin
+  // logica ni permisos que auditar. Los documentos los genera Solicitudes.
+  path.join('asignaciones', '[id]', 'acta', 'route.ts'),
 ];
 
 const METODOS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;

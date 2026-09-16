@@ -4,7 +4,7 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { ArrowLeft, Save, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
@@ -24,9 +24,6 @@ const empleadoFieldLabels: Record<string, string> = {
   fechaIngreso: "Fecha de Ingreso",
   fechaTermino: "Fecha de Término",
   telefonoContacto: "Teléfono de Contacto",
-  fechaEntregaKit: "Fecha Entrega Kit de Bienvenida",
-  fechaEntregaEpp: "Fecha Entrega EPP",
-  proximaMantencionEpp: "Próxima Mantención EPP",
   sedeId: "Sede",
 };
 
@@ -48,9 +45,6 @@ type FormData = {
   fechaIngreso: string;
   fechaTermino: string;
   telefonoContacto: string;
-  fechaEntregaKit: string;
-  fechaEntregaEpp: string;
-  proximaMantencionEpp: string;
   sedeId: string;
 };
 
@@ -61,10 +55,8 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
   const esAdmin = session?.user?.role === "admin";
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [formData, setFormData] = useState<FormData>({
     rut: "",
@@ -82,9 +74,6 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
     fechaIngreso: "",
     fechaTermino: "",
     telefonoContacto: "",
-    fechaEntregaKit: "",
-    fechaEntregaEpp: "",
-    proximaMantencionEpp: "",
     sedeId: "",
   });
 
@@ -129,15 +118,6 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           ? new Date(employee.fechaTermino).toISOString().split("T")[0]
           : "",
         telefonoContacto: employee.telefonoContacto || "",
-        fechaEntregaKit: employee.fechaEntregaKit
-          ? new Date(employee.fechaEntregaKit).toISOString().split("T")[0]
-          : "",
-        fechaEntregaEpp: employee.fechaEntregaEpp
-          ? new Date(employee.fechaEntregaEpp).toISOString().split("T")[0]
-          : "",
-        proximaMantencionEpp: employee.proximaMantencionEpp
-          ? new Date(employee.proximaMantencionEpp).toISOString().split("T")[0]
-          : "",
         sedeId: employee.sedeId || "",
       });
     } catch (err) {
@@ -175,9 +155,6 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           fechaIngreso: formData.fechaIngreso || null,
           fechaTermino: formData.fechaTermino || null,
           telefonoContacto: formData.telefonoContacto || null,
-          fechaEntregaKit: formData.fechaEntregaKit || null,
-          fechaEntregaEpp: formData.fechaEntregaEpp || null,
-          proximaMantencionEpp: formData.proximaMantencionEpp || null,
           // El backend ignora este campo si quien edita no es admin. Para
           // admin es obligatorio (select sin opcion "Sin sede") -- ya no se
           // manda null a proposito, para no dejar empleados sin sede; el
@@ -197,33 +174,6 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
       setError(err instanceof Error ? err.message : "Error desconocido");
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleDelete() {
-    setDeleting(true);
-    setError(null);
-    setFieldErrors({});
-
-    try {
-      const res = await fetch(`/api/empleados/${id}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al eliminar empleado");
-        setError(message);
-        setFieldErrors(fe);
-        setShowDeleteConfirm(false);
-        return;
-      }
-
-      router.push("/activos/empleados");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
-      setShowDeleteConfirm(false);
-    } finally {
-      setDeleting(false);
     }
   }
 
@@ -253,44 +203,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setShowDeleteConfirm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
-        >
-          <Trash2 size={20} />
-          <span>Desvincular</span>
-        </button>
       </div>
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Confirmar Desvinculación
-            </h3>
-            <p className="text-gray-600 mb-4">
-              ¿Está seguro que desea marcar a este empleado como desvinculado?
-              Esta acción cambiará su estado a &quot;desvinculado&quot;.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-              >
-                {deleting ? "Procesando..." : "Confirmar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6">
@@ -409,21 +322,43 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
             </h2>
           </div>
 
+          {/* 16-sep-2026: "Desvinculado" ya no es una opcion elegible a mano
+              -- ese estado lo pone unicamente una Solicitud de
+              desvinculacion, que es donde queda registrada la devolucion de
+              los equipos y el motivo. Misma regla que saco el boton
+              "Desvincular" de esta pantalla (SPEC 2.43). Si el empleado YA
+              esta desvinculado, el campo se muestra de solo lectura: con la
+              opcion fuera del select, guardar cualquier otro cambio lo
+              habria devuelto a "activo" sin que nadie lo pidiera. */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Estado <span className="text-red-500">*</span>
             </label>
-            <select
-              name="estado"
-              value={formData.estado}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="activo">Activo</option>
-              <option value="desvinculado">Desvinculado</option>
-              <option value="licencia">En Licencia</option>
-            </select>
+            {formData.estado === "desvinculado" ? (
+              <>
+                <input
+                  type="text"
+                  value="Desvinculado"
+                  disabled
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Para reincorporarlo, crea una Solicitud de onboarding eligiéndolo como
+                  empleado existente.
+                </p>
+              </>
+            ) : (
+              <select
+                name="estado"
+                value={formData.estado}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="activo">Activo</option>
+                <option value="licencia">En Licencia</option>
+              </select>
+            )}
           </div>
 
           <div>
@@ -549,51 +484,6 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
             </div>
           )}
 
-          {/* Kit de Bienvenida y EPP */}
-          <div className="md:col-span-2 mt-4">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-              Kit de Bienvenida y EPP
-            </h2>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Fecha Entrega Kit de Bienvenida
-            </label>
-            <input
-              type="date"
-              name="fechaEntregaKit"
-              value={formData.fechaEntregaKit || ""}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Fecha Entrega EPP
-            </label>
-            <input
-              type="date"
-              name="fechaEntregaEpp"
-              value={formData.fechaEntregaEpp || ""}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Próxima Mantención EPP
-            </label>
-            <input
-              type="date"
-              name="proximaMantencionEpp"
-              value={formData.proximaMantencionEpp || ""}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
         </div>
 
         {/* Actions */}

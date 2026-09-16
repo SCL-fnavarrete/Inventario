@@ -5,6 +5,9 @@ import Link from "next/link";
 import {
   ArrowLeft,
   FileText,
+  // Se sigue usando en la seccion "Datos de Devolucion", que es solo
+  // informativa; lo que se quito (SPEC 2.41) es el boton que permitia
+  // registrar una devolucion desde aca.
   Undo2,
   Laptop,
   Smartphone,
@@ -176,7 +179,7 @@ export default function AsignacionDetailPage({
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Link href="/asignaciones" className="p-2 hover:bg-gray-100 rounded-lg">
+          <Link href="/activos/asignaciones" className="p-2 hover:bg-gray-100 rounded-lg">
             <ArrowLeft size={20} />
           </Link>
           <h1 className="text-2xl font-bold text-gray-900">Detalle de Asignación</h1>
@@ -194,7 +197,7 @@ export default function AsignacionDetailPage({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Link href="/asignaciones" className="p-2 hover:bg-gray-100 rounded-lg">
+          <Link href="/activos/asignaciones" className="p-2 hover:bg-gray-100 rounded-lg">
             <ArrowLeft size={20} />
           </Link>
           <div>
@@ -204,25 +207,6 @@ export default function AsignacionDetailPage({
               {assignment.employee.apellidoPaterno}
             </p>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <a
-            href={`/api/asignaciones/${assignment.id}/acta?tipo=${assignment.activo ? "entrega" : "devolucion"}`}
-            target="_blank"
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-          >
-            <FileText size={20} />
-            <span>Descargar Acta</span>
-          </a>
-          {assignment.activo && (
-            <Link
-              href={`/asignaciones/devolucion?id=${assignment.id}`}
-              className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
-            >
-              <Undo2 size={20} />
-              <span>Registrar Devolución</span>
-            </Link>
-          )}
         </div>
       </div>
 

@@ -14,7 +14,6 @@ import {
   Users,
   UserX,
   MapPin,
-  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ActivosTabs } from "@/components/activos";
@@ -61,12 +60,6 @@ type Stats = {
   totalEmpleados: number;
   activos: number;
   desvinculados: number;
-  ubicacionesCount: number;
-};
-
-type UbicacionDetalle = {
-  nombre: string;
-  cantidad: number;
 };
 
 const estadoColors: Record<EstadoEmpleado, string> = {
@@ -124,10 +117,7 @@ export default function PersonalPage() {
     totalEmpleados: 0,
     activos: 0,
     desvinculados: 0,
-    ubicacionesCount: 0,
   });
-  const [showUbicacionesModal, setShowUbicacionesModal] = useState(false);
-  const [ubicacionesDetalle, setUbicacionesDetalle] = useState<UbicacionDetalle[]>([]);
 
   useEffect(() => {
     fetchEmployees();
@@ -173,19 +163,6 @@ export default function PersonalPage() {
         allEmployees.filter((e: Employee) => e.ubicacion).map((e: Employee) => e.ubicacion)
       )] as string[];
       setUbicaciones(uniqueUbicaciones);
-
-      const ubicacionesMap = new Map<string, number>();
-      allEmployees.forEach((e: Employee) => {
-        if (e.ubicacion) {
-          ubicacionesMap.set(e.ubicacion, (ubicacionesMap.get(e.ubicacion) || 0) + 1);
-        }
-      });
-
-      const detalle = Array.from(ubicacionesMap.entries())
-        .map(([nombre, cantidad]) => ({ nombre, cantidad }))
-        .sort((a, b) => b.cantidad - a.cantidad);
-
-      setUbicacionesDetalle(detalle);
     } catch (error) {
       console.error("Error fetching ubicaciones:", error);
     }
@@ -219,15 +196,11 @@ export default function PersonalPage() {
 
       const activos = allEmployees.filter((e: Employee) => e.estado === "activo").length;
       const desvinculados = allEmployees.filter((e: Employee) => e.estado === "desvinculado").length;
-      const ubicacionesUnicas = new Set(
-        allEmployees.filter((e: Employee) => e.ubicacion).map((e: Employee) => e.ubicacion)
-      );
 
       setStats({
         totalEmpleados: data.pagination?.total || 0,
         activos,
         desvinculados,
-        ubicacionesCount: ubicacionesUnicas.size,
       });
     } catch (error) {
       console.error("Error fetching stats:", error);
@@ -383,26 +356,6 @@ export default function PersonalPage() {
           )}
         </button>
 
-        {/* Ubicaciones - Open Modal (solo admin) */}
-        {esAdmin && (
-          <button
-            onClick={() => setShowUbicacionesModal(true)}
-            className="bg-white rounded-lg shadow p-4 text-left transition-all hover:shadow-md hover:scale-105 cursor-pointer"
-            aria-label="Ver desglose de ubicaciones"
-            title="Click para ver detalle de ubicaciones"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <MapPin className="h-6 w-6 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Ubicaciones</p>
-                <p className="text-xl font-bold">{stats.ubicacionesCount}</p>
-              </div>
-            </div>
-            <p className="text-xs text-orange-600 mt-2 font-medium">Click para ver detalle</p>
-          </button>
-        )}
       </div>
 
       {/* Filters */}
@@ -631,109 +584,6 @@ export default function PersonalPage() {
           </div>
         )}
       </div>
-
-      {/* Modal de Ubicaciones */}
-      {showUbicacionesModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-          onClick={() => setShowUbicacionesModal(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="modal-title"
-        >
-          <div
-            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="px-6 py-4 border-b flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <MapPin className="h-5 w-5 text-orange-600" />
-                </div>
-                <div>
-                  <h2 id="modal-title" className="text-lg font-bold text-gray-900">
-                    Desglose de Ubicaciones
-                  </h2>
-                  <p className="text-sm text-gray-500">
-                    {stats.ubicacionesCount} ubicaciones con {stats.totalEmpleados} empleados
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowUbicacionesModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label="Cerrar modal"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
-              {ubicacionesDetalle.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">
-                  No hay ubicaciones registradas
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {ubicacionesDetalle.map((ubicacion, index) => (
-                    <button
-                      key={ubicacion.nombre}
-                      onClick={() => {
-                        setUbicacionFilter(ubicacion.nombre);
-                        setShowUbicacionesModal(false);
-                        setPagination((prev) => ({ ...prev, page: 1 }));
-                      }}
-                      className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-orange-50 rounded-lg transition-colors group"
-                      aria-label={`Filtrar por ubicación ${ubicacion.nombre} - ${ubicacion.cantidad} empleados`}
-                    >
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="flex items-center justify-center w-8 h-8 bg-orange-100 text-orange-600 rounded-full text-sm font-bold">
-                          {index + 1}
-                        </div>
-                        <div className="text-left">
-                          <p className="font-medium text-gray-900 group-hover:text-orange-600 transition-colors">
-                            {ubicacion.nombre}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {ubicacion.cantidad} empleado{ubicacion.cantidad !== 1 ? "s" : ""}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="bg-white px-3 py-1 rounded-full border border-gray-200">
-                          <span className="text-sm font-bold text-gray-900">
-                            {ubicacion.cantidad}
-                          </span>
-                        </div>
-                        <div className="w-24 bg-gray-200 rounded-full h-2 overflow-hidden">
-                          <div
-                            className="bg-orange-500 h-full transition-all"
-                            style={{
-                              width: `${(ubicacion.cantidad / stats.totalEmpleados) * 100}%`,
-                            }}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-500 w-12 text-right">
-                          {((ubicacion.cantidad / stats.totalEmpleados) * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t bg-gray-50">
-              <p className="text-sm text-gray-600">
-                Click en cualquier ubicación para filtrar la tabla
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

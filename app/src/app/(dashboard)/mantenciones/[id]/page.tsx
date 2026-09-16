@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -102,12 +103,12 @@ export default function MantencionDetallePage({
 }) {
   const { id } = use(params);
   const router = useRouter();
+  const { data: session } = useSession();
   const [maintenance, setMaintenance] = useState<Maintenance | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [showCompleteForm, setShowCompleteForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const [completeForm, setCompleteForm] = useState({
@@ -123,6 +124,18 @@ export default function MantencionDetallePage({
     fetchMaintenance();
   }, [id]);
 
+  // "Realizado por" del formulario de completar se llena solo: quien
+  // completa la mantencion es siempre quien esta con la sesion abierta
+  // (18-sep-2026, SPEC 2.53.1) -- mismo patron que "Tecnico Asignado" en
+  // /mantenciones/programar. Pedido de Javier: "eso deberia llenarse
+  // automaticamente. Al igual que... tiene asignado, eso se llena
+  // automatico".
+  useEffect(() => {
+    if (session?.user?.name) {
+      setCompleteForm((prev) => ({ ...prev, realizadoPor: session.user.name as string }));
+    }
+  }, [session]);
+
   async function fetchMaintenance() {
     try {
       const res = await fetch(`/api/mantenciones/${id}`);
@@ -132,15 +145,18 @@ export default function MantencionDetallePage({
       const data = await res.json();
       setMaintenance(data);
 
-      // Pre-fill complete form
-      setCompleteForm({
+      // Pre-fill complete form -- realizadoPor NO se toma de aca: lo llena
+      // el useEffect de abajo con el usuario de la sesion actual (SPEC
+      // 2.53.1), igual que ya hace /mantenciones/programar con "Tecnico
+      // Asignado".
+      setCompleteForm((prev) => ({
         fechaRealizada: new Date().toISOString().split("T")[0],
-        realizadoPor: data.realizadoPor || "",
+        realizadoPor: prev.realizadoPor,
         resultado: "",
         resultadoTipo: "reparado",
         motivoBaja: "",
         proximaMantencion: "",
-      });
+      }));
     } catch (err) {
       console.error("Error fetching maintenance:", err);
       setError("Error al cargar mantención");
@@ -210,7 +226,6 @@ export default function MantencionDetallePage({
         return;
       }
 
-      setShowCompleteForm(false);
       fetchMaintenance();
     } catch (err) {
       console.error("Error completing maintenance:", err);
@@ -343,23 +358,14 @@ export default function MantencionDetallePage({
             </>
           )}
           {maintenance.estado === "en_proceso" && (
-            <>
-              <button
-                onClick={() => setShowCompleteForm(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                <CheckCircle size={20} />
-                Completar
-              </button>
-              <button
-                onClick={handleCancelMaintenance}
-                disabled={submitting}
-                className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
-              >
-                <XCircle size={20} />
-                Cancelar
-              </button>
-            </>
+            <button
+              onClick={handleCancelMaintenance}
+              disabled={submitting}
+              className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
+            >
+              <XCircle size={20} />
+              Cancelar
+            </button>
           )}
         </div>
       </div>
@@ -444,6 +450,166 @@ export default function MantencionDetallePage({
               </div>
             </div>
           </div>
+
+          {/* Completar Mantencion -- ya no es un modal detras de un boton
+              "Completar" (18-sep-2026, SPEC 2.53): el formulario esta
+              siempre visible en la propia pagina de detalle apenas la
+              mantencion esta en_proceso, con los datos del activo ya a la
+              vista al lado. Se llena y se aprieta "Completar Mantencion",
+              sin un paso extra para "abrir" el formulario. Pedido de
+              Javier: "el formulario ya este ahi... yo lo lleno y listo. Y
+              aprieto completar y listo. Nada mas." */}
+          {maintenance.estado === "en_proceso" && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Completar Mantención</h2>
+              <form onSubmit={handleCompleteMaintenance} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Fecha Realizada *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={completeForm.fechaRealizada}
+                      onChange={(e) =>
+                        setCompleteForm((prev) => ({ ...prev, fechaRealizada: e.target.value }))
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Realizado por
+                    </label>
+                    <input
+                      type="text"
+                      readOnly
+                      disabled
+                      value={completeForm.realizadoPor}
+                      className="w-full px-4 py-2 border border-gray-200 bg-gray-50 text-gray-600 rounded-lg cursor-not-allowed"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Se asigna automáticamente: quien está completando la mantención.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Resultado *
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    placeholder="Describe el resultado de la mantención..."
+                    value={completeForm.resultado}
+                    onChange={(e) =>
+                      setCompleteForm((prev) => ({ ...prev, resultado: e.target.value }))
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ¿Qué pasa con el equipo? *
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCompleteForm((prev) => ({ ...prev, resultadoTipo: "reparado" }))}
+                      className={`px-3 py-2 rounded-lg border text-sm font-medium ${
+                        completeForm.resultadoTipo === "reparado"
+                          ? "bg-green-600 text-white border-green-600"
+                          : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      Reparado
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCompleteForm((prev) => ({ ...prev, resultadoTipo: "pendiente_repuestos" }))
+                      }
+                      className={`px-3 py-2 rounded-lg border text-sm font-medium ${
+                        completeForm.resultadoTipo === "pendiente_repuestos"
+                          ? "bg-amber-500 text-white border-amber-500"
+                          : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      Faltan repuestos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCompleteForm((prev) => ({ ...prev, resultadoTipo: "no_reparable" }))}
+                      className={`px-3 py-2 rounded-lg border text-sm font-medium ${
+                        completeForm.resultadoTipo === "no_reparable"
+                          ? "bg-red-600 text-white border-red-600"
+                          : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      No reparable
+                    </button>
+                  </div>
+                  {completeForm.resultadoTipo === "pendiente_repuestos" && (
+                    <p className="text-xs text-amber-700 mt-2">
+                      El equipo queda en &quot;En Mantención&quot; (no vuelve a servicio) hasta que se complete una próxima mantención.
+                    </p>
+                  )}
+                  {completeForm.resultadoTipo === "no_reparable" && (
+                    <p className="text-xs text-red-700 mt-2">
+                      El equipo se dará de baja automáticamente al completar esta mantención.
+                    </p>
+                  )}
+                </div>
+
+                {completeForm.resultadoTipo === "no_reparable" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Motivo de la baja *
+                    </label>
+                    <textarea
+                      required
+                      rows={2}
+                      placeholder="Por qué no se puede reparar..."
+                      value={completeForm.motivoBaja}
+                      onChange={(e) =>
+                        setCompleteForm((prev) => ({ ...prev, motivoBaja: e.target.value }))
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Próxima Mantención
+                  </label>
+                  <input
+                    type="date"
+                    value={completeForm.proximaMantencion}
+                    onChange={(e) =>
+                      setCompleteForm((prev) => ({ ...prev, proximaMantencion: e.target.value }))
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  >
+                    <CheckCircle size={20} />
+                    {submitting ? "Guardando..." : "Completar Mantención"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
 
           {/* Result (if completed) */}
           {maintenance.estado === "completada" && (
@@ -530,165 +696,6 @@ export default function MantencionDetallePage({
           )}
         </div>
       </div>
-
-      {/* Complete Form Modal */}
-      {showCompleteForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Completar Mantención</h3>
-            <form onSubmit={handleCompleteMaintenance} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fecha Realizada *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={completeForm.fechaRealizada}
-                  onChange={(e) =>
-                    setCompleteForm((prev) => ({ ...prev, fechaRealizada: e.target.value }))
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Realizado por *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Nombre del técnico"
-                  value={completeForm.realizadoPor}
-                  onChange={(e) =>
-                    setCompleteForm((prev) => ({ ...prev, realizadoPor: e.target.value }))
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Resultado *
-                </label>
-                <textarea
-                  required
-                  rows={3}
-                  placeholder="Describe el resultado de la mantención..."
-                  value={completeForm.resultado}
-                  onChange={(e) =>
-                    setCompleteForm((prev) => ({ ...prev, resultado: e.target.value }))
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  ¿Qué pasa con el equipo? *
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCompleteForm((prev) => ({ ...prev, resultadoTipo: "reparado" }))}
-                    className={`px-3 py-2 rounded-lg border text-sm font-medium ${
-                      completeForm.resultadoTipo === "reparado"
-                        ? "bg-green-600 text-white border-green-600"
-                        : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                    }`}
-                  >
-                    Reparado
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCompleteForm((prev) => ({ ...prev, resultadoTipo: "pendiente_repuestos" }))
-                    }
-                    className={`px-3 py-2 rounded-lg border text-sm font-medium ${
-                      completeForm.resultadoTipo === "pendiente_repuestos"
-                        ? "bg-amber-500 text-white border-amber-500"
-                        : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                    }`}
-                  >
-                    Faltan repuestos
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCompleteForm((prev) => ({ ...prev, resultadoTipo: "no_reparable" }))}
-                    className={`px-3 py-2 rounded-lg border text-sm font-medium ${
-                      completeForm.resultadoTipo === "no_reparable"
-                        ? "bg-red-600 text-white border-red-600"
-                        : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                    }`}
-                  >
-                    No reparable
-                  </button>
-                </div>
-                {completeForm.resultadoTipo === "pendiente_repuestos" && (
-                  <p className="text-xs text-amber-700 mt-2">
-                    El equipo queda en &quot;En Mantención&quot; (no vuelve a servicio) hasta que se complete una próxima mantención.
-                  </p>
-                )}
-                {completeForm.resultadoTipo === "no_reparable" && (
-                  <p className="text-xs text-red-700 mt-2">
-                    El equipo se dará de baja automáticamente al completar esta mantención.
-                  </p>
-                )}
-              </div>
-
-              {completeForm.resultadoTipo === "no_reparable" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Motivo de la baja *
-                  </label>
-                  <textarea
-                    required
-                    rows={2}
-                    placeholder="Por qué no se puede reparar..."
-                    value={completeForm.motivoBaja}
-                    onChange={(e) =>
-                      setCompleteForm((prev) => ({ ...prev, motivoBaja: e.target.value }))
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Próxima Mantención
-                </label>
-                <input
-                  type="date"
-                  value={completeForm.proximaMantencion}
-                  onChange={(e) =>
-                    setCompleteForm((prev) => ({ ...prev, proximaMantencion: e.target.value }))
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex justify-end gap-4 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowCompleteForm(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-                >
-                  {submitting ? "Guardando..." : "Completar Mantención"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (

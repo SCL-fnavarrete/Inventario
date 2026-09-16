@@ -401,12 +401,15 @@ describe('TipoSolicitudEnum', () => {
   });
 });
 
+// 15-sep-2026 (SPEC 2.42): coordinando_entrega, coordinando_cambio y
+// coordinacion_en_curso se eliminaron -- la coordinacion de fecha/medio/
+// lugar se pide junto con la asignacion/ejecucion del equipo.
 describe('EstadoSolicitudEnum', () => {
-  test('acepta los 13 estados válidos del flujo normal', () => {
+  test('acepta los 10 estados válidos del flujo normal', () => {
     const estados = [
-      'solicitud_recibida', 'gestion_ti', 'coordinando_entrega', 'equipos_entregados', 'registro_rrhh',
-      'incidencia_detectada', 'coordinando_cambio', 'cambio_ejecutado', 'confirmacion_rrhh',
-      'solicitud_emitida', 'coordinacion_en_curso', 'equipo_recibido', 'consolidacion_cierre',
+      'solicitud_recibida', 'gestion_ti', 'equipos_entregados', 'registro_rrhh',
+      'incidencia_detectada', 'cambio_ejecutado', 'confirmacion_rrhh',
+      'solicitud_emitida', 'equipo_recibido', 'consolidacion_cierre',
     ];
     estados.forEach((estado) => {
       expect(EstadoSolicitudEnum.safeParse(estado).success).toBe(true);

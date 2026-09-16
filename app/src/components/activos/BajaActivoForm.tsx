@@ -121,12 +121,17 @@ export function BajaActivoForm({ assetId, onSuccess, onCancel }: BajaActivoFormP
                 <AlertTriangle size={20} />
                 <span>El activo tiene una asignación activa</span>
               </div>
-              <p className="text-red-600 text-sm mt-1">Debe registrar la devolución antes de dar de baja.</p>
+              {/* 15-sep-2026 (SPEC 2.41): ya no hay una devolucion suelta --
+                  solo pasa dentro de una Solicitud (cambio de equipo o
+                  desvinculacion), que es donde queda el motivo. */}
+              <p className="text-red-600 text-sm mt-1">
+                Debe devolverse dentro de una Solicitud (cambio de equipo o desvinculación) antes de dar de baja.
+              </p>
               <Link
-                href={`/asignaciones/devolucion?id=${asset.assignments?.find((a) => a.activo)?.id}`}
+                href="/solicitudes/nueva"
                 className="mt-2 inline-block px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
               >
-                Ir a devolución
+                Ir a Solicitudes
               </Link>
             </div>
           )}

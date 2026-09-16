@@ -20,11 +20,8 @@ import {
   Briefcase,
   HardHat,
   Gift,
-  RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { parseApiError } from "@/lib/utils/apiErrors";
-import ReturnAssetModal, { ReturnAssetData } from "@/components/ReturnAssetModal";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 import { formatearFecha } from "@/lib/utils/fechas";
 
@@ -39,6 +36,7 @@ type NotebookAsignado = {
   pulgadas: number | null;
   sistemaOperativo: string | null;
   microsoft365: boolean;
+  tipoLicenciaMicrosoft365: string | null;
   estado: string;
   condicion: string;
   fechaEntrega: string;
@@ -112,12 +110,9 @@ type Ficha = {
   }>;
   kitBienvenida: {
     entregado: boolean;
-    fechaEntrega: string | null;
   };
   epp: {
     entregado: boolean;
-    fechaEntrega: string | null;
-    proximaMantencion: string | null;
   };
   resumen: {
     totalEquiposAsignados: number;
@@ -154,14 +149,6 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
   const [ficha, setFicha] = useState<Ficha | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [returnModalOpen, setReturnModalOpen] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<{
-    asignacionId: string;
-    categoria: string;
-    marca: string;
-    modelo: string;
-    numeroSerie: string | null;
-  } | null>(null);
 
   useEffect(() => {
     fetchFicha();
@@ -180,44 +167,6 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
     } finally {
       setLoading(false);
     }
-  }
-
-  function handleReturnAssetClick(asset: {
-    asignacionId: string;
-    categoria: string;
-    marca: string;
-    modelo: string;
-    numeroSerie: string | null;
-  }) {
-    setSelectedAsset(asset);
-    setReturnModalOpen(true);
-  }
-
-  async function handleReturnAssetConfirm(data: ReturnAssetData) {
-    if (!selectedAsset) return;
-
-    const res = await fetch(`/api/asignaciones/${selectedAsset.asignacionId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-
-    if (!res.ok) {
-      // El modal de devolucion (ReturnAssetModal) es el que muestra este
-      // mensaje -- no tiene estado propio de fieldErrors, asi que el
-      // detalle por campo (si vino en `details`) se agrega directamente al
-      // mensaje para que igual sea visible.
-      const { message, fieldErrors } = await parseApiError(res, "Error al devolver activo");
-      const detalle = Object.entries(fieldErrors)
-        .map(([field, msg]) => `${field}: ${msg}`)
-        .join("; ");
-      throw new Error(detalle ? `${message} (${detalle})` : message);
-    }
-
-    // Refresh the page data
-    await fetchFicha();
-    setReturnModalOpen(false);
-    setSelectedAsset(null);
   }
 
   if (loading) {
@@ -416,28 +365,11 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
           <div className="divide-y">
             {ficha.notebooks.map((notebook, index) => (
               <div key={notebook.asignacionId} className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  {ficha.notebooks.length > 1 && (
-                    <h4 className="text-sm font-semibold text-gray-700">
-                      Notebook {index + 1}
-                    </h4>
-                  )}
-                  <button
-                    onClick={() =>
-                      handleReturnAssetClick({
-                        asignacionId: notebook.asignacionId,
-                        categoria: "Notebook",
-                        marca: notebook.marca,
-                        modelo: notebook.modelo,
-                        numeroSerie: notebook.numeroSerie,
-                      })
-                    }
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200 rounded-lg transition-colors"
-                  >
-                    <RotateCcw size={16} />
-                    <span>Devolver</span>
-                  </button>
-                </div>
+                {ficha.notebooks.length > 1 && (
+                  <h4 className="text-sm font-semibold text-gray-700 mb-4">
+                    Notebook {index + 1}
+                  </h4>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <p className="text-sm text-gray-500">Marca / Modelo</p>
@@ -464,12 +396,17 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                     <p className="font-medium">{notebook.sistemaOperativo || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Microsoft 365</p>
+                    <p className="text-sm text-gray-500">Licencia Microsoft 365</p>
+                    {/* 15-sep-2026 (SPEC 2.41): antes era un Si/No. Lo que
+                        sirve es saber que plan tiene; el Si/No solo se usa
+                        cuando no hay plan registrado. */}
                     <p className="font-medium flex items-center gap-1">
-                      {notebook.microsoft365 ? (
-                        <><CheckCircle size={16} className="text-green-500" /> Sí</>
+                      {notebook.tipoLicenciaMicrosoft365 ? (
+                        <><CheckCircle size={16} className="text-green-500" /> {notebook.tipoLicenciaMicrosoft365}</>
+                      ) : notebook.microsoft365 ? (
+                        <><CheckCircle size={16} className="text-green-500" /> Sin plan registrado</>
                       ) : (
-                        <><XCircle size={16} className="text-red-500" /> No</>
+                        <><XCircle size={16} className="text-red-500" /> Sin licencia</>
                       )}
                     </p>
                   </div>
@@ -498,28 +435,11 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
           <div className="divide-y">
             {ficha.celulares.map((celular, index) => (
               <div key={celular.asignacionId} className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  {ficha.celulares.length > 1 && (
-                    <h4 className="text-sm font-semibold text-gray-700">
-                      Celular {index + 1}
-                    </h4>
-                  )}
-                  <button
-                    onClick={() =>
-                      handleReturnAssetClick({
-                        asignacionId: celular.asignacionId,
-                        categoria: "Celular",
-                        marca: celular.marca,
-                        modelo: celular.modelo,
-                        numeroSerie: celular.numeroSerie,
-                      })
-                    }
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200 rounded-lg transition-colors"
-                  >
-                    <RotateCcw size={16} />
-                    <span>Devolver</span>
-                  </button>
-                </div>
+                {ficha.celulares.length > 1 && (
+                  <h4 className="text-sm font-semibold text-gray-700 mb-4">
+                    Celular {index + 1}
+                  </h4>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <p className="text-sm text-gray-500">Marca / Modelo</p>
@@ -580,28 +500,11 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
           <div className="divide-y">
             {ficha.monitores.map((monitor, index) => (
               <div key={monitor.asignacionId} className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  {ficha.monitores.length > 1 && (
-                    <h4 className="text-sm font-semibold text-gray-700">
-                      Monitor {index + 1}
-                    </h4>
-                  )}
-                  <button
-                    onClick={() =>
-                      handleReturnAssetClick({
-                        asignacionId: monitor.asignacionId,
-                        categoria: "Monitor",
-                        marca: monitor.marca,
-                        modelo: monitor.modelo,
-                        numeroSerie: monitor.numeroSerie,
-                      })
-                    }
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200 rounded-lg transition-colors"
-                  >
-                    <RotateCcw size={16} />
-                    <span>Devolver</span>
-                  </button>
-                </div>
+                {ficha.monitores.length > 1 && (
+                  <h4 className="text-sm font-semibold text-gray-700 mb-4">
+                    Monitor {index + 1}
+                  </h4>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <p className="text-sm text-gray-500">Marca / Modelo</p>
@@ -642,7 +545,6 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Marca/Modelo</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">N° Serie</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha Entrega</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -652,23 +554,6 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                       <td className="px-4 py-2">{equipo.marca} {equipo.modelo}</td>
                       <td className="px-4 py-2 font-mono">{equipo.numeroSerie || "-"}</td>
                       <td className="px-4 py-2">{formatDate(equipo.fechaEntrega)}</td>
-                      <td className="px-4 py-2">
-                        <button
-                          onClick={() =>
-                            handleReturnAssetClick({
-                              asignacionId: equipo.asignacionId,
-                              categoria: equipo.categoria,
-                              marca: equipo.marca,
-                              modelo: equipo.modelo,
-                              numeroSerie: equipo.numeroSerie,
-                            })
-                          }
-                          className="flex items-center gap-1 px-2 py-1 text-xs bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200 rounded transition-colors"
-                        >
-                          <RotateCcw size={14} />
-                          <span>Devolver</span>
-                        </button>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -688,17 +573,6 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
           </div>
           <div className="p-6">
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Calendar size={18} className="text-gray-400" />
-                  <span className="text-sm text-gray-500">Fecha de Entrega</span>
-                </div>
-                <span className="font-medium">
-                  {ficha.kitBienvenida.fechaEntrega
-                    ? formatDate(ficha.kitBienvenida.fechaEntrega)
-                    : "-"}
-                </span>
-              </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">Estado</span>
                 <span className={cn(
@@ -727,28 +601,6 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
           <div className="p-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Calendar size={18} className="text-gray-400" />
-                  <span className="text-sm text-gray-500">Fecha de Entrega</span>
-                </div>
-                <span className="font-medium">
-                  {ficha.epp.fechaEntrega
-                    ? formatDate(ficha.epp.fechaEntrega)
-                    : "-"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Calendar size={18} className="text-gray-400" />
-                  <span className="text-sm text-gray-500">Próxima Mantención</span>
-                </div>
-                <span className="font-medium">
-                  {ficha.epp.proximaMantencion
-                    ? formatDate(ficha.epp.proximaMantencion)
-                    : "-"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">Estado</span>
                 <span className={cn(
                   "px-3 py-1 text-sm font-medium rounded-full flex items-center gap-1",
@@ -767,19 +619,6 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       </div>
-
-      {/* Return Asset Modal */}
-      {selectedAsset && (
-        <ReturnAssetModal
-          isOpen={returnModalOpen}
-          onClose={() => {
-            setReturnModalOpen(false);
-            setSelectedAsset(null);
-          }}
-          onConfirm={handleReturnAssetConfirm}
-          assetInfo={selectedAsset}
-        />
-      )}
     </div>
   );
 }

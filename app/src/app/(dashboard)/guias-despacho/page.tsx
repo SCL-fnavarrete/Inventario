@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, Search, Filter, RefreshCw } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { GuiaDespachoTable } from "@/components/guias-despacho/GuiaDespachoTable";
 import { ESTADO_GUIA_LABELS, type DispatchGuideListItem } from "@/types/guia-despacho";
 import { EstadoGuia } from "@prisma/client";
@@ -115,25 +115,6 @@ export default function GuiasDespachoPage() {
                 </option>
               ))}
             </select>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <Filter size={20} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSearchTerm("");
-                setEstadoFilter("all");
-                setPage(1);
-                fetchGuides("");
-              }}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-              title="Limpiar filtros"
-            >
-              <RefreshCw size={20} />
-            </button>
           </div>
         </form>
       </div>

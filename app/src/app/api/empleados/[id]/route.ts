@@ -168,6 +168,25 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    // Desvincular NO es una edicion de datos (16-sep-2026, SPEC 2.43):
+    // pasar a "desvinculado" implica devolver los equipos y dejar constancia
+    // del motivo, y eso solo ocurre dentro de una Solicitud de
+    // desvinculacion (que actualiza al empleado por su cuenta, dentro de la
+    // misma transaccion que procesa las devoluciones -- no pasa por aca).
+    // Se rechaza solo el CAMBIO a desvinculado: un empleado que ya lo esta
+    // sigue pudiendo editarse (el formulario manda su estado actual tal
+    // cual, sin cambiarlo).
+    if (data.estado === 'desvinculado' && existingEmployee.estado !== 'desvinculado') {
+      return NextResponse.json(
+        {
+          error:
+            'Para desvincular a un empleado hay que crear una Solicitud de desvinculación: ahí se registran la devolución de sus equipos y el motivo.',
+          redirectTo: '/solicitudes/nueva',
+        },
+        { status: 400 }
+      );
+    }
+
     // Reasignar sede (ej. el empleado se traslada de sede): decision de
     // Javier (10-sep-2026) -- solo admin puede hacerlo, a diferencia de
     // Activos, donde el traslado entre sedes se maneja via Guias de
@@ -207,9 +226,6 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         ...(data.fechaTermino !== undefined && { fechaTermino: data.fechaTermino }),
         ...(data.estado && { estado: data.estado }),
         ...(data.telefonoContacto !== undefined && { telefonoContacto: data.telefonoContacto }),
-        ...(data.fechaEntregaKit !== undefined && { fechaEntregaKit: data.fechaEntregaKit }),
-        ...(data.fechaEntregaEpp !== undefined && { fechaEntregaEpp: data.fechaEntregaEpp }),
-        ...(data.proximaMantencionEpp !== undefined && { proximaMantencionEpp: data.proximaMantencionEpp }),
         ...(puedeCambiarSede && data.sedeId !== undefined && { sedeId: data.sedeId }),
       },
     });
@@ -248,61 +264,25 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/empleados/[id] - Eliminar empleado (soft delete cambiando estado)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  try {
-    const session = await requirePermission('empleados', 'delete');
-    const { id } = await params;
-
-    // Verificar que el empleado existe
-    const existingEmployee = await prisma.employee.findUnique({
-      where: { id },
-      include: {
-        assignments: {
-          where: { activo: true },
-        },
-      },
-    });
-
-    if (!existingEmployee) {
-      return NextResponse.json(
-        { error: "Empleado no encontrado" },
-        { status: 404 }
-      );
-    }
-
-    assertSedeAccess(session, existingEmployee.sedeId, 'Empleado no encontrado');
-
-    // Verificar si tiene equipos asignados activos
-    if (existingEmployee.assignments.length > 0) {
-      return NextResponse.json(
-        { error: "No se puede eliminar un empleado con equipos asignados. Primero debe devolver todos los equipos." },
-        { status: 400 }
-      );
-    }
-
-    // Soft delete - cambiar estado a desvinculado
-    const employee = await prisma.employee.update({
-      where: { id },
-      data: {
-        estado: "desvinculado",
-      },
-    });
-
-    // Auditoria generica (SPEC 2.29). Es un soft delete (cambia estado, no
-    // borra la fila) pero desde la perspectiva del usuario es una
-    // eliminacion -- se registra como tal.
-    await auditLogService.registrarEliminacion(
-      'empleado',
-      employee.id,
-      `Empleado marcado como desvinculado: ${employee.nombres} ${employee.apellidoPaterno}`,
-      { nombres: employee.nombres, apellidoPaterno: employee.apellidoPaterno, estadoAnterior: existingEmployee.estado },
-      session.user?.email
-    );
-
-    return NextResponse.json({
-      message: "Empleado marcado como desvinculado",
-      employee,
-    });
-  } catch (error) {
-    return handleApiError(error, 'Error al eliminar empleado');
-  }
+  // 16-sep-2026 (SPEC 2.43): esta ruta hacia un "soft delete" que marcaba al
+  // empleado como desvinculado. Era el mismo atajo que el boton
+  // "Desvincular" del formulario de editar empleado, que se saco por pedido
+  // de Javier: una desvinculacion no es una edicion de datos ni un borrado,
+  // ocurre dentro de una Solicitud de desvinculacion, que es donde queda la
+  // devolucion de los equipos y el motivo.
+  //
+  // Queda como stub en vez de borrarse (mismo criterio que las rutas de
+  // proveedores en SPEC 2.35 y el acta de asignacion en SPEC 2.41): ninguna
+  // pantalla la llama, pero responder 410 explicito deja claro que se retiro
+  // a proposito, en vez de un 404 que parece un error de ruteo.
+  void request;
+  void params;
+  return NextResponse.json(
+    {
+      error:
+        'Desvincular a un empleado se hace creando una Solicitud de desvinculación, no desde la ficha del empleado.',
+      redirectTo: '/solicitudes/nueva',
+    },
+    { status: 410 }
+  );
 }

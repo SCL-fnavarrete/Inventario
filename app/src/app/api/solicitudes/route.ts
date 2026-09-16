@@ -241,13 +241,40 @@ export async function POST(request: NextRequest) {
       camposComunes.categoriasRequeridas = data.categoriasRequeridas;
       camposComunes.kitBienvenidaSolicitado = data.kitBienvenidaSolicitado;
       camposComunes.eppSolicitado = data.eppSolicitado;
+      // Coordinacion de entrega (15-sep-2026, SPEC 2.42.1): si se completo
+      // en el mismo formulario de creacion, se guarda de una -- sea que el
+      // ticket alcance a saltarse Gestion TI o no (ver mas abajo).
+      if (data.fechaEntregaCoordinada) {
+        camposComunes.fechaEntregaCoordinada = new Date(data.fechaEntregaCoordinada);
+      }
+      camposComunes.medioEntrega = data.medioEntrega;
+      camposComunes.lugarEntrega = data.medioEntrega === 'presencial' ? data.lugarEntrega : null;
+      camposComunes.otChilexpressEntrega =
+        data.medioEntrega === 'chilexpress' ? data.otChilexpressEntrega : null;
+      camposComunes.ciudadEntrega = data.medioEntrega === 'chilexpress' ? data.ciudadEntrega : null;
     } else if (data.tipo === 'cambio_equipo') {
       camposComunes.motivoCambio = data.motivoCambio;
+      // Coordinacion de cambio (SPEC 2.42.1): igual patron, guardada desde
+      // ya si vino en el formulario de creacion.
+      if (data.fechaCambioCoordinada) {
+        camposComunes.fechaCambioCoordinada = new Date(data.fechaCambioCoordinada);
+      }
+      camposComunes.medioCambio = data.medioCambio;
+      camposComunes.lugarCambio = data.medioCambio === 'presencial' ? data.lugarCambio : null;
+      camposComunes.otCambioChilexpress =
+        data.medioCambio === 'chilexpress' ? data.otCambioChilexpress : null;
+      camposComunes.ciudadCambio = data.medioCambio === 'chilexpress' ? data.ciudadCambio : null;
     } else if (data.tipo === 'offboarding') {
       camposComunes.fechaDesvinculacion = data.fechaDesvinculacion;
       camposComunes.medioDevolucion = data.medioDevolucion;
       camposComunes.otChilexpress = data.otChilexpress;
       camposComunes.ciudadDevolucion = data.ciudadDevolucion;
+      // Coordinacion de devolucion (SPEC 2.42.1): fecha/lugar del mismo
+      // formulario -- medio/OT/ciudad ya se guardaban desde antes.
+      if (data.fechaDevolucionCoordinada) {
+        camposComunes.fechaDevolucionCoordinada = new Date(data.fechaDevolucionCoordinada);
+      }
+      camposComunes.lugarDevolucion = data.medioDevolucion === 'presencial' ? data.lugarDevolucion : null;
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -291,11 +318,16 @@ export async function POST(request: NextRequest) {
       // Si al crear la solicitud de onboarding ya se eligieron equipos
       // especificos (no solo categorias), se asignan de una -- el Activo
       // queda reservado (estado 'asignado') desde este momento, aunque la
-      // entrega fisica sea despues. Si alcanza para cubrir todas las
-      // categorias requeridas la solicitud arranca directo en "Coordinando
-      // Entrega"; si cubre solo parte, arranca en Gestion TI para completar
-      // el resto cuando haya stock; si no se eligio nada, arranca igual que
-      // antes en Solicitud Recibida.
+      // entrega fisica sea despues. Si ademas ya se completo la
+      // coordinacion de entrega (fecha/medio/lugar) EN EL MISMO FORMULARIO
+      // de creacion y quedaron cubiertas todas las categorias requeridas,
+      // el ticket se salta Gestion TI por completo y nace directo en
+      // "Equipos Entregados" -- ese es el pedido de Javier (15-sep-2026,
+      // SPEC 2.42.1): "dejarlo para definirlo al inicio tambien cuando se
+      // asigna el equipo, para asi hacemos todo de una en vez de varios
+      // pasos". Si falta alguna categoria, o no se coordino la fecha
+      // todavia, el ticket entra a Gestion TI a completar lo que falta (la
+      // fecha, si ya se guardo arriba, no se vuelve a pedir ahi).
       let estadoReal = estadoInicial;
       const assignmentIds: string[] = [];
 
@@ -304,7 +336,13 @@ export async function POST(request: NextRequest) {
         data.assetIdsSeleccionados &&
         data.assetIdsSeleccionados.length > 0
       ) {
+        const asignados = await tx.asset.findMany({
+          where: { id: { in: data.assetIdsSeleccionados } },
+          select: { categoria: { select: { nombre: true } } },
+        });
+
         for (const assetId of data.assetIdsSeleccionados) {
+          const cargador = data.condicionCargadorPorAsset?.[assetId];
           const assignment = await executeAssignment(tx, {
             assetId,
             employeeId: empId,
@@ -313,24 +351,21 @@ export async function POST(request: NextRequest) {
             entregadoPor: systemUser.nombre,
             tipoMovimiento: 'ingreso',
             motivo: `Onboarding - ${numero}`,
+            condicionCargadorEntrega: cargador?.condicion || null,
+            observacionesCargador: cargador?.observaciones || null,
           });
           assignmentIds.push(assignment.id);
         }
 
-        const asignados = await tx.assignment.findMany({
-          where: { id: { in: assignmentIds } },
-          include: { asset: { include: { categoria: true } } },
-        });
-        const categoriasAsignadas = asignados.map((a) => a.asset.categoria.nombre);
-        const faltanCategorias = data.categoriasRequeridas.some(
-          (c) => !categoriasAsignadas.includes(c)
+        const categoriasAsignadas = asignados.map((a) => a.categoria.nombre);
+        const cubreTodasLasCategorias = data.categoriasRequeridas.every((c) =>
+          categoriasAsignadas.includes(c)
         );
 
-        if (data.categoriasRequeridas.length > 0 && !faltanCategorias) {
-          estadoReal = 'coordinando_entrega';
-        } else {
-          estadoReal = 'gestion_ti';
-        }
+        estadoReal =
+          cubreTodasLasCategorias && data.fechaEntregaCoordinada
+            ? 'equipos_entregados'
+            : 'gestion_ti';
       }
 
       // Offboarding: si el tecnico ya tiene los equipos (y el EPP) en mano
@@ -377,6 +412,8 @@ export async function POST(request: NextRequest) {
             recibidoPor: systemUser.nombre,
             estadoDevolucion: dev.estadoDevolucion,
             observacionesDevolucion: dev.observaciones || null,
+            condicionCargadorDevolucion: dev.condicionCargador || null,
+            observacionesCargador: dev.observacionesCargador || null,
             expectedEmployeeId: empId,
           });
           assignmentIds.push(dev.assignmentId);
@@ -422,6 +459,8 @@ export async function POST(request: NextRequest) {
           recibidoPor: systemUser.nombre,
           estadoDevolucion: data.estadoDevolucionAnterior,
           observacionesDevolucion: data.observacionesDevolucionAnterior || null,
+          condicionCargadorDevolucion: data.condicionCargadorAnterior || null,
+          observacionesCargador: data.observacionesCargadorAnterior || null,
           expectedEmployeeId: empId,
         });
         assignmentIds.push(data.oldAssignmentId);
@@ -434,6 +473,8 @@ export async function POST(request: NextRequest) {
           entregadoPor: systemUser.nombre,
           tipoMovimiento: 'cambio',
           motivo: `Cambio de equipo - ${numero}`,
+          condicionCargadorEntrega: data.condicionCargadorNuevo || null,
+          observacionesCargador: data.observacionesCargadorNuevo || null,
         });
         assignmentIds.push(nuevaAsignacion.id);
 

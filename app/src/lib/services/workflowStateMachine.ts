@@ -18,12 +18,10 @@ const TRANSITIONS: Record<TipoSolicitud, TransitionRule[]> = {
       roles: ['tecnico', 'admin'],
     },
     {
+      // Fecha/medio/lugar de entrega se piden junto con la entrega de
+      // equipos, en la misma transicion -- ya no hay una etapa
+      // "coordinando_entrega" aparte (15-sep-2026, SPEC 2.42).
       from: 'gestion_ti',
-      to: 'coordinando_entrega',
-      roles: ['tecnico', 'admin'],
-    },
-    {
-      from: 'coordinando_entrega',
       to: 'equipos_entregados',
       roles: ['tecnico', 'admin'],
     },
@@ -37,14 +35,11 @@ const TRANSITIONS: Record<TipoSolicitud, TransitionRule[]> = {
   ],
   cambio_equipo: [
     {
-      // Coordinacion ANTES de ejecutar el cambio: fecha/lugar presencial, u
-      // OT + fecha estimada de llegada. Ver SPEC 2.5.2 regla 9.
+      // Coordinacion (fecha/lugar presencial, u OT + fecha estimada de
+      // llegada) y ejecucion del cambio se piden juntas, en la misma
+      // transicion -- ya no hay una etapa "coordinando_cambio" aparte
+      // (15-sep-2026, SPEC 2.42). Los campos vienen de SPEC 2.5.2 regla 9.
       from: 'incidencia_detectada',
-      to: 'coordinando_cambio',
-      roles: ['tecnico', 'admin'],
-    },
-    {
-      from: 'coordinando_cambio',
       to: 'cambio_ejecutado',
       roles: ['tecnico', 'admin'],
     },
@@ -57,17 +52,11 @@ const TRANSITIONS: Record<TipoSolicitud, TransitionRule[]> = {
   ],
   offboarding: [
     {
-      // Coordinacion ANTES de recibir los equipos: fecha/lugar presencial, u
-      // OT + fecha estimada de llegada. Mismos campos que ya se podian
-      // llenar al crear el ticket (medioDevolucion/otChilexpress/
-      // ciudadDevolucion), ahora con una etapa propia para poder
-      // completarlos/actualizarlos despues. Ver SPEC 2.5.2 regla 9.
+      // Coordinacion de la devolucion y recepcion de los equipos se piden
+      // juntas, en la misma transicion -- ya no hay una etapa
+      // "coordinacion_en_curso" aparte (15-sep-2026, SPEC 2.42). Los campos
+      // vienen de SPEC 2.5.2 regla 9.
       from: 'solicitud_emitida',
-      to: 'coordinacion_en_curso',
-      roles: ['tecnico', 'admin'],
-    },
-    {
-      from: 'coordinacion_en_curso',
       to: 'equipo_recibido',
       roles: ['tecnico', 'admin'],
     },
@@ -93,29 +82,20 @@ const FINAL_STATES: Record<TipoSolicitud, EstadoSolicitud> = {
 };
 
 const STATES_BY_TYPE: Record<TipoSolicitud, EstadoSolicitud[]> = {
-  onboarding: [
-    'solicitud_recibida',
-    'gestion_ti',
-    'coordinando_entrega',
-    'equipos_entregados',
-    'registro_rrhh',
-  ],
-  cambio_equipo: ['incidencia_detectada', 'coordinando_cambio', 'cambio_ejecutado', 'confirmacion_rrhh'],
-  offboarding: ['solicitud_emitida', 'coordinacion_en_curso', 'equipo_recibido', 'consolidacion_cierre'],
+  onboarding: ['solicitud_recibida', 'gestion_ti', 'equipos_entregados', 'registro_rrhh'],
+  cambio_equipo: ['incidencia_detectada', 'cambio_ejecutado', 'confirmacion_rrhh'],
+  offboarding: ['solicitud_emitida', 'equipo_recibido', 'consolidacion_cierre'],
 };
 
 export const STATE_LABELS: Record<EstadoSolicitud, string> = {
   solicitud_recibida: 'Solicitud Recibida',
   gestion_ti: 'Gestión TI',
-  coordinando_entrega: 'Coordinando Entrega',
   equipos_entregados: 'Equipos Entregados',
   registro_rrhh: 'Ticket Cerrado',
   incidencia_detectada: 'Incidencia Detectada',
-  coordinando_cambio: 'Coordinando Cambio',
   cambio_ejecutado: 'Cambio Ejecutado',
   confirmacion_rrhh: 'Ticket Cerrado',
   solicitud_emitida: 'Solicitud Emitida',
-  coordinacion_en_curso: 'Coordinando Devolución',
   equipo_recibido: 'Equipo Recibido',
   consolidacion_cierre: 'Consolidación y Cierre',
   cancelada: 'Cancelada',

@@ -225,6 +225,7 @@ export function SelectorActivos({
                 className="inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-blue-200 text-blue-800 rounded text-xs"
               >
                 {getCategoryIcon(asset.categoria.nombre)}
+                <span className="text-blue-600">{asset.categoria.nombre}</span>
                 <span className="font-medium">{asset.marca} {asset.modelo}</span>
                 {asset.numeroSerie && (
                   <span className="text-blue-600">({asset.numeroSerie})</span>
@@ -342,7 +343,12 @@ export function SelectorActivos({
                     )}>
                       {asset.marca} {asset.modelo}
                     </span>
-                    <span className="text-gray-500 text-xs ml-2 hidden lg:inline">
+                    {/* Nombre de categoria (18-sep-2026, SPEC 2.9.1): antes
+                        estaba oculto bajo "lg" -- solo el icono era visible
+                        en pantallas mas chicas. Pedido de Javier: "sale el
+                        icono, pero la idea es que tambien salga por
+                        nombre". */}
+                    <span className="text-gray-500 text-xs ml-2">
                       {asset.categoria.nombre}
                     </span>
                   </div>

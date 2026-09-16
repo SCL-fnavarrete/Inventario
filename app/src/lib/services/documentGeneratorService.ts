@@ -40,27 +40,54 @@ function formatDateLarga(date: Date | string | null): string {
 // "operador" de la firma -- ese campo del Activo ya no existe, SPEC 2.20.
 // Este archivo referenciaba el campo eliminado y no compilaba; bug
 // preexistente detectado ahora porque el CI corre `tsc`.)
-function descripcionAsset(asset: {
-  procesador: string | null;
-  ram: string | null;
-  discoDuro: string | null;
-  sistemaOperativo: string | null;
-  numeroTelefono: string | null;
-}): string {
+function descripcionAsset(
+  asset: {
+    procesador: string | null;
+    ram: string | null;
+    discoDuro: string | null;
+    sistemaOperativo: string | null;
+    numeroTelefono: string | null;
+  },
+  // Condicion del cargador (16-sep-2026, SPEC 2.48): se agrega como un dato
+  // mas de la descripcion en vez de una columna nueva -- este documento
+  // tiene que seguir siendo fiel al formato de la herramienta externa (ver
+  // comentario en ComprobanteEntregaTemplate), que no tiene columna propia
+  // para el cargador.
+  cargador?: string | null
+): string {
   const partes: string[] = [];
   if (asset.procesador) partes.push(`Proc: ${asset.procesador}`);
   if (asset.ram) partes.push(`RAM: ${asset.ram}`);
   if (asset.discoDuro) partes.push(`Disco: ${asset.discoDuro}`);
   if (asset.sistemaOperativo) partes.push(`SO: ${asset.sistemaOperativo}`);
   if (asset.numeroTelefono) partes.push(`Tel: ${asset.numeroTelefono}`);
+  if (cargador) partes.push(`Cargador: ${cargador}`);
   return partes.join(' | ');
 }
 
-// Nombre y correo de quien gestiona/recibe la operacion, para dejar registro
-// verificable en la firma del documento (no solo el nombre, que puede repetirse
-// entre personas).
-function nombreConCorreo(user: { nombre: string; email: string }): string {
-  return `${user.nombre} (${user.email})`;
+// Descripcion para equipos que se devuelven o cambian (16-sep-2026, SPEC
+// 2.49) -- a diferencia de descripcionAsset (que muestra specs tecnicas,
+// pensadas para una entrega), aca importa mas identificar el equipo fisico
+// concreto: modelo y N° de serie, ademas del cargador si aplica.
+function descripcionEquipoDevuelto(
+  asset: { modelo: string; numeroSerie: string | null },
+  cargador?: string | null
+): string {
+  const partes: string[] = [`Modelo: ${asset.modelo}`];
+  partes.push(`N° Serie: ${asset.numeroSerie || 's/serie'}`);
+  if (cargador) partes.push(`Cargador: ${cargador}`);
+  return partes.join(' | ');
+}
+
+// Etiqueta legible de la condicion del cargador (16-sep-2026, SPEC 2.48) --
+// null si el equipo no es un notebook con cargador, o si nunca se
+// registro (queda "pendiente" en el enum por defecto, que tampoco se
+// imprime -- no aporta nada al acta).
+function labelCargador(condicion: string | null | undefined): string | null {
+  if (condicion === 'ok') return 'Ok';
+  if (condicion === 'danado') return 'Dañado';
+  if (condicion === 'no_aplica') return 'No aplica';
+  return null;
 }
 
 export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer> {
@@ -100,7 +127,9 @@ export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer>
     fechaContrato: formatDate(solicitud.employee.fechaIngreso),
     fechaEntrega: formatDate(new Date()),
     assets,
-    gestionadoPor: nombreConCorreo(solicitud.responsableActual || solicitud.solicitante),
+    // 16-sep-2026 (SPEC 2.50): solo nombre, sin correo -- mismo criterio
+    // que el resto de los documentos.
+    gestionadoPor: (solicitud.responsableActual || solicitud.solicitante).nombre,
   });
 
   return renderPdf(element);
@@ -126,7 +155,7 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
   const assets = solicitud.employee.assignments.map((a) => ({
     equipo: a.asset.categoria.nombre,
     marca: a.asset.marca,
-    descripcion: descripcionAsset(a.asset),
+    descripcion: descripcionAsset(a.asset, labelCargador(a.condicionCargadorEntrega)),
     entregado: 'OK',
   }));
 
@@ -144,9 +173,7 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
     otNumero,
     assets,
     observacion: solicitud.observaciones || 'n/a',
-    // Comprobante de entrega: fiel a la plantilla externa, que solo firma
-    // con nombre y empresa (sin correo) -- a diferencia de los otros
-    // documentos, que si usan nombreConCorreo() para trazabilidad.
+    // Firma solo con nombre y empresa, sin correo (SPEC 2.50).
     gestionadoPor: (solicitud.responsableActual || solicitud.solicitante).nombre,
   });
 
@@ -160,40 +187,40 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
       employee: true,
       solicitante: true,
       responsableActual: true,
-      transitions: {
-        where: { estadoNuevo: 'cambio_ejecutado' },
-        orderBy: { createdAt: 'desc' },
-        take: 1,
-      },
     },
   });
 
-  // Get the assignment IDs to find old and new assets
+  // 16-sep-2026 (SPEC 2.50): antes se buscaba el equipo anterior en
+  // datosAccion.oldAssignmentId de la transicion "cambio_ejecutado" -- eso
+  // solo existe para tickets ejecutados manualmente desde el detalle
+  // (incidencia_detectada -> cambio_ejecutado). Desde SPEC 2.45, un ticket
+  // creado con el equipo ya elegido se ejecuta y cierra de inmediato, sin
+  // pasar por esa transicion, asi que nunca habia datosAccion y "Equipo
+  // devuelto" salia vacio. En vez de depender del historial de
+  // transiciones, se usa directamente WorkflowRequest.assignmentIds: en
+  // ambos caminos de ejecucion (creacion directa y transicion manual) se
+  // guarda [oldAssignmentId, newAssignmentId], en ese orden.
+  const [oldAssignmentId, newAssignmentId] = solicitud.assignmentIds;
+
   const assignments = await prisma.assignment.findMany({
-    where: { id: { in: solicitud.assignmentIds } },
+    where: { id: { in: [oldAssignmentId, newAssignmentId].filter(Boolean) } },
     include: { asset: { include: { categoria: true } } },
-    orderBy: { createdAt: 'desc' },
   });
 
-  const newAssignment = assignments[0];
-  const datosAccion = (solicitud.transitions[0]?.datosAccion as Record<string, unknown>) || {};
+  const newAssignment = assignments.find((a) => a.id === newAssignmentId) || null;
+  const oldAssignment = assignments.find((a) => a.id === oldAssignmentId) || null;
+  const oldAsset = oldAssignment?.asset || null;
+  const oldCondicionCargadorDevolucion = oldAssignment?.condicionCargadorDevolucion || null;
 
-  // Try to find the old asset from transition data
-  let oldAsset = null;
-  if (datosAccion.oldAssignmentId) {
-    const oldAssignment = await prisma.assignment.findUnique({
-      where: { id: datosAccion.oldAssignmentId as string },
-      include: { asset: { include: { categoria: true } } },
-    });
-    if (oldAssignment) oldAsset = oldAssignment.asset;
-  }
-
-  const toAssetInfo = (asset: typeof newAssignment.asset) => ({
-    tipo: asset.categoria.nombre,
+  const toAssetInfo = (
+    asset: { categoria: { nombre: string }; marca: string; modelo: string; numeroSerie: string | null },
+    estado: string,
+    cargador: string | null
+  ) => ({
+    equipo: asset.categoria.nombre,
     marca: asset.marca,
-    modelo: asset.modelo,
-    numeroSerie: asset.numeroSerie,
-    estado: asset.condicion,
+    descripcion: descripcionEquipoDevuelto(asset, cargador),
+    estado,
   });
 
   const element = React.createElement(ComprobanteCambioTemplate, {
@@ -201,9 +228,16 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
     empleadoRut: solicitud.employee.rut || '—',
     fecha: formatDate(new Date()),
     motivoCambio: solicitud.motivoCambio || '—',
-    equipoNuevo: newAssignment ? toAssetInfo(newAssignment.asset) : { tipo: '—', marca: '—', modelo: '—', numeroSerie: null, estado: '—' },
-    equipoAnterior: oldAsset ? toAssetInfo(oldAsset) : { tipo: '—', marca: '—', modelo: '—', numeroSerie: null, estado: '—' },
-    gestionadoPor: nombreConCorreo(solicitud.responsableActual || solicitud.solicitante),
+    equipoNuevo: newAssignment
+      ? toAssetInfo(newAssignment.asset, 'Entregado OK', labelCargador(newAssignment.condicionCargadorEntrega))
+      : { equipo: '—', marca: '—', descripcion: '—', estado: '—' },
+    equipoAnterior: oldAsset
+      ? toAssetInfo(oldAsset, 'Devolución OK', labelCargador(oldCondicionCargadorDevolucion))
+      : { equipo: '—', marca: '—', descripcion: '—', estado: '—' },
+    // 16-sep-2026 (SPEC 2.50): solo el nombre, sin correo entre parentesis
+    // -- mismo criterio que ya usaba el Comprobante de Entrega. Antes este
+    // documento (y el Acta de Devolucion) usaban nombreConCorreo().
+    gestionadoPor: (solicitud.responsableActual || solicitud.solicitante).nombre,
   });
 
   return renderPdf(element);
@@ -232,22 +266,27 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
   );
 
   const assets = returnedAssignments.map((a) => ({
-    tipo: a.asset.categoria.nombre,
+    equipo: a.asset.categoria.nombre,
     marca: a.asset.marca,
-    modelo: a.asset.modelo,
-    numeroSerie: a.asset.numeroSerie,
-    estadoDevolucion: a.estadoDevolucion || 'ok',
+    descripcion: descripcionEquipoDevuelto(a.asset, labelCargador(a.condicionCargadorDevolucion)),
+    estado:
+      a.estadoDevolucion === 'ok'
+        ? 'OK'
+        : a.estadoDevolucion === 'danado'
+          ? 'No OK'
+          : a.estadoDevolucion || 'OK',
   }));
 
   const element = React.createElement(ActaDevolucionTemplate, {
     empleadoNombre: `${solicitud.employee.nombres} ${solicitud.employee.apellidoPaterno}`,
     empleadoRut: solicitud.employee.rut || '—',
-    fechaInicio: formatDate(solicitud.employee.fechaIngreso),
     fechaTermino: formatDate(solicitud.fechaDesvinculacion),
     fechaDevolucion: formatDate(new Date()),
     assets,
-    observaciones: solicitud.observaciones,
-    recibidoPor: nombreConCorreo(solicitud.responsableActual || solicitud.solicitante),
+    observacion: solicitud.observaciones || 'n/a',
+    // 16-sep-2026 (SPEC 2.50): solo nombre, sin correo -- mismo criterio
+    // que el resto de los documentos.
+    recibidoPor: (solicitud.responsableActual || solicitud.solicitante).nombre,
   });
 
   return renderPdf(element);

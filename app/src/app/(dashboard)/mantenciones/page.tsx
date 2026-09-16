@@ -69,7 +69,31 @@ type Stats = {
   totalVencidas: number;
   totalProximas: number;
   totalEnProceso: number;
+  totalCompletadas: number;
 };
+
+// Periodos para las tarjetas "Proximas" y "Completadas" (16-sep-2026, SPEC
+// 2.51) -- antes eran fijos (30 dias y "el mes", respectivamente). Pedido
+// de Javier: "colocar un filtro donde pueda indicar el dia, semana, mes,
+// trimestre, seis meses y el año, en vez de algo estatico".
+type Periodo = "dia" | "semana" | "mes" | "trimestre" | "semestre" | "anio" | "todas";
+// "todas" (18-sep-2026, SPEC 2.51.2): Javier, tras el fix de 2.51.1 -- "nos
+// falta un filtro... un valor universal que diga como todos, que muestre
+// todas las mantenciones sin importar la fecha". dias: 0 es el sentinel que
+// tanto /api/mantenciones como /api/mantenciones/pendientes interpretan
+// como "sin ventana de tiempo" (ver esas rutas).
+const PERIODOS: { value: Periodo; label: string; dias: number }[] = [
+  { value: "dia", label: "Día", dias: 1 },
+  { value: "semana", label: "Semana", dias: 7 },
+  { value: "mes", label: "Mes", dias: 30 },
+  { value: "trimestre", label: "Trimestre", dias: 90 },
+  { value: "semestre", label: "6 meses", dias: 180 },
+  { value: "anio", label: "Año", dias: 365 },
+  { value: "todas", label: "Historial completo", dias: 0 },
+];
+function diasDePeriodo(periodo: Periodo): number {
+  return PERIODOS.find((p) => p.value === periodo)?.dias ?? 30;
+}
 
 const estadoConfig: Record<string, { label: string; icon: typeof CheckCircle; color: string; bgColor: string }> = {
   pendiente: { label: "Pendiente", icon: Clock, color: "text-orange-600", bgColor: "bg-orange-100" },
@@ -128,6 +152,11 @@ export default function MantencionesPage() {
   // Selector de sede del nav (Etapa 2): elegir una sede ahi filtra tambien
   // esta pantalla, igual que ya pasa en Activos.
   const { sedeSeleccionada } = useSedeSeleccionada();
+  // Periodo de las tarjetas "Proximas" y "Completadas" (SPEC 2.51, ajustado
+  // 16-sep-2026 tras feedback de Javier: "la idea es que el filtro este con
+  // los demas filtros, no en la tarjeta" -- un solo filtro en la barra de
+  // filtros, no un selector por tarjeta.
+  const [periodo, setPeriodo] = useState<Periodo>("mes");
 
   useEffect(() => {
     fetchTipos();
@@ -135,9 +164,13 @@ export default function MantencionesPage() {
 
   useEffect(() => {
     fetchMaintenances();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, filterTipoId, filterEstado, showVencidas, page, sedeSeleccionada, periodo]);
+
+  useEffect(() => {
     fetchStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, filterTipoId, filterEstado, showVencidas, page, sedeSeleccionada]);
+  }, [periodo, sedeSeleccionada]);
 
   async function fetchTipos() {
     try {
@@ -162,9 +195,25 @@ export default function MantencionesPage() {
       if (filterEstado) params.append("estado", filterEstado);
       if (showVencidas) params.append("vencidas", "true");
       if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
+      // Periodo (SPEC 2.51.1): mismo valor que ya se manda a /pendientes
+      // para las tarjetas, ahora tambien acota el listado de abajo.
+      const diasPeriodo = diasDePeriodo(periodo).toString();
+      params.append("dias", diasPeriodo);
+      params.append("diasCompletadas", diasPeriodo);
 
       const res = await fetch(`/api/mantenciones?${params}`);
       const data = await res.json();
+
+      if (!res.ok) {
+        // Antes esto quedaba en silencio: la lista simplemente aparecia
+        // vacia sin ninguna pista de que la peticion habia fallado (asi se
+        // detecto tarde el bug de "Todas" en SPEC 2.51.2 -- el schema
+        // rechazaba dias=0 con un 400 y aca no se revisaba res.ok).
+        console.error("Error fetching maintenances:", data.error || data);
+        setMaintenances([]);
+        setTotalPages(1);
+        return;
+      }
 
       setMaintenances(data.data || []);
       setTotalPages(data.pagination?.totalPages || 1);
@@ -177,7 +226,13 @@ export default function MantencionesPage() {
 
   async function fetchStats() {
     try {
-      const res = await fetch("/api/mantenciones/pendientes?dias=30");
+      const dias = diasDePeriodo(periodo).toString();
+      const params = new URLSearchParams({
+        dias,
+        diasCompletadas: dias,
+      });
+      if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
+      const res = await fetch(`/api/mantenciones/pendientes?${params}`);
       const data = await res.json();
       setStats(data.stats);
     } catch (error) {
@@ -232,7 +287,9 @@ export default function MantencionesPage() {
         <div className="bg-white rounded-lg shadow p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Próximas (30 días)</p>
+              <p className="text-sm text-gray-500">
+                Próximas ({PERIODOS.find((p) => p.value === periodo)?.label.toLowerCase()})
+              </p>
               <p className="text-2xl font-bold text-orange-600">{stats?.totalProximas || 0}</p>
             </div>
             <div className="p-3 bg-orange-100 rounded-full">
@@ -256,10 +313,10 @@ export default function MantencionesPage() {
         <div className="bg-white rounded-lg shadow p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Completadas (mes)</p>
-              <p className="text-2xl font-bold text-green-600">
-                {stats?.porEstado.find((s) => s.estado === "completada")?.count || 0}
+              <p className="text-sm text-gray-500">
+                Completadas ({PERIODOS.find((p) => p.value === periodo)?.label.toLowerCase()})
               </p>
+              <p className="text-2xl font-bold text-green-600">{stats?.totalCompletadas || 0}</p>
             </div>
             <div className="p-3 bg-green-100 rounded-full">
               <CheckCircle className="h-6 w-6 text-green-600" />
@@ -314,6 +371,28 @@ export default function MantencionesPage() {
             <option value="en_proceso">En Proceso</option>
             <option value="completada">Completada</option>
             <option value="cancelada">Cancelada</option>
+          </select>
+
+          {/* Periodo (SPEC 2.51, ampliado en 2.51.1): vive en la barra de
+              filtros junto a los demas, no en cada tarjeta -- pedido de
+              Javier tras el primer intento. Acota tanto las tarjetas
+              "Proximas"/"Completadas" como la tabla de abajo: vencidas y
+              en proceso se ven siempre (sin ventana), proximas y
+              completadas quedan dentro del periodo elegido. */}
+          <select
+            value={periodo}
+            onChange={(e) => {
+              setPeriodo(e.target.value as Periodo);
+              setPage(1);
+            }}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            title="Período: acota las tarjetas Próximas/Completadas y la tabla de abajo"
+          >
+            {PERIODOS.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
+            ))}
           </select>
 
           <button

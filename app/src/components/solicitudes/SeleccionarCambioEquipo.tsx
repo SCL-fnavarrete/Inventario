@@ -27,6 +27,7 @@ type AsignacionActiva = {
     modelo: string;
     numeroSerie: string | null;
     categoria: { nombre: string };
+    tieneCargador: boolean;
   };
 };
 
@@ -45,6 +46,7 @@ type ActivoDisponible = {
   pulgadas: string | number | null;
   conectividad: string | null;
   tipoLicenciaMicrosoft365: string | null;
+  tieneCargador: boolean;
 };
 
 type Categoria = { id: string; nombre: string };
@@ -58,6 +60,14 @@ export type SeleccionCambioEquipo = {
   newAssetId: string;
   estadoDevolucion: "ok" | "danado" | "no_devuelto";
   observaciones: string;
+  // Condicion del cargador (16-sep-2026, SPEC 2.48) -- solo tiene sentido
+  // si el equipo correspondiente es un notebook con tieneCargador; para el
+  // resto queda "" (el padre lo manda como null/undefined). "Anterior" es
+  // el cargador del equipo que se devuelve, "Nuevo" el del reemplazo.
+  condicionCargadorAnterior: "ok" | "danado" | "no_aplica" | "";
+  observacionesCargadorAnterior: string;
+  condicionCargadorNuevo: "ok" | "danado" | "no_aplica" | "";
+  observacionesCargadorNuevo: string;
 };
 
 const ICONOS: Record<string, React.ReactNode> = {
@@ -117,7 +127,11 @@ export function SeleccionarCambioEquipo({
     oldAssignmentId: string,
     newAssetId: string,
     estadoDevolucion: "ok" | "danado" | "no_devuelto",
-    observaciones: string
+    observaciones: string,
+    condicionCargadorAnterior: "ok" | "danado" | "no_aplica" | "",
+    observacionesCargadorAnterior: string,
+    condicionCargadorNuevo: "ok" | "danado" | "no_aplica" | "",
+    observacionesCargadorNuevo: string
   ) => void;
   showSubmitButton?: boolean;
   onChange?: (seleccion: SeleccionCambioEquipo | null) => void;
@@ -126,6 +140,11 @@ export function SeleccionarCambioEquipo({
   const [newAssetId, setNewAssetId] = useState("");
   const [estadoDevolucion, setEstadoDevolucion] = useState<"ok" | "danado" | "no_devuelto" | "">("");
   const [observaciones, setObservaciones] = useState("");
+  // Condicion del cargador (16-sep-2026, SPEC 2.48).
+  const [condicionCargadorAnterior, setCondicionCargadorAnterior] = useState<"ok" | "danado" | "no_aplica" | "">("");
+  const [observacionesCargadorAnterior, setObservacionesCargadorAnterior] = useState("");
+  const [condicionCargadorNuevo, setCondicionCargadorNuevo] = useState<"ok" | "danado" | "no_aplica" | "">("");
+  const [observacionesCargadorNuevo, setObservacionesCargadorNuevo] = useState("");
   const [disponibles, setDisponibles] = useState<ActivoDisponible[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -138,6 +157,10 @@ export function SeleccionarCambioEquipo({
     setDisponibles([]);
     setEstadoDevolucion("");
     setObservaciones("");
+    setCondicionCargadorAnterior("");
+    setObservacionesCargadorAnterior("");
+    setCondicionCargadorNuevo("");
+    setObservacionesCargadorNuevo("");
     if (!seleccionada) return;
 
     let cancelado = false;
@@ -187,12 +210,30 @@ export function SeleccionarCambioEquipo({
   useEffect(() => {
     if (!onChange) return;
     if (oldAssignmentId && newAssetId && estadoDevolucion) {
-      onChange({ oldAssignmentId, newAssetId, estadoDevolucion, observaciones });
+      onChange({
+        oldAssignmentId,
+        newAssetId,
+        estadoDevolucion,
+        observaciones,
+        condicionCargadorAnterior,
+        observacionesCargadorAnterior,
+        condicionCargadorNuevo,
+        observacionesCargadorNuevo,
+      });
     } else {
       onChange(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [oldAssignmentId, newAssetId, estadoDevolucion, observaciones]);
+  }, [
+    oldAssignmentId,
+    newAssetId,
+    estadoDevolucion,
+    observaciones,
+    condicionCargadorAnterior,
+    observacionesCargadorAnterior,
+    condicionCargadorNuevo,
+    observacionesCargadorNuevo,
+  ]);
 
   if (activas.length === 0) {
     return (
@@ -279,6 +320,36 @@ export function SeleccionarCambioEquipo({
         </div>
       )}
 
+      {/* Estado del cargador del equipo que se devuelve (16-sep-2026, SPEC
+          2.48) -- solo si el equipo es un notebook con cargador. No afecta
+          el estado del equipo ni gatilla baja, es puramente informativo
+          para el acta (SPEC 2.5.3 regla 9). */}
+      {seleccionada && seleccionada.asset.tieneCargador && (
+        <div className="border border-gray-200 rounded-lg p-3">
+          <p className="text-xs font-medium text-gray-600 mb-2">
+            Estado del cargador que devuelve
+          </p>
+          <select
+            value={condicionCargadorAnterior || "ok"}
+            onChange={(e) =>
+              setCondicionCargadorAnterior(e.target.value as "ok" | "danado" | "no_aplica")
+            }
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-2"
+          >
+            <option value="ok">Ok</option>
+            <option value="danado">Dañado</option>
+            <option value="no_aplica">No aplica / no lo devolvió</option>
+          </select>
+          <input
+            type="text"
+            value={observacionesCargadorAnterior}
+            onChange={(e) => setObservacionesCargadorAnterior(e.target.value)}
+            placeholder="Observación del cargador (opcional)"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+        </div>
+      )}
+
       {/* Paso 2: elegir el reemplazo, solo aparece una vez elegido el paso 1 */}
       {seleccionada && (
         <div className="border border-gray-200 rounded-lg p-4">
@@ -297,6 +368,11 @@ export function SeleccionarCambioEquipo({
             <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
               No hay equipo disponible de {seleccionada.asset.categoria.nombre.toLowerCase()} en
               el inventario ahora mismo.
+              {/* 16-sep-2026 (SPEC 2.45): en modo embebido (creacion del
+                  ticket) elegir equipo ya no es opcional -- sin reemplazo
+                  disponible, la solicitud simplemente no se puede crear
+                  todavia, en vez de nacer sin el cambio hecho. */}
+              {!showSubmitButton && ' No podrás crear la solicitud hasta que haya stock.'}
             </p>
           ) : (
             <>
@@ -319,6 +395,33 @@ export function SeleccionarCambioEquipo({
                     "Sin especificaciones registradas"}
                 </div>
               )}
+              {/* Estado del cargador del equipo nuevo (16-sep-2026, SPEC
+                  2.48) -- mismo criterio que en la entrega de Onboarding. */}
+              {disponibles.find((a) => a.id === newAssetId)?.tieneCargador && (
+                <div className="mt-2 border border-gray-200 rounded-lg p-3">
+                  <p className="text-xs font-medium text-gray-600 mb-2">
+                    Estado del cargador del equipo nuevo
+                  </p>
+                  <select
+                    value={condicionCargadorNuevo || "ok"}
+                    onChange={(e) =>
+                      setCondicionCargadorNuevo(e.target.value as "ok" | "danado" | "no_aplica")
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-2"
+                  >
+                    <option value="ok">Ok</option>
+                    <option value="danado">Dañado</option>
+                    <option value="no_aplica">No aplica / no viene con cargador</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={observacionesCargadorNuevo}
+                    onChange={(e) => setObservacionesCargadorNuevo(e.target.value)}
+                    placeholder="Observación del cargador (opcional)"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+              )}
             </>
           )}
         </div>
@@ -330,7 +433,16 @@ export function SeleccionarCambioEquipo({
           disabled={submitting || !oldAssignmentId || !newAssetId || !estadoDevolucion}
           onClick={() =>
             estadoDevolucion &&
-            onSubmit?.(oldAssignmentId, newAssetId, estadoDevolucion, observaciones)
+            onSubmit?.(
+              oldAssignmentId,
+              newAssetId,
+              estadoDevolucion,
+              observaciones,
+              condicionCargadorAnterior,
+              observacionesCargadorAnterior,
+              condicionCargadorNuevo,
+              observacionesCargadorNuevo
+            )
           }
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >

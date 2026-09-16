@@ -939,26 +939,27 @@ enum TipoSolicitud {
 }
 
 enum EstadoSolicitud {
-  // Onboarding
+  // Onboarding. La coordinacion de fecha/medio/lugar de entrega ya no es
+  // una etapa propia ("coordinando_entrega") -- se pide junto con la
+  // entrega de equipos, en la misma transicion gestion_ti -> equipos_entregados
+  // (15-sep-2026, SPEC 2.42: "hacemos todo de una en vez de varios pasos").
   solicitud_recibida
   gestion_ti
-  coordinando_entrega
   equipos_entregados
   registro_rrhh
-  // Cambio equipo
+  // Cambio equipo. Misma fusion: la coordinacion (fecha/lugar presencial, u
+  // OT + fecha estimada de llegada) se pide junto con la ejecucion del
+  // cambio, en incidencia_detectada -> cambio_ejecutado (SPEC 2.42; ya no
+  // hay un "coordinando_cambio" propio -- ver SPEC 2.5.2 regla 9 para el
+  // origen de esos campos).
   incidencia_detectada
-  // Coordinacion del cambio (fecha/lugar presencial, u OT + fecha estimada
-  // de llegada), ANTES de ejecutarlo -- ver SPEC 2.5.2 regla 9.
-  coordinando_cambio
   cambio_ejecutado
   confirmacion_rrhh
-  // Devolución
+  // Devolución. Misma fusion: la coordinacion de la devolucion se pide
+  // junto con la recepcion de los equipos, en solicitud_emitida ->
+  // equipo_recibido (SPEC 2.42; ya no hay un "coordinacion_en_curso"
+  // propio -- ver SPEC 2.5.2 regla 9 para el origen de esos campos).
   solicitud_emitida
-  // Coordinacion de la devolucion (fecha/lugar presencial, u OT + fecha
-  // estimada de llegada), ANTES de recibir los equipos. Este valor ya
-  // existia en el enum (sin usar) desde antes -- ahora se conecta a
-  // TRANSITIONS/STATES_BY_TYPE -- ver SPEC 2.5.2 regla 9.
-  coordinacion_en_curso
   equipo_recibido
   consolidacion_cierre
   // Cancelación (los tres tipos) -- solo antes de ejecutar efectos
