@@ -1,14 +1,20 @@
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import type { SesionAutenticada } from "@/lib/auth/guard";
+import { sedeWhere } from "@/lib/auth/sedeScope";
+
 import Link from "next/link";
 import { ArrowLeft, FileSpreadsheet, AlertTriangle, Calendar, Monitor } from "lucide-react";
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
-async function getActivosObsoletos() {
+async function getActivosObsoletos(session: SesionAutenticada) {
   const cincoAnosAtras = new Date();
   cincoAnosAtras.setFullYear(cincoAnosAtras.getFullYear() - 5);
 
   const activos = await prisma.asset.findMany({
     where: {
+      ...sedeWhere(session),
       ...ACTIVOS_VIGENTES,
       estado: { not: "baja" },
       OR: [
@@ -52,7 +58,9 @@ async function getActivosObsoletos() {
 }
 
 export default async function ReporteObsoletosPage() {
-  const activos = await getActivosObsoletos();
+  // La sesion decide que sede se ve (SPEC 2.29.2, ver nota arriba).
+  const session = (await getServerSession(authOptions)) as SesionAutenticada;
+  const activos = await getActivosObsoletos(session);
 
   const windows10 = activos.filter((a) =>
     a.sistemaOperativo?.toLowerCase().includes("windows 10")

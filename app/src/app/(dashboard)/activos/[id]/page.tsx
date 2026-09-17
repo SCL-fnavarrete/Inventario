@@ -1,6 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/lib/auth";
+import type { SesionAutenticada } from "@/lib/auth/guard";
+import { tieneVisibilidadTotal } from "@/lib/auth/sedeScope";
 import {
   ArrowLeft,
   Edit,
@@ -13,6 +17,7 @@ import {
   Tag,
   Clock,
   AlertCircle,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { EstadoActivo, CondicionActivo, TipoEvento } from "@prisma/client";
@@ -79,6 +84,10 @@ async function getAsset(id: string) {
     where: { id },
     include: {
       categoria: true,
+      // Sede a la que pertenece el equipo (18-sep-2026, SPEC 2.7.8): la
+      // ficha no la mostraba, pese a ser el dato que decide quien lo ve
+      // (sedeScope.ts) y que solo cambia via Guias de Despacho.
+      sede: { select: { nombre: true } },
       empleadoActual: {
         select: { nombres: true, apellidoPaterno: true, rut: true },
       },
@@ -126,6 +135,20 @@ export default async function DetalleActivoPage({
   const asset = await getAsset(id);
 
   if (!asset) {
+    notFound();
+  }
+
+  // Aislamiento por sede (18-sep-2026, SPEC 2.29.2). Esta pagina es un
+  // server component que consulta Prisma directo, sin pasar por
+  // /api/activos/:id -- por eso `assertSedeAccess`, que vive en esa ruta, no
+  // la protegia: un tecnico de Concepcion podia abrir la ficha de un equipo
+  // de Santiago pegando la URL. Se replica la misma regla aca, devolviendo
+  // 404 (no 403) para no delatar que el registro existe en otra sede.
+  const session = (await getServerSession(authOptions)) as SesionAutenticada | null;
+  if (!session) {
+    notFound();
+  }
+  if (!tieneVisibilidadTotal(session) && asset.sedeId !== session.user.sedeId) {
     notFound();
   }
 
@@ -187,7 +210,7 @@ export default async function DetalleActivoPage({
       </div>
 
       {/* Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white rounded-lg shadow p-4">
           <div className="flex items-center gap-3">
             <Tag className="h-5 w-5 text-gray-400" />
@@ -211,6 +234,17 @@ export default async function DetalleActivoPage({
               <p className="text-sm text-gray-500">Condición</p>
               <p className="font-medium text-gray-900">
                 {condicionLabels[asset.condicion]}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex items-center gap-3">
+            <MapPin className="h-5 w-5 text-gray-400" />
+            <div>
+              <p className="text-sm text-gray-500">Sede</p>
+              <p className="font-medium text-gray-900">
+                {asset.sede?.nombre || "Sin sede"}
               </p>
             </div>
           </div>

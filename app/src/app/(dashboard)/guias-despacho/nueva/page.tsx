@@ -66,6 +66,8 @@ export default function NuevaGuiaDespachoPage() {
   // comun; solo hace falta cambiarlo si va a despachar desde otra sede.
   // Ver SPEC 2.9 y SPEC 2.29.
   const [sedeOrigenId, setSedeOrigenId] = useState("");
+  // Solo admin elige sede (18-sep-2026, SPEC 2.29.1).
+  const esAdminSede = session?.user?.role === "admin";
 
   const [selectedAssets, setSelectedAssets] = useState<Asset[]>([]);
 
@@ -255,6 +257,7 @@ export default function NuevaGuiaDespachoPage() {
           </label>
           <select
             value={sedeOrigenId}
+            disabled={!esAdminSede}
             onChange={(e) => {
               setSedeOrigenId(e.target.value);
               // Los equipos ya elegidos pueden ser de una sede distinta a
@@ -263,7 +266,7 @@ export default function NuevaGuiaDespachoPage() {
               setSelectedAssets([]);
             }}
             required
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
           >
             <option value="" disabled>
               Selecciona una sede...
@@ -275,7 +278,9 @@ export default function NuevaGuiaDespachoPage() {
             ))}
           </select>
           <p className="text-xs text-gray-500 mt-1">
-            Obligatorio: desde cuál sede sale este despacho, para no mezclar equipos de sedes distintas en una misma guía.
+            {esAdminSede
+              ? "Obligatorio: desde cuál sede sale este despacho, para no mezclar equipos de sedes distintas en una misma guía."
+              : "Es tu sede: el despacho sale desde ella."}
           </p>
         </div>
       </div>

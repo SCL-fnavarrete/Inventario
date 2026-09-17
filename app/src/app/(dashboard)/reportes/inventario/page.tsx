@@ -2,9 +2,19 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { ArrowLeft, Download, FileSpreadsheet } from "lucide-react";
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import type { SesionAutenticada } from "@/lib/auth/guard";
+import { sedeWhere } from "@/lib/auth/sedeScope";
 
-async function getInventario() {
+
+// Aislamiento por sede (18-sep-2026, SPEC 2.29.2): estas paginas son server
+// components que consultan Prisma directo, sin pasar por ninguna ruta de API
+// -- por eso no heredaban `sedeWhere` y un tecnico veia los datos de todas
+// las sedes. Se aplica aca el mismo filtro que usan los endpoints.
+async function getInventario(session: SesionAutenticada) {
   const activos = await prisma.asset.findMany({
+    where: sedeWhere(session),
     include: {
       categoria: true,
       assignments: {
@@ -42,7 +52,9 @@ const CONDICION_COLORS: Record<string, string> = {
 };
 
 export default async function ReporteInventarioPage() {
-  const activos = await getInventario();
+  // La sesion decide que sede se ve (SPEC 2.29.2, ver nota arriba).
+  const session = (await getServerSession(authOptions)) as SesionAutenticada;
+  const activos = await getInventario(session);
 
   return (
     <div className="space-y-6">

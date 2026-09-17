@@ -1,11 +1,22 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 
-export async function GET() {
+// F-4 (auditoria de seguridad, 18-sep-2026): este endpoint no aplicaba
+// sedeWhere y exponia alertas individuales (marca/modelo/serie de equipos,
+// nombre y RUT de empleados) de cualquier sede a cualquier tecnico. Ver
+// SPEC 2.29.5.
+export async function GET(request: NextRequest) {
   try {
-    await requirePermission('reportes', 'read');
+    const session = await requirePermission('reportes', 'read');
+
+    const sedeIdFiltro = request.nextUrl.searchParams.get("sedeId") || "";
+    const sedeFiltro =
+      sedeIdFiltro && tieneVisibilidadTotal(session)
+        ? { sedeId: sedeIdFiltro }
+        : sedeWhere(session);
 
     const today = new Date();
     const nextWeek = new Date();
@@ -18,6 +29,7 @@ export async function GET() {
         fechaProgramada: {
           lt: today,
         },
+        asset: sedeFiltro,
       },
       include: {
         asset: {
@@ -39,6 +51,7 @@ export async function GET() {
           gte: today,
           lte: nextWeek,
         },
+        asset: sedeFiltro,
       },
       include: {
         asset: {
@@ -60,6 +73,7 @@ export async function GET() {
           { estadoCelular: "pendiente" },
           { estadoMonitor: "pendiente" },
         ],
+        employee: sedeFiltro,
       },
       include: {
         employee: {
@@ -77,6 +91,7 @@ export async function GET() {
     const activosDanados = await prisma.asset.findMany({
       where: {
         ...ACTIVOS_VIGENTES,
+        ...sedeFiltro,
         condicion: "danado",
         NOT: {
           maintenances: {
@@ -109,6 +124,7 @@ export async function GET() {
     const garantiaPorVencer = await prisma.asset.findMany({
       where: {
         ...ACTIVOS_VIGENTES,
+        ...sedeFiltro,
         fechaGarantiaFin: {
           gte: today,
           lte: nextMonth,

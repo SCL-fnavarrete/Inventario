@@ -17,6 +17,8 @@
  */
 import type { CondicionActivo, EstadoActivo } from "@prisma/client";
 import { formatearRut, limpiarRut, validarDigitoVerificador } from "@/lib/validations/rut";
+import { tieneVisibilidadTotal } from "@/lib/auth/sedeScope";
+import type { SesionAutenticada } from "@/lib/auth/guard";
 
 /** Normaliza un texto del Excel para compararlo: sin acentos, minusculas, un solo espacio. */
 function clave(valor: string): string {
@@ -182,4 +184,54 @@ export function interpretarRut(valor: string | null | undefined): LecturaRut {
   }
 
   return { tipo: "valido", rut: formatearRut(limpio) };
+}
+
+
+/**
+ * Activo existente minimo necesario para armar el mensaje de "numero de
+ * serie duplicado" durante la importacion.
+ */
+export interface ActivoDuplicado {
+  marca: string;
+  modelo: string;
+  sedeId: string | null;
+  empleadoActual: { nombres: string; apellidoPaterno: string; rut: string | null } | null;
+}
+
+/**
+ * Mensaje de "numero de serie duplicado" para la importacion de activos.
+ *
+ * 18-sep-2026: numeroSerie es unico a nivel global (no por sede -- un mismo
+ * equipo fisico no deberia repetirse en ninguna sede), asi que el chequeo de
+ * duplicado en si tiene que seguir mirando todas las sedes. El problema
+ * encontrado en la ronda de pruebas de Importacion de Activos era el detalle
+ * del mensaje: revelaba nombre y RUT del empleado al que esta asignado el
+ * activo existente sin importar su sede -- si un tecnico de Santiago subia
+ * un Excel con un numero de serie que en realidad es de un equipo de
+ * Concepcion, veia el nombre y RUT de un empleado de Concepcion. Mismo tipo
+ * de fuga que F-4 de la auditoria de seguridad, pero en el flujo de
+ * importacion. Se usa el mismo criterio que el resto de la app
+ * (tieneVisibilidadTotal / sede propia) para decidir cuanto detalle mostrar.
+ */
+export function mensajeSerieDuplicada(
+  session: SesionAutenticada,
+  numeroSerie: string,
+  existingAsset: ActivoDuplicado | null
+): string {
+  if (!existingAsset) {
+    return `N° de serie "${numeroSerie}" ya existe`;
+  }
+
+  const puedeVerDetalle =
+    tieneVisibilidadTotal(session) || existingAsset.sedeId === session.user.sedeId;
+
+  if (!puedeVerDetalle) {
+    return `N° de serie "${numeroSerie}" ya existe en el sistema (registrado en otra sede)`;
+  }
+
+  const asignadoA = existingAsset.empleadoActual
+    ? `${existingAsset.empleadoActual.nombres} ${existingAsset.empleadoActual.apellidoPaterno} (RUT: ${existingAsset.empleadoActual.rut})`
+    : "Sin asignar";
+
+  return `N° de serie "${numeroSerie}" ya existe - Marca: ${existingAsset.marca}, Modelo: ${existingAsset.modelo}, Asignado a: ${asignadoA}`;
 }

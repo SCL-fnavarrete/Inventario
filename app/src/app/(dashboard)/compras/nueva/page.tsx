@@ -80,6 +80,8 @@ export default function NuevaCompraPage() {
   // un dato que nos interese" para el area de soporte. El mismo dia se
   // agrego el RUT del proveedor (texto libre) y se quito el campo de
   // documento, que no se usaba. Ver SPEC 2.10.
+  // Solo admin elige sede (18-sep-2026, SPEC 2.29.1).
+  const esAdminSede = session?.user?.role === "admin";
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -494,7 +496,8 @@ export default function NuevaCompraPage() {
                   setShowNewAssetForm(false);
                 }}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                disabled={!esAdminSede}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
               >
                 <option value="" disabled>
                   Selecciona una sede...
@@ -506,7 +509,9 @@ export default function NuevaCompraPage() {
                 ))}
               </select>
               <p className="text-xs text-gray-500 mt-1">
-                Obligatorio: sede a la que se atribuye esta compra. Define qué catálogo de Kit/EPP se ofrece más abajo.
+                {esAdminSede
+                  ? "Obligatorio: sede a la que se atribuye esta compra. Define qué catálogo de Kit/EPP se ofrece más abajo."
+                  : "Es tu sede: la compra queda registrada en ella, y define qué catálogo de Kit/EPP se ofrece más abajo."}
               </p>
             </div>
 

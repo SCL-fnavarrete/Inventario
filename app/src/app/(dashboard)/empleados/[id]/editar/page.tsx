@@ -465,7 +465,11 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
                 value={formData.sedeId}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                /* Mover un empleado de sede es solo de admin (18-sep-2026,
+                   SPEC 2.29.1): el PUT ya ignora el sedeId que mande un
+                   tecnico, esto evita que parezca editable. */
+                disabled={!esAdmin}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
               >
                 <option value="" disabled>
                   Selecciona una sede...

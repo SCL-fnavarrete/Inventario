@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import { convertExcelDateValue } from "@/lib/excel-utils";
 import type { ImportRowStatus, ValidationError, ImportPreviewResult } from "@/types/import";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { mensajeSerieDuplicada } from "@/lib/importacion/activos";
 
 // Filas de inicio conocidas por categoría
 const HEADER_ROWS: Record<string, number> = {
@@ -18,7 +19,7 @@ const HEADER_ROWS: Record<string, number> = {
 
 export async function POST(request: NextRequest) {
   try {
-    await requirePermission('activos', 'write');
+    const session = await requirePermission('activos', 'write');
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -125,6 +126,7 @@ export async function POST(request: NextRequest) {
         numeroSerie: true,
         marca: true,
         modelo: true,
+        sedeId: true,
         empleadoActual: {
           select: { nombres: true, apellidoPaterno: true, rut: true }
         }
@@ -216,14 +218,10 @@ export async function POST(request: NextRequest) {
         const existingAsset = existingSeriesMap.get(upperSerie);
 
         if (existingAsset) {
-          const asignadoA = existingAsset.empleadoActual
-            ? `${existingAsset.empleadoActual.nombres} ${existingAsset.empleadoActual.apellidoPaterno} (RUT: ${existingAsset.empleadoActual.rut})`
-            : "Sin asignar";
-
           errors.push({
             type: "duplicate_in_database",
             field: "numeroSerie",
-            message: `N° de serie "${numeroSerie}" ya existe - Marca: ${existingAsset.marca}, Modelo: ${existingAsset.modelo}, Asignado a: ${asignadoA}`,
+            message: mensajeSerieDuplicada(session, numeroSerie, existingAsset),
             value: numeroSerie,
           });
         }

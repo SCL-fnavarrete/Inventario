@@ -56,6 +56,8 @@ export default function ImportarActivosPage() {
   // patron que Activos > Nuevo. Sin esto, los activos y empleados importados
   // quedaban con sedeId null e invisibles. Ver SPEC 2.22 (14-sep-2026).
   const [sedeId, setSedeId] = useState("");
+  // Solo admin elige sede (18-sep-2026, SPEC 2.29.1).
+  const esAdminSede = session?.user?.role === "admin";
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [sheetName, setSheetName] = useState("");
@@ -693,7 +695,8 @@ export default function ImportarActivosPage() {
                 <select
                   value={sedeId}
                   onChange={(e) => setSedeId(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={!esAdminSede}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
                 >
                   <option value="">Seleccionar sede</option>
                   {sedes.map((sede) => (
@@ -703,8 +706,9 @@ export default function ImportarActivosPage() {
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-gray-500">
-                  Todos los equipos de este archivo quedarán en esta sede,
-                  sea quien sea que haga la importación.
+                  {esAdminSede
+                    ? "Todos los equipos de este archivo quedarán en esta sede, sea quien sea que haga la importación."
+                    : "Es tu sede: los equipos de este archivo quedarán en ella."}
                 </p>
               </div>
             </div>

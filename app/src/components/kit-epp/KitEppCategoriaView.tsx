@@ -335,7 +335,8 @@ export function KitEppCategoriaView({
                   <select
                     value={formData.sedeId}
                     onChange={(e) => setFormData({ ...formData, sedeId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={!isAdmin}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
                   >
                     <option value="">Sin sede (no aparece al filtrar por sede)</option>
                     {sedes.map((sede) => (
@@ -345,7 +346,9 @@ export function KitEppCategoriaView({
                     ))}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    Sede a la que pertenece este stock. Si lo dejas sin sede, no aparecerá cuando filtres por una sede en el menú.
+                    {isAdmin
+                      ? "Sede a la que pertenece este stock. Si lo dejas sin sede, no aparecerá cuando filtres por una sede en el menú."
+                      : "Es tu sede: el stock que crees queda registrado en ella."}
                   </p>
                 </div>
               </div>

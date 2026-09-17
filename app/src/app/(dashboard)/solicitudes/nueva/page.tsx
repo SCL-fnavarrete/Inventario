@@ -174,6 +174,8 @@ export default function NuevaSolicitudPage() {
   const { data: session } = useSession();
   const [sedes, setSedes] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
   const [sedeId, setSedeId] = useState('');
+  // Solo admin elige sede (18-sep-2026, SPEC 2.29.1).
+  const esAdminSede = session?.user?.role === 'admin';
   const [step, setStep] = useState(1);
   const [tipo, setTipo] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -1788,7 +1790,8 @@ export default function NuevaSolicitudPage() {
               value={sedeId}
               onChange={(e) => setSedeId(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              disabled={!esAdminSede}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
             >
               <option value="" disabled>
                 Selecciona una sede...
@@ -1800,7 +1803,9 @@ export default function NuevaSolicitudPage() {
               ))}
             </select>
             <p className="text-xs text-gray-500 mt-1">
-              Obligatorio: a qué sede pertenece esta solicitud.
+              {esAdminSede
+                ? 'Obligatorio: a qué sede pertenece esta solicitud.'
+                : 'Es tu sede: la solicitud queda registrada en ella.'}
             </p>
           </div>
 
@@ -2461,7 +2466,8 @@ export default function NuevaSolicitudPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Sede <span className="text-red-500">*</span>
             </label>
-            {(tipo === 'offboarding' || tipo === 'cambio_equipo') && selectedEmployee ? (
+            {((tipo === 'offboarding' || tipo === 'cambio_equipo') && selectedEmployee) ||
+            !esAdminSede ? (
               <input
                 type="text"
                 value={sedes.find((s) => s.id === sedeId)?.nombre || 'Cargando...'}
@@ -2488,6 +2494,8 @@ export default function NuevaSolicitudPage() {
             <p className="text-xs text-gray-500 mt-1">
               {(tipo === 'offboarding' || tipo === 'cambio_equipo') && selectedEmployee
                 ? 'Es la sede del empleado.'
+                : !esAdminSede
+                ? 'Es tu sede: la solicitud queda registrada en ella.'
                 : 'Obligatorio: a qué sede pertenece esta solicitud.'}
             </p>
           </div>

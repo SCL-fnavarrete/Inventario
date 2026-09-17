@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { assetReassignmentSchema } from '@/lib/validations/assetTransition';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { requirePermission, handleApiError, ConflictError, respuestaDatosInvalidos } from '@/lib/auth/guard';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // SPEC 2.7.6: Reasignación de Equipo
 export async function POST(
@@ -32,6 +33,9 @@ export async function POST(
     if (!asset) {
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
     }
+
+    // Aislamiento por sede (18-sep-2026, SPEC 2.29.2): faltaba en esta ruta.
+    assertSedeAccess(session, asset.sedeId, 'Activo no encontrado');
 
     // Un registro descartado es basura de importacion: no genera movimientos.
     if (asset.deletedAt) {

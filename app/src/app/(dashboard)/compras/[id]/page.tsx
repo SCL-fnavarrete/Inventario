@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -133,6 +134,9 @@ const estadoConfig: Record<string, { label: string; color: string; bgColor: stri
 export default function CompraDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const { data: session } = useSession();
+  // Solo admin elige sede (18-sep-2026, SPEC 2.29.1).
+  const esAdminSede = session?.user?.role === "admin";
   const [purchase, setPurchase] = useState<Purchase | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
@@ -967,7 +971,8 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                     value={editForm.sedeId}
                     onChange={(e) => setEditForm({ ...editForm, sedeId: e.target.value })}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    disabled={!esAdminSede}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
                   >
                     <option value="" disabled>
                       Selecciona una sede...
@@ -979,7 +984,9 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                     ))}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    Cambiar la sede no mueve los equipos ya vinculados: cada uno conserva la suya.
+                    {esAdminSede
+                      ? "Cambiar la sede no mueve los equipos ya vinculados: cada uno conserva la suya."
+                      : "Mover una compra de sede es solo de admin."}
                   </p>
                 </div>
               </div>

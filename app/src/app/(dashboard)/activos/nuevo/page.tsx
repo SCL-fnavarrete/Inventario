@@ -30,6 +30,8 @@ export default function NuevoActivoPage() {
   // por defecto el dropdown viene precargado con SU sede (ver useEffect mas
   // abajo), para no obligarlo a elegir en el caso comun. Ver sedeScope.ts.
   const [loading, setLoading] = useState(false);
+  // Solo admin elige sede (18-sep-2026, SPEC 2.29.1).
+  const esAdminSede = session?.user?.role === "admin";
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [categories, setCategories] = useState<Category[]>([]);
@@ -317,7 +319,8 @@ export default function NuevoActivoPage() {
                 value={formData.sedeId}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                disabled={!esAdminSede}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
               >
                 <option value="" disabled>
                   Selecciona una sede...
@@ -329,7 +332,9 @@ export default function NuevoActivoPage() {
                 ))}
               </select>
               <p className="mt-1 text-xs text-gray-500">
-                Obligatorio: a qué sede pertenece este equipo.
+                {esAdminSede
+                  ? "Obligatorio: a qué sede pertenece este equipo."
+                  : "Es tu sede: los equipos que crees quedan registrados en ella."}
               </p>
             </div>
           </div>

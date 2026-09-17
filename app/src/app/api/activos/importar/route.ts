@@ -6,6 +6,7 @@ import { convertExcelDateValue, parseDDMMYYYYToDate } from "@/lib/excel-utils";
 import {
   interpretarEstado,
   interpretarRut,
+  mensajeSerieDuplicada,
   resolverCondicion,
   resolverEstado,
   tieneMicrosoft365,
@@ -238,17 +239,18 @@ export async function POST(request: NextRequest) {
         if (existingSeriesSet.has(numeroSerie.toUpperCase())) {
           const existingAsset = await prisma.asset.findFirst({
             where: { numeroSerie: { equals: numeroSerie, mode: "insensitive" } },
-            include: { empleadoActual: true },
+            select: {
+              marca: true,
+              modelo: true,
+              sedeId: true,
+              empleadoActual: { select: { nombres: true, apellidoPaterno: true, rut: true } },
+            },
           });
-
-          const asignadoA = existingAsset?.empleadoActual
-            ? `${existingAsset.empleadoActual.nombres} ${existingAsset.empleadoActual.apellidoPaterno} (RUT: ${existingAsset.empleadoActual.rut})`
-            : "Sin asignar";
 
           results.skipped++;
           results.errors.push({
             row: rowNum,
-            message: `N° de serie "${numeroSerie}" ya existe - Marca: ${existingAsset?.marca || "N/A"}, Modelo: ${existingAsset?.modelo || "N/A"}, Asignado a: ${asignadoA}`,
+            message: mensajeSerieDuplicada(session, numeroSerie, existingAsset),
             type: "duplicate_in_database",
             data: { marca, modelo, numeroSerie },
           });

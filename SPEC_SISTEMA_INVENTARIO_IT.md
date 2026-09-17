@@ -1008,6 +1008,10 @@ Javier: *"agregar una tarjeta donde salga su asociación a una compra."* `/activ
 
 Se agrega una tarjeta "Compra asociada" en la columna lateral, sobre el historial, con el número de factura, la fecha, la orden de compra, el RUT del proveedor, la sede y un link a la compra. Solo aparece si el equipo está vinculado a alguna: los cargados a mano o por importación no tienen ninguna. La consulta se extendió en la propia página (es un server component que consulta Prisma directo, no pasa por `/api/activos/:id`).
 
+### 2.10.8 La ficha del activo muestra su sede (18-sep-2026)
+
+Javier: *"en el detalle activo sería bueno colocar también su sede."* La ficha no la mostraba en ninguna parte, pese a ser el dato que decide quién puede ver ese equipo (`sedeScope.ts`) y que solo cambia por una Guía de Despacho. Se agrega la sede a la consulta de la página y una tarjeta "Sede" en la fila superior, junto a Condición, Asignado a y Fecha de Compra; la grilla pasa de 4 a 5 columnas para acomodarla.
+
 ---
 
 ## 2.11 Formulario de Activos: especificaciones por categoría (11-sep-2026)
@@ -1380,6 +1384,89 @@ Después de que el CI pasara Typecheck y Lint, falló el paso "Tests + umbrales 
    **Excluido explícitamente: Proveedores.** Javier fue explícito: *"aclarar que proveedor no va a estar ya que es un dato que no tiene relevancia para el area de soporte"*. No se audita ese módulo.
 
 **Fuera de alcance de este registro:** el diseño de `Linea` (punto 2) queda pendiente hasta tener las 3 respuestas señaladas. La cantidad exacta de sedes que necesita Perú tampoco está confirmada.
+
+### 2.29.1 REVERSIÓN: el técnico vuelve a quedar amarrado a su sede (18-sep-2026)
+
+**Esta sección revierte la decisión central de 2.29 y de su Etapa 1 (2.30). Todo lo que esas secciones describen sobre la visibilidad del técnico queda superado por lo que sigue; el resto de 2.29 (alcance a Perú, líneas telefónicas) sigue vigente.**
+
+Javier, tras revisar cómo había quedado: *"¿qué tal si por técnico se mantenga esa sede? Por ejemplo, si inicio sesión con un técnico de Santiago, en el navbar automáticamente esté seleccionada esa sede y no se pueda cambiar. Y lo mismo con todos los módulos y todos los formularios que piden la sede."*
+
+Se le advirtió explícitamente que esto deshace el motivo que originó 2.29 -- los ~10 equipos de Perú, para no tener que crear un usuario dedicado solo para verlos -- y que sería la tercera vuelta sobre la misma decisión en cuatro días (2.24 restringía, 2.29 abrió, esto cierra). También se le planteó la disyuntiva de si el candado debía ser solo de interfaz o real; eligió **real, interfaz y backend**, asumiendo la consecuencia: para mirar otra sede hay que entrar como admin o con un usuario de esa sede.
+
+**Backend.** `tieneVisibilidadTotal()` vuelve a ser `role === 'admin'`. Es el único cambio de lógica: `sedeWhere` (listados), `assertSedeAccess` (fichas), `sedeIdParaCrear` (creación) y el parámetro `?sedeId=` de los endpoints de listado ya dependían de esa función y heredan el comportamiento. Con eso, un técnico que llame la API a mano o entre por URL directa a una ficha de otra sede recibe 404, y cualquier `sedeId` que mande al crear se ignora en favor del suyo. Los tests de `sedeScope.test.ts` -- escritos en 2.29 justamente para que nadie revirtiera eso por accidente -- se actualizan al nuevo comportamiento, con la misma intención de dejarlo fijado.
+
+**Selector del nav.** `SedeSeleccionadaProvider` expone `sedeBloqueada` y, para quien no es admin, impone la sede de la sesión ignorando lo que haya en `localStorage` (por ejemplo, otra sede guardada por una sesión anterior en el mismo navegador). El `setSedeSeleccionada` no hace nada si la sede está bloqueada, así que ningún otro llamador puede saltárselo. El `Sidebar` muestra el nombre de la sede en un bloque fijo, con la leyenda "Tu usuario trabaja en esta sede", en vez del `<select>`.
+
+**Formularios.** El campo Sede queda deshabilitado (precargado con la del usuario, que ya venía de antes) para quien no es admin, con el texto de ayuda cambiado a "Es tu sede: ...". Alcanza a: Activos > Nuevo, Activos > Importar, Compras > Nueva, el modal de editar de Compras > Detalle, Solicitudes > Nueva (sus dos selectores), Guías de Despacho > Nueva (sede origen), Kit/EPP y Empleados > Editar. En este último, además, mover un empleado de sede vuelve a ser exclusivo de admin, que es lo que su propio comentario decía desde el 10-sep y el código había dejado de cumplir al cambiar 2.29.
+
+### 2.29.2 Fuga: los server components no pasaban por el aislamiento por sede (18-sep-2026)
+
+Javier, probando 2.29.1 con un usuario técnico de Concepción: *"probé con el link de un activo de la otra sede y sí me deja acceder. Accedí al Samsung Galaxy de Santiago."*
+
+**La causa.** El aislamiento vivía en las rutas de API (`sedeWhere` en los listados, `assertSedeAccess` en las fichas), pero varias pantallas son **server components que consultan Prisma directamente**, sin pasar por ninguna ruta de API. Para ellas, esas funciones simplemente nunca se ejecutaban. El middleware sí exige sesión, así que no era una fuga hacia afuera, pero sí entre sedes. Afectaba a:
+
+- `/activos/:id` -- la ficha del activo, que es la que Javier encontró: ni sesión leía.
+- Los cinco reportes en pantalla (`inventario`, `empleados`, `obsoletos`, `stock`, `rrhh`): tampoco filtraban, así que un técnico veía el inventario completo de todas las sedes.
+- De paso, tres de los cinco endpoints de Excel (`empleados`, `obsoletos`, `stock`) tampoco aplicaban `sedeWhere`, a diferencia de `inventario` y `rrhh`, que sí lo tenían desde antes. Ese sí era un gap de API.
+
+**La corrección.** La ficha del activo obtiene la sesión con `getServerSession` y responde 404 -- no 403, para no delatar que el registro existe en otra sede -- cuando el equipo no es de la sede del usuario. Los cinco reportes reciben la sesión y aplican `sedeWhere` a su consulta (en RRHH, vía la relación al empleado, ya que `Termination` no tiene sede propia; en Stock, sobre los activos anidados en cada categoría). Los tres endpoints de Excel se alinean con los otros dos.
+
+**Lección para lo que venga:** cualquier pantalla nueva que consulte Prisma desde el servidor tiene que aplicar el filtro por su cuenta; no lo hereda de nada. Las que pasan por `fetch` a una ruta de API sí lo heredan.
+
+### 2.29.3 Fix: el redirect de sesión no autenticada apuntaba a la pantalla genérica de NextAuth (18-sep-2026)
+
+Hallazgo F-1 de la auditoría de seguridad de aislamiento por sede (2026-09-17): un usuario sin sesión que pedía una URL protegida (ej. `/activos`) era redirigido a `/api/auth/signin?callbackUrl=...` -- la pantalla por defecto de NextAuth -- en vez de a `/login`, la pantalla de la app. No era una falla de autorización (seguía exigiendo login), pero contradecía lo documentado ("protege todas las rutas excepto `/login`") y usaba una pantalla que no es la real de la aplicación.
+
+**La causa.** `src/middleware.ts` arma su propia configuración de `withAuth()` pasando solo `callbacks.authorized`, sin el bloque `pages`. El `pages.signIn: "/login"` vive únicamente en `authOptions` (`src/lib/auth.ts`), que usa el propio NextAuth para sus formularios -- el middleware no lo importa ni lo hereda, así que `withAuth` cae en su valor por defecto.
+
+**La corrección.** Se agrega `pages: { signIn: "/login" }` al segundo argumento de `withAuth()` en `middleware.ts`. Confirmado contra el servidor de desarrollo: `GET /activos` y `GET /activos/[id]` sin cookie ahora redirigen a `/login?callbackUrl=...`.
+
+### 2.29.4 Investigación F-2: el status 200 en la ficha de otra sede persiste en build de producción y es una limitación de streaming del App Router, no un artefacto de `next dev` (18-sep-2026)
+
+Hallazgo F-2 de la auditoría de seguridad (2026-09-17), pendiente de confirmar: la ficha de un activo de otra sede (`/activos/[id]`) responde HTTP 200 en vez de 404 pese a que `notFound()` (2.29.2) se dispara correctamente y ningún dato del activo ajeno llega al HTML. Se investigó si esto era exclusivo del servidor de desarrollo.
+
+**Confirmado en producción.** Se corrió `next build && next start` (deteniendo antes el servidor de dev para liberar el lock del motor de Prisma en Windows) y se repitió la prueba con sesión real de un técnico de Santiago contra la ficha de un activo de Concepción: el status sigue siendo `200`. Se inspeccionó el payload RSC completo devuelto -- contiene `"digest":"NEXT_HTTP_ERROR_FALLBACK;404"`, confirmando que Next.js sí resuelve `notFound()` internamente, pero el código de estado HTTP de la respuesta ya se había enviado como 200 antes de eso.
+
+**Causa raíz.** `src/app/(dashboard)/loading.tsx` envuelve automáticamente **toda** la pantalla del dashboard (todas sus rutas hijas, incluida `activos/[id]`) en un `<Suspense>`. Apenas la página empieza a esperar datos (la consulta a Prisma), Next.js transmite el "shell" (sidebar, layout) con status 200 y muestra el *fallback* de `loading.tsx` (el spinner), sin esperar a que la página resuelva. Cuando la página finalmente llama `notFound()`, la cabecera HTTP ya salió: el protocolo no permite corregir un status code después de que la respuesta empezó a transmitirse. No hay fuga de datos -- el HTML final sí es el límite "no encontrado" de Next, verificado buscando explícitamente el número de serie y el modelo del activo ajeno en el documento completo -- pero el código de estado queda mal.
+
+**Se probaron las dos correcciones propuestas en el informe original, ninguna resolvió el status:**
+1. Mover el chequeo de sesión/sede a `generateMetadata` (que en teoría se resuelve antes de transmitir el cuerpo de la página): en esta versión de Next.js (16.1.1) el metadata también se transmite de forma asíncrona dentro de su propio `Suspense` (`OutletBoundary`/`MetadataOutlet`), así que el `notFound()` lanzado ahí tampoco alcanza a corregir el status ya enviado.
+2. `export const dynamic = "force-dynamic"` en la página: no tiene efecto sobre el streaming ni sobre este comportamiento -- solo afecta caché/revalidación.
+
+Ambos intentos se revirtieron por no resolver el problema (`git diff` de `activos/[id]/page.tsx` queda igual que antes de esta investigación).
+
+**Por qué no se amplía el alcance ahora.** La única corrección que sí eliminaría el streaming para esta ruta es sacarla de debajo de `(dashboard)/loading.tsx` -- por ejemplo, quitando ese `loading.tsx` compartido o reestructurando las rutas para que esta página no herede ningún límite de Suspense ancestro. Eso cambia el comportamiento de carga (el spinner instantáneo) de **todo el dashboard**, no solo de esta pantalla, así que es un cambio de alcance mayor al de este hallazgo puntual y no se aplica sin que Javier lo decida explícitamente.
+
+**Conclusión de la investigación (no era artefacto de `next dev`).** Es una limitación conocida del modelo de streaming del App Router de Next.js al combinar un `loading.tsx` ancestro con un `notFound()` condicional más abajo en el árbol. **No hubo fuga de datos** en ningún momento -- el riesgo de seguridad real (hallazgo original de "Broken Access Control") estaba resuelto desde 2.29.2; lo pendiente era cosmético/semántico (el código de estado HTTP).
+
+**Decisión de Javier (18-sep-2026):** *"corrige el tema del estatus de 200 a 404, ya que no es un error que afecte en sí a la aplicación, pero al final termina informando de mal manera en caso de error"*. Se le planteó explícitamente que la única corrección real implicaba quitar o reestructurar el `loading.tsx` compartido de todo el dashboard, cambiando el spinner instantáneo de navegación en **todas** las pantallas del dashboard, no solo en la ficha de activo -- confirmó proceder con esa opción (404, la opción recomendada, consistente con el resto de la app).
+
+**La corrección aplicada.** Se elimina `src/app/(dashboard)/loading.tsx`. Sin ningún `loading.tsx` en el árbol de `(dashboard)`, Next.js ya no inserta ningún Suspense boundary automático entre el layout y las páginas: el render vuelve a ser bloqueante (sin streaming) para todo el dashboard, así que la respuesta HTTP no se envía hasta que la página completa -- incluido un eventual `notFound()` -- se resuelve. Esto corrige el status code correctamente en **todas** las pantallas que usan `assertSedeAccess`/`notFound()`, no solo en la ficha de activo, cerrando de raíz la misma clase de problema para cualquier pantalla futura. El costo es la pérdida del spinner de navegación instantáneo compartido: al navegar dentro del dashboard, el usuario ya no ve el `<div>` de carga mientras el servidor resuelve la página -- ve la pantalla anterior hasta que la nueva está lista.
+
+**Pendiente de verificación en runtime.** El cambio se verificó con `npx tsc --noEmit` (sin errores) y por análisis del modelo de streaming de Next.js, pero no se pudo confirmar en vivo contra un build de producción real desde este entorno (sin acceso sostenido a un servidor local persistente). Javier debe correr `next build && next start` y repetir la prueba C10 (técnico Santiago pidiendo la ficha de un activo de Concepción) para confirmar que el status ahora es 404, y revisar visualmente que la pérdida del spinner compartido no se sienta mal en el resto del dashboard.
+
+### 2.29.5 Fix: el Dashboard (KPIs y alertas) no filtraba por sede -- F-3 y F-4 de la auditoría (18-sep-2026)
+
+Segunda ronda de la auditoría de seguridad, a pedido de Javier tras revisar el informe de la primera ronda: *"la idea es probar las rutas para que no puedan ser acceder por una sede que no sea suya... eso redactalo para un promp de claude code"*. Se le pidió probar puntualmente dos endpoints que habían quedado fuera del barrido original: `GET /api/dashboard/stats` y `GET /api/dashboard/alertas`.
+
+**F-3 -- Alto -- `/api/dashboard/stats` devolvía KPIs globales, no de la sede del usuario.** Ninguna de sus 11 consultas Prisma (conteos de activos, empleados, mantenciones, desvinculaciones, asignaciones, categorías, más un `$queryRaw` de asignaciones por mes) aplicaba `sedeWhere`. Confirmado en vivo: un técnico de Santiago y uno de Concepción, con inventario real distinto (6 activos/1 empleado vs. 2 activos/2 empleados), recibían exactamente el mismo JSON con los totales de las 3 sedes combinadas.
+
+**F-4 -- Crítico -- `/api/dashboard/alertas` exponía registros individuales de otras sedes.** Las 5 consultas (mantenciones vencidas/próximas, devoluciones pendientes, activos dañados, garantías por vencer) tampoco filtraban por sede. Se demostró de forma concluyente creando una mantención de prueba sobre un activo de Santiago y confirmando que un técnico de Concepción la recibía en su lista de alertas, con marca, modelo, número de serie y link directo a la ficha. El mismo patrón en `devolucionesPendientes` exponía además nombre completo y RUT de empleados de otra sede.
+
+Mismo patrón de bug que 2.29.2 (server component/endpoint agregado que no hereda el filtro de ningún lado): estos dos endpoints simplemente quedaron fuera de ese barrido porque no tienen pantalla propia en la UI, aunque son alcanzables llamándolos directo.
+
+**La corrección.** Se extendió `sedeWhere(session)` a las 16 consultas de ambos endpoints, reutilizando exactamente el mismo patrón ya establecido en `/api/activos`, `/api/empleados`, `/api/mantenciones` y el reporte RRHH -- no un parche puntual, sino la misma pieza central que ya usa el resto del código:
+
+- `Asset` (conteos, categorías, `activosDanados`, `garantiaPorVencer`): `{ ...ACTIVOS_VIGENTES, ...sedeWhere(session) }`.
+- `Employee`: `sedeWhere(session)` directo (tiene `sedeId` propio).
+- `Maintenance`/`Assignment` (sin `sedeId` propio, vía relación a `Asset`): `{ ..., asset: sedeWhere(session) }`.
+- `Termination` (sin `sedeId` propio, vía relación a `Employee`): `{ ..., employee: sedeWhere(session) }`.
+- El `$queryRaw` de asignaciones por mes: se agregó `JOIN assets` y una condición `AND assets.sede_id = ...` construida con `Prisma.sql`/`Prisma.empty` (nunca interpolación de string), aplicada solo cuando el usuario no tiene visibilidad total.
+- Se agregó también el parámetro opcional `?sedeId=` para quien sí tiene visibilidad total (mismo patrón que el resto de los listados), para que un admin pueda acotar el dashboard a una sede específica.
+
+**Fuera de alcance, a pedido explícito de Javier.** `/api/reportes/compras` no se auditó en esta ronda porque el módulo de Reportes se va a rehacer más adelante; cuando se retome, conviene barrer todos sus endpoints por este mismo patrón en vez de asumir que están bien por analogía con `inventario`/`rrhh`.
+
+---
 
 ---
 
@@ -2586,6 +2673,20 @@ Javier, tras el fix de 2.51.1: *"Al filtro de fechas nos falta un filtro, un val
 
 ## Changelog SPEC
 
+- **v1.80 (2026-09-18):**
+  - Sección 2.29.4 actualizada: se corrige F-2 (status 200 en vez de 404 al pedir por URL directa un activo de otra sede) a pedido explícito de Javier. Se elimina `src/app/(dashboard)/loading.tsx`, quitando el Suspense boundary compartido de todo el dashboard, para que el render deje de hacer streaming y la respuesta HTTP espere a que `notFound()` se resuelva. Corrige el status code en todas las pantallas que usan `assertSedeAccess`, no solo en la ficha de activo. Costo aceptado: se pierde el spinner de navegación instantáneo compartido en todo el dashboard. Pendiente que Javier verifique en runtime (`next build && next start`, prueba C10) ya que no se pudo confirmar en vivo desde este entorno.
+- **v1.79 (2026-09-18):**
+  - Sección 2.29.5 (nueva): corrige F-3 (Alto) y F-4 (Crítico) de la segunda ronda de la auditoría de seguridad -- `/api/dashboard/stats` devolvía KPIs globales (no de la sede del usuario) y `/api/dashboard/alertas` exponía alertas individuales (marca/modelo/serie de equipos, nombre y RUT de empleados) de cualquier sede a cualquier técnico. Se extiende `sedeWhere(session)` a las 16 consultas de ambos endpoints, reutilizando el mismo patrón ya establecido en `/api/activos`, `/api/empleados`, `/api/mantenciones` y el reporte RRHH; el `$queryRaw` de asignaciones por mes se corrige con `JOIN assets` + `Prisma.sql`/`Prisma.empty` condicional. Se agrega también el `?sedeId=` opcional para quien tiene visibilidad total. `/api/reportes/compras` queda fuera a pedido explícito de Javier (el módulo de Reportes se rehará más adelante).
+- **v1.78 (2026-09-18):**
+  - Sección 2.29.4 (nueva): investigación del hallazgo F-2 de la auditoría de seguridad (status 200 en vez de 404 al pedir la ficha de un activo de otra sede). Confirmado en build de producción, no es artefacto de `next dev`. Causa raíz: `(dashboard)/loading.tsx` envuelve la página en un `Suspense` que transmite el shell con status 200 antes de que `notFound()` pueda corregirlo. Se probaron las dos correcciones propuestas (`generateMetadata`, `dynamic = "force-dynamic"`); ninguna resolvió el status en Next.js 16.1.1, y se revirtieron. Sin fuga de datos confirmada. Queda documentado como limitación conocida; el cambio que sí lo resolvería (sacar la página del `loading.tsx` compartido) excede el alcance de este hallazgo y queda pendiente de decisión de Javier.
+- **v1.77 (2026-09-18):**
+  - Sección 2.29.3 (nueva): corrige el hallazgo F-1 de la auditoría de seguridad de aislamiento por sede (2026-09-17) -- el redirect de sesión no autenticada apuntaba a `/api/auth/signin` (pantalla genérica de NextAuth) en vez de `/login`. Se agrega `pages: { signIn: "/login" }` a `withAuth()` en `middleware.ts`. Verificado contra dev: ahora redirige a `/login?callbackUrl=...`.
+- **v1.76 (2026-09-18):**
+  - Sección 2.29.2 (nueva): fuga entre sedes detectada por Javier probando con un usuario técnico -- podía abrir por URL la ficha de un activo de otra sede. Los server components que consultan Prisma directo (la ficha del activo y los cinco reportes) no pasaban por `sedeWhere`/`assertSedeAccess`, que viven en las rutas de API. Se corrigen los seis, más tres endpoints de Excel que tampoco filtraban.
+- **v1.75 (2026-09-18):**
+  - Sección 2.10.8 (nueva): la ficha del activo muestra su sede, dato que no aparecía en ninguna parte pese a decidir quién puede ver el equipo. Pedido de Javier.
+- **v1.74 (2026-09-18):**
+  - Sección 2.29.1 (nueva): REVERSIÓN de la visibilidad de técnico definida en 2.29/2.30. Un técnico vuelve a quedar amarrado a su sede, en la interfaz y en el backend: `tieneVisibilidadTotal` es de nuevo solo `admin`, el selector del nav queda fijo en su sede y todos los formularios muestran el campo Sede deshabilitado. Decisión explícita de Javier, tomada sabiendo que deshace el motivo original (los equipos de Perú) y que es la tercera vuelta sobre la misma decisión. Se actualizan `sedeScope.test.ts` en consecuencia.
 - **v1.73 (2026-09-18):**
   - Sección 2.51.3 (nueva): el calendario de Mantenciones pasa a respetar el selector de sede del nav -- llamaba a la API sin `sedeId` y mostraba todas las sedes. Detectado al revisar qué otras pantallas lo ignoraban, a pedido de Javier.
 - **v1.72 (2026-09-18):**

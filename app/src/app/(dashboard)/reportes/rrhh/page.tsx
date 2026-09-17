@@ -1,9 +1,17 @@
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import type { SesionAutenticada } from "@/lib/auth/guard";
+import { sedeWhere } from "@/lib/auth/sedeScope";
+
 import Link from "next/link";
 import { ArrowLeft, FileSpreadsheet, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 
-async function getDesvinculacionesRRHH() {
+async function getDesvinculacionesRRHH(session: SesionAutenticada) {
   const desvinculaciones = await prisma.termination.findMany({
+    // Termination no tiene sedeId propio -- se filtra via su empleado, mismo
+    // criterio que /api/reportes/rrhh/excel.
+    where: { employee: sedeWhere(session) },
     include: {
       employee: {
         select: {
@@ -32,7 +40,9 @@ const ESTADO_CONFIG = {
 };
 
 export default async function ReporteRRHHPage() {
-  const desvinculaciones = await getDesvinculacionesRRHH();
+  // La sesion decide que sede se ve (SPEC 2.29.2, ver nota arriba).
+  const session = (await getServerSession(authOptions)) as SesionAutenticada;
+  const desvinculaciones = await getDesvinculacionesRRHH(session);
 
   const pendientes = desvinculaciones.filter(
     (d) =>

@@ -8,11 +8,12 @@ import { NotFoundError, ValidationError } from '@/lib/errors';
 import type { SesionAutenticada } from '@/lib/auth/guard';
 
 /**
- * 14-sep-2026 (SPEC 2.29): sedeScope.ts no tenía pruebas propias todavía.
- * Se agregan al mismo tiempo que el cambio de diseño (tecnico pasa a tener
- * visibilidad total, igual que admin) para dejar el nuevo comportamiento
- * fijado y evitar que alguien lo revierta pensando que es un bug -- ver
- * SPEC 2.24 vs 2.29.
+ * 18-sep-2026 (SPEC 2.29.1): estas pruebas nacieron con SPEC 2.29, cuando
+ * el técnico pasó a tener visibilidad total, justamente para que nadie lo
+ * revirtiera por accidente. Hoy se revierte a propósito, por decisión
+ * explícita de Javier: el técnico vuelve a quedar amarrado a su sede, en la
+ * interfaz y en el backend. Las expectativas se actualizan al nuevo
+ * comportamiento y siguen cumpliendo el mismo rol: dejarlo fijado.
  */
 
 function sesion(rol: string, sedeId: string | null): SesionAutenticada {
@@ -33,12 +34,12 @@ describe('tieneVisibilidadTotal', () => {
     expect(tieneVisibilidadTotal(sesion('admin', null))).toBe(true);
   });
 
-  test('tecnico tiene visibilidad total (SPEC 2.29, antes era false)', () => {
-    expect(tieneVisibilidadTotal(sesion('tecnico', 'sede-1'))).toBe(true);
+  test('tecnico NO tiene visibilidad total (SPEC 2.29.1, revierte 2.29)', () => {
+    expect(tieneVisibilidadTotal(sesion('tecnico', 'sede-1'))).toBe(false);
   });
 
-  test('tecnico sin sede asignada también tiene visibilidad total', () => {
-    expect(tieneVisibilidadTotal(sesion('tecnico', null))).toBe(true);
+  test('tecnico sin sede asignada tampoco', () => {
+    expect(tieneVisibilidadTotal(sesion('tecnico', null))).toBe(false);
   });
 });
 
@@ -47,8 +48,14 @@ describe('sedeWhere', () => {
     expect(sedeWhere(sesion('admin', null))).toEqual({});
   });
 
-  test('tecnico tampoco queda filtrado desde SPEC 2.29', () => {
-    expect(sedeWhere(sesion('tecnico', 'sede-1'))).toEqual({});
+  test('tecnico queda filtrado a su propia sede (SPEC 2.29.1)', () => {
+    expect(sedeWhere(sesion('tecnico', 'sede-1'))).toEqual({ sedeId: 'sede-1' });
+  });
+
+  test('tecnico sin sede asignada no ve nada, en vez de ver los huerfanos', () => {
+    expect(sedeWhere(sesion('tecnico', null))).toEqual({
+      sedeId: '__sin_sede_asignada__',
+    });
   });
 });
 
@@ -57,15 +64,21 @@ describe('assertSedeAccess', () => {
     expect(() => assertSedeAccess(sesion('admin', null), 'sede-x')).not.toThrow();
   });
 
-  test('tecnico tampoco lanza para un registro de otra sede (SPEC 2.29)', () => {
+  test('tecnico lanza NotFoundError para un registro de otra sede (SPEC 2.29.1)', () => {
     expect(() =>
       assertSedeAccess(sesion('tecnico', 'sede-1'), 'sede-2')
-    ).not.toThrow();
+    ).toThrow(NotFoundError);
   });
 
-  test('tecnico tampoco lanza para un registro sin sede', () => {
+  test('tecnico no accede a un registro sin sede', () => {
     expect(() =>
       assertSedeAccess(sesion('tecnico', 'sede-1'), null)
+    ).toThrow(NotFoundError);
+  });
+
+  test('tecnico si accede a un registro de su propia sede', () => {
+    expect(() =>
+      assertSedeAccess(sesion('tecnico', 'sede-1'), 'sede-1')
     ).not.toThrow();
   });
 
@@ -89,19 +102,25 @@ describe('sedeIdParaCrear', () => {
     expect(sedeIdParaCrear(sesion('admin', null), 'sede-x', { requerido: true })).toBe('sede-x');
   });
 
-  test('tecnico: desde SPEC 2.29 también debe elegir sede explícitamente cuando requerido=true (antes se le asignaba la suya sola)', () => {
-    expect(() =>
+  test('tecnico: se le asigna su propia sede sin tener que elegirla (SPEC 2.29.1)', () => {
+    expect(
       sedeIdParaCrear(sesion('tecnico', 'sede-1'), undefined, { requerido: true })
-    ).toThrow(ValidationError);
+    ).toBe('sede-1');
   });
 
-  test('tecnico: puede elegir una sede distinta a la suya (SPEC 2.29)', () => {
+  test('tecnico: NO puede crear en otra sede aunque mande el sedeId a mano', () => {
     expect(sedeIdParaCrear(sesion('tecnico', 'sede-1'), 'sede-peru', { requerido: true })).toBe(
-      'sede-peru'
+      'sede-1'
     );
   });
 
-  test('sin requerido, no exige nada aunque no venga sedeId', () => {
-    expect(sedeIdParaCrear(sesion('tecnico', 'sede-1'), undefined)).toBeNull();
+  test('tecnico sin sede asignada: se rechaza con un mensaje util', () => {
+    expect(() =>
+      sedeIdParaCrear(sesion('tecnico', null), undefined, { requerido: true })
+    ).toThrow(ValidationError);
+  });
+
+  test('sin requerido, admin puede dejarla en blanco', () => {
+    expect(sedeIdParaCrear(sesion('admin', null), undefined)).toBeNull();
   });
 });

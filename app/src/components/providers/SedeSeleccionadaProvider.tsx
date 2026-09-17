@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 /**
  * Selector de sede global (SPEC 2.29, 14-sep-2026).
@@ -50,6 +51,12 @@ interface SedeSeleccionadaContextValue {
   /** null = "todas las sedes" (sin filtro). */
   sedeSeleccionada: string | null;
   setSedeSeleccionada: (sedeId: string | null) => void;
+  /**
+   * true cuando el usuario no puede cambiar de sede: su sesion la fija
+   * (18-sep-2026, SPEC 2.29.1). Hoy es cualquiera que no sea admin. El
+   * selector del nav lo usa para mostrarla bloqueada en vez de editable.
+   */
+  sedeBloqueada: boolean;
 }
 
 const SedeSeleccionadaContext = createContext<SedeSeleccionadaContextValue | undefined>(
@@ -63,6 +70,26 @@ export function SedeSeleccionadaProvider({ children }: { children: React.ReactNo
   const [sedeSeleccionada, setSedeSeleccionadaState] = useState<string | null>(null);
 
   const router = useRouter();
+  const { data: session } = useSession();
+  // Solo admin elige sede (18-sep-2026, SPEC 2.29.1). Para el resto, la sede
+  // de su sesion manda y el selector queda bloqueado -- ver sedeScope.ts,
+  // donde el backend lo hace cumplir de verdad.
+  const sedeBloqueada = !!session && session.user?.role !== "admin";
+  const sedePropia = session?.user?.sedeId ?? null;
+
+  // Sede fija: se impone la de la sesion, pase lo que pase en localStorage
+  // (por ejemplo, otra sede que quedo guardada de una sesion anterior en el
+  // mismo navegador).
+  useEffect(() => {
+    if (!sedeBloqueada || !sedePropia) return;
+    setSedeSeleccionadaState((prev) => (prev === sedePropia ? prev : sedePropia));
+    try {
+      window.localStorage.setItem(CLAVE_STORAGE, sedePropia);
+      escribirCookie(sedePropia);
+    } catch {
+      // Ver comentario de abajo: no es critico.
+    }
+  }, [sedeBloqueada, sedePropia]);
 
   useEffect(() => {
     try {
@@ -85,6 +112,9 @@ export function SedeSeleccionadaProvider({ children }: { children: React.ReactNo
 
   const setSedeSeleccionada = useCallback(
     (sedeId: string | null) => {
+      // Quien tiene la sede fija no puede cambiarla ni por codigo: el
+      // selector ya viene bloqueado, esto cubre cualquier otro llamador.
+      if (sedeBloqueada) return;
       setSedeSeleccionadaState(sedeId);
       try {
         if (sedeId) {
@@ -103,11 +133,13 @@ export function SedeSeleccionadaProvider({ children }: { children: React.ReactNo
       // funcional, SPEC 2.38).
       router.refresh();
     },
-    [router]
+    [router, sedeBloqueada]
   );
 
   return (
-    <SedeSeleccionadaContext.Provider value={{ sedeSeleccionada, setSedeSeleccionada }}>
+    <SedeSeleccionadaContext.Provider
+      value={{ sedeSeleccionada, setSedeSeleccionada, sedeBloqueada }}
+    >
       {children}
     </SedeSeleccionadaContext.Provider>
   );

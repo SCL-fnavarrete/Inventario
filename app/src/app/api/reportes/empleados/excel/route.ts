@@ -2,14 +2,17 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { sedeWhere } from '@/lib/auth/sedeScope';
 import { formatearFecha } from "@/lib/utils/fechas";
 
 export async function GET() {
   try {
-    await requirePermission('reportes', 'read');
+    const session = await requirePermission('reportes', 'read');
 
+    // Aislamiento por sede (18-sep-2026, SPEC 2.29.2): faltaba en este
+    // endpoint, a diferencia de inventario/rrhh que ya lo tenian.
     const empleados = await prisma.employee.findMany({
-      where: { estado: "activo" },
+      where: { estado: "activo", ...sedeWhere(session) },
       include: {
         assignments: {
           where: { activo: true },

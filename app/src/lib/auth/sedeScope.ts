@@ -4,31 +4,35 @@ import { NotFoundError, ValidationError } from '@/lib/errors';
 /**
  * Aislamiento de datos por sede -- unico punto de verdad.
  *
- * REDISEÑO 14-sep-2026 (SPEC 2.29, pedido explicito de Javier tras conocer
- * el alcance real -- equipos en Peru, ~10 unidades): tecnico deja de estar
- * restringido a su propia sede. Ya no tiene sentido crear un usuario
- * dedicado solo para ver un puñado de equipos de otra sede, y toda accion
- * relevante queda igual ligada al usuario que la ejecuto (ver
- * AssetHistoryService, historial de Solicitudes, y el nuevo registro de
- * auditoria generico para Empleados/Compras/Usuarios). Por eso `tecnico`
- * ahora tiene la misma visibilidad total que `admin` -- la diferencia entre
- * ambos roles queda solo en la matriz de permisos (`permissions.ts`,
- * Configuracion sigue siendo admin-only).
+ * DECISION VIGENTE, 18-sep-2026 (SPEC 2.29.1, pedido explicito de Javier):
+ * un tecnico queda amarrado a SU sede, en la interfaz y en el backend.
+ * Textual: "si inicio sesion con un tecnico de Santiago, en el navbar
+ * automaticamente este seleccionada esa sede y no se pueda cambiar. Y lo
+ * mismo con todos los modulos y todos los formularios que piden la sede."
+ * Solo `admin` ve y elige entre todas las sedes.
  *
- * Esto es un cambio de rumbo DELIBERADO que revierte a proposito parte de
- * SPEC 2.24 (donde se blindaron 5 rutas para que tecnico NO viera otra
- * sede). No es un bug ni hay que "corregirlo" de vuelta.
+ * Esta es la TERCERA vuelta sobre la misma decision, asi que conviene
+ * conocer las dos anteriores antes de tocar esto:
+ *  - SPEC 2.24: tecnico restringido a su sede; se blindaron 5 rutas.
+ *  - SPEC 2.29 (14-sep): se abrio -- tecnico paso a tener visibilidad total
+ *    y el filtro por sede quedo como algo de UI. El motivo fue Peru (~10
+ *    equipos): no tener que crear un usuario dedicado solo para verlos.
+ *  - SPEC 2.29.1 (hoy): se cierra de nuevo, asumiendo esa consecuencia --
+ *    para mirar otra sede hay que entrar como admin o con un usuario de esa
+ *    sede. Javier lo decidio sabiendolo.
  *
- * El filtrado por sede sigue existiendo, pero pasa a ser un filtro de UI
- * (el selector de sede del nav, `?sedeId=` en los endpoints de listado),
- * no una restriccion de acceso. La sede de un registro nuevo ahora se elige
- * siempre explicitamente al crearlo (ver `sedeIdParaCrear`), para todos los
- * roles.
+ * Que el candado sea real y no cosmetico es justamente lo que se pidio: no
+ * basta con bloquear el selector del nav, porque un tecnico podria entrar
+ * por URL directa a una ficha de otra sede o llamar la API a mano. Por eso
+ * se restringe aca, que es por donde pasan los listados (`sedeWhere`), las
+ * fichas (`assertSedeAccess`), la creacion (`sedeIdParaCrear`) y el
+ * parametro `?sedeId=` de los endpoints de listado, que solo tiene efecto
+ * para quien ve todas las sedes.
  */
 
-/** ¿Este rol ve todas las sedes sin restriccion? Hoy: admin y tecnico por igual. */
+/** ¿Este rol ve todas las sedes sin restriccion? Hoy: solo admin. */
 export function tieneVisibilidadTotal(session: SesionAutenticada): boolean {
-  return session.user.role === 'admin' || session.user.role === 'tecnico';
+  return session.user.role === 'admin';
 }
 
 /**
@@ -63,15 +67,11 @@ export function assertSedeAccess(
 /**
  * Sede que corresponde asignar a un registro nuevo.
  *
- * 14-sep-2026 (SPEC 2.29): con `tieneVisibilidadTotal` ahora true tambien
- * para tecnico, este cae siempre en la primera rama -- elige explicitamente
- * la sede igual que admin, ya no se le asigna automaticamente la suya. Cada
- * formulario que llama esto con `requerido: true` DEBE ofrecer un selector
- * de sede a cualquier rol (antes era admin-only) -- ver Activos > Nuevo.
- *
- * La segunda rama (asignar automaticamente `session.user.sedeId`) queda
- * como codigo muerto mientras solo existan los roles admin/tecnico, pero se
- * deja por si en el futuro se agrega un rol con visibilidad restringida.
+ * 18-sep-2026 (SPEC 2.29.1): con `tieneVisibilidadTotal` restringido de
+ * nuevo a admin, un tecnico vuelve a caer en la segunda rama -- se le asigna
+ * SU sede y se ignora cualquier `sedeId` que venga en el body. Los
+ * formularios se la muestran ya puesta y bloqueada; esto lo hace cumplir
+ * aunque alguien llame la API a mano.
  *
  * - Con visibilidad total: elige explicitamente la sede (crea "para" esa
  *   sede). Antes se permitia dejarlo en blanco ("sin sede, transversal"),

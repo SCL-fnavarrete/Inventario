@@ -1,11 +1,26 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 
-export async function GET() {
+// F-3 (auditoria de seguridad, 18-sep-2026): este endpoint no aplicaba
+// sedeWhere en ninguna de sus consultas y devolvia KPIs globales a
+// cualquier tecnico, sin importar su sede -- mismo patron que ya se
+// corrigio en SPEC 2.29.2 para /activos/[id] y los reportes en pantalla,
+// pero este endpoint quedo fuera de ese barrido. Ver SPEC 2.29.5.
+export async function GET(request: NextRequest) {
   try {
-    await requirePermission('reportes', 'read');
+    const session = await requirePermission('reportes', 'read');
+
+    // Selector de sede del nav (Etapa 2): solo quien ya tiene visibilidad
+    // total puede acotar el dashboard a una sede especifica via ?sedeId=.
+    const sedeIdFiltro = request.nextUrl.searchParams.get("sedeId") || "";
+    const sedeFiltro =
+      sedeIdFiltro && tieneVisibilidadTotal(session)
+        ? { sedeId: sedeIdFiltro }
+        : sedeWhere(session);
 
     // KPIs principales
     const [
@@ -21,14 +36,14 @@ export async function GET() {
       recentAssignments,
       categories,
     ] = await Promise.all([
-      prisma.asset.count({ where: ACTIVOS_VIGENTES }),
-      prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, estado: "disponible" } }),
-      prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, estado: "asignado" } }),
-      prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, estado: "en_mantencion" } }),
-      prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, estado: "baja" } }),
-      prisma.employee.count(),
-      prisma.employee.count({ where: { estado: "activo" } }),
-      prisma.maintenance.count({ where: { estado: "pendiente" } }),
+      prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sedeFiltro } }),
+      prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, estado: "disponible" } }),
+      prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, estado: "asignado" } }),
+      prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, estado: "en_mantencion" } }),
+      prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, estado: "baja" } }),
+      prisma.employee.count({ where: sedeFiltro }),
+      prisma.employee.count({ where: { ...sedeFiltro, estado: "activo" } }),
+      prisma.maintenance.count({ where: { estado: "pendiente", asset: sedeFiltro } }),
       prisma.termination.count({
         where: {
           OR: [
@@ -36,6 +51,7 @@ export async function GET() {
             { estadoCelular: "pendiente" },
             { estadoMonitor: "pendiente" },
           ],
+          employee: sedeFiltro,
         },
       }),
       prisma.assignment.count({
@@ -43,13 +59,15 @@ export async function GET() {
           fechaEntrega: {
             gte: new Date(new Date().setDate(new Date().getDate() - 30)),
           },
+          asset: sedeFiltro,
         },
       }),
       prisma.assetCategory.findMany({
         include: {
           _count: {
-            // Excluye los registros descartados (SPEC 2.7.7).
-            select: { assets: { where: ACTIVOS_VIGENTES } },
+            // Excluye los registros descartados (SPEC 2.7.7) y, si aplica,
+            // acota por sede (SPEC 2.29.5 / F-3).
+            select: { assets: { where: { ...ACTIVOS_VIGENTES, ...sedeFiltro } } },
           },
         },
       }),
@@ -60,16 +78,16 @@ export async function GET() {
       categories.map(async (cat) => {
         const [disponibles, asignados, mantencion, baja] = await Promise.all([
           prisma.asset.count({
-            where: { ...ACTIVOS_VIGENTES, categoriaId: cat.id, estado: "disponible" },
+            where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, categoriaId: cat.id, estado: "disponible" },
           }),
           prisma.asset.count({
-            where: { ...ACTIVOS_VIGENTES, categoriaId: cat.id, estado: "asignado" },
+            where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, categoriaId: cat.id, estado: "asignado" },
           }),
           prisma.asset.count({
-            where: { ...ACTIVOS_VIGENTES, categoriaId: cat.id, estado: "en_mantencion" },
+            where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, categoriaId: cat.id, estado: "en_mantencion" },
           }),
           prisma.asset.count({
-            where: { ...ACTIVOS_VIGENTES, categoriaId: cat.id, estado: "baja" },
+            where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, categoriaId: cat.id, estado: "baja" },
           }),
         ]);
         return {
@@ -94,16 +112,24 @@ export async function GET() {
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
+    // F-3: sin visibilidad total, se une con assets para acotar por sede.
+    // Prisma.sql/Prisma.empty evita interpolar un string SQL a mano.
+    const filtroSedeSql = tieneVisibilidadTotal(session)
+      ? Prisma.empty
+      : Prisma.sql`AND assets.sede_id = ${session.user.sedeId ?? '__sin_sede_asignada__'}`;
+
     const asignacionesPorMes = await prisma.$queryRaw<
       { mes: string; asignaciones: bigint; devoluciones: bigint }[]
     >`
       SELECT
-        TO_CHAR(fecha_entrega, 'YYYY-MM') as mes,
-        COUNT(*) FILTER (WHERE activo = true OR fecha_devolucion IS NOT NULL) as asignaciones,
-        COUNT(*) FILTER (WHERE fecha_devolucion IS NOT NULL) as devoluciones
+        TO_CHAR(assignments.fecha_entrega, 'YYYY-MM') as mes,
+        COUNT(*) FILTER (WHERE assignments.activo = true OR assignments.fecha_devolucion IS NOT NULL) as asignaciones,
+        COUNT(*) FILTER (WHERE assignments.fecha_devolucion IS NOT NULL) as devoluciones
       FROM assignments
-      WHERE fecha_entrega >= ${sixMonthsAgo}
-      GROUP BY TO_CHAR(fecha_entrega, 'YYYY-MM')
+      JOIN assets ON assets.id = assignments.asset_id
+      WHERE assignments.fecha_entrega >= ${sixMonthsAgo}
+      ${filtroSedeSql}
+      GROUP BY TO_CHAR(assignments.fecha_entrega, 'YYYY-MM')
       ORDER BY mes
     `;
 

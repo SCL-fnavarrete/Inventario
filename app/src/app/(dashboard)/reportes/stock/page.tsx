@@ -1,11 +1,17 @@
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import type { SesionAutenticada } from "@/lib/auth/guard";
+import { sedeWhere } from "@/lib/auth/sedeScope";
+
 import Link from "next/link";
 import { ArrowLeft, FileSpreadsheet } from "lucide-react";
 
-async function getStockData() {
+async function getStockData(session: SesionAutenticada) {
   const categorias = await prisma.assetCategory.findMany({
     include: {
       assets: {
+        where: sedeWhere(session),
         select: {
           id: true,
           estado: true,
@@ -54,7 +60,9 @@ async function getStockData() {
 }
 
 export default async function ReporteStockPage() {
-  const { stockData, totales } = await getStockData();
+  // La sesion decide que sede se ve (SPEC 2.29.2, ver nota arriba).
+  const session = (await getServerSession(authOptions)) as SesionAutenticada;
+  const { stockData, totales } = await getStockData(session);
 
   return (
     <div className="space-y-6">

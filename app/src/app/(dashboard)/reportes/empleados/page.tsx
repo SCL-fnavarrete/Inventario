@@ -1,11 +1,16 @@
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import type { SesionAutenticada } from "@/lib/auth/guard";
+import { sedeWhere } from "@/lib/auth/sedeScope";
+
 import Link from "next/link";
 import { ArrowLeft, FileSpreadsheet } from "lucide-react";
 import EmpleadosSearchList from "@/components/reportes/EmpleadosSearchList";
 
-async function getEmpleadosConActivos() {
+async function getEmpleadosConActivos(session: SesionAutenticada) {
   const empleados = await prisma.employee.findMany({
-    where: { estado: "activo" },
+    where: { estado: "activo", ...sedeWhere(session) },
     include: {
       assignments: {
         where: { activo: true },
@@ -25,7 +30,9 @@ async function getEmpleadosConActivos() {
 }
 
 export default async function ReporteEmpleadosPage() {
-  const empleados = await getEmpleadosConActivos();
+  // La sesion decide que sede se ve (SPEC 2.29.2, ver nota arriba).
+  const session = (await getServerSession(authOptions)) as SesionAutenticada;
+  const empleados = await getEmpleadosConActivos(session);
 
   const empleadosConEquipos = empleados.filter((e) => e.assignments.length > 0);
 

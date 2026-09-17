@@ -32,6 +32,13 @@ export default withAuth(
         return !!token;
       },
     },
+    // Sin esto, withAuth redirige al no autenticado a su pantalla generica
+    // /api/auth/signin en vez del /login propio de la app (que si esta
+    // declarado en authOptions.pages, pero ese archivo no lo importa este
+    // middleware). Hallazgo F-1 de la auditoria de seguridad, 2026-09-17.
+    pages: {
+      signIn: "/login",
+    },
   }
 );
 
