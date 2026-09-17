@@ -944,6 +944,36 @@ Mismo día, cambio posterior al de arriba, también pedido explícito de Javier:
 
 **Alta de equipos nuevos dentro del mismo formulario de compra.** Antes, "Vincular Activos" en `/compras/nueva` solo permitía buscar y enlazar activos ya existentes. Ahora hay un segundo modo, "Crear Equipo Nuevo": un mini-formulario inline (categoría, marca, modelo, N° de serie opcional) que llama a `POST /api/activos` — el mismo endpoint que usa `/activos/nuevo` — en vez de duplicar la lógica de creación dentro de la transacción de compras. Esto significa que el activo creado desde compras hereda automáticamente las mismas reglas que un activo creado desde su propio formulario: asignación de sede (`sedeIdParaCrear` con `{ requerido: true }`), validación de N° de serie duplicado, y registro en el historial (`assetHistoryService.registrarCreacion`). El botón "Crear Equipo Nuevo" está deshabilitado para admin hasta que elija una sede (la compra necesita saber a qué sede pertenece el activo nuevo antes de poder crearlo), con un aviso explicando por qué.
 
+### 2.10.2 El campo Sede aparece en todos los formularios de creación, para cualquier rol (18-sep-2026)
+
+Javier, preguntando cómo se comporta la sede para un técnico: *"estoy en el usuario de administrador y siempre voy a tener que elegir una sede. Pero si, por ejemplo, fuera el técnico, ¿la sede también tengo que elegirla o la toma automática?"* La respuesta destapó que tres módulos habían quedado desalineados con SPEC 2.29.
+
+**El problema.** Antes de SPEC 2.29 (14-sep-2026), un técnico heredaba su sede automáticamente en el backend y por eso a varios formularios no se les puso el campo. Ese cambio invirtió la regla —`sedeIdParaCrear` pasó a exigir la sede explícita también al técnico, porque desde entonces tiene visibilidad total— pero solo se actualizó Activos > Nuevo. Los que quedaron atrás:
+
+1. **Compras > Nueva** (roto): el campo estaba tras `isAdmin &&` y el `sedeId` ni se enviaba, así que un técnico llenaba toda la compra y al guardar recibía *"Debes seleccionar una sede"* refiriéndose a un campo que no está en su pantalla. Sin salida posible desde la interfaz. Contradictorio además con el propio `POST /api/compras`, que unas líneas más abajo ya asume que el técnico trabaja en su sede (valida que los activos y artículos de Kit/EPP vinculados sean de ella).
+2. **Activos > Importar** (roto): mismo patrón, el selector de sede era admin-only y la validación previa (`if (isAdmin && !sedeId)`) dejaba pasar al técnico hasta chocar con el backend.
+3. **Kit/EPP** (silencioso, peor): ahí `sedeIdParaCrear` se llama sin `requerido`, así que no falla — le creaba los artículos **sin sede**, y después no aparecían al filtrar por sede en el menú, sin ningún aviso.
+
+**La solución.** El campo Sede pasa a mostrarse a cualquier rol en los tres, como selector editable precargado con la sede del usuario (`session.user.sedeId`), idéntico al patrón que ya usaban Activos > Nuevo, Solicitudes > Nueva y Guías de Despacho > Nueva. En Compras, los bloqueos de "primero elige la sede" (vincular activos, crear equipo nuevo, catálogo de Kit/EPP) dejan de depender del rol y dependen solo de si hay sede elegida. En Kit/EPP la precarga aplica solo al crear, nunca al editar: ahí manda la sede que ya tiene el artículo, para no moverlo de sede sin querer. En esa misma pantalla, la **columna** Sede de la tabla también deja de ser admin-only -- si el técnico puede elegir la sede al crear, tiene que poder ver en cuál quedó cada artículo. Eliminar sigue siendo solo de admin, que es un permiso y no un tema de visibilidad.
+
+No se tocó la visibilidad ni `sedeIdParaCrear`: esto solo completa SPEC 2.29 donde había quedado a medias. Queda pendiente, como decisión aparte, si el técnico debería tener ese campo **bloqueado** en su propia sede en vez de editable.
+
+### 2.10.3 El buscador de equipos de una compra se acota a su sede (18-sep-2026)
+
+Javier, probando el módulo: *"si hay que hacer ese filtro, pero se supone que eso se debería aplicar automáticamente al elegirlo por el navbar, ¿no?"* No: el selector del nav es un filtro de vista; lo que manda acá es la **sede de la compra**, que es un dato del registro. Con el nav en "todas" no filtraría nada, y con el nav en otra sede ofrecería equipos que no corresponden a la compra.
+
+El problema: `searchAssets()` llamaba a `GET /api/activos?search=` sin ningún `sedeId`, tanto en `/compras/nueva` como en el detalle. Un admin podía entonces vincular a una compra de Santiago un equipo de Concepción. El backend no lo impide porque esa validación (`Algunos activos no pertenecen a tu sede`) solo corre para quien no es admin. En el detalle, además, era inconsistente consigo mismo: el catálogo de Kit/EPP de esa misma pantalla ya se filtraba con la sede de la compra.
+
+Se corrige en las dos pantallas pasando la sede de la compra al buscador. En `/compras/nueva` eso implica tres ajustes más: el botón "Buscar Existente" pasa a exigir sede elegida (antes solo la exigía "Crear Equipo Nuevo"), el aviso ámbar se reescribe para cubrir ambos, y cambiar la sede a mitad del formulario limpia los equipos y artículos ya elegidos, que son de la sede anterior -- mismo criterio que Nueva Guía de Despacho al cambiar la sede origen.
+
+### 2.10.4 Una compra exige al menos un equipo o artículo (18-sep-2026)
+
+Javier, probando el módulo: *"hay un problema que me deja crear una factura sin colocar equipos o kits."* Correcto: en `createPurchaseWithAssetsSchema` tanto `assets` como `kitItems` eran opcionales con `[]` por defecto, y el formulario tampoco lo exigía, así que se podía guardar una factura vacía -- un registro que no relaciona nada, justo lo contrario del propósito del módulo ("la factura, para relacionarla, y los equipos que vinieron con ella", ver 2.10).
+
+Se exige al menos una línea, de cualquiera de los dos tipos, en los dos lados: un `superRefine` en el schema (que rechaza con un mensaje que nombra el campo) y, en `/compras/nueva`, el botón Guardar deshabilitado con un aviso que explica por qué, más una guarda en `handleSubmit`.
+
+Se evaluó y descartó la alternativa de permitirla con una confirmación, pensando en registrar la factura antes de que lleguen los equipos: en el flujo real la compra se registra cuando el despacho llega, así que no aporta. Agregar equipos o artículos **después** de creada sigue siendo posible desde el detalle, eso no cambió.
+
 ---
 
 ## 2.11 Formulario de Activos: especificaciones por categoría (11-sep-2026)
@@ -2518,6 +2548,12 @@ Javier, tras el fix de 2.51.1: *"Al filtro de fechas nos falta un filtro, un val
 
 ## Changelog SPEC
 
+- **v1.69 (2026-09-18):**
+  - Sección 2.10.4 (nueva): una compra ya no se puede crear sin equipos ni artículos de Kit/EPP -- se exige al menos una línea, validado en el schema y en el formulario. Pedido de Javier tras detectarlo probando: *"me deja crear una factura sin colocar equipos o kits"*.
+- **v1.68 (2026-09-18):**
+  - Sección 2.10.3 (nueva): el buscador de equipos de una compra se acota a la sede de la compra, en creación y en detalle -- antes buscaba en todo el inventario y un admin podía vincular equipos de otra sede. "Buscar Existente" pasa a exigir sede elegida y cambiar la sede limpia lo ya seleccionado. Pedido de Javier tras notar que el botón estaba habilitado sin sede.
+- **v1.67 (2026-09-18):**
+  - Sección 2.10.2 (nueva): el campo Sede pasa a mostrarse a cualquier rol en Compras > Nueva, Activos > Importar y Kit/EPP -- eran los tres que habían quedado atrás tras SPEC 2.29 y por eso un técnico no podía crear una compra ni importar equipos (400 "Debes seleccionar una sede" sobre un campo que no estaba en pantalla), y sus artículos de Kit/EPP se creaban sin sede. Pedido de Javier tras preguntar cómo se comporta la sede para un técnico.
 - **v1.66 (2026-09-18):**
   - Sección 2.9.7 (nueva): se quitan los botones de "filtrar" (Filter) y "Limpiar filtros" (RefreshCw) del listado de Guías de Despacho -- el primero es redundante desde que la búsqueda debouncea sola, el segundo no aporta con solo dos filtros. Pedido de Javier: *"hay tan pocos filtros que se puede hacer de manera manual"*.
 - **v1.65 (2026-09-18):**

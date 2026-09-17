@@ -62,7 +62,16 @@ export function KitEppCategoriaView({
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "admin";
 
-  const formInicial = { nombre: "", categoria, cantidad: 0, stockMinimo: 5, sedeId: "" };
+  // La sede propia precarga el formulario de creacion (18-sep-2026, SPEC
+  // 2.10.2) -- igual que Activos > Nuevo. En edicion NO aplica: ahi manda la
+  // sede que ya tiene el articulo.
+  const formInicial = {
+    nombre: "",
+    categoria,
+    cantidad: 0,
+    stockMinimo: 5,
+    sedeId: session?.user?.sedeId ?? "",
+  };
 
   const [items, setItems] = useState<KitItem[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
@@ -81,9 +90,9 @@ export function KitEppCategoriaView({
 
   useEffect(() => {
     fetchItems();
-    if (isAdmin) fetchSedes();
+    fetchSedes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, categoria, sedeSeleccionada]);
+  }, [categoria, sedeSeleccionada]);
 
   const fetchItems = async () => {
     try {
@@ -283,7 +292,7 @@ export function KitEppCategoriaView({
           {isCreating && (
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Nuevo Artículo</h2>
-              <div className={`grid grid-cols-1 md:grid-cols-3 ${isAdmin ? "lg:grid-cols-4" : ""} gap-4`}>
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
                   <input
@@ -317,26 +326,28 @@ export function KitEppCategoriaView({
                     El Dashboard avisa cuando el stock llega a este número o menos.
                   </p>
                 </div>
-                {isAdmin && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Sede</label>
-                    <select
-                      value={formData.sedeId}
-                      onChange={(e) => setFormData({ ...formData, sedeId: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">Sin sede (no aparece al filtrar por sede)</option>
-                      {sedes.map((sede) => (
-                        <option key={sede.id} value={sede.id}>
-                          {sede.nombre}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Sede a la que pertenece este stock. Si lo dejas sin sede, no aparecerá cuando filtres por una sede en el menú.
-                    </p>
-                  </div>
-                )}
+                {/* Sede -- visible para cualquier rol desde SPEC 2.10.2.
+                    Antes era admin-only, y como el tecnico no veia el campo,
+                    sus articulos se creaban SIN sede: no aparecian al
+                    filtrar por sede en el menu, sin ningun aviso. */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sede</label>
+                  <select
+                    value={formData.sedeId}
+                    onChange={(e) => setFormData({ ...formData, sedeId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Sin sede (no aparece al filtrar por sede)</option>
+                    {sedes.map((sede) => (
+                      <option key={sede.id} value={sede.id}>
+                        {sede.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Sede a la que pertenece este stock. Si lo dejas sin sede, no aparecerá cuando filtres por una sede en el menú.
+                  </p>
+                </div>
               </div>
               <div className="flex justify-end gap-3 mt-4">
                 <button
@@ -363,11 +374,13 @@ export function KitEppCategoriaView({
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Nombre
                   </th>
-                  {isAdmin && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Sede
-                    </th>
-                  )}
+                  {/* Sede visible para cualquier rol (18-sep-2026, SPEC
+                      2.10.2): el formulario de arriba ya deja elegirla a
+                      todos, ocultar la columna dejaba al tecnico sin ver en
+                      que sede quedo cada articulo. */}
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Sede
+                  </th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Stock disponible
                   </th>
@@ -392,11 +405,9 @@ export function KitEppCategoriaView({
                             className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
                           />
                         </td>
-                        {isAdmin && (
-                          <td className="px-6 py-4 text-sm text-gray-500">
-                            {item.sede?.nombre ?? "Sin sede"}
-                          </td>
-                        )}
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {item.sede?.nombre ?? "Sin sede"}
+                        </td>
                         <td className="px-6 py-4 text-center">
                           <input
                             type="number"
@@ -439,11 +450,9 @@ export function KitEppCategoriaView({
                         <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
                           {item.nombre}
                         </td>
-                        {isAdmin && (
-                          <td className="px-6 py-4 text-sm text-gray-500">
-                            {item.sede?.nombre ?? "Sin sede"}
-                          </td>
-                        )}
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {item.sede?.nombre ?? "Sin sede"}
+                        </td>
                         <td className="px-6 py-4 text-center">
                           <span
                             className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
@@ -490,7 +499,7 @@ export function KitEppCategoriaView({
                 ))}
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={isAdmin ? 5 : 4} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                       No hay artículos registrados en {titulo.toLowerCase()}
                     </td>
                   </tr>

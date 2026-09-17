@@ -182,10 +182,13 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
   async function searchAssets() {
     setLoadingAssets(true);
     try {
+      // Acotado a la sede de la compra (18-sep-2026, SPEC 2.10.3), igual que
+      // el catalogo de Kit/EPP de mas abajo, que ya lo hacia.
       const params = new URLSearchParams({
         search: assetSearch,
         limit: "20",
       });
+      if (purchase?.sede?.id) params.set("sedeId", purchase.sede.id);
       const res = await fetch(`/api/activos?${params}`);
       const data = await res.json();
       // Filter out already linked assets

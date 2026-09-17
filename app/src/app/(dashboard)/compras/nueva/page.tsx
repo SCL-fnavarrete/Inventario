@@ -69,8 +69,9 @@ export default function NuevaCompraPage() {
   const router = useRouter();
   const { data: session } = useSession();
   // Tecnico (11-sep-2026): registra la compra con lo esencial -- factura y
-  // con que activos vino. La sede ni siquiera se le pregunta, se hereda de
-  // la suya en el backend, igual que en Activos/Empleados/Solicitudes.
+  // con que activos vino. La sede si se le pregunta desde el 18-sep-2026
+  // (SPEC 2.10.2): viene precargada con la suya, igual que en Activos >
+  // Nuevo.
   //
   // Compras se simplifico el 11-sep-2026 (pedido explicito de Javier) a
   // solo dos datos -- la factura, para relacionarla, y los equipos que
@@ -79,7 +80,6 @@ export default function NuevaCompraPage() {
   // un dato que nos interese" para el area de soporte. El mismo dia se
   // agrego el RUT del proveedor (texto libre) y se quito el campo de
   // documento, que no se usaba. Ver SPEC 2.10.
-  const isAdmin = session?.user?.role === "admin";
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -142,10 +142,12 @@ export default function NuevaCompraPage() {
 
   // Form data
   const [formData, setFormData] = useState({
-    // A que sede se le atribuye la compra (9-sep-2026). Compras es
-    // admin-only, asi que aca siempre se elige de una lista -- no se
-    // autocompleta desde la sesion como en Activos/Empleados, porque quien
-    // usa esta pantalla es admin, que no tiene sede propia.
+    // A que sede se le atribuye la compra. 18-sep-2026 (SPEC 2.10.2): el
+    // campo ahora lo ve cualquier rol -- antes era admin-only y al tecnico
+    // ni se le preguntaba, lo que desde SPEC 2.29 lo dejo sin poder crear
+    // compras (el backend exigia la sede que el formulario nunca pedia).
+    // Para el tecnico viene precargado con la suya (ver useEffect abajo),
+    // mismo patron que Activos > Nuevo.
     sedeId: "",
     numeroFactura: "",
     fechaFactura: new Date().toISOString().split("T")[0],
@@ -167,22 +169,31 @@ export default function NuevaCompraPage() {
     fetchCategories();
   }, []);
 
-  // El catálogo de Kit/EPP depende de la sede: para técnico se filtra solo
-  // con su sesión (el backend ya lo acota), para admin recién cuando elige
-  // una sede arriba -- mismo criterio que "Crear Equipo Nuevo".
+  // Precarga la sede del usuario (18-sep-2026, SPEC 2.10.2). El
+  // "|| prev.sedeId" evita pisar una eleccion manual si ya eligio otra --
+  // mismo patron que Activos > Nuevo.
   useEffect(() => {
-    if (!isAdmin || formData.sedeId) {
+    if (session?.user?.sedeId) {
+      setFormData((prev) => ({ ...prev, sedeId: prev.sedeId || session.user.sedeId! }));
+    }
+  }, [session?.user?.sedeId]);
+
+  // El catálogo de Kit/EPP depende de la sede elegida arriba, para
+  // cualquier rol (18-sep-2026, SPEC 2.10.2) -- mismo criterio que "Crear
+  // Equipo Nuevo".
+  useEffect(() => {
+    if (formData.sedeId) {
       fetchKitItemsCatalogo();
     } else {
       setKitItemsCatalogo([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, formData.sedeId]);
+  }, [formData.sedeId]);
 
   async function fetchKitItemsCatalogo() {
     try {
       const params = new URLSearchParams();
-      if (isAdmin && formData.sedeId) params.set("sedeId", formData.sedeId);
+      if (formData.sedeId) params.set("sedeId", formData.sedeId);
       const res = await fetch(`/api/kit-items?${params}`);
       const data = await res.json();
       setKitItemsCatalogo(Array.isArray(data) ? data : []);
@@ -244,15 +255,24 @@ export default function NuevaCompraPage() {
     if (assetSearch.length >= 2) {
       searchAssets();
     }
-  }, [assetSearch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetSearch, formData.sedeId]);
 
   async function searchAssets() {
     setLoadingAssets(true);
     try {
+      // Acotado a la sede de la compra (18-sep-2026, SPEC 2.10.3): antes
+      // buscaba en todo el inventario, asi que un admin podia vincular a una
+      // compra de Santiago un equipo de Concepcion. La sede la manda el
+      // formulario, NO el selector del nav: ese es un filtro de vista, y la
+      // sede de la compra es un dato del registro. Mismo criterio que el
+      // catalogo de Kit/EPP de mas abajo y que SelectorActivos en Guias de
+      // Despacho.
       const params = new URLSearchParams({
         search: assetSearch,
         limit: "20",
       });
+      if (formData.sedeId) params.set("sedeId", formData.sedeId);
       const res = await fetch(`/api/activos?${params}`);
       const data = await res.json();
       // Filter out already selected assets
@@ -317,10 +337,10 @@ export default function NuevaCompraPage() {
           numeroTelefono: newAssetForm.numeroTelefono || null,
           pulgadas: newAssetForm.pulgadas || null,
           conectividad: newAssetForm.conectividad || null,
-          // El equipo llega a la misma sede que la compra: para tecnico el
-          // backend la ignora y usa la suya; para admin es la que eligio
-          // arriba (obligatoria, ver SPEC 2.8.2/2.10).
-          ...(isAdmin && { sedeId: formData.sedeId || undefined }),
+          // El equipo llega a la misma sede que la compra, la que se eligio
+          // arriba (obligatoria para cualquier rol desde SPEC 2.10.2 --
+          // antes al tecnico no se le preguntaba). Ver SPEC 2.8.2/2.10.
+          sedeId: formData.sedeId || undefined,
         }),
       });
 
@@ -371,20 +391,28 @@ export default function NuevaCompraPage() {
     }
   }
 
+  // Una compra necesita al menos una linea, de equipos o de Kit/EPP
+  // (18-sep-2026, SPEC 2.10.4).
+  const sinLineas = selectedAssets.length === 0 && selectedKitItems.length === 0;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (sinLineas) {
+      setError("Vincula al menos un equipo o un artículo de Kit/EPP antes de guardar.");
+      return;
+    }
     setSaving(true);
     setError(null);
     setFieldErrors({});
 
     try {
       const payload = {
-        // El backend ignora sedeId si quien crea no es admin (ver POST
-        // /api/compras) -- no se envia para un tecnico directamente, ya
-        // que ni siquiera se le muestra. Para admin es obligatorio (select
-        // sin opcion en blanco); si de todos modos llegara vacio el
-        // backend lo rechaza. Ver SPEC 2.8.2/2.10.
-        ...(isAdmin && { sedeId: formData.sedeId || undefined }),
+        // Obligatoria para cualquier rol (18-sep-2026, SPEC 2.10.2): el
+        // select no ofrece opcion en blanco y el backend rechaza la
+        // creacion si llegara vacia. Antes solo se enviaba para admin, y
+        // un tecnico chocaba con "Debes seleccionar una sede" sin tener
+        // donde elegirla. Ver SPEC 2.8.2/2.10.
+        sedeId: formData.sedeId || undefined,
         numeroFactura: formData.numeroFactura,
         fechaFactura: formData.fechaFactura,
         rutProveedor: formData.rutProveedor || null,
@@ -447,32 +475,40 @@ export default function NuevaCompraPage() {
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Sede -- solo admin la elige; un tecnico la hereda de la suya */}
-            {isAdmin && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Sede <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.sedeId}
-                  onChange={(e) => setFormData({ ...formData, sedeId: e.target.value })}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="" disabled>
-                    Selecciona una sede...
+            {/* Sede -- visible para cualquier rol desde SPEC 2.10.2 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sede <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.sedeId}
+                onChange={(e) => {
+                  setFormData({ ...formData, sedeId: e.target.value });
+                  // Lo ya elegido es de la sede anterior -- se limpia para no
+                  // arrastrar equipos ni articulos que ya no corresponden
+                  // (mismo criterio que Nueva Guia de Despacho al cambiar la
+                  // sede origen). SPEC 2.10.3.
+                  setSelectedAssets([]);
+                  setSelectedKitItems([]);
+                  setShowAssetSearch(false);
+                  setShowNewAssetForm(false);
+                }}
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="" disabled>
+                  Selecciona una sede...
+                </option>
+                {sedes.map((sede) => (
+                  <option key={sede.id} value={sede.id}>
+                    {sede.nombre}
                   </option>
-                  {sedes.map((sede) => (
-                    <option key={sede.id} value={sede.id}>
-                      {sede.nombre}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  Obligatorio: sede a la que se atribuye esta compra. Define qué catálogo de Kit/EPP se ofrece más abajo.
-                </p>
-              </div>
-            )}
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Obligatorio: sede a la que se atribuye esta compra. Define qué catálogo de Kit/EPP se ofrece más abajo.
+              </p>
+            </div>
 
             {/* Número de Factura */}
             <div>
@@ -547,7 +583,9 @@ export default function NuevaCompraPage() {
                   setShowNewAssetForm(false);
                   setShowAssetSearch(true);
                 }}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
+                disabled={!formData.sedeId}
+                title={!formData.sedeId ? "Primero elige la sede de la compra" : undefined}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus size={16} />
                 Buscar Existente
@@ -558,8 +596,8 @@ export default function NuevaCompraPage() {
                   setShowAssetSearch(false);
                   setShowNewAssetForm(true);
                 }}
-                disabled={isAdmin && !formData.sedeId}
-                title={isAdmin && !formData.sedeId ? "Primero elige la sede de la compra" : undefined}
+                disabled={!formData.sedeId}
+                title={!formData.sedeId ? "Primero elige la sede de la compra" : undefined}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <PackagePlus size={16} />
@@ -568,10 +606,10 @@ export default function NuevaCompraPage() {
             </div>
           </div>
 
-          {isAdmin && !formData.sedeId && (
+          {!formData.sedeId && (
             <div className="mb-4 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              <p>Elige la sede de la compra arriba para poder dar de alta un equipo nuevo.</p>
+              <p>Elige la sede de la compra arriba para poder vincular equipos: el inventario que se ofrece es el de esa sede.</p>
             </div>
           )}
 
@@ -954,8 +992,8 @@ export default function NuevaCompraPage() {
             <button
               type="button"
               onClick={() => setShowKitItemPicker((v) => !v)}
-              disabled={isAdmin && !formData.sedeId}
-              title={isAdmin && !formData.sedeId ? "Primero elige la sede de la compra" : undefined}
+              disabled={!formData.sedeId}
+              title={!formData.sedeId ? "Primero elige la sede de la compra" : undefined}
               className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus size={16} />
@@ -963,7 +1001,7 @@ export default function NuevaCompraPage() {
             </button>
           </div>
 
-          {isAdmin && !formData.sedeId && (
+          {!formData.sedeId && (
             <div className="mb-4 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
               <p>Elige la sede de la compra arriba para ver el catálogo de Kit/EPP de esa sede.</p>
@@ -1057,6 +1095,13 @@ export default function NuevaCompraPage() {
 
         {/* Botones */}
         <div className="flex items-center justify-end gap-4">
+          {/* Una compra sin equipos ni articulos no registra nada
+              (18-sep-2026, SPEC 2.10.4). El backend tambien lo rechaza. */}
+          {sinLineas && (
+            <p className="text-sm text-amber-700">
+              Vincula al menos un equipo o un artículo de Kit/EPP para poder guardar.
+            </p>
+          )}
           <Link
             href="/compras"
             className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
@@ -1065,7 +1110,7 @@ export default function NuevaCompraPage() {
           </Link>
           <button
             type="submit"
-            disabled={saving || !formData.numeroFactura}
+            disabled={saving || !formData.numeroFactura || !formData.sedeId || sinLineas}
             className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? (

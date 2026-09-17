@@ -87,16 +87,33 @@ export const linkKitItemsToPurchaseSchema = z.object({
 });
 
 // Schema para crear compra con activos y/o artículos de Kit/EPP incluidos
-export const createPurchaseWithAssetsSchema = createPurchaseSchema.extend({
-  assets: z
-    .array(purchaseAssetSchema)
-    .optional()
-    .default([]),
-  kitItems: z
-    .array(purchaseKitItemSchema)
-    .optional()
-    .default([]),
-});
+export const createPurchaseWithAssetsSchema = createPurchaseSchema
+  .extend({
+    assets: z
+      .array(purchaseAssetSchema)
+      .optional()
+      .default([]),
+    kitItems: z
+      .array(purchaseKitItemSchema)
+      .optional()
+      .default([]),
+  })
+  // Una compra sin nada vinculado no registra nada (18-sep-2026, SPEC
+  // 2.10.4): el proposito del modulo es relacionar la factura con los
+  // equipos o articulos que vinieron con ella. Se exige al menos una linea,
+  // de cualquiera de los dos tipos.
+  .superRefine((data, ctx) => {
+    const sinEquipos = !data.assets || data.assets.length === 0;
+    const sinKit = !data.kitItems || data.kitItems.length === 0;
+    if (sinEquipos && sinKit) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["assets"],
+        message:
+          "Vincula al menos un equipo o un artículo de Kit/EPP: una factura sin nada asociado no registra nada.",
+      });
+    }
+  });
 
 // Schema para filtros de búsqueda de compras
 export const purchaseFiltersSchema = z.object({
