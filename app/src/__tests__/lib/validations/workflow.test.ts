@@ -77,15 +77,30 @@ describe('createWorkflowRequestSchema — onboarding', () => {
 // CAMBIO_EQUIPO
 // ============================================================
 describe('createWorkflowRequestSchema — cambio_equipo', () => {
+  // 16-sep-2026 (SPEC 2.45): elegir el equipo a cambiar dejo de ser opcional,
+  // asi que los "datos minimos" de un cambio_equipo ahora incluyen los tres
+  // campos de ejecucion. Antes bastaba con el motivo.
   const validCambio = {
     ...baseFields,
     tipo: 'cambio_equipo' as const,
     motivoCambio: 'Pantalla rota, equipo inoperable',
+    oldAssignmentId: '550e8400-e29b-41d4-a716-446655440001',
+    newAssetId: '550e8400-e29b-41d4-a716-446655440002',
+    estadoDevolucionAnterior: 'ok' as const,
   };
 
   test('acepta datos mínimos válidos de cambio_equipo', () => {
     const result = createWorkflowRequestSchema.safeParse(validCambio);
     expect(result.success).toBe(true);
+  });
+
+  test('rechaza cambio_equipo sin el equipo a cambiar (SPEC 2.45)', () => {
+    const { oldAssignmentId, newAssetId, estadoDevolucionAnterior, ...sinEquipo } = validCambio;
+    void oldAssignmentId;
+    void newAssetId;
+    void estadoDevolucionAnterior;
+    const result = createWorkflowRequestSchema.safeParse(sinEquipo);
+    expect(result.success).toBe(false);
   });
 
   test('rechaza cambio_equipo sin motivoCambio', () => {
@@ -119,9 +134,13 @@ describe('createWorkflowRequestSchema — cambio_equipo con ejecución inmediata
     estadoDevolucionAnterior: 'ok' as const,
   };
 
-  test('acepta cambio_equipo sin datos de ejecución (solo incidencia)', () => {
+  // 16-sep-2026 (SPEC 2.45): antes se aceptaba crear el ticket solo con la
+  // incidencia, para elegir el equipo despues. Ya no: sin stock de reemplazo
+  // en la sede, la solicitud completa no se puede crear -- consecuencia
+  // pedida explicitamente por Javier.
+  test('rechaza cambio_equipo sin datos de ejecución (ya no existe "solo incidencia")', () => {
     const result = createWorkflowRequestSchema.safeParse(validCambio);
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
   });
 
   test('acepta cambio_equipo con los 3 datos de ejecución completos', () => {

@@ -26,7 +26,24 @@ const EXCLUIDAS = [
   // Acta por asignacion eliminada (SPEC 2.41): mismo caso, stub 410 sin
   // logica ni permisos que auditar. Los documentos los genera Solicitudes.
   path.join('asignaciones', '[id]', 'acta', 'route.ts'),
+  // Reporte RRHH en PDF eliminado junto con jsPDF (SPEC 2.41): el archivo
+  // completo es un stub 410, sin ningun handler con logica que auditar.
+  path.join('desvinculaciones', '[id]', 'reporte-rrhh', 'route.ts'),
 ];
+
+/**
+ * ¿Este handler es un stub 410 Gone?
+ *
+ * 18-sep-2026: un handler retirado a proposito (ver SPEC 2.35, 2.41, 2.43)
+ * devuelve 410 y no tiene nada que proteger -- no toca la base ni acepta
+ * datos. Exigirle `requirePermission`/`handleApiError` obligaria a escribir
+ * codigo muerto solo para satisfacer la auditoria. Se excluyen por handler y
+ * no por archivo, porque hay rutas mixtas: en `empleados/[id]/route.ts` el
+ * DELETE es un stub pero GET y PUT siguen vivos y deben auditarse igual.
+ */
+function esStub410(cuerpo: string): boolean {
+  return /status:\s*410/.test(cuerpo);
+}
 
 const METODOS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 
@@ -82,14 +99,16 @@ describe('rutas de API — cobertura de autorización', () => {
       expect(handlers.length).toBeGreaterThan(0);
     });
 
-    test.each(handlers.map((h) => [h.metodo, h.cuerpo] as const))(
+    const handlersVivos = handlers.filter((h) => !esStub410(h.cuerpo));
+
+    test.each(handlersVivos.map((h) => [h.metodo, h.cuerpo] as const))(
       '%s exige un permiso explícito',
       (_metodo, cuerpo) => {
         expect(cuerpo).toMatch(/requirePermission\(/);
       }
     );
 
-    test.each(handlers.map((h) => [h.metodo, h.cuerpo] as const))(
+    test.each(handlersVivos.map((h) => [h.metodo, h.cuerpo] as const))(
       '%s traduce sus errores con handleApiError',
       (_metodo, cuerpo) => {
         expect(cuerpo).toMatch(/handleApiError\(/);
