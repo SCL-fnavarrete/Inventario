@@ -12,18 +12,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Can } from "@/components/auth/Can";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import { formatearFecha } from "@/lib/utils/fechas";
-
-type Sede = {
-  id: string;
-  nombre: string;
-  codigo: string;
-  activa: boolean;
-};
 
 type Purchase = {
   id: string;
@@ -31,7 +26,7 @@ type Purchase = {
   fechaFactura: string;
   rutProveedor: string | null;
   ordenCompra: string | null;
-  sede: Sede | null;
+  sede: { id: string; nombre: string; codigo: string } | null;
   _count: {
     purchaseAssets: number;
   };
@@ -47,7 +42,6 @@ function formatDate(dateString: string): string {
 
 export default function ComprasPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [sedes, setSedes] = useState<Sede[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -55,30 +49,20 @@ export default function ComprasPage() {
   // version debounced -- antes buscaba en cada tecla sin ningun freno, una
   // peticion por letra. Ver useDebouncedValue y SPEC 2.14.
   const debouncedSearch = useDebouncedValue(search, 350);
-  const [filterSede, setFilterSede] = useState("");
+  // Selector de sede del nav (18-sep-2026, SPEC 2.10.5): antes esta pantalla
+  // tenia su PROPIO select de sede y por eso era la unica que ignoraba el del
+  // menu. Se quita el propio -- un solo lugar donde elegir sede, igual que
+  // Activos, Mantenciones, Solicitudes y Personal.
+  const { sedeSeleccionada } = useSedeSeleccionada();
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    fetchSedes();
-  }, []);
-
-  useEffect(() => {
     fetchPurchases();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, filterSede, fechaDesde, fechaHasta, page]);
-
-  async function fetchSedes() {
-    try {
-      const res = await fetch("/api/sedes");
-      const data = await res.json();
-      setSedes(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Error fetching sedes:", error);
-    }
-  }
+  }, [debouncedSearch, sedeSeleccionada, fechaDesde, fechaHasta, page]);
 
   async function fetchPurchases() {
     setLoading(true);
@@ -89,7 +73,7 @@ export default function ComprasPage() {
       });
 
       if (debouncedSearch) params.append("search", debouncedSearch);
-      if (filterSede) params.append("sedeId", filterSede);
+      if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
       if (fechaDesde) params.append("fechaDesde", fechaDesde);
       if (fechaHasta) params.append("fechaHasta", fechaHasta);
 
@@ -174,21 +158,6 @@ export default function ComprasPage() {
               />
             </div>
 
-            <select
-              value={filterSede}
-              onChange={(e) => {
-                setFilterSede(e.target.value);
-                setPage(1);
-              }}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Todas las sedes</option>
-              {sedes.map((sede) => (
-                <option key={sede.id} value={sede.id}>
-                  {sede.nombre}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div className="flex flex-col md:flex-row gap-4 items-center">
@@ -217,20 +186,23 @@ export default function ComprasPage() {
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            {(fechaDesde || fechaHasta || filterSede || search) && (
-              <button
-                onClick={() => {
-                  setSearch("");
-                  setFilterSede("");
-                  setFechaDesde("");
-                  setFechaHasta("");
-                  setPage(1);
-                }}
-                className="text-sm text-blue-600 hover:text-blue-800"
-              >
-                Limpiar filtros
-              </button>
-            )}
+            {/* Siempre visible (18-sep-2026, SPEC 2.10.5): antes solo
+                aparecia si habia algun filtro puesto, y como ademas era un
+                link de texto pasaba desapercibido. Se deshabilita cuando no
+                hay nada que limpiar. */}
+            <button
+              onClick={() => {
+                setSearch("");
+                setFechaDesde("");
+                setFechaHasta("");
+                setPage(1);
+              }}
+              disabled={!fechaDesde && !fechaHasta && !search}
+              className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw size={16} />
+              Limpiar filtros
+            </button>
           </div>
         </div>
       </div>

@@ -99,6 +99,18 @@ async function getAsset(id: string) {
         orderBy: { createdAt: "desc" },
         take: 5,
       },
+      // Compra con la que llego este equipo (18-sep-2026, SPEC 2.10.7): la
+      // ficha no lo mostraba en ninguna parte, pese a que el vinculo ya
+      // existe desde el modulo de Compras. En teoria son varias
+      // (purchaseAssets es n-a-n), en la practica una.
+      purchaseAssets: {
+        include: {
+          purchase: {
+            include: { sede: { select: { nombre: true } } },
+          },
+        },
+        orderBy: { purchase: { fechaFactura: "desc" } },
+      },
     },
   });
 
@@ -338,8 +350,42 @@ export default async function DetalleActivoPage({
           )}
         </div>
 
-        {/* Sidebar - Historial */}
+        {/* Sidebar - Compra e Historial */}
         <div className="space-y-6">
+          {/* Compra asociada (18-sep-2026, SPEC 2.10.7). Solo aparece si el
+              equipo esta vinculado a una factura: los que se cargaron a mano
+              o por importacion no tienen ninguna. */}
+          {asset.purchaseAssets.length > 0 && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                {asset.purchaseAssets.length === 1 ? "Compra asociada" : "Compras asociadas"}
+              </h2>
+              <div className="space-y-4">
+                {asset.purchaseAssets.map((pa) => (
+                  <div key={pa.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="font-medium text-gray-900">
+                        Factura {pa.purchase.numeroFactura || "s/n"}
+                      </p>
+                      <Link
+                        href={`/compras/${pa.purchase.id}`}
+                        className="text-sm text-blue-600 hover:text-blue-800 whitespace-nowrap"
+                      >
+                        Ver compra
+                      </Link>
+                    </div>
+                    <div className="space-y-1 text-sm text-gray-600">
+                      <p>Fecha: {formatearFecha(pa.purchase.fechaFactura)}</p>
+                      {pa.purchase.ordenCompra && <p>Orden de compra: {pa.purchase.ordenCompra}</p>}
+                      {pa.purchase.rutProveedor && <p>Proveedor: {pa.purchase.rutProveedor}</p>}
+                      {pa.purchase.sede && <p>Sede: {pa.purchase.sede.nombre}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Historial de Eventos

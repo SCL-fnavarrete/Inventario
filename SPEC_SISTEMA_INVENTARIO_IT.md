@@ -916,6 +916,18 @@ Javier, probando el módulo: *"Sería bueno que en eso del guía de despacho sal
 
 Javier, probando el listado: *"En el dashboard de guía de despacho hay como dos íconos. Uno para filtro y otro para resetear. Encuentro que no es necesario ya que hay tan pocos filtros que se puede hacer de manera manual."* Se quitan ambos botones del listado (`/guias-despacho`): el de enviar el formulario (ícono `Filter`, redundante desde que la búsqueda ya debouncea sola, SPEC 2.14.1) y el de "Limpiar filtros" (ícono `RefreshCw`), que con solo un buscador de texto y un `<select>` de estado no aporta frente a limpiarlos a mano. El formulario sigue aceptando Enter (`handleSearch` no se tocó) y la búsqueda sigue debounceando automáticamente; solo se sacaron los botones.
 
+### 2.9.8 El listado respeta el selector de sede del nav, por ambas puntas (18-sep-2026)
+
+Javier: *"también quiero que resuelvas el mismo problema con la sede del navbar en la guía de despacho, ya que no lo toma."* `GET /api/guias-despacho` no leía ningún `sedeId`, así que el listado no reaccionaba al selector del menú -- el mismo gap que tenía Compras (2.10.5), por otra causa: acá no había un selector propio, simplemente no estaba implementado.
+
+Se filtra por **ambas puntas**, origen y destino: `OR: [{ sedeId }, { sedeDestinoId }]`. Una guía le interesa a las dos sedes involucradas (ver 2.9.4), así que elegir Concepción en el menú muestra tanto las que salen de ahí como las que llegan ahí -- misma regla que ya aplicaba `guiaWhereVisible` para un rol con visibilidad restringida. El parámetro solo tiene efecto para quien tiene visibilidad total, igual que en el resto de las rutas de listado.
+
+### 2.9.9 La sede origen se muestra en el listado y en el detalle (18-sep-2026)
+
+Javier: *"falta la sede de origen, que igual es un dato importante."* Tanto el listado como el detalle mostraban solo la sede destino. En el detalle el dato ya venía de la API (`sede`), simplemente no se renderizaba; en el listado ni siquiera se consultaba -- el `include` de `GET /api/guias-despacho` traía `sedeDestino` pero no `sede`.
+
+Se agrega en los dos: una columna "Sede origen" antes de "Sede destino" en la tabla, y una fila equivalente en "Datos del Despacho". Es especialmente relevante desde 2.9.8, donde el filtro del nav muestra las guías por ambas puntas: sin ver el origen, no se distingue si una guía aparece porque sale de la sede filtrada o porque llega a ella.
+
 ---
 
 ## 2.10 Compras (`purchases`): acceso de técnico y modelo simplificado (11-sep-2026)
@@ -973,6 +985,28 @@ Javier, probando el módulo: *"hay un problema que me deja crear una factura sin
 Se exige al menos una línea, de cualquiera de los dos tipos, en los dos lados: un `superRefine` en el schema (que rechaza con un mensaje que nombra el campo) y, en `/compras/nueva`, el botón Guardar deshabilitado con un aviso que explica por qué, más una guarda en `handleSubmit`.
 
 Se evaluó y descartó la alternativa de permitirla con una confirmación, pensando en registrar la factura antes de que lleguen los equipos: en el flujo real la compra se registra cuando el despacho llega, así que no aporta. Agregar equipos o artículos **después** de creada sigue siendo posible desde el detalle, eso no cambió.
+
+### 2.10.5 Editar una factura, y la sede del listado pasa al selector del nav (18-sep-2026)
+
+Tres hallazgos de Javier probando el módulo:
+
+**No se podía editar una compra ya creada.** El detalle no tenía ningún botón de edición, pese a que `PUT /api/compras/:id` existe desde siempre: un número de factura mal tipeado o una fecha equivocada solo se arreglaban eliminando la compra y rehaciéndola. Se agrega un botón "Editar" en el detalle que abre un modal con N° de factura, fecha, RUT proveedor, orden de compra y sede. Cambiar la sede de la compra no mueve los equipos ya vinculados: cada activo conserva la suya.
+
+**El listado ignoraba el selector de sede del nav.** Era la única pantalla con su **propio** `<select>` de sede ("Todas las sedes"), heredado de antes de que existiera el selector global. Se quita el propio y pasa a usar `useSedeSeleccionada`, igual que Activos, Mantenciones, Solicitudes y Personal -- un solo lugar en toda la app donde se elige sede.
+
+**"Limpiar filtros" pasaba desapercibido.** Existía, junto a las fechas, pero solo se renderizaba si había algún filtro puesto y era un link de texto. Queda siempre visible, con aspecto de botón, deshabilitado cuando no hay nada que limpiar.
+
+### 2.10.6 El número de factura es único en todo el sistema (18-sep-2026)
+
+Javier: *"solo puede existir un n de factura único."* Se evaluaron tres alcances (único por sede, global, o por RUT de proveedor) y se eligió **global**: no puede existir dos veces el mismo número, sin importar sede ni proveedor.
+
+Se valida en `POST /api/compras` y en `PUT /api/compras/:id` (excluyendo la propia compra que se edita), devolviendo el error asociado al campo `numeroFactura`. No se agregó un índice único en la base a propósito, para no exigir una migración; el número sigue siendo opcional en el esquema, así que la comprobación solo corre cuando viene con valor.
+
+### 2.10.7 La ficha del activo muestra con qué compra llegó (18-sep-2026)
+
+Javier: *"agregar una tarjeta donde salga su asociación a una compra."* `/activos/:id` no mencionaba la compra en ninguna parte -- solo el campo suelto "Fecha Compra" y, si acaso, un evento `compra` perdido en el historial -- aunque el vínculo existe como `PurchaseAsset` desde que se creó el módulo.
+
+Se agrega una tarjeta "Compra asociada" en la columna lateral, sobre el historial, con el número de factura, la fecha, la orden de compra, el RUT del proveedor, la sede y un link a la compra. Solo aparece si el equipo está vinculado a alguna: los cargados a mano o por importación no tienen ninguna. La consulta se extendió en la propia página (es un server component que consulta Prisma directo, no pasa por `/api/activos/:id`).
 
 ---
 
@@ -2502,6 +2536,10 @@ De paso, revisando el endpoint (`GET /api/mantenciones/pendientes`), aparecieron
 1. **"Completadas (mes)" nunca tuvo ventana de tiempo real.** El número salía de `porEstado`, un conteo agrupado por estado sin ningún filtro de fecha -- contaba **todas** las mantenciones completadas desde siempre, aunque la tarjeta dijera "(mes)". Se agrega un conteo propio, acotado por `fechaRealizada` dentro del período elegido.
 2. **La ruta no respetaba el selector de sede del nav.** A diferencia de `/api/mantenciones` (el listado), `pendientes` no leía ningún `sedeId` de la URL -- las cuatro tarjetas no cambiaban al elegir otra sede en el menú. Se agrega el mismo patrón que ya usa el listado (`sedeId` solo se aplica si la sesión tiene visibilidad total).
 
+### 2.51.3 El calendario de Mantenciones también respeta el selector de sede (18-sep-2026)
+
+Al revisar qué otras pantallas ignoraban el selector del nav apareció `/mantenciones/calendario`: llamaba a `GET /api/mantenciones` con `fechaDesde`, `fechaHasta` y `limit`, sin `sedeId`. Como `sedeWhere()` no restringe a admin ni a técnico (SPEC 2.29), eso significaba mostrar las mantenciones de todas las sedes sin importar el menú -- era la última pantalla del módulo que no lo miraba. Se le pasa `sedeId` y se recarga al cambiar de sede, igual que el listado y las tarjetas.
+
 ---
 
 ## 2.52 Programar Mantención: el punto de entrada pasa a ser el equipo, no el empleado (18-sep-2026)
@@ -2548,6 +2586,14 @@ Javier, tras el fix de 2.51.1: *"Al filtro de fechas nos falta un filtro, un val
 
 ## Changelog SPEC
 
+- **v1.73 (2026-09-18):**
+  - Sección 2.51.3 (nueva): el calendario de Mantenciones pasa a respetar el selector de sede del nav -- llamaba a la API sin `sedeId` y mostraba todas las sedes. Detectado al revisar qué otras pantallas lo ignoraban, a pedido de Javier.
+- **v1.72 (2026-09-18):**
+  - Sección 2.9.9 (nueva): la sede origen se muestra en el listado (columna nueva) y en el detalle de una guía -- antes solo aparecía el destino. Pedido de Javier.
+- **v1.71 (2026-09-18):**
+  - Sección 2.9.8 (nueva): el listado de Guías de Despacho pasa a respetar el selector de sede del nav, filtrando por ambas puntas (origen y destino), porque una guía le interesa a las dos sedes involucradas. Pedido de Javier tras el mismo arreglo en Compras.
+- **v1.70 (2026-09-18):**
+  - Secciones 2.10.5, 2.10.6 y 2.10.7 (nuevas): cinco mejoras a Compras pedidas por Javier tras probar el módulo -- botón para editar una factura ya creada, el listado pasa a usar el selector de sede del nav (tenía uno propio y era la única pantalla que lo ignoraba), "Limpiar filtros" siempre visible junto a las fechas, N° de factura único en todo el sistema, y una tarjeta en la ficha del activo con la compra con la que llegó.
 - **v1.69 (2026-09-18):**
   - Sección 2.10.4 (nueva): una compra ya no se puede crear sin equipos ni artículos de Kit/EPP -- se exige al menos una línea, validado en el schema y en el formulario. Pedido de Javier tras detectarlo probando: *"me deja crear una factura sin colocar equipos o kits"*.
 - **v1.68 (2026-09-18):**

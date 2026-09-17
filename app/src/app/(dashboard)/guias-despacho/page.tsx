@@ -8,6 +8,7 @@ import { ESTADO_GUIA_LABELS, type DispatchGuideListItem } from "@/types/guia-des
 import { EstadoGuia } from "@prisma/client";
 import { Can } from "@/components/auth/Can";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 
 export default function GuiasDespachoPage() {
   const [guides, setGuides] = useState<DispatchGuideListItem[]>([]);
@@ -18,13 +19,16 @@ export default function GuiasDespachoPage() {
   // useDebouncedValue y SPEC 2.14.
   const debouncedSearchTerm = useDebouncedValue(searchTerm, 350);
   const [estadoFilter, setEstadoFilter] = useState<string>("all");
+  // Selector de sede del nav (18-sep-2026, SPEC 2.9.8): filtra por las dos
+  // puntas de la guia, origen y destino -- ver la nota en la API.
+  const { sedeSeleccionada } = useSedeSeleccionada();
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     fetchGuides();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, estadoFilter, debouncedSearchTerm]);
+  }, [page, estadoFilter, debouncedSearchTerm, sedeSeleccionada]);
 
   // `searchOverride` es para el Enter explicito (handleSearch) y para
   // "Limpiar filtros": sin el, buscarian con el valor debounced anterior en
@@ -39,6 +43,10 @@ export default function GuiasDespachoPage() {
 
       if (estadoFilter !== "all") {
         params.append("estado", estadoFilter);
+      }
+
+      if (sedeSeleccionada) {
+        params.append("sedeId", sedeSeleccionada);
       }
 
       const terminoBusqueda = searchOverride ?? debouncedSearchTerm;

@@ -249,6 +249,12 @@ export default function GuiaDespachoDetailPage({
               <dt className="text-sm text-gray-500">OT Chilexpress</dt>
               <dd className="font-medium font-mono">{guide.otChilexpress}</dd>
             </div>
+            {/* Sede origen ademas de destino (18-sep-2026, SPEC 2.9.9): el
+                dato ya venia de la API, solo no se mostraba. */}
+            <div>
+              <dt className="text-sm text-gray-500">Sede origen</dt>
+              <dd className="font-medium">{guide.sede?.nombre || "—"}</dd>
+            </div>
             <div>
               <dt className="text-sm text-gray-500">Sede destino</dt>
               <dd className="font-medium">{guide.sedeDestino.nombre}</dd>

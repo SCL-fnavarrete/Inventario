@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { updatePurchaseSchema } from "@/lib/validations/purchase";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
@@ -118,6 +119,26 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const esAdmin = tieneVisibilidadTotal(session);
     if (esAdmin && data.sedeId === null) {
       throw new ValidationError('Debes seleccionar una sede.');
+    }
+
+    // N° de factura unico en todo el sistema (18-sep-2026, SPEC 2.10.6):
+    // misma regla que al crear, excluyendo la propia compra que se edita.
+    if (data.numeroFactura) {
+      const duplicada = await prisma.purchase.findFirst({
+        where: { numeroFactura: data.numeroFactura, id: { not: id } },
+        select: { id: true },
+      });
+      if (duplicada) {
+        return respuestaDatosInvalidos(
+          new z.ZodError([
+            {
+              code: z.ZodIssueCode.custom,
+              path: ["numeroFactura"],
+              message: `Ya existe otra compra con la factura ${data.numeroFactura}.`,
+            },
+          ])
+        );
+      }
     }
 
     const purchase = await prisma.purchase.update({

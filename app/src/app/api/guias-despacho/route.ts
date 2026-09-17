@@ -41,10 +41,28 @@ export async function GET(request: NextRequest) {
       condiciones.push({ estado });
     }
 
+    // Selector de sede del nav (18-sep-2026, SPEC 2.9.8): esta ruta no leia
+    // ningun sedeId, asi que el listado de Guias era de las pocas pantallas
+    // que no reaccionaba al menu. Se filtra por AMBAS puntas -- una guia le
+    // interesa tanto a la sede que despacha como a la que recibe (misma
+    // regla que guiaWhereVisible y SPEC 2.9.4), asi que elegir Concepcion
+    // muestra las que salen de ahi Y las que llegan ahi.
+    const sedeIdFiltro = searchParams.get("sedeId") || "";
+    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
+      condiciones.push({
+        OR: [{ sedeId: sedeIdFiltro }, { sedeDestinoId: sedeIdFiltro }],
+      });
+    }
+
     const where = { AND: condiciones };
 
     const includeGuia = {
       _count: { select: { items: true } },
+      // Sede origen ademas de destino (18-sep-2026, SPEC 2.9.9): el listado
+      // solo traia el destino, y de donde sale el despacho es igual de
+      // relevante -- sobre todo ahora que el filtro del nav muestra las
+      // guias por ambas puntas (2.9.8).
+      sede: true,
       sedeDestino: true,
     } as const;
 

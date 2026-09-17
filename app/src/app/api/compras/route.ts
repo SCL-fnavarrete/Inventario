@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import {
   createPurchaseWithAssetsSchema,
@@ -190,6 +191,28 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
+      }
+    }
+
+    // N° de factura unico en todo el sistema (18-sep-2026, SPEC 2.10.6,
+    // decision de Javier). Se valida aca y no con un indice unico en la
+    // base para no exigir una migracion; el numero es opcional en el
+    // esquema, asi que solo se comprueba cuando viene con valor.
+    if (data.numeroFactura) {
+      const duplicada = await prisma.purchase.findFirst({
+        where: { numeroFactura: data.numeroFactura },
+        select: { id: true },
+      });
+      if (duplicada) {
+        return respuestaDatosInvalidos(
+          new z.ZodError([
+            {
+              code: z.ZodIssueCode.custom,
+              path: ["numeroFactura"],
+              message: `Ya existe una compra con la factura ${data.numeroFactura}.`,
+            },
+          ])
+        );
       }
     }
 

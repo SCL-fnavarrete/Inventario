@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MantencionesTabs } from "@/components/mantenciones";
+import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 
 type Maintenance = {
   id: string;
@@ -69,13 +70,19 @@ export default function CalendarioMantencionesPage() {
   const [maintenances, setMaintenances] = useState<Maintenance[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  // Selector de sede del nav (18-sep-2026, SPEC 2.51.3): el calendario era
+  // la ultima pantalla de Mantenciones que no lo miraba -- llamaba a
+  // /api/mantenciones sin sedeId, y como sedeWhere() no restringe a
+  // admin/tecnico, mostraba las mantenciones de todas las sedes.
+  const { sedeSeleccionada } = useSedeSeleccionada();
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
   useEffect(() => {
     fetchMaintenances();
-  }, [year, month]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year, month, sedeSeleccionada]);
 
   async function fetchMaintenances() {
     setLoading(true);
@@ -88,6 +95,7 @@ export default function CalendarioMantencionesPage() {
         fechaHasta,
         limit: "100",
       });
+      if (sedeSeleccionada) params.set("sedeId", sedeSeleccionada);
 
       const res = await fetch(`/api/mantenciones?${params}`);
       const data = await res.json();

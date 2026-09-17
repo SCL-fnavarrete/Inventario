@@ -17,6 +17,7 @@ import {
   Monitor,
   Eye,
   Shirt,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Can } from "@/components/auth/Can";
@@ -140,6 +141,20 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
 
+  // Editar los datos de la factura (18-sep-2026, SPEC 2.10.5): antes, una vez
+  // creada la compra, no habia forma de corregir un numero de factura mal
+  // tipeado o una fecha equivocada -- solo quedaba eliminarla y rehacerla.
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [sedes, setSedes] = useState<{ id: string; nombre: string }[]>([]);
+  const [editForm, setEditForm] = useState({
+    numeroFactura: "",
+    fechaFactura: "",
+    rutProveedor: "",
+    ordenCompra: "",
+    sedeId: "",
+  });
+
   // Para agregar activos
   const [showAssetSearch, setShowAssetSearch] = useState(false);
   const [assetSearch, setAssetSearch] = useState("");
@@ -176,6 +191,65 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       setError(err instanceof Error ? err.message : "Error desconocido");
     } finally {
       setLoading(false);
+    }
+  }
+
+  function abrirEdicion() {
+    if (!purchase) return;
+    setEditForm({
+      numeroFactura: purchase.numeroFactura || "",
+      // El <input type="date"> necesita yyyy-mm-dd, no el ISO completo.
+      fechaFactura: purchase.fechaFactura ? purchase.fechaFactura.slice(0, 10) : "",
+      rutProveedor: purchase.rutProveedor || "",
+      ordenCompra: purchase.ordenCompra || "",
+      sedeId: purchase.sede?.id || "",
+    });
+    setError(null);
+    setFieldErrors({});
+    setShowEditForm(true);
+    if (sedes.length === 0) fetchSedes();
+  }
+
+  async function fetchSedes() {
+    try {
+      const res = await fetch("/api/sedes?activas=true");
+      const data = await res.json();
+      setSedes(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error fetching sedes:", err);
+    }
+  }
+
+  async function guardarEdicion(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingEdit(true);
+    setError(null);
+    setFieldErrors({});
+    try {
+      const res = await fetch(`/api/compras/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          numeroFactura: editForm.numeroFactura,
+          fechaFactura: editForm.fechaFactura,
+          rutProveedor: editForm.rutProveedor || null,
+          ordenCompra: editForm.ordenCompra || null,
+          sedeId: editForm.sedeId || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al guardar los cambios");
+        setError(message);
+        setFieldErrors(fe);
+        return;
+      }
+      setShowEditForm(false);
+      await fetchPurchase();
+    } catch (err) {
+      console.error("Error updating purchase:", err);
+      setError("Error al guardar los cambios");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -402,6 +476,15 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
           </div>
         </div>
         <div className="flex gap-2">
+          <Can recurso="compras">
+            <button
+              onClick={abrirEdicion}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            >
+              <Pencil size={20} />
+              Editar
+            </button>
+          </Can>
           <Can recurso="compras" accion="delete">
             <button
               onClick={() => setShowDeleteConfirm(true)}
@@ -822,6 +905,109 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       )}
 
       {/* Modal de confirmación de eliminación */}
+      {/* Editar datos de la factura (18-sep-2026, SPEC 2.10.5) */}
+      {showEditForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full">
+            <h3 className="text-lg font-semibold mb-4">Editar datos de la factura</h3>
+            <form onSubmit={guardarEdicion} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    N° Factura <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.numeroFactura}
+                    onChange={(e) => setEditForm({ ...editForm, numeroFactura: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha de la factura <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editForm.fechaFactura}
+                    onChange={(e) => setEditForm({ ...editForm, fechaFactura: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    RUT proveedor
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="11.223.344-K"
+                    value={editForm.rutProveedor}
+                    onChange={(e) => setEditForm({ ...editForm, rutProveedor: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Orden de compra
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.ordenCompra}
+                    onChange={(e) => setEditForm({ ...editForm, ordenCompra: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sede <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={editForm.sedeId}
+                    onChange={(e) => setEditForm({ ...editForm, sedeId: e.target.value })}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="" disabled>
+                      Selecciona una sede...
+                    </option>
+                    {sedes.map((sede) => (
+                      <option key={sede.id} value={sede.id}>
+                        {sede.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Cambiar la sede no mueve los equipos ya vinculados: cada uno conserva la suya.
+                  </p>
+                </div>
+              </div>
+
+              {error && <ApiErrorSummary error={error} fieldErrors={fieldErrors} />}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditForm(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {savingEdit && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Guardar cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">

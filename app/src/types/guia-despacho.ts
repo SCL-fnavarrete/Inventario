@@ -66,6 +66,7 @@ export interface DispatchGuideListItem {
   receptorRut: string;
   estado: EstadoGuia;
   createdAt: Date;
+  sede: DispatchGuideSede | null;
   sedeDestino: DispatchGuideSede;
   _count: {
     items: number;
