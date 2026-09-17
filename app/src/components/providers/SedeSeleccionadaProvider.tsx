@@ -77,12 +77,21 @@ export function SedeSeleccionadaProvider({ children }: { children: React.ReactNo
   const sedeBloqueada = !!session && session.user?.role !== "admin";
   const sedePropia = session?.user?.sedeId ?? null;
 
-  // Sede fija: se impone la de la sesion, pase lo que pase en localStorage
-  // (por ejemplo, otra sede que quedo guardada de una sesion anterior en el
-  // mismo navegador).
+  // Valor efectivo que ve el resto de la app: si la sede esta bloqueada,
+  // siempre es la propia de la sesion, sin importar lo que haya quedado en
+  // `sedeSeleccionada` (por ejemplo, otra sede guardada en localStorage de
+  // una sesion anterior en el mismo navegador). Se calcula en cada render
+  // en vez de sincronizarlo con un setState dentro de un effect -- es
+  // "estado derivado" (React lo desaconseja explicitamente, ver
+  // react-hooks/set-state-in-effect) y ademas es mas simple: no hay un
+  // frame intermedio en el que el contexto exponga la sede vieja.
+  const sedeEfectiva = sedeBloqueada && sedePropia ? sedePropia : sedeSeleccionada;
+
+  // Esto si es un efecto legitimo: sincroniza sistemas externos
+  // (localStorage y la cookie que lee el Dashboard en el servidor) con la
+  // sede bloqueada, no calcula estado de React.
   useEffect(() => {
     if (!sedeBloqueada || !sedePropia) return;
-    setSedeSeleccionadaState((prev) => (prev === sedePropia ? prev : sedePropia));
     try {
       window.localStorage.setItem(CLAVE_STORAGE, sedePropia);
       escribirCookie(sedePropia);
@@ -138,7 +147,7 @@ export function SedeSeleccionadaProvider({ children }: { children: React.ReactNo
 
   return (
     <SedeSeleccionadaContext.Provider
-      value={{ sedeSeleccionada, setSedeSeleccionada, sedeBloqueada }}
+      value={{ sedeSeleccionada: sedeEfectiva, setSedeSeleccionada, sedeBloqueada }}
     >
       {children}
     </SedeSeleccionadaContext.Provider>
