@@ -7,6 +7,8 @@ export type ValidationErrorType =
   | "missing_employee_data"
   | "invalid_format"
   | "invalid_assignment_date"
+  | "sede_no_reconocida"
+  | "sede_ajena"
   | "unknown_error";
 
 export interface ValidationError {

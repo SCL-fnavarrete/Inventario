@@ -65,28 +65,6 @@ export async function GET(request: NextRequest) {
       take: 10,
     });
 
-    // Desvinculaciones con devoluciones pendientes
-    const devolucionesPendientes = await prisma.termination.findMany({
-      where: {
-        OR: [
-          { estadoNotebook: "pendiente" },
-          { estadoCelular: "pendiente" },
-          { estadoMonitor: "pendiente" },
-        ],
-        employee: sedeFiltro,
-      },
-      include: {
-        employee: {
-          select: {
-            rut: true,
-            nombres: true,
-            apellidoPaterno: true,
-          },
-        },
-      },
-      take: 10,
-    });
-
     // Activos danados sin mantenimiento programado
     const activosDanados = await prisma.asset.findMany({
       where: {
@@ -172,21 +150,6 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    devolucionesPendientes.forEach((t) => {
-      const pendientes = [];
-      if (t.estadoNotebook === "pendiente") pendientes.push("Notebook");
-      if (t.estadoCelular === "pendiente") pendientes.push("Celular");
-      if (t.estadoMonitor === "pendiente") pendientes.push("Monitor");
-
-      alertas.push({
-        tipo: "warning",
-        categoria: "Devolucion Pendiente",
-        mensaje: `${t.employee.nombres} ${t.employee.apellidoPaterno} (${t.employee.rut}) - ${pendientes.join(", ")}`,
-        fecha: t.fechaDesvinculacion,
-        link: `/desvinculaciones/${t.id}`,
-      });
-    });
-
     activosDanados.forEach((a) => {
       alertas.push({
         tipo: "error",
@@ -223,7 +186,6 @@ export async function GET(request: NextRequest) {
       resumen: {
         mantencionesVencidas: mantencionesVencidas.length,
         mantencionesProximas: mantencionesProximas.length,
-        devolucionesPendientes: devolucionesPendientes.length,
         activosDanados: activosDanados.length,
         garantiaPorVencer: garantiaPorVencer.length,
       },

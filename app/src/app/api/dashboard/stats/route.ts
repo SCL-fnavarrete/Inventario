@@ -29,10 +29,10 @@ export async function GET(request: NextRequest) {
       assignedAssets,
       maintenanceAssets,
       bajaAssets,
+      noDevueltoAssets,
       totalEmployees,
       activeEmployees,
       pendingMaintenance,
-      pendingTerminations,
       recentAssignments,
       categories,
     ] = await Promise.all([
@@ -41,19 +41,10 @@ export async function GET(request: NextRequest) {
       prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, estado: "asignado" } }),
       prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, estado: "en_mantencion" } }),
       prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, estado: "baja" } }),
+      prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, estado: "no_devuelto" } }),
       prisma.employee.count({ where: sedeFiltro }),
       prisma.employee.count({ where: { ...sedeFiltro, estado: "activo" } }),
       prisma.maintenance.count({ where: { estado: "pendiente", asset: sedeFiltro } }),
-      prisma.termination.count({
-        where: {
-          OR: [
-            { estadoNotebook: "pendiente" },
-            { estadoCelular: "pendiente" },
-            { estadoMonitor: "pendiente" },
-          ],
-          employee: sedeFiltro,
-        },
-      }),
       prisma.assignment.count({
         where: {
           fechaEntrega: {
@@ -105,6 +96,7 @@ export async function GET(request: NextRequest) {
       { estado: "disponible", cantidad: availableAssets, color: "#22c55e" },
       { estado: "asignado", cantidad: assignedAssets, color: "#3b82f6" },
       { estado: "en_mantencion", cantidad: maintenanceAssets, color: "#f97316" },
+      { estado: "no_devuelto", cantidad: noDevueltoAssets, color: "#ea580c" },
       { estado: "baja", cantidad: bajaAssets, color: "#ef4444" },
     ].filter((e) => e.cantidad > 0);
 
@@ -148,7 +140,6 @@ export async function GET(request: NextRequest) {
         totalEmployees,
         activeEmployees,
         pendingMaintenance,
-        pendingTerminations,
         recentAssignments,
       },
       stockByCategory,

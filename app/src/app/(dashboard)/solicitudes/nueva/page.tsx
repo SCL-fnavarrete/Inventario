@@ -929,7 +929,6 @@ export default function NuevaSolicitudPage() {
     }
   };
 
-  const totalSteps = 2;
   const stepDescriptions: Record<number, string> = {
     1: 'Selecciona el tipo de solicitud',
     2: tipo === 'onboarding' ? 'Datos del nuevo empleado y de la solicitud' : 'Completa los datos',
@@ -946,25 +945,6 @@ export default function NuevaSolicitudPage() {
           <h1 className="text-2xl font-bold text-gray-900">Nueva Solicitud</h1>
           <p className="text-gray-600">{stepDescriptions[step]}</p>
         </div>
-      </div>
-
-      {/* Step Indicator */}
-      <div className="flex items-center gap-2">
-        {Array.from({ length: totalSteps }, (_, i) => i + 1).map((n, idx) => (
-          <div key={n} className="flex items-center gap-2 flex-1">
-            <div
-              className={cn(
-                'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium shrink-0',
-                step >= n ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
-              )}
-            >
-              {n}
-            </div>
-            {idx < totalSteps - 1 && (
-              <div className={cn('h-0.5 flex-1', step > n ? 'bg-blue-600' : 'bg-gray-200')} />
-            )}
-          </div>
-        ))}
       </div>
 
       {error && (

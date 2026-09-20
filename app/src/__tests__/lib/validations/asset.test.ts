@@ -13,6 +13,7 @@ describe('Asset Validation - estadoActivoEnum', () => {
       'en_mantencion',
       'baja',
       'vendido',
+      'no_devuelto',
     ]
 
     validEstados.forEach((estado) => {

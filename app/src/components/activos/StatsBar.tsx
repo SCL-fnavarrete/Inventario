@@ -8,6 +8,7 @@ import {
   RefreshCw,
   XCircle,
   DollarSign,
+  UserX,
   Loader2
 } from "lucide-react";
 
@@ -19,6 +20,7 @@ interface StatsData {
     en_mantencion: number;
     baja: number;
     vendido: number;
+    no_devuelto: number;
   };
 }
 
@@ -66,6 +68,12 @@ const statusConfig = {
     color: "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200",
     activeColor: "bg-gray-600 text-white border-gray-600",
   },
+  no_devuelto: {
+    label: "No devuelto",
+    icon: UserX,
+    color: "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100",
+    activeColor: "bg-orange-600 text-white border-orange-600",
+  },
 };
 
 export function StatsBar({ data, isLoading, selectedStatus, onStatusClick }: StatsBarProps) {
@@ -84,12 +92,13 @@ export function StatsBar({ data, isLoading, selectedStatus, onStatusClick }: Sta
     { key: "disponible", value: data.byStatus.disponible },
     { key: "asignado", value: data.byStatus.asignado },
     { key: "en_mantencion", value: data.byStatus.en_mantencion },
+    { key: "no_devuelto", value: data.byStatus.no_devuelto },
     { key: "baja", value: data.byStatus.baja },
-    { key: "vendido", value:data.byStatus.vendido},
+    { key: "vendido", value: data.byStatus.vendido },
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
       {statItems.map(({ key, value }) => {
         const config = statusConfig[key as keyof typeof statusConfig];
         const Icon = config.icon;

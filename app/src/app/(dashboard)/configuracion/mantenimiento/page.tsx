@@ -26,7 +26,6 @@ type DataCounts = {
   mantenciones: number;
   historial: number;
   compras: number;
-  desvinculaciones: number;
 };
 
 type DeleteOption = {
@@ -78,14 +77,6 @@ const deleteOptions: DeleteOption[] = [
     icon: Package,
     color: "text-indigo-600 bg-indigo-100",
     warning: "Esto eliminará todas las facturas y su vinculación con activos.",
-  },
-  {
-    id: "desvinculaciones",
-    label: "Desvinculaciones",
-    description: "Eliminar todos los registros de desvinculación",
-    icon: Users,
-    color: "text-red-600 bg-red-100",
-    warning: "Esto eliminará el historial de desvinculaciones de empleados.",
   },
 ];
 
@@ -342,7 +333,7 @@ export default function MantenimientoPage() {
           <li>Las eliminaciones son permanentes y no se pueden deshacer.</li>
           <li>Se recomienda realizar un respaldo de la base de datos antes de eliminar datos.</li>
           <li>Si elimina activos, también se eliminarán sus asignaciones e historial.</li>
-          <li>Si elimina empleados, también se eliminarán sus asignaciones y desvinculaciones.</li>
+          <li>Si elimina empleados, también se eliminarán sus asignaciones.</li>
         </ul>
       </div>
     </div>

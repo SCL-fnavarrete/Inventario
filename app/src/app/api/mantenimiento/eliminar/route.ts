@@ -8,8 +8,7 @@ type DeleteType =
   | "empleados"
   | "asignaciones"
   | "mantenciones"
-  | "compras"
-  | "desvinculaciones";
+  | "compras";
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,7 +22,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Tipo de eliminación no especificado" }, { status: 400 });
     }
 
-    const tiposValido : DeleteType[] = ["activos", "empleados", "asignaciones", "mantenciones", "compras", "desvinculaciones"];
+    const tiposValido : DeleteType[] = ["activos", "empleados", "asignaciones", "mantenciones", "compras"];
     if(!tiposValido.includes(tipo)){
       return NextResponse.json({error:"Tipo de eliminación no válido" }, { status: 400 });
     }
@@ -66,8 +65,6 @@ export async function POST(request: NextRequest) {
           // Eliminar en orden
           // Eliminar asignaciones de kit
           await tx.kitAssignment.deleteMany({});
-          // Eliminar desvinculaciones
-          await tx.termination.deleteMany({});
           // Eliminar asignaciones
           await tx.assignment.deleteMany({});
           // Actualizar activos para quitar referencia a empleado
@@ -114,11 +111,6 @@ export async function POST(request: NextRequest) {
           message = `Se eliminaron ${deletedCount} compras y sus vínculos con activos.`;
           break;
 
-        case "desvinculaciones":
-          const desvinculacionesResult = await tx.termination.deleteMany({});
-          deletedCount = desvinculacionesResult.count;
-          message = `Se eliminaron ${deletedCount} registros de desvinculación.`;
-          break;
       }
     });
      

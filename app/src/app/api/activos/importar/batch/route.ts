@@ -1,24 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { parseDDMMYYYYToDate } from "@/lib/excel-utils";
-import {
-  interpretarEstado,
-  interpretarRut,
-  mensajeSerieDuplicada,
-  resolverCondicion,
-  resolverEstado,
-  tieneMicrosoft365,
-} from "@/lib/importacion/activos";
-import { limpiarRut } from "@/lib/validations/rut";
-import { Prisma } from "@prisma/client";
+import { construirMapaSedes } from "@/lib/importacion/activos";
+import { procesarFila, type ContextoFila } from "@/lib/importacion/procesarFila";
 import type { CorrectedRow, ImportRowStatus, ImportBatchResult } from "@/types/import";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { sedeIdParaCrear } from '@/lib/auth/sedeScope';
 
-// El vocabulario del Excel vive en @/lib/importacion/activos, compartido con
-// la ruta de importacion normal. Antes esta ruta tenia su propia copia y las
-// dos ya habian empezado a divergir.
-
+// Unico punto donde la importacion de Activos escribe en la base. Recibe
+// TODAS las filas a importar -las que ya estaban validas en la vista previa
+// mas las que el usuario corrigio en el panel de errores- y las procesa con
+// procesarFila(dryRun=false): exactamente las mismas reglas que la vista
+// previa (misma funcion), asi que lo que /preview aprobo es lo que se
+// termina de escribir. No hay un endpoint separado para "importar todo de
+// una" y otro para "reimportar corregidas": ambos casos son este mismo
+// commit, disparado por un unico boton "Realizar importación".
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('activos', 'write');
@@ -37,18 +32,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Misma sede que se eligio para la importacion original (ver SPEC 2.22) --
-    // esta ruta reimporta las filas corregidas del mismo lote, asi que debe
-    // heredar la misma sede en vez de quedar sin asignar.
-    const sedeId = sedeIdParaCrear(session, sedeIdSolicitada, { requerido: true });
+    const sedeIdExplicita = sedeIdParaCrear(session, sedeIdSolicitada, { requerido: false });
 
-    // Obtener o crear categoría
+    const mapaSedes = construirMapaSedes(
+      await prisma.sede.findMany({ select: { id: true, nombre: true, codigo: true } })
+    );
+
     let categoryRecord = await prisma.assetCategory.findFirst({
-      where: {
-        nombre: { equals: categoria, mode: "insensitive" },
-      },
+      where: { nombre: { equals: categoria, mode: "insensitive" } },
     });
-
     if (!categoryRecord) {
       categoryRecord = await prisma.assetCategory.create({
         data: {
@@ -58,7 +50,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Obtener series existentes para evitar duplicados
+    // El Excel no trae tipo de mantencion; las importadas quedan como
+    // "Preventiva" (catalogo creado una sola vez si no existe).
+    const tipoMantencionImportada = await prisma.maintenanceType.upsert({
+      where: { nombre: "Preventiva" },
+      update: {},
+      create: { nombre: "Preventiva" },
+      select: { id: true },
+    });
+
     const existingSeries = await prisma.asset.findMany({
       where: { numeroSerie: { not: null } },
       select: { numeroSerie: true },
@@ -67,278 +67,47 @@ export async function POST(request: NextRequest) {
       existingSeries.filter((a) => a.numeroSerie).map((a) => a.numeroSerie!.toUpperCase())
     );
 
-    // Cache de empleados
-    const employeeCache = new Map<string, string>();
+    const ctx: ContextoFila = {
+      session,
+      categoriaId: categoryRecord.id,
+      tipoMantencionId: tipoMantencionImportada.id,
+      sedeIdExplicita,
+      mapaSedes,
+      existingSeriesSet,
+      employeeCache: new Map<string, string>(),
+    };
 
     const results: ImportRowStatus[] = [];
 
     for (const row of rows) {
-      const rowResult: ImportRowStatus = {
-        rowIndex: row.rowIndex,
-        excelRow: row.rowIndex + 2,
-        status: "valid",
+      const resultado = await procesarFila(row.data, ctx, prisma, false).catch((error) => ({
+        status: "error" as const,
+        tipo: "unknown_error" as const,
+        mensaje: error instanceof Error ? error.message : "Error desconocido",
         data: row.data,
-        errors: [],
-        warnings: [],
-      };
+      }));
 
-      try {
-        const { marca, modelo, numeroSerie } = row.data;
-
-        // Re-validar campos requeridos
-        if (!marca || !modelo || !numeroSerie) {
-          const missing = [];
-          if (!marca) missing.push("Marca");
-          if (!modelo) missing.push("Modelo");
-          if (!numeroSerie) missing.push("N° de Serie");
-
-          rowResult.errors.push({
-            type: "missing_required_field",
-            message: `Campos faltantes: ${missing.join(", ")}`,
-          });
-          rowResult.status = "error";
-          results.push(rowResult);
-          continue;
-        }
-
-        // Re-validar duplicado
-        if (existingSeriesSet.has(numeroSerie.toUpperCase())) {
-          const existingAsset = await prisma.asset.findFirst({
-            where: { numeroSerie: { equals: numeroSerie, mode: "insensitive" } },
-            select: {
-              marca: true,
-              modelo: true,
-              sedeId: true,
-              empleadoActual: { select: { nombres: true, apellidoPaterno: true, rut: true } },
-            },
-          });
-
-          rowResult.errors.push({
-            type: "duplicate_in_database",
-            field: "numeroSerie",
-            message: mensajeSerieDuplicada(session, numeroSerie, existingAsset),
-            value: numeroSerie,
-          });
-          rowResult.status = "error";
-          results.push(rowResult);
-          continue;
-        }
-
-        // --- Interpretacion de la fila corregida ------------------------
-        const lecturaEstado = interpretarEstado(row.data.estado);
-        if (lecturaEstado.tipo === "desconocido") {
-          rowResult.errors.push({
-            type: "invalid_format",
-            field: "estado",
-            message: `Estado no reconocido: "${lecturaEstado.valor}". Se espera un estado (Disponible, Asignado, En mantencion, Baja, Vendido) o una condicion (Nuevo, Usado, Seminuevo, Danado)`,
-            value: lecturaEstado.valor,
-          });
-          rowResult.status = "error";
-          results.push(rowResult);
-          continue;
-        }
-
-        const lecturaRut = interpretarRut(row.data.rut);
-        if (lecturaRut.tipo === "invalido") {
-          rowResult.errors.push({
-            type: "invalid_format",
-            field: "rut",
-            message: `RUT invalido: "${lecturaRut.valor}" (digito verificador incorrecto)`,
-            value: lecturaRut.valor,
-          });
-          rowResult.status = "error";
-          results.push(rowResult);
-          continue;
-        }
-
-        const rutEmpleado = lecturaRut.tipo === "valido" ? lecturaRut.rut : null;
-        const estado = resolverEstado(lecturaEstado, rutEmpleado !== null);
-        const condicion = resolverCondicion(lecturaEstado, row.data.condicion);
-        const debeAsignar = rutEmpleado !== null && estado === "asignado";
-
-        // Solo lecturas: si el empleado no existe se preparan sus datos, pero no
-        // se graba nada hasta que la fila entera este validada.
-        let empleadoExistenteId: string | null =
-          rutEmpleado ? employeeCache.get(rutEmpleado) ?? null : null;
-        let datosEmpleadoNuevo: Prisma.EmployeeCreateInput | null = null;
-
-        if (debeAsignar && rutEmpleado && !empleadoExistenteId) {
-          const encontrado = await prisma.employee.findUnique({
-            where: { rut: rutEmpleado },
-            select: { id: true },
-          });
-
-          if (encontrado) {
-            empleadoExistenteId = encontrado.id;
-          } else {
-            const nombres = row.data.nombre || row.data.nombres || "";
-            const apellidoPaterno = row.data.apellidoP || row.data.apellidoPaterno || "";
-
-            if (!nombres || !apellidoPaterno) {
-              rowResult.errors.push({
-                type: "missing_employee_data",
-                message: `Empleado con RUT ${rutEmpleado}: faltan campos obligatorios (Nombre o Apellido P.)`,
-              });
-              rowResult.status = "error";
-              results.push(rowResult);
-              continue;
-            }
-
-            // El correo generado al vuelo es el de empresa, que es el
-            // obligatorio y unico en la base (15-sep-2026, SPEC 2.39). Misma
-            // estrategia anti-duplicado de siempre: base derivada del nombre
-            // y, si ya esta tomada, se le agrega el RUT. El correo personal
-            // no se setea porque las planillas de TI no lo traen.
-            const base = `${nombres.toLowerCase().replace(/\s+/g, ".")}.${apellidoPaterno.toLowerCase()}`;
-            let correoEmpresa = row.data.correo || `${base}@empresa.cl`;
-            const correoTomado = await prisma.employee.findUnique({
-              where: { correoEmpresa },
-              select: { id: true },
-            });
-            if (correoTomado) {
-              correoEmpresa = `${base}.${limpiarRut(rutEmpleado).toLowerCase()}@empresa.cl`;
-            }
-
-            datosEmpleadoNuevo = {
-              rut: rutEmpleado,
-              nombres,
-              apellidoPaterno,
-              apellidoMaterno: row.data.apellidoM || row.data.apellidoMaterno || null,
-              correoEmpresa,
-              cargo: row.data.cargo || null,
-              jefatura: row.data.jefatura || null,
-              supervisor: row.data.supervisor || null,
-              ubicacion: row.data.comuna || null,
-              tipoContrato: "contrato",
-              estado: "activo",
-              sede: { connect: { id: sedeId! } },
-            };
-          }
-        }
-
-        // La fecha de entrega se valida antes de escribir. Antes, si no se podia
-        // leer, esta ruta usaba new Date(): la asignacion quedaba fechada hoy.
-        let fechaEntrega: Date | null = null;
-        if (debeAsignar) {
-          const fechaAsignacionStr = row.data.fechaAsignacion || row.data.fechaEntrega || "";
-          fechaEntrega = fechaAsignacionStr ? parseDDMMYYYYToDate(fechaAsignacionStr) : null;
-
-          if (!fechaEntrega) {
-            rowResult.errors.push({
-              type: "invalid_assignment_date",
-              field: "fechaAsignacion",
-              message: fechaAsignacionStr
-                ? `Fecha de asignación no reconocida: "${fechaAsignacionStr}" (se espera dd-mm-aaaa)`
-                : "El activo figura asignado pero no trae fecha de asignación",
-              value: fechaAsignacionStr,
-            });
-            rowResult.status = "error";
-            results.push(rowResult);
-            continue;
-          }
-        }
-
-        const procesador = row.data.procesador || null;
-        const ram = row.data.ram || null;
-        const discoDuro = row.data.discoDuro || row.data.almacenamiento || null;
-        const imei = row.data.imei || null;
-        const numeroTelefono = row.data.numeroTelefono || null;
-        const pulgadasStr = row.data.pulgadas || "";
-        const pulgadas = pulgadasStr ? parseFloat(pulgadasStr) : null;
-        const sistemaOperativo = row.data.sistemaOperativo || null;
-        const ubicacionFisica = row.data.comuna || null;
-        const microsoft365 = tieneMicrosoft365(row.data.microsoft365);
-        // Nombre del plan tal cual venia en el Excel (SPEC 2.23) -- se
-        // perdia por completo al reducirlo al booleano de arriba.
-        const tipoLicenciaMicrosoft365 = row.data.microsoft365 || null;
-        const fechaCompraStr = row.data.fechaCompra || row.data.fechaEntrega || "";
-        const fechaCompra = fechaCompraStr ? parseDDMMYYYYToDate(fechaCompraStr) : null;
-
-        // Activo, historial y asignacion son una sola operacion.
-        const escrito = await prisma.$transaction(async (tx) => {
-          let empleadoId: string | null = empleadoExistenteId;
-          if (debeAsignar && !empleadoId && datosEmpleadoNuevo) {
-            const creado = await tx.employee.create({
-              data: datosEmpleadoNuevo,
-              select: { id: true },
-            });
-            empleadoId = creado.id;
-          }
-
-          const asset = await tx.asset.create({
-            data: {
-              categoriaId: categoryRecord.id,
-              sedeId,
-              marca,
-              modelo,
-              numeroSerie,
-              estado,
-              condicion,
-              procesador,
-              ram,
-              discoDuro,
-              imei,
-              numeroTelefono,
-              pulgadas,
-              sistemaOperativo,
-              ubicacionFisica,
-              microsoft365,
-              tipoLicenciaMicrosoft365,
-              fechaCompra,
-              observaciones: row.data.observaciones || null,
-              empleadoActualId: empleadoId,
-            },
-          });
-
-          await tx.assetHistory.create({
-            data: {
-              assetId: asset.id,
-              tipoEvento: "creacion",
-              descripcion: "Activo importado desde Excel (corregido)",
-              usuarioSistema: session.user?.email || "sistema",
-            },
-          });
-
-          if (empleadoId && fechaEntrega) {
-            await tx.assignment.create({
-              data: {
-                assetId: asset.id,
-                employeeId: empleadoId,
-                fechaEntrega,
-                tipoMovimiento: "ingreso",
-                activo: true,
-              },
-            });
-
-            await tx.assetHistory.create({
-              data: {
-                assetId: asset.id,
-                tipoEvento: "asignacion",
-                descripcion: "Asignación importada desde Excel (corregido)",
-                usuarioSistema: session.user?.email || "sistema",
-              },
-            });
-          }
-
-          return { assetId: asset.id, empleadoId };
+      if (resultado.status === "error") {
+        results.push({
+          rowIndex: row.rowIndex,
+          excelRow: row.rowIndex + 2,
+          status: "error",
+          data: resultado.data,
+          errors: [{ type: resultado.tipo, message: resultado.mensaje }],
+          warnings: [],
         });
-
-        if (rutEmpleado && escrito.empleadoId) {
-          employeeCache.set(rutEmpleado, escrito.empleadoId);
-        }
-
-        rowResult.assetId = escrito.assetId;
-        rowResult.status = "imported";
-        existingSeriesSet.add(numeroSerie.toUpperCase());
-      } catch (error) {
-        rowResult.errors.push({
-          type: "unknown_error",
-          message: error instanceof Error ? error.message : "Error desconocido",
-        });
-        rowResult.status = "error";
+        continue;
       }
 
-      results.push(rowResult);
+      results.push({
+        rowIndex: row.rowIndex,
+        excelRow: row.rowIndex + 2,
+        status: "imported",
+        data: resultado.data,
+        errors: [],
+        warnings: [],
+        assetId: resultado.status === "imported" ? resultado.assetId : undefined,
+      });
     }
 
     const response: ImportBatchResult = {
@@ -351,6 +120,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
-    return handleApiError(error, 'Error al importar activos corregidos');
+    return handleApiError(error, 'Error al importar activos');
   }
 }

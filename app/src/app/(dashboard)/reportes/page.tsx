@@ -8,7 +8,6 @@ import {
   Users,
   History,
   FileSpreadsheet,
-  ClipboardList,
   Download,
   TrendingUp,
   AlertTriangle,
@@ -21,7 +20,6 @@ async function getReporteSummary() {
     totalActivos,
     activosPorEstado,
     totalEmpleados,
-    desvinculacionesPendientes,
     activosObsoletos,
   ] = await Promise.all([
     prisma.asset.count({ where: ACTIVOS_VIGENTES }),
@@ -30,15 +28,6 @@ async function getReporteSummary() {
       _count: true,
     }),
     prisma.employee.count({ where: { estado: "activo" } }),
-    prisma.termination.count({
-      where: {
-        OR: [
-          { estadoNotebook: "pendiente" },
-          { estadoCelular: "pendiente" },
-          { estadoMonitor: "pendiente" },
-        ],
-      },
-    }),
     prisma.asset.count({
       where: {
         ...ACTIVOS_VIGENTES,
@@ -58,7 +47,6 @@ async function getReporteSummary() {
     totalActivos,
     activosPorEstado,
     totalEmpleados,
-    desvinculacionesPendientes,
     activosObsoletos,
   };
 }
@@ -109,16 +97,6 @@ export default async function ReportesPage() {
       color: "orange",
       href: "/reportes/empleados",
       stats: `${summary.totalEmpleados} empleados activos`,
-    },
-    {
-      id: "rrhh",
-      titulo: "Reporte para RRHH",
-      descripcion:
-        "Desvinculaciones y estados de devolución para gestión de descuentos",
-      icono: ClipboardList,
-      color: "red",
-      href: "/reportes/rrhh",
-      stats: `${summary.desvinculacionesPendientes} pendientes`,
     },
     {
       id: "obsoletos",
@@ -213,13 +191,6 @@ export default async function ReportesPage() {
           >
             <FileSpreadsheet className="h-5 w-5" />
             <span className="text-sm font-medium">Empleados Excel</span>
-          </a>
-          <a
-            href="/api/reportes/rrhh/excel"
-            className="flex items-center gap-2 p-3 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors"
-          >
-            <FileSpreadsheet className="h-5 w-5" />
-            <span className="text-sm font-medium">RRHH Excel</span>
           </a>
         </div>
       </div>

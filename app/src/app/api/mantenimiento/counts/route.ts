@@ -15,7 +15,6 @@ export async function GET() {
       mantenciones,
       historial,
       compras,
-      desvinculaciones,
     ] = await Promise.all([
       prisma.asset.count(),
       prisma.employee.count(),
@@ -23,7 +22,6 @@ export async function GET() {
       prisma.maintenance.count(),
       prisma.assetHistory.count(),
       prisma.purchase.count(),
-      prisma.termination.count(),
     ]);
 
     return NextResponse.json({
@@ -33,7 +31,6 @@ export async function GET() {
       mantenciones,
       historial,
       compras,
-      desvinculaciones,
     });
   } catch (error) {
     return handleApiError(error, 'Error al obtener conteos');

@@ -11,11 +11,12 @@ import {
   AlertCircle,
   CheckCircle,
   X,
+  ClipboardCheck,
   Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ErrorReviewPanel } from "@/components/import/ErrorReviewPanel";
-import type { ImportRowStatus, CorrectedRow } from "@/types/import";
+import type { ImportPreviewResult, ImportBatchResult, CorrectedRow } from "@/types/import";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
@@ -31,13 +32,6 @@ type Sede = {
   id: string;
   codigo: string;
   nombre: string;
-};
-
-type ImportResult = {
-  success: boolean;
-  imported: number;
-  errors: Array<{ row: number; message: string; type?: string; data?: Record<string, string> }>;
-  skipped: number;
 };
 
 type PreviewData = {
@@ -65,15 +59,23 @@ export default function ImportarActivosPage() {
   const [categoria, setCategoria] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
-  const [loading, setLoading] = useState(false);
   const [parsing, setParsing] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [committing, setCommitting] = useState(false);
   const [preview, setPreview] = useState<PreviewData | null>(null);
-  const [result, setResult] = useState<ImportResult | null>(null);
+  // Resultado de la vista previa CON mapeo: valida todas las filas contra
+  // las mismas reglas que la escritura real (procesarFila en dryRun), pero
+  // sin tocar la base. Nada se importa hasta "Realizar importación".
+  const [validation, setValidation] = useState<ImportPreviewResult | null>(null);
+  // Correcciones hechas en el panel de errores, por rowIndex. Se combinan
+  // con las filas ya validas al confirmar; las filas con error que no se
+  // corrigen quedan fuera de la importación.
+  const [corrections, setCorrections] = useState<Record<number, Record<string, string>>>({});
+  const [batchResult, setBatchResult] = useState<ImportBatchResult | null>(null);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [showErrorReview, setShowErrorReview] = useState(false);
-  const [reimportingCorrected, setReimportingCorrected] = useState(false);
 
   // Cargar categorías desde la API
   useEffect(() => {
@@ -116,6 +118,50 @@ export default function ImportarActivosPage() {
     }
   }, [session?.user?.sedeId]);
 
+  // Descripciones breves de cada campo del mapeo: que dato exactamente se
+  // espera en esa columna. Pedido explicito ("la idea sería el nombre del
+  // campo y abajo una breve descripción de qué debería ir en ese campo"),
+  // porque el nombre del campo solo ("RUT", "Estado") no bastaba para saber
+  // que columna del Excel corresponde.
+  const fieldDescriptions: Record<string, string> = {
+    numeroSerie: "Número de serie único del equipo (etiqueta o grabado en el equipo).",
+    marca: "Fabricante del equipo (ej: Dell, HP, Lenovo).",
+    modelo: "Modelo específico del equipo (ej: Inspiron 15 3501).",
+    rut: "RUT del empleado asignado, con o sin puntos ni guion.",
+    nombre: "Nombre(s) del empleado.",
+    apellidoP: "Apellido paterno del empleado.",
+    apellidoM: "Apellido materno del empleado (opcional).",
+    jefatura: "Jefatura o gerencia a la que pertenece el empleado.",
+    supervisor: "Nombre del supervisor directo del empleado.",
+    sede: "Sede real del equipo (ej: Santiago, Concepción, Perú). Debe coincidir con el nombre o código de una sede existente.",
+    estado: "Estado del equipo (Disponible, Asignado, En mantención, Baja, Vendido).",
+    condicion: "Condición física del equipo: Nuevo, Usado, Seminuevo o Dañado.",
+    observaciones: "Notas adicionales sobre el equipo.",
+    fechaEntrega: "Fecha en que el equipo fue entregado a la persona (dd-mm-aaaa). Se usa como fecha de asignación y, si falta, también como fecha de compra.",
+    fechaCompra: "Fecha de compra o factura del equipo (dd-mm-aaaa).",
+    correo: "Correo del empleado. Si se deja en blanco, se genera uno automáticamente.",
+    cargo: "Cargo o puesto del empleado.",
+    comuna: "Comuna donde se ubica el equipo (dato informativo; no determina la sede).",
+    nombreEquipo: "Nombre o identificador interno asignado al equipo.",
+    procesador: "Modelo del procesador (CPU).",
+    discoDuro: "Capacidad y tipo de disco duro o almacenamiento.",
+    ram: "Cantidad de memoria RAM.",
+    sistemaOperativo: "Sistema operativo instalado en el equipo.",
+    microsoft365: "Plan de Microsoft 365 asignado (ej: Premium), si tiene.",
+    mantencion: "Fecha de la última mantención realizada (dd-mm-aaaa).",
+    proximaMantencion: "Fecha programada para la próxima mantención (dd-mm-aaaa).",
+    antivirus: "Antivirus instalado en el equipo.",
+    pulgadas: "Tamaño de la pantalla, en pulgadas.",
+    imei: "IMEI del celular.",
+    numeroActivacion: "Número de activación del plan del celular.",
+    numeroTelefono: "Número telefónico asociado al celular.",
+    tipoPlan: "Tipo de plan contratado para el celular.",
+    cargador: "Indica si se entregó cargador junto con el celular.",
+    lugarEntrega: "Lugar donde se entregó el celular.",
+    entrega: "Fecha o estado de entrega del celular.",
+    tipoEquipo: "Tipo específico de celular.",
+  };
+
   // Campos requeridos por categoría ("*" significa todas las categorías)
   const allRequiredFields = [
     // Campos básicos de activos (siempre requeridos para todas las categorías)
@@ -151,17 +197,22 @@ export default function ImportarActivosPage() {
 
   const allOptionalFields = [
     // Campos comunes para todas las categorías
+    // "sede" es el dato que decide, fila por fila, a que sede pertenece el
+    // activo cuando el admin deja la sede en blanco (SPEC 2.30). Va aparte
+    // de "comuna", que es solo informativo.
+    { key: "sede", label: "Sede", categories: ["*"] },
     { key: "estado", label: "Estado", categories: ["*"] },
     { key: "condicion", label: "Condición (Nuevo/Usado)", categories: ["*"] },
     { key: "observaciones", label: "Observaciones", categories: ["*"] },
-    { key: "fechaAsignacion", label: "Fecha Asignación", categories: ["*"] },
     { key: "fechaEntrega", label: "Fecha de entrega", categories: ["*"] },
     { key: "fechaCompra", label: "Fecha de compra", categories: ["*"] },
     // Campos opcionales para Notebook
     { key: "correo", label: "Correo", categories: ["notebook"] },
     { key: "cargo", label: "Cargo", categories: ["notebook"] },
     { key: "comuna", label: "Comuna", categories: ["notebook"] },
-    { key: "equipo", label: "Equipo", categories: ["notebook"] },
+    // "equipo" (tipo: Notebook/Celular/etc.) se elimino del mapeo -- no se
+    // usaba en ningun lado, el tipo de equipo ya se elige una vez para todo
+    // el archivo con el selector de Categoria, no fila por fila.
     { key: "nombreEquipo", label: "Nombre Equipo", categories: ["notebook"] },
     { key: "procesador", label: "Procesador", categories: ["notebook"] },
     { key: "discoDuro", label: "Disco Duro", categories: ["notebook"] },
@@ -197,7 +248,10 @@ export default function ImportarActivosPage() {
       setFile(selectedFile);
       setError("");
       setPreview(null);
-      setResult(null);
+      setValidation(null);
+      setBatchResult(null);
+      setCorrections({});
+      setShowErrorReview(false);
       setColumnMapping({});
       setParsing(true);
 
@@ -233,7 +287,7 @@ export default function ImportarActivosPage() {
       setError("Selecciona un archivo, hoja y categoría");
       return;
     }
-    if (!sedeId) {
+    if (!esAdminSede && !sedeId) {
       setError("Selecciona la sede a la que se importarán estos equipos");
       return;
     }
@@ -275,7 +329,6 @@ export default function ImportarActivosPage() {
         numeroSerie: ["nº serie", "serie", "numero serie", "n serie", "no serie", "n° serie"],
         estado: ["estado"],
         condicion: ["condicion", "condición"],
-        fechaAsignacion: ["fecha asignacion", "fecha asig", "fecha asignado", "fecha de asignacion"],
         fechaCompra: ["fecha compra", "fecha de compra", "fecha factura"],
         observaciones: ["obs.", "observaciones", "observacion"],
         // Campos de Notebook
@@ -310,6 +363,7 @@ export default function ImportarActivosPage() {
         jefatura: ["jefatura"],
         supervisor: ["supervisor"],
         comuna: ["comuna", "ciudad"],
+        sede: ["sede"],
       };
 
       Object.entries(mappings).forEach(([field, aliases]) => {
@@ -329,17 +383,20 @@ export default function ImportarActivosPage() {
     }
   }
 
-  async function handleImport() {
+  // Corre la validacion completa (dryRun) contra las mismas reglas de
+  // negocio que la escritura real -- ver procesarFila.ts. No se escribe
+  // nada en la base todavia: eso ocurre recien en handleConfirmImport,
+  // cuando el usuario aprieta "Realizar importación".
+  async function handleValidate() {
     if (!file || !sheetName || !categoria) {
       setError("Datos incompletos");
       return;
     }
-    if (!sedeId) {
+    if (!esAdminSede && !sedeId) {
       setError("Selecciona la sede a la que se importarán estos equipos");
       return;
     }
 
-    // Validar campos requeridos
     const missingRequired = requiredFields.filter(
       (f) => f.required && !columnMapping[f.key]
     );
@@ -350,9 +407,12 @@ export default function ImportarActivosPage() {
       return;
     }
 
-    setLoading(true);
+    setValidating(true);
     setError("");
     setFieldErrors({});
+    setBatchResult(null);
+    setCorrections({});
+    setShowErrorReview(false);
 
     try {
       const formData = new FormData();
@@ -362,24 +422,24 @@ export default function ImportarActivosPage() {
       formData.append("mapping", JSON.stringify(columnMapping));
       if (sedeId) formData.append("sedeId", sedeId);
 
-      const res = await fetch("/api/activos/importar", {
+      const res = await fetch("/api/activos/importar/preview", {
         method: "POST",
         body: formData,
       });
 
       if (!res.ok) {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al importar");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al validar los datos");
         setError(message);
         setFieldErrors(fe);
         return;
       }
 
-      const data = await res.json();
-      setResult(data);
+      const data: ImportPreviewResult = await res.json();
+      setValidation(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al importar");
+      setError(err instanceof Error ? err.message : "Error al validar los datos");
     } finally {
-      setLoading(false);
+      setValidating(false);
     }
   }
 
@@ -390,11 +450,32 @@ export default function ImportarActivosPage() {
     }));
   }
 
-  // Función para reimportar registros corregidos
-  async function handleReimportCorrected(correctedRows: CorrectedRow[]) {
-    if (correctedRows.length === 0) return;
+  function handleCorrectionsChange(rowIndex: number, data: Record<string, string>) {
+    setCorrections((prev) => ({ ...prev, [rowIndex]: data }));
+  }
 
-    setReimportingCorrected(true);
+  // Unico punto de escritura: junta las filas ya validas de la vista previa
+  // con las corregidas en el panel de errores y las manda TODAS de una vez
+  // a /batch. Las filas con error que no se corrigieron quedan fuera. Antes
+  // "Importar" escribia de inmediato al primer clic; ahora nada se graba
+  // hasta este boton.
+  async function handleConfirmImport() {
+    if (!validation) return;
+
+    const rows: CorrectedRow[] = validation.rows
+      .map((row) => {
+        if (row.status === "valid") return { rowIndex: row.rowIndex, data: row.data };
+        const corregida = corrections[row.rowIndex];
+        return corregida ? { rowIndex: row.rowIndex, data: corregida } : null;
+      })
+      .filter((r): r is CorrectedRow => r !== null);
+
+    if (rows.length === 0) {
+      setError("No hay filas válidas ni corregidas para importar");
+      return;
+    }
+
+    setCommitting(true);
     setError("");
     setFieldErrors({});
 
@@ -404,39 +485,25 @@ export default function ImportarActivosPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           categoria,
-          rows: correctedRows,
+          rows,
           sedeId: sedeId || undefined,
         }),
       });
 
       if (!res.ok) {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al reimportar");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al importar");
         setError(message);
         setFieldErrors(fe);
         return;
       }
 
-      const data = await res.json();
-
-      // Actualizar el resultado con los nuevos importados
-      if (result) {
-        setResult({
-          ...result,
-          imported: result.imported + data.imported,
-          skipped: result.skipped - data.imported,
-          errors: result.errors.filter(
-            (err) => !correctedRows.some((row) => row.rowIndex === err.row - 2)
-          ),
-        });
-      }
-
-      if (data.imported === correctedRows.length) {
-        setShowErrorReview(false);
-      }
+      const data: ImportBatchResult = await res.json();
+      setBatchResult(data);
+      setShowErrorReview(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al reimportar");
+      setError(err instanceof Error ? err.message : "Error al importar");
     } finally {
-      setReimportingCorrected(false);
+      setCommitting(false);
     }
   }
 
@@ -455,23 +522,8 @@ export default function ImportarActivosPage() {
     return labels;
   };
 
-  // Convertir errores del resultado a ImportRowStatus
-  const getErrorRows = (): ImportRowStatus[] => {
-    if (!result) return [];
-    return result.errors.map((err, index) => ({
-      rowIndex: err.row - 2,
-      excelRow: err.row,
-      status: "error" as const,
-      data: err.data || {},
-      errors: [
-        {
-          type: (err.type as "missing_required_field" | "duplicate_in_database" | "duplicate_in_file" | "missing_employee_data" | "invalid_format" | "unknown_error") || "unknown_error",
-          message: err.message,
-        },
-      ],
-      warnings: [],
-    }));
-  };
+  const errorRows = validation ? validation.rows.filter((r) => r.status === "error") : [];
+  const pendingErrorCount = errorRows.length - Object.keys(corrections).length;
 
   return (
     <div className="space-y-6 max-w-full">
@@ -491,28 +543,27 @@ export default function ImportarActivosPage() {
         </div>
       </div>
 
-      {/* Panel de Revision de Errores */}
-      {showErrorReview && result && result.errors.length > 0 && (
+      {/* Panel de Revision de Errores (solo corrige, no escribe nada) */}
+      {showErrorReview && validation && errorRows.length > 0 && (
         <ErrorReviewPanel
-          errorRows={getErrorRows()}
-          importedCount={result.imported}
+          errorRows={errorRows}
+          validCount={validation.validCount}
           fieldLabels={getFieldLabels()}
-          onReimportCorrected={handleReimportCorrected}
+          onCorrectionsChange={handleCorrectionsChange}
           onBack={() => setShowErrorReview(false)}
-          isReimporting={reimportingCorrected}
         />
       )}
 
-      {/* Result */}
-      {result && !showErrorReview && (
+      {/* Resultado final de la importación */}
+      {batchResult && !showErrorReview && (
         <div
           className={cn(
             "rounded-lg p-6",
-            result.success ? "bg-green-50" : "bg-yellow-50"
+            batchResult.success ? "bg-green-50" : "bg-yellow-50"
           )}
         >
           <div className="flex items-start gap-4">
-            {result.success ? (
+            {batchResult.success ? (
               <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0" />
             ) : (
               <AlertCircle className="h-6 w-6 text-yellow-600 flex-shrink-0" />
@@ -521,58 +572,40 @@ export default function ImportarActivosPage() {
               <h3
                 className={cn(
                   "font-semibold",
-                  result.success ? "text-green-900" : "text-yellow-900"
+                  batchResult.success ? "text-green-900" : "text-yellow-900"
                 )}
               >
-                {result.success
+                {batchResult.success
                   ? "Importacion completada"
                   : "Importacion con advertencias"}
               </h3>
 
-              {/* Resumen visual mejorado */}
-              <div className="grid grid-cols-3 gap-4 mt-4 mb-4">
+              <div className="grid grid-cols-2 gap-4 mt-4 mb-4">
                 <div className="bg-white rounded-lg p-3 text-center shadow-sm">
-                  <p className="text-2xl font-bold text-green-600">{result.imported}</p>
+                  <p className="text-2xl font-bold text-green-600">{batchResult.imported}</p>
                   <p className="text-xs text-gray-600">Importados</p>
                 </div>
                 <div className="bg-white rounded-lg p-3 text-center shadow-sm">
-                  <p className="text-2xl font-bold text-yellow-600">{result.skipped}</p>
-                  <p className="text-xs text-gray-600">Omitidos</p>
-                </div>
-                <div className="bg-white rounded-lg p-3 text-center shadow-sm">
-                  <p className="text-2xl font-bold text-red-600">{result.errors.length}</p>
+                  <p className="text-2xl font-bold text-red-600">{batchResult.failed}</p>
                   <p className="text-xs text-gray-600">Con errores</p>
                 </div>
               </div>
 
-              {/* Boton para revisar y corregir errores */}
-              {result.errors.length > 0 && (
-                <button
-                  onClick={() => setShowErrorReview(true)}
-                  className="mb-4 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors flex items-center gap-2"
-                >
-                  <AlertCircle size={18} />
-                  Revisar y corregir {result.errors.length} registro(s) con problemas
-                </button>
-              )}
-
-              {result.errors.length > 0 && (
+              {batchResult.failed > 0 && (
                 <div className="mt-3">
-                  <p className="font-medium text-yellow-800">
-                    Errores encontrados:
-                  </p>
+                  <p className="font-medium text-yellow-800">Errores encontrados:</p>
                   <div className="mt-2 max-h-48 overflow-y-auto bg-white rounded-lg p-3 shadow-sm">
-                    {result.errors.slice(0, 10).map((err, i) => (
-                      <div key={i} className="py-2 border-b last:border-b-0 text-sm">
-                        <span className="font-medium text-gray-900">Fila {err.row}:</span>
-                        <span className="ml-2 text-red-700">{err.message}</span>
-                      </div>
-                    ))}
-                    {result.errors.length > 10 && (
-                      <p className="text-sm text-gray-500 mt-2">
-                        ...y {result.errors.length - 10} errores mas
-                      </p>
-                    )}
+                    {batchResult.results
+                      .filter((r) => r.status === "error")
+                      .slice(0, 10)
+                      .map((r, i) => (
+                        <div key={i} className="py-2 border-b last:border-b-0 text-sm">
+                          <span className="font-medium text-gray-900">Fila {r.excelRow}:</span>
+                          <span className="ml-2 text-red-700">
+                            {r.errors[0]?.message}
+                          </span>
+                        </div>
+                      ))}
                   </div>
                 </div>
               )}
@@ -625,7 +658,10 @@ export default function ImportarActivosPage() {
                       setFile(null);
                       setAvailableSheets([]);
                       setPreview(null);
-                      setResult(null);
+                      setValidation(null);
+                      setBatchResult(null);
+                      setCorrections({});
+                      setShowErrorReview(false);
                     }}
                     className="p-1 hover:bg-green-100 rounded"
                   >
@@ -690,7 +726,7 @@ export default function ImportarActivosPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Sede *
+                  Sede {esAdminSede ? "(opcional)" : "*"}
                 </label>
                 <select
                   value={sedeId}
@@ -698,7 +734,9 @@ export default function ImportarActivosPage() {
                   disabled={!esAdminSede}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
                 >
-                  <option value="">Seleccionar sede</option>
+                  <option value="">
+                    {esAdminSede ? "Detectar automáticamente por columna Sede" : "Seleccionar sede"}
+                  </option>
                   {sedes.map((sede) => (
                     <option key={sede.id} value={sede.id}>
                       {sede.nombre}
@@ -707,8 +745,10 @@ export default function ImportarActivosPage() {
                 </select>
                 <p className="mt-1 text-xs text-gray-500">
                   {esAdminSede
-                    ? "Todos los equipos de este archivo quedarán en esta sede, sea quien sea que haga la importación."
-                    : "Es tu sede: los equipos de este archivo quedarán en ella."}
+                    ? sedeId
+                      ? "Todos los equipos de este archivo quedarán en esta sede, sea quien sea que haga la importación."
+                      : "Sin sede fija, cada fila se asigna según su columna \"Sede\" (debe coincidir con el nombre real de una sede). Las filas sin match quedarán marcadas para corregir a mano."
+                    : "Es tu sede: los equipos de este archivo quedarán en ella. Si una fila declara otra sede, no se importa."}
                 </p>
               </div>
             </div>
@@ -717,11 +757,11 @@ export default function ImportarActivosPage() {
           {file && sheetName && categoria && !preview && (
             <button
               onClick={handlePreview}
-              disabled={parsing || !sedeId}
-              title={!sedeId ? "Primero elige la sede de destino" : undefined}
+              disabled={parsing || (!esAdminSede && !sedeId)}
+              title={!esAdminSede && !sedeId ? "Primero elige la sede de destino" : undefined}
               className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
-              {parsing ? "Procesando..." : "Vista previa"}
+              {parsing ? "Procesando..." : "Detectar campos"}
             </button>
           )}
         </div>
@@ -767,6 +807,9 @@ export default function ImportarActivosPage() {
                         </option>
                       ))}
                     </select>
+                    {fieldDescriptions[field.key] && (
+                      <p className="mt-1 text-xs text-gray-500">{fieldDescriptions[field.key]}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -798,6 +841,9 @@ export default function ImportarActivosPage() {
                         </option>
                       ))}
                     </select>
+                    {fieldDescriptions[field.key] && (
+                      <p className="mt-1 text-xs text-gray-500">{fieldDescriptions[field.key]}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -826,6 +872,9 @@ export default function ImportarActivosPage() {
                         </option>
                       ))}
                     </select>
+                    {fieldDescriptions[field.key] && (
+                      <p className="mt-1 text-xs text-gray-500">{fieldDescriptions[field.key]}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -835,7 +884,7 @@ export default function ImportarActivosPage() {
       )}
 
       {/* Step 3: Preview Data */}
-      {preview && (
+      {preview && !validation && (
         <div className="bg-white rounded-lg shadow p-6 max-w-full">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Paso 3: Vista Previa de Datos ({preview.totalRows} filas)
@@ -882,8 +931,8 @@ export default function ImportarActivosPage() {
       {/* Error */}
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
-      {/* Actions */}
-      {preview && (
+      {/* Actions: Paso 3 -> Validar (nada se escribe todavia) */}
+      {preview && !validation && (
         <div className="flex justify-end gap-4">
           <button
             onClick={() => {
@@ -895,14 +944,75 @@ export default function ImportarActivosPage() {
             Volver
           </button>
           <button
-            onClick={handleImport}
-            disabled={loading || !sedeId}
-            title={!sedeId ? "Primero elige la sede de destino" : undefined}
-            className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+            onClick={handleValidate}
+            disabled={validating || (!esAdminSede && !sedeId)}
+            title={!esAdminSede && !sedeId ? "Primero elige la sede de destino" : undefined}
+            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            <Download size={20} />
-            <span>{loading ? "Importando..." : `Importar ${preview.totalRows} activos`}</span>
+            <ClipboardCheck size={20} />
+            <span>{validating ? "Validando..." : `Validar ${preview.totalRows} filas`}</span>
           </button>
+        </div>
+      )}
+
+      {/* Step 4: Validacion -- resumen + boton de confirmacion. Nada se
+          escribe hasta este punto: "Realizar importación" es el unico
+          gesto que confirma. */}
+      {validation && !showErrorReview && !batchResult && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Paso 4: Confirmar Importación
+          </h2>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="bg-green-50 rounded-lg p-4 text-center">
+              <p className="text-2xl font-bold text-green-600">{validation.validCount}</p>
+              <p className="text-sm text-green-700">Válidas</p>
+            </div>
+            <div className="bg-red-50 rounded-lg p-4 text-center">
+              <p className="text-2xl font-bold text-red-600">{validation.errorCount}</p>
+              <p className="text-sm text-red-700">Con errores</p>
+            </div>
+          </div>
+
+          {validation.errorCount > 0 && (
+            <button
+              onClick={() => setShowErrorReview(true)}
+              className="mb-4 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors flex items-center gap-2"
+            >
+              <AlertCircle size={18} />
+              Revisar y corregir {validation.errorCount} registro(s) con problemas
+            </button>
+          )}
+
+          <p className="text-sm text-gray-600 mb-4">
+            {validation.errorCount === 0
+              ? `Todas las ${validation.validCount} filas son válidas y se importarán al confirmar.`
+              : `Se importarán las ${validation.validCount} fila(s) válida(s)${
+                  pendingErrorCount > 0
+                    ? ` y las que corrijas (quedan ${pendingErrorCount} sin corregir, que no se importarán).`
+                    : " y todas las que ya corregiste."
+                }`}
+          </p>
+
+          <div className="flex justify-end gap-4">
+            <button
+              onClick={() => {
+                setValidation(null);
+                setCorrections({});
+              }}
+              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Volver
+            </button>
+            <button
+              onClick={handleConfirmImport}
+              disabled={committing}
+              className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+            >
+              <Download size={20} />
+              <span>{committing ? "Importando..." : "Realizar importación"}</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -937,6 +1047,10 @@ export default function ImportarActivosPage() {
           </li>
           <li>
             Los activos con número de serie duplicado serán omitidos
+          </li>
+          <li>
+            Nada se guarda en el sistema hasta que apruebes la validación y presiones
+            <strong> &quot;Realizar importación&quot;</strong>
           </li>
         </ul>
       </div>

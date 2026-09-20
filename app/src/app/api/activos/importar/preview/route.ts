@@ -1,21 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import * as XLSX from "xlsx";
-import { convertExcelDateValue } from "@/lib/excel-utils";
-import type { ImportRowStatus, ValidationError, ImportPreviewResult } from "@/types/import";
+import type { ImportPreviewResult, ImportRowStatus } from "@/types/import";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { mensajeSerieDuplicada } from "@/lib/importacion/activos";
+import { sedeIdParaCrear } from '@/lib/auth/sedeScope';
+import { construirMapaSedes } from "@/lib/importacion/activos";
+import { leerFilasExcel } from "@/lib/importacion/leerExcel";
+import { procesarFila, type ContextoFila } from "@/lib/importacion/procesarFila";
 
-// Filas de inicio conocidas por categoría
-const HEADER_ROWS: Record<string, number> = {
-  notebook: 0,
-  celular: 0,
-  monitor: 0,
-  epp: 0,
-  otro: 0,
-  desvinculaciones: 0,
-  default: 0,
-};
+// Constantes de seguridad para archivos
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_MIME_TYPES = [
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "application/octet-stream", // Algunos navegadores envían este tipo
+];
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,254 +26,127 @@ export async function POST(request: NextRequest) {
     const mappingStr = formData.get("mapping") as string;
 
     if (!file || !sheetName) {
-      return NextResponse.json(
-        { error: "Faltan parámetros requeridos" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Faltan parámetros requeridos" }, { status: 400 });
     }
 
     // Parsear mapping si existe
-    const mapping = mappingStr ? JSON.parse(mappingStr) as Record<string, string> : null;
+    const mapping = mappingStr ? (JSON.parse(mappingStr) as Record<string, string>) : null;
+
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: "El archivo excede el tamaño máximo de 5MB" }, { status: 413 });
+    }
+    if (!ALLOWED_MIME_TYPES.includes(file.type) && !file.name.match(/\.xlsx?$/i)) {
+      return NextResponse.json({ error: "Solo se permiten archivos Excel (.xlsx, .xls)" }, { status: 400 });
+    }
 
     const buffer = await file.arrayBuffer();
-    // raw: true para que la vista previa lea las celdas igual que la
-    // importacion real; si no, lo que se ve aqui y lo que se guarda pueden
-    // diferir en las fechas.
-    const workbook = XLSX.read(buffer, { type: "array", raw: true });
-    const worksheet = workbook.Sheets[sheetName];
 
-    if (!worksheet) {
-      return NextResponse.json(
-        { error: "Hoja no encontrada" },
-        { status: 400 }
-      );
-    }
-
-    const headerRow = HEADER_ROWS[categoria?.toLowerCase()] ?? HEADER_ROWS.default;
-
-    const jsonData = XLSX.utils.sheet_to_json<string[]>(worksheet, {
-      header: 1,
-      defval: "",
-      blankrows: false,
-    });
-
-    if (jsonData.length <= headerRow) {
-      return NextResponse.json(
-        { error: "El archivo no contiene datos suficientes" },
-        { status: 400 }
-      );
-    }
-
-    const headers = (jsonData[headerRow] as string[])
-      .map((h) => (h ? String(h).trim() : ""))
-      .filter((h) => h.length > 0);
-
-    const dataRows = jsonData.slice(headerRow + 1).filter((row) => {
-      return row.some((cell) => cell !== "" && cell !== null && cell !== undefined);
-    });
-
-    // Identificar columnas de fecha
-    const dateColumns = new Set<number>();
-    headers.forEach((header, index) => {
-      const headerLower = header.toLowerCase().trim();
-      const dateKeywords = ["fecha", "date", "asignacion", "compra", "garantia", "baja", "ingreso", "termino", "mantencion", "proxima"];
-      if (dateKeywords.some((keyword) => headerLower.includes(keyword))) {
-        dateColumns.add(index);
-      }
-    });
-
-    // Si no hay mapping, retornar preview simple (comportamiento anterior)
+    // Sin mapping todavia (recien se subio el archivo): solo se devuelven
+    // los encabezados y una vista cruda de las primeras filas, para que el
+    // usuario arme el mapeo de columnas. Ninguna validacion de negocio
+    // ocurre en este punto -- no hace falta, todavia no hay mapeo.
     if (!mapping) {
-      const rows = dataRows.map((row) => {
-        const rowArray = row as string[];
-        return headers.map((_, i) => {
-          const value = rowArray[i];
-          if (value === null || value === undefined) return "";
-          if (dateColumns.has(i)) {
-            return convertExcelDateValue(value);
-          }
-          if (typeof value === "number") return String(value);
-          return String(value).trim();
-        });
-      });
+      const { headers, filas } = leerFilasExcel(buffer, sheetName, categoria, {});
+      // Sin mapping, leerFilasExcel no puede armar `data`; se re-lee crudo
+      // usando cada columna como su propio campo, solo para la vista previa
+      // de estructura (encabezados + primeras filas), igual que antes.
+      const mappingIdentidad: Record<string, string> = {};
+      headers.forEach((h) => { if (h) mappingIdentidad[h] = h; });
+      const { filas: filasCrudas } = leerFilasExcel(buffer, sheetName, categoria, mappingIdentidad);
+      const rows = filasCrudas.slice(0, 100).map((f) => headers.map((h) => f.data[h] ?? ""));
 
       return NextResponse.json({
         headers,
-        rows: rows.slice(0, 100),
-        totalRows: rows.length,
+        rows,
+        totalRows: filas.length || filasCrudas.length,
       });
     }
 
-    // --- VALIDACION COMPLETA CON MAPPING ---
+    // --- VALIDACION COMPLETA, SIN ESCRIBIR NADA -----------------------------
+    // Aqui es donde antes "Importar" escribia de inmediato en la base. Ahora
+    // esta ruta solo corre procesarFila() en modo dryRun -- exactamente las
+    // mismas reglas que la confirmacion real (ver procesarFila.ts), pero sin
+    // tocar la base. Nada queda guardado hasta que el usuario revise los
+    // errores y confirme desde /importar/batch.
+    if (!mapping.marca || !mapping.modelo || !mapping.numeroSerie) {
+      return NextResponse.json({ error: "Faltan campos requeridos en el mapeo" }, { status: 400 });
+    }
 
-    // Crear índice de columnas basado en mapeo
-    const columnIndex: Record<string, number> = {};
-    Object.entries(mapping).forEach(([field, header]) => {
-      if (header) {
-        const idx = headers.findIndex((h) => h && String(h).trim() === header);
-        if (idx !== -1) {
-          columnIndex[field] = idx;
-        }
-      }
+    const sedeIdExplicita = sedeIdParaCrear(session, formData.get("sedeId") as string | null, {
+      requerido: false,
     });
-
-    // Consultar series existentes en BD
-    const existingSeries = await prisma.asset.findMany({
-      where: { numeroSerie: { not: null } },
-      select: {
-        numeroSerie: true,
-        marca: true,
-        modelo: true,
-        sedeId: true,
-        empleadoActual: {
-          select: { nombres: true, apellidoPaterno: true, rut: true }
-        }
-      },
-    });
-
-    const existingSeriesMap = new Map(
-      existingSeries
-        .filter((a) => a.numeroSerie)
-        .map((a) => [a.numeroSerie!.toUpperCase(), a])
+    const mapaSedes = construirMapaSedes(
+      await prisma.sede.findMany({ select: { id: true, nombre: true, codigo: true } })
     );
 
-    // Detectar duplicados en el archivo
-    const seriesInFile = new Map<string, number[]>();
+    // La categoria y el tipo de mantencion son datos que la confirmacion
+    // real necesita para escribir, pero la vista previa no los usa (nunca
+    // llega a la parte de procesarFila que escribe) -- no se crean aqui
+    // (una vista previa no debe tener efectos secundarios en la base). Si la
+    // categoria no existe todavia, se creara recien al confirmar.
+    const categoryRecord = await prisma.assetCategory.findFirst({
+      where: { nombre: { equals: categoria, mode: "insensitive" } },
+      select: { id: true },
+    });
 
-    // Función para obtener valor de una fila
-    const getValue = (row: string[], field: string): string => {
-      const idx = columnIndex[field];
-      if (idx === undefined) return "";
-      const value = row[idx];
-      if (value === null || value === undefined) return "";
-      if (dateColumns.has(idx)) {
-        return convertExcelDateValue(value);
-      }
-      if (typeof value === "number") return String(value);
-      return String(value).trim();
+    const { headers, filas } = leerFilasExcel(buffer, sheetName, categoria, mapping);
+
+    const existingSeries = await prisma.asset.findMany({
+      where: { numeroSerie: { not: null } },
+      select: { numeroSerie: true },
+    });
+    const existingSeriesSet = new Set(
+      existingSeries.filter((a) => a.numeroSerie).map((a) => a.numeroSerie!.toUpperCase())
+    );
+
+    const ctx: ContextoFila = {
+      session,
+      categoriaId: categoryRecord?.id ?? "",
+      tipoMantencionId: "",
+      sedeIdExplicita,
+      mapaSedes,
+      existingSeriesSet,
+      employeeCache: new Map<string, string>(),
     };
 
-    // Procesar filas con validación
-    const validatedRows: ImportRowStatus[] = dataRows.slice(0, 100).map((row, index) => {
-      const rowArray = row as string[];
-      const excelRow = headerRow + index + 2;
+    const rows: ImportRowStatus[] = [];
+    for (const fila of filas) {
+      const resultado = await procesarFila(fila.data, ctx, prisma, true);
 
-      // Extraer datos según mapping
-      const data: Record<string, string> = {};
-      headers.forEach((header, i) => {
-        const value = rowArray[i];
-        if (value === null || value === undefined) {
-          data[header] = "";
-        } else if (dateColumns.has(i)) {
-          data[header] = convertExcelDateValue(value);
-        } else if (typeof value === "number") {
-          data[header] = String(value);
-        } else {
-          data[header] = String(value).trim();
-        }
-      });
-
-      // También guardar con las keys del mapping
-      Object.entries(mapping).forEach(([field, header]) => {
-        if (header && data[header] !== undefined) {
-          data[field] = data[header];
-        }
-      });
-
-      const errors: ValidationError[] = [];
-      const warnings: ValidationError[] = [];
-
-      const marca = getValue(rowArray, "marca");
-      const modelo = getValue(rowArray, "modelo");
-      const numeroSerie = getValue(rowArray, "numeroSerie");
-
-      // Validar campos requeridos
-      if (!marca) {
-        errors.push({
-          type: "missing_required_field",
-          field: "marca",
-          message: "Marca es requerida",
+      if (resultado.status === "error") {
+        rows.push({
+          rowIndex: rows.length,
+          excelRow: fila.rowNum,
+          status: "error",
+          data: resultado.data,
+          errors: [{ type: resultado.tipo, message: resultado.mensaje }],
+          warnings: [],
+        });
+      } else {
+        rows.push({
+          rowIndex: rows.length,
+          excelRow: fila.rowNum,
+          status: "valid",
+          data: resultado.data,
+          errors: [],
+          warnings: [],
         });
       }
-      if (!modelo) {
-        errors.push({
-          type: "missing_required_field",
-          field: "modelo",
-          message: "Modelo es requerido",
-        });
-      }
-      if (!numeroSerie) {
-        errors.push({
-          type: "missing_required_field",
-          field: "numeroSerie",
-          message: "N° de Serie es requerido",
-        });
-      }
-
-      // Verificar duplicado en BD
-      if (numeroSerie) {
-        const upperSerie = numeroSerie.toUpperCase();
-        const existingAsset = existingSeriesMap.get(upperSerie);
-
-        if (existingAsset) {
-          errors.push({
-            type: "duplicate_in_database",
-            field: "numeroSerie",
-            message: mensajeSerieDuplicada(session, numeroSerie, existingAsset),
-            value: numeroSerie,
-          });
-        }
-
-        // Registrar para detectar duplicados en archivo
-        if (!seriesInFile.has(upperSerie)) {
-          seriesInFile.set(upperSerie, []);
-        }
-        seriesInFile.get(upperSerie)!.push(index);
-      }
-
-      return {
-        rowIndex: index,
-        excelRow,
-        status: errors.length > 0 ? "error" : warnings.length > 0 ? "warning" : "valid",
-        data,
-        errors,
-        warnings,
-      };
-    });
-
-    // Marcar duplicados dentro del archivo
-    const duplicatesInFile: string[] = [];
-    seriesInFile.forEach((indices, serie) => {
-      if (indices.length > 1) {
-        duplicatesInFile.push(serie);
-        indices.forEach((idx) => {
-          const row = validatedRows[idx];
-          if (row && !row.errors.some((e) => e.type === "duplicate_in_file")) {
-            row.errors.push({
-              type: "duplicate_in_file",
-              field: "numeroSerie",
-              message: `N° de serie "${serie}" aparece ${indices.length} veces en el archivo (filas: ${indices.map((i) => validatedRows[i]?.excelRow).join(", ")})`,
-              value: serie,
-            });
-            if (row.status !== "error") {
-              row.status = "error";
-            }
-          }
-        });
-      }
-    });
+    }
 
     const result: ImportPreviewResult = {
       headers,
-      rows: validatedRows,
-      totalRows: dataRows.length,
-      validCount: validatedRows.filter((r) => r.status === "valid").length,
-      errorCount: validatedRows.filter((r) => r.status === "error").length,
-      warningCount: validatedRows.filter((r) => r.status === "warning").length,
-      duplicatesInFile,
-      duplicatesInDb: validatedRows
+      rows,
+      totalRows: rows.length,
+      validCount: rows.filter((r) => r.status === "valid").length,
+      errorCount: rows.filter((r) => r.status === "error").length,
+      warningCount: 0,
+      duplicatesInFile: rows
+        .filter((r) => r.errors.some((e) => e.type === "duplicate_in_file"))
+        .map((r) => r.data.numeroSerie || ""),
+      duplicatesInDb: rows
         .filter((r) => r.errors.some((e) => e.type === "duplicate_in_database"))
-        .map((r) => r.data.numeroSerie || r.data["N° Serie"] || ""),
+        .map((r) => r.data.numeroSerie || ""),
     };
 
     return NextResponse.json(result);

@@ -37,6 +37,11 @@ const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
     { to: 'disponible', description: 'Devolver equipo (ok/incompleto)' },
     { to: 'baja', description: 'Devolver equipo (dañado) → baja' },
     { to: 'en_mantencion', description: 'Enviar a mantención' },
+    // 20-sep-2026 (SPEC 2.57): el empleado se desvincula y no devuelve el
+    // equipo. Antes esto se manejaba dejando el Activo en "asignado" (ver
+    // executeReturn) para no perderle el rastro; ahora es un estado propio,
+    // para que se pueda contar y filtrar aparte de las asignaciones vigentes.
+    { to: 'no_devuelto', description: 'Empleado desvinculado sin devolver el equipo' },
   ],
   en_mantencion: [
     { to: 'disponible', description: 'Mantención completada (sin asignación previa)' },
@@ -45,6 +50,10 @@ const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
   ],
   baja: [{ to: 'vendido', description: 'Registrar venta' }],
   vendido: [], // Estado terminal
+  no_devuelto: [
+    { to: 'disponible', description: 'Equipo recuperado en buen estado' },
+    { to: 'baja', description: 'Equipo dado por perdido' },
+  ],
 };
 
 // SPEC: Sección 2.7.2 — Precondiciones por transición
@@ -84,6 +93,27 @@ const TRANSITION_PRECONDITIONS: Record<string, (ctx: TransitionContext) => strin
     const errors: string[] = [];
     if (!ctx.motivo) {
       errors.push('Requiere datos de venta (comprador, monto, fecha)');
+    }
+    return errors;
+  },
+  'asignado→no_devuelto': (ctx) => {
+    const errors: string[] = [];
+    if (!ctx.motivo) {
+      errors.push('Requiere motivo (ej. desvinculación sin devolución del equipo)');
+    }
+    return errors;
+  },
+  'no_devuelto→disponible': (ctx) => {
+    const errors: string[] = [];
+    if (!ctx.motivo) {
+      errors.push('Requiere indicar cómo se recuperó el equipo');
+    }
+    return errors;
+  },
+  'no_devuelto→baja': (ctx) => {
+    const errors: string[] = [];
+    if (!ctx.motivo) {
+      errors.push('Requiere motivo obligatorio para dar por perdido el equipo');
     }
     return errors;
   },

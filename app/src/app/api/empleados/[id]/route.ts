@@ -34,9 +34,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             item: true,
           },
         },
-        terminations: {
-          orderBy: { fechaDesvinculacion: "desc" },
-        },
         activosActuales: {
           include: {
             categoria: true,
@@ -64,9 +61,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             include: {
               item: true,
             },
-          },
-          terminations: {
-            orderBy: { fechaDesvinculacion: "desc" },
           },
           activosActuales: {
             include: {

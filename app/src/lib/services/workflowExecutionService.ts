@@ -46,21 +46,6 @@ export type ExecuteReturnParams = {
   expectedEmployeeId?: string;
 };
 
-export type ExecuteTerminationReturnParams = {
-  terminationId: string;
-  fechaDevolucionEquipos: Date;
-  estadoNotebook: 'ok' | 'danado' | 'no_aplica' | 'pendiente';
-  estadoCelular: 'ok' | 'danado' | 'no_aplica' | 'pendiente';
-  estadoMonitor: 'ok' | 'danado' | 'no_aplica' | 'pendiente';
-  estadoKit: 'ok' | 'danado' | 'no_aplica' | 'pendiente';
-  recibidoPor: string;
-  lugarDevolucion: string;
-  requiereDescuento?: boolean;
-  montoDescuento?: number | null;
-  motivoDescuento?: string | null;
-  observaciones?: string | null;
-};
-
 export type ExecuteKitDeliveryParams = {
   itemId: string;
   cantidad: number;
@@ -240,14 +225,20 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
 
   // "no_devuelto": el empleado no entrego el equipo, asi que no hay
   // devolucion fisica que registrar -- la asignacion NO se cierra (sigue
-  // activa) y el Activo NO cambia de estado ni de dueño: sigue figurando
-  // como asignado a esta persona, que es la realidad (se lo quedo). Antes
-  // esto se trataba igual que "danado" y mandaba el Activo a "baja", lo
-  // cual descontaba el equipo del empleado en el sistema pese a que nunca
-  // se recupero -- quedaba invisible en vez de pendiente de gestionar. Si
-  // el equipo aparece despues, se devuelve normalmente desde Asignaciones
-  // (la asignacion sigue activa, ese flujo funciona igual que con cualquier
-  // otra asignacion vigente).
+  // activa) y el Activo sigue con el mismo dueño (empleadoActualId no
+  // cambia): sigue en manos de esta persona, que es la realidad (se lo
+  // quedo). Hasta el 20-sep-2026 (SPEC 2.57) el Activo tampoco cambiaba de
+  // ESTADO -- quedaba "asignado", indistinguible de una asignacion vigente
+  // normal. Eso hacia invisibles estos casos en cualquier conteo o filtro
+  // por estado. Ahora el Activo pasa a su propio estado "no_devuelto"
+  // (ver assetStateMachine.ts), sin dejar de estar vinculado al empleado ni
+  // cerrar la asignacion -- si el equipo aparece despues, se sigue
+  // devolviendo normalmente desde Asignaciones (la asignacion sigue activa,
+  // ese flujo funciona igual que con cualquier otra asignacion vigente, y
+  // desde "no_devuelto" puede volver a "disponible" o pasar a "baja").
+  // Antes de esto, "no_devuelto" se trataba igual que "danado" y mandaba el
+  // Activo a "baja" directamente, lo cual descontaba el equipo del empleado
+  // en el sistema pese a que nunca se recupero.
   // Igual que en executeAssignment: solo se guarda si el activo
   // realmente es un notebook con cargador, para no dejar un dato sin
   // sentido en el acta (SPEC 2.5.3 regla 9).
@@ -271,17 +262,22 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       },
     });
 
+    await tx.asset.update({
+      where: { id: assignment.assetId },
+      data: { estado: 'no_devuelto' },
+    });
+
     await tx.assetHistory.create({
       data: {
         assetId: assignment.assetId,
         tipoEvento: 'devolucion',
-        descripcion: `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno} no devolvió el equipo en su desvinculación. Sigue asignado a la espera de recuperarlo.`,
+        descripcion: `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno} no devolvió el equipo en su desvinculación. Queda "No devuelto", a la espera de recuperarlo.`,
         datosAnteriores: {
           estado: assignment.asset.estado,
           empleadoActualId: assignment.asset.empleadoActualId,
         },
         datosNuevos: {
-          estado: assignment.asset.estado,
+          estado: 'no_devuelto',
           empleadoActualId: assignment.asset.empleadoActualId,
           estadoDevolucion: params.estadoDevolucion,
         },
@@ -410,101 +406,3 @@ export async function executeKitReturn(tx: PrismaTx, params: ExecuteKitReturnPar
   return actualizado;
 }
 
-/**
- * Processes a full termination return (all equipment for a terminated employee).
- */
-export async function executeTerminationReturn(
-  tx: PrismaTx,
-  params: ExecuteTerminationReturnParams
-) {
-  const termination = await tx.termination.findUnique({
-    where: { id: params.terminationId },
-    include: {
-      employee: {
-        include: {
-          assignments: {
-            where: { activo: true },
-            include: { asset: { include: { categoria: true } } },
-          },
-        },
-      },
-    },
-  });
-
-  if (!termination) throw new NotFoundError('Desvinculación no encontrada');
-
-  const hayDanos =
-    params.estadoNotebook === 'danado' ||
-    params.estadoCelular === 'danado' ||
-    params.estadoMonitor === 'danado';
-
-  const updatedTermination = await tx.termination.update({
-    where: { id: params.terminationId },
-    data: {
-      fechaDevolucionEquipos: params.fechaDevolucionEquipos,
-      estadoNotebook: params.estadoNotebook,
-      estadoCelular: params.estadoCelular,
-      estadoMonitor: params.estadoMonitor,
-      estadoKit: params.estadoKit,
-      recibidoPor: params.recibidoPor,
-      lugarDevolucion: params.lugarDevolucion,
-      requiereDescuento: params.requiereDescuento || hayDanos,
-      montoDescuento: params.montoDescuento,
-      motivoDescuento: params.motivoDescuento,
-      observaciones: params.observaciones,
-    },
-  });
-
-  for (const assignment of termination.employee.assignments) {
-    const categoryName = assignment.asset.categoria.nombre.toLowerCase();
-    let estadoDevolucion: 'ok' | 'danado' | 'incompleto' = 'ok';
-
-    if (categoryName === 'notebook') {
-      estadoDevolucion = params.estadoNotebook === 'danado' ? 'danado' : 'ok';
-    } else if (categoryName === 'celular') {
-      estadoDevolucion = params.estadoCelular === 'danado' ? 'danado' : 'ok';
-    } else if (categoryName === 'monitor') {
-      estadoDevolucion = params.estadoMonitor === 'danado' ? 'danado' : 'ok';
-    }
-
-    await tx.assignment.update({
-      where: { id: assignment.id },
-      data: {
-        activo: false,
-        fechaDevolucion: params.fechaDevolucionEquipos,
-        recibidoPor: params.recibidoPor,
-        estadoDevolucion,
-        observacionesDevolucion:
-          `Devolución por desvinculación. ${params.observaciones || ''}`.trim(),
-      },
-    });
-
-    let nuevoEstadoActivo: 'disponible' | 'baja' = 'disponible';
-    if (estadoDevolucion === 'danado') nuevoEstadoActivo = 'baja';
-
-    await tx.asset.update({
-      where: { id: assignment.asset.id },
-      data: {
-        estado: nuevoEstadoActivo,
-        condicion: estadoDevolucion === 'danado' ? 'danado' : 'usado',
-        empleadoActualId: null,
-      },
-    });
-
-    await tx.assetHistory.create({
-      data: {
-        assetId: assignment.asset.id,
-        tipoEvento: 'devolucion',
-        descripcion: `Devuelto por desvinculación de ${termination.employee.nombres} ${termination.employee.apellidoPaterno}. Estado: ${estadoDevolucion}`,
-        datosAnteriores: {
-          estado: assignment.asset.estado,
-          empleadoActualId: assignment.asset.empleadoActualId,
-        },
-        datosNuevos: { estado: nuevoEstadoActivo, empleadoActualId: null },
-        usuarioSistema: params.recibidoPor,
-      },
-    });
-  }
-
-  return updatedTermination;
-}

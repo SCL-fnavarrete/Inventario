@@ -72,7 +72,6 @@ async function main() {
     { name: 'dispatch_guide_items', op: () => prisma.dispatchGuideItem.deleteMany() },
     { name: 'dispatch_guides', op: () => prisma.dispatchGuide.deleteMany() },
     { name: 'kit_assignments', op: () => prisma.kitAssignment.deleteMany() },
-    { name: 'terminations', op: () => prisma.termination.deleteMany() },
     { name: 'asset_history', op: () => prisma.assetHistory.deleteMany() },
     { name: 'maintenances', op: () => prisma.maintenance.deleteMany() },
     { name: 'assignments', op: () => prisma.assignment.deleteMany() },

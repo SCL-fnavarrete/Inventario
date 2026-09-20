@@ -127,6 +127,7 @@ const estadoConfig: Record<string, { label: string; color: string; bgColor: stri
   disponible: { label: "Disponible", color: "text-green-700", bgColor: "bg-green-100" },
   asignado: { label: "Asignado", color: "text-blue-700", bgColor: "bg-blue-100" },
   en_mantencion: { label: "En Mantención", color: "text-orange-700", bgColor: "bg-orange-100" },
+  no_devuelto: { label: "No devuelto", color: "text-amber-800", bgColor: "bg-amber-100" },
   baja: { label: "Baja", color: "text-red-700", bgColor: "bg-red-100" },
   vendido: { label: "Vendido", color: "text-gray-700", bgColor: "bg-gray-100" },
 };

@@ -282,6 +282,7 @@ export default function EditarActivoPage({
                 <option value="disponible">Disponible</option>
                 <option value="asignado">Asignado</option>
                 <option value="en_mantencion">En Mantencion</option>
+                <option value="no_devuelto">No devuelto</option>
                 <option value="baja">Baja</option>
                 <option value="vendido">Vendido</option>
               </select>

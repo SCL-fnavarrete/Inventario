@@ -36,6 +36,16 @@ describe("interpretarEstado", () => {
     });
   });
 
+  // 20-sep-2026 (SPEC 2.57): "No devuelto" es un estado real del sistema,
+  // no una palabra desconocida -- aparece literal en las planillas de TI
+  // para los equipos que quedaron con alguien que ya se desvinculo.
+  it("reconoce 'No devuelto' como estado, no como desconocido", () => {
+    expect(interpretarEstado("No devuelto")).toEqual({ tipo: "estado", estado: "no_devuelto" });
+    expect(interpretarEstado("NO DEVUELTO")).toEqual({ tipo: "estado", estado: "no_devuelto" });
+    expect(interpretarEstado("No devolvió")).toEqual({ tipo: "estado", estado: "no_devuelto" });
+    expect(interpretarEstado("Sin devolver")).toEqual({ tipo: "estado", estado: "no_devuelto" });
+  });
+
   it("distingue celda vacia de valor no reconocido", () => {
     expect(interpretarEstado("")).toEqual({ tipo: "vacio" });
     expect(interpretarEstado("   ")).toEqual({ tipo: "vacio" });

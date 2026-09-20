@@ -24,7 +24,6 @@ DELETE FROM assignments   WHERE asset_id IN (SELECT id FROM _activos_test)
                              OR employee_id IN (SELECT id FROM _empleados_test);
 
 DELETE FROM kit_assignments   WHERE employee_id IN (SELECT id FROM _empleados_test);
-DELETE FROM terminations      WHERE employee_id IN (SELECT id FROM _empleados_test);
 DELETE FROM workflow_requests WHERE employee_id IN (SELECT id FROM _empleados_test);
 
 DELETE FROM assets    WHERE id IN (SELECT id FROM _activos_test);

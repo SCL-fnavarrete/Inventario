@@ -41,6 +41,7 @@ const ESTADO_COLORS: Record<string, string> = {
   disponible: "bg-green-100 text-green-800",
   asignado: "bg-blue-100 text-blue-800",
   en_mantencion: "bg-orange-100 text-orange-800",
+  no_devuelto: "bg-amber-100 text-amber-900",
   baja: "bg-red-100 text-red-800",
   vendido: "bg-gray-100 text-gray-800",
 };

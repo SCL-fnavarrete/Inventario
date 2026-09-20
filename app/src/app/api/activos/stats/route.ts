@@ -48,7 +48,8 @@ export async function GET(request: NextRequest) {
       asignado: 0,
       en_mantencion: 0,
       baja: 0,
-      vendido:0,
+      vendido: 0,
+      no_devuelto: 0,
     };
 
     byStatusRaw.forEach((item) => {

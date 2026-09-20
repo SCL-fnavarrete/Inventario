@@ -26,6 +26,7 @@ const statusLabels: Record<string, string> = {
   asignado: "Asignado",
   en_mantencion: "En Mantenci\u00f3n",
   reutilizable: "Reutilizable",
+  no_devuelto: "No devuelto",
   baja: "Baja",
 };
 

@@ -8,6 +8,7 @@ type AssetStatus =
   | "asignado"
   | "en_mantencion"
   | "reutilizable"
+  | "no_devuelto"
   | "baja"
   | "vendido";
 
@@ -55,6 +56,11 @@ const variantColors: Record<
     solid: "bg-purple-100 text-purple-800 border-purple-200",
     outline: "bg-transparent text-purple-700 border-purple-400",
     dot: "bg-purple-500",
+  },
+  no_devuelto: {
+    solid: "bg-orange-100 text-orange-800 border-orange-200",
+    outline: "bg-transparent text-orange-700 border-orange-400",
+    dot: "bg-orange-500",
   },
   baja: {
     solid: "bg-red-100 text-red-800 border-red-200",
@@ -111,6 +117,7 @@ const statusLabels: Record<AssetStatus, string> = {
   asignado: "Asignado",
   en_mantencion: "En Mantención",
   reutilizable: "Reutilizable",
+  no_devuelto: "No devuelto",
   baja: "Baja",
   vendido: "Vendido",
 };

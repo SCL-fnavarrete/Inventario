@@ -27,6 +27,7 @@ const estadoColors: Record<EstadoActivo, string> = {
   disponible: "bg-green-100 text-green-800",
   asignado: "bg-blue-100 text-blue-800",
   en_mantencion: "bg-yellow-100 text-yellow-800",
+  no_devuelto: "bg-orange-100 text-orange-800",
   baja: "bg-red-100 text-red-800",
   vendido: "bg-gray-100 text-gray-800",
 };
@@ -35,6 +36,7 @@ const estadoLabels: Record<EstadoActivo, string> = {
   disponible: "Disponible",
   asignado: "Asignado",
   en_mantencion: "En Mantención",
+  no_devuelto: "No devuelto",
   baja: "Baja",
   vendido: "Vendido",
 };

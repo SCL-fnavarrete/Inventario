@@ -44,6 +44,7 @@ const PALABRA_CANONICA_ESTADO: Record<EstadoActivo, string> = {
   en_mantencion: "en mantencion",
   baja: "baja",
   vendido: "vendido",
+  no_devuelto: "no devuelto",
 };
 
 /** Idem para la condicion fisica. */
@@ -66,6 +67,9 @@ const SINONIMOS_ESTADO: Record<string, EstadoActivo> = {
   "en reparacion": "en_mantencion",
   "de baja": "baja",
   "dado de baja": "baja",
+  "no devolvio": "no_devuelto",
+  "no se devolvio": "no_devuelto",
+  "sin devolver": "no_devuelto",
 };
 
 const SINONIMOS_CONDICION: Record<string, CondicionActivo> = {
@@ -234,4 +238,90 @@ export function mensajeSerieDuplicada(
     : "Sin asignar";
 
   return `N° de serie "${numeroSerie}" ya existe - Marca: ${existingAsset.marca}, Modelo: ${existingAsset.modelo}, Asignado a: ${asignadoA}`;
+}
+/**
+ * Sede real (id/nombre/codigo) para el mapa de resolucion por columna.
+ */
+export interface SedeReferencia {
+  id: string;
+  nombre: string;
+  codigo: string;
+}
+
+/**
+ * Arma el mapa "texto normalizado -> Sede.id" a partir de las sedes reales
+ * de la base (nombre y codigo). Deliberadamente no incluye apodos ("Bodega
+ * Santiago", etc.): la columna "Sede" es un dato controlado -- se le pide a
+ * quien llena la planilla (soporte TI) que escriba el nombre tal como
+ * aparece en Configuracion > Sedes, no que se adivinen variantes. Se arma en
+ * vivo, consultando la base en cada importacion, para que una sede creada
+ * hoy se reconozca manana sin tocar codigo.
+ */
+export function construirMapaSedes(sedes: SedeReferencia[]): Record<string, string> {
+  const mapa: Record<string, string> = {};
+  for (const sede of sedes) {
+    mapa[clave(sede.nombre)] = sede.id;
+    mapa[clave(sede.codigo)] = sede.id;
+  }
+  return mapa;
+}
+
+/**
+ * Sede que corresponde a una fila de importacion, leida de su propia
+ * columna "Sede" (SPEC 2.30, 19-sep-2026).
+ *
+ * Historia: se evaluo primero detectar la sede a partir de la comuna
+ * (tabla de 346 comunas de Chile + reglas de region). Se descarto porque la
+ * ambiguedad estaba en el dato de origen, no en la logica -- la solucion de
+ * fondo es que la planilla declare la sede explicitamente, no que el
+ * sistema la adivine. Con la sede como columna propia, la resolucion es
+ * una comparacion directa contra las sedes reales (ver construirMapaSedes),
+ * sin geografia hardcodeada ni mantencion cuando se crea una sede nueva.
+ *
+ * Prioridad para quien tiene visibilidad total (admin):
+ *   sede corregida a mano en esta fila (reimportacion de una fila que fallo
+ *   y que el usuario corrigio en el panel de errores) > sede elegida para
+ *   todo el archivo > deteccion automatica por la columna "Sede" de la
+ *   fila. Si ninguna aplica, se informa el error -- nunca se adivina.
+ *
+ * Para un tecnico (SPEC 2.29.1, amarrado a su sede sin excepcion): si la
+ * fila declara EXPLICITAMENTE otra sede reconocida, se rechaza esa fila en
+ * vez de reetiquetarla en silencio -- lo contrario dejaria un equipo de
+ * otra sede registrado como si fuera de la suya, un dato incorrecto y no
+ * solo un problema de permisos. Si la columna viene vacia, no mapeada, o
+ * con un valor que no matchea ninguna sede real, se asume que la fila es de
+ * su propia sede (mismo comportamiento que antes de esta funcionalidad,
+ * para no romper archivos sin columna "Sede").
+ */
+export function resolverSedeParaFila(
+  session: SesionAutenticada,
+  opts: {
+    sedeIdExplicita: string | null;
+    mapaSedes: Record<string, string>;
+    valorSede: string | null | undefined;
+    sedeIdCorregida?: string | null;
+  }
+):
+  | { sedeId: string }
+  | { error: "sede_no_reconocida"; valorOriginal: string }
+  | { error: "sede_ajena"; valorOriginal: string } {
+  const valorNormalizado = clave(opts.valorSede ?? "");
+  const sedeDetectada = valorNormalizado ? opts.mapaSedes[valorNormalizado] : undefined;
+
+  if (!tieneVisibilidadTotal(session)) {
+    if (sedeDetectada && sedeDetectada !== opts.sedeIdExplicita) {
+      return { error: "sede_ajena", valorOriginal: opts.valorSede ?? "" };
+    }
+    // sedeIdParaCrear ya devolvio la sede propia del tecnico (o lanzo si no
+    // tiene una asignada) -- nunca puede llegar null aqui.
+    return { sedeId: opts.sedeIdExplicita! };
+  }
+
+  if (opts.sedeIdCorregida) return { sedeId: opts.sedeIdCorregida };
+  if (opts.sedeIdExplicita) return { sedeId: opts.sedeIdExplicita };
+
+  if (!sedeDetectada) {
+    return { error: "sede_no_reconocida", valorOriginal: opts.valorSede ?? "" };
+  }
+  return { sedeId: sedeDetectada };
 }

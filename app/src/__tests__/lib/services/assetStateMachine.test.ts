@@ -24,6 +24,10 @@ describe('assetStateMachine — canTransitionAsset', () => {
     ['en_mantencion', 'asignado'],
     ['en_mantencion', 'baja'],
     ['baja', 'vendido'],
+    // 20-sep-2026 (SPEC 2.57): desvinculacion sin devolucion del equipo.
+    ['asignado', 'no_devuelto'],
+    ['no_devuelto', 'disponible'],
+    ['no_devuelto', 'baja'],
   ];
 
   test.each(validTransitions)('%s → %s es válida', (from, to) => {
@@ -41,6 +45,11 @@ describe('assetStateMachine — canTransitionAsset', () => {
     ['vendido', 'disponible'],
     ['vendido', 'asignado'],
     ['vendido', 'baja'],
+    ['disponible', 'no_devuelto'],
+    ['en_mantencion', 'no_devuelto'],
+    ['no_devuelto', 'asignado'],
+    ['no_devuelto', 'en_mantencion'],
+    ['no_devuelto', 'vendido'],
   ];
 
   test.each(invalidTransitions)('%s → %s es inválida', (from, to) => {
@@ -53,8 +62,17 @@ describe('assetStateMachine — getValidTransitions', () => {
     expect(getValidTransitions('disponible')).toEqual(['asignado', 'en_mantencion', 'baja']);
   });
 
-  test('asignado puede ir a disponible, baja y en_mantencion', () => {
-    expect(getValidTransitions('asignado')).toEqual(['disponible', 'baja', 'en_mantencion']);
+  test('asignado puede ir a disponible, baja, en_mantencion y no_devuelto', () => {
+    expect(getValidTransitions('asignado')).toEqual([
+      'disponible',
+      'baja',
+      'en_mantencion',
+      'no_devuelto',
+    ]);
+  });
+
+  test('no_devuelto puede ir a disponible y baja', () => {
+    expect(getValidTransitions('no_devuelto')).toEqual(['disponible', 'baja']);
   });
 
   test('en_mantencion puede ir a disponible, asignado y baja', () => {
@@ -77,6 +95,10 @@ describe('assetStateMachine — isTerminalState', () => {
 
   test('baja NO es estado terminal (puede ir a vendido)', () => {
     expect(isTerminalState('baja')).toBe(false);
+  });
+
+  test('no_devuelto NO es estado terminal (se puede recuperar o dar por perdido)', () => {
+    expect(isTerminalState('no_devuelto')).toBe(false);
   });
 
   test('disponible NO es estado terminal', () => {

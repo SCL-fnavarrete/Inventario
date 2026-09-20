@@ -23,19 +23,6 @@ interface Maintenance {
   };
 }
 
-interface Termination {
-  id: string;
-  estadoNotebook: string;
-  estadoCelular: string;
-  estadoMonitor: string;
-  fechaDesvinculacion: Date;
-  employee: {
-    rut: string | null;
-    nombres: string;
-    apellidoPaterno: string;
-  };
-}
-
 interface KitItemSinStock {
   id: string;
   nombre: string;
@@ -60,7 +47,6 @@ interface CategoriaBajoStock extends CategoriaSinStock {
 interface AlertsPanelProps {
   mantencionesVencidas: Maintenance[];
   mantencionesProximas: Maintenance[];
-  devolucionesPendientes: Termination[];
   sinStockItems: KitItemSinStock[];
   bajoStockItems: KitItemBajoStock[];
   sinStockCategorias: CategoriaSinStock[];
@@ -83,7 +69,6 @@ const kitEppHref: Record<KitItemSinStock["categoria"], string> = {
 export function AlertsPanel({
   mantencionesVencidas,
   mantencionesProximas,
-  devolucionesPendientes,
   sinStockItems,
   bajoStockItems,
   sinStockCategorias,
@@ -92,7 +77,6 @@ export function AlertsPanel({
   const totalAlertas =
     mantencionesVencidas.length +
     mantencionesProximas.length +
-    devolucionesPendientes.length +
     sinStockItems.length +
     bajoStockItems.length +
     sinStockCategorias.length +
@@ -167,38 +151,6 @@ export function AlertsPanel({
               <ChevronRight className="h-4 w-4 text-yellow-400" />
             </Link>
           ))}
-
-          {/* Devoluciones Pendientes */}
-          {devolucionesPendientes.map((t) => {
-            const pendientes = [];
-            if (t.estadoNotebook === "pendiente") pendientes.push("Notebook");
-            if (t.estadoCelular === "pendiente") pendientes.push("Celular");
-            if (t.estadoMonitor === "pendiente") pendientes.push("Monitor");
-
-            return (
-              <Link
-                key={`dev-${t.id}`}
-                href={`/desvinculaciones/${t.id}`}
-                className="flex items-start gap-3 p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
-              >
-                <div className="p-2 bg-orange-100 rounded-full">
-                  <AlertTriangle className="h-4 w-4 text-orange-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-orange-900">
-                    Devolución Pendiente
-                  </p>
-                  <p className="text-xs text-orange-700 truncate">
-                    {t.employee.nombres} {t.employee.apellidoPaterno}{t.employee.rut ? ` (${t.employee.rut})` : ""}
-                  </p>
-                  <p className="text-xs text-orange-600">
-                    Pendiente: {pendientes.join(", ")}
-                  </p>
-                </div>
-                <ChevronRight className="h-4 w-4 text-orange-400" />
-              </Link>
-            );
-          })}
 
           {/* Sin Stock (Kit de Bienvenida / EPP) */}
           {sinStockItems.map((item) => (

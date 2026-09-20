@@ -66,7 +66,6 @@ type WorkflowDetail = {
   // References
   assignmentIds: string[];
   kitReturnIds: string[];
-  terminationId: string | null;
   dispatchGuideId: string | null;
   employee: {
     id: string;

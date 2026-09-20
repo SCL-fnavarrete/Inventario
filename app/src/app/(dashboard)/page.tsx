@@ -33,8 +33,9 @@ import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
  * despues de la otra (`await getStats(); await getAlertas();`), sin
  * necesidad -- ninguna depende del resultado de la otra, asi que esperaban
  * el doble de tiempo del que hacia falta. Ademas, entre las dos repetian la
- * misma consulta dos veces (el `OR` de Termination "pendiente" se pedia una
- * vez para contar y otra para listar los primeros 5) y el conteo de activos
+ * misma consulta dos veces (el `OR` de las desvinculaciones "pendiente" se
+ * pedia una vez para contar y otra para listar los primeros 5 -- ese modulo
+ * se elimino el 20-sep-2026, SPEC 2.58) y el conteo de activos
  * por estado se hacia con 6 `count()` sueltos + hasta 4 `count()` más por
  * cada categoria para el grafico de stock (un N+1 clasico: con 7 categorias
  * son 28 consultas solo para ese grafico). Se unifica todo en un solo
@@ -82,7 +83,6 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
     ...(sedeIdFiltro && tieneVisibilidadTotal(session) ? { sedeId: sedeIdFiltro } : {}),
   };
   const swAsset = { asset: { ...sw, ...ACTIVOS_VIGENTES } };
-  const swEmployee = { employee: sw };
 
   const today = new Date();
   const nextWeek = new Date();
@@ -97,7 +97,6 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
     assetsPorCategoriaYEstado,
     categoriesRaw,
     maintenancesPendientes,
-    terminationsPendientesRaw,
     assignmentsUltimos6Meses,
     solicitudesAbiertas,
     kitItems,
@@ -115,19 +114,6 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
       where: { estado: "pendiente", ...swAsset },
       include: {
         asset: { select: { numeroSerie: true, marca: true, modelo: true } },
-      },
-    }),
-    prisma.termination.findMany({
-      where: {
-        OR: [
-          { estadoNotebook: "pendiente" },
-          { estadoCelular: "pendiente" },
-          { estadoMonitor: "pendiente" },
-        ],
-        ...swEmployee,
-      },
-      include: {
-        employee: { select: { rut: true, nombres: true, apellidoPaterno: true } },
       },
     }),
     prisma.assignment.findMany({
@@ -175,6 +161,11 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
   // poder ver CUANTO se ha vendido: tarjeta "Equipos Vendidos" (reemplaza a
   // "Empleados Activos") y la porcion "Vendidos" en el pie chart de abajo.
   const vendidoAssets = totalPorEstado("vendido");
+
+  // 20-sep-2026 (SPEC 2.57): equipos que quedaron en manos de alguien que
+  // ya se desvinculo y no los devolvio. Se cuenta aparte de "asignado"
+  // -- antes eran indistinguibles de una asignacion vigente normal.
+  const noDevueltoAssets = totalPorEstado("no_devuelto");
 
   // "Activos por Categoria": total vigente por categoria, TODOS los
   // estados (antes salia de un `_count` de Prisma; ahora se suma a mano
@@ -224,6 +215,7 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
     { estado: "disponible", cantidad: availableAssets, color: "#22c55e" },
     { estado: "asignado", cantidad: assignedAssets, color: "#3b82f6" },
     { estado: "en_mantencion", cantidad: maintenanceAssets, color: "#f97316" },
+    { estado: "no_devuelto", cantidad: noDevueltoAssets, color: "#ea580c" },
     { estado: "baja", cantidad: bajaAssets, color: "#ef4444" },
     { estado: "vendido", cantidad: vendidoAssets, color: "#6b7280" },
   ].filter((e) => e.cantidad > 0);
@@ -239,17 +231,6 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
   const mantencionesProximas = maintenancesPendientes
     .filter((m) => m.fechaProgramada && m.fechaProgramada >= today && m.fechaProgramada <= nextWeek)
     .slice(0, 5);
-
-  // Devoluciones pendientes: mismo caso -- antes el mismo `OR` se pedia dos
-  // veces (una para contar, otra para listar los primeros 5).
-  const pendingTerminations = terminationsPendientesRaw.length;
-  // Convert Decimal fields to numbers for Client Component compatibility
-  const devolucionesPendientes = terminationsPendientesRaw.slice(0, 5).map((termination) => ({
-    ...termination,
-    montoDescuento: termination.montoDescuento
-      ? termination.montoDescuento.toNumber()
-      : null,
-  }));
 
   // "Asig. Ultimos 30 dias" ya no es una consulta aparte: se deriva
   // filtrando en memoria "Asignaciones ultimos 6 meses" (los 30 dias son
@@ -316,8 +297,8 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
     maintenanceAssets,
     bajaAssets,
     vendidoAssets,
+    noDevueltoAssets,
     pendingMaintenance,
-    pendingTerminations,
     recentAssignments,
     categories,
     stockByCategory,
@@ -332,7 +313,6 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
     bajoStockItems,
     mantencionesVencidas,
     mantencionesProximas,
-    devolucionesPendientes,
   };
 }
 
@@ -370,7 +350,6 @@ export default async function DashboardPage() {
   const totalAlertas =
     data.mantencionesVencidas.length +
     data.mantencionesProximas.length +
-    data.devolucionesPendientes.length +
     data.sinStockItems.length +
     data.bajoStockItems.length +
     data.sinStockCategorias.length +
@@ -397,7 +376,6 @@ export default async function DashboardPage() {
       <AlertsPanel
         mantencionesVencidas={data.mantencionesVencidas}
         mantencionesProximas={data.mantencionesProximas}
-        devolucionesPendientes={data.devolucionesPendientes}
         sinStockItems={data.sinStockItems}
         bajoStockItems={data.bajoStockItems}
         sinStockCategorias={data.sinStockCategorias}
@@ -511,20 +489,6 @@ export default async function DashboardPage() {
             </div>
             <div className="p-2 bg-orange-100 rounded-full">
               <Clock className="h-5 w-5 text-orange-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500">Devoluciones Pend.</p>
-              <p className="text-2xl font-bold text-yellow-600">
-                {data.pendingTerminations}
-              </p>
-            </div>
-            <div className="p-2 bg-yellow-100 rounded-full">
-              <AlertTriangle className="h-5 w-5 text-yellow-600" />
             </div>
           </div>
         </div>

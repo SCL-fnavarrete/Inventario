@@ -81,7 +81,6 @@ model Employee {
   activosActuales      Asset[]         @relation("EmpleadoActual")
   assignments          Assignment[]
   kitAssignments       KitAssignment[]
-  terminations         Termination[]
   workflowRequests     WorkflowRequest[]
 
   @@index([estado])
@@ -534,35 +533,6 @@ model SystemConfig {
   @@map("system_config")
 }
 
-model Termination {
-  id                     String               @id @default(uuid())
-  employeeId             String               @map("employee_id")
-  fechaDesvinculacion    DateTime             @map("fecha_desvinculacion")
-  fechaDevolucionEquipos DateTime?            @map("fecha_devolucion_equipos")
-  estadoNotebook         EstadoDevolucionTipo @default(pendiente) @map("estado_notebook")
-  estadoCelular          EstadoDevolucionTipo @default(pendiente) @map("estado_celular")
-  estadoMonitor          EstadoDevolucionTipo @default(pendiente) @map("estado_monitor")
-  estadoKit              EstadoDevolucionTipo @default(pendiente) @map("estado_kit")
-  numeroTelefonoCelular  String?              @map("numero_telefono_celular") // Nro telefono del celular devuelto
-  imeiCelular            String?              @map("imei_celular") // IMEI del celular devuelto
-  recibidoPor            String?              @map("recibido_por")
-  lugarDevolucion        String?              @map("lugar_devolucion")
-  requiereDescuento      Boolean              @default(false) @map("requiere_descuento")
-  montoDescuento         Decimal?             @map("monto_descuento") @db.Decimal(10, 2)
-  motivoDescuento        String?              @map("motivo_descuento")
-  notificadoRrhh         Boolean              @default(false) @map("notificado_rrhh")
-  fechaNotificacionRrhh  DateTime?            @map("fecha_notificacion_rrhh")
-  observaciones          String?
-  createdAt              DateTime             @default(now()) @map("created_at")
-  updatedAt              DateTime             @updatedAt @map("updated_at")
-  employee               Employee             @relation(fields: [employeeId], references: [id])
-
-  @@index([employeeId])
-  @@index([notificadoRrhh])
-  @@index([fechaDesvinculacion])
-  @@map("terminations")
-}
-
 model DispatchGuide {
   id                   String              @id @default(uuid())
   numero               String              @unique
@@ -710,7 +680,6 @@ model WorkflowRequest {
   // devolvio, con su estado y observaciones -- employee.kitAssignments
   // trae TODO el historico del empleado, no solo lo de este ticket.
   kitReturnIds           String[]            @default([]) @map("kit_return_ids")
-  terminationId         String?             @map("termination_id")
   dispatchGuideId       String?             @map("dispatch_guide_id")
   // Sede de quien creo la solicitud -- determina que soporte la ve.
   // Ver SPEC 2.9.
@@ -825,6 +794,7 @@ enum EstadoActivo {
   en_mantencion
   baja
   vendido
+  no_devuelto
 }
 
 enum CondicionActivo {
