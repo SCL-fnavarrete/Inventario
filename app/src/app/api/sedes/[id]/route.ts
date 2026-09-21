@@ -30,7 +30,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Auditoria generica (SPEC 2.31).
+    // Registro de auditoria.
     await auditLogService.registrarActualizacion(
       'sede',
       sede.id,

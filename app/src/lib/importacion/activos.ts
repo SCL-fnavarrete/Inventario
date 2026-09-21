@@ -1,19 +1,13 @@
 /**
  * Vocabulario de los Excel de inventario traducido al dominio del sistema.
  *
- * Existe por una razon concreta: la columna "Estado" de los Excel de SCL no
- * contiene estados. En seis de los siete archivos contiene la condicion fisica
- * (Usado / Nuevo / Seminuevo) y el estado real hay que deducirlo de si la fila
- * trae RUT. Solo "Notebook disponibles.xlsx" usa esa columna con su significado
- * literal (Asignado / Disponible / Mantencion) y, no por casualidad, es el unico
- * archivo que no tiene columna RUT.
+ * La columna "Estado" de los Excel no siempre contiene un estado: en la
+ * mayoria de los archivos trae la condicion fisica (Usado / Nuevo /
+ * Seminuevo) y el estado real se deduce de si la fila trae RUT. Solo un
+ * archivo usa esa columna con su significado literal.
  *
- * Antes esto se resolvia con un mapa que devolvia "disponible" para todo lo que
- * no reconocia. El efecto era que "Usado" se leia como "disponible", la fila
- * dejaba de procesar al empleado y la importacion terminaba en verde habiendo
- * perdido el empleado, la asignacion y la fecha de entrega de cada activo.
- *
- * La regla de aqui en adelante: lo que no se reconoce se informa, no se adivina.
+ * Un valor no reconocido se informa como error; nunca se asume un estado
+ * por defecto.
  */
 import type { CondicionActivo, EstadoActivo } from "@prisma/client";
 import { formatearRut, limpiarRut, validarDigitoVerificador } from "@/lib/validations/rut";
@@ -93,15 +87,10 @@ for (const [condicion, palabra] of Object.entries(PALABRA_CANONICA_CONDICION)) {
 }
 
 /**
- * Las palabras que el Excel puede traer, en texto legible, para los mensajes
- * de error de la importacion.
- *
- * Se derivan de los mismos Records tipados contra los enums de arriba, no de
- * una lista escrita a mano: el 20-sep-2026 se agrego el estado "no devuelto"
- * (SPEC 2.57) y el mensaje de error siguio ofreciendo los cinco estados
- * viejos, de modo que le decia al usuario que su valor no era valido y acto
- * seguido le escondia la palabra que si habria servido. Derivandolo, agregar
- * un estado al enum actualiza el mensaje solo.
+ * Palabras del Excel en texto legible, para los mensajes de error de la
+ * importacion. Se derivan de los Records tipados contra los enums (no de una
+ * lista escrita a mano) para que agregar un estado al enum actualice el
+ * mensaje automaticamente.
  */
 function capitalizar(texto: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
@@ -223,17 +212,10 @@ export interface ActivoDuplicado {
 /**
  * Mensaje de "numero de serie duplicado" para la importacion de activos.
  *
- * 18-sep-2026: numeroSerie es unico a nivel global (no por sede -- un mismo
- * equipo fisico no deberia repetirse en ninguna sede), asi que el chequeo de
- * duplicado en si tiene que seguir mirando todas las sedes. El problema
- * encontrado en la ronda de pruebas de Importacion de Activos era el detalle
- * del mensaje: revelaba nombre y RUT del empleado al que esta asignado el
- * activo existente sin importar su sede -- si un tecnico de Santiago subia
- * un Excel con un numero de serie que en realidad es de un equipo de
- * Concepcion, veia el nombre y RUT de un empleado de Concepcion. Mismo tipo
- * de fuga que F-4 de la auditoria de seguridad, pero en el flujo de
- * importacion. Se usa el mismo criterio que el resto de la app
- * (tieneVisibilidadTotal / sede propia) para decidir cuanto detalle mostrar.
+ * numeroSerie es unico a nivel global, no por sede, asi que el chequeo mira
+ * todas las sedes. El nivel de detalle del mensaje (nombre/RUT del empleado
+ * asignado) se limita segun visibilidad del usuario, para no filtrar datos
+ * de otra sede.
  */
 export function mensajeSerieDuplicada(
   session: SesionAutenticada,
@@ -268,12 +250,9 @@ export interface SedeReferencia {
 
 /**
  * Arma el mapa "texto normalizado -> Sede.id" a partir de las sedes reales
- * de la base (nombre y codigo). Deliberadamente no incluye apodos ("Bodega
- * Santiago", etc.): la columna "Sede" es un dato controlado -- se le pide a
- * quien llena la planilla (soporte TI) que escriba el nombre tal como
- * aparece en Configuracion > Sedes, no que se adivinen variantes. Se arma en
- * vivo, consultando la base en cada importacion, para que una sede creada
- * hoy se reconozca manana sin tocar codigo.
+ * de la base (nombre y codigo). No incluye apodos: la columna "Sede" es un
+ * dato controlado, debe escribirse tal como aparece en Configuracion > Sedes.
+ * Se arma en vivo para reconocer sedes nuevas sin cambios de codigo.
  */
 export function construirMapaSedes(sedes: SedeReferencia[]): Record<string, string> {
   const mapa: Record<string, string> = {};
@@ -286,30 +265,18 @@ export function construirMapaSedes(sedes: SedeReferencia[]): Record<string, stri
 
 /**
  * Sede que corresponde a una fila de importacion, leida de su propia
- * columna "Sede" (SPEC 2.30, 19-sep-2026).
- *
- * Historia: se evaluo primero detectar la sede a partir de la comuna
- * (tabla de 346 comunas de Chile + reglas de region). Se descarto porque la
- * ambiguedad estaba en el dato de origen, no en la logica -- la solucion de
- * fondo es que la planilla declare la sede explicitamente, no que el
- * sistema la adivine. Con la sede como columna propia, la resolucion es
- * una comparacion directa contra las sedes reales (ver construirMapaSedes),
- * sin geografia hardcodeada ni mantencion cuando se crea una sede nueva.
+ * columna "Sede". La resolucion compara directo contra las sedes reales
+ * (ver construirMapaSedes), sin geografia hardcodeada.
  *
  * Prioridad para quien tiene visibilidad total (admin):
- *   sede corregida a mano en esta fila (reimportacion de una fila que fallo
- *   y que el usuario corrigio en el panel de errores) > sede elegida para
- *   todo el archivo > deteccion automatica por la columna "Sede" de la
- *   fila. Si ninguna aplica, se informa el error -- nunca se adivina.
+ *   sede corregida a mano en esta fila > sede elegida para todo el archivo >
+ *   deteccion automatica por la columna "Sede" de la fila. Si ninguna
+ *   aplica, se informa el error -- nunca se adivina.
  *
- * Para un tecnico (SPEC 2.29.1, amarrado a su sede sin excepcion): si la
- * fila declara EXPLICITAMENTE otra sede reconocida, se rechaza esa fila en
- * vez de reetiquetarla en silencio -- lo contrario dejaria un equipo de
- * otra sede registrado como si fuera de la suya, un dato incorrecto y no
- * solo un problema de permisos. Si la columna viene vacia, no mapeada, o
- * con un valor que no matchea ninguna sede real, se asume que la fila es de
- * su propia sede (mismo comportamiento que antes de esta funcionalidad,
- * para no romper archivos sin columna "Sede").
+ * Para un tecnico (amarrado a su sede sin excepcion): si la fila declara
+ * explicitamente otra sede reconocida, se rechaza la fila en vez de
+ * reetiquetarla en silencio. Si la columna viene vacia, no mapeada, o no
+ * matchea ninguna sede real, se asume la sede propia del tecnico.
  */
 export function resolverSedeParaFila(
   session: SesionAutenticada,
@@ -330,8 +297,8 @@ export function resolverSedeParaFila(
     if (sedeDetectada && sedeDetectada !== opts.sedeIdExplicita) {
       return { error: "sede_ajena", valorOriginal: opts.valorSede ?? "" };
     }
-    // sedeIdParaCrear ya devolvio la sede propia del tecnico (o lanzo si no
-    // tiene una asignada) -- nunca puede llegar null aqui.
+    // La sede propia del tecnico ya fue resuelta antes (o lanzo si no
+    // tiene una asignada), nunca llega null aqui.
     return { sedeId: opts.sedeIdExplicita! };
   }
 

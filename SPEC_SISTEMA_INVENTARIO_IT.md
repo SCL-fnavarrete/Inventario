@@ -2859,7 +2859,74 @@ Javier, tres pedidos seguidos sobre el mismo panel de Alertas del Dashboard y la
 
 **3. Tarjetas que se achican al agrandar la ventana.** Causa real, medida directamente: el Sidebar pasa de overlay a `fixed lg:static` (ocupando 256px fijos del ancho) justo en el mismo breakpoint de Tailwind (`lg`, 1024px) en el que varias grillas de tarjetas subian su numero de columnas (`lg:grid-cols-3`, `lg:grid-cols-6`). Al cruzar los 1024px, dos cosas malas pasaban a la vez: aparecia el Sidebar (menos ancho disponible) Y se repartia ese ancho menor entre mas columnas -- una tarjeta de Activos medida pasaba de 460px a 221px (menos de la mitad) al agrandar la ventana de 1000 a 1030px. La solucion no es dejar de subir columnas, es no hacerlo en el mismo breakpoint en que el Sidebar le quita espacio al contenido: se corren esos saltos de columnas de `lg` a `xl` (1280px) en las cuatro grillas afectadas (KPIs principales, segunda fila de KPIs, Activos por Categoria/Kit/EPP del Dashboard, y las tarjetas de Activos). De paso se corrige que la segunda fila de KPIs declaraba `grid-cols-5` para 4 tarjetas reales.
 
+## 2.71 Importar Activos: el link "Ver activos importados" no mostraba los datos recien importados (22-sep-2026)
+
+Javier, tras una importacion exitosa: *"cuando realiza una importacion y sale exitoso y sale el boton ir activos voy a activos pero la pagina no recarga y solo muestra activo 0 como si no hubiera importado"*.
+
+Causa real: el boton "Ver activos importados ->" en la pantalla de exito era un `<Link>` de `next/link`, que hace navegacion "soft" (del lado del cliente) del App Router. `/activos` es una pagina 100% cliente que carga sus datos (stats, listado) en `useEffect` al montarse -- y como el usuario ya habia visitado `/activos` antes de entrar a Importar, el Router Cache del cliente reutilizaba esa instancia ya montada (con su estado ya resuelto en 0) en vez de remontarla, asi que esos `useEffect` nunca volvian a correr y la pantalla seguia mostrando el conteo de antes de importar. No es un problema de la base de datos ni de la API: los datos si quedaban importados, solo no se reflejaban en pantalla sin un refresh manual (F5).
+
+Se cambia ese link de `<Link href="/activos">` a un `<a href="/activos">` normal, que fuerza una recarga completa del navegador: `/activos` se vuelve a pedir entero al servidor y sus `useEffect` corren de cero, mostrando el conteo real. Alcance acotado a este boton -- el resto de la navegacion de la app sigue usando `Link` para las transiciones rapidas habituales, que es el comportamiento correcto en todas las demas pantallas.
+
+## 2.72 Buscador de Mantenciones: acotado solo a activo/empleado, sin la palabra completa, y con historial completo por defecto (22-sep-2026)
+
+Javier, tres pedidos seguidos sobre el mismo buscador:
+- *"en mantencion al ingresar un nombre completo del equipo no funciona"*
+- *"el buscador nos deberia dejar buscar por empleado, o por activo y sus propiedades en mantenciones ya que es muy pobre y por defecto el periodo deberia esta en historial completo"*
+- *"el buscado de mantencion deberia permitir buscar por el empleado y sus datos o por activo y sus datos, solo eso ya que son los datos involucrados en una mantencion"*
+
+**1. Nombre de equipo completo no encontraba nada.** Mismo bug ya corregido en Activos (SPEC 2.63): el termino de busqueda se comparaba completo contra cada campo por separado, asi que una frase como "Hp ProBook 640 G2" no calzaba en ningun campo individual (marca="Hp", modelo="ProBook 640 G2" viven en columnas distintas). Se aplica la misma solucion: la frase se separa en palabras y cada palabra debe aparecer en ALGUNO de los campos habilitados, no necesariamente el mismo.
+
+**2. Alcance del buscador.** Se acota exclusivamente a los dos datos "involucrados en una mantencion" -- el activo y el empleado que lo tiene asignado -- y se sacan los campos de texto libre propios de la mantencion (`descripcion`, `realizadoPor`, `proveedorExterno`, `resultado`), que Javier no considera parte de lo que se deberia poder buscar ahi. Campos habilitados:
+- Del activo: numero de serie, marca, modelo, nombre de equipo, numero de telefono, ubicacion fisica, categoria.
+- Del empleado actualmente asignado al activo (`asset.empleadoActual`): nombres, apellido paterno, apellido materno, RUT, correo empresa.
+
+**3. Periodo por defecto.** El selector de periodo (Dia/Semana/Mes/.../Historial completo) partia en "Mes", ocultando en silencio cualquier mantencion fuera de los ultimos 30 dias -- justo lo que hacia parecer "pobre" al buscador cuando en realidad el dato si existia, solo estaba fuera de la ventana. Pasa a partir en "Historial completo" (`dias: 0`, el sentinel ya usado por SPEC 2.51.2 para "sin ventana de tiempo").
+
+## 2.73 Importación de Activos: un equipo podía quedar "En Mantención" sin ningún ticket de Mantención (22-sep-2026)
+
+Javier, al revisar el listado de equipos en mantención: *"no todos los equipos en mantencion tiene la solicitude de mantencion registrada por lo que veo: J8HZGJ3"*.
+
+Causa: la columna `Estado` del Excel y las columnas de fecha (`Mantención`/`Próxima Mantención`) se procesaban de forma independiente en `procesarFila.ts`. Una fila con `Estado = "Mantención"` pero sin ninguna de esas dos fechas dejaba el Activo creado con `estado: en_mantencion`, pero el bloque que crea el registro de `Maintenance` solo se ejecutaba si `fechaMantencionStr || proximaMantencionStr` existía -- sin fecha, no había ticket. El resultado: un equipo "varado" en mantención sin forma de completarlo desde el flujo normal (el botón "Completar Mantención" vive dentro de un ticket, y sin ticket no hay dónde hacer clic), y sin aparecer en la cola de pendientes del módulo de Mantenciones. Se auditaron los equipos actuales en `en_mantencion`: 7 de 9 no tenían ningún ticket asociado.
+
+**Fix del import:** cuando una fila resuelve `estado = "en_mantencion"` y no trae ninguna fecha de mantención, se crea igual un ticket `pendiente` (fecha programada = hoy, como referencia, ya que no se conoce la fecha real de ingreso a mantención), con el mismo tipo "Preventiva" que ya usa el resto del import cuando no hay más información. Confirmado por Javier: *"si tiene estado de mantencion se crea una solicitud"*.
+
+**Corrección de datos existentes:** se creó retroactivamente un ticket `pendiente` (mismo criterio: fecha de hoy, tipo "Preventiva") para cada uno de los 7 activos ya importados que habían quedado sin ticket, incluyendo el caso reportado (`J8HZGJ3`, Dell Inspirion 15 3501). No fue necesario tocar el estado del Activo (ya estaba correctamente en `en_mantencion`): `POST /api/mantenciones` no revalida la transición de estado cuando el activo ya está en mantención, así que crear el ticket no tuvo otro efecto secundario.
+
+## 2.74 Historial de asignaciones importado: filas repetidas indistinguibles entre sí (22-sep-2026)
+
+Tras revisar cómo se representa en la base el "Historial de asignaciones" (contador sin nombre de persona, ver SPEC 2.65), Javier preguntó por qué no se modela como filas de `Assignment` reales -- la respuesta: `Assignment.employeeId` es un campo obligatorio (no acepta `null`), y no hay RUT ni nombre de esa persona en el dato viejo del Excel para vincular una fila a un `Employee` real, así que el registro se sigue guardando en `AssetHistory` (línea de timeline sin dueño), no en `Assignment`. Se evaluó y se descartó crear un `Employee` "No registrado" compartido para poder usar `Assignment` -- decisión explícita de Javier de no crear ese empleado placeholder.
+
+Al revisar cómo se ve eso en pantalla sí apareció un problema real: cuando el Excel trae un número exacto mayor a 1 (ej. "2"), se crean esa cantidad de filas en `AssetHistory`, todas con el texto EXACTO igual y creadas en el mismo milisegundo -- en la línea de tiempo de la ficha del activo se ven una detrás de otra, indistinguibles entre sí, como si fuera un evento duplicado por error en vez de dos asignaciones históricas distintas. Se corrige agregando un contador al texto cuando hay más de una fila: "Asignación histórica previa a la migración, sin datos de la persona (1 de 2)" / "(2 de 2)".
+
+## 2.75 Historial de asignaciones sin persona: también visible en el cuadro "Historial de Asignaciones" (22-sep-2026)
+
+Javier: *"hay que corregir el tema de asignacion, cuando se registran las asignaciones del excel +1 o +2 tambien deberia aparecer en el cuadro de asignaciones llamado historia de asignaciones"*.
+
+Las asignaciones históricas sin persona (SPEC 2.65/2.74 -- el contador "1+"/"2+" del Excel viejo, sin RUT ni nombre) quedan en `AssetHistory`, no en `Assignment` (que exige un empleado real, ver SPEC 2.74 para el porqué). Antes solo aparecían mezcladas dentro de "Historial de Eventos" (la línea de tiempo genérica, más abajo en la ficha); el cuadro "Historial de Asignaciones" (arriba, el que muestra nombre/RUT/fecha con tarjetas) solo leía `asset.assignments` y no las mostraba en absoluto.
+
+Se agrega una marca estructurada (`AssetHistory.datosNuevos = { historicaSinPersona: true, indice, total }`) a esas filas al crearlas en el import, y la ficha del activo las trae aparte y las agrega al mismo cuadro "Historial de Asignaciones" -- con tarjeta visualmente distinta (borde punteado, texto en gris/cursiva) y placeholders explícitos ("Persona no registrada", "RUT: No registrado", "Fecha no registrada", badge "Histórica (sin datos)") en vez de mezclarlas con las asignaciones reales o inventar datos que no existen.
+
+## 2.76 Selector de equipos en Onboarding: mostraba solo 5 de los disponibles (22-sep-2026)
+
+Javier: *"estoy viendo que hay un error al elegir equipos en onboarding cuando hay mas de 40 solo me muestra los primeros 5 la idea es que me permita navegar entre esos que hay"*.
+
+Causa: en el formulario de Nueva Solicitud, al expandir una categoría para elegir un equipo específico a reservar, el fetch de equipos disponibles traía `limit=5` fijo -- el badge de la categoría sí mostraba el total real (ej. "42 disponibles", viene de `pagination.total`), pero la lista desplegable de abajo solo tenía esos primeros 5 resultados y no había forma de llegar a los demás.
+
+Se sube el límite a 100 (mismo orden de magnitud que ya usa `SelectorActivos` en Guías de Despacho, que pide 200) y la lista desplegable gana scroll propio (`max-h-60 overflow-y-auto`) para poder recorrer todos los disponibles sin que la pantalla del formulario crezca sin límite.
+
 ## Changelog SPEC
+- **v2.0 (2026-09-22):**
+  - Sección 2.76 (nueva): el selector de equipos específicos en el formulario de Onboarding (Nueva Solicitud) traía un `limit=5` fijo al listar los disponibles de una categoría, mientras el badge mostraba el total real -- con más de 5 en stock no había forma de ver ni elegir el resto. Se sube el límite a 100 y la lista gana scroll propio. Reportado por Javier con una categoría con más de 40 disponibles.
+- **v1.99 (2026-09-22):**
+  - Sección 2.75 (nueva): las asignaciones históricas sin persona del import viejo ("1+"/"2+") no aparecían en el cuadro "Historial de Asignaciones" de la ficha del activo, solo mezcladas dentro de "Historial de Eventos". Se marcan con un flag estructurado en `AssetHistory.datosNuevos` y se agregan a ese cuadro con tarjetas placeholder distinguibles ("Persona no registrada", etc.), sin crear ningún empleado inventado. Pedido de Javier.
+- **v1.98 (2026-09-22):**
+  - Sección 2.74 (nueva): las filas de "Historial de asignaciones" importado (SPEC 2.65) quedaban indistinguibles entre sí cuando el Excel indicaba más de una -- mismo texto exacto, mismo instante de creación, se veían como un evento duplicado en la línea de tiempo del activo. Se agrega un contador "(1 de 2)"/"(2 de 2)" al texto. Se documenta también la decisión de mantenerlas en `AssetHistory` en vez de `Assignment` real, dado que `employeeId` es obligatorio y no hay persona real que vincular -- Javier descartó explícitamente crear un empleado "No registrado" placeholder para forzar ese vínculo.
+- **v1.97 (2026-09-22):**
+  - Sección 2.73 (nueva): la importación de Activos podía dejar un equipo en estado "En Mantención" sin crear ningún ticket de `Maintenance` -- pasaba cuando el Excel traía `Estado = "Mantención"` sin columnas de fecha de mantención, porque ambas cosas se procesaban de forma independiente. El equipo quedaba sin forma de completarse desde el flujo normal. Se corrige el import para crear un ticket pendiente automático en ese caso, y se generan retroactivamente los tickets faltantes para los 7 de 9 equipos ya importados que estaban en esta situación. Reportado por Javier al notar el caso real "J8HZGJ3".
+- **v1.96 (2026-09-22):**
+  - Sección 2.72 (nueva): el buscador de Mantenciones tenia el mismo bug de "termino completo vs. campo individual" ya corregido en Activos (no encontraba nombres de equipo compuestos), buscaba en el texto libre de la mantencion en vez de en el activo/empleado involucrados, y partia con el filtro de periodo en "Mes" en vez de "Historial completo". Se corrige el matching por palabras, se acota la busqueda a datos de activo y empleado asignado (RUT, nombre, categoria, ubicacion, etc.), y el periodo por defecto pasa a "Historial completo". Tres pedidos seguidos de Javier sobre el mismo buscador.
+- **v1.95 (2026-09-22):**
+  - Sección 2.71 (nueva): el botón "Ver activos importados" tras una importación exitosa usaba `Link` (navegación soft de Next.js), que reutilizaba la instancia ya montada de `/activos` con su conteo viejo en vez de recargar los datos. Se cambia a un `<a>` normal para forzar una recarga completa. Pedido de Javier al notar que tras importar la página seguía mostrando 0 activos.
 
 - **v1.94 (2026-09-22):**
   - Sección 2.70 (nueva): el panel de Alertas ya no recorta a 5 items (se listan todas), el texto largo en las alertas y en las tarjetas de Activos ya no se corta con "..." (envuelve en varias lineas), y se corrige que varias grillas de tarjetas subian su numero de columnas justo en el breakpoint en que el Sidebar pasa a ocupar ancho fijo, lo que hacia que las tarjetas se achicaran a menos de la mitad al agrandar la ventana. Tres pedidos seguidos de Javier sobre el mismo panel.

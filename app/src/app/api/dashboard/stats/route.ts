@@ -5,17 +5,14 @@ import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 
-// F-3 (auditoria de seguridad, 18-sep-2026): este endpoint no aplicaba
-// sedeWhere en ninguna de sus consultas y devolvia KPIs globales a
-// cualquier tecnico, sin importar su sede -- mismo patron que ya se
-// corrigio en SPEC 2.29.2 para /activos/[id] y los reportes en pantalla,
-// pero este endpoint quedo fuera de ese barrido. Ver SPEC 2.29.5.
+// Filtra los KPIs del dashboard por sede para no exponer datos globales a
+// un usuario sin visibilidad total.
 export async function GET(request: NextRequest) {
   try {
     const session = await requirePermission('reportes', 'read');
 
-    // Selector de sede del nav (Etapa 2): solo quien ya tiene visibilidad
-    // total puede acotar el dashboard a una sede especifica via ?sedeId=.
+    // Solo quien tiene visibilidad total puede acotar el dashboard a una
+    // sede especifica via ?sedeId=.
     const sedeIdFiltro = request.nextUrl.searchParams.get("sedeId") || "";
     const sedeFiltro =
       sedeIdFiltro && tieneVisibilidadTotal(session)
@@ -56,8 +53,7 @@ export async function GET(request: NextRequest) {
       prisma.assetCategory.findMany({
         include: {
           _count: {
-            // Excluye los registros descartados (SPEC 2.7.7) y, si aplica,
-            // acota por sede (SPEC 2.29.5 / F-3).
+            // Excluye los registros descartados y, si aplica, acota por sede.
             select: { assets: { where: { ...ACTIVOS_VIGENTES, ...sedeFiltro } } },
           },
         },
@@ -104,7 +100,7 @@ export async function GET(request: NextRequest) {
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-    // F-3: sin visibilidad total, se une con assets para acotar por sede.
+    // Sin visibilidad total, se une con assets para acotar por sede.
     // Prisma.sql/Prisma.empty evita interpolar un string SQL a mano.
     const filtroSedeSql = tieneVisibilidadTotal(session)
       ? Prisma.empty

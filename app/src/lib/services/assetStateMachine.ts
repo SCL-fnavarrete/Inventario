@@ -1,6 +1,6 @@
 import { EstadoActivo } from '@prisma/client';
 
-// SPEC: Sección 2.7 — Máquina de Estados del Ciclo de Vida de Activos
+// Máquina de estados del ciclo de vida de activos.
 
 type TransitionRule = {
   to: EstadoActivo;
@@ -19,7 +19,7 @@ type ValidationResult = {
   errors: string[];
 };
 
-// SPEC: Sección 2.7.2 — Tabla de transiciones válidas
+// Tabla de transiciones válidas por estado.
 const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
   disponible: [
     { to: 'asignado', description: 'Asignar a empleado' },
@@ -27,20 +27,14 @@ const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
     { to: 'baja', description: 'Dar de baja sin uso previo' },
   ],
   asignado: [
-    // 15-sep-2026 (SPEC 2.40): devolver en buen estado deja el equipo en
-    // "disponible", no en el extinto "reutilizable". Ese estado era
-    // indistinguible de disponible para entregar (el formulario de
-    // asignacion aceptaba los dos) pero NO contaba como stock en las
-    // alertas del Dashboard: con equipos devueltos listos para entregar,
-    // el sistema igual avisaba "Sin Stock". Que el equipo sea usado lo
-    // dice `condicion`, que es un campo aparte.
+    // Devolver en buen estado deja el equipo en "disponible": ese es el
+    // unico estado que cuenta como stock disponible. Que el equipo sea
+    // usado lo indica `condicion`, un campo aparte.
     { to: 'disponible', description: 'Devolver equipo (ok/incompleto)' },
     { to: 'baja', description: 'Devolver equipo (dañado) → baja' },
     { to: 'en_mantencion', description: 'Enviar a mantención' },
-    // 20-sep-2026 (SPEC 2.57): el empleado se desvincula y no devuelve el
-    // equipo. Antes esto se manejaba dejando el Activo en "asignado" (ver
-    // executeReturn) para no perderle el rastro; ahora es un estado propio,
-    // para que se pueda contar y filtrar aparte de las asignaciones vigentes.
+    // Empleado se desvincula sin devolver el equipo: estado propio para
+    // poder contarlo y filtrarlo aparte de las asignaciones vigentes.
     { to: 'no_devuelto', description: 'Empleado desvinculado sin devolver el equipo' },
   ],
   en_mantencion: [
@@ -56,7 +50,7 @@ const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
   ],
 };
 
-// SPEC: Sección 2.7.2 — Precondiciones por transición
+// Precondiciones por transición.
 const TRANSITION_PRECONDITIONS: Record<string, (ctx: TransitionContext) => string[]> = {
   'asignado→baja': (ctx) => {
     const errors: string[] = [];

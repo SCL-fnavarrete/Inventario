@@ -27,13 +27,9 @@ import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { formatearFecha } from "@/lib/utils/fechas";
 
 /**
- * Confirmacion pendiente (15-sep-2026, QA funcional, SPEC 2.38).
- *
- * Esta pantalla usaba `confirm()` y `alert()` del navegador, a diferencia del
- * resto del sistema, que muestra los errores en un cartel dentro de la
- * pagina (ver ApiErrorSummary, SPEC 2.37). Ademas de verse distinto, esos
- * dialogos nativos bloquean la ventana entera y no pueden mostrar el detalle
- * por campo que el backend ya devuelve.
+ * Confirmacion en modal propio, en vez de confirm()/alert() del navegador:
+ * permite mostrar el detalle por campo que devuelve el backend, igual que
+ * ApiErrorSummary en el resto del sistema.
  */
 type Confirmacion = {
   titulo: string;
@@ -65,7 +61,7 @@ type PurchaseAsset = {
   asset: Asset;
 };
 
-// Kit/EPP comprado con esta factura (14-sep-2026, SPEC 2.36).
+// Kit/EPP comprado con esta factura.
 type KitItem = {
   id: string;
   nombre: string;
@@ -136,7 +132,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
   const { id } = use(params);
   const router = useRouter();
   const { data: session } = useSession();
-  // Solo admin elige sede (18-sep-2026, SPEC 2.29.1).
+  // Solo admin puede elegir la sede.
   const esAdminSede = session?.user?.role === "admin";
   const [purchase, setPurchase] = useState<Purchase | null>(null);
   const [loading, setLoading] = useState(true);
@@ -146,9 +142,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
 
-  // Editar los datos de la factura (18-sep-2026, SPEC 2.10.5): antes, una vez
-  // creada la compra, no habia forma de corregir un numero de factura mal
-  // tipeado o una fecha equivocada -- solo quedaba eliminarla y rehacerla.
+  // Permite corregir los datos de la factura sin eliminarla y rehacerla.
   const [showEditForm, setShowEditForm] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [sedes, setSedes] = useState<{ id: string; nombre: string }[]>([]);
@@ -167,7 +161,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
   const [loadingAssets, setLoadingAssets] = useState(false);
   const [addingAsset, setAddingAsset] = useState(false);
 
-  // Para agregar Kit/EPP (SPEC 2.36)
+  // Para agregar Kit/EPP
   const [showKitItemPicker, setShowKitItemPicker] = useState(false);
   const [kitItemsCatalogo, setKitItemsCatalogo] = useState<KitItem[]>([]);
   const [kitItemToAdd, setKitItemToAdd] = useState("");
@@ -261,8 +255,8 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
   async function searchAssets() {
     setLoadingAssets(true);
     try {
-      // Acotado a la sede de la compra (18-sep-2026, SPEC 2.10.3), igual que
-      // el catalogo de Kit/EPP de mas abajo, que ya lo hacia.
+      // Acotado a la sede de la compra, igual que el catalogo de Kit/EPP
+      // de mas abajo.
       const params = new URLSearchParams({
         search: assetSearch,
         limit: "20",
@@ -503,8 +497,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Errores de las acciones de esta pantalla (vincular/desvincular
-          activos y articulos de Kit/EPP). Antes salian en un alert() del
-          navegador -- ver nota arriba, SPEC 2.38. */}
+          activos y articulos de Kit/EPP). */}
       {error && <ApiErrorSummary error={error} fieldErrors={fieldErrors} />}
 
       {/* Info Cards */}
@@ -750,7 +743,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
         )}
       </div>
 
-      {/* Kit/EPP Vinculados (14-sep-2026, SPEC 2.36) */}
+      {/* Kit/EPP Vinculados */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -882,8 +875,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Confirmacion de desvincular activo / articulo de Kit/EPP. Mismo
-          formato que el modal de eliminar factura de mas abajo, en vez del
-          confirm() del navegador que usaba antes (SPEC 2.38). */}
+          formato que el modal de eliminar factura de mas abajo. */}
       {confirmacion && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
@@ -910,7 +902,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       )}
 
       {/* Modal de confirmación de eliminación */}
-      {/* Editar datos de la factura (18-sep-2026, SPEC 2.10.5) */}
+      {/* Editar datos de la factura */}
       {showEditForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-lg w-full">

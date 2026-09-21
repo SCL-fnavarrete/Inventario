@@ -13,11 +13,10 @@ import { normalizeRut } from '@/lib/utils/rut';
 import { removeAccents, matchNoAccent } from '@/lib/utils/text';
 
 /**
- * Visibilidad de una guia de despacho: a diferencia del resto de modulos
- * con aislamiento por sede (un solo `sedeId`), a una guia le importan DOS
- * sedes -- la de quien la crea (emisor) y la sede destino, porque el
- * tecnico que recibe el despacho tambien necesita verla y confirmar su
- * recepcion. Admin ve todas. Ver discusion de rediseño (10-sep-2026).
+ * Visibilidad de una guia de despacho: a diferencia del resto de modulos,
+ * a una guia le importan DOS sedes -- la del emisor y la destino, porque
+ * el tecnico receptor tambien necesita verla y confirmar su recepcion.
+ * Admin ve todas.
  */
 function guiaWhereVisible(session: SesionAutenticada): Record<string, unknown> {
   if (tieneVisibilidadTotal(session)) return {};
@@ -41,12 +40,8 @@ export async function GET(request: NextRequest) {
       condiciones.push({ estado });
     }
 
-    // Selector de sede del nav (18-sep-2026, SPEC 2.9.8): esta ruta no leia
-    // ningun sedeId, asi que el listado de Guias era de las pocas pantallas
-    // que no reaccionaba al menu. Se filtra por AMBAS puntas -- una guia le
-    // interesa tanto a la sede que despacha como a la que recibe (misma
-    // regla que guiaWhereVisible y SPEC 2.9.4), asi que elegir Concepcion
-    // muestra las que salen de ahi Y las que llegan ahi.
+    // Filtrar por AMBAS puntas: una guia interesa tanto a la sede que
+    // despacha como a la que recibe.
     const sedeIdFiltro = searchParams.get("sedeId") || "";
     if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
       condiciones.push({
@@ -58,22 +53,13 @@ export async function GET(request: NextRequest) {
 
     const includeGuia = {
       _count: { select: { items: true } },
-      // Sede origen ademas de destino (18-sep-2026, SPEC 2.9.9): el listado
-      // solo traia el destino, y de donde sale el despacho es igual de
-      // relevante -- sobre todo ahora que el filtro del nav muestra las
-      // guias por ambas puntas (2.9.8).
+      // Sede origen ademas de destino, relevante para el filtro por ambas puntas.
       sede: true,
       sedeDestino: true,
     } as const;
 
-    // El termino de busqueda se filtra en memoria en vez de mandarlo a
-    // Prisma como `contains` (11-sep-2026, mismo patron ya usado en
-    // /api/empleados, /api/asignaciones y /api/solicitudes): `receptorRut`
-    // se guarda formateado ("12.345.678-9", ver `formatearRut` en el POST
-    // de abajo), asi que un `contains` directo contra lo que el usuario
-    // escribe (casi siempre sin puntos) nunca hacia match. `normalizeRut`
-    // saca puntos/guion de ambos lados antes de comparar; numero/OT
-    // Chilexpress/receptor quedan sin distinguir acentos (`matchNoAccent`).
+    // Filtrado en memoria: normaliza el RUT (sin puntos/guion, ya que se
+    // guarda formateado) e ignora acentos en los demas campos de texto.
     const terminoBusqueda = busqueda?.trim() ?? "";
 
     let guides;
@@ -129,14 +115,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/guias-despacho - Crear nueva guía de despacho
-//
-// A diferencia del diseño anterior, crear la guia APLICA de inmediato su
-// efecto: cada activo pasa a la sede destino y queda disponible ahi. No
-// existe un estado "pendiente" -- la guia es el comprobante de que el
-// despacho ya se hizo (el tecnico ya lo llevo a Chilexpress), por eso no
-// se puede anular. "Confirmar Recepción" despues es solo informativo. Ver
-// discusion de rediseño (10-sep-2026).
+// POST /api/guias-despacho - Crear nueva guía de despacho.
+// Crearla aplica de inmediato su efecto: cada activo pasa a la sede destino
+// y queda disponible ahi. No existe estado "pendiente" y la guia no se
+// puede anular; "Confirmar Recepción" despues es solo informativo.
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('guias', 'write');
@@ -182,9 +164,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generar número de guía (14-sep-2026, SPEC 2.26: unificado con
-    // GET /api/guias-despacho/numero, que tenía esta misma lógica
-    // duplicada sin usarla -- ver generarNumeroGuia()).
+    // Generar número de guía usando la lógica compartida con GET /numero.
     const numero = await generarNumeroGuia();
 
     // Verificar que los activos existen y están disponibles -- no se puede
@@ -208,12 +188,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Defensa en profundidad: un no-admin no puede despachar activos que no
-    // sean de su propia sede, aunque el selector ya venga filtrado. Para
-    // admin la sede origen ahora es obligatoria (requerido: true) -- el
-    // formulario ya la pide (Nueva Guia de Despacho); dejarla en null hacia
-    // que la guia quedara sin sede emisora, invisible para cualquier
-    // tecnico "de origen" y permitia mezclar equipos de sedes distintas en
-    // un mismo despacho. Ver SPEC 2.9.
+    // sean de su propia sede. Para admin la sede origen es obligatoria, para
+    // evitar una guia sin sede emisora que mezcle equipos de sedes distintas.
     const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId, {
       requerido: true,
     });
@@ -261,7 +237,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Auditoria generica (SPEC 2.31): quien creo la guia de despacho.
+      // Auditoria generica: quien creo la guia de despacho.
       await auditLogService.registrarCreacion(
         'guia_despacho',
         nuevaGuia.id,

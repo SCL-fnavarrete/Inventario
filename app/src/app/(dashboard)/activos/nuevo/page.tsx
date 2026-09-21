@@ -22,15 +22,10 @@ type Sede = {
 export default function NuevoActivoPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  // 14-sep-2026 (SPEC 2.29): el campo de sede ahora lo ve cualquier rol --
-  // antes solo admin, porque un tecnico heredaba automaticamente su propia
-  // sede sin poder verla ni cambiarla (ver sedeIdParaCrear en el backend).
-  // Desde este cambio tecnico tambien puede elegir explicitamente, porque
-  // puede crear/gestionar activos de cualquier sede, no solo la suya -- pero
-  // por defecto el dropdown viene precargado con SU sede (ver useEffect mas
-  // abajo), para no obligarlo a elegir en el caso comun. Ver sedeScope.ts.
+  // The sede field is visible to any role; it defaults to the user's own
+  // sede (see the useEffect below and sedeScope.ts) but can be changed
+  // explicitly since a user may manage assets across sedes.
   const [loading, setLoading] = useState(false);
-  // Solo admin elige sede (18-sep-2026, SPEC 2.29.1).
   const esAdminSede = session?.user?.role === "admin";
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -65,9 +60,8 @@ export default function NuevoActivoPage() {
     fetchSedes();
   }, []);
 
-  // Precarga la sede propia del usuario apenas la sesion esta disponible --
-  // el "|| prev.sedeId" evita pisar una eleccion manual si el usuario ya
-  // cambio el dropdown antes de que la sesion terminara de cargar.
+  // Prefill the user's own sede once the session loads; `|| prev.sedeId`
+  // avoids overwriting a manual selection made before the session resolved.
   useEffect(() => {
     if (session?.user?.sedeId) {
       setFormData((prev) => ({ ...prev, sedeId: prev.sedeId || session.user.sedeId! }));
@@ -110,9 +104,7 @@ export default function NuevoActivoPage() {
     try {
       const payload = {
         categoriaId: formData.categoriaId,
-        // Obligatorio para cualquier rol desde SPEC 2.29 (select sin opcion
-        // en blanco); si de todos modos llegara vacio el backend lo
-        // rechaza (sedeIdParaCrear con requerido: true).
+        // Required field; the backend also rejects an empty value.
         sedeId: formData.sedeId || undefined,
         marca: formData.marca,
         modelo: formData.modelo,
@@ -132,9 +124,7 @@ export default function NuevoActivoPage() {
         antivirus: formData.antivirus || null,
         incidencia: formData.incidencia || null,
         conectividad: formData.conectividad || null,
-        // No hay (todavia) un campo aparte de "tiene M365 si/no" en este
-        // formulario -- se deriva de si se cargo el nombre del plan. Ver
-        // SPEC 2.23.
+        // Whether M365 applies is derived from the plan name being set.
         tipoLicenciaMicrosoft365: formData.tipoLicenciaMicrosoft365 || null,
         microsoft365: Boolean(formData.tipoLicenciaMicrosoft365),
       };
@@ -165,11 +155,8 @@ export default function NuevoActivoPage() {
   const isNotebook = selectedCategory?.nombre.toLowerCase() === "notebook";
   const isCelular = selectedCategory?.nombre.toLowerCase() === "celular";
   const isMonitor = selectedCategory?.nombre.toLowerCase() === "monitor";
-  // Perifericos simples: alcanza con un solo campo de conectividad, no una
-  // seccion propia por cada uno -- ver SPEC 2.11 (pedido explicito de
-  // Javier: "basta con colocar su identificador unico" para estos).
-  // Impresora tuvo una seccion propia el mismo dia pero Javier decidio que
-  // no era necesaria; se revirtio.
+  // Simple peripherals just need a single connectivity field, not a
+  // dedicated section each.
   const PERIFERICOS_SIMPLES = ["mouse", "teclado", "webcam", "audífonos"];
   const isPerifericoSimple = selectedCategory
     ? PERIFERICOS_SIMPLES.includes(selectedCategory.nombre.toLowerCase())
@@ -412,10 +399,9 @@ export default function NuevoActivoPage() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              {/* El nombre de red del equipo se pide al ENTREGARLO, no al
-                  crearlo: se arma con el nombre de quien lo va a usar, y un
-                  equipo recien comprado en bodega todavia no lo tiene. Ver
-                  AsignarActivoForm (15-sep-2026, SPEC 2.40). */}
+              {/* The network name is requested when the asset is assigned
+                  (AsignarActivoForm), not at creation, since it's built
+                  from the assignee's name. */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Licencia Microsoft 365

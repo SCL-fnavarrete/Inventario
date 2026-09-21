@@ -4,12 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-// Pestañas del módulo Mantenciones. "Tipos" se agregó (9-sep-2026) cuando
-// los tipos de mantención (antes un enum fijo) pasaron a ser un catálogo
-// editable por admin y técnico -- ver MaintenanceType en schema.prisma y
-// el recurso de permisos "tiposMantencion". No se agrega a "Programar" ni
-// a la ficha de detalle, mismo criterio que ActivosTabs (que tampoco vive
-// en activos/nuevo).
+// Pestañas del módulo Mantenciones. "Tipos" administra el catálogo editable
+// de tipos de mantención (ver MaintenanceType en schema.prisma).
 const TABS = [
   { href: "/mantenciones", label: "Listado" },
   { href: "/mantenciones/calendario", label: "Calendario" },
@@ -20,7 +16,7 @@ export function MantencionesTabs() {
   const pathname = usePathname();
 
   return (
-    <div className="flex gap-1 border-b border-gray-200 overflow-x-auto">
+    <div className="flex gap-1 border-b border-gray-200 overflow-x-auto overflow-y-hidden">
       {TABS.map((tab) => (
         <Link
           key={tab.href}

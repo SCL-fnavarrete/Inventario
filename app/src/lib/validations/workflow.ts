@@ -3,10 +3,8 @@ import { createEmployeeSchema, TipoContratoEnum } from './employee';
 
 // Enums que coinciden con Prisma
 export const TipoSolicitudEnum = z.enum(['onboarding', 'cambio_equipo', 'offboarding']);
-// 15-sep-2026 (SPEC 2.42): coordinando_entrega, coordinando_cambio y
-// coordinacion_en_curso se eliminaron -- la coordinacion de fecha/medio/
-// lugar se pide junto con la asignacion/ejecucion del equipo, no como etapa
-// aparte. Ver workflowStateMachine.ts.
+// La coordinacion de fecha/medio/lugar se pide junto con la
+// asignacion/ejecucion del equipo, no como etapa aparte. Ver workflowStateMachine.ts.
 export const EstadoSolicitudEnum = z.enum([
   'solicitud_recibida',
   'gestion_ti',
@@ -19,9 +17,8 @@ export const EstadoSolicitudEnum = z.enum([
   'equipo_recibido',
   'consolidacion_cierre',
   // Cancelación: no es una transición normal (no pasa por
-  // workflowStateMachine.canTransition) -- se llega a este estado solo via
-  // POST /api/solicitudes/[id]/cancelar, con cancelWorkflowRequestSchema
-  // abajo, nunca via transitionSchema.
+  // workflowStateMachine.canTransition), se llega solo via
+  // POST /api/solicitudes/[id]/cancelar (cancelWorkflowRequestSchema).
   'cancelada',
 ]);
 export const TipoPendienteEnum = z.enum([
@@ -63,15 +60,12 @@ const baseRequestFields = {
 const onboardingFields = z.object({
   tipo: z.literal('onboarding'),
   ...baseRequestFields,
-  // En onboarding el empleado normalmente todavia no existe. Se manda entero
-  // aca y el servidor lo crea dentro de la MISMA transaccion que la
-  // solicitud: si algo falla no queda ni el empleado ni el ticket. Se acepta
-  // igual un employeeId ya existente (empleado que se vuelve a contratar).
+  // En onboarding el empleado normalmente todavia no existe: se manda
+  // entero y el servidor lo crea en la misma transaccion que la solicitud.
+  // Tambien se acepta un employeeId existente (reincorporacion).
   nuevoEmpleado: createEmployeeSchema.optional(),
-  // Solo aplica cuando employeeId apunta a un empleado ya existente
-  // (reincorporacion): el tipo de contrato pudo cambiar desde la vez
-  // anterior, asi que se puede actualizar al crear el ticket. Para
-  // nuevoEmpleado el tipo de contrato ya viene dentro de ese objeto.
+  // Solo aplica en reincorporacion (employeeId existente): permite
+  // actualizar el tipo de contrato al crear el ticket.
   tipoContrato: TipoContratoEnum.optional(),
   fechaIngreso: z.string().min(1, 'Fecha de ingreso requerida').transform((val) => {
     const date = new Date(val);
@@ -81,17 +75,13 @@ const onboardingFields = z.object({
   cargoSolicitado: z.string().min(1, 'Cargo requerido').max(200),
   ubicacionDestino: z.string().max(200).optional().nullable(),
   categoriasRequeridas: z.array(z.string().min(1)).default([]),
-  // Si al crear la solicitud ya hay stock disponible, el tecnico puede elegir
-  // de una los equipos especificos (no solo la categoria) y quedan
-  // reservados (Activo -> asignado) desde ese momento, sin pasar por Gestion
-  // TI. Si falta alguna categoria por asignar, la solicitud igual entra a
-  // Gestion TI para completar el resto cuando haya stock.
+  // Si hay stock disponible al crear la solicitud, se pueden elegir equipos
+  // especificos de una vez (quedan reservados sin pasar por Gestion TI); si
+  // falta alguna categoria, la solicitud entra a Gestion TI igual.
   assetIdsSeleccionados: z.array(z.string().uuid()).optional().default([]),
-  // Condicion del cargador por activo reservado (16-sep-2026, SPEC 2.48) --
-  // mismo formato que ya usaba la transicion manual de "Gestion TI"
-  // (datosAccion.condicionCargador): mapa assetId -> {condicion,
+  // Condicion del cargador por activo reservado: mapa assetId -> {condicion,
   // observaciones}. Solo se guarda si el activo es un notebook con
-  // tieneCargador, se ignora si no (ver SPEC 2.5.3 regla 9).
+  // tieneCargador, se ignora si no.
   condicionCargadorPorAsset: z
     .record(
       z.string().uuid(),
@@ -102,24 +92,18 @@ const onboardingFields = z.object({
     )
     .optional()
     .default({}),
-  // Coordinacion de entrega (15-sep-2026, SPEC 2.42.1): si al crear el
-  // ticket ya se eligieron equipos que cubren TODAS las categorias
-  // requeridas, se puede coordinar la entrega de una vez, en el mismo
-  // formulario -- el ticket nace directo en "Equipos Entregados" en vez de
-  // pasar por Gestion TI. Si falta alguna categoria, estos campos igual se
-  // guardan (para no pedirlos de nuevo despues) pero el ticket entra a
-  // Gestion TI a completar lo que falta. Mismo patron presencial/OT que las
-  // otras dos coordinaciones.
+  // Coordinacion de entrega: si los equipos elegidos cubren todas las
+  // categorias requeridas, el ticket nace directo en "Equipos Entregados"
+  // en vez de pasar por Gestion TI; si no, estos campos igual se guardan.
   fechaEntregaCoordinada: z.string().optional().nullable(),
   medioEntrega: z.enum(['presencial', 'chilexpress']).optional().nullable(),
   lugarEntrega: z.string().max(200).optional().nullable(),
   otChilexpressEntrega: z.string().max(100).optional().nullable(),
   ciudadEntrega: z.string().max(200).optional().nullable(),
   // Kit de Bienvenida y EPP viven aparte de categoriasRequeridas: estos dos
-  // flags son la intencion (si corresponde entregar o no). Si ademas hay
-  // stock, se pueden elegir articulos y cantidades especificas de una vez
-  // (kitItemsSeleccionados) y quedan reservados desde que se crea el ticket,
-  // igual que assetIdsSeleccionados para los equipos.
+  // flags indican si corresponde entregar. Con stock disponible se pueden
+  // elegir articulos y cantidades (kitItemsSeleccionados), reservados igual
+  // que assetIdsSeleccionados.
   kitBienvenidaSolicitado: z.boolean().optional().default(false),
   eppSolicitado: z.boolean().optional().default(false),
   kitItemsSeleccionados: z
@@ -131,10 +115,9 @@ const onboardingFields = z.object({
     )
     .optional()
     .default([]),
-  // Articulos concretos de Kit/EPP que este onboarding necesita. A diferencia
-  // de kitItemsSeleccionados (que se entregan de una), estos son la lista de
-  // lo que "falta": el ticket no cierra mientras alguno siga pendiente. Lo
-  // que se entrega al crear queda marcado como entregado de inmediato.
+  // Articulos de Kit/EPP que este onboarding necesita: a diferencia de
+  // kitItemsSeleccionados, estos son lo que "falta" y el ticket no cierra
+  // mientras alguno siga pendiente.
   kitItemsRequeridos: z
     .array(
       z.object({
@@ -153,28 +136,22 @@ const cambioEquipoFields = z.object({
   // A diferencia de onboarding, aca el empleado siempre existe de antes.
   employeeId: z.string().uuid('ID de empleado inválido'),
   motivoCambio: z.string().min(1, 'Motivo de cambio requerido'),
-  // 16-sep-2026 (SPEC 2.45), pedido de Javier: elegir el equipo a cambiar
-  // deja de ser opcional -- sin equipo viejo + estado + reemplazo no se
-  // puede crear la solicitud (el cambio se ejecuta de inmediato al crear,
-  // ver POST /api/solicitudes; el ticket ya no nace en "incidencia_detectada"
-  // sin equipo asignado). observacionesDevolucionAnterior es el unico que
-  // sigue opcional -- es una nota libre, no algo que bloquee el cambio.
+  // Elegir el equipo a cambiar es obligatorio: el cambio se ejecuta de
+  // inmediato al crear la solicitud (ver POST /api/solicitudes).
+  // observacionesDevolucionAnterior sigue opcional (nota libre).
   oldAssignmentId: z.string().uuid('ID de asignación inválido'),
   newAssetId: z.string().uuid('ID de activo inválido'),
   estadoDevolucionAnterior: z.enum(['ok', 'danado', 'no_devuelto']),
   observacionesDevolucionAnterior: z.string().optional().nullable(),
-  // Condicion del cargador (16-sep-2026, SPEC 2.48): solo se usa si el
-  // equipo correspondiente es un notebook con tieneCargador -- si no, se
-  // ignora en silencio (ver SPEC 2.5.3 regla 9). "Anterior" es el cargador
-  // del equipo que se devuelve; "Nuevo" el del equipo de reemplazo.
+  // Condicion del cargador: solo aplica si el equipo es un notebook con
+  // tieneCargador. "Anterior" es el del equipo devuelto, "Nuevo" el del
+  // equipo de reemplazo.
   condicionCargadorAnterior: z.enum(['ok', 'danado', 'no_aplica']).optional().nullable(),
   observacionesCargadorAnterior: z.string().optional().nullable(),
   condicionCargadorNuevo: z.enum(['ok', 'danado', 'no_aplica']).optional().nullable(),
   observacionesCargadorNuevo: z.string().optional().nullable(),
-  // Coordinacion de cambio (15-sep-2026, SPEC 2.42.1): si al crear el
-  // ticket ya se eligio equipo viejo + nuevo (el cambio se ejecuta de
-  // inmediato), se puede coordinar la entrega del equipo nuevo en el mismo
-  // formulario, en vez de tener que volver a abrir el ticket despues.
+  // Coordinacion de cambio: permite coordinar la entrega del equipo nuevo
+  // en el mismo formulario de creacion.
   fechaCambioCoordinada: z.string().optional().nullable(),
   medioCambio: z.enum(['presencial', 'chilexpress']).optional().nullable(),
   lugarCambio: z.string().max(200).optional().nullable(),
@@ -196,23 +173,20 @@ const devolucionTerminoFields = z.object({
   medioDevolucion: z.string().max(100).optional().nullable(),
   otChilexpress: z.string().max(100).optional().nullable(),
   ciudadDevolucion: z.string().max(200).optional().nullable(),
-  // Coordinacion de devolucion (15-sep-2026, SPEC 2.42.1): fecha/lugar en
-  // el mismo formulario de creacion -- medioDevolucion/otChilexpress/
-  // ciudadDevolucion ya existian aca arriba desde antes.
+  // Coordinacion de devolucion: fecha/lugar en el mismo formulario de
+  // creacion.
   fechaDevolucionCoordinada: z.string().optional().nullable(),
   lugarDevolucion: z.string().max(200).optional().nullable(),
-  // Si el tecnico ya tiene los equipos en mano al momento de crear el
-  // ticket (caso presencial tipico), puede calificar cada uno de una y el
-  // ticket se salta equipo_recibido, cerrandose directo (consolidacion_cierre)
-  // -- igual que si hiciera las dos transiciones por separado despues.
+  // Si los equipos ya estan en mano al crear el ticket, se pueden calificar
+  // de una y el ticket salta equipo_recibido, cerrandose directo.
   devoluciones: z
     .array(
       z.object({
         assignmentId: z.string().uuid(),
         estadoDevolucion: z.enum(['ok', 'danado', 'no_devuelto']),
         observaciones: z.string().optional().nullable(),
-        // Condicion del cargador (16-sep-2026, SPEC 2.48) -- solo aplica si
-        // el activo es un notebook con tieneCargador, se ignora si no.
+        // Condicion del cargador: solo aplica si el activo es un notebook
+        // con tieneCargador.
         condicionCargador: z.enum(['ok', 'danado', 'no_aplica']).optional().nullable(),
         observacionesCargador: z.string().optional().nullable(),
       })
@@ -236,9 +210,8 @@ const devolucionTerminoFields = z.object({
 // Discriminated union schema for creating workflow requests
 export const createWorkflowRequestSchema = z
   .discriminatedUnion('tipo', [onboardingFields, cambioEquipoFields, devolucionTerminoFields])
-  // Solo onboarding puede traer el empleado "entero" en vez de un id (cambio
-  // de equipo y offboarding son siempre sobre alguien que ya existe, y ya lo
-  // exigen en su propio schema). En onboarding tiene que venir uno de los dos.
+  // Solo onboarding puede traer el empleado "entero" en vez de un id; los
+  // otros tipos siempre son sobre alguien que ya existe.
   .superRefine((data, ctx) => {
     if (data.tipo === 'onboarding' && !data.employeeId && !data.nuevoEmpleado) {
       ctx.addIssue({
@@ -247,11 +220,8 @@ export const createWorkflowRequestSchema = z
         message: 'Falta el empleado: manda un employeeId o los datos del nuevo empleado',
       });
     }
-    // El chequeo que iba aca ("si viene alguno de oldAssignmentId/
-    // newAssetId/estadoDevolucionAnterior, deben venir los tres") ya no
-    // hace falta desde SPEC 2.45 (16-sep-2026): los tres son obligatorios
-    // en cambioEquipoFields de mas arriba, asi que zod ya los exige solo
-    // con declararlos sin .optional().
+    // oldAssignmentId/newAssetId/estadoDevolucionAnterior ya son
+    // obligatorios en cambioEquipoFields (sin .optional()), zod los exige solo.
   });
 
 // Schema for cancelling a request (ver POST /api/solicitudes/[id]/cancelar).
@@ -290,10 +260,8 @@ export const updateWorkflowRequestSchema = z.object({
 export const workflowFiltersSchema = z.object({
   search: z.string().optional(),
   tipo: TipoSolicitudEnum.optional(),
-  // El dashboard de Solicitudes ya no filtra por el estado interno detallado
-  // (solicitud_recibida, gestion_ti, etc.) -- solo por si el ticket sigue
-  // abierto o ya se cerro (fechaCierre). Los estados detallados se siguen
-  // usando internamente para el flujo/Kanban, pero no como filtro de la lista.
+  // El dashboard filtra solo por si el ticket sigue abierto o ya se cerro;
+  // los estados detallados se usan internamente para el flujo/Kanban.
   estado: z.enum(['abierto', 'cerrado']).optional(),
   responsableActualId: z.string().uuid().optional(),
   fechaDesde: z.string().optional(),

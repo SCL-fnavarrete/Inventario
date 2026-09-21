@@ -40,10 +40,10 @@ type Asset = {
 interface SelectorActivosProps {
   selectedAssets: Asset[];
   onSelectionChange: (assets: Asset[]) => void;
-  // Acota el inventario a una sede especifica -- lo usa el admin en Nueva
-  // Guia de Despacho una vez que elige la sede origen (ver SPEC 2.9), para
-  // no poder mezclar en un mismo despacho equipos de sedes distintas. Un
-  // tecnico no necesita pasarlo: /api/activos ya lo acota solo a lo suyo.
+  // Acota el inventario a una sede especifica -- lo usa el admin al elegir
+  // la sede origen en Nueva Guia de Despacho, para no mezclar en un mismo
+  // despacho equipos de sedes distintas. Un tecnico no necesita pasarlo:
+  // /api/activos ya lo acota solo a lo suyo.
   sedeId?: string;
 }
 
@@ -100,9 +100,8 @@ export function SelectorActivos({
     setLoading(true);
     try {
       // Solo "disponible": una guia de despacho exige que el activo este
-      // disponible al crearla (ver POST /api/guias-despacho). El filtro de
-      // sede solo tiene efecto para admin (ver /api/activos); para tecnico ya
-      // viene acotado por sesion.
+      // disponible al crearla. El filtro de sede solo tiene efecto para
+      // admin; para tecnico ya viene acotado por sesion.
       const params = new URLSearchParams({ estado: "disponible", limit: "200" });
       if (sedeId) params.set("sedeId", sedeId);
       const disponibles = await fetch(`/api/activos?${params}`).then((r) => r.json());
@@ -287,10 +286,8 @@ export function SelectorActivos({
               const isSelected = selectedAssets.some((a) => a.id === asset.id);
               const categoria = asset.categoria.nombre.toLowerCase();
 
-              // Info adicional según categoría (14-sep-2026, SPEC 2.19):
-              // antes solo cubría Notebook y Celular, dejando Monitor y los
-              // periféricos (Mouse/Teclado/Webcam/Audífonos) sin nada en
-              // esta columna aunque tuvieran su dato propio cargado.
+              // Info adicional según categoría: cada tipo de activo muestra
+              // su propio dato relevante en esta columna.
               let extraInfo = "";
               if (categoria === "notebook" && asset.procesador) {
                 extraInfo = `${asset.ram || ""} ${asset.discoDuro || ""}`.trim();
@@ -343,11 +340,8 @@ export function SelectorActivos({
                     )}>
                       {asset.marca} {asset.modelo}
                     </span>
-                    {/* Nombre de categoria (18-sep-2026, SPEC 2.9.1): antes
-                        estaba oculto bajo "lg" -- solo el icono era visible
-                        en pantallas mas chicas. Pedido de Javier: "sale el
-                        icono, pero la idea es que tambien salga por
-                        nombre". */}
+                    {/* Nombre de categoria visible ademas del icono, en todos los
+                        tamaños de pantalla. */}
                     <span className="text-gray-500 text-xs ml-2">
                       {asset.categoria.nombre}
                     </span>

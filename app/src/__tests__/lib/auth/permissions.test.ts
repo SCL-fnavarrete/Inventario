@@ -11,10 +11,8 @@ import {
 } from '@/lib/auth/permissions';
 import { canTransition } from '@/lib/services/workflowStateMachine';
 
-// SPEC: Sección 1.3 — Usuarios del Sistema. Solo dos roles reales: admin
-// (ve y administra todo) y tecnico (soporte operativo, restringido a su
-// sede -- ver sedeScope()). supervisor/rrhh/auditor existieron en una
-// version anterior pero no se usaban en la practica y se retiraron.
+// Solo dos roles reales: admin (ve y administra todo) y tecnico (soporte
+// operativo, restringido a su sede -- ver sedeScope()).
 
 const TODOS_LOS_ROLES: SystemRole[] = ['admin', 'tecnico'];
 
@@ -79,9 +77,8 @@ describe('permissions — tecnico', () => {
   });
 
   test('el borrado es de admin, salvo tiposMantencion', () => {
-    // tiposMantencion.delete es de admin + tecnico por decision explicita
-    // (ver nota en src/lib/auth/permissions.ts): es catalogo operativo del
-    // dia a dia, no configuracion del sistema.
+    // tiposMantencion.delete es de admin + tecnico: es catalogo operativo
+    // del dia a dia, no configuracion del sistema.
     for (const recurso of RECURSOS) {
       if (recurso === 'tiposMantencion') continue;
       expect(can('tecnico', recurso, 'delete')).toBe(false);
@@ -97,9 +94,7 @@ describe('permissions — tecnico', () => {
   });
 
   // compras es trabajo operativo del tecnico, no un dato maestro (ver nota
-  // "11-sep-2026, pedido explicito de Javier" en permissions.ts) -- prueba
-  // separada, corregida el 14-sep-2026: antes esperaba false y nunca se
-  // habia corrido en CI para detectarlo.
+  // en permissions.ts).
   test('sí puede leer y escribir compras (trabajo operativo, no dato maestro)', () => {
     expect(can('tecnico', 'compras', 'read')).toBe(true);
     expect(can('tecnico', 'compras', 'write')).toBe(true);
@@ -149,9 +144,9 @@ describe('permissions — entradas inválidas', () => {
 });
 
 describe('permissions — la matriz no autoriza transiciones de workflow', () => {
-  // La regla de quien puede transicionar vive en workflowStateMachine y esta
-  // testeada alli (solo tecnico/admin, en todos los tipos). Aqui solo se fija
-  // que la matriz de recursos no la duplique con otra fuente de verdad.
+  // La regla de quien puede transicionar vive en workflowStateMachine (y
+  // esta testeada alli); aqui solo se fija que la matriz de recursos no la
+  // duplique.
   test('tecnico y admin pueden ejecutar las transiciones de cierre', () => {
     expect(canTransition('onboarding', 'equipos_entregados', 'registro_rrhh', 'tecnico')).toBe(true);
     expect(canTransition('onboarding', 'equipos_entregados', 'registro_rrhh', 'admin')).toBe(true);
@@ -178,8 +173,7 @@ describe('permissions — helpers', () => {
     const recursos = recursosPermitidos('tecnico', 'read');
     expect(recursos).not.toContain('usuarios');
     expect(recursos).not.toContain('configuracion');
-    // compras SÍ está incluido -- es trabajo operativo del técnico, ver
-    // prueba "sí puede leer y escribir compras" más arriba.
+    // compras SÍ está incluido: es trabajo operativo del técnico.
     expect(recursos).toContain('compras');
     expect(recursos.length).toBeGreaterThan(0);
   });

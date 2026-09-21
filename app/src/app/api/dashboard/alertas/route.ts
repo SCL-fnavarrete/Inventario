@@ -4,10 +4,8 @@ import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 
-// F-4 (auditoria de seguridad, 18-sep-2026): este endpoint no aplicaba
-// sedeWhere y exponia alertas individuales (marca/modelo/serie de equipos,
-// nombre y RUT de empleados) de cualquier sede a cualquier tecnico. Ver
-// SPEC 2.29.5.
+// Filtra las alertas por sede para no exponer datos de equipos y empleados
+// de otras sedes a un usuario sin visibilidad total.
 export async function GET(request: NextRequest) {
   try {
     const session = await requirePermission('reportes', 'read');

@@ -98,7 +98,7 @@ export function StatsBar({ data, isLoading, selectedStatus, onStatusClick }: Sta
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+    <div className="flex flex-wrap gap-3">
       {statItems.map(({ key, value }) => {
         const config = statusConfig[key as keyof typeof statusConfig];
         const Icon = config.icon;
@@ -111,21 +111,21 @@ export function StatsBar({ data, isLoading, selectedStatus, onStatusClick }: Sta
             key={key}
             onClick={() => onStatusClick(key === "total" ? null : key)}
             className={`
-              flex items-center gap-3 p-4 rounded-xl border-2
+              flex items-center gap-3 p-4 rounded-xl border-2 flex-1 min-w-[150px]
               transition-all duration-200
               ${isActive ? config.activeColor : config.color}
               focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
             `}
           >
             <div className={`
-              p-2 rounded-lg
+              shrink-0 p-2 rounded-lg
               ${isActive ? "bg-white/20" : "bg-white"}
             `}>
               <Icon className="w-5 h-5" />
             </div>
-            <div className="text-left">
+            <div className="text-left min-w-0">
               <p className="text-2xl font-bold leading-none">{value}</p>
-              <p className={`text-xs mt-1 ${isActive ? "text-white/80" : "text-gray-500"}`}>
+              <p className={`text-xs mt-1 whitespace-nowrap ${isActive ? "text-white/80" : "text-gray-500"}`}>
                 {config.label}
               </p>
             </div>

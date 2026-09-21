@@ -12,19 +12,9 @@ import type { SystemRole } from '@prisma/client';
  *   |         | mantenciones, guias), restringido a su propia sede (ver
  *   |         | sedeScope()) |
  *
- * supervisor/rrhh/auditor existieron en una version anterior del sistema
- * pero no se usaban en la practica (era solo Soporte + Admin) -- se
- * retiraron del enum SystemRole para no mantener una matriz mas compleja
- * de lo que el sistema real necesita.
- *
- * Antes de este archivo cada ruta decidia por su cuenta y 55 de 63 no decidian
- * nada. Cualquier cambio de permisos se hace aqui y en el SPEC, nunca en una
- * ruta suelta.
+ * Cualquier cambio de permisos se hace aqui, nunca en una ruta suelta.
  */
 
-// 'proveedores' se elimino de este listado el 14-sep-2026 (pedido explicito
-// de Javier: "elimina la tabla de proveedores", tabla sin uso). Ver
-// schema.prisma (nota en el lugar donde vivia el modelo Supplier) y SPEC 2.35.
 export const RECURSOS = [
   'activos',
   'empleados',
@@ -84,11 +74,10 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
     delete: ADMIN,
   },
 
-  // Catalogo de tipos de mantencion (9-sep-2026): a diferencia de
-  // Categorias/Configuracion, esto es una decision operativa del dia a
-  // dia (que tipos de mantencion se usan), no algo "fijo del sistema" --
-  // Javier pidio explicitamente que el tecnico tambien pueda
-  // crear/editar/eliminar tipos, sin pasar por Configuracion (admin-only).
+  // Catalogo de tipos de mantencion: a diferencia de Categorias/
+  // Configuracion, es una decision operativa del dia a dia, asi que el
+  // tecnico tambien puede crear/editar/eliminar tipos sin pasar por
+  // Configuracion (admin-only).
   tiposMantencion: {
     read: AMBOS,
     write: AMBOS,
@@ -107,16 +96,10 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
     delete: ADMIN,
   },
 
-  // Registrar una compra es trabajo operativo del tecnico (11-sep-2026,
-  // pedido explicito de Javier): llega un despacho de otra sede y necesita
-  // quedar registrado con que factura vino y para que activos, igual que
-  // cualquier otro modulo scopeado por sede. Mismo dia, Javier pidio ademas
-  // simplificar el dato en si: se eliminaron proveedor y todo campo
-  // financiero (monto, moneda, metodo de pago, precio unitario) del modelo
-  // completo -- "el tema del dinero no es un dato que nos interese". Ya no
-  // hay nada que la UI/API tengan que filtrar por rol dentro del recurso;
-  // compras es simplemente RW para tecnico. Borrar una compra queda
-  // reservado a admin.
+  // Registrar una compra es trabajo operativo del tecnico: llega un
+  // despacho y necesita quedar registrado, igual que cualquier otro
+  // modulo scopeado por sede. El modelo no tiene campos financieros, asi
+  // que compras es simplemente RW para tecnico; borrar queda para admin.
   compras: {
     read: AMBOS,
     write: AMBOS,
@@ -130,11 +113,11 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
     delete: ADMIN,
   },
 
-  // Catalogo y stock de Kit de Bienvenida / EPP (SPEC 2.9): a diferencia de
-  // Categorias, aca el tecnico si puede escribir -- es el que entrega estos
-  // articulos en terreno y necesita poder ajustar el stock de su propia
-  // sede (ver sedeScope en las rutas de /api/kit-items). Eliminar un
-  // articulo del catalogo si queda solo para admin.
+  // Catalogo y stock de Kit de Bienvenida / EPP: a diferencia de
+  // Categorias, aca el tecnico si puede escribir -- entrega estos
+  // articulos en terreno y necesita ajustar el stock de su propia sede
+  // (ver sedeScope en las rutas de /api/kit-items). Eliminar del catalogo
+  // queda solo para admin.
   kitEpp: {
     read: AMBOS,
     write: AMBOS,
@@ -147,10 +130,9 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
     delete: ADMIN,
   },
 
-  // Datos maestros de sedes (SPEC 2.9). Tecnico necesita leer la lista (ej.
-  // para mostrar el nombre de su sede); solo admin crea/edita/desactiva
-  // sedes -- es lo que define el aislamiento de datos, asi que no puede
-  // quedar en manos de soporte.
+  // Datos maestros de sedes. Tecnico necesita leer la lista (ej. para
+  // mostrar el nombre de su sede); solo admin crea/edita/desactiva sedes,
+  // ya que definen el aislamiento de datos.
   sedes: {
     read: AMBOS,
     write: ADMIN,
@@ -177,9 +159,8 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
  * Las transiciones del workflow NO se autorizan aqui.
  *
  * `workflowStateMachine.canTransition(tipo, from, to, rol)` ya define que rol
- * puede ejecutar cada transicion, esta cubierto al 100% por tests y es lo que
- * el SPEC seccion 2.5 describe. Duplicar esa regla en la matriz crearia dos
- * fuentes de verdad para lo mismo, que es justo lo que esta ola elimina.
+ * puede ejecutar cada transicion, cubierto por tests. Duplicar esa regla en
+ * la matriz crearia dos fuentes de verdad para lo mismo.
  *
  * Por eso la ruta de transicion exige `solicitudes/read` (que la persona pueda
  * ver la solicitud) y delega la decision real en la maquina de estados.

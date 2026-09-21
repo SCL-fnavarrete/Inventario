@@ -1,9 +1,8 @@
 import { z } from "zod";
 import { resultadoMantencionEnum } from "./assetTransition";
 
-// El tipo de mantencion (Preventiva, Correctiva, etc.) ya no es un enum
-// fijo (9-sep-2026): ahora es una fila de MaintenanceType, referenciada
-// por id. Ver prisma/schema.prisma y src/app/api/mantenciones/tipos.
+// El tipo de mantencion es una fila de MaintenanceType, referenciada por id
+// (ver prisma/schema.prisma y src/app/api/mantenciones/tipos).
 const tipoIdSchema = z.string().uuid("Tipo de mantención inválido");
 
 // Enums que coinciden con Prisma
@@ -25,9 +24,7 @@ export const createMaintenanceSchema = z.object({
   assetId: z.string().uuid("ID de activo inválido"),
   tipoId: tipoIdSchema,
   descripcion: z.string().min(1, "La descripción es requerida").max(1000, "Máximo 1000 caracteres"),
-  // Obligatoria: una mantención no puede quedar "en proceso" (boton
-  // Iniciar) sin haber tenido nunca una fecha programada. El formulario ya
-  // la exige, esto es la misma regla del lado del servidor.
+  // Obligatoria: una mantención no puede iniciarse sin fecha programada.
   fechaProgramada: z.string().min(1, "La fecha programada es requerida").transform((val, ctx) => {
     const date = new Date(val);
     if (isNaN(date.getTime())) {
@@ -72,15 +69,9 @@ export const updateMaintenanceSchema = z.object({
   resultado: z.string().max(1000, "Máximo 1000 caracteres").optional().nullable(),
 });
 
-// Schema para completar una mantención
-//
-// SPEC 2.25 (14-sep-2026): "resultado" sigue siendo la descripción libre de
-// qué se hizo, pero ahora también se pide "resultadoTipo" (estructurado:
-// reparado / no_reparable / pendiente_repuestos) porque antes el activo
-// SIEMPRE volvía a disponible/asignado al completar, sin
-// importar lo que dijera el texto libre -- no existía forma de que
-// "reparación no reparable" diera de baja el equipo. Pedido explícito de
-// Javier: un botón "No reparable" que sí lo dé de baja.
+// Schema para completar una mantención: "resultado" es descripción libre,
+// "resultadoTipo" es el valor estructurado (reparado / no_reparable /
+// pendiente_repuestos) que determina si el activo se da de baja.
 export const completeMaintenanceSchema = z
   .object({
     fechaRealizada: z.string().transform((val) => new Date(val)),
@@ -113,15 +104,8 @@ export const maintenanceFiltersSchema = z.object({
   fechaHasta: z.string().optional(),
   pendientes: z.coerce.boolean().optional(),
   vencidas: z.coerce.boolean().optional(),
-  // Filtro de periodo (18-sep-2026, SPEC 2.51.1): misma ventana que ya usan
-  // las tarjetas "Proximas"/"Completadas" de /api/mantenciones/pendientes,
-  // ahora tambien aplicable al listado. Se envian juntos desde la pantalla
-  // (mismo valor); separados por si algun consumidor futuro los necesita
-  // distintos, igual que ya pasa en /pendientes.
-  // min(0), no min(1): 0 es el sentinel de "sin limite" (SPEC 2.51.2,
-  // filtro de periodo "Todas") -- con min(1) el propio schema rechazaba la
-  // peticion (400) apenas se mandaba dias=0, y el listado quedaba vacio en
-  // silencio (fetchMaintenances no revisa res.ok).
+  // Filtro de periodo, en dias. 0 es el sentinel de "sin limite" (filtro
+  // "Todas"), por eso min(0) en vez de min(1).
   dias: z.coerce.number().min(0).optional(),
   diasCompletadas: z.coerce.number().min(0).optional(),
   page: z.coerce.number().min(1).default(1),

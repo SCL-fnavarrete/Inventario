@@ -47,10 +47,8 @@ const condicionLabels: Record<CondicionActivo, string> = {
   danado: "Dañado",
 };
 
-// Cubre el enum TipoEvento completo. Faltaban venta, actualizacion_specs,
-// solicitud_workflow y traslado (este ultimo lo emite POST /api/guias-despacho
-// por cada activo trasladado), que se mostraban crudos en un historial que es
-// evidencia de auditoria.
+// Covers the full TipoEvento enum so no event type renders as raw text
+// in the audit history.
 const tipoEventoLabels: Record<TipoEvento, string> = {
   creacion: "Creación",
   asignacion: "Asignación",
@@ -62,9 +60,7 @@ const tipoEventoLabels: Record<TipoEvento, string> = {
   venta: "Venta",
   solicitud_workflow: "Solicitud",
   traslado: "Traslado",
-  // 14-sep-2026 (SPEC 2.25): nuevo evento emitido al vincular activos
-  // existentes a una Compra (ver registrarVinculacionCompra en
-  // assetHistoryService).
+  // Emitted when linking existing assets to a Compra.
   compra: "Compra",
 };
 
@@ -86,9 +82,7 @@ async function getAsset(id: string) {
     where: { id },
     include: {
       categoria: true,
-      // Sede a la que pertenece el equipo (18-sep-2026, SPEC 2.7.8): la
-      // ficha no la mostraba, pese a ser el dato que decide quien lo ve
-      // (sedeScope.ts) y que solo cambia via Guias de Despacho.
+      // The asset's sede determines its visibility (see sedeScope.ts).
       sede: { select: { nombre: true } },
       empleadoActual: {
         select: { nombres: true, apellidoPaterno: true, rut: true },
@@ -110,10 +104,8 @@ async function getAsset(id: string) {
         orderBy: { createdAt: "desc" },
         take: 5,
       },
-      // Compra con la que llego este equipo (18-sep-2026, SPEC 2.10.7): la
-      // ficha no lo mostraba en ninguna parte, pese a que el vinculo ya
-      // existe desde el modulo de Compras. En teoria son varias
-      // (purchaseAssets es n-a-n), en la practica una.
+      // The purchase this asset arrived with, if any (n-to-n relation,
+      // though in practice there's usually just one).
       purchaseAssets: {
         include: {
           purchase: {
@@ -125,7 +117,25 @@ async function getAsset(id: string) {
     },
   });
 
-  return asset;
+  if (!asset) return asset;
+
+  // Historical assignments without an identified employee (from a legacy
+  // import) can't have a real Assignment record, since employeeId is
+  // required. They're stored as AssetHistory rows flagged with
+  // datosNuevos.historicaSinPersona, and fetched separately here (not from
+  // the `history` query above, which is capped at take:20) so they can also
+  // be shown in the assignment history panel alongside real assignments.
+  const historialAsignacionesSinPersona = await prisma.assetHistory.findMany({
+    where: { assetId: asset.id, tipoEvento: "asignacion" },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return {
+    ...asset,
+    historialAsignacionesSinPersona: historialAsignacionesSinPersona.filter(
+      (h) => (h.datosNuevos as { historicaSinPersona?: boolean } | null)?.historicaSinPersona === true
+    ),
+  };
 }
 
 export default async function DetalleActivoPage({
@@ -140,12 +150,10 @@ export default async function DetalleActivoPage({
     notFound();
   }
 
-  // Aislamiento por sede (18-sep-2026, SPEC 2.29.2). Esta pagina es un
-  // server component que consulta Prisma directo, sin pasar por
-  // /api/activos/:id -- por eso `assertSedeAccess`, que vive en esa ruta, no
-  // la protegia: un tecnico de Concepcion podia abrir la ficha de un equipo
-  // de Santiago pegando la URL. Se replica la misma regla aca, devolviendo
-  // 404 (no 403) para no delatar que el registro existe en otra sede.
+  // Sede isolation: this page queries Prisma directly (not through
+  // /api/activos/:id), so the API's assertSedeAccess check doesn't apply
+  // here and must be replicated. Returns 404 (not 403) to avoid revealing
+  // that the record exists in another sede.
   const session = (await getServerSession(authOptions)) as SesionAutenticada | null;
   if (!session) {
     notFound();
@@ -154,12 +162,9 @@ export default async function DetalleActivoPage({
     notFound();
   }
 
-  // Crear objeto de especificaciones basado en campos del schema. Cubre las
-  // specs de las categorias con formulario propio -- Notebook, Celular,
-  // Monitor, Impresora y los perifericos simples (Mouse/Teclado/Webcam/
-  // Audifonos) -- mostrando solo lo que el activo tenga, sin asumir su
-  // categoria: dos activos de la misma categoria pueden tener campos
-  // distintos llenos si se crearon en momentos distintos del sistema.
+  // Builds the specs object from whichever schema fields are set, without
+  // assuming a fixed set per category (assets of the same category may
+  // have different fields filled depending on when they were created).
   const especificaciones: Record<string, string> = {};
   if (asset.procesador) especificaciones.procesador = asset.procesador;
   if (asset.discoDuro) especificaciones.discoDuro = asset.discoDuro;
@@ -172,7 +177,7 @@ export default async function DetalleActivoPage({
   if (asset.numeroTelefono) especificaciones.numeroTelefono = asset.numeroTelefono;
   if (asset.tipoPlan) especificaciones.tipoPlan = asset.tipoPlan;
   if (asset.conectividad) especificaciones.conectividad = asset.conectividad;
-  // SPEC 2.23 (14-sep-2026): nombre del plan de Microsoft 365 (ej. "Premium").
+  // Name of the Microsoft 365 plan (e.g. "Premium").
   if (asset.tipoLicenciaMicrosoft365) {
     especificaciones.microsoft365 = asset.tipoLicenciaMicrosoft365;
   }
@@ -344,8 +349,11 @@ export default async function DetalleActivoPage({
             </div>
           )}
 
-          {/* Historial de Asignaciones */}
-          {asset.assignments.length > 0 && (
+          {/* Assignment history: combines real assignments (with an
+              identified employee) and legacy import rows without a person,
+              shown with a "No registrado" placeholder instead of a
+              fabricated employee. */}
+          {(asset.assignments.length > 0 || asset.historialAsignacionesSinPersona.length > 0) && (
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Historial de Asignaciones
@@ -381,6 +389,33 @@ export default async function DetalleActivoPage({
                     </div>
                   </div>
                 ))}
+                {asset.historialAsignacionesSinPersona.map((evento) => {
+                  const datos = evento.datosNuevos as { indice?: number; total?: number } | null;
+                  return (
+                    <div
+                      key={evento.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300"
+                    >
+                      <div>
+                        <p className="font-medium text-gray-500 italic">
+                          Persona no registrada
+                          {datos?.indice && datos?.total && datos.total > 1 ? ` (${datos.indice} de ${datos.total})` : ""}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          RUT: No registrado
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-500">
+                          Fecha no registrada
+                        </p>
+                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500">
+                          Histórica (sin datos)
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -388,9 +423,8 @@ export default async function DetalleActivoPage({
 
         {/* Sidebar - Compra e Historial */}
         <div className="space-y-6">
-          {/* Compra asociada (18-sep-2026, SPEC 2.10.7). Solo aparece si el
-              equipo esta vinculado a una factura: los que se cargaron a mano
-              o por importacion no tienen ninguna. */}
+          {/* Only shown when the asset is linked to a purchase invoice;
+              manually created or imported assets may have none. */}
           {asset.purchaseAssets.length > 0 && (
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">

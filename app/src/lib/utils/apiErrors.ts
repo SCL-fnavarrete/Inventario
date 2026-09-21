@@ -1,21 +1,12 @@
 /**
- * Manejo unificado de errores de API en formularios (14-sep-2026, SPEC 2.37,
- * pedido explicito de Javier: "si hay error en un campo debe indicar el
- * error, el tipo de error y cual es el campo que genero ese error").
- *
- * Antes de esto, casi todos los formularios (22 pantallas, ver SPEC 2.37)
- * ignoraban `details` en la respuesta de error y mostraban un mensaje
- * generico ("Datos invalidos" / "Error al crear X"), aunque el backend ya
- * mandaba el detalle util en la mayoria de los casos (issues de Zod). El
- * unico lugar que lo hacia bien era `solicitudes/nueva/page.tsx`, pero con
- * el parseo copiado dentro de ese archivo. Esto lo saca a un lugar comun.
+ * Manejo unificado de errores de API en formularios: parsea `details` de la
+ * respuesta de error a un mapa campo -> mensaje para mostrarlo junto al
+ * campo que lo genero.
  *
  * Formato que entienden estas funciones (ver tambien src/lib/auth/guard.ts):
  *   - Nuevo formato uniforme (preferido): `details: { field: string, message: string }[]`
  *   - Formato viejo de Zod (`error.issues` sin transformar): `details: { path: (string|number)[], message: string }[]`
- * Se soportan ambos a proposito: no todas las rutas se migraron al formato
- * nuevo en el mismo cambio (ver guard.ts), y este parser no debe romper si
- * una ruta vieja todavia manda el formato de Zod tal cual.
+ * Se soportan ambos porque no todas las rutas usan el formato nuevo.
  */
 
 export type FieldErrors = Record<string, string>;

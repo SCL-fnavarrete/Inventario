@@ -3,11 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 
-// Reporte de compras. Simplificado el 11-sep-2026 (pedido explicito de
-// Javier): compras ya no tiene proveedor ni datos financieros (ver SPEC
-// 2.10), asi que este reporte se redujo a conteos por periodo. No hay
-// ninguna pantalla que hoy consuma este endpoint -- se dejo compilando y
-// coherente con el modelo actual por si se necesita a futuro.
+// Reporte de compras, reducido a conteos por periodo desde que compras
+// dejo de tener proveedor y datos financieros. Ninguna pantalla lo
+// consume hoy; se mantiene compilando y coherente con el modelo actual.
 const reportFiltersSchema = z.object({
   tipo: z.enum(["por-periodo", "resumen"]).default("resumen"),
   fechaDesde: z.string().optional(),

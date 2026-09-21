@@ -59,9 +59,7 @@ function iconoDe(nombre: string): React.ReactNode {
 }
 
 // La lista de campos que se muestran por categoría (con y sin etiqueta)
-// vive en @/lib/utils/assetSpecs -- antes estaba duplicada aquí (con
-// etiquetas, pero sin Conectividad) y en SeleccionarCambioEquipo (sin
-// etiquetas), desincronizadas entre sí. Unificado 14-sep-2026, SPEC 2.19.
+// vive en @/lib/utils/assetSpecs, compartida con SeleccionarCambioEquipo.
 const especificacionesEtiquetadas = especificacionesEtiquetadasActivo;
 const especificaciones = especificacionesActivoTexto;
 
@@ -84,7 +82,7 @@ export function SeleccionarEquiposOnboarding({
   categoriasRequeridas: string[];
   /**
    * Sede de la SOLICITUD (no la del selector del menu): solo se ofrecen
-   * equipos de la bodega que atiende a esta persona. Ver SPEC 2.40.
+   * equipos de la bodega que atiende a esta persona.
    */
   sedeId?: string | null;
   submitting: boolean;
@@ -130,9 +128,7 @@ export function SeleccionarEquiposOnboarding({
             estado: "disponible",
             limit: "100",
           });
-          // Solo el inventario de la sede de la solicitud: antes se pedia
-          // sin sede y el tecnico veia (y podia entregar) equipos de las
-          // tres sedes. Ver SPEC 2.40.
+          // Solo el inventario de la sede de la solicitud.
           if (sedeId) params.set("sedeId", sedeId);
           const disponiblesRes = await fetch(`/api/activos?${params}`);
           const disponiblesData = await disponiblesRes.json();

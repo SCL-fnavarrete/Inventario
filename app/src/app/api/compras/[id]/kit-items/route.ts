@@ -10,13 +10,11 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// Vinculación de artículos de Kit/EPP a una compra (14-sep-2026, SPEC 2.36,
-// pedido explícito de Javier: "aveces el kit de bievenida o epp tambien lo
-// compran ... solo funciona con los equipos pero no con el kitt de
-// bievenida o epp"). Mismo patrón que /api/compras/[id]/activos, salvo que
-// acá no se vincula una unidad existente: cada línea SUMA una cantidad al
-// stock del artículo (WelcomeKitItem.cantidad), y al desvincularse se
-// resta de vuelta (sin bajar de 0).
+// Vinculacion de articulos de Kit/EPP a una compra. Mismo patron que
+// /api/compras/[id]/activos, salvo que aca no se vincula una unidad
+// existente: cada linea SUMA una cantidad al stock del articulo
+// (WelcomeKitItem.cantidad), y al desvincularse se resta de vuelta (sin
+// bajar de 0).
 
 // GET /api/compras/[id]/kit-items - Listar líneas de Kit/EPP de una compra
 export async function GET(request: NextRequest, { params }: RouteParams) {

@@ -322,14 +322,12 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
             </h2>
           </div>
 
-          {/* 16-sep-2026: "Desvinculado" ya no es una opcion elegible a mano
-              -- ese estado lo pone unicamente una Solicitud de
-              desvinculacion, que es donde queda registrada la devolucion de
-              los equipos y el motivo. Misma regla que saco el boton
-              "Desvincular" de esta pantalla (SPEC 2.43). Si el empleado YA
-              esta desvinculado, el campo se muestra de solo lectura: con la
-              opcion fuera del select, guardar cualquier otro cambio lo
-              habria devuelto a "activo" sin que nadie lo pidiera. */}
+          {/* "Desvinculado" no es una opcion elegible a mano -- ese estado lo
+              pone unicamente una Solicitud de desvinculacion, que registra
+              la devolucion de equipos y el motivo. Si el empleado ya esta
+              desvinculado, el campo se muestra de solo lectura: de lo
+              contrario, guardar cualquier otro cambio lo devolveria a
+              "activo" sin que nadie lo pidiera. */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Estado <span className="text-red-500">*</span>
@@ -465,9 +463,9 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
                 value={formData.sedeId}
                 onChange={handleChange}
                 required
-                /* Mover un empleado de sede es solo de admin (18-sep-2026,
-                   SPEC 2.29.1): el PUT ya ignora el sedeId que mande un
-                   tecnico, esto evita que parezca editable. */
+                /* Mover un empleado de sede es solo de admin: el PUT ya
+                   ignora el sedeId que mande un tecnico, esto evita que
+                   parezca editable. */
                 disabled={!esAdmin}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
               >

@@ -3,16 +3,11 @@ import { rutOptionalSchema } from "./rut";
 
 export const TipoCompraEnum = z.enum(["FACTURA", "GASTO_MENOR"]);
 
-// Schema para crear una compra/factura
-// Compras se simplifico el 11-sep-2026 (pedido explicito de Javier) a solo
-// dos datos: la factura (para relacionarla) y los equipos que vinieron con
-// ella. Se eliminaron el catalogo de proveedor y todo dato financiero
-// (monto, moneda, metodo de pago, precio unitario) -- ver nota en el
-// modelo Purchase. El mismo dia se agrego `rutProveedor` como texto libre
-// (sin catalogo) y se quito `documentoUrl`, que ya no se usaba.
+// Schema para crear una compra/factura: solo la factura (para
+// relacionarla) y los equipos que vinieron con ella, sin catalogo de
+// proveedor ni datos financieros (ver nota en el modelo Purchase).
 export const createPurchaseSchema = z.object({
-  // A que sede se le atribuye la compra (9-sep-2026). Opcional para
-  // permitir compras transversales sin sede.
+  // A que sede se le atribuye la compra; opcional para compras transversales.
   sedeId: z.string().uuid("Sede inválida").optional().nullable(),
   numeroFactura: z
     .string()
@@ -20,9 +15,8 @@ export const createPurchaseSchema = z.object({
     .optional()
     .nullable(),
   fechaFactura: z.string().transform((val) => new Date(val)),
-  // RUT de quien emitio la factura (11-sep-2026). Texto libre validado con
-  // digito verificador -- no referencia al catalogo Supplier. Ver nota en
-  // el modelo Purchase.
+  // RUT de quien emitio la factura: texto libre validado con digito
+  // verificador, no referencia al catalogo Supplier.
   rutProveedor: rutOptionalSchema,
   tipoCompra: TipoCompraEnum.default("FACTURA"),
   descripcion: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
@@ -71,9 +65,8 @@ export const purchaseAssetSchema = z.object({
   assetId: z.string().uuid("ID de activo inválido"),
 });
 
-// Schema para una linea de compra de Kit/EPP (14-sep-2026, SPEC 2.36): a
-// diferencia de un activo, no se referencia una unidad individual sino una
-// cantidad que suma al stock del articulo.
+// Schema para una linea de compra de Kit/EPP: a diferencia de un activo, no
+// se referencia una unidad individual sino una cantidad que suma al stock.
 export const purchaseKitItemSchema = z.object({
   itemId: z.string().uuid("ID de artículo inválido"),
   cantidad: z.coerce.number().int().min(1, "La cantidad debe ser al menos 1"),
@@ -98,10 +91,7 @@ export const createPurchaseWithAssetsSchema = createPurchaseSchema
       .optional()
       .default([]),
   })
-  // Una compra sin nada vinculado no registra nada (18-sep-2026, SPEC
-  // 2.10.4): el proposito del modulo es relacionar la factura con los
-  // equipos o articulos que vinieron con ella. Se exige al menos una linea,
-  // de cualquiera de los dos tipos.
+  // Se exige al menos una linea (activo o articulo de kit) vinculada.
   .superRefine((data, ctx) => {
     const sinEquipos = !data.assets || data.assets.length === 0;
     const sinKit = !data.kitItems || data.kitItems.length === 0;

@@ -30,7 +30,7 @@ interface AssetData {
     id: string;
     nombres: string;
     apellidoPaterno: string;
-    // El correo de empresa es el identificador visible (15-sep-2026, SPEC 2.39)
+    // Identificador visible de la persona.
     correoEmpresa?: string | null;
     correoPersonal?: string | null;
     cargo?: string | null;

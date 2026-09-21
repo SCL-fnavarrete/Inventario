@@ -1,17 +1,9 @@
 "use client";
 
 /**
- * Formulario para entregar un equipo a una persona.
+ * Formulario para entregar un equipo a una persona (POST /api/asignaciones).
  *
- * Existe porque hasta ahora no habia forma de asignar un equipo desde la
- * interfaz: el endpoint POST /api/asignaciones estaba escrito y funcionando,
- * pero ninguna pantalla lo llamaba. El Kanban mandaba al flujo de solicitudes,
- * que es un proceso de onboarding completo, desproporcionado para registrar
- * una entrega que ya ocurrio.
- *
- * La fecha de entrega es editable a proposito. El flujo de solicitudes la fija
- * con la fecha del dia, de modo que un equipo entregado el lunes y registrado
- * el viernes queda fechado el viernes.
+ * La fecha de entrega es editable para poder registrar entregas retroactivas.
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -32,8 +24,7 @@ type Employee = {
   apellidoPaterno: string;
   apellidoMaterno: string | null;
   rut: string | null;
-  // El correo de empresa es el obligatorio y el que se muestra como
-  // identificador de la persona (15-sep-2026, SPEC 2.39)
+  // Identificador principal de la persona en la UI.
   correoEmpresa: string;
   correoPersonal?: string | null;
   cargo: string | null;
@@ -46,27 +37,13 @@ const TIPOS_MOVIMIENTO = [
   { value: "temporal", label: "Prestamo temporal" },
 ] as const;
 
-/**
- * Estados desde los que un equipo puede entregarse (los mismos que valida la API).
- * (15-sep-2026, SPEC 2.40) Antes tambien aceptaba "reutilizable", un estado que
- * en la practica era identico a "disponible": lo que intentaba decir -- que el
- * equipo ya se uso -- lo dice el campo `condicion`, independiente del estado.
- */
+/** Estados desde los que un equipo puede entregarse (los mismos que valida la API). */
 const ESTADOS_ASIGNABLES = ["disponible"];
 
 /**
- * Propone el nombre de red del equipo a partir de la persona que lo recibe
- * (15-sep-2026, SPEC 2.40).
- *
- * Por que aca y no al crear el activo: el nombre se pone cuando el equipo se
- * entrega, porque se arma con el nombre de quien lo va a usar. Un equipo
- * recien comprado, en bodega, todavia no tiene nombre.
- *
- * La convencion sale de los datos reales de la empresa: de 106 equipos con
- * nombre en el consolidado de inventario, 98 siguen exactamente
- * SCL + inicial del nombre + apellido paterno (SCL-CROJAS, SCL-ALEIVA). Las
- * excepciones son choques de apellido, donde le agregan la inicial del
- * materno -- por eso el campo queda editable en vez de calcularse solo.
+ * Propone el nombre de red del equipo a partir de la persona que lo recibe,
+ * siguiendo la convencion SCL + inicial del nombre + apellido paterno.
+ * Queda editable porque choques de apellido requieren ajustarlo a mano.
  */
 export function sugerirNombreEquipo(nombres: string, apellidoPaterno: string): string {
   const limpiar = (t: string) =>
@@ -167,8 +144,7 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
           lugarEntrega: lugarEntrega.trim() || null,
           entregadoPor: entregadoPor.trim() || null,
           motivo: motivo.trim() || null,
-          // El nombre de red viaja con la entrega y la API lo guarda en el
-          // activo (SPEC 2.40).
+          // El nombre de red viaja con la entrega y la API lo guarda en el activo.
           nombreEquipo: nombreEquipo.trim() || null,
         }),
       });

@@ -33,11 +33,8 @@ type Sede = {
 // vez de una lista de roles propia. Asi el menu y la API salen de la misma
 // fuente: si aqui aparece "Compras", GET /api/compras no va a responder 403.
 //
-// "Reportes" ya no tiene entrada propia (11-sep-2026, SPEC 2.15): paso a ser
-// una subpestana del Dashboard (ver DashboardTabs), mismo patron que Personal/
-// Kit de Bienvenida/EPP dentro de Activos, que tampoco tienen entrada aca. El
-// recurso "reportes" de la matriz de permisos sigue siendo el mismo -- solo
-// cambio el punto de entrada en la UI.
+// "Reportes" no tiene entrada propia: es una subpestana del Dashboard (ver
+// DashboardTabs), igual que Personal/Kit de Bienvenida/EPP dentro de Activos.
 const menuItems: Array<{
   href: string;
   label: string;
@@ -64,10 +61,8 @@ export function Sidebar() {
   const userRole = session?.user?.role || "user";
   const userName = session?.user?.name || "Usuario";
 
-  // Selector de sede global (SPEC 2.29): filtra los listados de cualquier
-  // pantalla, sin importar el rol -- desde este cambio tecnico tambien ve
-  // todas las sedes por defecto (sedeScope.ts), este selector es lo que le
-  // permite acotar la vista a una sede a la vez si quiere.
+  // Selector de sede global: filtra los listados de cualquier pantalla y
+  // permite acotar la vista a una sede a la vez.
   useEffect(() => {
     fetch("/api/sedes?activas=true")
       .then((res) => res.json())
@@ -113,12 +108,9 @@ export function Sidebar() {
             />
           </div>
 
-          {/* Selector de sede (SPEC 2.29): filtra los listados de todos los
-              módulos a una sede a la vez, o "Todas las sedes" (sin filtro).
-              18-sep-2026 (SPEC 2.29.1): solo admin elige. Para el resto se
-              muestra su sede, fija -- el backend la impone igual, esto es
-              para que se vea de dónde salen los datos y no parezca que el
-              selector está roto. */}
+          {/* Selector de sede: filtra los listados de todos los módulos a una
+              sede a la vez, o "Todas las sedes". Solo admin puede elegir; el
+              resto ve su sede fija, ya que el backend la impone igual. */}
           <div className="px-4 pt-4">
             <label htmlFor="selector-sede" className="block text-xs font-medium text-slate-400 mb-1">
               Sede
@@ -158,9 +150,8 @@ export function Sidebar() {
             {menuItems
               .filter((item) => puedeVer(item.recurso))
               .map((item) => {
-              // El item "Dashboard" (href "/") tambien queda activo en
-              // /reportes: Reportes es una subpestana suya (ver
-              // DashboardTabs), no una seccion propia del menu.
+              // El item "Dashboard" tambien queda activo en /reportes, su
+              // subpestana (ver DashboardTabs).
               const isActive = pathname === item.href ||
                 (item.href !== "/" && pathname.startsWith(item.href)) ||
                 (item.href === "/" && pathname.startsWith("/reportes"));

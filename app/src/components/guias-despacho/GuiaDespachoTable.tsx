@@ -63,7 +63,6 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 OT Chilexpress
               </th>
-              {/* Origen ademas de destino (18-sep-2026, SPEC 2.9.9) */}
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Sede origen
               </th>

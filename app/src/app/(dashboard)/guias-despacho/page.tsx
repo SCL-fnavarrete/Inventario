@@ -15,12 +15,11 @@ export default function GuiasDespachoPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   // El input responde a cada tecla; lo que dispara la busqueda es esta
-  // version debounced -- antes exigia enviar el formulario (Enter). Ver
-  // useDebouncedValue y SPEC 2.14.
+  // version debounced (ver useDebouncedValue).
   const debouncedSearchTerm = useDebouncedValue(searchTerm, 350);
   const [estadoFilter, setEstadoFilter] = useState<string>("all");
-  // Selector de sede del nav (18-sep-2026, SPEC 2.9.8): filtra por las dos
-  // puntas de la guia, origen y destino -- ver la nota en la API.
+  // Selector de sede del nav: filtra por las dos puntas de la guia,
+  // origen y destino -- ver la nota en la API.
   const { sedeSeleccionada } = useSedeSeleccionada();
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);

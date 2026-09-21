@@ -32,7 +32,7 @@ export async function PUT(
       },
     });
 
-    // Auditoria generica (SPEC 2.31).
+    // Auditoria generica.
     await auditLogService.registrarActualizacion(
       'kit_item',
       updated.id,
@@ -73,7 +73,7 @@ export async function DELETE(
 
     await prisma.welcomeKitItem.delete({ where: { id } });
 
-    // Auditoria generica (SPEC 2.31).
+    // Auditoria generica.
     await auditLogService.registrarEliminacion(
       'kit_item',
       item.id,

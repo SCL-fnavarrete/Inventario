@@ -1,19 +1,12 @@
 /**
- * Formato de fechas del sistema (15-sep-2026, QA funcional, SPEC 2.38).
+ * Formato de fechas del sistema.
  *
- * EL PROBLEMA QUE RESUELVE: las fechas "de calendario" (fecha de factura,
- * de entrega, de compra, fin de garantia, proxima mantencion, fecha de
- * ingreso...) se guardan como medianoche UTC -- por ejemplo, el 15 de
- * septiembre queda almacenado como `2026-09-15T00:00:00.000Z`. Chile esta
- * en UTC-3 / UTC-4, asi que esa misma marca de tiempo, interpretada en la
- * zona horaria del navegador, cae a las 21:00 del DIA ANTERIOR. Con el
- * formato por defecto (`new Date(x).toLocaleDateString("es-CL")`) la
- * pantalla mostraba "14 de septiembre" para una factura del 15.
+ * Las fechas "de calendario" (factura, entrega, compra, garantia,
+ * mantencion, ingreso...) se guardan como medianoche UTC. Chile esta en
+ * UTC-3/UTC-4, asi que leerlas en la zona horaria local del navegador las
+ * corre un dia hacia atras.
  *
- * Estaba repetido en 30 archivos, sin ningun punto comun donde arreglarlo,
- * asi que todo el sistema mostraba un dia menos en todas las fechas.
- *
- * LA REGLA: hay dos tipos de fecha en el sistema y NO se formatean igual.
+ * LA REGLA: hay dos tipos de fecha en el sistema y no se formatean igual.
  *
  *   1. Fecha de calendario (`formatearFecha`): representa un dia, sin hora.
  *      Se guarda a medianoche UTC, asi que se debe LEER en UTC -- si no,
@@ -56,7 +49,7 @@ export function formatearFecha(
 }
 
 /**
- * Fecha de calendario en formato largo: "15 de septiembre de 2026".
+ * Fecha de calendario en formato largo (dia, mes y ano completos).
  */
 export function formatearFechaLarga(valor: ValorFecha, siVacio = ""): string {
   return formatearFecha(
@@ -81,8 +74,8 @@ export function formatearFechaHora(
 }
 
 /**
- * Fecha de calendario para un archivo Excel/CSV o un nombre de archivo:
- * "15-09-2026". Misma regla de UTC que `formatearFecha`.
+ * Fecha de calendario en formato corto (DD-MM-YYYY), para nombres de
+ * archivo o exportaciones. Misma regla de UTC que `formatearFecha`.
  */
 export function formatearFechaCorta(valor: ValorFecha, siVacio = ""): string {
   return formatearFecha(

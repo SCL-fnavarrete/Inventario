@@ -4,20 +4,14 @@ import { AlertCircle } from "lucide-react";
 import type { FieldErrors } from "@/lib/utils/apiErrors";
 
 /**
- * Cartel de error de formulario (14-sep-2026, SPEC 2.37). Reemplaza el
- * mensaje generico ("Datos invalidos") que tenian casi todos los
- * formularios: si hay errores por campo (`fieldErrors`), los lista uno por
- * uno con su nombre legible; si no, muestra el mensaje general tal cual.
+ * Cartel de error de formulario. Si hay errores por campo (`fieldErrors`),
+ * los lista uno por uno con su nombre legible; si no, muestra el mensaje
+ * general tal cual.
  *
  * `fieldLabels` es opcional -- mapea el nombre tecnico del campo (ej.
  * "rut", "categoriaId") a como se le llama en el formulario (ej. "RUT",
  * "Categoría"). Lo que pase cada formulario se suma al diccionario base de
  * abajo, que cubre los campos que se repiten en todo el sistema.
- *
- * 15-sep-2026 (QA funcional, SPEC 2.38): antes ningun formulario pasaba
- * `fieldLabels`, asi que el cartel mostraba el nombre interno del campo
- * ("marca: Maximo 50 caracteres"). El diccionario base evita tener que
- * repetir lo mismo en los ~22 formularios.
  */
 
 /**

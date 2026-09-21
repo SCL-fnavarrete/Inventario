@@ -15,10 +15,8 @@ const usuarioFieldLabels: Record<string, string> = {
 };
 
 /**
- * Confirmacion pendiente (15-sep-2026, SPEC 2.40). Eliminar un usuario se
- * preguntaba con `confirm()` del navegador, que bloquea la ventana y no se
- * parece a ningun otro cartel del sistema. Mismo formato que el modal de
- * compras (SPEC 2.38).
+ * Confirmacion en modal propio para eliminar un usuario, en vez de
+ * confirm() del navegador, con el mismo formato que el resto del sistema.
  */
 type Confirmacion = {
   titulo: string;
@@ -547,7 +545,7 @@ export default function UsuariosPage() {
       </div>
 
       {/* Confirmacion de eliminacion, con el mismo formato que el resto del
-          sistema en vez del confirm() del navegador (15-sep-2026, SPEC 2.40). */}
+          sistema en vez del confirm() del navegador. */}
       {confirmacion && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">

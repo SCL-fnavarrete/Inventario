@@ -41,7 +41,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             },
           },
         },
-        // Lineas de Kit/EPP compradas con esta factura (SPEC 2.36).
+        // Lineas de Kit/EPP compradas con esta factura.
         purchaseKitItems: {
           include: { item: true },
         },
@@ -57,8 +57,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
 
-    // Estadísticas de la compra. Sin dato financiero (11-sep-2026): solo
-    // cuenta cuántos activos vienen con la factura.
+    // Estadisticas de la compra: solo cuenta activos y articulos de kit asociados.
     const stats = {
       cantidadActivos: purchase.purchaseAssets.length,
       cantidadArticulosKit: purchase.purchaseKitItems.length,
@@ -111,18 +110,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Actualizar la compra. Para tecnico se ignora en silencio el sedeId
-    // (no puede mover la compra a otra sede) -- mismo criterio que en la
-    // creacion. Ya no hay campos financieros que restringir (11-sep-2026).
-    // Para admin, sede es obligatoria (11-sep-2026, igual que al crear):
-    // si manda explicitamente sedeId: null se rechaza en vez de vaciarla.
+    // Para tecnico se ignora en silencio el sedeId (no puede mover la compra
+    // de sede). Para admin, sede es obligatoria: sedeId: null se rechaza.
     const esAdmin = tieneVisibilidadTotal(session);
     if (esAdmin && data.sedeId === null) {
       throw new ValidationError('Debes seleccionar una sede.');
     }
 
-    // N° de factura unico en todo el sistema (18-sep-2026, SPEC 2.10.6):
-    // misma regla que al crear, excluyendo la propia compra que se edita.
+    // N° de factura unico en todo el sistema, excluyendo la propia compra que se edita.
     if (data.numeroFactura) {
       const duplicada = await prisma.purchase.findFirst({
         where: { numeroFactura: data.numeroFactura, id: { not: id } },
@@ -169,7 +164,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Auditoria generica (SPEC 2.29): que cambio y quien lo hizo.
+    // Auditoria generica: que cambio y quien lo hizo.
     await auditLogService.registrarActualizacion(
       'compra',
       purchase.id,
@@ -207,8 +202,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       where: { id },
       include: {
         purchaseAssets: true,
-        // SPEC 2.36: hace falta el stock actual de cada articulo para poder
-        // revertir lo que esta compra sumo, sin bajar de 0.
+        // Se necesita el stock actual de cada articulo para poder revertir
+        // lo que esta compra sumo, sin bajar de 0.
         purchaseKitItems: { include: { item: true } },
       },
     });
@@ -220,8 +215,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Borrar sigue siendo solo-admin (ver permissions.ts), asi que esto es
-    // un no-op hoy -- se deja por consistencia con el resto de las rutas.
+    // Solo-admin hoy (ver permissions.ts); se deja por consistencia con el resto de rutas.
     assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
 
     // Eliminar en transacción (primero los vínculos, luego la compra)
@@ -233,9 +227,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         });
       }
 
-      // Revertir el stock que esta compra sumó a cada artículo de Kit/EPP
-      // (SPEC 2.36), sin bajar de 0 -- por si ya se entregó parte a algún
-      // empleado mientras tanto.
+      // Revertir el stock que esta compra sumo a cada articulo de Kit/EPP,
+      // sin bajar de 0 (puede haberse entregado parte ya).
       for (const linea of purchase.purchaseKitItems) {
         const nuevaCantidad = Math.max(0, linea.item.cantidad - linea.cantidad);
         const updatedItem = await tx.welcomeKitItem.update({
@@ -256,8 +249,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         await tx.purchaseKitItem.deleteMany({ where: { purchaseId: id } });
       }
 
-      // Auditoria generica (SPEC 2.29), antes del delete fisico -- el
-      // snapshot es lo unico que queda de esta compra despues de esto.
+      // Auditoria antes del delete fisico: el snapshot es lo unico que
+      // queda de esta compra despues de esto.
       await auditLogService.registrarEliminacion(
         'compra',
         purchase.id,

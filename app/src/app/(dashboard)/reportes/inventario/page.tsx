@@ -8,10 +8,8 @@ import type { SesionAutenticada } from "@/lib/auth/guard";
 import { sedeWhere } from "@/lib/auth/sedeScope";
 
 
-// Aislamiento por sede (18-sep-2026, SPEC 2.29.2): estas paginas son server
-// components que consultan Prisma directo, sin pasar por ninguna ruta de API
-// -- por eso no heredaban `sedeWhere` y un tecnico veia los datos de todas
-// las sedes. Se aplica aca el mismo filtro que usan los endpoints.
+// Server component queries Prisma directly, so sede scoping must be applied
+// manually here (it doesn't go through an API route's middleware).
 async function getInventario(session: SesionAutenticada) {
   const activos = await prisma.asset.findMany({
     where: sedeWhere(session),
@@ -53,7 +51,7 @@ const CONDICION_COLORS: Record<string, string> = {
 };
 
 export default async function ReporteInventarioPage() {
-  // La sesion decide que sede se ve (SPEC 2.29.2, ver nota arriba).
+  // Scoped to the session's sede.
   const session = (await getServerSession(authOptions)) as SesionAutenticada;
   const activos = await getInventario(session);
 

@@ -60,10 +60,10 @@ export type SeleccionCambioEquipo = {
   newAssetId: string;
   estadoDevolucion: "ok" | "danado" | "no_devuelto";
   observaciones: string;
-  // Condicion del cargador (16-sep-2026, SPEC 2.48) -- solo tiene sentido
-  // si el equipo correspondiente es un notebook con tieneCargador; para el
-  // resto queda "" (el padre lo manda como null/undefined). "Anterior" es
-  // el cargador del equipo que se devuelve, "Nuevo" el del reemplazo.
+  // Condicion del cargador: solo aplica si el equipo es un notebook con
+  // tieneCargador; para el resto queda "" (el padre lo manda como
+  // null/undefined). "Anterior" es el cargador que se devuelve, "Nuevo" el
+  // del reemplazo.
   condicionCargadorAnterior: "ok" | "danado" | "no_aplica" | "";
   observacionesCargadorAnterior: string;
   condicionCargadorNuevo: "ok" | "danado" | "no_aplica" | "";
@@ -87,10 +87,8 @@ function iconoDe(nombre: string): React.ReactNode {
 }
 
 // La lista de campos que se muestran por categoría vive en
-// especificacionesActivoTexto (@/lib/utils/assetSpecs) -- antes estaba
-// duplicada aquí (sin Conectividad, y sin etiquetas) y en
-// SeleccionarEquiposOnboarding (con etiquetas), desincronizadas entre sí.
-// Unificado 14-sep-2026, SPEC 2.19.
+// especificacionesActivoTexto (@/lib/utils/assetSpecs), compartida con
+// SeleccionarEquiposOnboarding.
 const especificaciones = especificacionesActivoTexto;
 
 /**
@@ -117,10 +115,7 @@ export function SeleccionarCambioEquipo({
   onChange,
 }: {
   asignacionesActivas: AsignacionActiva[];
-  /**
-   * Sede de la SOLICITUD: solo se ofrecen equipos de esa bodega. Ver
-   * SPEC 2.40.
-   */
+  /** Sede de la SOLICITUD: solo se ofrecen equipos de esa bodega. */
   sedeId?: string | null;
   submitting: boolean;
   onSubmit?: (
@@ -140,7 +135,6 @@ export function SeleccionarCambioEquipo({
   const [newAssetId, setNewAssetId] = useState("");
   const [estadoDevolucion, setEstadoDevolucion] = useState<"ok" | "danado" | "no_devuelto" | "">("");
   const [observaciones, setObservaciones] = useState("");
-  // Condicion del cargador (16-sep-2026, SPEC 2.48).
   const [condicionCargadorAnterior, setCondicionCargadorAnterior] = useState<"ok" | "danado" | "no_aplica" | "">("");
   const [observacionesCargadorAnterior, setObservacionesCargadorAnterior] = useState("");
   const [condicionCargadorNuevo, setCondicionCargadorNuevo] = useState<"ok" | "danado" | "no_aplica" | "">("");
@@ -183,7 +177,7 @@ export function SeleccionarCambioEquipo({
           estado: "disponible",
           limit: "100",
         });
-        // Solo el inventario de la sede de la solicitud (SPEC 2.40).
+        // Solo el inventario de la sede de la solicitud.
         if (sedeId) params.set("sedeId", sedeId);
         const disponiblesRes = await fetch(`/api/activos?${params}`);
         const disponiblesData = await disponiblesRes.json();
@@ -320,10 +314,9 @@ export function SeleccionarCambioEquipo({
         </div>
       )}
 
-      {/* Estado del cargador del equipo que se devuelve (16-sep-2026, SPEC
-          2.48) -- solo si el equipo es un notebook con cargador. No afecta
-          el estado del equipo ni gatilla baja, es puramente informativo
-          para el acta (SPEC 2.5.3 regla 9). */}
+      {/* Estado del cargador del equipo que se devuelve, solo si es un
+          notebook con cargador. Es puramente informativo para el acta,
+          no afecta el estado del equipo ni gatilla baja. */}
       {seleccionada && seleccionada.asset.tieneCargador && (
         <div className="border border-gray-200 rounded-lg p-3">
           <p className="text-xs font-medium text-gray-600 mb-2">
@@ -368,10 +361,8 @@ export function SeleccionarCambioEquipo({
             <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
               No hay equipo disponible de {seleccionada.asset.categoria.nombre.toLowerCase()} en
               el inventario ahora mismo.
-              {/* 16-sep-2026 (SPEC 2.45): en modo embebido (creacion del
-                  ticket) elegir equipo ya no es opcional -- sin reemplazo
-                  disponible, la solicitud simplemente no se puede crear
-                  todavia, en vez de nacer sin el cambio hecho. */}
+              {/* En modo embebido, sin reemplazo disponible la solicitud no
+                  se puede crear todavia. */}
               {!showSubmitButton && ' No podrás crear la solicitud hasta que haya stock.'}
             </p>
           ) : (
@@ -395,8 +386,8 @@ export function SeleccionarCambioEquipo({
                     "Sin especificaciones registradas"}
                 </div>
               )}
-              {/* Estado del cargador del equipo nuevo (16-sep-2026, SPEC
-                  2.48) -- mismo criterio que en la entrega de Onboarding. */}
+              {/* Estado del cargador del equipo nuevo, mismo criterio que en
+                  la entrega de Onboarding. */}
               {disponibles.find((a) => a.id === newAssetId)?.tieneCargador && (
                 <div className="mt-2 border border-gray-200 rounded-lg p-3">
                   <p className="text-xs font-medium text-gray-600 mb-2">

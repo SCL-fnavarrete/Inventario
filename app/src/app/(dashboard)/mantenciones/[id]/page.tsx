@@ -55,8 +55,7 @@ type Maintenance = {
       nombres: string;
       apellidoPaterno: string;
       apellidoMaterno: string | null;
-      // El correo de empresa es el obligatorio (15-sep-2026, SPEC 2.39)
-      correoEmpresa: string;
+      correoEmpresa: string; // required field
       correoPersonal?: string | null;
       cargo: string | null;
     } | null;
@@ -124,12 +123,7 @@ export default function MantencionDetallePage({
     fetchMaintenance();
   }, [id]);
 
-  // "Realizado por" del formulario de completar se llena solo: quien
-  // completa la mantencion es siempre quien esta con la sesion abierta
-  // (18-sep-2026, SPEC 2.53.1) -- mismo patron que "Tecnico Asignado" en
-  // /mantenciones/programar. Pedido de Javier: "eso deberia llenarse
-  // automaticamente. Al igual que... tiene asignado, eso se llena
-  // automatico".
+  // "Realizado por" auto-fills with the current session user.
   useEffect(() => {
     if (session?.user?.name) {
       setCompleteForm((prev) => ({ ...prev, realizadoPor: session.user.name as string }));
@@ -145,10 +139,8 @@ export default function MantencionDetallePage({
       const data = await res.json();
       setMaintenance(data);
 
-      // Pre-fill complete form -- realizadoPor NO se toma de aca: lo llena
-      // el useEffect de abajo con el usuario de la sesion actual (SPEC
-      // 2.53.1), igual que ya hace /mantenciones/programar con "Tecnico
-      // Asignado".
+      // realizadoPor is filled separately by the useEffect above, from
+      // the session user.
       setCompleteForm((prev) => ({
         fechaRealizada: new Date().toISOString().split("T")[0],
         realizadoPor: prev.realizadoPor,
@@ -380,11 +372,8 @@ export default function MantencionDetallePage({
         <StatusIcon className={cn("h-6 w-6", config.color)} />
         <div>
           <p className={cn("font-semibold", config.color)}>{config.label}</p>
-          {/* Registros nuevos siempre tienen fechaProgramada (es obligatoria
-              al crear). Los que no la tienen son de antes de ese cambio; en
-              ese caso el estado (ej. "En Proceso") ya se entiende por si
-              solo con el label de arriba, asi que no mostramos ningun
-              subtitulo en vez del alarmante "Sin fecha programada". */}
+          {/* fechaProgramada may be missing on older records; when absent,
+              no subtitle is shown rather than an alarming placeholder. */}
           {maintenance.estado === "completada" && maintenance.fechaRealizada ? (
             <p className="text-sm text-gray-600">
               {`Completada el ${formatDate(maintenance.fechaRealizada)}`}
@@ -410,14 +399,8 @@ export default function MantencionDetallePage({
                 <p className="text-sm text-gray-500">Tipo</p>
                 <p className="font-medium">{maintenance.tipo.nombre}</p>
               </div>
-              {/* Fecha Programada es obligatoria para mantenciones nuevas
-                  (no se puede crear una sin ella), asi que en la practica
-                  siempre va a haber una fecha aca. Los registros de antes
-                  de esa regla no tienen fechaProgramada guardada -- en vez
-                  de dejar la fila vacia o esconderla, mostramos createdAt
-                  (la fecha en que se decidio mandar el equipo a
-                  mantencion), que es la mejor fecha disponible para esos
-                  casos. */}
+              {/* Falls back to createdAt for older records without a
+                  fechaProgramada. */}
               <div>
                 <p className="text-sm text-gray-500">Fecha Programada</p>
                 <p className="font-medium">
@@ -428,10 +411,8 @@ export default function MantencionDetallePage({
                 <p className="text-sm text-gray-500">Técnico Asignado</p>
                 <p className="font-medium">{maintenance.realizadoPor || "-"}</p>
               </div>
-              {/* Costo/Proveedor Externo ya no se piden al crear ni al
-                  completar una mantencion (es trabajo interno, sin costo).
-                  Se muestran solo si el registro es de antes de ese cambio
-                  y ya tenia un valor. */}
+              {/* Costo/Proveedor Externo are legacy fields, no longer
+                  collected; shown only if an older record has a value. */}
               {maintenance.costo != null && (
                 <div>
                   <p className="text-sm text-gray-500">Costo</p>
@@ -451,14 +432,8 @@ export default function MantencionDetallePage({
             </div>
           </div>
 
-          {/* Completar Mantencion -- ya no es un modal detras de un boton
-              "Completar" (18-sep-2026, SPEC 2.53): el formulario esta
-              siempre visible en la propia pagina de detalle apenas la
-              mantencion esta en_proceso, con los datos del activo ya a la
-              vista al lado. Se llena y se aprieta "Completar Mantencion",
-              sin un paso extra para "abrir" el formulario. Pedido de
-              Javier: "el formulario ya este ahi... yo lo lleno y listo. Y
-              aprieto completar y listo. Nada mas." */}
+          {/* Completion form is shown inline on the detail page (not a
+              modal) once the maintenance is en_proceso. */}
           {maintenance.estado === "en_proceso" && (
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold mb-4">Completar Mantención</h2>

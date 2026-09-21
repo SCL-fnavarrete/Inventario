@@ -21,11 +21,8 @@ type Props = {
 };
 
 /**
- * Comprobante de cambio de equipo. 16-sep-2026 (SPEC 2.49): antes usaba un
- * diseño generico (pdfStyles.ts, sin logo); ahora comparte el mismo
- * formato que el Comprobante de Entrega (onboarding) -- logo SCL, colores,
- * tipografia y tabla -- pedido de Javier, "todas las solicitudes deben
- * seguir el mismo formato que tiene los de onboarding".
+ * Comprobante de cambio de equipo. Comparte el mismo formato (logo SCL,
+ * colores, tipografia y tabla) que el Comprobante de Entrega de onboarding.
  */
 
 function TablaEquipo({ label, asset }: { label: string; asset: AssetInfo }) {

@@ -8,24 +8,14 @@ export async function GET(request: NextRequest) {
   try {
     const session = await requirePermission('activos', 'read');
 
-    // Aislamiento por sede (SPEC 2.9): las tarjetas/estadisticas deben
-    // reflejar solo lo de la sede del tecnico, igual que el listado de
-    // /api/activos. Antes este endpoint no filtraba nada -- por eso las
-    // tarjetas mostraban el total de todas las sedes aunque el listado ya
-    // estuviera bien filtrado.
+    // Stats cards must reflect only the technician's sede, same as
+    // the /api/activos listing.
     const sw = sedeWhere(session);
     const whereVigentes: Record<string, unknown> = { ...ACTIVOS_VIGENTES, ...sw };
 
-    // Filtro de sede del selector global del nav (15-sep-2026, QA
-    // funcional, SPEC 2.38). Mismo criterio que /api/activos: solo se
-    // acepta para quien tiene visibilidad total -- para el resto la sede
-    // ya viene forzada por sedeWhere() y no debe poder pisarse con un
-    // sedeId arbitrario del query string.
-    //
-    // Sin esto, el listado quedaba filtrado por sede pero las tarjetas de
-    // arriba seguian contando todas las sedes: con "Concepcion" elegido, la
-    // tabla decia "No se encontraron activos" y la tarjeta seguia diciendo
-    // "Total 1".
+    // Nav sede filter, same criterion as /api/activos: only honored for
+    // users with full visibility; others are already scoped by sedeWhere()
+    // and can't override it via query string.
     const sedeIdFiltro = request.nextUrl.searchParams.get("sedeId") || "";
     if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
       whereVigentes.sedeId = sedeIdFiltro;
@@ -64,8 +54,7 @@ export async function GET(request: NextRequest) {
         id: true,
         nombre: true,
         _count: {
-          // El conteo excluye los registros descartados (SPEC 2.7.7) y
-          // aplica el aislamiento por sede.
+          // Excludes discarded records and applies sede scoping.
           select: {
             assets: { where: whereVigentes },
           },
@@ -87,9 +76,8 @@ export async function GET(request: NextRequest) {
     // Obtener conteo por condición
     const byConditionRaw = await prisma.asset.groupBy({
       by: ["condicion"],
-      // Sin este where, el conteo por condicion incluia los registros
-      // descartados, mientras total, byStatus y byCategory si los excluian:
-      // el mismo endpoint respondia con dos universos distintos.
+      // Applies the same exclusion as total/byStatus/byCategory so all
+      // counts in the response are consistent.
       where: whereVigentes,
       _count: {
         condicion: true,

@@ -34,11 +34,10 @@ export async function POST(request: NextRequest) {
     await prisma.$transaction(async (tx:Prisma.TransactionClient) => {
       switch (tipo) {
         case "activos":
-          // SPEC 2.7.7 / NF-03: un activo con historial de auditoría o guías
-          // de despacho asociadas es evidencia y nunca se borra, ni siquiera
-          // desde este panel de administración. Solo se eliminan los activos
-          // "limpios" -- sin historial ni guías -- típicamente datos de
-          // prueba o duplicados de importación.
+          // Un activo con historial de auditoría o guías de despacho
+          // asociadas nunca se borra, aunque sea desde este panel. Solo se
+          // eliminan activos sin historial ni guías (datos de prueba o
+          // duplicados de importación).
           const activosBorrables = await tx.asset.findMany({
             where: {
               history: { none: {} },

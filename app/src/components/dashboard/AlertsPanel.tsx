@@ -61,11 +61,9 @@ const categoriaKitLabels: Record<KitItemSinStock["categoria"], string> = {
 };
 
 /**
- * Etiqueta de sede para una alerta (21-sep-2026, SPEC 2.69). Con "Todas las
- * sedes" seleccionado, las alertas de distintas sedes quedan mezcladas en la
- * misma lista -- sin esto no habia forma de saber, por ejemplo, si una
- * "Mantencion Vencida" era de Santiago o de Concepcion sin entrar al detalle.
- * `null` es un caso real (activo/articulo sin sede asignada), no un error.
+ * Etiqueta de sede para una alerta, para distinguir origen cuando estan
+ * mezcladas alertas de varias sedes. `null` es un caso real (sin sede
+ * asignada), no un error.
  */
 function EtiquetaSede({ nombre }: { nombre: string | null }) {
   return (
@@ -75,9 +73,7 @@ function EtiquetaSede({ nombre }: { nombre: string | null }) {
   );
 }
 
-// Antes ambas categorias vivian en /configuracion/kit-epp; se movieron a
-// Activos (9-sep-2026) para que el tecnico pudiera seguir usandolas -- ver
-// pendientes.md. Estos links tienen que apuntar a la ubicacion nueva.
+// Kit de Bienvenida y EPP viven bajo Activos; los links apuntan ahi.
 const kitEppHref: Record<KitItemSinStock["categoria"], string> = {
   kit_bienvenida: "/activos/kit-bienvenida",
   epp: "/activos/epp",
@@ -231,11 +227,8 @@ export function AlertsPanel({
                 <p className="text-xs text-red-700 break-words">
                   {cat.nombre}
                 </p>
-                {/* Stock de Activos por categoria se cuenta sumando todas las
-                    sedes (no es un catalogo por sede como Kit/EPP) -- la
-                    etiqueta aclara eso explicitamente en vez de dejarla vacia,
-                    que se leia como un dato faltante al lado de alertas que
-                    si muestran sede (SPEC 2.69). */}
+                {/* El stock de Activos por categoria se cuenta sumando todas
+                    las sedes, a diferencia de Kit/EPP que es por sede. */}
                 <EtiquetaSede nombre="Todas las sedes" />
               </div>
               <ChevronRight className="h-4 w-4 text-red-400 shrink-0" />

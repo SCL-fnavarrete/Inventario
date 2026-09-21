@@ -121,9 +121,7 @@ export default async function ReportesPage() {
 
   return (
     <div className="space-y-6">
-      {/* Pestanas Resumen / Reportes (11-sep-2026, SPEC 2.15): Reportes paso
-          de ser una seccion aparte del menu lateral a ser una subpestana
-          del Dashboard -- ver DashboardTabs. */}
+      {/* Reportes is a sub-tab of the Dashboard, not its own nav section. */}
       <DashboardTabs />
 
       <div className="flex justify-between items-center">

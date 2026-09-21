@@ -13,18 +13,10 @@ import {
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
-// Reescrito por completo (14-sep-2026, pedido explicito de Javier al
-// revisar que le faltaba al modulo Configuracion): la version anterior era
-// 100% decorativa -- datos de ejemplo hardcodeados ("SLC Consultores", RUT
-// con X) y el boton Guardar solo simulaba un delay de 1 segundo sin
-// persistir nada. Ahora lee/escribe de verdad contra
-// /api/configuracion/parametros (tabla SystemConfig).
-//
-// Se recortaron las secciones "Notificaciones", "Mantenciones", "Documentos"
-// y "Sistema" que tenia la version vieja -- eran decorativas tambien y
-// Javier confirmo que solo quiere Datos de la Empresa (guardados como
-// referencia, sin conectar a las actas/reportes) y Seguridad (duracion de
-// sesion, intentos de login).
+// Reads/writes real settings via /api/configuracion/parametros (SystemConfig
+// table). Only two sections are kept: Datos de la Empresa (reference data,
+// not linked to reports/documents) and Seguridad (session duration, login
+// attempts).
 
 type ConfigSection = "empresa" | "seguridad";
 

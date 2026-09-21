@@ -130,10 +130,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // El correo de empresa es ahora el correo obligatorio y unico del
-    // empleado (15-sep-2026, SPEC 2.39): las planillas de TI siempre traen
-    // la cuenta corporativa y es con la que se identifica a la persona en
-    // soporte. Se comprueba el duplicado solo si el valor viene y cambio.
+    // El correo de empresa es el correo obligatorio y unico del empleado.
+    // Se comprueba el duplicado solo si el valor viene y cambio.
     if (data.correoEmpresa && data.correoEmpresa !== existingEmployee.correoEmpresa) {
       const existingByCorreoEmpresa = await prisma.employee.findUnique({
         where: { correoEmpresa: data.correoEmpresa },
@@ -162,14 +160,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Desvincular NO es una edicion de datos (16-sep-2026, SPEC 2.43):
-    // pasar a "desvinculado" implica devolver los equipos y dejar constancia
-    // del motivo, y eso solo ocurre dentro de una Solicitud de
-    // desvinculacion (que actualiza al empleado por su cuenta, dentro de la
-    // misma transaccion que procesa las devoluciones -- no pasa por aca).
-    // Se rechaza solo el CAMBIO a desvinculado: un empleado que ya lo esta
-    // sigue pudiendo editarse (el formulario manda su estado actual tal
-    // cual, sin cambiarlo).
+    // Desvincular no es una edicion de datos: pasar a "desvinculado"
+    // implica devolver los equipos y dejar constancia del motivo, y eso
+    // solo ocurre dentro de una Solicitud de desvinculacion. Se rechaza
+    // solo el cambio a desvinculado; un empleado que ya lo esta sigue
+    // pudiendo editarse.
     if (data.estado === 'desvinculado' && existingEmployee.estado !== 'desvinculado') {
       return NextResponse.json(
         {
@@ -181,13 +176,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Reasignar sede (ej. el empleado se traslada de sede): decision de
-    // Javier (10-sep-2026) -- solo admin puede hacerlo, a diferencia de
-    // Activos, donde el traslado entre sedes se maneja via Guias de
-    // Despacho (sedeOrigenId/sedeDestinoId) y no editando el registro
-    // directamente. Si un tecnico envia sedeId igual, se ignora en
-    // silencio en vez de rechazar toda la actualizacion -- el resto de
-    // los campos del formulario si son suyos para editar.
+    // Reasignar sede (ej. el empleado se traslada de sede): solo admin
+    // puede hacerlo. Si un tecnico envia sedeId, se ignora en silencio en
+    // vez de rechazar toda la actualizacion.
     const puedeCambiarSede = tieneVisibilidadTotal(session);
     if (puedeCambiarSede && data.sedeId) {
       const sedeDestino = await prisma.sede.findUnique({ where: { id: data.sedeId } });
@@ -224,10 +215,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Auditoria generica (SPEC 2.29): que cambio y quien lo hizo. Se guardan
-    // solo los campos "de negocio" relevantes -- no todo el registro -- para
-    // no repetir columnas administrativas (updatedAt, etc.) en el snapshot.
-    // Ver comentario en assetHistoryService, mismo criterio.
+    // Auditoria generica: que cambio y quien lo hizo. Se guardan solo los
+    // campos "de negocio" relevantes, no todo el registro.
     const snapshotEmpleado = (e: typeof existingEmployee) => ({
       nombres: e.nombres,
       apellidoPaterno: e.apellidoPaterno,
@@ -258,17 +247,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/empleados/[id] - Eliminar empleado (soft delete cambiando estado)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  // 16-sep-2026 (SPEC 2.43): esta ruta hacia un "soft delete" que marcaba al
-  // empleado como desvinculado. Era el mismo atajo que el boton
-  // "Desvincular" del formulario de editar empleado, que se saco por pedido
-  // de Javier: una desvinculacion no es una edicion de datos ni un borrado,
-  // ocurre dentro de una Solicitud de desvinculacion, que es donde queda la
-  // devolucion de los equipos y el motivo.
+  // Esta ruta hacia un "soft delete" que marcaba al empleado como
+  // desvinculado. Una desvinculacion no es una edicion de datos ni un
+  // borrado: ocurre dentro de una Solicitud de desvinculacion, que es
+  // donde queda la devolucion de los equipos y el motivo.
   //
-  // Queda como stub en vez de borrarse (mismo criterio que las rutas de
-  // proveedores en SPEC 2.35 y el acta de asignacion en SPEC 2.41): ninguna
-  // pantalla la llama, pero responder 410 explicito deja claro que se retiro
-  // a proposito, en vez de un 404 que parece un error de ruteo.
+  // Queda como stub en vez de borrarse: responder 410 explicito deja claro
+  // que se retiro a proposito, en vez de un 404 que parece un error de
+  // ruteo.
   void request;
   void params;
   return NextResponse.json(

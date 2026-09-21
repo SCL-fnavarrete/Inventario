@@ -1,14 +1,13 @@
 import { z } from 'zod';
 import { estadoActivoEnum, condicionActivoEnum } from './asset';
 
-// SPEC: Sección 2.7.2 — Transiciones válidas del ciclo de vida de activos
-
+// Transiciones válidas del ciclo de vida de activos
 export const assetTransitionSchema = z.object({
   estadoNuevo: estadoActivoEnum,
   motivo: z.string().optional().nullable(),
 });
 
-// SPEC: Sección 2.7.3 — Proceso de Baja
+// Proceso de baja de un activo
 export const motivoBajaEnum = z.enum([
   'obsolescencia',
   'falla_irreparable',
@@ -30,9 +29,7 @@ export const assetBajaSchema = z
     path: ['motivoDetalle'],
   });
 
-// SPEC: Sección 2.7.4 — Proceso de Venta
-// El campo "documento de venta" (URL) se saca el 14-sep-2026 (SPEC 2.25):
-// Javier confirmo que no hace falta, solo la fecha en que se vendio.
+// Proceso de venta de un activo
 export const assetVentaSchema = z.object({
   comprador: z.string().min(1, 'El comprador es requerido').max(200),
   monto: z.number().positive('El monto debe ser positivo'),
@@ -44,17 +41,11 @@ export const assetVentaSchema = z.object({
   }),
 });
 
-// SPEC: Sección 2.7.5 — Cierre de Mantención
-//
-// `resultadoMantencionEnum` se reutiliza directamente en
-// `completeMaintenanceSchema` (lib/validations/maintenance.ts) desde el
-// 14-sep-2026 (SPEC 2.25) -- antes existía un `maintenanceCloseSchema` acá
-// con la misma idea pero nunca estuvo conectado a la ruta real de
-// completar mantención (código huérfano); se quitó para no dejar dos
-// versiones de la misma validación.
+// Resultado de cierre de una mantención; reutilizado en
+// completeMaintenanceSchema (lib/validations/maintenance.ts).
 export const resultadoMantencionEnum = z.enum(['reparado', 'no_reparable', 'pendiente_repuestos']);
 
-// SPEC: Sección 2.7.6 — Reasignación
+// Reasignación de un activo a otro empleado
 export const assetReassignmentSchema = z.object({
   assignmentId: z.string().uuid('ID de asignación inválido'),
   newEmployeeId: z.string().uuid('ID de empleado inválido'),

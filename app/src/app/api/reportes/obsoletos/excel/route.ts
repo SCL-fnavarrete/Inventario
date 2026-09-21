@@ -13,8 +13,7 @@ export async function GET() {
     const cincoAnosAtras = new Date();
     cincoAnosAtras.setFullYear(cincoAnosAtras.getFullYear() - 5);
 
-    // Aislamiento por sede (18-sep-2026, SPEC 2.29.2): faltaba en este
-    // endpoint, a diferencia de inventario/rrhh que ya lo tenian.
+    // Filtra por sede segun los permisos de la sesion.
     const activos = await prisma.asset.findMany({
       where: {
         ...sedeWhere(session),

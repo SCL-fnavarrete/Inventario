@@ -10,14 +10,9 @@ import {
   History,
 } from "lucide-react";
 
-// Proveedores y Microsoft Sync se sacaron del menu (14-sep-2026), pedido
-// explicito de Javier al revisar que funciones deberia tener este modulo:
-// Proveedores porque esa tabla se va a eliminar (sin uso); Microsoft Sync
-// porque no hay certeza de que la integracion se vaya a usar realmente. Las
-// paginas/rutas de ambos NO se borraron (mismo criterio que kit-epp cuando
-// se movio de aca) -- solo dejan de aparecer en este listado. Se agrega
-// Auditoria, pantalla nueva que unifica AuditLog + AssetHistory +
-// WorkflowTransition (ver auditoria/page.tsx).
+// Proveedores and Microsoft Sync are hidden from this menu (their
+// routes still exist) since they're unused/uncertain. Auditoria unifies
+// AuditLog + AssetHistory + WorkflowTransition (see auditoria/page.tsx).
 const configSections = [
   {
     title: "Sedes",

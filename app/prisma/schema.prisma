@@ -17,8 +17,8 @@ model SystemUser {
   activo       Boolean    @default(true)
   ultimoLogin  DateTime?  @map("ultimo_login")
   // Sede a la que pertenece este usuario. `admin` la deja en null porque ve
-  // todas las sedes; el resto (soporte/tecnico, etc.) queda restringido a
-  // los datos de la suya -- ver sedeScope() y SPEC 2.9.
+  // todas las sedes; el resto queda restringido a los datos de la suya
+  // (ver sedeScope()).
   sedeId       String?    @map("sede_id")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
@@ -39,12 +39,9 @@ model Employee {
   nombres              String          @map("nombre")
   apellidoPaterno      String          @map("apellido_paterno")
   apellidoMaterno      String?         @map("apellido_materno")
-  // 15-sep-2026 (SPEC 2.39): se invierte cual de los dos correos es
-  // obligatorio. Antes el obligatorio era el personal y el de empresa
-  // opcional, al reves de como son los datos reales: el consolidado de
-  // inventario (y cualquier planilla de soporte) trae la cuenta corporativa,
-  // que es la que siempre existe y con la que se identifica a la persona en
-  // el area de TI; el correo particular muchas veces nadie lo registro.
+  // El correo de empresa es obligatorio y el personal opcional: es la
+  // cuenta corporativa la que siempre existe y con la que se identifica a
+  // la persona en TI.
   correoPersonal       String?         @unique @map("correo_personal")
   correoEmpresa        String          @unique @map("correo_empresa")
   cargo                String?
@@ -56,12 +53,9 @@ model Employee {
   subArea              String?         @map("sub_area")
   direccionParticular  String?         @map("direccion_particular")
   listasDistribucion   String?         @map("listas_distribucion")
-  // Opcional desde el 15-sep-2026 (SPEC 2.39), pedido explicito de Javier:
-  // "como no esta en el Excel... si lo dejamos opcional, inserta de manera
-  // correcta los datos ahora y mas adelante los tecnicos tendran que
-  // ingresarla". Era obligatorio, lo que obligaba a inventar un valor
-  // ("contrato") para gente de la que no consta como esta contratada. Solo
-  // se usa como etiqueta/filtro en pantalla, no condiciona ninguna regla.
+  // Opcional: cuando no se conoce, se deja en blanco en vez de inventar un
+  // valor. Solo se usa como etiqueta/filtro en pantalla, no condiciona
+  // ninguna regla.
   tipoContrato         TipoContrato?   @map("tipo_contrato")
   fechaIngreso         DateTime?       @map("fecha_ingreso")
   fechaTermino         DateTime?       @map("fecha_termino")
@@ -75,7 +69,7 @@ model Employee {
   fechaEntregaKit      DateTime?       @map("fecha_entrega_kit")
   proximaMantencionEpp DateTime?       @map("proxima_mantencion_epp")
   // Sede de quien registro al empleado -- determina que soporte lo ve.
-  // Independiente de `ubicacion` (texto libre, ya existia). Ver SPEC 2.9.
+  // Independiente de `ubicacion` (texto libre).
   sedeId               String?         @map("sede_id")
   sede                 Sede?           @relation(fields: [sedeId], references: [id])
   activosActuales      Asset[]         @relation("EmpleadoActual")
@@ -125,26 +119,17 @@ model Asset {
   numeroTelefono      String?             @map("numero_telefono")
   numeroActivacion    String?             @map("numero_activacion")
   tipoPlan            String?             @map("tipo_plan")
-  // Campo "operador" (Entel/Movistar/WOM/Claro) eliminado 14-sep-2026,
-  // pedido explicito de Javier -- ver migracion
-  // 20260914000000_activos_quitar_operador_celular y SPEC 2.20.
   tieneCargador       Boolean             @default(true) @map("tiene_cargador")
   // Conectividad compartida por los perifericos simples (Mouse, Teclado,
   // Webcam, Audifonos) -- un solo campo en vez de cuatro secciones casi
-  // idénticas, porque a esas categorias "basta con colocar su identificador
-  // unico" (palabras de Javier) mas este dato. Impresora tuvo especificaciones
-  // propias por un momento el mismo dia (tipo/conexion/IP) pero Javier decidio
-  // que no eran necesarias -- se revirtio (ver migracion
-  // 20260911230000_activos_revertir_specs_impresora y SPEC 2.11).
+  // idénticas para ese mismo dato.
   conectividad        String?
   estado              EstadoActivo        @default(disponible)
   condicion           CondicionActivo     @default(nuevo)
   ubicacionFisica     String?             @map("ubicacion_fisica")
   microsoft365        Boolean             @default(false) @map("microsoft_365")
-  // Nombre del plan/licencia (ej. "Premium", "E3") -- antes se perdia: el
-  // Excel de Notebooks lo trae, pero solo se guardaba el booleano de arriba.
-  // Ver migracion 20260914010000_activos_agregar_tipo_licencia_microsoft365
-  // y SPEC 2.23 (14-sep-2026, pedido explicito de Javier).
+  // Nombre del plan/licencia (ej. "Premium", "E3"), complementa el
+  // booleano de arriba.
   tipoLicenciaMicrosoft365 String?        @map("tipo_licencia_microsoft365")
   intuneEnrolled      Boolean             @default(false) @map("intune_enrolled")
   listaDistribucion   String?             @map("lista_distribucion")
@@ -153,14 +138,12 @@ model Asset {
   fechaCompra         DateTime?           @map("fecha_compra")
   fechaGarantiaFin    DateTime?           @map("fecha_garantia_fin")
   fechaBaja           DateTime?           @map("fecha_baja")
-  // Fecha en que se vendio el activo (la que ingresa quien registra la
-  // venta, no la fecha del sistema). Antes no existia ninguna columna para
-  // esto y el historial guardaba siempre la fecha de hoy (14-sep-2026,
-  // SPEC 2.25). Comprador/monto/moneda siguen solo en AssetHistory, igual
-  // que antes -- Javier solo pidio la fecha, no un documento.
+  // Fecha en que se vendio el activo, ingresada por quien registra la
+  // venta (no la fecha del sistema). Comprador/monto/moneda quedan solo en
+  // AssetHistory.
   fechaVenta          DateTime?           @map("fecha_venta")
-  // Retira el activo de los listados sin borrar la fila ni su historial.
-  // Para duplicados de importacion; ver SPEC 2.7.7. No reemplaza al estado
+  // Retira el activo de los listados sin borrar la fila ni su historial
+  // (por ejemplo, duplicados de importacion). No reemplaza al estado
   // `baja`, que es un estado del ciclo de vida del equipo.
   deletedAt           DateTime?           @map("deleted_at")
   observaciones       String?
@@ -168,17 +151,12 @@ model Asset {
   updatedAt           DateTime            @updatedAt @map("updated_at")
   empleadoActualId    String?             @map("empleado_actual_id")
   // Nombre/etiqueta interna que TI o RRHH le puso al equipo (ej.
-  // "SCL-BNEIRAC"), distinto de marca/modelo. El campo ya existia en el
-  // schema, pero el import (procesarFila.ts) nunca lo leia -- se ofrecia
-  // como columna mapeable en la pantalla de import y se descartaba en
-  // silencio (21-sep-2026, SPEC 2.61, encontrado por Javier al revisar la
-  // logica del import: "que logica estamos haciendo actualmente para
-  // eso"). Ya queda corregido en el import; el campo del schema no cambio.
+  // "SCL-BNEIRAC"), distinto de marca/modelo.
   nombreEquipo        String?             @map("nombre_equipo")
   // Sede donde esta almacenado FISICAMENTE el activo. Independiente de la
   // sede/ubicacion del empleado asignado -- no cambia por una asignacion o
   // devolucion, solo por una guia de despacho de tipo `traslado` ya
-  // recibida. Ver SPEC 2.9 (Sedes).
+  // recibida.
   sedeId              String?             @map("sede_id")
   history             AssetHistory[]
   categoria           AssetCategory       @relation(fields: [categoriaId], references: [id])
@@ -199,49 +177,33 @@ model Asset {
   @@map("assets")
 }
 
-// Modelo Supplier eliminado (14-sep-2026, pedido explicito de Javier: "elimina
-// la tabla de proveedores"). Ya estaba desvinculado de Purchase desde el
-// 11-sep-2026 (el area de soporte no necesita asociar una compra a un
-// proveedor) y Javier confirmo que la tabla no se usaba. Ver migracion
-// 20260914080000_elimina_proveedores y SPEC 2.35. Las rutas /api/proveedores
-// y la pantalla de Configuracion > Proveedores quedaron como stubs que
-// avisan que el modulo se elimino, en vez de borrarse (mismo criterio ya
-// usado con otras paginas cuando no se puede borrar archivos).
+// Modelo Supplier eliminado: el area de soporte no necesita asociar una
+// compra a un catalogo de proveedores. Las rutas /api/proveedores y la
+// pantalla de Configuracion > Proveedores quedaron como stubs que avisan
+// que el modulo se elimino, en vez de borrarse.
 
-// Compras (11-sep-2026, pedido explicito de Javier): se simplifico a solo
-// dos datos -- la factura (para relacionarla) y los equipos que vinieron
-// con ella. Se eliminaron el proveedor y todo dato financiero (monto
-// total, moneda, metodo de pago, precio unitario por equipo): "el tema del
-// dinero no es un dato que nos interese" para el area de soporte. Antes de
-// este cambio esos campos ya estaban restringidos a admin (11-sep-2026,
-// cambio anterior); ahora directamente no existen. Ver migracion
-// 20260911200000_compras_solo_factura_y_equipos.
+// Compras: solo dos datos -- la factura (para relacionarla) y los equipos
+// que vinieron con ella. No se registra proveedor ni dato financiero
+// alguno (monto, moneda, metodo de pago, precio unitario).
 model Purchase {
   id             String          @id @default(uuid())
   numeroFactura  String?         @map("numero_factura")
   fechaFactura   DateTime        @map("fecha_factura")
-  // RUT del proveedor que emitio la factura (11-sep-2026, pedido explicito
-  // de Javier). Es solo texto libre validado con el mismo digito
-  // verificador que el rut de un empleado (ver validations/rut.ts) -- no
-  // referencia al catalogo Supplier, que sigue desvinculado de compras
-  // (ver nota de la v1.9 en el changelog).
+  // RUT del proveedor que emitio la factura: texto libre validado con el
+  // mismo digito verificador que el rut de un empleado (ver
+  // validations/rut.ts), no referencia al catalogo Supplier.
   rutProveedor   String?         @map("rut_proveedor")
   tipoCompra     TipoCompra      @default(FACTURA) @map("tipo_compra")
   descripcion    String?
   compradoPor    String?         @map("comprado_por")
   ordenCompra    String?         @map("orden_compra")
-  // Sede a la que se le atribuye la compra (9-sep-2026, ver sedeScope.ts).
-  // Obligatoria para admin desde el 11-sep-2026 (sedeIdParaCrear con
-  // requerido: true, igual que activos/empleados/solicitudes/guias) --
-  // sigue nullable en la columna solo por compatibilidad con filas
-  // creadas antes de esa regla.
+  // Sede a la que se le atribuye la compra (ver sedeScope.ts). Obligatoria
+  // para admin al crear (sedeIdParaCrear con requerido: true), pero sigue
+  // nullable en la columna por compatibilidad con filas anteriores.
   sedeId         String?         @map("sede_id")
   createdAt      DateTime        @default(now()) @map("created_at")
   purchaseAssets PurchaseAsset[]
-  // Lineas de Kit/EPP compradas con esta factura (14-sep-2026, SPEC 2.36,
-  // pedido explicito de Javier: "aveces el kit de bievenida o epp tambien
-  // lo compran y aqui al registrar una factura ... solo funciona con los
-  // equipos pero no con el kitt de bievenida o epp"). A diferencia de
+  // Lineas de Kit/EPP compradas con esta factura. A diferencia de
   // PurchaseAsset, esto no crea una fila nueva por unidad -- Kit/EPP es
   // stock contable (ver WelcomeKitItem.cantidad), asi que cada linea suma
   // una cantidad al stock existente del articulo.
@@ -263,11 +225,10 @@ model PurchaseAsset {
   @@map("purchase_assets")
 }
 
-// Linea de compra de Kit/EPP (14-sep-2026, SPEC 2.36). Cada fila registra
-// cuanta cantidad de un articulo del catalogo (WelcomeKitItem) llego con
-// esta factura -- al crearse, suma esa cantidad al stock del articulo; si
-// la compra se elimina o la linea se desvincula, se resta de vuelta (sin
-// bajar de 0, por si ya se entrego parte de ese stock a un empleado).
+// Linea de compra de Kit/EPP. Cada fila registra cuanta cantidad de un
+// articulo del catalogo (WelcomeKitItem) llego con esta factura -- al
+// crearse, suma esa cantidad al stock del articulo; si la compra se
+// elimina o la linea se desvincula, se resta de vuelta (sin bajar de 0).
 model PurchaseKitItem {
   id         String         @id @default(uuid())
   purchaseId String         @map("purchase_id")
@@ -286,12 +247,9 @@ model Assignment {
   id                      String            @id @default(uuid())
   assetId                 String            @map("asset_id")
   employeeId              String            @map("employee_id")
-  // Nullable: una fila importada puede no traer fecha de entrega real
-  // (dato historico que nunca se registro). En ese caso se guarda null en
-  // vez de forzar una fecha inventada -- "fecha desconocida" es un valor
-  // valido, no un error (20-sep-2026, SPEC 2.59). La creacion manual desde
-  // el formulario (AsignarActivoForm) sigue exigiendo que el usuario elija
-  // una fecha real; solo el import permite dejarla en blanco.
+  // Nullable: una fila importada puede no traer fecha de entrega real, en
+  // cuyo caso se guarda null en vez de forzar una fecha inventada. La
+  // creacion manual desde el formulario sigue exigiendo una fecha real.
   fechaEntrega            DateTime?         @map("fecha_entrega")
   lugarEntrega            String?           @map("lugar_entrega")
   entregadoPor            String?           @map("entregado_por")
@@ -302,9 +260,9 @@ model Assignment {
   estadoDevolucion        EstadoDevolucion? @map("estado_devolucion")
   observacionesDevolucion String?           @map("observaciones_devolucion")
   // Condicion del cargador -- solo tiene sentido si el activo es un
-  // notebook con tieneCargador = true; para el resto queda null. No es un
-  // activo propio, es un atributo de esta entrega/devolucion puntual y no
-  // afecta el estado/condicion del Activo. Ver SPEC 2.5.3 regla 9.
+  // notebook con tieneCargador = true; para el resto queda null. Es un
+  // atributo de esta entrega/devolucion puntual, no afecta el
+  // estado/condicion del Activo.
   condicionCargadorEntrega    EstadoDevolucionTipo? @map("condicion_cargador_entrega")
   condicionCargadorDevolucion EstadoDevolucionTipo? @map("condicion_cargador_devolucion")
   observacionesCargador       String?               @map("observaciones_cargador")
@@ -340,16 +298,15 @@ model WelcomeKitItem {
   // llega a 0, "sin stock"). Cada articulo puede tener su propio umbral --
   // no todos se agotan al mismo ritmo.
   stockMinimo    Int              @default(5) @map("stock_minimo")
-  // Catalogo separado por sede (SPEC 2.9): cada sede tiene sus propias filas
-  // y su propio stock, igual que Asset/Employee -- no es un catalogo global
-  // con un stock compartido. Nullable por el mismo motivo que en los demas
-  // modelos con sede: un registro "sin sede" solo lo ve admin.
+  // Catalogo separado por sede: cada sede tiene sus propias filas y su
+  // propio stock, igual que Asset/Employee. Nullable: un registro "sin
+  // sede" solo lo ve admin.
   sedeId         String?          @map("sede_id")
   sede           Sede?            @relation(fields: [sedeId], references: [id])
   createdAt      DateTime         @default(now()) @map("created_at")
   kitAssignments KitAssignment[]
   requeridoEn    RequestKitItem[]
-  // Compras que trajeron stock de este articulo (14-sep-2026, SPEC 2.36).
+  // Compras que trajeron stock de este articulo.
   purchaseKitItems PurchaseKitItem[]
 
   @@index([sedeId])
@@ -401,13 +358,10 @@ model RequestKitItem {
   @@map("request_kit_items")
 }
 
-// Tipos de mantencion (9-sep-2026): antes era un enum fijo de Postgres
-// (TipoMantencion), pedido por Javier para que sea mantenible sin tocar
-// codigo/deploy. Admin y tecnico pueden crear/editar/eliminar tipos por
-// igual (recurso de permisos "tiposMantencion", ver permissions.ts) -- es
-// una decision operativa del dia a dia, no algo que deba quedar detras de
-// Configuracion (que es solo para lo fijo del sistema). No tiene sedeId:
-// es un catalogo global, mismo criterio que AssetCategory.
+// Tipos de mantencion: catalogo mantenible sin tocar codigo/deploy. Admin
+// y tecnico pueden crear/editar/eliminar tipos por igual (recurso de
+// permisos "tiposMantencion", ver permissions.ts). No tiene sedeId: es un
+// catalogo global, mismo criterio que AssetCategory.
 model MaintenanceType {
   id           String        @id @default(uuid())
   nombre       String        @unique
@@ -436,11 +390,10 @@ model Maintenance {
   proveedorExterno  String?          @map("proveedor_externo")
   estado            EstadoMantencion @default(pendiente)
   resultado         String?
-  // Resultado estructurado (14-sep-2026, SPEC 2.25): "reparado" |
-  // "no_reparable" | "pendiente_repuestos" (ver resultadoMantencionEnum).
-  // `resultado` de arriba sigue siendo la descripcion libre de que se hizo;
-  // esto es lo que decide que pasa con el activo al completar. Nullable
-  // porque las mantenciones ya completadas antes de este cambio no lo tienen.
+  // Resultado estructurado: "reparado" | "no_reparable" |
+  // "pendiente_repuestos" (ver resultadoMantencionEnum). `resultado` de
+  // arriba sigue siendo la descripcion libre; esto decide que pasa con el
+  // activo al completar. Nullable por mantenciones antiguas sin este dato.
   resultadoTipo     String?          @map("resultado_tipo")
   // Motivo de la baja, obligatorio solo cuando resultadoTipo=no_reparable.
   motivoBaja        String?          @map("motivo_baja")
@@ -473,23 +426,18 @@ model AssetHistory {
   @@map("asset_history")
 }
 
-// Auditoria generica de escritura (SPEC 2.29, 14-sep-2026): a diferencia de
-// AssetHistory (dedicado a Activos, con relacion propia y TipoEvento
-// especifico), esta tabla cubre Empleado/Compra/Usuario -- los 3 modulos que
-// hoy solo dejan `updatedAt` en la fila, sin quien ni que cambio. Se agrega
-// porque desde SPEC 2.29 un tecnico puede crear/editar/eliminar datos de
-// CUALQUIER sede (ya no solo la suya), y Javier condiciono abrir ese acceso
-// a que "cualquier cosa quede un registro" ligado al usuario que la ejecuto.
+// Auditoria generica de escritura: a diferencia de AssetHistory (dedicado
+// a Activos, con relacion propia y TipoEvento especifico), esta tabla
+// cubre Empleado/Compra/Usuario, que solo dejan `updatedAt` en la fila sin
+// quien ni que cambio.
 //
-// Deliberadamente generica/polimorfica (entidad + entidadId como texto, sin
-// relacion FK a cada modelo) porque una sola tabla cubre 3 modelos distintos
-// -- Prisma no soporta una FK que apunte a "uno de varios modelos". Mismo
-// motivo por el que `usuarioSistema` es texto libre (email) y no una FK a
-// SystemUser: sigue el mismo patron que AssetHistory.usuarioSistema.
+// Deliberadamente generica/polimorfica (entidad + entidadId como texto,
+// sin relacion FK a cada modelo) porque una sola tabla cubre varios
+// modelos distintos -- Prisma no soporta una FK que apunte a "uno de
+// varios modelos". Mismo motivo por el que `usuarioSistema` es texto
+// libre (email) y no una FK a SystemUser.
 //
-// Excluido explicitamente: Proveedores. Javier fue explicito: "aclarar que
-// proveedor no va a estar ya que es un dato que no tiene relevancia para el
-// area de soporte". Ver SPEC 2.29 punto 4.
+// Excluido explicitamente: Proveedores (catalogo sin relevancia operativa).
 //
 // IMPORTANTE: `datosAnteriores`/`datosNuevos` de Usuario NUNCA deben incluir
 // `passwordHash` -- ver auditLogService y las rutas de /api/usuarios.
@@ -509,10 +457,7 @@ model AuditLog {
   @@map("audit_log")
 }
 
-// Configuracion general del sistema (14-sep-2026, pedido explicito de
-// Javier al revisar Configuracion > Parametros Generales -- esa pantalla
-// era 100% decorativa: datos de ejemplo hardcodeados y el boton Guardar
-// solo simulaba un delay, sin persistir nada).
+// Configuracion general del sistema.
 //
 // Fila unica (singleton): siempre se lee/escribe el registro con
 // id = "singleton" -- no existe una UI para crear una segunda fila, y la
@@ -526,8 +471,8 @@ model AuditLog {
 model SystemConfig {
   id                   String   @id @default("singleton")
 
-  // Datos de la empresa: por ahora solo se guardan como referencia -- no se
-  // usan en actas/reportes (Javier confirmo que no hace falta conectarlos).
+  // Datos de la empresa: por ahora solo se guardan como referencia, no se
+  // usan en actas/reportes.
   empresaNombre        String?  @map("empresa_nombre")
   empresaRut           String?  @map("empresa_rut")
   empresaDireccion     String?  @map("empresa_direccion")
@@ -550,7 +495,7 @@ model DispatchGuide {
   id                   String              @id @default(uuid())
   numero               String              @unique
   // Numero de seguimiento de Chilexpress -- todo despacho pasa por ahi, es
-  // el dato principal de la guia. Ver discusion de rediseño (10-sep-2026).
+  // el dato principal de la guia.
   otChilexpress        String              @map("ot_chilexpress")
   fechaDespacho        DateTime            @map("fecha_despacho")
   fechaEstimadaLlegada DateTime?           @map("fecha_estimada_llegada")
@@ -558,7 +503,7 @@ model DispatchGuide {
   despachadoPor        String              @map("despachado_por")
   // Receptor: quien firma la recepcion fisica del paquete. Es texto libre
   // a proposito -- no siempre es un Employee del sistema (puede ser alguien
-  // no onboardeado todavia). Ver discusion de rediseño (10-sep-2026).
+  // no onboardeado todavia).
   receptorNombre       String              @map("receptor_nombre")
   receptorRut          String              @map("receptor_rut")
   observaciones        String?
@@ -575,7 +520,7 @@ model DispatchGuide {
   // sede (ver POST /api/guias-despacho).
   sedeDestinoId        String              @map("sede_destino_id")
   // Sede de quien crea la guia (el emisor) -- junto con sedeDestinoId
-  // determina que soporte puede ver/actuar sobre el registro. Ver SPEC 2.9.
+  // determina que soporte puede ver/actuar sobre el registro.
   sedeId               String?             @map("sede_id")
   createdAt            DateTime            @default(now()) @map("created_at")
   updatedAt            DateTime            @updatedAt @map("updated_at")
@@ -595,7 +540,7 @@ model Sede {
   id        String   @id @default(uuid())
   // Slug corto y estable (ej: STGO, CCP). No cambia aunque el nombre
   // visible cambie -- es lo que idealmente se referencia en integraciones
-  // futuras. Ver SPEC 2.9.
+  // futuras.
   codigo    String   @unique
   nombre    String
   // Permite desactivar una sede sin perder el historial de activos/guias
@@ -642,13 +587,11 @@ model WorkflowRequest {
   cargoSolicitado       String?             @map("cargo_solicitado")
   ubicacionDestino      String?             @map("ubicacion_destino")
   categoriasRequeridas  String[]            @default([]) @map("categorias_requeridas")
-  // Coordinacion de entrega (onboarding): se llena en la etapa "Coordinando
-  // Entrega", despues de asignar los equipos y antes de darlos por entregados.
-  // Si medioEntrega es presencial se usa lugarEntrega y fechaEntregaCoordinada
-  // es la fecha/hora real de la visita; si es despacho (Chilexpress) se usan
-  // otChilexpressEntrega + ciudadEntrega, y fechaEntregaCoordinada pasa a ser
-  // la fecha ESTIMADA de llegada (mismo patron que medioCambio/ciudadCambio
-  // mas abajo).
+  // Coordinacion de entrega (onboarding): si medioEntrega es presencial se
+  // usa lugarEntrega y fechaEntregaCoordinada es la fecha/hora real de la
+  // visita; si es despacho (Chilexpress) se usan otChilexpressEntrega +
+  // ciudadEntrega, y fechaEntregaCoordinada pasa a ser la fecha estimada
+  // de llegada.
   fechaEntregaCoordinada DateTime?          @map("fecha_entrega_coordinada")
   medioEntrega           String?            @map("medio_entrega")
   lugarEntrega           String?            @map("lugar_entrega")
@@ -662,13 +605,11 @@ model WorkflowRequest {
   eppSolicitado           Boolean           @default(false) @map("epp_solicitado")
   // Campos cambio equipo
   motivoCambio          String?             @map("motivo_cambio")
-  // Coordinacion de cambio (cambio_equipo): se llena en la etapa "Coordinando
-  // Cambio", ANTES de ejecutar el cambio (a diferencia de la coordinacion de
-  // entrega de onboarding, que se llena despues de asignar). Mismo patron
-  // presencial/OT que las otras dos coordinaciones: si medioCambio es
-  // presencial se usa lugarCambio; si es despacho (Chilexpress) se usan
-  // otCambioChilexpress + ciudadCambio, y fechaCambioCoordinada pasa a ser la
-  // fecha estimada de llegada en vez de la fecha/hora de la visita.
+  // Coordinacion de cambio (cambio_equipo): se llena antes de ejecutar el
+  // cambio. Mismo patron presencial/OT: si medioCambio es presencial se usa
+  // lugarCambio; si es despacho (Chilexpress) se usan otCambioChilexpress +
+  // ciudadCambio, y fechaCambioCoordinada pasa a ser la fecha estimada de
+  // llegada.
   medioCambio           String?             @map("medio_cambio")
   fechaCambioCoordinada DateTime?           @map("fecha_cambio_coordinada")
   lugarCambio           String?             @map("lugar_cambio")
@@ -679,11 +620,11 @@ model WorkflowRequest {
   medioDevolucion       String?             @map("medio_devolucion")
   otChilexpress         String?             @map("ot_chilexpress")
   ciudadDevolucion      String?             @map("ciudad_devolucion")
-  // Coordinacion de devolucion (offboarding): se llena en la etapa
-  // "Coordinando Devolucion", ANTES de recibir los equipos. lugarDevolucion es
-  // el analogo presencial de ciudadDevolucion (que en la practica se usa como
-  // destino del despacho OT); fechaDevolucionCoordinada es la fecha/hora de
-  // la visita presencial, o la fecha estimada de llegada si es por OT.
+  // Coordinacion de devolucion (offboarding): se llena antes de recibir
+  // los equipos. lugarDevolucion es el analogo presencial de
+  // ciudadDevolucion (destino del despacho OT); fechaDevolucionCoordinada
+  // es la fecha/hora de la visita presencial, o la fecha estimada de
+  // llegada si es por OT.
   fechaDevolucionCoordinada DateTime?       @map("fecha_devolucion_coordinada")
   lugarDevolucion       String?             @map("lugar_devolucion")
   // Referencias a registros creados
@@ -695,7 +636,6 @@ model WorkflowRequest {
   kitReturnIds           String[]            @default([]) @map("kit_return_ids")
   dispatchGuideId       String?             @map("dispatch_guide_id")
   // Sede de quien creo la solicitud -- determina que soporte la ve.
-  // Ver SPEC 2.9.
   sedeId                String?             @map("sede_id")
   // General
   observaciones         String?
@@ -794,13 +734,9 @@ enum EstadoEmpleado {
   licencia
 }
 
-// 15-sep-2026 (SPEC 2.40): se elimina "reutilizable". Era indistinguible de
-// "disponible" para entregar un equipo (el formulario de asignacion aceptaba
-// los dos) pero NO contaba como stock en las alertas del Dashboard, asi que
-// con equipos devueltos y listos el sistema igual avisaba "Sin Stock". Lo
-// que ese estado queria decir -- que el equipo ya se uso -- lo dice
-// `condicion` (nuevo/usado/danado), que es una dimension aparte del ciclo
-// de vida.
+// No existe un estado "reutilizable" separado de "disponible": si un
+// equipo ya se uso, eso lo indica `condicion` (nuevo/usado/danado), una
+// dimension aparte del ciclo de vida.
 enum EstadoActivo {
   disponible
   asignado
@@ -877,20 +813,16 @@ enum TipoEvento {
   venta
   solicitud_workflow
   // Cambio de sede fisica del activo, via guia de despacho tipo traslado
-  // recibida. Ver SPEC 2.9.
+  // recibida.
   traslado
-  // Vinculacion de un activo YA EXISTENTE a una compra/factura (14-sep-2026,
-  // SPEC 2.25). Antes solo quedaba historial cuando el activo se CREABA
-  // desde el alta rapida de Nueva Compra -- vincular uno ya existente no
-  // dejaba ningun rastro de esa asociacion.
+  // Vinculacion de un activo YA EXISTENTE a una compra/factura (a
+  // diferencia de crear el activo desde el alta rapida de Nueva Compra).
   compra
 }
 
-// AuditLog (SPEC 2.29 y SPEC 2.31): entidades cubiertas -- Proveedores queda
-// afuera a proposito (tabla sin uso, se va a eliminar). Activos y
-// Solicitudes tampoco estan aca porque ya tienen su propio historial mas
-// detallado (AssetHistory / WorkflowTransition.ejecutadoPorId) -- decision
-// explicita de Javier de no unificarlos, ver SPEC 2.31.
+// AuditLog: entidades cubiertas -- Proveedores queda afuera (tabla sin
+// uso). Activos y Solicitudes tampoco estan aca porque ya tienen su propio
+// historial mas detallado (AssetHistory / WorkflowTransition.ejecutadoPorId).
 enum AuditEntidad {
   empleado
   compra
@@ -902,10 +834,8 @@ enum AuditEntidad {
   sede
   categoria
   tipo_mantencion
-  // Agregado 14-sep-2026 junto con SystemConfig: cambios a datos de empresa
-  // o seguridad (duracion de sesion, intentos de login) tambien quedan
-  // auditados -- es configuracion sensible, tiene sentido saber quien la
-  // toco.
+  // Cambios a datos de empresa o seguridad (duracion de sesion, intentos
+  // de login) tambien quedan auditados.
   configuracion
 }
 
@@ -922,31 +852,27 @@ enum TipoSolicitud {
 }
 
 enum EstadoSolicitud {
-  // Onboarding. La coordinacion de fecha/medio/lugar de entrega ya no es
-  // una etapa propia ("coordinando_entrega") -- se pide junto con la
-  // entrega de equipos, en la misma transicion gestion_ti -> equipos_entregados
-  // (15-sep-2026, SPEC 2.42: "hacemos todo de una en vez de varios pasos").
+  // Onboarding. La coordinacion de fecha/medio/lugar de entrega no es una
+  // etapa propia -- se pide junto con la entrega de equipos, en la misma
+  // transicion gestion_ti -> equipos_entregados.
   solicitud_recibida
   gestion_ti
   equipos_entregados
   registro_rrhh
-  // Cambio equipo. Misma fusion: la coordinacion (fecha/lugar presencial, u
-  // OT + fecha estimada de llegada) se pide junto con la ejecucion del
-  // cambio, en incidencia_detectada -> cambio_ejecutado (SPEC 2.42; ya no
-  // hay un "coordinando_cambio" propio -- ver SPEC 2.5.2 regla 9 para el
-  // origen de esos campos).
+  // Cambio equipo. Misma logica: la coordinacion (fecha/lugar presencial,
+  // u OT + fecha estimada de llegada) se pide junto con la ejecucion del
+  // cambio, en incidencia_detectada -> cambio_ejecutado.
   incidencia_detectada
   cambio_ejecutado
   confirmacion_rrhh
-  // Devolución. Misma fusion: la coordinacion de la devolucion se pide
+  // Devolución. Misma logica: la coordinacion de la devolucion se pide
   // junto con la recepcion de los equipos, en solicitud_emitida ->
-  // equipo_recibido (SPEC 2.42; ya no hay un "coordinacion_en_curso"
-  // propio -- ver SPEC 2.5.2 regla 9 para el origen de esos campos).
+  // equipo_recibido.
   solicitud_emitida
   equipo_recibido
   consolidacion_cierre
   // Cancelación (los tres tipos) -- solo antes de ejecutar efectos
-  // secundarios; ver SPEC 2.5.2/2.5.3 y POST /api/solicitudes/[id]/cancelar
+  // secundarios; ver POST /api/solicitudes/[id]/cancelar
   cancelada
 }
 

@@ -7,9 +7,8 @@ import { prisma } from "./prisma";
 const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
 
 // Valores por defecto -- se usan mientras Configuracion > Parametros
-// Generales no tenga fila guardada (SystemConfig, 14-sep-2026) o si la
-// consulta a la config falla por cualquier motivo: el login NO se puede caer
-// por esto, son los mismos numeros que el sistema uso siempre hasta ahora.
+// Generales no tenga fila guardada, o si la consulta a la config falla: el
+// login no se puede caer por esto.
 const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_LOCKOUT_MINUTOS = 15;
 const DEFAULT_SESION_HORAS = 24;
@@ -37,7 +36,7 @@ async function getConfigLogin(): Promise<{ maxAttempts: number; lockoutMs: numbe
  * `authOptions` (se usa para calcular la expiracion del JWT en cada login) --
  * no se puede volver a consultar la base en cada request sin reestructurar
  * como se arma el handler de NextAuth en todas partes donde se usa
- * `getServerSession(authOptions)` (decenas de archivos).
+ * `getServerSession(authOptions)`.
  *
  * Se arranca con el default y se actualiza en segundo plano (sin bloquear
  * el arranque del modulo ni el login) apenas la consulta a SystemConfig
@@ -45,11 +44,9 @@ async function getConfigLogin(): Promise<{ maxAttempts: number; lockoutMs: numbe
  * mas reciente de `cachedSesionMaxAgeSegundos`.
  *
  * Consecuencia practica: cambiar la duracion de sesion desde Configuracion
- * aplica recien despues de que el servidor se reinicie/redespliegue (o, como
- * mucho, unos segundos despues si el proceso lleva rato corriendo) -- no es
- * instantaneo como los intentos de login, porque el valor no se vuelve a
- * releer despues de ese refresh inicial. Se le avisa esto a Javier
- * explicitamente (ver SPEC 2.34).
+ * aplica recien despues de que el servidor se reinicie/redespliegue, no de
+ * inmediato como los intentos de login, porque el valor no se vuelve a
+ * releer despues de ese refresh inicial.
  */
 let cachedSesionMaxAgeSegundos = DEFAULT_SESION_HORAS * 60 * 60;
 
@@ -126,13 +123,9 @@ export const authOptions: NextAuthOptions = {
         });
 
         // Mismo mensaje para "el correo no existe", "la cuenta esta
-        // desactivada" y "la contrasena no coincide" (15-sep-2026, QA
-        // funcional). Antes se respondia "Usuario no encontrado o inactivo"
-        // vs "Contrasena incorrecta", y esa diferencia permitia averiguar
-        // que correos son cuentas reales del sistema probandolos uno por
-        // uno (enumeracion de usuarios). El detalle real sigue disponible
-        // en el registro de intentos fallidos, no en la respuesta al
-        // navegador. Ver SPEC 2.38.
+        // desactivada" y "la contrasena no coincide", para no permitir
+        // enumerar cuentas reales probando correos uno por uno. El detalle
+        // real sigue disponible en el registro de intentos fallidos.
         const CREDENCIALES_INVALIDAS = "Correo o contraseña incorrectos";
 
         if (!user || !user.activo) {
@@ -173,9 +166,7 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role;
         // `sedeId` viaja en el token para que sedeScope() no tenga que ir a
         // buscar el usuario en cada request. Si el admin le cambia la sede
-        // a alguien con sesion activa, el cambio aplica en el proximo login
-        // (maxAge del JWT es configurable, ver session.maxAge mas abajo y
-        // Configuracion > Parametros Generales) -- ver SPEC 2.9.
+        // a alguien con sesion activa, el cambio aplica en el proximo login.
         token.sedeId = (user as { sedeId?: string | null }).sedeId ?? null;
       }
       return token;

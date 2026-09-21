@@ -44,14 +44,11 @@ type PreviewData = {
 export default function ImportarActivosPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  // La sede a la que se importan los equipos. 18-sep-2026 (SPEC 2.10.2): el
-  // campo lo elige cualquier rol -- antes era admin-only y al tecnico ni se
-  // le preguntaba, pese a que el backend la exige igual (sedeIdParaCrear con
-  // requerido: true). Para el tecnico viene precargada con la suya, mismo
-  // patron que Activos > Nuevo. Sin esto, los activos y empleados importados
-  // quedaban con sedeId null e invisibles. Ver SPEC 2.22 (14-sep-2026).
+  // Sede a la que se importan los equipos. El backend la exige siempre;
+  // para el tecnico viene precargada con la suya (mismo patron que
+  // Activos > Nuevo).
   const [sedeId, setSedeId] = useState("");
-  // Solo admin elige sede (18-sep-2026, SPEC 2.29.1).
+// Solo admin puede elegir la sede.
   const esAdminSede = session?.user?.role === "admin";
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [file, setFile] = useState<File | null>(null);
@@ -111,8 +108,8 @@ export default function ImportarActivosPage() {
     fetchSedes();
   }, []);
 
-  // Precarga la sede del usuario (18-sep-2026, SPEC 2.10.2). El
-  // "|| prev" evita pisar una eleccion manual si ya eligio otra.
+  // Precarga la sede del usuario. El "|| prev" evita pisar una eleccion
+  // manual si ya eligio otra.
   useEffect(() => {
     if (session?.user?.sedeId) {
       setSedeId((prev) => prev || session.user.sedeId!);
@@ -120,10 +117,8 @@ export default function ImportarActivosPage() {
   }, [session?.user?.sedeId]);
 
   // Descripciones breves de cada campo del mapeo: que dato exactamente se
-  // espera en esa columna. Pedido explicito ("la idea sería el nombre del
-  // campo y abajo una breve descripción de qué debería ir en ese campo"),
-  // porque el nombre del campo solo ("RUT", "Estado") no bastaba para saber
-  // que columna del Excel corresponde.
+  // espera en esa columna, ya que el nombre del campo solo (ej: "RUT") no
+  // basta para saber que columna del Excel corresponde.
   const fieldDescriptions: Record<string, string> = {
     numeroSerie: "Número de serie único del equipo (etiqueta o grabado en el equipo).",
     marca: "Fabricante del equipo (ej: Dell, HP, Lenovo).",
@@ -136,8 +131,7 @@ export default function ImportarActivosPage() {
     supervisor: "Nombre del supervisor directo del empleado.",
     sede: "Sede real del equipo (ej: Santiago, Concepción, Perú). Debe coincidir con el nombre o código de una sede existente.",
     // Se arma desde ESTADOS_RECONOCIDOS (misma lista que usa procesarFila
-    // para validar) en vez de escribirla aparte, para que no se vuelva a
-    // desactualizar como paso con "No devuelto" (21-sep-2026).
+    // para validar) para que no se desincronice de la lista real.
     estado: `Estado del equipo (${ESTADOS_RECONOCIDOS.join(", ")}).`,
     condicion: "Condición física del equipo: Nuevo, Usado, Seminuevo o Dañado.",
     observaciones: "Notas adicionales sobre el equipo.",
@@ -152,10 +146,9 @@ export default function ImportarActivosPage() {
     ram: "Cantidad de memoria RAM.",
     sistemaOperativo: "Sistema operativo instalado en el equipo.",
     microsoft365: "Plan de Microsoft 365 asignado (ej: Premium), si tiene.",
-    // Contador impreciso del Excel antiguo ("1", "2", "1+") de cuantas veces
-    // se asigno el equipo antes, sin datos de quien lo tuvo -- no crea
-    // asignaciones reales, solo queda como nota en el historial del activo
-    // (21-sep-2026, SPEC 2.61).
+    // Contador impreciso ("1", "2", "1+") de cuantas veces se asigno el
+    // equipo antes; no crea asignaciones reales, solo queda como nota en
+    // el historial del activo.
     historialAsignaciones: "Cantidad de veces que el equipo fue asignado antes (dato historico, sin nombre de la persona). Ej: 1, 2, 1+.",
     mantencion: "Fecha de la última mantención realizada (dd-mm-aaaa).",
     proximaMantencion: "Fecha programada para la próxima mantención (dd-mm-aaaa).",
@@ -206,9 +199,9 @@ export default function ImportarActivosPage() {
 
   const allOptionalFields = [
     // Campos comunes para todas las categorías
-    // "sede" es el dato que decide, fila por fila, a que sede pertenece el
-    // activo cuando el admin deja la sede en blanco (SPEC 2.30). Va aparte
-    // de "comuna", que es solo informativo.
+    // "sede" decide, fila por fila, a que sede pertenece el activo cuando
+    // el admin deja la sede en blanco. Va aparte de "comuna", que es solo
+    // informativo.
     { key: "sede", label: "Sede", categories: ["*"] },
     { key: "estado", label: "Estado", categories: ["*"] },
     { key: "condicion", label: "Condición (Nuevo/Usado)", categories: ["*"] },
@@ -467,9 +460,7 @@ export default function ImportarActivosPage() {
 
   // Unico punto de escritura: junta las filas ya validas de la vista previa
   // con las corregidas en el panel de errores y las manda TODAS de una vez
-  // a /batch. Las filas con error que no se corrigieron quedan fuera. Antes
-  // "Importar" escribia de inmediato al primer clic; ahora nada se graba
-  // hasta este boton.
+  // a /batch. Las filas con error que no se corrigieron quedan fuera.
   async function handleConfirmImport() {
     if (!validation) return;
 
@@ -624,12 +615,15 @@ export default function ImportarActivosPage() {
               )}
 
               <div className="mt-4 flex gap-4">
-                <Link
+                {/* <a> normal (no next/link Link) a proposito: fuerza una
+                    recarga completa de /activos para pedir datos frescos
+                    al servidor. */}
+                <a
                   href="/activos"
                   className="text-blue-600 hover:text-blue-800 font-medium"
                 >
                   Ver activos importados →
-                </Link>
+                </a>
               </div>
             </div>
           </div>

@@ -3,11 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from "@/lib/auth/guard";
 import { auditLogService } from "@/lib/services/auditLogService";
 
-// Configuracion general del sistema (14-sep-2026): reemplaza la pantalla
-// decorativa de Configuracion > Parametros Generales -- ver SystemConfig en
-// schema.prisma. Fila unica ("singleton"): GET siempre la devuelve (con los
-// valores por defecto si todavia no se guardo nada) y PUT hace upsert sobre
-// ese mismo id.
+// Configuracion general del sistema, guardada como fila unica ("singleton").
+// GET siempre la devuelve (con defaults si aun no se guardo nada) y PUT
+// hace upsert sobre ese mismo id.
 const SINGLETON_ID = "singleton";
 
 // GET /api/configuracion/parametros
@@ -17,9 +15,8 @@ export async function GET() {
 
     const config =
       (await prisma.systemConfig.findUnique({ where: { id: SINGLETON_ID } })) ??
-      // Todavia no se guardo nada: se devuelven los defaults del schema sin
-      // crear la fila (se crea recien al primer PUT), para no dejar un
-      // registro vacio en la base solo por haber abierto la pantalla.
+      // Sin fila guardada aun: devolver los defaults sin crearla (se crea
+      // recien al primer PUT).
       {
         id: SINGLETON_ID,
         empresaNombre: null,
@@ -59,10 +56,8 @@ export async function PUT(request: NextRequest) {
       minutosBloqueoLogin,
     } = body;
 
-    // Validacion minima: los 3 campos de seguridad son los que de verdad
-    // alteran el comportamiento del sistema (duracion de sesion / bloqueo de
-    // login) -- si llegan mal, mejor rechazar que dejar el sistema con un
-    // valor sin sentido (ej. sesiones de 0 horas, todos bloqueados siempre).
+    // Validar los campos de seguridad para evitar valores sin sentido
+    // (ej. sesiones de 0 horas, todos bloqueados siempre).
     const camposNumericos: Array<[string, unknown]> = [
       ["duracionSesionHoras", duracionSesionHoras],
       ["maxIntentosLogin", maxIntentosLogin],
@@ -106,10 +101,8 @@ export async function PUT(request: NextRequest) {
       update: datos,
     });
 
-    // Auditoria generica (SPEC 2.31/2.32): es configuracion sensible
-    // (duracion de sesion, intentos de login), tiene sentido saber quien la
-    // cambio. Se usa "actualizar" siempre, incluso la primera vez que se
-    // guarda algo (conceptualmente es "configurar", no "crear un recurso").
+    // Auditoria de configuracion sensible; siempre "actualizar", incluso la
+    // primera vez que se guarda algo.
     await auditLogService.registrarActualizacion(
       "configuracion",
       SINGLETON_ID,

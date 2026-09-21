@@ -75,31 +75,22 @@ function formatDate(dateString: string | null): string {
 }
 
 /**
- * Tabla de asignaciones vigentes, embebida al fondo del modulo de Activos --
- * reemplaza al modulo standalone "Asignaciones" (ver Sidebar), que se saco
- * de la navegacion porque duplicaba lo que ya vive aca (el formulario para
- * asignar un activo, AsignarActivoForm, ya vivia en Activos desde antes). El
- * detalle (`/asignaciones/[id]`) se mantiene como pagina propia y esta tabla
- * linkea a el, igual que hacia el listado viejo.
+ * Tabla de asignaciones vigentes, embebida al fondo del modulo de Activos.
+ * El detalle (`/asignaciones/[id]`) sigue siendo una pagina propia; esta
+ * tabla solo linkea a el.
  *
- * 15-sep-2026 (SPEC 2.41): se quito de aca el acceso a "Registrar
- * devolucion". Una devolucion no es una accion suelta sobre una fila de esta
- * tabla: ocurre dentro de un proceso que la justifica -- una desvinculacion
- * o un cambio de equipo -- y es ahi donde queda registrada con su motivo y
- * su trazabilidad. Tenerla aca dejaba devolver un equipo sin que constara
- * por que.
+ * No incluye una accion para registrar devoluciones: una devolucion ocurre
+ * dentro de un proceso que la justifica (desvinculacion, cambio de equipo)
+ * y queda registrada ahi con su motivo y trazabilidad.
  */
 export function AsignacionesTable() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 5, total: 0, totalPages: 0 });
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  // El input responde a cada tecla (setSearch abajo), pero lo que dispara la
-  // peticion es esta version debounced -- antes buscaba en cada tecla sin
-  // ningun freno, una peticion por letra. Ver useDebouncedValue.
+  // Version debounced del input; evita disparar una peticion por tecla.
   const debouncedSearch = useDebouncedValue(search, 350);
-  // Selector de sede del nav (Etapa 2): elegir una sede ahi filtra tambien
-  // esta tabla, igual que ya pasa en Activos.
+  // Elegir una sede en el selector del nav filtra tambien esta tabla.
   const { sedeSeleccionada } = useSedeSeleccionada();
 
   useEffect(() => {

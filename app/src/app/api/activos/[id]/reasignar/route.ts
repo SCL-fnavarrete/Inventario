@@ -5,7 +5,7 @@ import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { requirePermission, handleApiError, ConflictError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
-// SPEC 2.7.6: Reasignación de Equipo
+// Handles reassignment of an asset to a new employee.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -34,7 +34,7 @@ export async function POST(
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
     }
 
-    // Aislamiento por sede (18-sep-2026, SPEC 2.29.2): faltaba en esta ruta.
+    // Enforces sede scoping on this route.
     assertSedeAccess(session, asset.sedeId, 'Activo no encontrado');
 
     // Un registro descartado es basura de importacion: no genera movimientos.

@@ -2,12 +2,9 @@ import { NextResponse } from "next/server";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { generarNumeroGuia } from '@/lib/services/guiaDespachoService';
 
-// GET /api/guias-despacho/numero - Obtener próximo número de guía
-//
-// Sin caller hoy (nadie en el frontend lo llama -- confirmado 14-sep-2026,
-// SPEC 2.26). Se deja disponible por si una futura pantalla necesita
-// previsualizar el número antes de crear la guía, pero ya no duplica la
-// lógica: ambos usan generarNumeroGuia().
+// GET /api/guias-despacho/numero - Obtener próximo número de guía.
+// Sin caller en el frontend hoy; se deja disponible para previsualizar el
+// numero, reutilizando generarNumeroGuia() en vez de duplicar la logica.
 export async function GET() {
   try {
     await requirePermission('guias', 'read');

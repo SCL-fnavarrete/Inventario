@@ -58,7 +58,7 @@ async function getActivosObsoletos(session: SesionAutenticada) {
 }
 
 export default async function ReporteObsoletosPage() {
-  // La sesion decide que sede se ve (SPEC 2.29.2, ver nota arriba).
+  // Scoped to the session's sede.
   const session = (await getServerSession(authOptions)) as SesionAutenticada;
   const activos = await getActivosObsoletos(session);
 

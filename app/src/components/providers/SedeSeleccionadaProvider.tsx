@@ -5,34 +5,24 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 /**
- * Selector de sede global (SPEC 2.29, 14-sep-2026).
+ * Selector de sede global. El filtrado por sede es un filtro de UI elegido
+ * acá (ver sedeScope.ts para el control de acceso real en el backend).
+ * `null` significa "todas las sedes" (sin filtro).
  *
- * Desde el rediseño de visibilidad, técnico ya no está restringido a su
- * propia sede (ver sedeScope.ts) -- el filtrado por sede pasa a ser un
- * filtro de UI, elegido acá, en vez de una restricción de acceso del
- * backend. `null` significa "todas las sedes" (sin filtro).
- *
- * Un solo selector, en el Sidebar, en vez de uno por pantalla -- se guarda
- * en localStorage para que se mantenga mientras el usuario navega entre
- * módulos, incluso después de recargar la página. Cada pantalla de listado
- * lee `sedeSeleccionada` de este contexto y lo manda como `?sedeId=` a su
- * API (mismo query param que ya usaba admin en /api/activos, ahora
- * extendido al resto de los endpoints de listado).
+ * Un solo selector, en el Sidebar, persistido en localStorage para que se
+ * mantenga entre navegaciones y recargas. Cada pantalla de listado lee
+ * `sedeSeleccionada` de este contexto y lo manda como `?sedeId=` a su API.
  */
 
 const CLAVE_STORAGE = "inventario-sede-seleccionada";
 
 /**
- * La misma sede viaja tambien en una cookie (15-sep-2026, QA funcional,
- * SPEC 2.38). Motivo: el Dashboard es un server component y consulta la base
- * de datos en el servidor, donde no existe localStorage -- por eso el
- * Resumen ignoraba el selector y seguia mostrando los totales de todas las
- * sedes mientras el resto de las pantallas ya filtraban bien.
+ * La misma sede viaja tambien en una cookie, para que el Dashboard (server
+ * component, sin acceso a localStorage) pueda leerla en el servidor.
  *
  * Es solo un filtro de presentacion, no una credencial: el backend igual
- * valida con la sesion quien puede ver que (ver sedeScope.ts), asi que una
- * cookie manipulada no da acceso a nada nuevo. `SameSite=Lax` y sin
- * `Secure` para que funcione igual en http://localhost.
+ * valida con la sesion quien puede ver que (ver sedeScope.ts). `SameSite=Lax`
+ * y sin `Secure` para que funcione igual en http://localhost.
  */
 const CLAVE_COOKIE = "inventario-sede-seleccionada";
 const DIAS_COOKIE = 365;
@@ -52,9 +42,8 @@ interface SedeSeleccionadaContextValue {
   sedeSeleccionada: string | null;
   setSedeSeleccionada: (sedeId: string | null) => void;
   /**
-   * true cuando el usuario no puede cambiar de sede: su sesion la fija
-   * (18-sep-2026, SPEC 2.29.1). Hoy es cualquiera que no sea admin. El
-   * selector del nav lo usa para mostrarla bloqueada en vez de editable.
+   * true cuando el usuario no puede cambiar de sede porque su sesion la fija
+   * (cualquiera que no sea admin). El selector del nav la muestra bloqueada.
    */
   sedeBloqueada: boolean;
 }
@@ -64,27 +53,22 @@ const SedeSeleccionadaContext = createContext<SedeSeleccionadaContextValue | und
 );
 
 export function SedeSeleccionadaProvider({ children }: { children: React.ReactNode }) {
-  // Arranca en null (todas) tanto en el servidor como en el primer render
-  // del cliente, para que no haya desajuste de hidratación -- localStorage
-  // solo existe en el navegador, se lee recién en el useEffect.
+  // Arranca en null (todas) en servidor y en el primer render del cliente
+  // para evitar desajuste de hidratación; localStorage se lee en el useEffect.
   const [sedeSeleccionada, setSedeSeleccionadaState] = useState<string | null>(null);
 
   const router = useRouter();
   const { data: session } = useSession();
-  // Solo admin elige sede (18-sep-2026, SPEC 2.29.1). Para el resto, la sede
-  // de su sesion manda y el selector queda bloqueado -- ver sedeScope.ts,
-  // donde el backend lo hace cumplir de verdad.
+  // Solo admin elige sede; para el resto, la sede de su sesion manda y el
+  // selector queda bloqueado (el backend lo hace cumplir, ver sedeScope.ts).
   const sedeBloqueada = !!session && session.user?.role !== "admin";
   const sedePropia = session?.user?.sedeId ?? null;
 
   // Valor efectivo que ve el resto de la app: si la sede esta bloqueada,
   // siempre es la propia de la sesion, sin importar lo que haya quedado en
-  // `sedeSeleccionada` (por ejemplo, otra sede guardada en localStorage de
-  // una sesion anterior en el mismo navegador). Se calcula en cada render
-  // en vez de sincronizarlo con un setState dentro de un effect -- es
-  // "estado derivado" (React lo desaconseja explicitamente, ver
-  // react-hooks/set-state-in-effect) y ademas es mas simple: no hay un
-  // frame intermedio en el que el contexto exponga la sede vieja.
+  // `sedeSeleccionada`. Se calcula en cada render (estado derivado) en vez
+  // de sincronizarlo con un setState en un effect, evitando un frame
+  // intermedio con la sede vieja.
   const sedeEfectiva = sedeBloqueada && sedePropia ? sedePropia : sedeSeleccionada;
 
   // Esto si es un efecto legitimo: sincroniza sistemas externos
@@ -109,9 +93,9 @@ export function SedeSeleccionadaProvider({ children }: { children: React.ReactNo
       // recien aca para evitar un mismatch de hidratacion.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (guardado) setSedeSeleccionadaState(guardado);
-      // La cookie puede haberse perdido (expiro, otro navegador) mientras
-      // localStorage sigue teniendo la sede: se re-sincroniza al montar para
-      // que el Dashboard (server component) vea lo mismo que el resto.
+      // La cookie puede haberse perdido mientras localStorage sigue teniendo la
+      // sede: se re-sincroniza al montar para que el Dashboard (server
+      // component) vea lo mismo que el resto.
       escribirCookie(guardado);
     } catch {
       // localStorage puede fallar (modo privado, storage bloqueado) -- no es
@@ -137,9 +121,7 @@ export function SedeSeleccionadaProvider({ children }: { children: React.ReactNo
       }
       // El Dashboard es un server component: lee la sede de la cookie, no de
       // este contexto, asi que hay que pedirle a Next que lo vuelva a
-      // renderizar. Sin esto, el Resumen seguia mostrando los totales de
-      // todas las sedes despues de cambiar el selector (15-sep-2026, QA
-      // funcional, SPEC 2.38).
+      // renderizar.
       router.refresh();
     },
     [router, sedeBloqueada]

@@ -11,14 +11,11 @@ import { ApiError, UnauthorizedError, ForbiddenError } from '@/lib/errors';
  * Guard de autorizacion y traductor unico de errores para las rutas de API.
  *
  * Toda ruta de `src/app/api/**` abre con `requireSession()` o
- * `requirePermission()` y cierra con `handleApiError()`. Antes de esto,
- * 17 rutas no verificaban sesion y solo 8 verificaban rol.
+ * `requirePermission()` y cierra con `handleApiError()`.
  *
- * Formato unificado de error: `{ error: string, details?: unknown }`.
- * El formato inconsistente anterior (unas rutas mandaban `error`, otras
- * `message`/`details`) era la causa del "Error al actualizar activo" generico
- * documentado en CLAUDE.md: el cliente leia una clave que el servidor no
- * enviaba y caia siempre al mensaje por defecto.
+ * Formato unificado de error: `{ error: string, details?: unknown }`, para
+ * que el cliente siempre encuentre la clave que espera en vez de caer al
+ * mensaje generico por defecto.
  */
 
 // Las clases de error viven en @/lib/errors para que la capa de servicios
@@ -69,7 +66,7 @@ interface CuerpoError {
   details?: unknown;
 }
 
-/** Un error asociado a un campo especifico de un formulario (SPEC 2.37). */
+/** Un error asociado a un campo especifico de un formulario. */
 export interface CampoError {
   field: string;
   message: string;
@@ -77,14 +74,9 @@ export interface CampoError {
 
 /**
  * Convierte los `issues` de un ZodError al formato uniforme que espera el
- * frontend (14-sep-2026, SPEC 2.37, pedido explicito de Javier: "si hay
- * error en un campo debe indicar el error, el tipo de error y cual es el
- * campo que genero ese error"). Antes cada ruta mandaba
- * `validationResult.error.issues` tal cual (con `path` como array), y el
- * frontend en su enorme mayoria ni siquiera lo leia -- solo mostraba
- * "Datos invalidos" a secas. Con esto, cada issue queda como
- * `{ field, message }`, donde `field` es el path unido con "." (ej.
- * "categoriaId", o "assets.0.assetId" para un array anidado).
+ * frontend: cada issue queda como `{ field, message }`, donde `field` es
+ * el path unido con "." (ej. "categoriaId", o "assets.0.assetId" para un
+ * array anidado).
  */
 export function zodIssuesToCampoErrores(
   issues: readonly { path: readonly PropertyKey[]; message: string }[]
@@ -96,11 +88,8 @@ export function zodIssuesToCampoErrores(
 }
 
 /**
- * Respuesta unificada para cuando `schema.safeParse(body)` falla (SPEC
- * 2.37). Reemplaza el `NextResponse.json({ error: "Datos invalidos",
- * details: validationResult.error.issues }, { status: 400 })` que estaba
- * repetido manualmente en ~24 rutas -- mismo mensaje, pero ahora con
- * `details` ya en el formato `{ field, message }[]` que entiende
+ * Respuesta unificada para cuando `schema.safeParse(body)` falla, con
+ * `details` en el formato `{ field, message }[]` que entiende
  * `parseApiError` en el frontend (`src/lib/utils/apiErrors.ts`).
  */
 export function respuestaDatosInvalidos(error: ZodError): NextResponse<CuerpoError> {
@@ -146,9 +135,9 @@ export function handleApiError(
           error: campos
             ? `Ya existe un registro con ese valor en: ${campos}`
             : 'Ya existe un registro con ese valor unico',
-          // SPEC 2.37: aunque Prisma no da un mensaje por campo especifico,
-          // al menos se identifica CUAL campo duplicado es, para que el
-          // frontend lo pueda marcar en el formulario.
+          // Prisma no da un mensaje por campo especifico, pero se identifica
+          // cual campo duplicado es, para que el frontend lo marque en el
+          // formulario.
           ...(camposArr.length > 0 && {
             details: camposArr.map((field) => ({
               field,

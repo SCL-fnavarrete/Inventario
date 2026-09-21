@@ -21,23 +21,10 @@ type Props = {
 };
 
 /**
- * Comprobante de entrega -- pensado para adjuntarse al correo de aviso a
- * RRHH (SPEC 2.5, paso "Informar a RRHH" del cierre de onboarding).
- *
- * IMPORTANTE: este documento debe ser fiel al formato de la herramienta
- * externa "generador_acta_scl" (logo, colores, redaccion exacta, tabla),
- * segun pidio Javier explicitamente -- no reinterpretar el diseño, solo
- * conectarlo a los datos reales de la solicitud en vez de tipeados a mano.
- * Si la coordinacion de la entrega fue "por OT" (medioEntrega/
- * otChilexpressEntrega en WorkflowRequest), se agrega la clausula de OT en
- * la intro -- ver documentGeneratorService.
- *
- * 16-sep-2026 (SPEC 2.49): el logo/colores/tabla se movieron a
- * pdfSclBrand.tsx para que Acta de Devolucion y Comprobante de Cambio
- * puedan compartir exactamente el mismo formato -- pedido de Javier, "todas
- * las solicitudes deben seguir el mismo formato que tiene los de
- * onboarding". Este archivo no cambio visualmente, solo de donde saca los
- * estilos.
+ * Comprobante de entrega para adjuntar al aviso a RRHH al cierre de un
+ * onboarding. Si la entrega se coordino "por OT" se agrega la clausula de
+ * OT en la intro (ver documentGeneratorService). Logo, colores y tabla se
+ * comparten con las demas plantillas via pdfSclBrand.tsx.
  */
 
 export function ComprobanteEntregaTemplate({

@@ -14,12 +14,9 @@ import {
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
-// Pantalla nueva (SPEC 2.34, 14-sep-2026): unifica AuditLog + AssetHistory +
-// WorkflowTransition en una sola linea de tiempo -- pedido explicito de
-// Javier de tener "todo el historial del sistema en un solo lugar", sin
-// sacar nada de las pestañas de historial que ya existen en el detalle de
-// cada Activo y cada Solicitud (esas siguen exactamente igual). Ver
-// /api/auditoria.
+// Unifies AuditLog + AssetHistory + WorkflowTransition into a single
+// timeline. Per-record history tabs on Activo/Solicitud detail pages are
+// unaffected. See /api/auditoria.
 
 type EventoAuditoria = {
   id: string;

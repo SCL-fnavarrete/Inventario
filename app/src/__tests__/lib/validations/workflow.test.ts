@@ -7,7 +7,7 @@ import {
   EstadoSolicitudEnum,
 } from '@/lib/validations/workflow';
 
-// SPEC: Sección 2.5 — Sistema de Solicitudes (Workflow)
+// Pruebas del sistema de solicitudes (workflow)
 
 // Datos base reutilizables
 const baseFields = {
@@ -77,9 +77,8 @@ describe('createWorkflowRequestSchema — onboarding', () => {
 // CAMBIO_EQUIPO
 // ============================================================
 describe('createWorkflowRequestSchema — cambio_equipo', () => {
-  // 16-sep-2026 (SPEC 2.45): elegir el equipo a cambiar dejo de ser opcional,
-  // asi que los "datos minimos" de un cambio_equipo ahora incluyen los tres
-  // campos de ejecucion. Antes bastaba con el motivo.
+  // Elegir el equipo a cambiar es obligatorio, por eso los "datos minimos"
+  // de un cambio_equipo incluyen los tres campos de ejecucion.
   const validCambio = {
     ...baseFields,
     tipo: 'cambio_equipo' as const,
@@ -134,10 +133,8 @@ describe('createWorkflowRequestSchema — cambio_equipo con ejecución inmediata
     estadoDevolucionAnterior: 'ok' as const,
   };
 
-  // 16-sep-2026 (SPEC 2.45): antes se aceptaba crear el ticket solo con la
-  // incidencia, para elegir el equipo despues. Ya no: sin stock de reemplazo
-  // en la sede, la solicitud completa no se puede crear -- consecuencia
-  // pedida explicitamente por Javier.
+  // Sin stock de reemplazo en la sede, la solicitud completa no se puede
+  // crear.
   test('rechaza cambio_equipo sin datos de ejecución (ya no existe "solo incidencia")', () => {
     const result = createWorkflowRequestSchema.safeParse(validCambio);
     expect(result.success).toBe(false);
@@ -420,9 +417,8 @@ describe('TipoSolicitudEnum', () => {
   });
 });
 
-// 15-sep-2026 (SPEC 2.42): coordinando_entrega, coordinando_cambio y
-// coordinacion_en_curso se eliminaron -- la coordinacion de fecha/medio/
-// lugar se pide junto con la asignacion/ejecucion del equipo.
+// La coordinacion de fecha/medio/lugar se pide junto con la
+// asignacion/ejecucion del equipo, no como estado aparte.
 describe('EstadoSolicitudEnum', () => {
   test('acepta los 10 estados válidos del flujo normal', () => {
     const estados = [

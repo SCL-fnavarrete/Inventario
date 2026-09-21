@@ -397,9 +397,8 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Licencia Microsoft 365</p>
-                    {/* 15-sep-2026 (SPEC 2.41): antes era un Si/No. Lo que
-                        sirve es saber que plan tiene; el Si/No solo se usa
-                        cuando no hay plan registrado. */}
+                    {/* Muestra el plan de Microsoft 365 cuando esta registrado;
+                        el Si/No solo se usa cuando no hay plan. */}
                     <p className="font-medium flex items-center gap-1">
                       {notebook.tipoLicenciaMicrosoft365 ? (
                         <><CheckCircle size={16} className="text-green-500" /> {notebook.tipoLicenciaMicrosoft365}</>

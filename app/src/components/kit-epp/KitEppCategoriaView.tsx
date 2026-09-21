@@ -14,12 +14,7 @@ type Sede = {
   nombre: string;
 };
 
-/**
- * Confirmacion pendiente (15-sep-2026, SPEC 2.40). Eliminar un articulo se
- * preguntaba con `confirm()` del navegador, que bloquea la ventana entera y
- * no se parece a ningun otro cartel del sistema. Mismo formato que el modal
- * de compras (SPEC 2.38).
- */
+/** Confirmacion de eliminacion, con el mismo formato que otros modales del sistema. */
 type Confirmacion = {
   titulo: string;
   mensaje: string;
@@ -39,14 +34,10 @@ type KitItem = {
 
 /**
  * Vista de catalogo/stock de un solo articulo de Kit de Bienvenida o EPP,
- * pensada para vivir dentro de Activos (ver ActivosTabs) en vez de
- * Configuracion -- que quedo admin-only (9-sep-2026) y le quito al tecnico
- * la unica pantalla donde podia agregar/editar su propio stock. Es la misma
- * logica que tenia `configuracion/kit-epp/page.tsx` (que ahora redirige
- * aca), separada por categoria en vez de mostrar ambas mezcladas -- Javier
- * pidio dos ventanas separadas, no una combinada.
+ * vive dentro de Activos (ver ActivosTabs), separada por categoria en vez
+ * de mostrar ambas mezcladas.
  *
- * Aislamiento por sede (SPEC 2.9): el backend (`/api/kit-items`, via
+ * Aislamiento por sede: el backend (`/api/kit-items`, via
  * sedeWhere/sedeIdParaCrear/assertSedeAccess) ya filtra todo por sede;
  * aca solo se decide que campos mostrar -- admin ve/elige la sede de cada
  * articulo (ve varias sedes mezcladas), tecnico no ve el campo porque
@@ -62,9 +53,8 @@ export function KitEppCategoriaView({
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "admin";
 
-  // La sede propia precarga el formulario de creacion (18-sep-2026, SPEC
-  // 2.10.2) -- igual que Activos > Nuevo. En edicion NO aplica: ahi manda la
-  // sede que ya tiene el articulo.
+  // La sede propia precarga el formulario de creacion, igual que Activos >
+  // Nuevo. En edicion NO aplica: ahi manda la sede que ya tiene el articulo.
   const formInicial = {
     nombre: "",
     categoria,
@@ -135,10 +125,8 @@ export function KitEppCategoriaView({
       });
       if (res.ok) {
         // Aviso cuando el articulo se guarda en una sede distinta a la que
-        // filtra el menu (15-sep-2026, QA funcional, SPEC 2.38): en ese caso
-        // la fila recien creada NO aparece en la tabla, porque la tabla esta
-        // filtrada por la sede del selector. Sin este aviso parecia que el
-        // guardado habia fallado y el usuario lo creaba de nuevo.
+        // filtra el menu: la fila recien creada no aparece en la tabla,
+        // porque esta filtrada por la sede del selector.
         const sedeGuardada = formData.sedeId || null;
         if (sedeSeleccionada && sedeGuardada !== sedeSeleccionada) {
           const nombreSede = sedeGuardada
@@ -326,10 +314,8 @@ export function KitEppCategoriaView({
                     El Dashboard avisa cuando el stock llega a este número o menos.
                   </p>
                 </div>
-                {/* Sede -- visible para cualquier rol desde SPEC 2.10.2.
-                    Antes era admin-only, y como el tecnico no veia el campo,
-                    sus articulos se creaban SIN sede: no aparecian al
-                    filtrar por sede en el menu, sin ningun aviso. */}
+                {/* Sede visible para cualquier rol, para que el articulo siempre
+                    quede con sede asignada y aparezca al filtrar el menu. */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Sede</label>
                   <select
@@ -377,9 +363,7 @@ export function KitEppCategoriaView({
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Nombre
                   </th>
-                  {/* Sede visible para cualquier rol (18-sep-2026, SPEC
-                      2.10.2): el formulario de arriba ya deja elegirla a
-                      todos, ocultar la columna dejaba al tecnico sin ver en
+                  {/* Sede visible para cualquier rol, para que el tecnico vea en
                       que sede quedo cada articulo. */}
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Sede
@@ -514,7 +498,7 @@ export function KitEppCategoriaView({
       )}
 
       {/* Confirmacion de eliminacion, con el mismo formato que el resto del
-          sistema en vez del confirm() del navegador (15-sep-2026, SPEC 2.40). */}
+          sistema en vez del confirm() del navegador. */}
       {confirmacion && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">

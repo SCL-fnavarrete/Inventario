@@ -82,12 +82,9 @@ export async function POST(
     }
 
     // No se puede cerrar un onboarding si se pidio Kit de Bienvenida y/o EPP
-    // pero todavia no se entrego nada de eso -- quedaria pendiente sin que
-    // nada lo refleje una vez cerrado el ticket. Si la solicitud usa el
-    // detalle articulo-por-articulo (RequestKitItem), se valida cada
-    // articulo individual (pendiente bloquea, no_aplica no); si no, se cae
-    // al chequeo antiguo por categoria (tickets creados antes de esa
-    // funcionalidad).
+    // pero no se entrego nada de eso. Si hay detalle articulo-por-articulo
+    // (RequestKitItem) se valida cada uno (pendiente bloquea, no_aplica no);
+    // si no, se usa el chequeo por categoria (booleano + entrega).
     if (
       workflowRequest.tipo === 'onboarding' &&
       workflowRequest.estado === 'equipos_entregados' &&
@@ -102,12 +99,8 @@ export async function POST(
         include: { item: true },
       });
 
-      // Por categoria: si hay filas granulares (RequestKitItem) para esa
-      // categoria puntual se usan esas (mas precisas); si no hay ninguna
-      // (tipico cuando no habia stock al crear el ticket, o es un ticket
-      // viejo) se cae al chequeo por booleano+entrega para esa categoria.
-      // Nunca se ignora un booleano solo porque la OTRA categoria si tenga
-      // detalle granular.
+      // Por categoria: usa las filas granulares (RequestKitItem) si existen;
+      // si no, cae al chequeo por booleano+entrega para esa categoria sola.
       const nombresPendientes: string[] = [];
       const categoriasFaltantesLegacy: string[] = [];
 
@@ -229,9 +222,7 @@ export async function POST(
         nuevoEstado === 'equipos_entregados'
       ) {
         // Coordinacion de entrega: fecha/hora y, segun el medio, el lugar
-        // (presencial) o la OT de despacho (Chilexpress). Se pide junto con
-        // la entrega de equipos, en la misma transicion -- ya no es una
-        // etapa aparte (15-sep-2026, SPEC 2.42).
+        // (presencial) o la OT de despacho (Chilexpress).
         await tx.workflowRequest.update({
           where: { id },
           data: {
@@ -252,11 +243,7 @@ export async function POST(
         nuevoEstado === 'cambio_ejecutado'
       ) {
         // Coordinacion del cambio: fecha/hora y, segun el medio, el lugar
-        // (presencial) o la OT + ciudad de despacho (Chilexpress). Se pide
-        // junto con la ejecucion del cambio, en la misma transicion -- ya no
-        // es una etapa aparte (15-sep-2026, SPEC 2.42). Simetrico a la
-        // coordinacion de entrega de onboarding y a la de devolucion de
-        // offboarding, mas abajo.
+        // (presencial) o la OT + ciudad de despacho (Chilexpress).
         await tx.workflowRequest.update({
           where: { id },
           data: {
@@ -280,11 +267,9 @@ export async function POST(
         const oldAssignmentId = datosAccion?.oldAssignmentId as string | undefined;
         const newAssetId = datosAccion?.newAssetId as string | undefined;
 
-        // Condicion del cargador (16-sep-2026, SPEC 2.48) -- mismo criterio
-        // que en onboarding: solo se guarda si el equipo correspondiente es
-        // un notebook con tieneCargador, se ignora si no (ver SPEC 2.5.3
-        // regla 9). "Anterior" es el del equipo que se devuelve; "Nuevo" el
-        // del equipo de reemplazo.
+        // Condicion del cargador: solo se guarda si el equipo es un
+        // notebook con tieneCargador. "Anterior" es el del equipo que se
+        // devuelve; "Nuevo" el del equipo de reemplazo.
         const condicionCargadorAnterior = datosAccion?.condicionCargadorAnterior as
           | 'ok'
           | 'danado'
@@ -344,11 +329,7 @@ export async function POST(
       ) {
         // Coordinacion de la devolucion: fecha/hora y, segun el medio, el
         // lugar (presencial) o la OT + ciudad de despacho (Chilexpress).
-        // medioDevolucion/otChilexpress/ciudadDevolucion ya se podian llenar
-        // al crear el ticket -- esta transicion los deja completar o
-        // actualizar si cambiaron. Se pide junto con la recepcion de los
-        // equipos, en la misma transicion -- ya no es una etapa aparte
-        // (15-sep-2026, SPEC 2.42).
+        // Permite completar o actualizar estos datos si cambiaron.
         await tx.workflowRequest.update({
           where: { id },
           data: {
@@ -368,12 +349,10 @@ export async function POST(
         workflowRequest.estado === 'solicitud_emitida' &&
         nuevoEstado === 'equipo_recibido'
       ) {
-        // Recepcion de equipos: se califica el estado de cada asignacion
-        // activa del empleado de forma individual (no solo 3 categorias
-        // fijas). Cada una se devuelve con executeReturn, que ya deja el
-        // Activo en "baja" si esta danado o "disponible" si esta ok --
-        // igual que en el flujo de Cambio de Equipo. El EPP entregado se
-        // devuelve igual, con executeKitReturn (el Kit de Bienvenida no se
+        // Recepcion de equipos: califica cada asignacion activa del
+        // empleado individualmente via executeReturn (deja el activo en
+        // "baja" si esta danado, "disponible" si esta ok). El EPP se
+        // devuelve igual con executeKitReturn (el Kit de Bienvenida no se
         // devuelve, es consumible).
         const devoluciones =
           (datosAccion?.devoluciones as
@@ -381,7 +360,7 @@ export async function POST(
                 assignmentId: string;
                 estadoDevolucion: 'ok' | 'danado' | 'no_devuelto';
                 observaciones?: string;
-                // Condicion del cargador (16-sep-2026, SPEC 2.48).
+                // Condicion del cargador.
                 condicionCargador?: 'ok' | 'danado' | 'no_aplica';
                 observacionesCargador?: string;
               }[]
@@ -436,9 +415,7 @@ export async function POST(
           select: { id: true },
         });
         if (asignacionesActivasRestantes.length > 0 || eppPendienteRestante.length > 0) {
-          // Antes de SPEC 2.42 esto dejaba el ticket en "coordinacion_en_curso"
-          // (esa etapa ya no existe): ahora se queda en "solicitud_emitida",
-          // que es el mismo estado en el que ya se piden fecha/medio/lugar.
+          // El ticket se queda en "solicitud_emitida" hasta calificar todo.
           estadoFinalEfectivo = 'solicitud_emitida';
         }
       }

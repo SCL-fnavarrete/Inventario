@@ -8,15 +8,9 @@ import { TipoEvento, Asset, Prisma } from '@prisma/client'
 export type PrismaTx = Prisma.TransactionClient
 
 /**
- * Los metodos aceptan un `tx` opcional como ultimo parametro. Sin el, escriben
- * con el cliente global, que es como los llama la mayoria del codigo. Con el,
- * la entrada de historial se confirma o se descarta junto con el cambio que
- * documenta: un historial que sobrevive a una escritura fallida es peor que no
- * tenerlo, porque miente.
- *
- * Va al final y no al principio -- a diferencia de workflowExecutionService,
- * donde el `tx` es obligatorio -- porque un parametro opcional no puede ir
- * primero sin romper las llamadas existentes.
+ * Los metodos aceptan un `tx` opcional al final. Con el, la entrada de
+ * historial se confirma o se descarta junto con el cambio que documenta,
+ * evitando un historial que sobreviva a una escritura fallida.
  */
 
 export type AssetHistoryData = {
@@ -220,12 +214,10 @@ export const assetHistoryService = {
   },
 
   /**
-   * Registra la venta de un activo
+   * Registra la venta de un activo.
    *
-   * `fechaVenta` (14-sep-2026, SPEC 2.25) es la fecha que la persona
-   * ingresa en el formulario -- antes este metodo no la recibia y siempre
-   * guardaba `new Date()` (la fecha de HOY), ignorando lo que se hubiera
-   * escrito. `moneda` tampoco se guardaba antes.
+   * `fechaVenta` es la fecha ingresada en el formulario, no la fecha del
+   * servidor.
    */
   async registrarVenta(
     assetId: string,
@@ -251,10 +243,8 @@ export const assetHistoryService = {
   },
 
   /**
-   * Registra la vinculación de un activo YA EXISTENTE a una compra/factura
-   * (14-sep-2026, SPEC 2.25). La creación de un activo nuevo desde el alta
-   * rápida de Nueva Compra ya registraba su propio evento `creacion`; esto
-   * cubre el caso que faltaba, que no dejaba ningún rastro.
+   * Registra la vinculación de un activo ya existente a una compra/factura.
+   * La creación de un activo nuevo ya registra su propio evento `creacion`.
    */
   async registrarVinculacionCompra(
     assetId: string,

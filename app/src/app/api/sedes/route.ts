@@ -4,10 +4,8 @@ import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { auditLogService } from '@/lib/services/auditLogService';
 
 /**
- * CRUD de sedes (SPEC 2.9). Vive en Configuración -- solo admin escribe,
- * porque la sede es lo que define el aislamiento de datos entre soporte de
- * Santiago y de Concepción; si cualquiera pudiera crear/editar sedes, ese
- * aislamiento deja de ser confiable.
+ * CRUD de sedes. Solo admin puede escribir, porque la sede define el
+ * aislamiento de datos entre las distintas sedes.
  */
 
 // GET /api/sedes - Listar sedes
@@ -57,7 +55,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Auditoria generica (SPEC 2.31).
+    // Registro de auditoria.
     await auditLogService.registrarCreacion(
       'sede',
       sede.id,

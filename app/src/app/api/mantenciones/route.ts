@@ -65,15 +65,36 @@ export async function GET(request: NextRequest) {
     }
 
     if (filters.search) {
-      where.OR = [
-        { descripcion: { contains: filters.search, mode: "insensitive" } },
-        { realizadoPor: { contains: filters.search, mode: "insensitive" } },
-        { proveedorExterno: { contains: filters.search, mode: "insensitive" } },
-        { resultado: { contains: filters.search, mode: "insensitive" } },
-        { asset: { numeroSerie: { contains: filters.search, mode: "insensitive" } } },
-        { asset: { marca: { contains: filters.search, mode: "insensitive" } } },
-        { asset: { modelo: { contains: filters.search, mode: "insensitive" } } },
-      ];
+      // Buscar por palabras, no por el texto completo: cada palabra debe
+      // aparecer en alguno de los campos (no necesariamente el mismo).
+      //
+      // Alcance acotado al activo y al empleado asignado -- los datos
+      // involucrados en una mantencion -- en vez de a campos de texto libre
+      // propios de la mantencion (descripcion, realizadoPor, etc.).
+      const palabras = filters.search.trim().split(/\s+/).filter(Boolean);
+      const condicionesBusqueda: Prisma.MaintenanceWhereInput[] = palabras.map((palabra) => ({
+        OR: [
+          { asset: { numeroSerie: { contains: palabra, mode: "insensitive" } } },
+          { asset: { marca: { contains: palabra, mode: "insensitive" } } },
+          { asset: { modelo: { contains: palabra, mode: "insensitive" } } },
+          { asset: { nombreEquipo: { contains: palabra, mode: "insensitive" } } },
+          { asset: { numeroTelefono: { contains: palabra, mode: "insensitive" } } },
+          { asset: { ubicacionFisica: { contains: palabra, mode: "insensitive" } } },
+          { asset: { categoria: { nombre: { contains: palabra, mode: "insensitive" } } } },
+          { asset: { empleadoActual: { nombres: { contains: palabra, mode: "insensitive" } } } },
+          { asset: { empleadoActual: { apellidoPaterno: { contains: palabra, mode: "insensitive" } } } },
+          { asset: { empleadoActual: { apellidoMaterno: { contains: palabra, mode: "insensitive" } } } },
+          { asset: { empleadoActual: { rut: { contains: palabra, mode: "insensitive" } } } },
+          { asset: { empleadoActual: { correoEmpresa: { contains: palabra, mode: "insensitive" } } } },
+        ],
+      }));
+
+      const condicionesAndPrevias = Array.isArray(where.AND)
+        ? where.AND
+        : where.AND
+        ? [where.AND]
+        : [];
+      where.AND = [...condicionesAndPrevias, ...condicionesBusqueda];
     }
 
     // Filtro de pendientes (estado pendiente o en_proceso)
@@ -83,7 +104,17 @@ export async function GET(request: NextRequest) {
 
     // Filtro de vencidas (fecha programada pasada y no completada)
     if (filters.vencidas) {
+      // No pisar where.AND directamente -- si tambien viene "search" (arriba)
+      // ya dejo condiciones propias ahi; sobrescribir las perderia en vez de
+      // combinarlas (mismo patron de merge que ya usa el filtro de periodo,
+      // mas abajo).
+      const condicionesAndPrevias = Array.isArray(where.AND)
+        ? where.AND
+        : where.AND
+        ? [where.AND]
+        : [];
       where.AND = [
+        ...condicionesAndPrevias,
         { fechaProgramada: { lt: new Date() } },
         { estado: { in: ["pendiente", "en_proceso"] } },
       ];
@@ -100,19 +131,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Filtro de periodo (18-sep-2026, SPEC 2.51.1): antes el selector de
-    // periodo de la pantalla (Dia/Semana/Mes/...) solo acotaba las tarjetas
-    // "Proximas"/"Completadas" (via /api/mantenciones/pendientes) -- el
-    // listado de abajo seguia mostrando todo, sin importar el periodo
-    // elegido. Javier: "por lo que veo, solamente le esta aplicando este
-    // filtro a las tarjetas... deberia hacerlo a todo el modulo". Se aplica
-    // la misma logica que ya usan las tarjetas: vencidas y en_proceso se
-    // ven siempre (no tienen una ventana natural -- una vencida sigue
-    // siendo relevante sin importar hace cuanto vencio), proximas se
-    // acotan por fechaProgramada dentro de "dias" y completadas por
-    // fechaRealizada dentro de "diasCompletadas". Canceladas y pendientes
-    // sin fecha programada tampoco tienen ventana que aplicarles, asi que
-    // se mantienen visibles.
+    // Filtro de periodo: el selector de periodo (Dia/Semana/Mes/...) aplica
+    // a todo el listado, no solo a las tarjetas de resumen. Vencidas y
+    // en_proceso se ven siempre; proximas se acotan por fechaProgramada
+    // dentro de "dias" y completadas por fechaRealizada dentro de
+    // "diasCompletadas". Canceladas y pendientes sin fecha programada se
+    // mantienen visibles.
     if (filters.dias || filters.diasCompletadas) {
       const dias = filters.dias ?? filters.diasCompletadas ?? 30;
       const diasCompletadas = filters.diasCompletadas ?? dias;
@@ -225,10 +249,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validar transición de estado con la máquina de estados (SPEC 2.7),
-    // igual que PUT /api/activos/[id]. Solo aplica cuando esta mantención
-    // va a cambiar el estado del activo (fechaProgramada presente) y el
-    // activo no está ya en mantención.
+    // Validar transicion de estado con la maquina de estados, igual que
+    // PUT /api/activos/[id]. Solo aplica cuando esta mantencion va a
+    // cambiar el estado del activo (fechaProgramada presente) y el activo
+    // no esta ya en mantencion.
     if (data.fechaProgramada && asset.estado !== "en_mantencion") {
       const activeAssignment = await prisma.assignment.findFirst({
         where: { assetId: data.assetId, activo: true },
@@ -273,8 +297,8 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Auditoria generica (SPEC 2.31): quien creo el ticket de mantencion,
-      // dentro de la misma transaccion.
+      // Auditoria generica: quien creo el ticket de mantencion, dentro de
+      // la misma transaccion.
       await auditLogService.registrarCreacion(
         'mantencion',
         maintenance.id,

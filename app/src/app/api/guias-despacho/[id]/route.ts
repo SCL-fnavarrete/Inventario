@@ -12,9 +12,9 @@ interface RouteParams {
 }
 
 /**
- * A una guia le importan DOS sedes (emisor y destino) -- ver mismo helper
- * en route.ts. Se repite aca en vez de compartirlo porque compara contra
- * un registro ya cargado, no arma un `where`.
+ * A una guia le importan DOS sedes (emisor y destino). Se repite aca en vez
+ * de compartir con route.ts porque compara contra un registro ya cargado,
+ * no arma un `where`.
  */
 function assertGuiaAccess(
   session: SesionAutenticada,
@@ -29,11 +29,9 @@ function assertGuiaAccess(
 }
 
 /**
- * Confirmar recepción es una acción de la sede DESTINO únicamente -- quien
- * despachó ya hizo su parte al crear la guía. Sin este chequeo, un técnico
- * de la sede emisora también podía marcar "recibido" porque ya tenía acceso
- * de lectura/escritura a la guía vía assertGuiaAccess (que permite ambas
- * sedes a propósito, para que la destino pueda VER la guía).
+ * Confirmar recepción es una acción exclusiva de la sede destino; la sede
+ * emisora tiene acceso de lectura/escritura via assertGuiaAccess pero no
+ * puede confirmar por si misma.
  */
 function assertPuedeConfirmarRecepcion(
   session: SesionAutenticada,
@@ -83,12 +81,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// PATCH /api/guias-despacho/[id] - Confirmar recepción
-//
-// Este es el único cambio posible sobre una guía ya creada: es puramente
-// informativo (fecha y quién confirmó que llegó físicamente) y no toca
-// datos de Activos -- el traslado de sede ya se aplicó al crear la guía.
-// La guía no se puede anular ni eliminar.
+// PATCH /api/guias-despacho/[id] - Confirmar recepción.
+// Único cambio posible sobre una guía ya creada: es puramente informativo
+// y no toca datos de Activos (el traslado ya se aplicó al crearla).
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('guias', 'write');
@@ -142,7 +137,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Auditoria generica (SPEC 2.31): quien confirmo la recepcion.
+    // Auditoria generica: quien confirmo la recepcion.
     await auditLogService.registrarActualizacion(
       'guia_despacho',
       updatedGuide.id,

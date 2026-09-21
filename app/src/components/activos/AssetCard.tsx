@@ -38,7 +38,7 @@ interface AssetData {
     id: string;
     nombres: string;
     apellidoPaterno: string;
-    // El correo de empresa es el identificador visible (15-sep-2026, SPEC 2.39)
+    // Identificador visible de la persona.
     correoEmpresa?: string | null;
     correoPersonal?: string | null;
     cargo?: string | null;
@@ -98,8 +98,7 @@ const conditionLabels: Record<CondicionActivo, string> = {
 
 export function AssetCard({ asset, compact = false }: AssetCardProps) {
   const hasSpecs = asset.procesador || asset.ram || asset.discoDuro;
-  // Eliminado el codigo interno (15-sep-2026, SPEC 2.40): el equipo se
-  // identifica unicamente por su numero de serie.
+  // El equipo se identifica unicamente por su numero de serie.
   const displayCode = asset.numeroSerie || "Sin n\u00b0 de serie";
 
   if (compact) {

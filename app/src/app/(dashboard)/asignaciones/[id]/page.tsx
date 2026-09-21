@@ -6,8 +6,7 @@ import {
   ArrowLeft,
   FileText,
   // Se sigue usando en la seccion "Datos de Devolucion", que es solo
-  // informativa; lo que se quito (SPEC 2.41) es el boton que permitia
-  // registrar una devolucion desde aca.
+  // informativa (no hay boton para registrar una devolucion desde aca).
   Undo2,
   Laptop,
   Smartphone,
@@ -73,7 +72,7 @@ type Assignment = {
     nombres: string;
     apellidoPaterno: string;
     apellidoMaterno: string | null;
-    // El correo de empresa es el obligatorio (15-sep-2026, SPEC 2.39)
+    // El correo de empresa es el obligatorio.
     correoEmpresa: string;
     correoPersonal?: string | null;
     cargo: string | null;
@@ -96,10 +95,8 @@ const tipoMovimientoColors: Record<string, string> = {
   temporal: "bg-orange-100 text-orange-800",
 };
 
-// EstadoDevolucionEnum tiene 3 valores (ok | incompleto | danado); el badge
-// anterior era un ternario binario que mostraba "Dañado" para cualquier
-// devolucion que no fuera "ok", incluyendo "incompleto" (que en realidad
-// manda el activo a disponible, no a baja).
+// EstadoDevolucionEnum tiene 3 valores (ok | incompleto | danado); cada uno
+// necesita su propia etiqueta, ya que "incompleto" no implica baja del activo.
 const estadoDevolucionInfo: Record<string, { label: string; className: string }> = {
   ok: { label: "Buen estado", className: "bg-green-100 text-green-800" },
   incompleto: { label: "Incompleto", className: "bg-amber-100 text-amber-800" },

@@ -35,12 +35,10 @@ export async function GET(request: NextRequest) {
     const filters = filtersResult.data;
     const skip = (filters.page - 1) * filters.limit;
 
-    // Construir condiciones de búsqueda
-    // Aislamiento por sede (SPEC 2.9): admin ve todo, el resto solo lo suyo.
+    // Aislamiento por sede: admin ve todo, el resto solo lo suyo.
     const where: Prisma.EmployeeWhereInput = { ...sedeWhere(session) };
 
-    // Selector de sede del nav (Etapa 2): solo quien ya tiene visibilidad
-    // total (admin/tecnico) puede acotar por una sede especifica.
+    // Solo quien tiene visibilidad total puede acotar por una sede especifica.
     const sedeIdFiltro = searchParams.get("sedeId") || "";
     if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
       where.sedeId = sedeIdFiltro;
@@ -72,13 +70,8 @@ export async function GET(request: NextRequest) {
     let employees;
     let total;
 
-    // Se filtra en memoria para soportar RUT sin formato (15941817 matchea
-    // 15.941.817-0) y texto sin acentos (Cesar matchea César). La base es
-    // chica (<1000 empleados), asi que traerla entera es viable.
-    //
-    // Basta un caracter: antes se exigian dos, y con uno solo la peticion caia
-    // a la rama sin filtro y devolvia TODOS los empleados. El usuario escribia
-    // una letra y creia que el buscador estaba roto.
+    // Se filtra en memoria para soportar RUT sin formato y texto sin
+    // acentos; el volumen de empleados es chico y traerlos todos es viable.
     if (terminoBusqueda) {
       const allEmployees = await prisma.employee.findMany({
         where: {
@@ -194,9 +187,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verificar si ya existe un empleado con el mismo correo de empresa.
-    // 15-sep-2026 (SPEC 2.39): este es el correo obligatorio, asi que es el
-    // que siempre hay que comprobar; el personal solo si viene.
+    // Verificar si ya existe un empleado con el mismo correo de empresa
+    // (obligatorio); el correo personal solo se valida si viene.
     const existingByCorreoEmpresa = await prisma.employee.findUnique({
       where: { correoEmpresa: data.correoEmpresa },
     });
@@ -222,8 +214,7 @@ export async function POST(request: NextRequest) {
     }
 
     // La sede se hereda de quien registra al empleado; admin debe elegirla
-    // explicitamente (requerido: true) -- ver nota en sedeIdParaCrear. Ver
-    // SPEC 2.9.
+    // explicitamente.
     const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId, {
       requerido: true,
     });
@@ -255,8 +246,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Auditoria generica (SPEC 2.29): quien creo este empleado y con que
-    // datos. No bloquea la respuesta si falla -- ver nota en registrar().
+    // Auditoria generica: quien creo este empleado y con que datos.
     await auditLogService.registrarCreacion(
       'empleado',
       employee.id,

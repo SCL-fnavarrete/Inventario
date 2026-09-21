@@ -6,8 +6,7 @@ declare module "next-auth" {
     user: {
       id: string;
       role: string;
-      // Sede del usuario (null para admin, que ve todas). Ver sedeScope()
-      // y SPEC 2.9.
+      // Sede del usuario (null para admin, que ve todas). Ver sedeScope().
       sedeId: string | null;
     } & DefaultSession["user"];
   }

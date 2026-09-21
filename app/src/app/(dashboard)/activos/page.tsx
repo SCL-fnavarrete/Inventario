@@ -18,7 +18,6 @@ import {
   Package,
   ChevronDown,
   ChevronUp,
-  Columns3,
   LayoutGrid,
   LayoutList,
   Kanban,
@@ -66,8 +65,7 @@ type Asset = {
     id: string;
     nombres: string;
     apellidoPaterno: string;
-    // El correo de empresa es el identificador visible (15-sep-2026, SPEC 2.39)
-    correoEmpresa: string;
+    correoEmpresa: string; // visible identifier
     correoPersonal?: string | null;
     cargo: string | null;
   } | null;
@@ -101,8 +99,7 @@ type Pagination = {
   limit: number;
 };
 
-// Tipar el mapa contra el enum convierte una clave olvidada en un error de
-// compilacion, en vez de una celda vacia que nadie nota en produccion.
+// Typed against the enum so a missing key is a compile error, not a blank cell.
 const estadoColors: Record<EstadoActivo, string> = {
   disponible: "bg-green-100 text-green-800",
   asignado: "bg-blue-100 text-blue-800",
@@ -121,13 +118,10 @@ const estadoLabels: Record<EstadoActivo, string> = {
   vendido: "Vendido",
 };
 
-// Los valores son los del enum CondicionActivo (nuevo | usado | danado).
-// Antes este mapa listaba bueno/regular/malo, que no existen en el dominio:
-// dos de los tres valores reales quedaban sin etiqueta y la celda salia vacia.
+// Values match the CondicionActivo enum (nuevo | usado | danado).
 /**
- * `estado` llega como texto libre desde la URL (?estado=...), asi que no se
- * puede usar como clave del mapa sin comprobarlo antes: un valor inventado
- * daria undefined en silencio.
+ * `estado` comes from the URL as free text, so it must be validated before
+ * being used as a map key; an unrecognized value would silently be undefined.
  */
 function esEstadoConocido(valor: string): valor is EstadoActivo {
   return valor in estadoLabels;
@@ -160,30 +154,22 @@ function getCategoryIcon(categoryName: string) {
 
 const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: "tipo", label: "Tipo", visible: true, required: true },
-  // Sin el codigo interno (15-sep-2026, SPEC 2.40) el equipo se identifica
-  // solo por su numero de serie.
   { id: "identificacion", label: "N\u00b0 Serie", visible: true, required: true },
   { id: "marca", label: "Marca/Modelo", visible: true, required: true },
   { id: "estado", label: "Estado", visible: true, required: true },
   { id: "condicion", label: "Condici\u00f3n", visible: true },
   { id: "asignado", label: "Asignado a", visible: true },
   { id: "specs", label: "Especificaciones", visible: true },
-  { id: "fechaCompra", label: "Fecha Compra", visible: false },
-  { id: "ubicacion", label: "Ubicaci\u00f3n", visible: false },
-  { id: "software", label: "Software", visible: false },
+  { id: "fechaCompra", label: "Fecha Compra", visible: true },
+  { id: "ubicacion", label: "Ubicaci\u00f3n", visible: true },
+  { id: "software", label: "Software", visible: true },
   { id: "acciones", label: "Acciones", visible: true, required: true },
 ];
 
 /**
- * URL de las estadisticas, respetando el selector de sede del nav.
- *
- * 15-sep-2026 (QA funcional, SPEC 2.38): las tarjetas de arriba y los
- * contadores por categoria ignoraban ese selector -- con "Concepcion"
- * elegido, la tabla decia "No se encontraron activos" mientras la tarjeta
- * seguia diciendo "Total 1" (el activo de Santiago). Se centraliza aca
- * porque la pantalla vuelve a pedir las stats en 4 momentos distintos
- * (carga inicial, y despues de crear / editar / eliminar un activo) y las
- * cuatro tienen que filtrar igual.
+ * Builds the stats URL, applying the nav's sede filter. Centralized here
+ * since stats are refetched from several places (initial load, and after
+ * creating/editing/deleting an asset) and must all filter consistently.
  */
 function urlStats(sedeSeleccionada: string | null): string {
   return sedeSeleccionada
@@ -195,8 +181,7 @@ function ActivosPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  // SPEC 2.29: filtro global de sede (selector del nav), no viene de la URL
-  // de esta pantalla -- se mantiene mientras el usuario navega entre módulos.
+  // Global sede filter from the nav selector, kept across module navigation.
   const { sedeSeleccionada } = useSedeSeleccionada();
 
   // URL state
@@ -204,7 +189,7 @@ function ActivosPageContent() {
   const categoriaFilter = searchParams.get("categoriaId") || "";
   const searchQuery = searchParams.get("search") || "";
   const currentPage = parseInt(searchParams.get("page") || "1");
-  const limitParam = parseInt(searchParams.get("limit") || "10");
+  const limitParam = parseInt(searchParams.get("limit") || "20");
 
   // Local state
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -219,19 +204,13 @@ function ActivosPageContent() {
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [searchInput, setSearchInput] = useState(searchQuery);
-  // El input responde a cada tecla; lo que dispara la busqueda (via URL, mas
-  // abajo) es esta version debounced -- antes no pasaba nada hasta enviar
-  // el formulario (Enter). Ver useDebouncedValue.
+  // Debounced so the URL-driven search fires automatically as the user types.
   const debouncedSearchInput = useDebouncedValue(searchInput, 350);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"table" | "cards" | "kanban">("table");
-  const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS);
   const [bajaModalAssetId, setBajaModalAssetId] = useState<string | null>(null);
-  const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  // Aviso de por que no se pudo mover una tarjeta en el Kanban. Antes esto
-  // salia en un alert() del navegador, que bloquea la ventana y no se parece
-  // a ningun otro mensaje del sistema (15-sep-2026, SPEC 2.40).
+  // Message shown when a Kanban card move is not allowed.
   const [kanbanError, setKanbanError] = useState<string | null>(null);
 
   // Update URL params
@@ -254,11 +233,8 @@ function ActivosPageContent() {
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }, [router, pathname, searchParams]);
 
-  // Aplica la busqueda a la URL sola despues de la pausa del debounce --
-  // antes exigia Enter (handleSearch, mas abajo, lo sigue permitiendo para
-  // quien quiera forzarla al toque). El commit real sigue siendo la URL, asi
-  // que atras/adelante del navegador y compartir el link con un filtro
-  // aplicado no cambia.
+  // Applies the search to the URL once the debounce settles; the URL
+  // remains the source of truth, so back/forward and shared links still work.
   useEffect(() => {
     if (debouncedSearchInput === searchQuery) return;
     updateUrlParams({ search: debouncedSearchInput || null });
@@ -410,10 +386,8 @@ function ActivosPageContent() {
     return;
   }
 
-  //Devolucion de un equipo asignado (vuelve a disponible, o se da de baja
-  //si volvio danado). Ya no existe una pantalla de devolucion suelta -- una
-  //devolucion solo puede pasar dentro de una Solicitud (cambio de equipo o
-  //desvinculacion), que es donde queda el motivo y el documento (SPEC 2.41).
+  // Returning an assigned asset only happens through a Solicitud (change
+  // of equipment or offboarding), which records the reason and document.
   if (currentStatus==="asignado" && (newStatus ==="disponible" || newStatus==="baja")){
     router.push("/solicitudes/nueva");
     return;
@@ -456,16 +430,6 @@ function ActivosPageContent() {
     });
   }
 
-  function toggleColumnVisibility(columnId: string) {
-    setColumns((prev) =>
-      prev.map((col) =>
-        col.id === columnId && !col.required
-          ? { ...col, visible: !col.visible }
-          : col
-      )
-    );
-  }
-
   // Build active filters for display
   const activeFilters = [];
   if (searchQuery) {
@@ -494,7 +458,7 @@ function ActivosPageContent() {
     });
   }
 
-  const visibleColumns = columns.filter((col) => col.visible);
+  const visibleColumns = DEFAULT_COLUMNS.filter((col) => col.visible);
 
   return (
     <div className="space-y-6">
@@ -636,46 +600,6 @@ function ActivosPageContent() {
             </div>
           </div>
 
-          {viewMode === "table" && (
-            <div className="relative">
-              <button
-                onClick={() => setShowColumnSelector(!showColumnSelector)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                <Columns3 size={16} />
-                <span>Columnas</span>
-                <ChevronDown size={16} />
-              </button>
-
-              {showColumnSelector && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border z-10">
-                  <div className="p-2">
-                    <p className="text-xs font-medium text-gray-500 uppercase px-2 py-1">
-                      Mostrar columnas
-                    </p>
-                    {columns.map((col) => (
-                      <label
-                        key={col.id}
-                        className={cn(
-                          "flex items-center gap-2 px-2 py-2 rounded hover:bg-gray-50 cursor-pointer",
-                          col.required && "opacity-50 cursor-not-allowed"
-                        )}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={col.visible}
-                          onChange={() => toggleColumnVisibility(col.id)}
-                          disabled={col.required}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-700">{col.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
@@ -687,14 +611,10 @@ function ActivosPageContent() {
           isUpdating={isUpdatingStatus}
         />
       ) : viewMode === "cards" ? (
-        /* Cards View.
-           22-sep-2026 (SPEC 2.70, pedido de Javier: "al agrandar la
-           pantalla las tarjetas se achican y todo aparece afuera"): el
-           salto de 2 a 3 columnas coincidia con el breakpoint (lg, 1024px)
-           en el que el Sidebar deja de ser un overlay y pasa a ocupar
-           256px fijos (ver Sidebar.tsx) -- doble golpe: menos ancho
-           disponible Y mas columnas repartiendolo (460px a 221px medido).
-           Se corre el salto a 3 columnas a xl (1280px). */
+        /* Cards View. The 2->3 column breakpoint is set to xl (1280px)
+           rather than lg, since lg coincides with the Sidebar switching
+           from overlay to a fixed 256px width, which would leave cards
+           too narrow. */
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {loading ? (
             <div className="col-span-full flex items-center justify-center py-12">
@@ -784,8 +704,6 @@ function ActivosPageContent() {
                         {visibleColumns.find((c) => c.id === "identificacion") && (
                           <td className="px-4 py-3 whitespace-nowrap align-top">
                             <div>
-                              {/* El numero de serie pasa a ser el dato principal
-                                  de identificacion (15-sep-2026, SPEC 2.40). */}
                               <p className="text-sm font-medium text-gray-900">
                                 {asset.numeroSerie || "-"}
                               </p>
@@ -1137,6 +1055,7 @@ function ActivosPageContent() {
                       className="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                     >
                       <option value="10">10</option>
+                      <option value="20">20</option>
                       <option value="25">25</option>
                       <option value="50">50</option>
                       <option value="100">100</option>
@@ -1235,6 +1154,7 @@ function ActivosPageContent() {
                   className="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                 >
                   <option value="10">10</option>
+                  <option value="20">20</option>
                   <option value="25">25</option>
                   <option value="50">50</option>
                   <option value="100">100</option>

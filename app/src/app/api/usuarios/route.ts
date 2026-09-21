@@ -81,9 +81,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Sede (SPEC 2.9): admin no tiene sede (ve todo); cualquier otro rol
-    // necesita una para que el aislamiento de datos funcione -- sin ella el
-    // usuario quedaria creado pero sin poder ver ni crear nada.
+    // Admin no tiene sede (ve todo); cualquier otro rol necesita una para
+    // que el aislamiento de datos por sede funcione.
     const rolFinal = (rol as SystemRole) || "tecnico";
     if (rolFinal !== "admin" && !sedeId) {
       return NextResponse.json(
@@ -115,8 +114,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Auditoria generica (SPEC 2.29). NUNCA incluir passwordHash ni password
-    // en el snapshot -- ver comentario en el modelo AuditLog.
+    // Nunca incluir passwordHash ni password en el snapshot de auditoria.
     await auditLogService.registrarCreacion(
       'usuario',
       user.id,

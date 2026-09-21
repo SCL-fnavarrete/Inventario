@@ -32,9 +32,8 @@ export const createEmployeeSchema = z.object({
   nombres: z.string().min(1, "El nombre es requerido").max(100, "Máximo 100 caracteres"),
   apellidoPaterno: z.string().min(1, "El apellido paterno es requerido").max(100, "Máximo 100 caracteres"),
   apellidoMaterno: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
-  // 15-sep-2026 (SPEC 2.39): el obligatorio es el correo de EMPRESA, no el
-  // personal. Es el que siempre existe en las planillas de TI y con el que
-  // se identifica a la persona; el particular muchas veces nadie lo registro.
+  // El obligatorio es el correo de empresa, no el personal: es el que
+  // siempre existe y con el que se identifica a la persona.
   correoPersonal: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional().nullable(),
   correoEmpresa: z.string().email("Email inválido").max(150, "Máximo 150 caracteres"),
   cargo: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
@@ -46,9 +45,8 @@ export const createEmployeeSchema = z.object({
   subArea: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   direccionParticular: z.string().max(300, "Máximo 300 caracteres").optional().nullable(),
   listasDistribucion: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
-  // Opcional desde el 15-sep-2026 (SPEC 2.39): las planillas de origen no
-  // traen este dato y forzarlo obligaba a inventarlo. Lo completan los
-  // tecnicos cuando lo saben.
+  // Opcional: las planillas de origen no siempre traen este dato. Lo
+  // completan los tecnicos cuando lo saben.
   tipoContrato: TipoContratoEnum.optional().nullable(),
   fechaIngreso: fechaOpcional,
   fechaTermino: fechaOpcional,
@@ -87,11 +85,9 @@ export const updateEmployeeSchema = z.object({
   fechaEntregaKit: fechaOpcional,
   fechaEntregaEpp: fechaOpcional,
   proximaMantencionEpp: fechaOpcional,
-  // Reasignar la sede de un empleado ya creado (ej. se traslada de
-  // Concepcion a Santiago). Solo admin puede enviarlo -- la ruta ignora
-  // este campo si lo envia un tecnico. Ya no se acepta null: el select del
-  // formulario no ofrece "Sin sede" (ver SPEC 2.9) -- un empleado siempre
-  // debe quedar con una sede real asignada, nunca transversal.
+  // Reasignar la sede de un empleado ya creado. Solo admin puede enviarlo;
+  // la ruta ignora este campo si lo envia un tecnico. No acepta null: un
+  // empleado siempre debe quedar con una sede real asignada.
   sedeId: z.string().uuid("Sede inválida").optional(),
 });
 
@@ -114,17 +110,16 @@ export const importEmployeeSchema = z.object({
   nombres: z.string().min(1, "El nombre es requerido"),
   apellidoPaterno: z.string().min(1, "El apellido paterno es requerido"),
   apellidoMaterno: z.string().optional().nullable(),
-  // 15-sep-2026 (SPEC 2.39): la planilla trae la cuenta corporativa, asi que
-  // el correo obligatorio de la importacion es el de empresa. El particular
-  // queda opcional, igual que en el alta manual.
+  // La planilla trae la cuenta corporativa, asi que el correo obligatorio
+  // de la importacion es el de empresa. El particular queda opcional.
   correoEmpresa: z.string().email("Email inválido"),
   correoPersonal: z.string().email("Email inválido").optional().nullable(),
   cargo: z.string().optional().nullable(),
   jefatura: z.string().optional().nullable(),
   supervisor: z.string().optional().nullable(),
   ubicacion: z.string().optional().nullable(),
-  // Si la planilla no trae el tipo de contrato, se deja sin dato en vez de
-  // asumir "contrato" -- ver SPEC 2.39.
+  // Si la planilla no trae el tipo de contrato, se deja sin dato en vez
+  // de asumir "contrato".
   tipoContrato: z.string().optional().nullable().transform((val) => {
     if (!val) return null;
     const lower = val.toLowerCase();

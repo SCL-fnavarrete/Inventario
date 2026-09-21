@@ -62,9 +62,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const usuario = session.user?.email || data.realizadoPor;
 
-    // La maquina de estados ya documentaba esta transicion
-    // ("en_mantencion→baja", motivo obligatorio) pero esta ruta nunca la
-    // invocaba -- se agrega la misma validacion que usa
+    // Valida la transicion a "baja" con la misma logica que
     // POST /api/activos/[id]/baja, en vez de escribir el estado directo.
     if (data.resultadoTipo === "no_reparable") {
       const transitionResult = validateTransition(maintenance.asset.estado, "baja", {
@@ -103,14 +101,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         },
       });
 
-      // SPEC 2.25: que pasa con el activo depende del resultado
-      // estructurado, no solo de si tenia dueño -- antes SIEMPRE volvia a
-      // disponible/asignado, incluso si el texto libre decia
-      // "no reparable".
+      // Que pasa con el activo depende del resultado estructurado
+      // (resultadoTipo), no solo de si tiene dueño.
       if (data.resultadoTipo === "no_reparable") {
-        // No reparable: el activo se da de baja, igual que
-        // POST /api/activos/[id]/baja (SPEC 2.7.3), pero como parte de esta
-        // misma transaccion en vez de exigir un segundo paso manual.
+        // No reparable: da de baja el activo dentro de la misma transaccion.
         await tx.asset.update({
           where: { id: maintenance.assetId },
           data: { estado: "baja", fechaBaja: data.fechaRealizada },
@@ -125,12 +119,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         );
       } else {
         // Reparado: vuelve a servicio. Pendiente de repuestos: se completa
-        // este intento de mantencion, pero el activo se queda en
-        // "en_mantencion" -- no vuelve a servicio hasta una proxima
-        // mantencion que si lo repare.
-        // (15-sep-2026, SPEC 2.40) Un equipo sin dueño vuelve a "disponible"
-        // aunque su condicion sea "usado": que ya se haya usado lo dice el
-        // campo `condicion`, independiente del estado.
+        // esta mantencion pero el activo se queda en "en_mantencion" hasta
+        // una proxima mantencion que lo repare. Un equipo sin dueño vuelve
+        // a "disponible" independiente de su condicion.
         let nuevoEstado: "disponible" | "asignado" | "en_mantencion" = "disponible";
 
         if (data.resultadoTipo === "pendiente_repuestos") {
@@ -178,8 +169,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         });
       }
 
-      // Auditoria generica (SPEC 2.31): quien completo el ticket y con que
-      // resultado.
+      // Registra quien completo el ticket y con que resultado.
       await auditLogService.registrarActualizacion(
         'mantencion',
         id,

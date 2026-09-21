@@ -121,9 +121,8 @@ export function BajaActivoForm({ assetId, onSuccess, onCancel }: BajaActivoFormP
                 <AlertTriangle size={20} />
                 <span>El activo tiene una asignación activa</span>
               </div>
-              {/* 15-sep-2026 (SPEC 2.41): ya no hay una devolucion suelta --
-                  solo pasa dentro de una Solicitud (cambio de equipo o
-                  desvinculacion), que es donde queda el motivo. */}
+              {/* La devolucion solo ocurre dentro de una Solicitud (cambio de
+                  equipo o desvinculacion), donde queda registrado el motivo. */}
               <p className="text-red-600 text-sm mt-1">
                 Debe devolverse dentro de una Solicitud (cambio de equipo o desvinculación) antes de dar de baja.
               </p>

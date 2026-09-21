@@ -50,7 +50,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Auditoria generica (SPEC 2.31).
+    // Registro de auditoria.
     await auditLogService.registrarActualizacion(
       'tipo_mantencion',
       tipo.id,
@@ -97,7 +97,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     await prisma.maintenanceType.delete({ where: { id } });
 
-    // Auditoria generica (SPEC 2.31).
+    // Registro de auditoria.
     await auditLogService.registrarEliminacion(
       'tipo_mantencion',
       existing.id,

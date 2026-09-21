@@ -26,58 +26,18 @@ import { DashboardTabs } from "@/components/dashboard/DashboardTabs";
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 /**
- * Trae TODOS los datos del Resumen del Dashboard en un unico batch de
- * consultas paralelas (SPEC 2.16, 11-sep-2026).
- *
- * Antes esto eran dos funciones (`getStats` + `getAlertas`) llamadas una
- * despues de la otra (`await getStats(); await getAlertas();`), sin
- * necesidad -- ninguna depende del resultado de la otra, asi que esperaban
- * el doble de tiempo del que hacia falta. Ademas, entre las dos repetian la
- * misma consulta dos veces (el `OR` de las desvinculaciones "pendiente" se
- * pedia una vez para contar y otra para listar los primeros 5 -- ese modulo
- * se elimino el 20-sep-2026, SPEC 2.58) y el conteo de activos
- * por estado se hacia con 6 `count()` sueltos + hasta 4 `count()` más por
- * cada categoria para el grafico de stock (un N+1 clasico: con 7 categorias
- * son 28 consultas solo para ese grafico). Se unifica todo en un solo
- * `Promise.all` con 8 consultas fijas, sin importar cuantas categorias o
- * activos existan:
- *
- *  - El desglose de activos por estado (para las tarjetas KPI y el pie
- *    chart) y por categoria+estado (para "Stock por Categoria") salen de
- *    un unico `groupBy(["categoriaId", "estado"])`, agregado en memoria.
- *  - Mantenciones y Devoluciones pendientes se piden una sola vez cada una
- *    (sin el limite de 5 en la consulta) y se derivan en memoria tanto el
- *    conteo total como los primeros 5 de cada alerta -- mismo patron de
- *    "traer y filtrar en JS" que ya se usa en `/api/empleados` y
- *    `/api/asignaciones`.
- *  - "Asig. Ultimos 30 dias" ya no es una consulta aparte: se deriva
- *    filtrando en memoria el resultado de "Asignaciones ultimos 6 meses"
- *    (los 30 dias son un subconjunto de esos 6 meses).
- *  - Los conteos de empleados (`totalEmployees`/`activeEmployees`) se
- *    eliminan por completo: la tarjeta "Empleados Activos" que los usaba
- *    se reemplaza por "Equipos Vendidos" (ver mas abajo), y ningun otro
- *    lugar del Resumen los necesitaba.
+ * Trae todos los datos del Resumen del Dashboard en un unico batch de
+ * consultas paralelas para evitar round-trips secuenciales y duplicados.
  */
 async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string | null) {
-  // Aislamiento por sede (SPEC 2.9): admin ve todo el inventario, tecnico
-  // solo lo de su sede. `sw` es el filtro directo (Asset/Employee/
-  // WelcomeKitItem/WorkflowRequest tienen su propio sedeId); Maintenance y
-  // Assignment no tienen sedeId propio y se filtran via su relacion a Asset.
+  // Aislamiento por sede: admin ve todo el inventario, tecnico solo lo de
+  // su sede. `sw` es el filtro directo; Maintenance y Assignment no tienen
+  // sedeId propio y se filtran via su relacion a Asset. `swAsset` tambien
+  // excluye activos con `deletedAt` (ACTIVOS_VIGENTES).
   //
-  // `swAsset` ahora tambien excluye activos con `deletedAt` (ACTIVOS_
-  // VIGENTES) -- antes esto se aplicaba a todas las consultas de Asset pero
-  // no a Mantenciones/Asignaciones, dejando pasar duplicados descartados de
-  // una importacion (SPEC 2.7.7) en "Asig. Ultimos 30d" y en el grafico de
-  // movimientos.
-  // Filtro del selector de sede del nav (15-sep-2026, QA funcional, SPEC
-  // 2.38). El Resumen ignoraba ese selector: con "Concepcion" elegido seguia
-  // contando el inventario de Santiago, mientras Activos ya filtraba bien.
-  // Como esto corre en el servidor (no hay localStorage), la sede llega por
-  // cookie -- ver SedeSeleccionadaProvider.
-  //
-  // Igual que en /api/activos: solo se respeta para quien tiene visibilidad
-  // total; para el resto manda sedeWhere(session), que no se puede pisar
-  // con una cookie.
+  // La sede elegida en el selector del nav llega por cookie (server
+  // component, sin localStorage) y solo se respeta para quien tiene
+  // visibilidad total; para el resto manda sedeWhere(session).
   const sw = {
     ...sedeWhere(session),
     ...(sedeIdFiltro && tieneVisibilidadTotal(session) ? { sedeId: sedeIdFiltro } : {}),
@@ -112,15 +72,8 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
     }),
     prisma.maintenance.findMany({
       where: { estado: "pendiente", ...swAsset },
-      // Orden por fechaProgramada asc (21-sep-2026, SPEC 2.69): antes no
-      // tenia orderBy, asi que el orden dependia de como Postgres devolviera
-      // las filas (en la practica, orden de insercion). Al recortar a 5 con
-      // slice(0,5) mas abajo, eso hacia que "Todas las sedes" mostrara solo
-      // las vencidas/proximas de la sede con mas antiguedad en la base
-      // (Santiago) y nunca llegara a las de Concepcion/Peru, aunque el total
-      // contado si las incluyera. Ordenar por fecha ascendente ademas es lo
-      // correcto para "urgencia": la vencida mas antigua primero, la
-      // proxima mas cercana primero.
+      // Orden ascendente por fecha programada: la vencida mas antigua y
+      // la proxima mas cercana aparecen primero.
       orderBy: { fechaProgramada: "asc" },
       include: {
         asset: {
@@ -154,8 +107,7 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
   ]);
 
   // Desglose de activos por categoria + estado, agregado en memoria a
-  // partir del groupBy: reemplaza los 6 count() sueltos por estado y los
-  // hasta 4 count() por categoria que existian antes (SPEC 2.16).
+  // partir del groupBy.
   const conteosPorCategoria = new Map<string, Record<string, number>>();
   for (const fila of assetsPorCategoriaYEstado) {
     const actual = conteosPorCategoria.get(fila.categoriaId) ?? {};
@@ -173,21 +125,16 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
   const assignedAssets = totalPorEstado("asignado");
   const maintenanceAssets = totalPorEstado("en_mantencion");
   const bajaAssets = totalPorEstado("baja");
-  // Un activo vendido ya no forma parte del parque operativo -- por eso no
-  // suma en las tarjetas de arriba ni en "Stock por Categoria" (esa logica
-  // se mantiene tal cual, pedido explicito de Javier). Lo que faltaba era
-  // poder ver CUANTO se ha vendido: tarjeta "Equipos Vendidos" (reemplaza a
-  // "Empleados Activos") y la porcion "Vendidos" en el pie chart de abajo.
+  // Un activo vendido ya no forma parte del parque operativo, por eso no
+  // suma en las tarjetas de arriba ni en "Stock por Categoria".
   const vendidoAssets = totalPorEstado("vendido");
 
-  // 20-sep-2026 (SPEC 2.57): equipos que quedaron en manos de alguien que
-  // ya se desvinculo y no los devolvio. Se cuenta aparte de "asignado"
-  // -- antes eran indistinguibles de una asignacion vigente normal.
+  // Equipos que quedaron en manos de alguien desvinculado que no los
+  // devolvio; se cuentan aparte de "asignado".
   const noDevueltoAssets = totalPorEstado("no_devuelto");
 
-  // "Activos por Categoria": total vigente por categoria, TODOS los
-  // estados (antes salia de un `_count` de Prisma; ahora se suma a mano
-  // desde el mismo groupBy de arriba, sin consulta adicional).
+  // "Activos por Categoria": total vigente por categoria, todos los
+  // estados, sumado en memoria desde el groupBy de arriba.
   const categories = categoriesRaw.map((cat) => {
     const conteos = conteosPorCategoria.get(cat.id) ?? {};
     const total = Object.values(conteos).reduce((acc, n) => acc + n, 0);
@@ -195,8 +142,7 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
   });
 
   // "Stock por Categoria" (grafico de barras apiladas): "vendido" queda
-  // deliberadamente afuera (mismo criterio de arriba: un vendido no es
-  // stock).
+  // fuera de este calculo porque no es stock disponible.
   const stockByCategory = categoriesRaw.map((cat) => {
     const conteos = conteosPorCategoria.get(cat.id) ?? {};
     return {
@@ -210,14 +156,9 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
     };
   });
 
-  // Alertas de stock de Activos (mismo concepto que Kit/EPP, pero sobre
-  // los DISPONIBLES de cada categoria): sin stock es 0 disponibles; stock
-  // bajo es cuando quedan pocos pero no cero, segun el umbral configurable
-  // de cada categoria (stockMinimo, ver Configuracion > Categorias).
-  // (15-sep-2026, SPEC 2.40) Este conteo era la razon de fondo para borrar
-  // "reutilizable": los equipos devueltos y listos para entregar no se
-  // contaban aqui, asi que el sistema avisaba "Sin Stock: Notebook" con
-  // diez notebooks en bodega. Ahora esos equipos son "disponible".
+  // Alertas de stock de Activos, calculadas sobre los DISPONIBLES de cada
+  // categoria: sin stock es 0 disponibles; stock bajo es cuando quedan
+  // pocos segun el umbral configurable de cada categoria (stockMinimo).
   const sinStockCategorias = stockByCategory
     .filter((c) => c.disponibles === 0)
     .map((c) => ({ id: c.categoriaId, nombre: c.categoria }));
@@ -225,10 +166,7 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
     .filter((c) => c.disponibles > 0 && c.disponibles <= c.stockMinimo)
     .map((c) => ({ id: c.categoriaId, nombre: c.categoria, disponibles: c.disponibles, stockMinimo: c.stockMinimo }));
 
-  // Estados para el pie chart: se agrega "vendido" (11-sep-2026, SPEC
-  // 2.16) -- EstadosChart ya tenia la etiqueta "Vendidos" lista desde
-  // antes, pero nadie le mandaba el dato, asi que ese estado nunca
-  // aparecia en el grafico.
+  // Estados para el pie chart, incluyendo "vendido".
   const estadosData = [
     { estado: "disponible", cantidad: availableAssets, color: "#22c55e" },
     { estado: "asignado", cantidad: assignedAssets, color: "#3b82f6" },
@@ -238,21 +176,9 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
     { estado: "vendido", cantidad: vendidoAssets, color: "#6b7280" },
   ].filter((e) => e.cantidad > 0);
 
-  // Mantenciones pendientes: se piden todas una sola vez (antes eran 3
-  // consultas -- un count() y dos findMany() -- todas con el mismo
-  // `estado: "pendiente"`). Vencidas/Proximas/el total ahora se derivan en
-  // memoria del mismo resultado.
-  //
-  // 22-sep-2026 (SPEC 2.69 bis, pedido explicito de Javier): se quita el
-  // `.slice(0, 5)` que traia esto desde el inicio -- el panel de Alertas
-  // mostraba como maximo 5 vencidas y 5 proximas, sin importar cuantas
-  // hubiera en realidad (la tarjeta "Mantenciones Pend." si mostraba el
-  // total real, asi que el recorte solo afectaba la lista del panel). Con
-  // varias sedes eso ademas ocultaba mantenciones reales de sedes que no
-  // alcanzaban a entrar en el cupo de 5 (el bug que motivo el orderBy de
-  // arriba). Ahora se listan todas; el panel ya es scrolleable
-  // (`max-h-96 overflow-y-auto` en AlertsPanel) para que una lista larga no
-  // rompa el layout del Dashboard.
+  // Mantenciones pendientes: se piden todas una sola vez y vencidas/
+  // proximas/total se derivan en memoria del mismo resultado, sin limite
+  // de cantidad (el panel es scrolleable).
   const pendingMaintenance = maintenancesPendientes.length;
   const mantencionesVencidas = maintenancesPendientes.filter(
     (m) => m.fechaProgramada && m.fechaProgramada < today
@@ -261,13 +187,10 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
     (m) => m.fechaProgramada && m.fechaProgramada >= today && m.fechaProgramada <= nextWeek
   );
 
-  // "Asig. Ultimos 30 dias" ya no es una consulta aparte: se deriva
-  // filtrando en memoria "Asignaciones ultimos 6 meses" (los 30 dias son
-  // un subconjunto de esos 6 meses, mismo `swAsset`).
-  // El `where: { fechaEntrega: { gte: sixMonthsAgo } }` de la consulta ya
-  // excluye a nivel de base las asignaciones con fecha desconocida (SPEC
-  // 2.59) -- null nunca es ">=" nada -- asi que en este arreglo siempre
-  // viene una fecha real. TypeScript no puede inferir eso del `where`.
+  // "Asig. Ultimos 30 dias" se deriva filtrando en memoria las
+  // asignaciones de los ultimos 6 meses. El where de la consulta ya
+  // excluye asignaciones sin fecha, por eso el non-null assertion es
+  // seguro aunque TypeScript no pueda inferirlo.
   const recentAssignments = assignmentsUltimos6Meses.filter(
     (a) => a.fechaEntrega! >= treintaDiasAtras
   ).length;
@@ -398,9 +321,7 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* Pestanas Resumen / Reportes (11-sep-2026, SPEC 2.15): el boton
-          "Ver Reportes" que iba aca se elimino, ahora se navega por esta
-          barra de pestanas -- ver DashboardTabs. */}
+      {/* Pestanas Resumen / Reportes */}
       <DashboardTabs />
 
       {/* Alertas: justo despues del titulo, para que lo primero que se ve al
@@ -415,24 +336,14 @@ export default async function DashboardPage() {
         bajoStockCategorias={data.bajoStockCategorias}
       />
 
-      {/* Stats Grid - KPIs Principales.
-          22-sep-2026 (SPEC 2.70, pedido de Javier: "al agrandar la pantalla
-          las tarjetas se achican y todo aparece afuera"): el salto de 3 a 6
-          columnas ocurria justo en el mismo breakpoint (lg, 1024px) en el que
-          el Sidebar deja de ser un overlay y pasa a ocupar 256px fijos del
-          ancho (ver Sidebar.tsx, "fixed lg:static") -- doble golpe a la vez:
-          menos ancho disponible Y mas columnas repartiendolo, asi que cada
-          tarjeta se achicaba a menos de la mitad (460px a 221px medido) en
-          vez de crecer al agrandar la ventana. Se corre el salto a 6
-          columnas a xl (1280px), donde el Sidebar ya esta fijo desde antes y
-          el ancho extra es real. */}
+      {/* Stats Grid - KPIs Principales. El salto de columnas ocurre en xl
+          (1280px) para evitar que las tarjetas se achiquen justo cuando el
+          Sidebar pasa a ocupar ancho fijo. */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <div className="bg-white rounded-lg shadow p-4">
-          {/* "Total Activos" cuenta TODOS los estados, incluido vendido --
-              a proposito, para responder "cuantos activos hemos tenido en
-              total". Las tarjetas de abajo (Disponibles..Baja) no suman a
-              este total porque excluyen vendido; ver "Equipos Vendidos" en
-              la segunda fila para ese numero. */}
+          {/* "Total Activos" cuenta todos los estados, incluido vendido;
+              las tarjetas de abajo excluyen vendido (ver "Equipos
+              Vendidos" mas abajo). */}
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500">Total Activos</p>
@@ -501,15 +412,12 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Segunda fila de KPIs -- 4 tarjetas (Equipos Vendidos, Mantenciones
-          Pend., Asig. Ultimos 30d, Solicitudes Abiertas), no 5: se corrige el
-          conteo de columnas de paso (SPEC 2.70). */}
+      {/* Segunda fila de KPIs: Equipos Vendidos, Mantenciones Pend.,
+          Asig. Ultimos 30d, Solicitudes Abiertas. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* "Empleados Activos" se reemplaza por "Equipos Vendidos"
-            (11-sep-2026, SPEC 2.16, pedido explicito de Javier): un activo
-            vendido ya no cuenta en ninguna tarjeta de arriba ni en "Stock
-            por Categoria" (sale del parque operativo), asi que hacia falta
-            un lugar donde ver cuantos se han vendido en total. */}
+        {/* Cantidad de equipos vendidos: un activo vendido sale del
+            parque operativo y no cuenta en las tarjetas ni en "Stock por
+            Categoria". */}
         <Link href="/activos?estado=vendido" className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
@@ -574,10 +482,7 @@ export default async function DashboardPage() {
         asignacionesChartData={data.asignacionesChartData}
       />
 
-      {/* Activos por Categoria y stock de Kit de Bienvenida/EPP.
-          Mismo motivo que el Stats Grid de arriba (SPEC 2.70): de 1 a 3
-          columnas justo cuando el Sidebar pasa a ocupar ancho fijo se sentia
-          como que las tarjetas se achicaban al agrandar la ventana. */}
+      {/* Activos por Categoria y stock de Kit de Bienvenida/EPP. */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Activos por Categoría */}
           <div className="bg-white rounded-lg shadow p-6">

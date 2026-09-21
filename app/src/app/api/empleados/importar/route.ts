@@ -54,13 +54,8 @@ export async function POST(request: NextRequest) {
 
     /**
      * Interpreta la fecha del Excel en formato chileno (dd-mm-aaaa o
-     * dd/mm/aaaa) reutilizando el utilitario compartido, el mismo que usa la
-     * importacion de activos.
-     *
-     * Antes esta ruta tenia su propio parseador con new Date(), que lee al
-     * estilo estadounidense: 01/12/2024 se guardaba como 12 de enero y
-     * 31/12/2024 se perdia entero. Y estaba probado en ningun sitio, mientras
-     * el compartido si tiene tests.
+     * dd/mm/aaaa) reutilizando el utilitario compartido con la importacion
+     * de activos.
      */
     function parseDate(value: unknown): Date | null {
       if (value === undefined || value === null || value === "") return null;
@@ -68,22 +63,10 @@ export async function POST(request: NextRequest) {
     }
 
     /**
-     * Cada fila se procesa y se guarda por separado, SIN envolver la importacion
-     * en una transaccion. Es una decision deliberada, no un olvido.
-     *
-     * Con transaccion, un solo RUT malo en la fila 340 abortaria las 339 filas
-     * correctas anteriores y habria que corregir el Excel y empezar de cero.
-     * Sin ella, esas 339 quedan cargadas y el reporte dice exactamente que fila
-     * fallo y por que, de modo que se corrige solo lo que fallo y se reimporta.
-     *
-     * Lo que hace viable ese enfoque es que la importacion es idempotente:
-     * empareja por RUT, actualiza si ya existe y crea si no, y desde el arreglo
-     * de las columnas ausentes nunca borra un dato que el archivo no trae. Por
-     * eso reimportar el mismo archivo dos veces no duplica ni destruye nada.
-     *
-     * La contrapartida asumida: si el proceso se corta a la mitad -por un
-     * reinicio o un fallo de red-, queda cargado lo procesado hasta ahi. La
-     * forma de recuperarse es volver a importar el mismo archivo.
+     * Cada fila se procesa y se guarda por separado, sin transaccion global,
+     * para que una fila invalida no aborte las demas. La importacion es
+     * idempotente (empareja por RUT, crea o actualiza) por lo que reimportar
+     * el mismo archivo, incluso tras un corte a medio camino, es seguro.
      */
     const results = {
       created: 0,
@@ -121,9 +104,8 @@ export async function POST(request: NextRequest) {
         const rut = formatearRut(rutRaw);
         const nombres = valorColumna(row, COLUMNAS_EMPLEADO.nombres);
         const apellidoPaterno = valorColumna(row, COLUMNAS_EMPLEADO.apellidoPaterno);
-        // 15-sep-2026 (SPEC 2.39): la columna de correo de la planilla trae
-        // la cuenta corporativa, que es la obligatoria en el modelo. El
-        // correo particular no viene en ninguna planilla.
+        // La columna de correo de la planilla trae la cuenta corporativa,
+        // que es la obligatoria en el modelo.
         const correoEmpresa = valorColumna(row, COLUMNAS_EMPLEADO.correoPersonal);
 
         // Validar campos requeridos
@@ -166,8 +148,8 @@ export async function POST(request: NextRequest) {
         // numero de serie, parseDate necesita ese numero.
         const fechaIngresoBruta = valorCrudo(row, COLUMNAS_EMPLEADO.fechaIngreso);
 
-        // Una fecha que no se puede interpretar detiene la fila y lo dice: antes
-        // se guardaba como null y nadie se enteraba de que se habia perdido.
+        // Una fecha que no se puede interpretar detiene la fila con un error,
+        // en vez de guardarse como null silenciosamente.
         let fechaIngreso: Date | undefined;
         if (fechaIngresoBruta !== undefined && fechaIngresoBruta !== "") {
           const parseada = parseDate(fechaIngresoBruta);
@@ -224,10 +206,8 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
-          // 15-sep-2026 (SPEC 2.39): el tipo de contrato dejo de ser
-          // obligatorio. Si la planilla no lo trae, el empleado se crea sin
-          // el y lo completa un tecnico despues, en vez de rechazar la fila o
-          // inventar un valor.
+          // El tipo de contrato no es obligatorio: si la planilla no lo trae,
+          // el empleado se crea sin el y se completa despues.
           await prisma.employee.create({
             data: employeeData,
           });

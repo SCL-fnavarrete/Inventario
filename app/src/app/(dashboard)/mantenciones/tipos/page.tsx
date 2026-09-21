@@ -6,18 +6,14 @@ import { MantencionesTabs } from "@/components/mantenciones";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
-// Tipos de mantención (9-sep-2026): antes era un enum fijo en el codigo/
-// base de datos (Preventiva, Correctiva, etc.). Javier pidio que sea un
-// catalogo editable, y que tanto admin como tecnico puedan mantenerlo --
-// por eso esta pantalla vive dentro de Mantenciones (pestaña "Tipos") y no
-// en Configuracion, que es admin-only. Ver MaintenanceType en
-// schema.prisma y el recurso de permisos "tiposMantencion".
+// Maintenance types are an editable catalog (not a fixed enum), manageable
+// by both admin and technician roles, so this screen lives inside
+// Mantenciones rather than the admin-only Configuracion. See MaintenanceType
+// in schema.prisma and the "tiposMantencion" permission resource.
 
 /**
- * Confirmacion pendiente (15-sep-2026, SPEC 2.40). Antes se preguntaba con
- * `confirm()` del navegador: se veia distinto al resto del sistema y
- * bloqueaba la ventana entera. Mismo formato que el modal de compras
- * (SPEC 2.38).
+ * Pending delete confirmation, shown as an in-app modal instead of the
+ * browser's `confirm()`.
  */
 type Confirmacion = {
   titulo: string;
@@ -411,8 +407,7 @@ export default function TiposMantencionPage() {
         </table>
       </div>
 
-      {/* Confirmacion de eliminacion, con el mismo formato que el resto del
-          sistema en vez del confirm() del navegador (15-sep-2026, SPEC 2.40). */}
+      {/* Delete confirmation modal, matching the rest of the system's style. */}
       {confirmacion && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">

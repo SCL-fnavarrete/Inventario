@@ -22,12 +22,8 @@ const CONDICION_LABELS: Record<string, string> = {
   danado: "Dañado",
 };
 
-// Grupos de columnas y su color de encabezado (22-sep-2026, SPEC 2.68,
-// pedido explicito de Javier: "ponele colores a las columnas que se vea
-// atractivo y sea intuitivo"). xlsx (SheetJS CE) no persiste estilos de
-// celda -- se verifico de forma empirica inspeccionando el styles.xml del
-// .xlsx generado -- por eso se cambia a exceljs, que si soporta relleno y
-// fuente reales.
+// Grupos de columnas y su color de encabezado. Se usa exceljs en vez de
+// xlsx (SheetJS CE) porque esta ultima no persiste estilos de celda.
 const GRUPOS = {
   identificacion: { color: "FF4472C4", fontColor: "FFFFFFFF" }, // azul
   estadoUbicacion: { color: "FF70AD47", fontColor: "FFFFFFFF" }, // verde
@@ -48,14 +44,8 @@ interface ColumnaDef {
   grupo: GrupoKey;
 }
 
-// Orden y agrupacion de columnas del detalle de Activos. Se agregan
-// Jefatura, Supervisor, Correo Empresa y Fecha de Entrega (grupo
-// Asignacion) y Ultima Mantencion Realizada / Proxima Mantencion
-// Programada (grupo nuevo) -- pedido explicito de Javier: "te faltan mas
-// datos, la idea es que tenga datos como estos", senalando columnas de su
-// Excel origen (Inventario_Normalizado_Con_Sede.xlsx) que el export de
-// Activos (basado solo en el modelo Asset) no mostraba porque viven en
-// Employee, Assignment y Maintenance.
+// Orden y agrupacion de columnas del detalle de Activos, incluyendo datos
+// que viven en Employee, Assignment y Maintenance (no solo en Asset).
 const COLUMNAS: ColumnaDef[] = [
   // Identificacion
   { header: "N° Serie", key: "numeroSerie", width: 20, grupo: "identificacion" },
@@ -140,9 +130,8 @@ function aplicarEstiloEncabezado(worksheet: ExcelJS.Worksheet, columnas: Columna
   filaEncabezado.height = 30;
 }
 
-// Bandeado de filas (gris muy claro en filas pares) para que la hoja sea
-// mas facil de leer con muchas filas -- mismo pedido de "atractivo e
-// intuitivo".
+// Bandeado de filas (gris muy claro en filas pares) para facilitar la
+// lectura con muchas filas.
 function aplicarBandeado(worksheet: ExcelJS.Worksheet, totalFilas: number, totalColumnas: number) {
   for (let fila = 2; fila <= totalFilas; fila++) {
     if (fila % 2 === 0) {
@@ -194,11 +183,8 @@ export async function GET(request: NextRequest) {
     const estado = searchParams.get("estado") || "";
     const categoriaId = searchParams.get("categoriaId") || "";
 
-    // Construir filtros
-    // Los registros descartados no se exportan (SPEC 2.7.7). Ademas, un
-    // tecnico solo exporta su propia sede (2.24.1) -- antes este endpoint no
-    // filtraba por sede y un tecnico podia descargar el inventario completo
-    // de la empresa.
+    // Los registros descartados no se exportan. Un tecnico solo exporta su
+    // propia sede.
     const where: Record<string, unknown> = { ...ACTIVOS_VIGENTES, ...sedeWhere(session) };
     if (estado) {
       where.estado = estado;
@@ -207,20 +193,15 @@ export async function GET(request: NextRequest) {
       where.categoriaId = categoriaId;
     }
 
-    // Filtro de sede del selector global del nav (15-sep-2026, QA
-    // funcional, SPEC 2.38). Antes el boton "Exportar" armaba el link sin
-    // `sedeId`, asi que con una sede elegida en el nav la pantalla mostraba
-    // una sede y el Excel descargado traia todas. Mismo criterio que
-    // /api/activos: solo aplica para quien tiene visibilidad total.
+    // Filtro de sede del selector global del nav; solo aplica para quien
+    // tiene visibilidad total.
     const sedeIdFiltro = searchParams.get("sedeId") || "";
     if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
       where.sedeId = sedeIdFiltro;
     }
 
-    // Obtener activos con sus relaciones. Se agregan assignments (para la
-    // Fecha de Entrega vigente) y maintenances (para la ultima realizada y
-    // la proxima programada) -- SPEC 2.68, pedido de Javier de tener mas
-    // datos en el export, igual a los que trae su Excel de origen.
+    // Se agregan assignments (para la Fecha de Entrega vigente) y
+    // maintenances (para la ultima realizada y la proxima programada).
     const assets = await prisma.asset.findMany({
       where,
       include: {

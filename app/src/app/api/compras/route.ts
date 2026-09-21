@@ -37,9 +37,8 @@ export async function GET(request: NextRequest) {
     const filters = filtersResult.data;
     const skip = (filters.page - 1) * filters.limit;
 
-    // Construir condiciones de búsqueda. Aislamiento por sede (11-sep-2026,
-    // compras ya no es admin-only): un tecnico solo ve las compras de su
-    // propia sede, admin ve todas -- igual criterio que Activos/Empleados.
+    // Construir condiciones de busqueda. Aislamiento por sede: un tecnico
+    // solo ve las compras de su propia sede, admin ve todas.
     const where: Prisma.PurchaseWhereInput = { ...sedeWhere(session) };
 
     if (filters.sedeId) {
@@ -151,7 +150,7 @@ export async function POST(request: NextRequest) {
 
       // Defensa en profundidad: un tecnico solo puede asociar a la compra
       // activos de su propia sede, aunque el selector del formulario ya
-      // venga filtrado. Ver SPEC 2.9.
+      // venga filtrado.
       if (!esAdmin) {
         const ajenos = existingAssets.filter((a) => a.sedeId !== session.user.sedeId);
         if (ajenos.length > 0) {
@@ -163,8 +162,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verificar que los artículos de Kit/EPP existen (14-sep-2026, SPEC
-    // 2.36) -- mismo criterio de aislamiento por sede que los activos.
+    // Verificar que los articulos de Kit/EPP existen, con el mismo
+    // criterio de aislamiento por sede que los activos.
     let existingKitItems: { id: string; nombre: string; cantidad: number; sedeId: string | null }[] = [];
     if (data.kitItems && data.kitItems.length > 0) {
       const itemIds = data.kitItems.map((k) => k.itemId);
@@ -194,10 +193,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // N° de factura unico en todo el sistema (18-sep-2026, SPEC 2.10.6,
-    // decision de Javier). Se valida aca y no con un indice unico en la
-    // base para no exigir una migracion; el numero es opcional en el
-    // esquema, asi que solo se comprueba cuando viene con valor.
+    // N° de factura unico en todo el sistema. Se valida aca y no con un
+    // indice unico en la base para no exigir una migracion; el numero es
+    // opcional en el esquema, asi que solo se comprueba cuando viene con
+    // valor.
     if (data.numeroFactura) {
       const duplicada = await prisma.purchase.findFirst({
         where: { numeroFactura: data.numeroFactura },
@@ -221,11 +220,8 @@ export async function POST(request: NextRequest) {
       // Crear la compra
       const newPurchase = await tx.purchase.create({
         data: {
-          // Tecnico: siempre su propia sede (se ignora cualquier sedeId
-          // del body). Admin: obligado a elegir una entre las sedes
-          // existentes -- ya no puede dejarla transversal (11-sep-2026,
-          // alineado con activos/empleados/solicitudes/guias, ver SPEC
-          // 2.8.2). Se reusa la misma funcion que esos modulos.
+          // Tecnico: siempre su propia sede (se ignora cualquier sedeId del
+          // body). Admin: obligado a elegir una entre las sedes existentes.
           sedeId: sedeIdParaCrear(session, data.sedeId, { requerido: true }),
           numeroFactura: data.numeroFactura,
           fechaFactura: data.fechaFactura,
@@ -237,8 +233,8 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Auditoria generica (SPEC 2.29): dentro de la misma transaccion --
-      // si la compra no se llega a crear, tampoco queda el registro.
+      // Auditoria generica, dentro de la misma transaccion: si la compra
+      // no se llega a crear, tampoco queda el registro.
       await auditLogService.registrarCreacion(
         'compra',
         newPurchase.id,
@@ -273,9 +269,9 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Vincular artículos de Kit/EPP si se proporcionan (SPEC 2.36): cada
-      // línea suma su cantidad al stock del artículo, y queda registrada la
-      // línea de compra para poder desvincularla/revertirla después.
+      // Vincular articulos de Kit/EPP si se proporcionan: cada linea suma
+      // su cantidad al stock del articulo, y queda registrada la linea de
+      // compra para poder desvincularla/revertirla despues.
       if (data.kitItems && data.kitItems.length > 0) {
         for (const kitItem of data.kitItems) {
           await tx.purchaseKitItem.create({
@@ -292,8 +288,8 @@ export async function POST(request: NextRequest) {
             data: { cantidad: { increment: kitItem.cantidad } },
           });
 
-          // Auditoria generica (SPEC 2.31/2.36): queda en la misma linea de
-          // tiempo que cualquier otro cambio de stock del artículo.
+          // Auditoria generica: queda en la misma linea de tiempo que
+          // cualquier otro cambio de stock del articulo.
           await auditLogService.registrarActualizacion(
             'kit_item',
             kitItem.itemId,

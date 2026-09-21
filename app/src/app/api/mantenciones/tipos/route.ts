@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Auditoria generica (SPEC 2.31).
+    // Registro de auditoria.
     await auditLogService.registrarCreacion(
       'tipo_mantencion',
       tipo.id,

@@ -34,10 +34,9 @@ type Asset = {
   sistemaOperativo: string | null;
   numeroTelefono: string | null;
   tipoPlan: string | null;
-  // 14-sep-2026 (SPEC 2.26): agregados para que este tipo coincida
-  // estructuralmente con el `Asset` local de SelectorActivos.tsx (ambos
-  // se llaman igual, TS los trata como incompatibles si no calzan campo
-  // a campo).
+  // Deben coincidir estructuralmente con el `Asset` local de
+  // SelectorActivos.tsx (ambos se llaman igual, TS los trata como
+  // incompatibles si no calzan campo a campo).
   pulgadas: string | number | null;
   conectividad: string | null;
   estado: string;
@@ -56,17 +55,13 @@ export default function NuevaGuiaDespachoPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [sedes, setSedes] = useState<Sede[]>([]);
 
-  // Sede origen: desde SPEC 2.29 cualquier rol con visibilidad total
-  // (admin y tecnico por igual) elige explicitamente desde que sede
-  // despacha -- ya no se asume en silencio la sede propia del usuario. Sin
-  // esto una guia quedaba con sedeId null -- mezclando en un mismo despacho
-  // equipos de sedes distintas y sin quedar visible para ningun tecnico
-  // "emisor". El dropdown SI viene precargado con la sede propia del
-  // usuario (ver useEffect mas abajo) para no obligarlo a elegir en el caso
-  // comun; solo hace falta cambiarlo si va a despachar desde otra sede.
-  // Ver SPEC 2.9 y SPEC 2.29.
+  // Sede origen: se elige explicitamente desde que sede despacha, en vez
+  // de asumir en silencio la sede propia del usuario (evita mezclar en un
+  // mismo despacho equipos de sedes distintas). El dropdown viene
+  // precargado con la sede propia del usuario (ver useEffect mas abajo)
+  // para no obligar a elegir en el caso comun.
   const [sedeOrigenId, setSedeOrigenId] = useState("");
-  // Solo admin elige sede (18-sep-2026, SPEC 2.29.1).
+  // Solo admin puede elegir la sede.
   const esAdminSede = session?.user?.role === "admin";
 
   const [selectedAssets, setSelectedAssets] = useState<Asset[]>([]);
@@ -149,7 +144,7 @@ export default function NuevaGuiaDespachoPage() {
         assetIds: selectedAssets.map((a) => a.id),
         receptorNombre: receptor.nombre,
         receptorRut: receptor.rut,
-        // Desde SPEC 2.29 siempre se manda explicita -- ver sedeIdParaCrear.
+        // Siempre se manda explicita -- ver sedeIdParaCrear.
         sedeId: sedeOrigenId,
       };
 

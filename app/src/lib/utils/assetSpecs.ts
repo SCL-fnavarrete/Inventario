@@ -1,27 +1,7 @@
 /**
- * Especificaciones de un activo segun su categoria, en un solo lugar.
- *
- * Antes cada pantalla (Excel, selector de Guias de Despacho, los dos
- * selectores de Solicitudes) tenia su propia lista de campos a mostrar --
- * casi todas copiadas de la misma logica pero incompletas o
- * desincronizadas entre si (ver SPEC 2.11 "fuera de alcance" y su
- * extension en SPEC 2.19): Monitor (pulgadas) y los perifericos
- * Mouse/Teclado/Webcam/Audifonos (conectividad) quedaban afuera en varios
- * lugares aunque el dato ya existiera en la base, y Solicitudes mostraba
- * las specs con formato distinto entre sus dos selectores.
- *
- * Esta funcion es la unica fuente de verdad de "que campos le corresponden
- * a este activo": si se agrega un campo nuevo a una categoria, se agrega
- * aca y las pantallas que la usan lo heredan solas, en vez de tener que
- * acordarse de tocar cada pantalla una por una (14-sep-2026).
- *
- * El campo `operador` (Entel/Movistar/etc) que tuvo Celular se elimino el
- * mismo dia (14-sep-2026, SPEC 2.20, pedido explicito de Javier) -- si se
- * ve historicamente en SPEC 2.19 o en migraciones anteriores, ya no existe.
- *
- * `tipoLicenciaMicrosoft365` se agrego el mismo dia (SPEC 2.23): el Excel de
- * Notebooks trae el nombre del plan ("Premium", etc) y antes se perdia --
- * el sistema solo guardaba un booleano Si/No (`microsoft365`).
+ * Especificaciones de un activo segun su categoria, en un solo lugar: es la
+ * unica fuente de verdad de que campos le corresponden a cada activo, para
+ * que todas las pantallas que muestran specs queden sincronizadas.
  */
 
 export type ActivoParaSpecs = {

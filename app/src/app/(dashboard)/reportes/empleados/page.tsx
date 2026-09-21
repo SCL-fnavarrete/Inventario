@@ -30,7 +30,7 @@ async function getEmpleadosConActivos(session: SesionAutenticada) {
 }
 
 export default async function ReporteEmpleadosPage() {
-  // La sesion decide que sede se ve (SPEC 2.29.2, ver nota arriba).
+  // Scoped to the session's sede.
   const session = (await getServerSession(authOptions)) as SesionAutenticada;
   const empleados = await getEmpleadosConActivos(session);
 

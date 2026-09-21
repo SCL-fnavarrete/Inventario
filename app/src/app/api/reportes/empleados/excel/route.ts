@@ -9,8 +9,7 @@ export async function GET() {
   try {
     const session = await requirePermission('reportes', 'read');
 
-    // Aislamiento por sede (18-sep-2026, SPEC 2.29.2): faltaba en este
-    // endpoint, a diferencia de inventario/rrhh que ya lo tenian.
+    // Filtra por sede segun los permisos de la sesion.
     const empleados = await prisma.employee.findMany({
       where: { estado: "activo", ...sedeWhere(session) },
       include: {

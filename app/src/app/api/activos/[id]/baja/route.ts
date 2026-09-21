@@ -6,7 +6,7 @@ import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { requirePermission, handleApiError, ConflictError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
-// SPEC 2.7.3: Proceso de Baja
+// Handles the asset decommission (baja) process.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -39,8 +39,7 @@ export async function POST(
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
     }
 
-    // Esta ruta no validaba sede: un tecnico que conociera/adivinara el id
-    // de un activo de otra sede podia darlo de baja igual (2.24.1).
+    // Prevents a técnico from decommissioning an asset from another sede.
     assertSedeAccess(session, asset.sedeId, 'Activo no encontrado');
 
     // Un registro descartado es basura de importacion: no genera movimientos.
@@ -48,11 +47,8 @@ export async function POST(
       throw new ConflictError('Este activo esta descartado y no admite movimientos');
     }
 
-    // SPEC: Si tiene asignación activa, bloquear
-    // 15-sep-2026 (SPEC 2.41): ya no existe una devolucion suelta -- la
-    // devolucion solo pasa dentro de una Solicitud (cambio de equipo o
-    // desvinculacion). `redirectTo` ahora manda ahi en vez de a una pantalla
-    // de devolucion directa que ya no existe.
+    // Returns only happen within a Solicitud (cambio de equipo or
+    // desvinculación); redirect there instead of a standalone return flow.
     if (asset.assignments.length > 0) {
       return NextResponse.json(
         {

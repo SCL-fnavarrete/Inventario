@@ -3,17 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/auth/permissions";
 
-// Todo el modulo de Configuracion (incluidas sus sub-paginas: categorias,
-// kit-epp, usuarios, parametros, auditoria, sedes, mantenimiento -- mas
-// proveedores/microsoft-sync, que quedaron como stubs, ver SPEC 2.34/2.35)
-// es exclusivo de admin -- ver el recurso "configuracion" en
-// permissions.ts. El Sidebar ya ocultaba el link para tecnico, pero cada
-// pagina de esta carpeta es un client component sin ningun chequeo propio,
-// asi que un tecnico que entrara directo por URL (favorito, link
-// compartido, etc.) igual podia ver y usar cualquier sub-pagina, incluida
-// "Mantenimiento de Datos" (borrado masivo). Este layout es el guard real,
-// del lado del servidor, para todo el arbol -- una sola verificacion en vez
-// de repetirla en cada page.tsx.
+// Todo el modulo de Configuracion es exclusivo de admin (ver el recurso
+// "configuracion" en permissions.ts). Este layout es el guard real, del
+// lado del servidor, para todo el arbol, ya que las paginas de esta
+// carpeta son client components sin chequeo propio.
 export default async function ConfiguracionLayout({
   children,
 }: {

@@ -39,15 +39,13 @@ export async function GET(request: NextRequest) {
     const filters = filtersResult.data;
     const skip = (filters.page - 1) * filters.limit;
 
-    // Assignment no tiene sedeId propio -- se filtra via su relacion al
-    // activo (mismo criterio que Mantenciones y que el Dashboard).
+    // Assignment no tiene sedeId propio: se filtra via la sede del activo.
     const where: Prisma.AssignmentWhereInput = {
       asset: sedeWhere(session),
     };
 
-    // Selector de sede del nav (Etapa 2): solo quien ya tiene visibilidad
-    // total (admin/tecnico) puede acotar por una sede especifica -- para el
-    // resto, sedeWhere ya los deja fijos en la suya y esto no aplica.
+    // Solo usuarios con visibilidad total pueden acotar por una sede especifica;
+    // el resto ya queda fijo en la suya via sedeWhere.
     const sedeIdFiltro = searchParams.get("sedeId") || "";
     if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
       where.asset = { ...(where.asset as Prisma.AssetWhereInput), sedeId: sedeIdFiltro };
@@ -79,16 +77,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // El termino de busqueda se filtra en memoria, igual que /api/empleados
-    // (11-sep-2026): comparar `filters.search` tal cual contra
-    // `employee.rut` con un simple `contains` no funcionaba, porque el RUT
-    // se guarda formateado ("12.345.678-9") y el usuario casi siempre lo
-    // escribe sin puntos. `normalizeRut` saca puntos/guion de ambos lados
-    // antes de comparar. De paso, nombre/apellido quedan sin distinguir
-    // acentos (`matchNoAccent`), igual que en Empleados. La cantidad de
-    // asignaciones de esta empresa es chica, asi que traerlas todas (ya
-    // acotadas por sede y por los demas filtros) y filtrar en memoria es
-    // viable -- no se creo un indice ni columna normalizada para esto.
+    // Filtrado en memoria (igual que /api/empleados): normaliza el RUT
+    // (quita puntos/guion) e ignora acentos en nombre/apellido, ya que el
+    // volumen de datos es chico y no justifica un indice dedicado.
     const terminoBusqueda = filters.search?.trim() ?? "";
 
     let assignments;
@@ -177,10 +168,8 @@ export async function POST(request: NextRequest) {
 
     const data = validationResult.data;
 
-    // Un tecnico no debe poder asignar un activo o un empleado de otra
-    // sede aunque conozca el id -- executeAssignment no valida esto (es
-    // compartido con el flujo de Solicitudes, que ya valida sede mas
-    // arriba), asi que se verifica aca antes de ejecutar.
+    // Validar sede de activo y empleado antes de ejecutar; executeAssignment
+    // en si no lo hace porque tambien lo usa el flujo de Solicitudes.
     const [assetParaAsignar, employeeParaAsignar] = await Promise.all([
       prisma.asset.findUnique({ where: { id: data.assetId }, select: { sedeId: true } }),
       prisma.employee.findUnique({ where: { id: data.employeeId }, select: { sedeId: true } }),

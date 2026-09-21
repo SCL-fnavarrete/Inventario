@@ -6,10 +6,8 @@ import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 
 /**
- * Confirmacion pendiente (15-sep-2026, SPEC 2.40). Esta pantalla usaba
- * `confirm()` del navegador, que se ve distinto al resto del sistema y
- * bloquea la ventana entera. Mismo formato que el modal de compras
- * (SPEC 2.38) para que todas las confirmaciones se vean iguales.
+ * Confirmacion en modal propio, en vez de confirm() del navegador, con el
+ * mismo formato que el resto del sistema.
  */
 type Confirmacion = {
   titulo: string;
@@ -456,7 +454,7 @@ export default function CategoriasPage() {
       </div>
 
       {/* Confirmacion de eliminacion, con el mismo formato que el resto del
-          sistema en vez del confirm() del navegador (15-sep-2026, SPEC 2.40). */}
+          sistema en vez del confirm() del navegador. */}
       {confirmacion && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">

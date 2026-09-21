@@ -21,11 +21,8 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 
-// Esta pagina reemplaza al antiguo modulo "Empleados" (creacion manual e
-// importacion Excel ya no se usan: los empleados se crean desde Solicitudes
-// -> Onboarding). Queda solo como vista de consulta, dentro de Activos,
-// porque "quien tiene que equipo" es el dato que de verdad se usa dia a dia.
-// Ficha de detalle y edicion puntual se mantienen en /empleados/[id].
+// Read-only employee listing within Activos. Employees are created via the
+// onboarding flow; detail/edit lives in /empleados/[id].
 
 type Employee = {
   id: string;
@@ -33,8 +30,7 @@ type Employee = {
   nombres: string;
   apellidoPaterno: string;
   apellidoMaterno: string | null;
-  // El correo de empresa es el obligatorio (15-sep-2026, SPEC 2.39)
-  correoEmpresa: string;
+  correoEmpresa: string; // required field
   correoPersonal?: string | null;
   cargo: string | null;
   jefatura: string | null;
@@ -86,28 +82,21 @@ const tipoContratoColors: Record<TipoContrato, string> = {
 
 export default function PersonalPage() {
   const { data: session } = useSession();
-  // Selector de sede del nav (Etapa 2): elegir una sede ahi filtra tambien
-  // esta pantalla, igual que ya pasa en Activos.
+  // Selecting a sede in the nav also filters this screen.
   const { sedeSeleccionada } = useSedeSeleccionada();
-  // Ubicaciones es un dato legado (texto libre, previo a Sede) que ya no
-  // aporta nada util al tecnico -- el filtrado real por sede lo hace la
-  // sesion sola. Javier pidio (10-sep-2026) que la tarjeta y el filtro de
-  // Ubicaciones queden exclusivos de admin.
+  // Ubicaciones is a legacy free-text field superseded by Sede; its
+  // filter/card are admin-only.
   const esAdmin = session?.user?.role === "admin";
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
-    limit: 10,
+    limit: 20,
     total: 0,
     totalPages: 0,
   });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  // El input responde a cada tecla; lo que dispara la busqueda es esta
-  // version debounced -- antes no buscaba nada hasta enviar el formulario
-  // (Enter). Ver useDebouncedValue y SPEC 2.13.2 (el mismo problema de
-  // Personal/Equipos/Asignaciones: o buscaban en cada tecla sin freno, o
-  // exigian Enter).
+  // Debounced so the search fires automatically as the user types.
   const debouncedSearch = useDebouncedValue(search, 350);
   const [estadoFilter, setEstadoFilter] = useState("");
   const [tipoContratoFilter, setTipoContratoFilter] = useState("");
@@ -125,16 +114,12 @@ export default function PersonalPage() {
   }, [pagination.page, debouncedSearch, estadoFilter, tipoContratoFilter, ubicacionFilter, sedeSeleccionada]);
 
   useEffect(() => {
-    // El detalle de ubicaciones ya no se muestra al tecnico -- no vale la
-    // pena pedirlo.
     if (esAdmin) {
       fetchUbicaciones();
     }
     fetchStats();
-    // Las tarjetas (Total/Activos/Desvinculados) deben recalcularse al
-    // cambiar la sede del selector del nav -- si no, quedan pegadas al
-    // total global aunque la tabla de abajo si se filtre (21-sep-2026,
-    // reportado por Javier: "las tarjetas de personal no filtran por sede").
+    // Recompute stat cards when the sede filter changes so they don't stay
+    // stuck on the global total while the table below is already filtered.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [esAdmin, sedeSeleccionada]);
 
@@ -175,9 +160,7 @@ export default function PersonalPage() {
 
   async function fetchStats() {
     try {
-      // Mismo criterio de sede que fetchEmployees: sin esto, las tarjetas
-      // seguian mostrando el total de todas las sedes aunque el selector
-      // del nav tuviera una sede especifica elegida.
+      // Apply the same sede filter as fetchEmployees so the stats match.
       const sedeParam = sedeSeleccionada ? `&sedeId=${sedeSeleccionada}` : "";
       const res = await fetch(`/api/empleados?limit=100${sedeParam}`);
       const data = await res.json();
@@ -216,9 +199,8 @@ export default function PersonalPage() {
     }
   }
 
-  // `searchOverride` es para el Enter explicito (handleSearch): sin el, un
-  // Enter presionado antes de que venza el debounce buscaria con el valor
-  // debounced anterior, no con lo que el usuario realmente escribio.
+  // `searchOverride` lets an explicit Enter search use the current input
+  // value immediately, instead of waiting for the debounce to catch up.
   async function fetchEmployees(searchOverride?: string) {
     setLoading(true);
     try {
@@ -244,10 +226,7 @@ export default function PersonalPage() {
     }
   }
 
-  // El formulario ya no es necesario para que la busqueda se aplique (eso
-  // ahora lo hace el debounce), pero se deja: Enter sigue funcionando y
-  // fuerza la busqueda de inmediato con lo que esta escrito en el momento,
-  // sin esperar los 350ms.
+  // Enter still forces an immediate search without waiting for the debounce.
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     setPagination((prev) => ({ ...prev, page: 1 }));

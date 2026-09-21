@@ -8,12 +8,8 @@ import { NotFoundError, ValidationError } from '@/lib/errors';
 import type { SesionAutenticada } from '@/lib/auth/guard';
 
 /**
- * 18-sep-2026 (SPEC 2.29.1): estas pruebas nacieron con SPEC 2.29, cuando
- * el técnico pasó a tener visibilidad total, justamente para que nadie lo
- * revirtiera por accidente. Hoy se revierte a propósito, por decisión
- * explícita de Javier: el técnico vuelve a quedar amarrado a su sede, en la
- * interfaz y en el backend. Las expectativas se actualizan al nuevo
- * comportamiento y siguen cumpliendo el mismo rol: dejarlo fijado.
+ * El técnico queda amarrado a su propia sede, tanto en la interfaz como en
+ * el backend; estas pruebas fijan ese comportamiento.
  */
 
 function sesion(rol: string, sedeId: string | null): SesionAutenticada {
@@ -83,8 +79,7 @@ describe('assertSedeAccess', () => {
   });
 
   test('lanza NotFoundError si en algún momento vuelve a haber un rol sin visibilidad total', () => {
-    // No existe hoy un tercer rol, pero se prueba la rama defensiva
-    // directamente para que no quede código muerto sin cubrir.
+    // Prueba la rama defensiva directamente para que no quede sin cubrir.
     expect(() =>
       assertSedeAccess(sesion('rol_inventado', 'sede-1'), 'sede-2')
     ).toThrow(NotFoundError);

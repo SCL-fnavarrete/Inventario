@@ -33,14 +33,12 @@ type Employee = {
   apellidoPaterno: string;
   apellidoMaterno: string | null;
   cargo: string | null;
-  // 15-sep-2026 (SPEC 2.39): el correo de empresa es el obligatorio; el
-  // particular quedo opcional porque casi nunca esta registrado.
+  // El correo de empresa es obligatorio; el personal queda opcional.
   correoEmpresa: string;
   correoPersonal: string | null;
   estado?: string;
-  // 16-sep-2026 (SPEC 2.44): se usa para fijar la Sede de la solicitud a la
-  // del empleado en Cambio de Equipo/Desvinculacion -- ya pertenece a una,
-  // no tiene sentido dejarla elegible.
+  // Se usa para fijar la Sede de la solicitud a la del empleado en Cambio
+  // de Equipo/Desvinculacion.
   sedeId?: string | null;
 };
 
@@ -104,10 +102,7 @@ type EquipoDisponible = {
   tipoPlan: string | null;
   operador: string | null;
   pulgadas: string | number | null;
-  // Si el equipo es nuevo o usado. 15-sep-2026 (SPEC 2.40): antes esto se
-  // deducia del ESTADO ("reutilizable" = usado), que mezclaba dos cosas
-  // distintas; ahora sale del campo `condicion`, que es el que de verdad
-  // describe como esta el equipo.
+  // Si el equipo es nuevo o usado; sale del campo `condicion`.
   condicion: 'nuevo' | 'usado' | 'danado';
   tieneCargador: boolean;
 };
@@ -174,7 +169,7 @@ export default function NuevaSolicitudPage() {
   const { data: session } = useSession();
   const [sedes, setSedes] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
   const [sedeId, setSedeId] = useState('');
-  // Solo admin elige sede (18-sep-2026, SPEC 2.29.1).
+  // Solo admin elige sede.
   const esAdminSede = session?.user?.role === 'admin';
   const [step, setStep] = useState(1);
   const [tipo, setTipo] = useState('');
@@ -195,8 +190,8 @@ export default function NuevaSolicitudPage() {
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [devolucionEstados, setDevolucionEstados] = useState<Record<string, 'ok' | 'danado' | 'no_devuelto'>>({});
   const [devolucionObservaciones, setDevolucionObservaciones] = useState<Record<string, string>>({});
-  // Condicion del cargador al devolver (16-sep-2026, SPEC 2.48) -- solo se
-  // pide si el equipo es un notebook con tieneCargador.
+  // Condicion del cargador al devolver, solo si el equipo es un notebook
+  // con tieneCargador.
   const [devolucionCargador, setDevolucionCargador] = useState<Record<string, 'ok' | 'danado' | 'no_aplica'>>({});
   const [devolucionCargadorObservaciones, setDevolucionCargadorObservaciones] = useState<Record<string, string>>({});
   // EPP entregado y pendiente de devolver (offboarding)
@@ -247,14 +242,13 @@ export default function NuevaSolicitudPage() {
   // (no solo la categoria) y queda reservado desde que se crea el ticket,
   // sin pasar por Gestion TI. Mapa categoriaId -> assetId elegido.
   const [equipoSeleccionado, setEquipoSeleccionado] = useState<Record<string, string>>({});
-  // Condicion del cargador del equipo elegido, por categoria (16-sep-2026,
-  // SPEC 2.48) -- solo se pide si el equipo reservado es un notebook con
-  // tieneCargador.
+  // Condicion del cargador del equipo elegido, por categoria; solo se pide
+  // si el equipo reservado es un notebook con tieneCargador.
   const [cargadorOnboarding, setCargadorOnboarding] = useState<
     Record<string, { condicion: 'ok' | 'danado' | 'no_aplica'; observaciones: string }>
   >({});
-  // Coordinacion de entrega (15-sep-2026, SPEC 2.42.1): se pide aca mismo,
-  // junto con la eleccion de equipos, en vez de en un paso aparte despues.
+  // Coordinacion de entrega: se pide junto con la eleccion de equipos, en
+  // vez de en un paso aparte despues.
   const [fechaEntregaCoordinada, setFechaEntregaCoordinada] = useState('');
   const [medioEntrega, setMedioEntrega] = useState<'presencial' | 'chilexpress'>('presencial');
   const [lugarEntrega, setLugarEntrega] = useState('');
@@ -278,8 +272,8 @@ export default function NuevaSolicitudPage() {
 
   // Cambio equipo fields
   const [motivoCambio, setMotivoCambio] = useState('');
-  // Coordinacion de cambio (SPEC 2.42.1): igual patron, junto con la
-  // seleccion del equipo de reemplazo.
+  // Coordinacion de cambio: igual patron, junto con la seleccion del
+  // equipo de reemplazo.
   const [fechaCambioCoordinada, setFechaCambioCoordinada] = useState('');
   const [medioCambio, setMedioCambio] = useState<'presencial' | 'chilexpress'>('presencial');
   const [lugarCambio, setLugarCambio] = useState('');
@@ -292,17 +286,13 @@ export default function NuevaSolicitudPage() {
 
   // Offboarding fields
   const [fechaDesvinculacion, setFechaDesvinculacion] = useState('');
-  // 16-sep-2026 (SPEC 2.44): solo dos medios -- Presencial o Chilexpress,
-  // igual que en Onboarding/Cambio de Equipo. Se saca "Otro Courier": no
-  // tenia campos propios (compartia Ubicacion con Chilexpress) y duplicaba
-  // sin necesidad la misma decision presencial/despacho de los otros flujos.
+  // Solo dos medios -- Presencial o Chilexpress -- igual que en
+  // Onboarding/Cambio de Equipo.
   const [medioDevolucion, setMedioDevolucion] = useState<'presencial' | 'chilexpress'>('presencial');
   const [otChilexpress, setOtChilexpress] = useState('');
   const [ciudadDevolucion, setCiudadDevolucion] = useState('');
-  // Coordinacion de devolucion (15-sep-2026, SPEC 2.42.1): fecha/lugar en
-  // el mismo formulario de creacion -- medioDevolucion/otChilexpress/
-  // ciudadDevolucion ya existian aca arriba desde antes (comparten columna
-  // con la coordinacion: son el mismo dato "como vuelve el equipo").
+  // Coordinacion de devolucion: fecha/lugar en el mismo formulario de
+  // creacion.
   const [fechaDevolucionCoordinada, setFechaDevolucionCoordinada] = useState('');
   const [lugarDevolucion, setLugarDevolucion] = useState('');
 
@@ -381,10 +371,8 @@ export default function NuevaSolicitudPage() {
     setSearchEmployee('');
     setShowResults(false);
     if (tipo === 'offboarding' || tipo === 'cambio_equipo') fetchEmployeeAssignments(emp.id);
-    // Desvinculacion y Cambio de Equipo son sobre un empleado que YA
-    // pertenece a una sede -- no tiene sentido dejarla elegible aparte
-    // (16-sep-2026, SPEC 2.44/2.45, pedido de Javier). Se fija sola al
-    // elegirlo.
+    // Desvinculacion y Cambio de Equipo son sobre un empleado que ya
+    // pertenece a una sede, asi que se fija sola al elegirlo.
     if ((tipo === 'offboarding' || tipo === 'cambio_equipo') && emp.sedeId) {
       setSedeId(emp.sedeId);
     }
@@ -480,9 +468,9 @@ export default function NuevaSolicitudPage() {
     };
   }, []);
 
-  // Precarga la sede propia del usuario apenas la sesion esta disponible --
-  // el "prev ||" evita pisar una eleccion manual hecha antes de que la
-  // sesion terminara de cargar. SPEC 2.29: el usuario igual puede cambiarla.
+  // Precarga la sede propia del usuario apenas la sesion esta disponible;
+  // el "prev ||" evita pisar una eleccion manual hecha antes. El usuario
+  // igual puede cambiarla.
   useEffect(() => {
     if (session?.user?.sedeId) {
       setSedeId((prev) => prev || session.user.sedeId!);
@@ -505,12 +493,9 @@ export default function NuevaSolicitudPage() {
   }, []);
 
   // Disponibilidad de equipos por categoria (5 primeros de cada estado +
-  // total), para mostrar stock en "Equipos Requeridos" sin que el usuario
-  // tenga que salir del formulario a revisar el modulo de Activos.
-  //
-  // Desde SPEC 2.40 "disponible" es el unico estado asignable: el equipo
-  // devuelto en buen estado vuelve directo a disponible, sin pasar por el
-  // extinto "reutilizable". Que sea nuevo o usado lo dice `condicion`.
+  // total), para mostrar stock en "Equipos Requeridos" sin salir del
+  // formulario. "disponible" es el unico estado asignable; nuevo/usado lo
+  // dice `condicion`.
   useEffect(() => {
     if (categorias.length === 0) return;
     let cancelado = false;
@@ -533,12 +518,12 @@ export default function NuevaSolicitudPage() {
     });
     Promise.all(
       categorias.map((cat) =>
-        // El stock que se muestra es el de la sede elegida para la solicitud
-        // (SPEC 2.40): antes contaba el de las tres sedes juntas, asi que
-        // decia "hay 8 notebooks" cuando en esa bodega no habia ninguno.
+        // El stock que se muestra es el de la sede elegida para la solicitud.
         Promise.all([
+          // Se piden hasta 100 (la lista queda con scroll propio) para poder
+          // llegar a todo el stock, no solo a los primeros resultados.
           fetch(
-            `/api/activos?categoriaId=${cat.id}&estado=disponible&limit=5${sedeId ? `&sedeId=${sedeId}` : ''}`
+            `/api/activos?categoriaId=${cat.id}&estado=disponible&limit=100${sedeId ? `&sedeId=${sedeId}` : ''}`
           )
             .then((res) => (res.ok ? res.json() : { pagination: { total: 0 }, data: [] }))
             .catch(() => ({ pagination: { total: 0 }, data: [] })),
@@ -568,7 +553,7 @@ export default function NuevaSolicitudPage() {
   useEffect(() => {
     if (tipo !== 'onboarding') return;
     let cancelado = false;
-    // Catalogo de Kit/EPP de la sede de la solicitud (SPEC 2.40).
+    // Catalogo de Kit/EPP de la sede de la solicitud.
     fetch(`/api/kit-items${sedeId ? `?sedeId=${sedeId}` : ''}`)
       .then((res) => (res.ok ? res.json() : []))
       .then((items: { id: string; nombre: string; categoria: 'kit_bienvenida' | 'epp'; cantidad: number }[]) => {
@@ -613,7 +598,7 @@ export default function NuevaSolicitudPage() {
       if (
         !onboardingEmp.nombres.trim() ||
         !onboardingEmp.apellidoPaterno.trim() ||
-        // 15-sep-2026 (SPEC 2.39): el obligatorio es el correo de empresa.
+        // El obligatorio es el correo de empresa.
         !onboardingEmp.correoEmpresa.trim() ||
         !onboardingEmp.cargo.trim()
       ) {
@@ -627,10 +612,7 @@ export default function NuevaSolicitudPage() {
     }
 
     // Defensa en profundidad ademas del "required" del select: si no se
-    // eligio sede, no se manda -- evita que quede un ticket sin sede
-    // (invisible para todos) por un descuido. Desde SPEC 2.29 esto aplica a
-    // cualquier rol, no solo admin: toda accion debe quedar ligada a una
-    // sede explicita.
+    // eligio sede, no se manda -- evita un ticket sin sede asignada.
     if (!sedeId) {
       setFieldErrors({ sedeId: 'Debes seleccionar una sede' });
       return;
@@ -651,9 +633,8 @@ export default function NuevaSolicitudPage() {
       }
     }
 
-    // Coordinacion de entrega (SPEC 2.42.1): si se reservo al menos un
-    // equipo, la fecha/medio/lugar son obligatorios -- mismo criterio que
-    // ya se exigia despues, en "Coordinando Entrega".
+    // Coordinacion de entrega: si se reservo al menos un equipo, la
+    // fecha/medio/lugar son obligatorios.
     if (tipo === 'onboarding' && Object.values(equipoSeleccionado).length > 0) {
       if (!fechaEntregaCoordinada) {
         setError(
@@ -677,20 +658,15 @@ export default function NuevaSolicitudPage() {
       }
     }
 
-    // 16-sep-2026 (SPEC 2.45), pedido de Javier: elegir el equipo a
-    // cambiar (viejo + estado en que vuelve + reemplazo) deja de ser
-    // opcional -- sin eso, no se puede crear la solicitud. Si no hay
-    // reemplazo disponible en el inventario de la sede, cambioSeleccion
-    // nunca se completa (SeleccionarCambioEquipo ya lo avisa mas abajo) y
-    // este chequeo bloquea la creacion, en vez de dejar nacer un ticket sin
-    // equipo asignado.
+    // Elegir el equipo a cambiar (viejo + estado en que vuelve + reemplazo)
+    // es obligatorio para crear la solicitud.
     if (tipo === 'cambio_equipo' && !cambioSeleccion) {
       setFieldErrors({ cambioSeleccion: 'Elige el equipo a cambiar, su estado y el reemplazo' });
       return;
     }
 
-    // Coordinacion de cambio (SPEC 2.42.1): siempre se pide, ya que
-    // cambioSeleccion ahora es obligatorio.
+    // Coordinacion de cambio: siempre se pide, ya que cambioSeleccion es
+    // obligatorio.
     if (tipo === 'cambio_equipo' && cambioSeleccion) {
       if (!fechaCambioCoordinada) {
         setError(
@@ -729,9 +705,8 @@ export default function NuevaSolicitudPage() {
 
       let body: Record<string, unknown> = base;
 
-      // Condicion del cargador por asset (SPEC 2.48): cargadorOnboarding
-      // esta guardado por categoria (cat.id), hay que traducirlo a
-      // assetId, que es como lo espera el backend.
+      // cargadorOnboarding esta guardado por categoria (cat.id); se traduce
+      // a assetId, que es como lo espera el backend.
       const condicionCargadorPorAsset: Record<
         string,
         { condicion: 'ok' | 'danado' | 'no_aplica'; observaciones?: string }
@@ -839,14 +814,14 @@ export default function NuevaSolicitudPage() {
             newAssetId: cambioSeleccion.newAssetId,
             estadoDevolucionAnterior: cambioSeleccion.estadoDevolucion,
             observacionesDevolucionAnterior: cambioSeleccion.observaciones || undefined,
-            // Condicion del cargador (SPEC 2.48), si el equipo la trae.
+            // Condicion del cargador, si el equipo la trae.
             condicionCargadorAnterior: cambioSeleccion.condicionCargadorAnterior || undefined,
             observacionesCargadorAnterior:
               cambioSeleccion.observacionesCargadorAnterior || undefined,
             condicionCargadorNuevo: cambioSeleccion.condicionCargadorNuevo || undefined,
             observacionesCargadorNuevo: cambioSeleccion.observacionesCargadorNuevo || undefined,
-            // Coordinacion de cambio (SPEC 2.42.1): junto con la seleccion
-            // del equipo de reemplazo, en el mismo formulario.
+            // Coordinacion de cambio: junto con la seleccion del equipo de
+            // reemplazo, en el mismo formulario.
             fechaCambioCoordinada: fechaCambioCoordinada || undefined,
             medioCambio,
             lugarCambio: medioCambio === 'presencial' ? lugarCambio || undefined : undefined,
@@ -874,7 +849,7 @@ export default function NuevaSolicitudPage() {
               assignmentId: a.id,
               estadoDevolucion: devolucionEstados[a.id],
               observaciones: devolucionObservaciones[a.id] || undefined,
-              // Condicion del cargador (SPEC 2.48), si el equipo la trae.
+              // Condicion del cargador, si el equipo la trae.
               condicionCargador: a.asset.tieneCargador ? devolucionCargador[a.id] || undefined : undefined,
               observacionesCargador: a.asset.tieneCargador
                 ? devolucionCargadorObservaciones[a.id] || undefined
@@ -1470,7 +1445,7 @@ export default function NuevaSolicitudPage() {
                               ? 'Elige uno para reservarlo desde ya, o déjalo sin elegir y se asigna después en Gestión TI.'
                               : 'Marca la categoría para poder reservar un equipo.'}
                           </p>
-                          <ul className="text-xs text-gray-600 space-y-0.5">
+                          <ul className="text-xs text-gray-600 space-y-0.5 max-h-60 overflow-y-auto pr-1">
                             {disp.items.map((item) => (
                               <li key={item.id}>
                                 <label
@@ -1528,9 +1503,8 @@ export default function NuevaSolicitudPage() {
                           )}
                         </div>
                       )}
-                      {/* Estado del cargador del equipo reservado
-                          (16-sep-2026, SPEC 2.48) -- solo si es un notebook
-                          con cargador. */}
+                      {/* Estado del cargador del equipo reservado, solo si es
+                          un notebook con cargador. */}
                       {seleccionado &&
                         disp?.items.find((item) => item.id === seleccionado)?.tieneCargador && (
                           <div className="ml-6 mt-1 mb-1 border border-gray-200 rounded-lg p-2">
@@ -1578,9 +1552,8 @@ export default function NuevaSolicitudPage() {
             )}
           </div>
 
-          {/* Coordinacion de entrega (15-sep-2026, SPEC 2.42.1): se pide
-              aca mismo, junto con la eleccion de equipos, en vez de en un
-              paso aparte ("Coordinando Entrega") despues -- solo tiene
+          {/* Coordinacion de entrega: se pide junto con la eleccion de
+              equipos, en vez de en un paso aparte despues, y solo tiene
               sentido si ya se reservo al menos un equipo. */}
           {Object.values(equipoSeleccionado).length > 0 && (
             <div className="border-t pt-4">
@@ -1982,16 +1955,8 @@ export default function NuevaSolicitudPage() {
                 />
               </div>
 
-              {/* Equipo a cambiar + reemplazo: 16-sep-2026 (SPEC 2.45),
-                  pedido de Javier -- deja de ser opcional. Antes, si se
-                  dejaba incompleto, el ticket nacia en "Incidencia
-                  Detectada" para completarse despues; ahora hace falta
-                  elegir equipo viejo + estado + reemplazo para poder crear
-                  la solicitud (ver validacion en handleSubmit). Si no hay
-                  reemplazo disponible en el inventario de la sede,
-                  SeleccionarCambioEquipo lo avisa mas abajo y, al no poder
-                  completarse la seleccion, la solicitud simplemente no se
-                  puede crear todavia. */}
+              {/* Equipo a cambiar + reemplazo: obligatorio para poder crear la
+                  solicitud (ver validacion en handleSubmit). */}
               {selectedEmployee && (
                 <div>
                   <label className={cn(
@@ -2019,17 +1984,9 @@ export default function NuevaSolicitudPage() {
                 </div>
               )}
 
-              {/* Coordinacion de cambio (15-sep-2026, SPEC 2.42.1;
-                  16-sep-2026, SPEC 2.46: ya no depende de que
-                  cambioSeleccion este completo -- antes se ocultaba hasta
-                  elegir equipo viejo + estado + reemplazo, lo que la hacia
-                  parecer "que falta" si aun no habia stock de reemplazo.
-                  Ahora se muestra siempre junto con la seleccion del
-                  equipo, igual que "Coordinar Entrega" en Onboarding y
-                  "Coordinar Devolucion" en Offboarding -- mismo patron
-                  visual (hr + h4) y de campos (radio Presencial/Chilexpress,
-                  fecha, lugar u OT+ciudad). El cambio se ejecuta de
-                  inmediato al crear la solicitud. */}
+              {/* Coordinacion de cambio: se muestra siempre junto con la
+                  seleccion del equipo, igual que "Coordinar Entrega" en
+                  Onboarding y "Coordinar Devolucion" en Offboarding. */}
               {selectedEmployee && (
                 <>
                   <hr className="border-gray-200" />
@@ -2212,9 +2169,8 @@ export default function NuevaSolicitudPage() {
                                     placeholder="Observaciones (opcional)"
                                     className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
                                   />
-                                  {/* Estado del cargador (16-sep-2026, SPEC
-                                      2.48) -- solo si el equipo es un
-                                      notebook con cargador. */}
+                                  {/* Estado del cargador, solo si el equipo
+                                      es un notebook con cargador. */}
                                   {asset.tieneCargador && (
                                     <div className="border border-gray-200 rounded-lg p-2 bg-white">
                                       <p className="text-xs font-medium text-gray-600 mb-1">
@@ -2342,13 +2298,9 @@ export default function NuevaSolicitudPage() {
                 />
               </div>
 
-              {/* Coordinacion de devolucion (16-sep-2026, SPEC 2.44): en su
-                  propia tarjeta, separada con un <hr> de los datos de arriba
-                  -- antes todo quedaba mezclado en una sola grilla de 2
-                  columnas sin distincion visual entre "datos de la
-                  desvinculacion" y "como/cuando se devuelve el equipo".
-                  Mismo patron presencial/chilexpress (radio, no select) que
-                  ya usan Onboarding y Cambio de Equipo. */}
+              {/* Coordinacion de devolucion en su propia tarjeta, separada de
+                  los datos de la desvinculacion. Mismo patron
+                  presencial/chilexpress que Onboarding y Cambio de Equipo. */}
               <hr className="border-gray-200" />
               <div>
                 <h4 className="font-medium text-gray-900 mb-1">Coordinar Devolución</h4>
@@ -2435,13 +2387,8 @@ export default function NuevaSolicitudPage() {
             </div>
           )}
 
-          {/* 16-sep-2026 (SPEC 2.44/2.45): en Desvinculacion y Cambio de
-              Equipo la sede ya no se elige -- el empleado ya pertenece a
-              una (se fijo sola al elegirlo en selectEmployee), y dejarla
-              editable permitia armar un ticket con la sede de la solicitud
-              distinta a la del empleado, algo sin sentido en ninguno de los
-              dos flujos (a diferencia de Onboarding, donde recien se esta
-              definiendo). */}
+          {/* En Desvinculacion y Cambio de Equipo la sede ya no se elige: el
+              empleado ya pertenece a una y se fija sola al elegirlo. */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Sede <span className="text-red-500">*</span>

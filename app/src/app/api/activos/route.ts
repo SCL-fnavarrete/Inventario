@@ -7,11 +7,8 @@ import { sedeWhere, sedeIdParaCrear, tieneVisibilidadTotal } from '@/lib/auth/se
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 /**
- * Tope de filas por pagina. Protege la base de un ?limit arbitrario.
- *
- * 500 y no menos: SelectorActivos (guias de despacho) pide limit=200 para
- * llenar su lista de una vez. Un tope por debajo de eso truncaria ese
- * selector en silencio, que es peor que no tener tope.
+ * Tope de filas por pagina. Protege la base de un ?limit arbitrario;
+ * 500 porque SelectorActivos pide limit=200 para llenar su lista de una vez.
  */
 const LIMITE_MAXIMO_PAGINA = 500;
 
@@ -21,10 +18,9 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
 
-    // Paginacion saneada: sin esto, ?page=abc daba NaN y reventaba en Prisma,
-    // ?limit=999999 arrastraba la tabla entera y ?limit=0 devolvia
-    // pages: Infinity. Un entero fuera de rango se corrige al limite, no
-    // rechaza la peticion: el listado siempre responde algo utilizable.
+    // Paginacion saneada: un valor invalido o fuera de rango se corrige al
+    // limite en vez de rechazar la peticion, para que el listado siempre
+    // responda algo utilizable.
     const enteroEnRango = (valor: string | null, pordefecto: number, minimo: number, maximo: number) => {
       const n = Number.parseInt(valor ?? "", 10);
       if (!Number.isFinite(n)) return pordefecto;
@@ -38,20 +34,15 @@ export async function GET(request: NextRequest) {
     const categoriaId = searchParams.get("categoriaId") || "";
     const empleadoActualId = searchParams.get("empleadoActualId") || "";
 
-    // Los registros descartados no aparecen en el listado (SPEC 2.7.7).
-    // Aislamiento por sede (SPEC 2.9): admin ve todo, el resto solo lo suyo.
+    // Los registros descartados no aparecen en el listado. Aislamiento por
+    // sede: admin ve todo, el resto solo lo suyo.
     const where: Record<string, unknown> = { ...ACTIVOS_VIGENTES, ...sedeWhere(session) };
 
     if (search) {
-      // Buscar por palabras, no por el texto completo: antes el termino se
-      // comparaba entero contra CADA campo por separado, asi que "Hp
-      // Probook 640 G2" no encontraba nada -- ningun campo por si solo
-      // contiene esa frase completa, porque marca ("Hp") y modelo
-      // ("ProBook 640 G2") estan en columnas distintas. Ahora cada palabra
-      // debe aparecer en ALGUNO de los campos (no necesariamente el mismo),
-      // asi que "Hp Probook 640 G2" matchea con marca="Hp" + modelo="ProBook
-      // 640 G2" (21-sep-2026, SPEC 2.63, reportado por Javier: "no me deja
-      // ingresar el nombre del equipo completo").
+      // Buscar por palabras, no por el texto completo: cada palabra debe
+      // aparecer en alguno de los campos (no necesariamente el mismo), asi
+      // que "Hp Probook 640 G2" matchea con marca="Hp" + modelo="ProBook 640
+      // G2" aunque esten en columnas distintas.
       const palabras = search.trim().split(/\s+/).filter(Boolean);
       where.AND = palabras.map((palabra) => ({
         OR: [
@@ -75,12 +66,9 @@ export async function GET(request: NextRequest) {
       where.empleadoActualId = empleadoActualId;
     }
 
-    // Filtro explicito de sede por query param -- solo tiene efecto para
-    // admin (que ve todas por defecto y necesita poder acotar, ej. el
-    // selector de equipos de una Guia de Despacho una vez elegida la sede
-    // origen). Para un tecnico se ignora en silencio: su propia sede ya
-    // viene forzada por sedeWhere() arriba y no debe poder pisarse con un
-    // sedeId arbitrario del query string.
+    // Filtro explicito de sede por query param: solo tiene efecto para
+    // admin, que puede acotar a una sede especifica. Para un tecnico se
+    // ignora, su propia sede ya viene forzada por sedeWhere().
     const sedeIdFiltro = searchParams.get("sedeId") || "";
     if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
       where.sedeId = sedeIdFiltro;
@@ -99,7 +87,7 @@ export async function GET(request: NextRequest) {
               nombres: true,
               apellidoPaterno: true,
               // Se pide tambien el correo de empresa porque es el que las
-              // pantallas muestran como identificador (15-sep-2026, SPEC 2.39)
+              // pantallas muestran como identificador.
               correoEmpresa: true,
               correoPersonal: true,
               cargo: true
@@ -151,9 +139,7 @@ export async function POST(request: NextRequest) {
     }
 
     // La sede se hereda de quien crea el activo; admin debe elegirla
-    // explicitamente (requerido: true), igual que un tecnico con la suya --
-    // ver nota en sedeIdParaCrear sobre por que ya no se permite dejarla en
-    // blanco. Ver SPEC 2.9.
+    // explicitamente, igual que un tecnico con la suya.
     const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId, {
       requerido: true,
     });

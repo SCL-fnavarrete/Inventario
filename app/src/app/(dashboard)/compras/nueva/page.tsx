@@ -47,10 +47,9 @@ type SelectedAsset = {
   asset: Asset;
 };
 
-// Kit/EPP (14-sep-2026, SPEC 2.36, pedido explicito de Javier): a diferencia
-// de un Activo, acá no se elige una unidad existente -- se elige un artículo
-// del catálogo (WelcomeKitItem) y una cantidad, que suma al stock de esa
-// sede al guardar la compra.
+// A Kit/EPP line references a catalog item (WelcomeKitItem) and a quantity,
+// which is added to that sede's stock when the purchase is saved -- unlike
+// an Asset line, which links an existing unit.
 type KitItem = {
   id: string;
   nombre: string;
@@ -68,19 +67,10 @@ type SelectedKitItem = {
 export default function NuevaCompraPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  // Tecnico (11-sep-2026): registra la compra con lo esencial -- factura y
-  // con que activos vino. La sede si se le pregunta desde el 18-sep-2026
-  // (SPEC 2.10.2): viene precargada con la suya, igual que en Activos >
-  // Nuevo.
-  //
-  // Compras se simplifico el 11-sep-2026 (pedido explicito de Javier) a
-  // solo dos datos -- la factura, para relacionarla, y los equipos que
-  // vinieron con ella. Se eliminaron el catalogo de proveedor y todo dato
-  // financiero (monto, moneda, precio unitario): "el tema del dinero no es
-  // un dato que nos interese" para el area de soporte. El mismo dia se
-  // agrego el RUT del proveedor (texto libre) y se quito el campo de
-  // documento, que no se usaba. Ver SPEC 2.10.
-  // Solo admin elige sede (18-sep-2026, SPEC 2.29.1).
+  // This form captures the essentials: the invoice and which assets/items
+  // arrived with it. No pricing or financial fields -- only invoice number,
+  // date, provider RUT and purchase order. Sede defaults to the user's own
+  // (see useEffect below), matching Activos > Nuevo.
   const esAdminSede = session?.user?.role === "admin";
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,21 +82,14 @@ export default function NuevaCompraPage() {
   const [assetSearch, setAssetSearch] = useState("");
   const [showAssetSearch, setShowAssetSearch] = useState(false);
 
-  // Alta de equipo nuevo directamente desde este formulario (11-sep-2026,
-  // pedido explicito de Javier): el equipo que llego con la factura muchas
-  // veces todavia no existe como Activo -- antes habia que crearlo primero
-  // en Activos > Nuevo y volver aca a vincularlo. Este modo llama al mismo
-  // POST /api/activos que usa esa pantalla, asi que reusa sus reglas
-  // (sede, numero de serie duplicado, historial) sin duplicarlas aca.
+  // Lets a new asset be created directly from this form, reusing the same
+  // POST /api/activos endpoint (and its validation rules) as Activos > Nuevo,
+  // for equipment that arrived with the invoice but doesn't exist yet.
   const [showNewAssetForm, setShowNewAssetForm] = useState(false);
   const [creatingAsset, setCreatingAsset] = useState(false);
   const [newAssetError, setNewAssetError] = useState<string | null>(null);
   const [newAssetFieldErrors, setNewAssetFieldErrors] = useState<FieldErrors>({});
-  // Specs por categoria (14-sep-2026, pedido explicito de Javier): antes
-  // este alta rapida solo pedia categoria/marca/modelo/serie, a diferencia
-  // de /activos/nuevo, que si tiene secciones propias por categoria (ver
-  // SPEC 2.11). Mismos campos y mismo criterio de categoria que esa
-  // pantalla -- ver SPEC 2.21.
+  // Category-specific spec fields, matching /activos/nuevo.
   const [newAssetForm, setNewAssetForm] = useState({
     categoriaId: "",
     marca: "",
@@ -144,12 +127,8 @@ export default function NuevaCompraPage() {
 
   // Form data
   const [formData, setFormData] = useState({
-    // A que sede se le atribuye la compra. 18-sep-2026 (SPEC 2.10.2): el
-    // campo ahora lo ve cualquier rol -- antes era admin-only y al tecnico
-    // ni se le preguntaba, lo que desde SPEC 2.29 lo dejo sin poder crear
-    // compras (el backend exigia la sede que el formulario nunca pedia).
-    // Para el tecnico viene precargado con la suya (ver useEffect abajo),
-    // mismo patron que Activos > Nuevo.
+    // Sede the purchase is attributed to; visible to any role, defaults
+    // to the user's own sede (see useEffect below).
     sedeId: "",
     numeroFactura: "",
     fechaFactura: new Date().toISOString().split("T")[0],
@@ -159,7 +138,6 @@ export default function NuevaCompraPage() {
 
   const [selectedAssets, setSelectedAssets] = useState<SelectedAsset[]>([]);
 
-  // Kit/EPP (SPEC 2.36)
   const [kitItemsCatalogo, setKitItemsCatalogo] = useState<KitItem[]>([]);
   const [selectedKitItems, setSelectedKitItems] = useState<SelectedKitItem[]>([]);
   const [showKitItemPicker, setShowKitItemPicker] = useState(false);
@@ -171,18 +149,15 @@ export default function NuevaCompraPage() {
     fetchCategories();
   }, []);
 
-  // Precarga la sede del usuario (18-sep-2026, SPEC 2.10.2). El
-  // "|| prev.sedeId" evita pisar una eleccion manual si ya eligio otra --
-  // mismo patron que Activos > Nuevo.
+  // Prefill the user's sede; `|| prev.sedeId` avoids overwriting a manual
+  // selection already made.
   useEffect(() => {
     if (session?.user?.sedeId) {
       setFormData((prev) => ({ ...prev, sedeId: prev.sedeId || session.user.sedeId! }));
     }
   }, [session?.user?.sedeId]);
 
-  // El catálogo de Kit/EPP depende de la sede elegida arriba, para
-  // cualquier rol (18-sep-2026, SPEC 2.10.2) -- mismo criterio que "Crear
-  // Equipo Nuevo".
+  // The Kit/EPP catalog depends on the sede selected above.
   useEffect(() => {
     if (formData.sedeId) {
       fetchKitItemsCatalogo();
@@ -263,13 +238,8 @@ export default function NuevaCompraPage() {
   async function searchAssets() {
     setLoadingAssets(true);
     try {
-      // Acotado a la sede de la compra (18-sep-2026, SPEC 2.10.3): antes
-      // buscaba en todo el inventario, asi que un admin podia vincular a una
-      // compra de Santiago un equipo de Concepcion. La sede la manda el
-      // formulario, NO el selector del nav: ese es un filtro de vista, y la
-      // sede de la compra es un dato del registro. Mismo criterio que el
-      // catalogo de Kit/EPP de mas abajo y que SelectorActivos en Guias de
-      // Despacho.
+      // Scoped to the purchase's own sede field (not the nav's view filter),
+      // so assets can't be linked across sedes.
       const params = new URLSearchParams({
         search: assetSearch,
         limit: "20",
@@ -323,25 +293,21 @@ export default function NuevaCompraPage() {
           marca: newAssetForm.marca,
           modelo: newAssetForm.modelo,
           numeroSerie: newAssetForm.numeroSerie || null,
-          // Specs por categoria (14-sep-2026, SPEC 2.21) -- el backend
-          // ignora los campos que no correspondan a Asset, asi que no hace
-          // falta condicionar por categoria aca, igual que en /activos/nuevo.
+          // The backend ignores fields that don't apply to the asset's
+          // category, so these can be sent unconditionally.
           procesador: newAssetForm.procesador || null,
           ram: newAssetForm.ram || null,
           discoDuro: newAssetForm.almacenamiento || null,
           sistemaOperativo: newAssetForm.sistemaOperativo || null,
           antivirus: newAssetForm.antivirus || null,
-          // Igual que en /activos/nuevo (SPEC 2.23): no hay checkbox propio
-          // de "tiene M365", se deriva de si se cargo el nombre del plan.
+          // Whether M365 applies is derived from the plan name being set.
           tipoLicenciaMicrosoft365: newAssetForm.tipoLicenciaMicrosoft365 || null,
           microsoft365: Boolean(newAssetForm.tipoLicenciaMicrosoft365),
           imei: newAssetForm.imei || null,
           numeroTelefono: newAssetForm.numeroTelefono || null,
           pulgadas: newAssetForm.pulgadas || null,
           conectividad: newAssetForm.conectividad || null,
-          // El equipo llega a la misma sede que la compra, la que se eligio
-          // arriba (obligatoria para cualquier rol desde SPEC 2.10.2 --
-          // antes al tecnico no se le preguntaba). Ver SPEC 2.8.2/2.10.
+          // New assets are created in the purchase's own sede.
           sedeId: formData.sedeId || undefined,
         }),
       });
@@ -393,8 +359,7 @@ export default function NuevaCompraPage() {
     }
   }
 
-  // Una compra necesita al menos una linea, de equipos o de Kit/EPP
-  // (18-sep-2026, SPEC 2.10.4).
+  // A purchase needs at least one line, of assets or Kit/EPP items.
   const sinLineas = selectedAssets.length === 0 && selectedKitItems.length === 0;
 
   async function handleSubmit(e: React.FormEvent) {
@@ -409,11 +374,7 @@ export default function NuevaCompraPage() {
 
     try {
       const payload = {
-        // Obligatoria para cualquier rol (18-sep-2026, SPEC 2.10.2): el
-        // select no ofrece opcion en blanco y el backend rechaza la
-        // creacion si llegara vacia. Antes solo se enviaba para admin, y
-        // un tecnico chocaba con "Debes seleccionar una sede" sin tener
-        // donde elegirla. Ver SPEC 2.8.2/2.10.
+        // Required field; the backend rejects an empty value.
         sedeId: formData.sedeId || undefined,
         numeroFactura: formData.numeroFactura,
         fechaFactura: formData.fechaFactura,
@@ -477,7 +438,7 @@ export default function NuevaCompraPage() {
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Sede -- visible para cualquier rol desde SPEC 2.10.2 */}
+            {/* Sede */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Sede <span className="text-red-500">*</span>
@@ -486,10 +447,8 @@ export default function NuevaCompraPage() {
                 value={formData.sedeId}
                 onChange={(e) => {
                   setFormData({ ...formData, sedeId: e.target.value });
-                  // Lo ya elegido es de la sede anterior -- se limpia para no
-                  // arrastrar equipos ni articulos que ya no corresponden
-                  // (mismo criterio que Nueva Guia de Despacho al cambiar la
-                  // sede origen). SPEC 2.10.3.
+                  // Clear selections made under the previous sede, since
+                  // they no longer apply.
                   setSelectedAssets([]);
                   setSelectedKitItems([]);
                   setShowAssetSearch(false);
@@ -618,9 +577,8 @@ export default function NuevaCompraPage() {
             </div>
           )}
 
-          {/* Alta de equipo nuevo -- el equipo todavia no existe como Activo.
-              Es un div, no un <form>: ya estamos dentro del <form> de la
-              compra y HTML no permite formularios anidados. */}
+          {/* New-asset form; a div rather than a nested <form>, since this
+              is already inside the purchase's own <form>. */}
           {showNewAssetForm && (
             <div className="mb-4 p-4 bg-green-50 rounded-lg space-y-3">
               <ApiErrorSummary error={newAssetError} fieldErrors={newAssetFieldErrors} />
@@ -687,10 +645,7 @@ export default function NuevaCompraPage() {
                 </div>
               </div>
 
-              {/* Specs por categoria -- mismos campos y mismo criterio que
-                  /activos/nuevo (SPEC 2.11), agregados aca el 14-sep-2026
-                  (SPEC 2.21) porque antes esta alta rapida solo pedia los 4
-                  campos genericos de arriba. */}
+              {/* Category-specific spec fields, matching /activos/nuevo. */}
               {isNewAssetNotebook && (
                 <div className="p-3 bg-white border border-gray-200 rounded-lg space-y-3">
                   <p className="text-xs font-medium text-gray-600">Especificaciones - Notebook</p>
@@ -984,10 +939,8 @@ export default function NuevaCompraPage() {
           )}
         </div>
 
-        {/* Kit/EPP comprado (14-sep-2026, SPEC 2.36): a diferencia de
-            Activos, acá no se crea una unidad nueva -- se elige un
-            artículo del catálogo y una cantidad, que suma al stock de la
-            sede cuando se guarda la compra. */}
+        {/* Kit/EPP items: pick a catalog item and quantity, added to the
+            sede's stock when the purchase is saved. */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -1100,8 +1053,7 @@ export default function NuevaCompraPage() {
 
         {/* Botones */}
         <div className="flex items-center justify-end gap-4">
-          {/* Una compra sin equipos ni articulos no registra nada
-              (18-sep-2026, SPEC 2.10.4). El backend tambien lo rechaza. */}
+          {/* The backend also rejects a purchase with no lines. */}
           {sinLineas && (
             <p className="text-sm text-amber-700">
               Vincula al menos un equipo o un artículo de Kit/EPP para poder guardar.

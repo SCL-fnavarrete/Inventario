@@ -8,15 +8,14 @@ import { AuditEntidad, AuditAccion, Prisma } from '@prisma/client'
 export type PrismaTx = Prisma.TransactionClient
 
 /**
- * Auditoria generica de escritura (SPEC 2.29, 14-sep-2026). Cubre
- * Empleado/Compra/Usuario -- Proveedores queda excluido a proposito (ver
- * schema.prisma, modelo AuditLog).
+ * Auditoria generica de escritura. Cubre Empleado/Compra/Usuario;
+ * Proveedores queda excluido a proposito (ver schema.prisma, modelo
+ * AuditLog).
  *
- * IMPORTANTE -- nunca pasar `passwordHash` (ni ningun otro secreto) dentro
- * de `datosAnteriores`/`datosNuevos`. Quien arma el snapshot (el caller, en
- * las rutas de /api/usuarios) es responsable de omitirlo antes de llamar a
- * este servicio; el servicio no sanitiza porque no conoce la forma de cada
- * entidad.
+ * IMPORTANTE: nunca pasar `passwordHash` ni otro secreto en
+ * `datosAnteriores`/`datosNuevos`. Quien arma el snapshot es responsable de
+ * omitirlo antes de llamar a este servicio; el servicio no sanitiza porque
+ * no conoce la forma de cada entidad.
  */
 export type AuditLogData = {
   entidad: AuditEntidad

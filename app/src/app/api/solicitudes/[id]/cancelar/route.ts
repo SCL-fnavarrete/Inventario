@@ -6,11 +6,9 @@ import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // POST /api/solicitudes/[id]/cancelar - Cancela una solicitud que todavia no
 // ejecuto ningun efecto secundario sobre el inventario (assignmentIds y
-// kitReturnIds vacios). No es una transicion del flujo normal -- no pasa por
-// workflowStateMachine.canTransition -- porque aplica a los tres tipos por
-// igual y no representa un paso mas del proceso, sino que el ticket nunca
-// debio existir o ya no corresponde (duplicado, error, ya no aplica). Ver
-// SPEC 2.5.2/2.5.3 (v1.4).
+// kitReturnIds vacios). No pasa por workflowStateMachine.canTransition
+// porque no es un paso mas del flujo, sino que el ticket nunca debio
+// existir o ya no corresponde.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

@@ -7,16 +7,14 @@ import { auditLogService } from '@/lib/services/auditLogService';
 
 // GET /api/kit-items?categoria=kit_bienvenida|epp
 // Catalogo de articulos de Kit de Bienvenida y EPP, con su stock actual.
-// Separado de /api/activos a proposito: Kit/EPP no son equipos (ver
-// prisma/schema.prisma, modelo WelcomeKitItem). Catalogo separado por sede
-// (SPEC 2.9): admin ve todo, tecnico solo el de su sede.
+// Separado de /api/activos porque no son equipos. Catalogo por sede:
+// admin ve todo, tecnico solo el de su sede.
 export async function GET(request: NextRequest) {
   try {
     const session = await requirePermission('kitEpp', 'read');
 
     const categoria = request.nextUrl.searchParams.get('categoria');
-    // Selector de sede del nav (Etapa 2): solo quien ya tiene visibilidad
-    // total (admin/tecnico) puede acotar por una sede especifica.
+    // Solo quien tiene visibilidad total puede acotar por una sede especifica.
     const sedeIdFiltro = request.nextUrl.searchParams.get("sedeId") || "";
 
     const items = await prisma.welcomeKitItem.findMany({
@@ -72,7 +70,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Auditoria generica (SPEC 2.31).
+    // Auditoria generica.
     await auditLogService.registrarCreacion(
       'kit_item',
       item.id,

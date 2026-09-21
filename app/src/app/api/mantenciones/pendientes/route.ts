@@ -10,15 +10,11 @@ export async function GET(request: NextRequest) {
     const session = await requirePermission('mantenciones', 'read');
     const searchParams = request.nextUrl.searchParams;
     const dias = parseInt(searchParams.get("dias") || "30", 10);
-    // Ventana para "Completadas" (16-sep-2026, SPEC 2.51) -- antes ese
-    // contador no tenia ventana de tiempo (contaba TODAS las completadas
-    // de siempre, pese a que la tarjeta decia "(mes)"). Ahora usa su propio
-    // periodo, independiente del de "Proximas".
+    // Ventana de tiempo propia para el contador de "Completadas",
+    // independiente de la ventana de "Proximas".
     const diasCompletadas = parseInt(searchParams.get("diasCompletadas") || "30", 10);
-    // "Todas" (18-sep-2026, SPEC 2.51.2): dias=0 / diasCompletadas=0 es el
-    // sentinel que manda la pantalla para "sin limite de fecha" -- distinto
-    // de no mandar el parametro (ese caso cae en el default de 30 de
-    // arriba, para no romper otro consumidor futuro que no lo mande).
+    // dias=0 / diasCompletadas=0 es el sentinel para "sin limite de fecha",
+    // distinto de no mandar el parametro (que usa el default de 30).
     const sinLimiteProximas = dias === 0;
     const sinLimiteCompletadas = diasCompletadas === 0;
 
@@ -32,9 +28,7 @@ export async function GET(request: NextRequest) {
     // activo (mismo criterio que el listado y el Dashboard).
     const swAsset: { asset: Prisma.AssetWhereInput } = { asset: sedeWhere(session) };
 
-    // Selector de sede del nav (16-sep-2026, SPEC 2.51): esta ruta no lo
-    // respetaba -- a diferencia de /api/mantenciones, que si -- asi que las
-    // tarjetas de arriba no cambiaban al elegir otra sede en el menu.
+    // Filtra por la sede seleccionada en el nav, igual que /api/mantenciones.
     const sedeIdFiltro = searchParams.get("sedeId") || "";
     if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
       swAsset.asset = { ...swAsset.asset, sedeId: sedeIdFiltro };
@@ -131,10 +125,8 @@ export async function GET(request: NextRequest) {
       _count: { tipoId: true },
     });
 
-    // Completadas en la ventana elegida (SPEC 2.51) -- por fechaRealizada,
-    // no por fechaProgramada (una completada pudo programarse para otra
-    // fecha y ejecutarse despues). Reemplaza el conteo de porEstado, que no
-    // tenia ventana de tiempo.
+    // Cuenta por fechaRealizada (no fechaProgramada), dentro de la ventana
+    // elegida.
     const totalCompletadas = await prisma.maintenance.count({
       where: {
         estado: "completada",

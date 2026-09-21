@@ -55,9 +55,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       });
     }
 
-    // Aislamiento por sede (18-sep-2026, SPEC 2.29.2): esta ruta exigia el
-    // permiso pero no la sede, asi que un tecnico podia pedir la ficha de un
-    // empleado de otra sede conociendo su id o su RUT.
+    // Aislamiento por sede: valida el permiso junto con la sede del empleado.
     if (employee) {
       assertSedeAccess(session, employee.sedeId, 'Empleado no encontrado');
     }
@@ -89,15 +87,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         )
     );
 
-    // Kit de bienvenida y EPP: se deducen de lo que efectivamente se
-    // entrego (KitAssignment), no de las fechas sueltas del empleado
-    // (16-sep-2026, SPEC 2.43). Antes se leian fechaEntregaKit/
-    // fechaEntregaEpp, que solo se llenaban escribiendolas a mano en el
-    // formulario de editar empleado -- una entrega real hecha desde una
-    // Solicitud crea KitAssignment pero nunca tocaba esas fechas, asi que la
-    // ficha mostraba "Pendiente" aunque el kit ya estuviera entregado. Al
-    // sacarse esos campos del formulario, esta era la unica fuente que
-    // quedaba viva.
+    // Kit de bienvenida y EPP se deducen de lo que efectivamente se entrego
+    // (KitAssignment), no de fechas sueltas en el empleado.
     const kitEntregado = employee.kitAssignments.some(
       (k) => k.item.categoria === 'kit_bienvenida' && k.estado === 'entregado'
     );
@@ -140,9 +131,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         pulgadas: notebook.asset.pulgadas,
         sistemaOperativo: notebook.asset.sistemaOperativo,
         microsoft365: notebook.asset.microsoft365,
-        // 15-sep-2026 (SPEC 2.41): la ficha mostraba solo el booleano
-        // ("Microsoft 365: Si"). Lo util es cual plan tiene, asi que
-        // ahora tambien viaja el nombre de la licencia.
+        // Nombre del plan de licencia, no solo si tiene o no Microsoft 365.
         tipoLicenciaMicrosoft365: notebook.asset.tipoLicenciaMicrosoft365,
         estado: notebook.asset.estado,
         condicion: notebook.asset.condicion,
@@ -195,8 +184,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         fechaEntrega: a.fechaEntrega,
       })),
 
-      // Kit de bienvenida y EPP: solo el estado -- la fecha de entrega y la
-      // proxima mantencion se sacaron de estas tarjetas en SPEC 2.41.
+      // Kit de bienvenida y EPP: solo el estado de entrega.
       kitBienvenida: {
         entregado: kitEntregado,
       },

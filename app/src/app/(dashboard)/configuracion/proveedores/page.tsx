@@ -3,12 +3,8 @@
 import Link from "next/link";
 import { PackageX } from "lucide-react";
 
-// Modulo Proveedores eliminado (14-sep-2026, pedido explicito de Javier:
-// "elimina la tabla de proveedores" -- tabla sin uso). Se saco del menu de
-// Configuracion en SPEC 2.34; aca se deja un mensaje en vez de redirigir en
-// silencio, por si alguien entra por un link/favorito viejo. Mismo criterio
-// que kit-epp cuando se movio de aca (redirect), salvo que aca no hay a
-// donde redirigir -- el modulo simplemente ya no existe. Ver SPEC 2.35.
+// Proveedores was removed (unused table). This page shows a message
+// instead of redirecting silently, for anyone arriving via an old link.
 export default function ProveedoresEliminadoPage() {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">

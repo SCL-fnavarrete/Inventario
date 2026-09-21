@@ -3,14 +3,8 @@ import { StyleSheet, Text, View } from '@react-pdf/renderer';
 
 /**
  * Sistema visual compartido de las plantillas PDF de Solicitudes: logo SCL,
- * colores, tipografia y estilo de tabla. 16-sep-2026 (SPEC 2.49): antes
- * solo el Comprobante de Entrega (onboarding) usaba este diseño -- Acta de
- * Devolucion y Comprobante de Cambio usaban el estilo generico de
- * pdfStyles.ts, sin logo. Extraido de ComprobanteEntregaTemplate para que
- * las tres plantillas (entrega, devolucion, cambio) compartan exactamente
- * el mismo formato, en vez de reimplementarlo cada vez. Pedido de Javier:
- * "todas las solicitudes deben seguir el mismo formato que tiene los de
- * onboarding".
+ * colores, tipografia y estilo de tabla, usado por las plantillas de
+ * entrega, devolucion y cambio para mantener un formato consistente.
  */
 
 export const azulLogo = '#1f3a5f';
@@ -172,8 +166,7 @@ export const sclStyles = StyleSheet.create({
   },
 });
 
-// Colores del logo pixel, en el mismo orden que .logo-pixels span:nth-child
-// del generador_acta_scl (fila por fila, izquierda a derecha).
+// Colores del logo pixel, fila por fila, de izquierda a derecha.
 const PIXEL_ROWS = [
   ['#e84545', '#f5b942', 'transparent'],
   ['#f5b942', '#2a8fd9', '#e84545'],

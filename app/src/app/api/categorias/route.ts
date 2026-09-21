@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Auditoria generica (SPEC 2.31).
+    // Auditoria generica.
     await auditLogService.registrarCreacion(
       'categoria',
       category.id,

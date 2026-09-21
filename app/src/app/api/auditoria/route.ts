@@ -3,29 +3,16 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from "@/lib/auth/guard";
 import { AuditEntidad } from "@prisma/client";
 
-// Auditoria unificada (SPEC 2.34, 14-sep-2026): pedido explicito de Javier
-// de tener "todo el historial del sistema en un solo lugar" sin sacar nada
-// de las pantallas de detalle que ya existen en Activos y Solicitudes.
-//
-// El sistema hoy guarda historial en TRES tablas con columnas distintas,
-// porque se fueron agregando en momentos distintos:
-//   - AssetHistory: dedicada a Activos, con relacion propia y TipoEvento.
-//   - WorkflowTransition: dedicada a Solicitudes, con FK real a SystemUser
-//     (ejecutadoPorId) en vez de texto libre.
-//   - AuditLog (SPEC 2.31/2.32): generica, cubre los otros 10 modulos
-//     (Empleado, Compra, Usuario, Mantencion, Guia de Despacho,
-//     Desvinculacion, Kit/EPP, Sede, Categoria, Tipo de Mantencion,
-//     Configuracion).
+// Auditoria unificada: combina tres tablas de historial con columnas
+// distintas (AssetHistory, WorkflowTransition, AuditLog) en una sola
+// vista, sin duplicar los detalles que ya muestran Activos y Solicitudes.
 //
 // Prisma no permite un UNION entre modelos con columnas distintas, asi que
 // esta ruta consulta las tres por separado (cada una acotada por los
 // filtros que aplican, con un tope de filas), las mapea a una forma comun
-// y las combina/ordena/pagina en memoria -- mismo criterio ya usado en
-// Empleados/Asignaciones/Solicitudes para la busqueda de texto (empresa
-// chica, sin necesidad de un motor de busqueda aparte).
+// y las combina/ordena/pagina en memoria.
 //
-// Solo admin (recurso "configuracion", ver permissions.ts) -- por eso no
-// hace falta aislar por sede aca: quien puede entrar ya ve todas las sedes.
+// Solo admin puede acceder, asi que no hace falta aislar por sede.
 
 const TOPE_POR_FUENTE = 300;
 

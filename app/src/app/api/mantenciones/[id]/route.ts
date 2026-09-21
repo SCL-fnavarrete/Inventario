@@ -30,8 +30,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                 nombres: true,
                 apellidoPaterno: true,
                 apellidoMaterno: true,
-                // El correo de empresa es el identificador visible del
-                // empleado (15-sep-2026, SPEC 2.39)
+                // El correo de empresa es el identificador visible del empleado.
                 correoEmpresa: true,
                 correoPersonal: true,
                 cargo: true,
@@ -124,9 +123,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
       // Si se completa la mantención, actualizar estado del activo
       if (data.estado === "completada" && existingMaintenance.estado !== "completada") {
-        // (15-sep-2026, SPEC 2.40) El activo vuelve a disponible sin mirar la
-        // condicion: que el equipo este usado o danado lo dice el campo
-        // `condicion`, que es independiente del estado.
+        // El activo vuelve a "disponible" sin mirar la condicion, que es
+        // independiente del estado.
         const nuevoEstado = "disponible";
 
         await tx.asset.update({
@@ -171,8 +169,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         });
       }
 
-      // Auditoria generica (SPEC 2.31): quien actualizo el ticket, dentro
-      // de la misma transaccion.
+      // Registra quien actualizo el ticket, dentro de la misma transaccion.
       await auditLogService.registrarActualizacion(
         'mantencion',
         id,
@@ -222,7 +219,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // Eliminar en transacción
     await prisma.$transaction(async (tx) => {
-      // Auditoria generica (SPEC 2.31), antes del delete fisico.
+      // Registro de auditoria antes del delete fisico.
       await auditLogService.registrarEliminacion(
         'mantencion',
         maintenance.id,

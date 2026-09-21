@@ -110,8 +110,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Defensa en profundidad: un tecnico solo puede vincular activos de su
-    // propia sede. Ver SPEC 2.9.
+    // Defensa en profundidad: un tecnico solo puede vincular activos de su propia sede.
     if (!esAdmin) {
       const ajenos = existingAssets.filter((a) => a.sedeId !== session.user.sedeId);
       if (ajenos.length > 0) {
@@ -158,8 +157,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         data: { fechaCompra: purchase.fechaFactura },
       });
 
-      // Antes esto no dejaba rastro en AssetHistory -- solo la creación de
-      // un activo nuevo desde Nueva Compra lo registraba (SPEC 2.25).
+      // Registrar la vinculacion en el historial del activo.
       const usuario = session.user?.email || undefined;
       for (const assetId of data.assetIds) {
         await assetHistoryService.registrarVinculacionCompra(
@@ -211,8 +209,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Borrar/desvincular sigue siendo solo-admin (ver permissions.ts), asi
-    // que esto es un no-op hoy -- se deja por consistencia.
+    // Solo-admin hoy (ver permissions.ts); se deja por consistencia con el resto de rutas.
     assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
 
     // Si no se especifican activos, desvincular todos

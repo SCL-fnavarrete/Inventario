@@ -46,13 +46,10 @@ export default function ComprasPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   // El input responde a cada tecla; lo que dispara la busqueda es esta
-  // version debounced -- antes buscaba en cada tecla sin ningun freno, una
-  // peticion por letra. Ver useDebouncedValue y SPEC 2.14.
+  // version debounced, para no mandar una peticion por letra.
   const debouncedSearch = useDebouncedValue(search, 350);
-  // Selector de sede del nav (18-sep-2026, SPEC 2.10.5): antes esta pantalla
-  // tenia su PROPIO select de sede y por eso era la unica que ignoraba el del
-  // menu. Se quita el propio -- un solo lugar donde elegir sede, igual que
-  // Activos, Mantenciones, Solicitudes y Personal.
+  // Usa el selector de sede del nav, igual que Activos, Mantenciones,
+  // Solicitudes y Personal.
   const { sedeSeleccionada } = useSedeSeleccionada();
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
@@ -186,10 +183,8 @@ export default function ComprasPage() {
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            {/* Siempre visible (18-sep-2026, SPEC 2.10.5): antes solo
-                aparecia si habia algun filtro puesto, y como ademas era un
-                link de texto pasaba desapercibido. Se deshabilita cuando no
-                hay nada que limpiar. */}
+            {/* Siempre visible; se deshabilita cuando no hay nada que
+                limpiar. */}
             <button
               onClick={() => {
                 setSearch("");

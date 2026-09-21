@@ -72,16 +72,10 @@ type Stats = {
   totalCompletadas: number;
 };
 
-// Periodos para las tarjetas "Proximas" y "Completadas" (16-sep-2026, SPEC
-// 2.51) -- antes eran fijos (30 dias y "el mes", respectivamente). Pedido
-// de Javier: "colocar un filtro donde pueda indicar el dia, semana, mes,
-// trimestre, seis meses y el año, en vez de algo estatico".
+// Period options for the "Proximas" and "Completadas" cards/filters.
+// "todas" uses dias: 0 as a sentinel that both /api/mantenciones and
+// /api/mantenciones/pendientes interpret as "no time window".
 type Periodo = "dia" | "semana" | "mes" | "trimestre" | "semestre" | "anio" | "todas";
-// "todas" (18-sep-2026, SPEC 2.51.2): Javier, tras el fix de 2.51.1 -- "nos
-// falta un filtro... un valor universal que diga como todos, que muestre
-// todas las mantenciones sin importar la fecha". dias: 0 es el sentinel que
-// tanto /api/mantenciones como /api/mantenciones/pendientes interpretan
-// como "sin ventana de tiempo" (ver esas rutas).
 const PERIODOS: { value: Periodo; label: string; dias: number }[] = [
   { value: "dia", label: "Día", dias: 1 },
   { value: "semana", label: "Semana", dias: 7 },
@@ -140,23 +134,19 @@ export default function MantencionesPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  // El input responde a cada tecla; lo que dispara la busqueda es esta
-  // version debounced -- antes buscaba en cada tecla sin ningun freno, una
-  // peticion por letra. Ver useDebouncedValue y SPEC 2.14.
+  // Debounced so the search doesn't fire a request on every keystroke.
   const debouncedSearch = useDebouncedValue(search, 350);
   const [filterTipoId, setFilterTipoId] = useState("");
   const [filterEstado, setFilterEstado] = useState("");
   const [showVencidas, setShowVencidas] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  // Selector de sede del nav (Etapa 2): elegir una sede ahi filtra tambien
-  // esta pantalla, igual que ya pasa en Activos.
+  // Selecting a sede in the nav also filters this screen.
   const { sedeSeleccionada } = useSedeSeleccionada();
-  // Periodo de las tarjetas "Proximas" y "Completadas" (SPEC 2.51, ajustado
-  // 16-sep-2026 tras feedback de Javier: "la idea es que el filtro este con
-  // los demas filtros, no en la tarjeta" -- un solo filtro en la barra de
-  // filtros, no un selector por tarjeta.
-  const [periodo, setPeriodo] = useState<Periodo>("mes");
+  // Single period filter shared by the "Proximas"/"Completadas" cards and
+  // the table below, in the filter bar rather than per-card. Defaults to
+  // "todas" so results aren't hidden by an implicit recent-only window.
+  const [periodo, setPeriodo] = useState<Periodo>("todas");
 
   useEffect(() => {
     fetchTipos();
@@ -195,8 +185,7 @@ export default function MantencionesPage() {
       if (filterEstado) params.append("estado", filterEstado);
       if (showVencidas) params.append("vencidas", "true");
       if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
-      // Periodo (SPEC 2.51.1): mismo valor que ya se manda a /pendientes
-      // para las tarjetas, ahora tambien acota el listado de abajo.
+      // Same period value used for the stat cards also scopes this list.
       const diasPeriodo = diasDePeriodo(periodo).toString();
       params.append("dias", diasPeriodo);
       params.append("diasCompletadas", diasPeriodo);
@@ -205,10 +194,6 @@ export default function MantencionesPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        // Antes esto quedaba en silencio: la lista simplemente aparecia
-        // vacia sin ninguna pista de que la peticion habia fallado (asi se
-        // detecto tarde el bug de "Todas" en SPEC 2.51.2 -- el schema
-        // rechazaba dias=0 con un 400 y aca no se revisaba res.ok).
         console.error("Error fetching maintenances:", data.error || data);
         setMaintenances([]);
         setTotalPages(1);
@@ -332,7 +317,7 @@ export default function MantencionesPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar por descripción, activo, técnico..."
+              placeholder="Buscar por activo (marca, modelo, serie...) o empleado asignado..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -373,12 +358,9 @@ export default function MantencionesPage() {
             <option value="cancelada">Cancelada</option>
           </select>
 
-          {/* Periodo (SPEC 2.51, ampliado en 2.51.1): vive en la barra de
-              filtros junto a los demas, no en cada tarjeta -- pedido de
-              Javier tras el primer intento. Acota tanto las tarjetas
-              "Proximas"/"Completadas" como la tabla de abajo: vencidas y
-              en proceso se ven siempre (sin ventana), proximas y
-              completadas quedan dentro del periodo elegido. */}
+          {/* Period filter: scopes the "Proximas"/"Completadas" cards and
+              the table below. Vencidas/en proceso are always shown without
+              a time window; proximas/completadas respect the chosen period. */}
           <select
             value={periodo}
             onChange={(e) => {

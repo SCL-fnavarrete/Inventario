@@ -90,7 +90,7 @@ export async function PUT(
       },
     });
 
-    // Auditoria generica (SPEC 2.31).
+    // Auditoria generica.
     await auditLogService.registrarActualizacion(
       'categoria',
       category.id,
@@ -144,7 +144,7 @@ export async function DELETE(
       where: { id },
     });
 
-    // Auditoria generica (SPEC 2.31).
+    // Auditoria generica.
     await auditLogService.registrarEliminacion(
       'categoria',
       existing.id,

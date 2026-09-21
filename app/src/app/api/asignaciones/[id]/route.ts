@@ -89,12 +89,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const data = validationResult.data;
 
-    // Una devolucion anterior a la entrega no es un dato raro: es un dato
-    // imposible. El schema valida cada fecha por separado; la relacion entre
-    // las dos solo se puede comprobar aqui, que es donde se conoce la entrega.
-    // Si fechaEntrega es null (fecha desconocida, ej. import historico sin
-    // ese dato -- SPEC 2.59) no hay con que comparar, asi que se omite esta
-    // validacion en vez de fallar contra un valor que no existe.
+    // La fecha de devolucion no puede ser anterior a la de entrega; se omite
+    // la validacion si fechaEntrega es null (dato desconocido / import historico).
     if (existingAssignment.fechaEntrega && data.fechaDevolucion < existingAssignment.fechaEntrega) {
       return NextResponse.json(
         {
@@ -104,13 +100,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // La devolucion vive en executeReturn, la misma funcion que usa el flujo de
-    // solicitudes. Antes esta ruta tenia su propia copia y las dos ya habian
-    // divergido: esta comprobaba que la asignacion siguiera activa y la otra
-    // no, y esta escribia en el historial que el estado anterior era
-    // "asignado" sin mirar cual era en realidad. El destino del activo
-    // (SPEC 2.7.7: danado -> baja, el resto -> disponible) tambien se decide
-    // ahora en un solo lugar.
+    // executeReturn centraliza la logica de devolucion (compartida con el
+    // flujo de solicitudes), incluyendo a que estado pasa el activo.
     const result = await prisma.$transaction((tx) =>
       executeReturn(tx, {
         assignmentId: id,

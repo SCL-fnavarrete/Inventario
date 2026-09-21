@@ -19,8 +19,7 @@ const TRANSITIONS: Record<TipoSolicitud, TransitionRule[]> = {
     },
     {
       // Fecha/medio/lugar de entrega se piden junto con la entrega de
-      // equipos, en la misma transicion -- ya no hay una etapa
-      // "coordinando_entrega" aparte (15-sep-2026, SPEC 2.42).
+      // equipos, en la misma transicion.
       from: 'gestion_ti',
       to: 'equipos_entregados',
       roles: ['tecnico', 'admin'],
@@ -37,8 +36,7 @@ const TRANSITIONS: Record<TipoSolicitud, TransitionRule[]> = {
     {
       // Coordinacion (fecha/lugar presencial, u OT + fecha estimada de
       // llegada) y ejecucion del cambio se piden juntas, en la misma
-      // transicion -- ya no hay una etapa "coordinando_cambio" aparte
-      // (15-sep-2026, SPEC 2.42). Los campos vienen de SPEC 2.5.2 regla 9.
+      // transicion.
       from: 'incidencia_detectada',
       to: 'cambio_ejecutado',
       roles: ['tecnico', 'admin'],
@@ -53,9 +51,7 @@ const TRANSITIONS: Record<TipoSolicitud, TransitionRule[]> = {
   offboarding: [
     {
       // Coordinacion de la devolucion y recepcion de los equipos se piden
-      // juntas, en la misma transicion -- ya no hay una etapa
-      // "coordinacion_en_curso" aparte (15-sep-2026, SPEC 2.42). Los campos
-      // vienen de SPEC 2.5.2 regla 9.
+      // juntas, en la misma transicion.
       from: 'solicitud_emitida',
       to: 'equipo_recibido',
       roles: ['tecnico', 'admin'],
@@ -103,8 +99,7 @@ export const STATE_LABELS: Record<EstadoSolicitud, string> = {
 
 // Cancelación: no es una transición del diagrama normal (no pasa por
 // TRANSITIONS/canTransition) -- es una accion aparte, solo disponible
-// mientras la solicitud no ejecuto ningun efecto secundario todavia. Ver
-// POST /api/solicitudes/[id]/cancelar y SPEC 2.5.2/2.5.3.
+// mientras la solicitud no ejecuto ningun efecto secundario todavia.
 export function isCancelled(estado: EstadoSolicitud): boolean {
   return estado === 'cancelada';
 }

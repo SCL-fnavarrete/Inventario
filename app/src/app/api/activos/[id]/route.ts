@@ -94,9 +94,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const usuario = session.user?.email || 'sistema';
 
-    // Validar transición de estado con la máquina de estados (SPEC 2.7).
-    // La validación consulta datos pero no escribe: puede quedar fuera de la
-    // transacción y así el 400 sale sin abrir una.
+    // State-machine validation only reads data, so it can run outside the
+    // transaction and return a 400 without opening one.
     let cambioEstado: { desde: EstadoActivo; hasta: EstadoActivo } | null = null;
 
     if (validatedData.estado && validatedData.estado !== existingAsset.estado) {
@@ -302,8 +301,8 @@ export async function DELETE(
     const tieneMovimientos =
       existingAsset._count.history > 0 || existingAsset._count.assignments > 0;
 
-    // Descarte explícito: para duplicados de importación (SPEC 2.7.7). No
-    // borra nada, marca el registro y deja constancia de quién y por qué.
+    // Explicit discard (e.g. import duplicates): does not delete the
+    // record, only marks it and records who/why.
     if (descartar) {
       if (!motivo) {
         throw new ValidationError(

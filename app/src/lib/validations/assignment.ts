@@ -6,11 +6,8 @@ export const EstadoDevolucionEnum = z.enum(["ok", "danado", "incompleto"]);
 
 /**
  * Fecha obligatoria que llega como texto desde un formulario o desde la API.
- *
- * Antes era `z.string().transform((val) => new Date(val))` sin comprobar nada:
- * cualquier texto producia un Invalid Date que recien reventaba al llegar a la
- * base, con un error que no decia nada util, y una fecha del año 2050 entraba
- * sin objeciones. Un equipo no se puede entregar ni devolver en el futuro.
+ * Valida que sea una fecha real y que no sea futura: un equipo no se puede
+ * entregar ni devolver en el futuro.
  */
 const fechaObligatoria = z
   .string()
@@ -30,9 +27,8 @@ export const createAssignmentSchema = z.object({
   employeeId: z.string().uuid("ID de empleado inválido"),
   fechaEntrega: fechaObligatoria,
   lugarEntrega: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
-  // Nombre de red del equipo (hostname). Se ingresa al ENTREGAR, no al crear
-  // el activo, porque se arma con el nombre de quien lo va a usar -- un
-  // equipo en bodega todavia no tiene nombre (15-sep-2026, SPEC 2.40).
+  // Nombre de red del equipo (hostname). Se ingresa al entregar, no al
+  // crear el activo, porque se arma con el nombre de quien lo va a usar.
   nombreEquipo: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   entregadoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   tipoMovimiento: TipoMovimientoEnum,

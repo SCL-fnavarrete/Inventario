@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     const filters = filtersResult.data;
     const skip = (filters.page - 1) * filters.limit;
 
-    // Aislamiento por sede (SPEC 2.9): admin ve todo, el resto solo lo suyo.
+    // Aislamiento por sede: admin ve todo, el resto solo lo suyo.
     const where: Prisma.WorkflowRequestWhereInput = { ...sedeWhere(session) };
 
     // Selector de sede del nav (Etapa 2): solo quien ya tiene visibilidad
@@ -77,8 +77,8 @@ export async function GET(request: NextRequest) {
           apellidoPaterno: true,
           apellidoMaterno: true,
           cargo: true,
-          // El correo de empresa es el identificador visible del empleado
-          // (15-sep-2026, SPEC 2.39); el personal puede venir vacio
+          // El correo de empresa es el identificador visible del empleado;
+          // el personal puede venir vacio
           correoEmpresa: true,
           correoPersonal: true,
         },
@@ -89,11 +89,10 @@ export async function GET(request: NextRequest) {
     } as const;
 
     // El termino de busqueda se filtra en memoria en vez de mandarlo a
-    // Prisma como `contains` (11-sep-2026, mismo patron ya usado en
-    // /api/empleados y /api/asignaciones): `employee.rut` se guarda
-    // formateado ("12.345.678-9") y el usuario casi siempre lo escribe sin
-    // puntos, asi que un `contains` directo nunca hacia match. `normalizeRut`
-    // saca puntos/guion de ambos lados antes de comparar; numero/nombre/
+    // Prisma como `contains`: `employee.rut` se guarda formateado
+    // ("12.345.678-9") y el usuario casi siempre lo escribe sin puntos, asi
+    // que un `contains` directo nunca hacia match. `normalizeRut` saca
+    // puntos/guion de ambos lados antes de comparar; numero/nombre/
     // apellido/observaciones quedan sin distinguir acentos (`matchNoAccent`).
     const terminoBusqueda = filters.search?.trim() ?? "";
 
@@ -203,7 +202,7 @@ export async function POST(request: NextRequest) {
       }
       // Defensa en profundidad: aunque el selector de empleados ya viene
       // filtrado por sede, un no-admin no puede crear una solicitud para un
-      // empleado de otra sede. Ver SPEC 2.9.
+      // empleado de otra sede.
       assertSedeAccess(session, empleadoExistente.sedeId, 'Empleado no encontrado');
     }
     const esReincorporacion =
@@ -213,9 +212,8 @@ export async function POST(request: NextRequest) {
     const estadoInicial = getInitialState(data.tipo);
 
     // La sede se hereda de quien crea la solicitud; admin debe elegirla
-    // explicitamente (requerido: true) -- si queda en null el ticket
-    // termina visible solo para el admin y ningun tecnico lo ve nunca. Ver
-    // nota en sedeIdParaCrear y SPEC 2.9.
+    // La sede se hereda de quien crea la solicitud; admin debe elegirla
+    // explicitamente, o el ticket queda visible solo para el admin.
     const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId, {
       requerido: true,
     });
@@ -241,9 +239,8 @@ export async function POST(request: NextRequest) {
       camposComunes.categoriasRequeridas = data.categoriasRequeridas;
       camposComunes.kitBienvenidaSolicitado = data.kitBienvenidaSolicitado;
       camposComunes.eppSolicitado = data.eppSolicitado;
-      // Coordinacion de entrega (15-sep-2026, SPEC 2.42.1): si se completo
-      // en el mismo formulario de creacion, se guarda de una -- sea que el
-      // ticket alcance a saltarse Gestion TI o no (ver mas abajo).
+      // Coordinacion de entrega: si se completo en el mismo formulario de
+      // creacion, se guarda de una.
       if (data.fechaEntregaCoordinada) {
         camposComunes.fechaEntregaCoordinada = new Date(data.fechaEntregaCoordinada);
       }
@@ -254,8 +251,8 @@ export async function POST(request: NextRequest) {
       camposComunes.ciudadEntrega = data.medioEntrega === 'chilexpress' ? data.ciudadEntrega : null;
     } else if (data.tipo === 'cambio_equipo') {
       camposComunes.motivoCambio = data.motivoCambio;
-      // Coordinacion de cambio (SPEC 2.42.1): igual patron, guardada desde
-      // ya si vino en el formulario de creacion.
+      // Coordinacion de cambio: igual patron, guardada desde ya si vino en
+      // el formulario de creacion.
       if (data.fechaCambioCoordinada) {
         camposComunes.fechaCambioCoordinada = new Date(data.fechaCambioCoordinada);
       }
@@ -269,8 +266,8 @@ export async function POST(request: NextRequest) {
       camposComunes.medioDevolucion = data.medioDevolucion;
       camposComunes.otChilexpress = data.otChilexpress;
       camposComunes.ciudadDevolucion = data.ciudadDevolucion;
-      // Coordinacion de devolucion (SPEC 2.42.1): fecha/lugar del mismo
-      // formulario -- medio/OT/ciudad ya se guardaban desde antes.
+      // Coordinacion de devolucion: fecha/lugar del mismo formulario --
+      // medio/OT/ciudad ya se guardaban desde antes.
       if (data.fechaDevolucionCoordinada) {
         camposComunes.fechaDevolucionCoordinada = new Date(data.fechaDevolucionCoordinada);
       }
@@ -319,15 +316,11 @@ export async function POST(request: NextRequest) {
       // especificos (no solo categorias), se asignan de una -- el Activo
       // queda reservado (estado 'asignado') desde este momento, aunque la
       // entrega fisica sea despues. Si ademas ya se completo la
-      // coordinacion de entrega (fecha/medio/lugar) EN EL MISMO FORMULARIO
-      // de creacion y quedaron cubiertas todas las categorias requeridas,
-      // el ticket se salta Gestion TI por completo y nace directo en
-      // "Equipos Entregados" -- ese es el pedido de Javier (15-sep-2026,
-      // SPEC 2.42.1): "dejarlo para definirlo al inicio tambien cuando se
-      // asigna el equipo, para asi hacemos todo de una en vez de varios
-      // pasos". Si falta alguna categoria, o no se coordino la fecha
-      // todavia, el ticket entra a Gestion TI a completar lo que falta (la
-      // fecha, si ya se guardo arriba, no se vuelve a pedir ahi).
+      // coordinacion de entrega en el mismo formulario de creacion y
+      // quedaron cubiertas todas las categorias requeridas, el ticket se
+      // salta Gestion TI por completo y nace directo en "Equipos
+      // Entregados". Si falta alguna categoria, o no se coordino la fecha
+      // todavia, el ticket entra a Gestion TI a completar lo que falta.
       let estadoReal = estadoInicial;
       const assignmentIds: string[] = [];
 

@@ -60,7 +60,7 @@ async function getStockData(session: SesionAutenticada) {
 }
 
 export default async function ReporteStockPage() {
-  // La sesion decide que sede se ve (SPEC 2.29.2, ver nota arriba).
+  // Scoped to the session's sede.
   const session = (await getServerSession(authOptions)) as SesionAutenticada;
   const { stockData, totales } = await getStockData(session);
 

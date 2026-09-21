@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 
-// Modulo Proveedores eliminado (14-sep-2026) -- ver /api/proveedores/route.ts
-// y SPEC 2.35 para el detalle completo de por que este archivo queda como
-// stub en vez de borrarse.
+// Modulo de Proveedores eliminado; este archivo queda como stub que
+// responde 410 en vez de borrarse. Ver /api/proveedores/route.ts.
 function gone() {
   return NextResponse.json(
     { error: "El módulo de Proveedores fue eliminado. Esta tabla ya no existe." },

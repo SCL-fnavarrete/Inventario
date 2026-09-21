@@ -24,9 +24,7 @@ const MESES = [
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
 ];
 
-// Fecha larga en español ("Miércoles, 10 de septiembre de 2026"), para la
-// redaccion de la intro del comprobante -- mismo formato que se usaba a
-// mano en la herramienta externa que este documento reemplaza.
+// Fecha larga en español para la redaccion de la intro del comprobante.
 function formatDateLarga(date: Date | string | null): string {
   if (!date) return '—';
   const d = new Date(date);
@@ -34,12 +32,8 @@ function formatDateLarga(date: Date | string | null): string {
   return `${DIAS[d.getDay()]}, ${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`;
 }
 
-// Descripcion de equipo en una sola linea, igual al criterio que ya se usa
-// en el detalle de Guias de Despacho -- especificaciones tecnicas para
-// notebooks, datos de linea para celulares. (14-sep-2026: se quito
-// "operador" de la firma -- ese campo del Activo ya no existe, SPEC 2.20.
-// Este archivo referenciaba el campo eliminado y no compilaba; bug
-// preexistente detectado ahora porque el CI corre `tsc`.)
+// Descripcion de equipo en una sola linea: especificaciones tecnicas para
+// notebooks, datos de linea para celulares.
 function descripcionAsset(
   asset: {
     procesador: string | null;
@@ -48,11 +42,8 @@ function descripcionAsset(
     sistemaOperativo: string | null;
     numeroTelefono: string | null;
   },
-  // Condicion del cargador (16-sep-2026, SPEC 2.48): se agrega como un dato
-  // mas de la descripcion en vez de una columna nueva -- este documento
-  // tiene que seguir siendo fiel al formato de la herramienta externa (ver
-  // comentario en ComprobanteEntregaTemplate), que no tiene columna propia
-  // para el cargador.
+  // Condicion del cargador: se agrega como un dato mas de la descripcion,
+  // no como columna propia.
   cargador?: string | null
 ): string {
   const partes: string[] = [];
@@ -65,10 +56,9 @@ function descripcionAsset(
   return partes.join(' | ');
 }
 
-// Descripcion para equipos que se devuelven o cambian (16-sep-2026, SPEC
-// 2.49) -- a diferencia de descripcionAsset (que muestra specs tecnicas,
-// pensadas para una entrega), aca importa mas identificar el equipo fisico
-// concreto: modelo y N° de serie, ademas del cargador si aplica.
+// Descripcion para equipos que se devuelven o cambian: a diferencia de
+// descripcionAsset, aca importa identificar el equipo fisico concreto
+// (modelo y N° de serie), no sus specs tecnicas.
 function descripcionEquipoDevuelto(
   asset: { modelo: string; numeroSerie: string | null },
   cargador?: string | null
@@ -79,10 +69,8 @@ function descripcionEquipoDevuelto(
   return partes.join(' | ');
 }
 
-// Etiqueta legible de la condicion del cargador (16-sep-2026, SPEC 2.48) --
-// null si el equipo no es un notebook con cargador, o si nunca se
-// registro (queda "pendiente" en el enum por defecto, que tampoco se
-// imprime -- no aporta nada al acta).
+// Etiqueta legible de la condicion del cargador. Null si el equipo no
+// tiene cargador o si nunca se registro.
 function labelCargador(condicion: string | null | undefined): string | null {
   if (condicion === 'ok') return 'Ok';
   if (condicion === 'danado') return 'Dañado';
@@ -127,8 +115,8 @@ export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer>
     fechaContrato: formatDate(solicitud.employee.fechaIngreso),
     fechaEntrega: formatDate(new Date()),
     assets,
-    // 16-sep-2026 (SPEC 2.50): solo nombre, sin correo -- mismo criterio
-    // que el resto de los documentos.
+    // Solo nombre, sin correo -- mismo criterio que el resto de los
+    // documentos.
     gestionadoPor: (solicitud.responsableActual || solicitud.solicitante).nombre,
   });
 
@@ -159,10 +147,8 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
     entregado: 'OK',
   }));
 
-  // Coordinacion "por OT" (medioEntrega === 'chilexpress'): se agrega la
-  // clausula de OT a la intro, igual que la variante "entrega_ot" de la
-  // herramienta externa -- pero leyendo el dato real de la solicitud en
-  // vez de pedirlo de nuevo.
+  // Coordinacion "por OT": se agrega la clausula de OT a la intro cuando
+  // el medio de entrega es chilexpress.
   const otNumero =
     solicitud.medioEntrega === 'chilexpress' ? solicitud.otChilexpressEntrega : null;
 
@@ -173,7 +159,7 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
     otNumero,
     assets,
     observacion: solicitud.observaciones || 'n/a',
-    // Firma solo con nombre y empresa, sin correo (SPEC 2.50).
+    // Firma solo con nombre y empresa, sin correo.
     gestionadoPor: (solicitud.responsableActual || solicitud.solicitante).nombre,
   });
 
@@ -190,16 +176,10 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
     },
   });
 
-  // 16-sep-2026 (SPEC 2.50): antes se buscaba el equipo anterior en
-  // datosAccion.oldAssignmentId de la transicion "cambio_ejecutado" -- eso
-  // solo existe para tickets ejecutados manualmente desde el detalle
-  // (incidencia_detectada -> cambio_ejecutado). Desde SPEC 2.45, un ticket
-  // creado con el equipo ya elegido se ejecuta y cierra de inmediato, sin
-  // pasar por esa transicion, asi que nunca habia datosAccion y "Equipo
-  // devuelto" salia vacio. En vez de depender del historial de
-  // transiciones, se usa directamente WorkflowRequest.assignmentIds: en
-  // ambos caminos de ejecucion (creacion directa y transicion manual) se
-  // guarda [oldAssignmentId, newAssignmentId], en ese orden.
+  // Se usa WorkflowRequest.assignmentIds en vez del historial de
+  // transiciones, porque no todo ticket pasa por una transicion explicita.
+  // En ambos caminos de ejecucion se guarda [oldAssignmentId,
+  // newAssignmentId], en ese orden.
   const [oldAssignmentId, newAssignmentId] = solicitud.assignmentIds;
 
   const assignments = await prisma.assignment.findMany({
@@ -234,9 +214,8 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
     equipoAnterior: oldAsset
       ? toAssetInfo(oldAsset, 'Devolución OK', labelCargador(oldCondicionCargadorDevolucion))
       : { equipo: '—', marca: '—', descripcion: '—', estado: '—' },
-    // 16-sep-2026 (SPEC 2.50): solo el nombre, sin correo entre parentesis
-    // -- mismo criterio que ya usaba el Comprobante de Entrega. Antes este
-    // documento (y el Acta de Devolucion) usaban nombreConCorreo().
+    // Solo el nombre, sin correo entre parentesis -- mismo criterio que
+    // el Comprobante de Entrega.
     gestionadoPor: (solicitud.responsableActual || solicitud.solicitante).nombre,
   });
 
@@ -284,8 +263,8 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
     fechaDevolucion: formatDate(new Date()),
     assets,
     observacion: solicitud.observaciones || 'n/a',
-    // 16-sep-2026 (SPEC 2.50): solo nombre, sin correo -- mismo criterio
-    // que el resto de los documentos.
+    // Solo nombre, sin correo -- mismo criterio que el resto de los
+    // documentos.
     recibidoPor: (solicitud.responsableActual || solicitud.solicitante).nombre,
   });
 

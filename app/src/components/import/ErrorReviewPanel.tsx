@@ -12,26 +12,17 @@ interface ErrorReviewPanelProps {
   fieldLabels: Record<string, string>;
   onCorrectionsChange: (rowIndex: number, data: Record<string, string>) => void;
   onBack: () => void;
-  // Antes, confirmar la importacion solo era posible desde el paso 4,
-  // afuera de este panel -- para hacerlo, el usuario tenia que "Volver"
-  // primero, perdiendo de vista lo que acababa de corregir. Javier: "al
-  // editar los campos no hay ningun boton como comenzar importacion ni
-  // nada, simplemente los corrijo y no hay ninguna opcion para comenzar.
-  // Falto eso." (21-sep-2026, SPEC 2.60). Ahora el mismo boton que existe
-  // en el paso 4 tambien esta disponible aqui.
+  // Permite confirmar la importacion directamente desde este panel, sin
+  // tener que volver al paso 4 primero.
   onConfirmImport: () => void;
   committing: boolean;
 }
 
-// Panel de correccion PREVIA a la importacion (ver SPEC: "primero detecte
-// los campos, luego corrija las filas, ahi un boton para realizar
-// importacion"). Antes este panel reimportaba cada fila corregida de
-// inmediato contra la base -- eso es justamente lo que causaba el bug que
-// se reporto (si el usuario apretaba "Cancelar" a mitad de camino, las
-// filas ya reimportadas quedaban escritas igual). Ahora el panel no escribe
-// nada: solo junta correcciones en memoria y se las reporta a la pagina via
+// Panel de correccion PREVIA a la importacion. No escribe nada por si
+// mismo: solo junta correcciones en memoria y las reporta a la pagina via
 // onCorrectionsChange. La escritura real ocurre una sola vez, cuando el
-// usuario aprieta "Realizar importación" en la pagina.
+// usuario aprieta "Realizar importación" en la pagina (evita dejar filas
+// ya escritas si el usuario cancela a mitad de camino).
 export function ErrorReviewPanel({
   errorRows,
   validCount,

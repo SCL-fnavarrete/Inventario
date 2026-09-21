@@ -28,9 +28,8 @@ type WorkflowDetail = {
   tipo: string;
   estado: string;
   /**
-   * Sede a la que pertenece la solicitud. Decide de que bodega se ofrecen
-   * los equipos y el stock de Kit/EPP al ejecutarla -- no el selector de
-   * sede del menu, que es solo un filtro de pantalla. Ver SPEC 2.40.
+   * Sede this request belongs to; determines which warehouse's stock is
+   * offered when executing it (not the screen-level sede filter selector).
    */
   sedeId: string | null;
   observaciones: string | null;
@@ -158,8 +157,6 @@ type WorkflowDetail = {
   } | null;
 };
 
-// 15-sep-2026 (SPEC 2.42): coordinando_entrega, coordinando_cambio y
-// coordinacion_en_curso se eliminaron -- ver workflowStateMachine.ts.
 const estadoLabels: Record<string, string> = {
   solicitud_recibida: 'Solicitud Recibida',
   gestion_ti: 'Gestión TI',
@@ -208,13 +205,10 @@ function getStatesForType(tipo: string): string[] {
   return map[tipo] || [];
 }
 
-// Onboarding se muestra al usuario como 3 etapas (crear solicitud, gestion TI,
-// ticket cerrado) en vez de las 4 etapas reales de la maquina de estados:
-// "equipos_entregados" y "registro_rrhh" comparten la etapa visual "Ticket Cerrado"
-// porque para el tecnico el trabajo ya esta hecho una vez entregado el equipo.
-// 15-sep-2026 (SPEC 2.42): "Coordinar Entrega" ya no es una etapa propia --
-// la fecha/medio/lugar se piden junto con la entrega de equipos, dentro de
-// "Gestión TI".
+// Onboarding is shown to the user as 3 stages instead of the 4 real
+// workflow states: "equipos_entregados" and "registro_rrhh" share the
+// "Ticket Cerrado" visual stage since the technician's work is done once
+// the equipment is delivered.
 const onboardingStages: { key: string; label: string; states: string[] }[] = [
   { key: 'creada', label: 'Solicitud Creada', states: ['solicitud_recibida'] },
   { key: 'gestion_ti', label: 'Gestión TI', states: ['gestion_ti'] },
@@ -275,8 +269,7 @@ export default function SolicitudDetailPage() {
   // asignacion activa del empleado, calificados de forma individual.
   const [devolucionEstados, setDevolucionEstados] = useState<Record<string, 'ok' | 'danado' | 'no_devuelto'>>({});
   const [devolucionObservaciones, setDevolucionObservaciones] = useState<Record<string, string>>({});
-  // Condicion del cargador al devolver (16-sep-2026, SPEC 2.48) -- solo se
-  // pide si el equipo es un notebook con tieneCargador.
+  // Charger condition on return, only asked when the asset has tieneCargador.
   const [devolucionCargador, setDevolucionCargador] = useState<Record<string, 'ok' | 'danado' | 'no_aplica'>>({});
   const [devolucionCargadorObservaciones, setDevolucionCargadorObservaciones] = useState<Record<string, string>>({});
   // Mismo caso pero para EPP entregado y pendiente de devolver.
@@ -309,8 +302,7 @@ export default function SolicitudDetailPage() {
   useEffect(() => {
     if (!data || data.tipo !== 'onboarding') return;
     if (!data.kitBienvenidaSolicitado && !data.eppSolicitado) return;
-    // Solo el stock de la sede de la solicitud (SPEC 2.40): antes se pedia
-    // el catalogo completo y se ofrecia (y descontaba) kit de otras sedes.
+    // Scoped to the request's sede so kit stock from other sedes isn't offered.
     fetch(`/api/kit-items${data.sedeId ? `?sedeId=${data.sedeId}` : ''}`)
       .then((res) => (res.ok ? res.json() : []))
       .then(setKitCatalog)
@@ -318,11 +310,8 @@ export default function SolicitudDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.id, data?.tipo, data?.kitBienvenidaSolicitado, data?.eppSolicitado]);
 
-  // Precarga la coordinacion (fecha/medio/lugar) si ya se completo al crear
-  // el ticket, en el mismo formulario de "Nueva Solicitud" (15-sep-2026,
-  // SPEC 2.42.1) -- asi, si todavia falta algo (una categoria sin equipo,
-  // por ejemplo) y el ticket entra a este detalle para completarlo, no se
-  // le vuelve a pedir la fecha que ya habia dado.
+  // Preload coordination fields (fecha/medio/lugar) if already provided
+  // when the ticket was created, so they aren't asked for again here.
   useEffect(() => {
     if (!data) return;
     const aDatetimeLocal = (iso: string | null) => (iso ? iso.slice(0, 16) : '');
@@ -542,14 +531,6 @@ export default function SolicitudDetailPage() {
     });
   };
 
-  // 15-sep-2026 (SPEC 2.42): handleCoordinarCambio se elimino -- su
-  // validacion se movio dentro de handleCambiarEquipo, que ahora hace las
-  // dos cosas juntas (coordinar y ejecutar) en una sola transicion.
-
-  // 15-sep-2026 (SPEC 2.42): handleCoordinarDevolucion se elimino -- su
-  // validacion se movio dentro de handleRecibirEquipos, que ahora hace las
-  // dos cosas juntas (coordinar y recibir) en una sola transicion.
-
   // Recepcion de equipos (offboarding): coordina fecha/medio/lugar y
   // califica cada asignacion activa del empleado (ok / danado) con
   // observaciones opcionales, y avanza a equipo_recibido. executeReturn se
@@ -597,7 +578,7 @@ export default function SolicitudDetailPage() {
         assignmentId: a.id,
         estadoDevolucion: devolucionEstados[a.id],
         observaciones: devolucionObservaciones[a.id] || undefined,
-        // Condicion del cargador (SPEC 2.48), si el equipo la trae.
+        // Charger condition, if the asset has one.
         condicionCargador: a.asset.tieneCargador ? devolucionCargador[a.id] || undefined : undefined,
         observacionesCargador: a.asset.tieneCargador
           ? devolucionCargadorObservaciones[a.id] || undefined
@@ -665,11 +646,8 @@ export default function SolicitudDetailPage() {
         }
       }
 
-      // Ya no se cierra Gestion TI automaticamente aca: una vez cubiertas
-      // todas las categorias, la solicitud se queda en gestion_ti y la UI
-      // muestra el boton "Coordinar Entrega" para que el tecnico complete
-      // fecha/hora y medio de entrega -- ese paso necesita datos que no se
-      // pueden completar solos.
+      // Gestion TI stays open until the technician separately provides
+      // fecha/hora and medio de entrega via "Coordinar Entrega".
       await fetchData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
@@ -678,14 +656,9 @@ export default function SolicitudDetailPage() {
     }
   };
 
-  // Etapa "Incidencia Detectada" del cambio de equipo: el tecnico elige que
-  // asignacion activa del empleado se devuelve y que activo nuevo se entrega,
-  // y ambos datos se mandan juntos en la misma transicion de estado.
-  // 15-sep-2026 (SPEC 2.42): esta funcion antes solo ejecutaba el cambio
-  // (la fecha/medio/lugar ya se habian guardado antes, en la etapa
-  // "Coordinando Cambio"). Ahora ambas cosas se piden juntas: valida los
-  // mismos campos que antes validaba handleCoordinarCambio y los manda en
-  // la misma transicion.
+  // "Incidencia Detectada" stage: the technician picks which active
+  // assignment is returned and which new asset is delivered; both are
+  // sent together in the same state transition.
   const handleCambiarEquipo = async (
     oldAssignmentId: string,
     newAssetId: string,
@@ -1033,9 +1006,6 @@ export default function SolicitudDetailPage() {
               />
             </div>
           ) : data.tipo === 'onboarding' && !isClosed && data.estado === 'gestion_ti' && categoriasPendientes.length === 0 ? (
-            // 15-sep-2026 (SPEC 2.42): "Coordinar Entrega" ya no es un paso
-            // aparte -- la fecha/medio/lugar se completan aca mismo, junto
-            // con el cierre de la entrega de equipos, en un solo click.
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="font-semibold text-gray-900 mb-1">Coordinar Entrega</h3>
               <p className="text-sm text-green-700 mb-1">
@@ -1132,10 +1102,6 @@ export default function SolicitudDetailPage() {
               </div>
             </div>
           ) : data.tipo === 'cambio_equipo' && !isClosed && data.estado === 'incidencia_detectada' ? (
-            // 15-sep-2026 (SPEC 2.42): "Coordinar Cambio" ya no es un paso
-            // aparte de "Cambio de Equipo" -- la fecha/medio/lugar se
-            // completan en la misma tarjeta que la seleccion del equipo
-            // nuevo, y todo se confirma en un solo click.
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="font-semibold text-gray-900 mb-1">Cambio de Equipo</h3>
               <p className="text-sm text-gray-500 mb-3">
@@ -1271,10 +1237,6 @@ export default function SolicitudDetailPage() {
               </div>
             </div>
           ) : data.tipo === 'offboarding' && !isClosed && data.estado === 'solicitud_emitida' ? (
-            // 15-sep-2026 (SPEC 2.42): "Coordinar Devolución" ya no es un
-            // paso aparte de "Recibir Equipos" -- la fecha/medio/lugar se
-            // completan en la misma tarjeta que la calificacion de cada
-            // equipo, y todo se confirma en un solo click.
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="font-semibold text-gray-900 mb-1">Recibir Equipos</h3>
               <p className="text-sm text-gray-500 mb-3">
@@ -1440,8 +1402,7 @@ export default function SolicitudDetailPage() {
                           placeholder="Observaciones (opcional)"
                           className="w-full text-sm border border-gray-300 rounded px-2 py-1"
                         />
-                        {/* Estado del cargador (16-sep-2026, SPEC 2.48) --
-                            solo si el equipo es un notebook con cargador. */}
+                        {/* Charger condition, only for assets that have one. */}
                         {a.asset.tieneCargador && (
                           <div className="mt-2 border border-gray-200 rounded-lg p-2 bg-gray-50">
                             <p className="text-xs font-medium text-gray-600 mb-1">
@@ -1625,16 +1586,9 @@ export default function SolicitudDetailPage() {
             )
           )}
 
-          {/* Documentos (16-sep-2026, SPEC 2.47): antes "Generar plantilla"
-              solo existia para Onboarding, en el paso previo a cerrar el
-              ticket -- Offboarding y Cambio de Equipo se quedaban sin forma
-              de descargar su comprobante. Se junta en una sola tarjeta, sin
-              depender de un paso especifico de la maquina de estados (para
-              Cambio de Equipo, que desde SPEC 2.45 se ejecuta y cierra de
-              inmediato al crearse, no hay "paso previo" al que engancharse).
-              Aparece apenas el equipo ya se entrego/devolvio/cambio, y sigue
-              disponible despues de cerrado el ticket por si hay que
-              volver a descargarlo. */}
+          {/* Document download, available for all request types once the
+              equipment has been delivered/returned/changed, and it stays
+              available after the ticket is closed. */}
           {(() => {
             const doc =
               data.tipo === 'onboarding' &&

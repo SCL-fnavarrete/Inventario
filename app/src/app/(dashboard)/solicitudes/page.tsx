@@ -59,8 +59,6 @@ const tipoColors: Record<string, string> = {
   offboarding: 'bg-orange-100 text-orange-800',
 };
 
-// 15-sep-2026 (SPEC 2.42): coordinando_entrega, coordinando_cambio y
-// coordinacion_en_curso se eliminaron -- ver workflowStateMachine.ts.
 const estadoLabels: Record<string, string> = {
   solicitud_recibida: 'Solicitud Recibida',
   gestion_ti: 'Gestión TI',
@@ -86,9 +84,7 @@ export default function SolicitudesPage() {
   });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  // El input responde a cada tecla; lo que dispara la busqueda es esta
-  // version debounced -- antes buscaba en cada tecla sin ningun freno, una
-  // peticion por letra. Ver useDebouncedValue y SPEC 2.14.
+  // Debounced so the search fires once typing pauses, not on every keystroke.
   const debouncedSearch = useDebouncedValue(search, 350);
   const [filterTipo, setFilterTipo] = useState('');
   const [filterEstado, setFilterEstado] = useState('');
@@ -125,10 +121,8 @@ export default function SolicitudesPage() {
     fetchRequests();
   }, [fetchRequests]);
 
-  // El Kanban agrupa por tipo de solicitud (Onboarding / Cambio de Equipo /
-  // Offboarding) en vez de por el estado interno detallado -- eso ahora vive
-  // solo como badge dentro de cada tarjeta. Si hay un filtro de tipo activo
-  // solo se muestra esa columna.
+  // Kanban groups by request type (not internal state, which is shown as
+  // a badge per card). An active type filter shows only that column.
   const kanbanTipos = (filterTipo ? [filterTipo] : ['onboarding', 'cambio_equipo', 'offboarding']) as string[];
 
   return (
@@ -318,13 +312,8 @@ export default function SolicitudesPage() {
                         >
                           <Notebook className="h-4 w-4" />
                         </Link>
-                        {/* Descarga directa del comprobante sin entrar al
-                            detalle. 16-sep-2026 (SPEC 2.47): antes solo
-                            onboarding tenia su plantilla conectada a un
-                            boton -- se extiende a los 3 tipos, con el mismo
-                            criterio de "listo" que la tarjeta "Documentos"
-                            del detalle (equipo ya entregado/devuelto/
-                            cambiado). */}
+                        {/* Direct download of the comprobante without opening
+                            the detail view, available for all request types. */}
                         {(() => {
                           const docTipo =
                             req.tipo === 'onboarding' &&

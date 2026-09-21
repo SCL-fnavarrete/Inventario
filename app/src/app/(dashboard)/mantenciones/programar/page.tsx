@@ -42,10 +42,8 @@ type Asset = {
   } | null;
 };
 
-// Los tipos de mantencion ya no son una lista fija (9-sep-2026): se
-// cargan desde /api/mantenciones/tipos, catalogo editable por admin y
-// tecnico en la pestaña "Tipos" de Mantenciones. Solo se ofrecen los
-// tipos activos.
+// Maintenance types are loaded from the editable catalog, not hardcoded.
+// Only active types are offered.
 type TipoMantencion = {
   id: string;
   nombre: string;
@@ -79,19 +77,15 @@ export default function ProgramarMantencionPage() {
   const [tiposMantencion, setTiposMantencion] = useState<TipoMantencion[]>([]);
   const [loadingTipos, setLoadingTipos] = useState(true);
 
-  // Selección de activo (18-sep-2026, SPEC 2.52): el punto de entrada del
-  // wizard es el equipo, no el empleado -- el activo principal de este
-  // programa son los equipos, y una mantención puede aplicar tanto a un
-  // equipo asignado como a uno en bodega sin empleado asociado.
+  // The wizard's entry point is the asset, not the employee: a maintenance
+  // can apply to an assigned asset or one sitting unassigned in stock.
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(true);
   const [assetSearch, setAssetSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [categories, setCategories] = useState<{ id: string; nombre: string }[]>([]);
-  // Selector de sede del nav (18-sep-2026, SPEC 2.52.1): sin esto, el
-  // buscador de equipos mostraba el inventario completo de todas las
-  // sedes, inconsistente con Activos/Mantenciones(listado)/Solicitudes/
-  // Asignaciones/Kit-EPP, que ya filtran por este mismo selector global.
+  // Scopes the asset search to the nav's selected sede, consistent with
+  // the other sections that filter by this same global selector.
   const { sedeSeleccionada } = useSedeSeleccionada();
 
   const [formData, setFormData] = useState({
@@ -118,12 +112,8 @@ export default function ProgramarMantencionPage() {
     setError("");
     setFieldErrors({});
     try {
-      // limit=500: mismo tope maximo que usa /api/activos (ver comentario en
-      // ese route), para poder filtrar en cliente como hace SelectorActivos.
-      // Sin filtro de estado: un equipo asignado, disponible o incluso en
-      // mantencion previa debe poder encontrarse aca, es el mismo listado
-      // completo de inventario, no solo lo "disponible". sedeId: mismo
-      // patron que el resto de las pantallas de listado (null = todas).
+      // No estado filter: any asset (assigned, available, in maintenance)
+      // should be findable here, not just "available" ones.
       const params = new URLSearchParams({ limit: "500" });
       if (sedeSeleccionada) params.set("sedeId", sedeSeleccionada);
       const res = await fetch(`/api/activos?${params}`);
@@ -331,7 +321,7 @@ export default function ProgramarMantencionPage() {
         ))}
       </div>
 
-      {/* Step 1: Select Asset (18-sep-2026, SPEC 2.52) */}
+      {/* Step 1: Select Asset */}
       {step === 1 && (
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">

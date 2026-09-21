@@ -138,8 +138,8 @@ export default function EditarActivoPage({
         incidencia: formData.incidencia || null,
         nombreEquipo: formData.nombreEquipo || null,
         conectividad: formData.conectividad || null,
-        // Igual que en Nuevo Activo: no hay checkbox propio de "tiene M365"
-        // en este formulario, se deriva de si hay un plan cargado. SPEC 2.23.
+        // Igual que en Nuevo Activo: no hay checkbox propio de "tiene M365";
+        // se deriva de si hay un plan cargado.
         tipoLicenciaMicrosoft365: formData.tipoLicenciaMicrosoft365 || null,
         microsoft365: Boolean(formData.tipoLicenciaMicrosoft365),
       };

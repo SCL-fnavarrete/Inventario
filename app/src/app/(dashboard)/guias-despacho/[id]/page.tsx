@@ -71,11 +71,8 @@ export default function GuiaDespachoDetailPage({
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  // Esta pantalla mostraba los errores con alert() del navegador, distinto
-  // al resto del sistema y sin poder listar el detalle por campo que la API
-  // ya devuelve en `details` (15-sep-2026, SPEC 2.40). Con estado propio el
-  // error se muestra en el mismo cartel ApiErrorSummary que usan los demas
-  // formularios, sin bloquear la ventana.
+  // Errors render in the shared ApiErrorSummary banner, consistent with
+  // other forms, instead of a blocking browser alert().
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [recepcionData, setRecepcionData] = useState({
@@ -95,9 +92,7 @@ export default function GuiaDespachoDetailPage({
       const data = await res.json();
       setGuide(data);
     } catch (err) {
-      // Si la carga falla, antes solo quedaba registro en la consola y la
-      // pagina decia "Guia no encontrada" aunque el problema fuera de red
-      // (15-sep-2026, SPEC 2.40): ahora el motivo se ve en el cartel.
+      // Surface the real error message instead of a generic "not found".
       console.error("Error fetching guide:", err);
       setError(err instanceof Error ? err.message : "Error al cargar guía");
     } finally {
@@ -120,10 +115,8 @@ export default function GuiaDespachoDetailPage({
       });
 
       if (!res.ok) {
-        // El detalle por campo ya no se aplasta dentro de un solo string:
-        // el cartel lo lista campo por campo con su nombre legible
-        // (15-sep-2026, SPEC 2.40). El modal queda abierto para que se
-        // pueda corregir el dato sin volver a abrirlo.
+        // Per-field errors are listed individually rather than flattened
+        // into one string; the modal stays open so the data can be fixed.
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar");
         setError(message);
         setFieldErrors(fe);
@@ -206,9 +199,8 @@ export default function GuiaDespachoDetailPage({
         </div>
       </div>
 
-      {/* Cartel de error de la pagina. Cuando el modal de recepcion esta
-          abierto el error se muestra adentro del modal (si no, quedaria
-          tapado por el fondo oscuro) -- 15-sep-2026, SPEC 2.40. */}
+      {/* Error banner. When the reception modal is open, the error shows
+          inside it instead (it would be hidden behind the modal overlay). */}
       {!showConfirmModal && (
         <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
       )}
@@ -249,8 +241,7 @@ export default function GuiaDespachoDetailPage({
               <dt className="text-sm text-gray-500">OT Chilexpress</dt>
               <dd className="font-medium font-mono">{guide.otChilexpress}</dd>
             </div>
-            {/* Sede origen ademas de destino (18-sep-2026, SPEC 2.9.9): el
-                dato ya venia de la API, solo no se mostraba. */}
+            {/* Sede origen, in addition to destino. */}
             <div>
               <dt className="text-sm text-gray-500">Sede origen</dt>
               <dd className="font-medium">{guide.sede?.nombre || "—"}</dd>
@@ -370,13 +361,8 @@ export default function GuiaDespachoDetailPage({
               {guide.items.map((item) => {
                 const asset = item.asset;
 
-                // Antes esto solo sabia armar specs para Notebook/Celular
-                // (14-sep-2026, SPEC 2.26): un Monitor o un periferico
-                // mostraban "-" aunque la API ya traia pulgadas/
-                // conectividad. Se reemplaza por el mismo helper que ya
-                // usan el detalle de Activos y el selector de Guias
-                // (assetSpecs.ts, SPEC 2.19) para no mantener esta lista
-                // duplicada en un tercer lugar.
+                // Shared helper builds specs for any category, not just
+                // Notebook/Celular, avoiding a duplicated list here.
                 const specs = especificacionesActivoTexto(asset) || "-";
 
                 return (

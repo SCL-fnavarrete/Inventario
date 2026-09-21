@@ -104,9 +104,7 @@ export async function PUT(
     if (typeof activo === "boolean") {
       updateData.activo = activo;
     }
-    // Misma regla que al crear un usuario (14-sep-2026, SPEC 2.26): antes
-    // solo exigia 6 caracteres sin complejidad, dejando cambiar una
-    // contraseña fuerte por una debil al editar.
+    // Misma validacion de complejidad que al crear un usuario.
     if (password) {
       const errorPassword = validarPasswordFuerte(password);
       if (errorPassword) {
@@ -115,8 +113,7 @@ export async function PUT(
       updateData.passwordHash = await bcrypt.hash(password, 12);
     }
 
-    // Sede (SPEC 2.9): admin no tiene sede (ve todo); cualquier otro rol
-    // necesita una para que el aislamiento de datos funcione. El rol
+    // Admin no tiene sede (ve todo); cualquier otro rol necesita una. El rol
     // "final" es el nuevo si viene en el body, o el que ya tenia.
     const rolFinal = (rol as SystemRole) || existingUser.rol;
     if (rolFinal === 'admin') {
@@ -146,10 +143,8 @@ export async function PUT(
       },
     });
 
-    // Auditoria generica (SPEC 2.29). NUNCA incluir passwordHash ni si la
-    // contraseña cambio o no -- ver comentario en el modelo AuditLog.
-    // `existingUser` viene de un findUnique sin `select`, por lo que SI
-    // trae passwordHash -- se arma el snapshot a mano para excluirlo.
+    // `existingUser` trae passwordHash (findUnique sin `select`), por lo
+    // que el snapshot de auditoria se arma a mano para excluirlo.
     await auditLogService.registrarActualizacion(
       'usuario',
       user.id,
@@ -197,8 +192,7 @@ export async function DELETE(
       where: { id },
     });
 
-    // Auditoria generica (SPEC 2.29). NUNCA incluir passwordHash -- ver
-    // comentario en el modelo AuditLog.
+    // Nunca incluir passwordHash en el snapshot de auditoria.
     await auditLogService.registrarEliminacion(
       'usuario',
       existingUser.id,

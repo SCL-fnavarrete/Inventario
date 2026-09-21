@@ -6,7 +6,7 @@ import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { requirePermission, handleApiError, ConflictError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
-// SPEC 2.7.4: Proceso de Venta
+// Proceso de venta de un activo.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -38,8 +38,7 @@ export async function POST(
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
     }
 
-    // Esta ruta no validaba sede: un tecnico que conociera/adivinara el id
-    // de un activo de otra sede podia venderlo igual (2.24.1).
+    // Enforce sede access even though the caller supplies the asset id directly.
     assertSedeAccess(session, asset.sedeId, 'Activo no encontrado');
 
     // Un registro descartado es basura de importacion: no genera movimientos.
@@ -47,7 +46,7 @@ export async function POST(
       throw new ConflictError('Este activo esta descartado y no admite movimientos');
     }
 
-    // SPEC: Solo se puede vender desde baja
+    // Solo se puede vender desde el estado baja
     if (asset.estado !== 'baja') {
       return NextResponse.json(
         { error: `El activo debe estar en estado "baja" para vender. Estado actual: ${asset.estado}` },
@@ -85,9 +84,7 @@ export async function POST(
         where: { id },
         data: {
           estado: 'vendido',
-          // Antes no se guardaba en ninguna parte -- se usaba siempre la
-          // fecha de hoy en el historial, ignorando la que se ingresaba
-          // aca (SPEC 2.25).
+          // Persistir la fecha de venta ingresada por el usuario.
           fechaVenta: data.fechaVenta,
         },
         include: { categoria: true },

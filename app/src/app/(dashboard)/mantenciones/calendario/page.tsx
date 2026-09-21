@@ -70,10 +70,7 @@ export default function CalendarioMantencionesPage() {
   const [maintenances, setMaintenances] = useState<Maintenance[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  // Selector de sede del nav (18-sep-2026, SPEC 2.51.3): el calendario era
-  // la ultima pantalla de Mantenciones que no lo miraba -- llamaba a
-  // /api/mantenciones sin sedeId, y como sedeWhere() no restringe a
-  // admin/tecnico, mostraba las mantenciones de todas las sedes.
+  // Scopes the maintenance list to the nav's selected sede.
   const { sedeSeleccionada } = useSedeSeleccionada();
 
   const year = currentDate.getFullYear();
