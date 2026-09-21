@@ -19,6 +19,7 @@ import { ErrorReviewPanel } from "@/components/import/ErrorReviewPanel";
 import type { ImportPreviewResult, ImportBatchResult, CorrectedRow } from "@/types/import";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { ESTADOS_RECONOCIDOS } from "@/lib/importacion/activos";
 
 type Category = {
   id: number;
@@ -134,10 +135,13 @@ export default function ImportarActivosPage() {
     jefatura: "Jefatura o gerencia a la que pertenece el empleado.",
     supervisor: "Nombre del supervisor directo del empleado.",
     sede: "Sede real del equipo (ej: Santiago, Concepción, Perú). Debe coincidir con el nombre o código de una sede existente.",
-    estado: "Estado del equipo (Disponible, Asignado, En mantención, Baja, Vendido).",
+    // Se arma desde ESTADOS_RECONOCIDOS (misma lista que usa procesarFila
+    // para validar) en vez de escribirla aparte, para que no se vuelva a
+    // desactualizar como paso con "No devuelto" (21-sep-2026).
+    estado: `Estado del equipo (${ESTADOS_RECONOCIDOS.join(", ")}).`,
     condicion: "Condición física del equipo: Nuevo, Usado, Seminuevo o Dañado.",
     observaciones: "Notas adicionales sobre el equipo.",
-    fechaEntrega: "Fecha en que el equipo fue entregado a la persona (dd-mm-aaaa). Se usa como fecha de asignación y, si falta, también como fecha de compra.",
+    fechaEntrega: "Fecha en que el equipo fue entregado a la persona (dd-mm-aaaa). Se usa como fecha de asignación.",
     fechaCompra: "Fecha de compra o factura del equipo (dd-mm-aaaa).",
     correo: "Correo del empleado. Si se deja en blanco, se genera uno automáticamente.",
     cargo: "Cargo o puesto del empleado.",
@@ -148,6 +152,11 @@ export default function ImportarActivosPage() {
     ram: "Cantidad de memoria RAM.",
     sistemaOperativo: "Sistema operativo instalado en el equipo.",
     microsoft365: "Plan de Microsoft 365 asignado (ej: Premium), si tiene.",
+    // Contador impreciso del Excel antiguo ("1", "2", "1+") de cuantas veces
+    // se asigno el equipo antes, sin datos de quien lo tuvo -- no crea
+    // asignaciones reales, solo queda como nota en el historial del activo
+    // (21-sep-2026, SPEC 2.61).
+    historialAsignaciones: "Cantidad de veces que el equipo fue asignado antes (dato historico, sin nombre de la persona). Ej: 1, 2, 1+.",
     mantencion: "Fecha de la última mantención realizada (dd-mm-aaaa).",
     proximaMantencion: "Fecha programada para la próxima mantención (dd-mm-aaaa).",
     antivirus: "Antivirus instalado en el equipo.",
@@ -214,6 +223,7 @@ export default function ImportarActivosPage() {
     // usaba en ningun lado, el tipo de equipo ya se elige una vez para todo
     // el archivo con el selector de Categoria, no fila por fila.
     { key: "nombreEquipo", label: "Nombre Equipo", categories: ["notebook"] },
+    { key: "historialAsignaciones", label: "Historial de asignaciones", categories: ["notebook"] },
     { key: "procesador", label: "Procesador", categories: ["notebook"] },
     { key: "discoDuro", label: "Disco Duro", categories: ["notebook"] },
     { key: "ram", label: "RAM", categories: ["notebook"] },
@@ -340,6 +350,7 @@ export default function ImportarActivosPage() {
         microsoft365: ["microsoft 365", "microsoft365", "microsoft 365 empresa", "office 365", "o365"],
         fechaEntrega: ["fecha de entrega", "fecha entrega"],
         // Campos de Mantención
+        historialAsignaciones: ["historial de asignaciones", "historial de asignaciónes", "historial asignaciones"],
         mantencion: ["mantencion", "mantención", "fecha mantencion", "fecha mantención"],
         proximaMantencion: ["proxima mantencion", "próxima mantención", "proxima mantención", "próxima mantencion"],
         // Campos de Monitor
@@ -551,6 +562,8 @@ export default function ImportarActivosPage() {
           fieldLabels={getFieldLabels()}
           onCorrectionsChange={handleCorrectionsChange}
           onBack={() => setShowErrorReview(false)}
+          onConfirmImport={handleConfirmImport}
+          committing={committing}
         />
       )}
 

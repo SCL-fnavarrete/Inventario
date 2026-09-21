@@ -235,8 +235,12 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
   // "Asig. Ultimos 30 dias" ya no es una consulta aparte: se deriva
   // filtrando en memoria "Asignaciones ultimos 6 meses" (los 30 dias son
   // un subconjunto de esos 6 meses, mismo `swAsset`).
+  // El `where: { fechaEntrega: { gte: sixMonthsAgo } }` de la consulta ya
+  // excluye a nivel de base las asignaciones con fecha desconocida (SPEC
+  // 2.59) -- null nunca es ">=" nada -- asi que en este arreglo siempre
+  // viene una fecha real. TypeScript no puede inferir eso del `where`.
   const recentAssignments = assignmentsUltimos6Meses.filter(
-    (a) => a.fechaEntrega >= treintaDiasAtras
+    (a) => a.fechaEntrega! >= treintaDiasAtras
   ).length;
 
   // Agrupar asignaciones por mes para el grafico de movimientos
@@ -246,7 +250,7 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
   > = {};
 
   assignmentsUltimos6Meses.forEach((a) => {
-    const mes = a.fechaEntrega.toISOString().slice(0, 7);
+    const mes = a.fechaEntrega!.toISOString().slice(0, 7);
     if (!monthlyData[mes]) {
       monthlyData[mes] = { asignaciones: 0, devoluciones: 0 };
     }

@@ -92,6 +92,24 @@ for (const [condicion, palabra] of Object.entries(PALABRA_CANONICA_CONDICION)) {
   CONDICIONES[clave(palabra)] = condicion as CondicionActivo;
 }
 
+/**
+ * Las palabras que el Excel puede traer, en texto legible, para los mensajes
+ * de error de la importacion.
+ *
+ * Se derivan de los mismos Records tipados contra los enums de arriba, no de
+ * una lista escrita a mano: el 20-sep-2026 se agrego el estado "no devuelto"
+ * (SPEC 2.57) y el mensaje de error siguio ofreciendo los cinco estados
+ * viejos, de modo que le decia al usuario que su valor no era valido y acto
+ * seguido le escondia la palabra que si habria servido. Derivandolo, agregar
+ * un estado al enum actualiza el mensaje solo.
+ */
+function capitalizar(texto: string): string {
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+export const ESTADOS_RECONOCIDOS: string[] =
+  Object.values(PALABRA_CANONICA_ESTADO).map(capitalizar);
+
 export function parseEstado(valor: string | null | undefined): EstadoActivo | undefined {
   if (!valor) return undefined;
   return ESTADOS[clave(valor)];

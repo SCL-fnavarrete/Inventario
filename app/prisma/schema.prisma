@@ -167,6 +167,13 @@ model Asset {
   createdAt           DateTime            @default(now()) @map("created_at")
   updatedAt           DateTime            @updatedAt @map("updated_at")
   empleadoActualId    String?             @map("empleado_actual_id")
+  // Nombre/etiqueta interna que TI o RRHH le puso al equipo (ej.
+  // "SCL-BNEIRAC"), distinto de marca/modelo. El campo ya existia en el
+  // schema, pero el import (procesarFila.ts) nunca lo leia -- se ofrecia
+  // como columna mapeable en la pantalla de import y se descartaba en
+  // silencio (21-sep-2026, SPEC 2.61, encontrado por Javier al revisar la
+  // logica del import: "que logica estamos haciendo actualmente para
+  // eso"). Ya queda corregido en el import; el campo del schema no cambio.
   nombreEquipo        String?             @map("nombre_equipo")
   // Sede donde esta almacenado FISICAMENTE el activo. Independiente de la
   // sede/ubicacion del empleado asignado -- no cambia por una asignacion o
@@ -279,7 +286,13 @@ model Assignment {
   id                      String            @id @default(uuid())
   assetId                 String            @map("asset_id")
   employeeId              String            @map("employee_id")
-  fechaEntrega            DateTime          @map("fecha_entrega")
+  // Nullable: una fila importada puede no traer fecha de entrega real
+  // (dato historico que nunca se registro). En ese caso se guarda null en
+  // vez de forzar una fecha inventada -- "fecha desconocida" es un valor
+  // valido, no un error (20-sep-2026, SPEC 2.59). La creacion manual desde
+  // el formulario (AsignarActivoForm) sigue exigiendo que el usuario elija
+  // una fecha real; solo el import permite dejarla en blanco.
+  fechaEntrega            DateTime?         @map("fecha_entrega")
   lugarEntrega            String?           @map("lugar_entrega")
   entregadoPor            String?           @map("entregado_por")
   tipoMovimiento          TipoMovimiento    @map("tipo_movimiento")

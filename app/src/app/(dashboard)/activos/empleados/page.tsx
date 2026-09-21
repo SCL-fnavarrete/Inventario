@@ -131,7 +131,12 @@ export default function PersonalPage() {
       fetchUbicaciones();
     }
     fetchStats();
-  }, [esAdmin]);
+    // Las tarjetas (Total/Activos/Desvinculados) deben recalcularse al
+    // cambiar la sede del selector del nav -- si no, quedan pegadas al
+    // total global aunque la tabla de abajo si se filtre (21-sep-2026,
+    // reportado por Javier: "las tarjetas de personal no filtran por sede").
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esAdmin, sedeSeleccionada]);
 
   async function fetchUbicaciones() {
     try {
@@ -170,7 +175,11 @@ export default function PersonalPage() {
 
   async function fetchStats() {
     try {
-      const res = await fetch("/api/empleados?limit=100");
+      // Mismo criterio de sede que fetchEmployees: sin esto, las tarjetas
+      // seguian mostrando el total de todas las sedes aunque el selector
+      // del nav tuviera una sede especifica elegida.
+      const sedeParam = sedeSeleccionada ? `&sedeId=${sedeSeleccionada}` : "";
+      const res = await fetch(`/api/empleados?limit=100${sedeParam}`);
       const data = await res.json();
 
       if (!res.ok || !data.data) {
@@ -184,7 +193,7 @@ export default function PersonalPage() {
       if (totalPages > 1) {
         const promises = [];
         for (let page = 2; page <= Math.min(totalPages, 10); page++) {
-          promises.push(fetch(`/api/empleados?limit=100&page=${page}`).then((r) => r.json()));
+          promises.push(fetch(`/api/empleados?limit=100&page=${page}${sedeParam}`).then((r) => r.json()));
         }
         const results = await Promise.all(promises);
         results.forEach((result) => {

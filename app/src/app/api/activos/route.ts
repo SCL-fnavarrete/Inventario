@@ -43,11 +43,24 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = { ...ACTIVOS_VIGENTES, ...sedeWhere(session) };
 
     if (search) {
-      where.OR = [
-        { numeroSerie: { contains: search, mode: "insensitive" } },
-        { marca: { contains: search, mode: "insensitive" } },
-        { modelo: { contains: search, mode: "insensitive" } },
-      ];
+      // Buscar por palabras, no por el texto completo: antes el termino se
+      // comparaba entero contra CADA campo por separado, asi que "Hp
+      // Probook 640 G2" no encontraba nada -- ningun campo por si solo
+      // contiene esa frase completa, porque marca ("Hp") y modelo
+      // ("ProBook 640 G2") estan en columnas distintas. Ahora cada palabra
+      // debe aparecer en ALGUNO de los campos (no necesariamente el mismo),
+      // asi que "Hp Probook 640 G2" matchea con marca="Hp" + modelo="ProBook
+      // 640 G2" (21-sep-2026, SPEC 2.63, reportado por Javier: "no me deja
+      // ingresar el nombre del equipo completo").
+      const palabras = search.trim().split(/\s+/).filter(Boolean);
+      where.AND = palabras.map((palabra) => ({
+        OR: [
+          { numeroSerie: { contains: palabra, mode: "insensitive" } },
+          { marca: { contains: palabra, mode: "insensitive" } },
+          { modelo: { contains: palabra, mode: "insensitive" } },
+          { nombreEquipo: { contains: palabra, mode: "insensitive" } },
+        ],
+      }));
     }
 
     if (estado) {

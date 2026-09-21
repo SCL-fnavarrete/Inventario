@@ -6,6 +6,7 @@ import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { validateTransition } from '@/lib/services/assetStateMachine';
+import { formatearFechaCorta } from '@/lib/utils/fechas';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -148,7 +149,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           data: {
             assetId: maintenance.assetId,
             tipoEvento: "mantencion",
-            descripcion: `Mantención ${maintenance.tipo.nombre} completada. Resultado: ${data.resultado}`,
+            descripcion: `Mantención ${maintenance.tipo.nombre} realizada el ${formatearFechaCorta(data.fechaRealizada)}. Resultado: ${data.resultado}`,
             datosAnteriores: { estado: "en_mantencion" },
             datosNuevos: {
               estado: nuevoEstado,

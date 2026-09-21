@@ -92,7 +92,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Una devolucion anterior a la entrega no es un dato raro: es un dato
     // imposible. El schema valida cada fecha por separado; la relacion entre
     // las dos solo se puede comprobar aqui, que es donde se conoce la entrega.
-    if (data.fechaDevolucion < existingAssignment.fechaEntrega) {
+    // Si fechaEntrega es null (fecha desconocida, ej. import historico sin
+    // ese dato -- SPEC 2.59) no hay con que comparar, asi que se omite esta
+    // validacion en vez de fallar contra un valor que no existe.
+    if (existingAssignment.fechaEntrega && data.fechaDevolucion < existingAssignment.fechaEntrega) {
       return NextResponse.json(
         {
           error: `La fecha de devolución no puede ser anterior a la de entrega (${formatearFecha(existingAssignment.fechaEntrega)})`,

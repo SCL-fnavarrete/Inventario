@@ -6,6 +6,7 @@ import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/li
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { sedeWhere, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
+import { formatearFechaCorta } from '@/lib/utils/fechas';
 
 // GET /api/mantenciones - Listar mantenciones con filtros
 export async function GET(request: NextRequest) {
@@ -295,7 +296,7 @@ export async function POST(request: NextRequest) {
           data: {
             assetId: data.assetId,
             tipoEvento: "mantencion",
-            descripcion: `Mantención ${maintenance.tipo.nombre} programada: ${data.descripcion}`,
+            descripcion: `Mantención ${maintenance.tipo.nombre} programada para el ${formatearFechaCorta(data.fechaProgramada)}: ${data.descripcion}`,
             datosAnteriores: { estado: asset.estado },
             datosNuevos: { estado: "en_mantencion", maintenanceId: maintenance.id },
             usuarioSistema: data.realizadoPor || "Sistema",

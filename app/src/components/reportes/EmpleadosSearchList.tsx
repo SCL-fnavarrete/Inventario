@@ -3,10 +3,11 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { Search, Laptop, Smartphone, Monitor } from 'lucide-react';
+import { formatearFecha } from '@/lib/utils/fechas';
 
 type Assignment = {
   id: string;
-  fechaEntrega: Date;
+  fechaEntrega: Date | null;
   activo: boolean;
   asset: {
     id: string;
@@ -243,7 +244,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
                           </p>
                           <p className="text-gray-400 text-xs">
                             Desde:{" "}
-                            {new Date(notebook.fechaEntrega).toLocaleDateString("es-CL")}
+                            {formatearFecha(notebook.fechaEntrega, {}, "fecha desconocida")}
                           </p>
                         </div>
                       ) : (
@@ -278,7 +279,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
                           </p>
                           <p className="text-gray-400 text-xs">
                             Desde:{" "}
-                            {new Date(celular.fechaEntrega).toLocaleDateString("es-CL")}
+                            {formatearFecha(celular.fechaEntrega, {}, "fecha desconocida")}
                           </p>
                         </div>
                       ) : (
@@ -313,7 +314,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
                           </p>
                           <p className="text-gray-400 text-xs">
                             Desde:{" "}
-                            {new Date(monitor.fechaEntrega).toLocaleDateString("es-CL")}
+                            {formatearFecha(monitor.fechaEntrega, {}, "fecha desconocida")}
                           </p>
                         </div>
                       ) : (

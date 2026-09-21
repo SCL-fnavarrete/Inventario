@@ -39,7 +39,7 @@ type NotebookAsignado = {
   tipoLicenciaMicrosoft365: string | null;
   estado: string;
   condicion: string;
-  fechaEntrega: string;
+  fechaEntrega: string | null;
   lugarEntrega: string | null;
   entregadoPor: string | null;
 };
@@ -56,7 +56,7 @@ type CelularAsignado = {
   tieneCargador: boolean;
   estado: string;
   condicion: string;
-  fechaEntrega: string;
+  fechaEntrega: string | null;
   lugarEntrega: string | null;
   entregadoPor: string | null;
 };
@@ -69,7 +69,7 @@ type MonitorAsignado = {
   pulgadas: number | null;
   estado: string;
   condicion: string;
-  fechaEntrega: string;
+  fechaEntrega: string | null;
   lugarEntrega: string | null;
   entregadoPor: string | null;
 };
@@ -106,7 +106,7 @@ type Ficha = {
     numeroSerie: string | null;
     estado: string;
     condicion: string;
-    fechaEntrega: string;
+    fechaEntrega: string | null;
   }>;
   kitBienvenida: {
     entregado: boolean;

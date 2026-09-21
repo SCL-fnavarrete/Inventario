@@ -29,7 +29,7 @@ import { formatearFecha } from "@/lib/utils/fechas";
 
 type Assignment = {
   id: string;
-  fechaEntrega: string;
+  fechaEntrega: string | null;
   fechaDevolucion: string | null;
   lugarEntrega: string | null;
   entregadoPor: string | null;

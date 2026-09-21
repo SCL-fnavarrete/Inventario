@@ -1,6 +1,8 @@
 import { logger } from "@/lib/logger";
 import { parseDDMMYYYYToDate } from "@/lib/excel-utils";
+import { formatearFechaCorta } from "@/lib/utils/fechas";
 import {
+  ESTADOS_RECONOCIDOS,
   interpretarEstado,
   interpretarRut,
   mensajeSerieDuplicada,
@@ -83,6 +85,7 @@ export async function procesarFila(
   const marca = obtener("marca");
   const modelo = obtener("modelo");
   const numeroSerie = obtener("numeroSerie");
+  const nombreEquipo = obtener("nombreEquipo") || null;
 
   if (!marca || !modelo || !numeroSerie) {
     const faltantes: string[] = [];
@@ -153,7 +156,7 @@ export async function procesarFila(
     return {
       status: "error",
       tipo: "invalid_format",
-      mensaje: `Estado no reconocido: "${lecturaEstado.valor}". Se espera un estado (Disponible, Asignado, En mantencion, Baja, Vendido) o una condicion (Nuevo, Usado, Seminuevo, Danado)`,
+      mensaje: `Estado no reconocido: "${lecturaEstado.valor}". Se espera un estado (${ESTADOS_RECONOCIDOS.join(", ")})`,
       data: datosFila,
     };
   }
@@ -245,23 +248,39 @@ export async function procesarFila(
   const valorMicrosoft365 = obtener("microsoft365");
   const microsoft365 = tieneMicrosoft365(valorMicrosoft365);
   const tipoLicenciaMicrosoft365 = valorMicrosoft365 || null;
-  const fechaCompraStr = obtener("fechaCompra") || obtener("fechaEntrega");
+  // Antes, si el Excel no traia una columna real de "Fecha de compra", se
+  // usaba la fecha de entrega como respaldo -- para no dejar esa tarjeta
+  // vacia. El efecto no era el buscado: la ficha del activo terminaba
+  // mostrando la fecha de entrega bajo el rotulo "Fecha Compra", sin ningun
+  // aviso de que era una estimacion (21-sep-2026, SPEC 2.62, reportado por
+  // Javier: "por que en el detalle de activo la fecha de entrega sale como
+  // fecha de compra?"). Ahora, sin un dato real de compra, la fecha de
+  // compra queda simplemente sin registrar.
+  const fechaCompraStr = obtener("fechaCompra");
   const fechaCompra = fechaCompraStr ? parseDDMMYYYYToDate(fechaCompraStr) : null;
 
+  // La fecha de entrega es obligatoria SOLO cuando el dato esta pero no se
+  // pudo leer (ej. "32-13-2026" o texto suelto) -- eso es un error de
+  // formato que hay que corregir en el Excel. Si la celda esta simplemente
+  // vacia, no es un error: hay equipos (sobre todo import de datos
+  // historicos) donde esa fecha nunca se registro y no existe forma de
+  // reconstruirla. Antes se rechazaba la fila entera en ambos casos, lo que
+  // dejaba sin importar activos reales solo porque faltaba un dato que
+  // nadie tiene (20-sep-2026, SPEC 2.59). Ahora una celda vacia se guarda
+  // como fecha desconocida (null) en vez de forzar una fecha inventada.
   let fechaEntrega: Date | null = null;
   if (debeAsignar) {
     const fechaEntregaStr = obtener("fechaEntrega");
-    fechaEntrega = fechaEntregaStr ? parseDDMMYYYYToDate(fechaEntregaStr) : null;
-
-    if (!fechaEntrega) {
-      return {
-        status: "error",
-        tipo: "invalid_assignment_date",
-        mensaje: fechaEntregaStr
-          ? `Fecha de entrega no reconocida: "${fechaEntregaStr}" (se espera dd-mm-aaaa)`
-          : "El activo figura asignado pero no trae fecha de entrega",
-        data: datosFila,
-      };
+    if (fechaEntregaStr) {
+      fechaEntrega = parseDDMMYYYYToDate(fechaEntregaStr);
+      if (!fechaEntrega) {
+        return {
+          status: "error",
+          tipo: "invalid_assignment_date",
+          mensaje: `Fecha de entrega no reconocida: "${fechaEntregaStr}" (se espera dd-mm-aaaa)`,
+          data: datosFila,
+        };
+      }
     }
   }
 
@@ -298,6 +317,7 @@ export async function procesarFila(
         sedeId,
         marca,
         modelo,
+        nombreEquipo,
         numeroSerie,
         estado,
         condicion,
@@ -326,7 +346,44 @@ export async function procesarFila(
       },
     });
 
-    if (empleadoId && fechaEntrega) {
+    // "Historial de asignaciones" del Excel antiguo: un contador tosco
+    // ("1", "2", "1+") de cuantas veces se asigno el equipo, sin ningun
+    // dato de quien lo tuvo. No alcanza para crear un Employee ni un
+    // Assignment real (no hay con quien vincularlo), pero tampoco hay que
+    // perder el dato -- queda como lineas informativas en el historial del
+    // activo, en vez de descartarse en silencio. Version revisada
+    // (21-sep-2026, SPEC 2.65): una sola linea con el texto literal ("1+")
+    // se veia poco prolija -- ahora se crea UNA linea por asignacion,
+    // segun la cantidad que indique el Excel. Cuando el numero es exacto
+    // (1, 2...) se crean esa cantidad de lineas; cuando es impreciso
+    // ("1+", que no es un numero real) se crea 1 sola linea, con el texto
+    // original entre parentesis para no perder el matiz de "al menos".
+    const historialAsignacionesStr = obtener("historialAsignaciones");
+    if (historialAsignacionesStr) {
+      const numeroExacto = /^\d+$/.test(historialAsignacionesStr.trim())
+        ? parseInt(historialAsignacionesStr.trim(), 10)
+        : null;
+      // Tope defensivo: un valor absurdo en el Excel ("999") no debe crear
+      // miles de filas de historial por un typo de digitacion.
+      const cantidadFilas = numeroExacto ? Math.min(numeroExacto, 20) : 1;
+      const notaImprecision = numeroExacto === null ? ` (dato original: "${historialAsignacionesStr}")` : "";
+
+      for (let i = 0; i < cantidadFilas; i++) {
+        await tx.assetHistory.create({
+          data: {
+            assetId: asset.id,
+            tipoEvento: "asignacion",
+            descripcion: `Asignación histórica previa a la migración, sin datos de la persona${notaImprecision}`,
+            usuarioSistema: ctx.session.user?.email || "sistema",
+          },
+        });
+      }
+    }
+
+    // Se crea la asignacion aunque fechaEntrega sea null -- lo que la hace
+    // necesaria es que haya un empleado (custodia del equipo), no que se
+    // conozca la fecha exacta en que se le entrego.
+    if (empleadoId) {
       await tx.assignment.create({
         data: {
           assetId: asset.id,
@@ -353,70 +410,71 @@ export async function procesarFila(
     if (fechaMantencionStr || proximaMantencionStr) {
       const fechaMantencion = fechaMantencionStr ? parseDDMMYYYYToDate(fechaMantencionStr) : null;
       const proximaMantencion = proximaMantencionStr ? parseDDMMYYYYToDate(proximaMantencionStr) : null;
-      const fechaPrincipal = fechaMantencion || proximaMantencion;
+      const ahora = new Date();
 
-      if (fechaPrincipal) {
-        const ahora = new Date();
-        const esFutura = fechaPrincipal > ahora;
-
-        let descripcionDetallada = "Mantención importada desde Excel";
-        if (empleadoId) {
-          const empleado = await tx.employee.findUnique({
-            where: { id: empleadoId },
-            select: { nombres: true, apellidoPaterno: true, rut: true },
-          });
-          if (empleado) {
-            descripcionDetallada = `Mantención ${esFutura ? "programada" : "realizada"} para ${empleado.nombres} ${empleado.apellidoPaterno} (RUT: ${empleado.rut})`;
-          }
+      let sufijoEmpleado = "";
+      if (empleadoId) {
+        const empleado = await tx.employee.findUnique({
+          where: { id: empleadoId },
+          select: { nombres: true, apellidoPaterno: true, rut: true },
+        });
+        if (empleado) {
+          sufijoEmpleado = ` para ${empleado.nombres} ${empleado.apellidoPaterno} (RUT: ${empleado.rut})`;
         }
+      }
 
-        const maintenanceData: {
-          assetId: string;
-          tipoId: string;
-          descripcion: string;
-          fechaProgramada: Date | null;
-          fechaRealizada: Date | null;
-          proximaMantencion: Date | null;
-          estado: "pendiente" | "completada";
-          realizadoPor: string | null;
-        } = {
-          assetId: asset.id,
-          tipoId: ctx.tipoMantencionId,
-          descripcion: descripcionDetallada,
-          fechaProgramada: null,
-          fechaRealizada: null,
-          proximaMantencion: null,
-          estado: esFutura ? "pendiente" : "completada",
-          realizadoPor: esFutura ? null : "Registro histórico",
-        };
-
-        if (fechaMantencion) {
-          if (esFutura) {
-            maintenanceData.fechaProgramada = fechaMantencion;
-          } else {
-            maintenanceData.fechaRealizada = fechaMantencion;
-          }
-          if (proximaMantencion && proximaMantencion > fechaMantencion) {
-            maintenanceData.proximaMantencion = proximaMantencion;
-          }
-        } else if (proximaMantencion) {
-          if (esFutura) {
-            maintenanceData.fechaProgramada = proximaMantencion;
-          } else {
-            maintenanceData.fechaRealizada = proximaMantencion;
-          }
-        }
-
-        await tx.maintenance.create({ data: maintenanceData });
-
+      const crearRegistroMantencion = async (fecha: Date, estado: "pendiente" | "completada") => {
+        const etiqueta = estado === "pendiente" ? "programada" : "realizada";
+        const fechaFormateada = formatearFechaCorta(fecha);
+        await tx.maintenance.create({
+          data: {
+            assetId: asset.id,
+            tipoId: ctx.tipoMantencionId,
+            descripcion: `Mantención ${etiqueta}${sufijoEmpleado} (importada desde Excel)`,
+            fechaProgramada: estado === "pendiente" ? fecha : null,
+            fechaRealizada: estado === "completada" ? fecha : null,
+            proximaMantencion: null,
+            estado,
+            realizadoPor: estado === "completada" ? "Registro histórico" : null,
+          },
+        });
+        // La fecha va en el propio texto del historial (21-sep-2026, SPEC
+        // 2.64, pedido explicito de Javier: "si sale mantencion realizada,
+        // la idea es que salga la fecha... y si sale mantencion programada,
+        // que salga la fecha de esa mantencion programada") -- antes solo
+        // decia "realizada"/"programada" sin fecha, y la fecha real del
+        // evento (que puede ser muy distinta de cuando se importo) solo se
+        // veia entrando al detalle de la mantencion.
         await tx.assetHistory.create({
           data: {
             assetId: asset.id,
             tipoEvento: "mantencion",
-            descripcion: `Mantención ${esFutura ? "programada" : "completada"} importada desde Excel`,
+            descripcion: `Mantención ${etiqueta} el ${fechaFormateada} (importada desde Excel)`,
             usuarioSistema: ctx.session.user?.email || "sistema",
           },
         });
+      };
+
+      // Cuando el Excel trae AMBAS fechas y la proxima es realmente
+      // posterior a la realizada, se crean DOS mantenciones: la realizada
+      // queda completada, y la proxima se vuelve un TICKET PENDIENTE
+      // real -- antes esa fecha solo quedaba como un dato informativo
+      // dentro del registro completado, invisible en la cola de
+      // mantenciones pendientes del sistema (21-sep-2026, SPEC 2.61,
+      // pedido explicito de Javier: "en la proxima mantencion, la idea es
+      // registrar o crear un ticket de mantencion utilizando esas
+      // fechas"). Si solo viene una de las dos fechas, se mantiene el
+      // comportamiento anterior: un unico registro, pendiente o
+      // completada segun si esa fecha ya paso.
+      if (fechaMantencion && proximaMantencion && proximaMantencion > fechaMantencion) {
+        await crearRegistroMantencion(fechaMantencion, "completada");
+        await crearRegistroMantencion(proximaMantencion, "pendiente");
+      } else {
+        const fechaPrincipal = fechaMantencion || proximaMantencion;
+        if (fechaPrincipal) {
+          const esFutura = fechaPrincipal > ahora;
+          await crearRegistroMantencion(fechaPrincipal, esFutura ? "pendiente" : "completada");
+        }
       }
     }
 

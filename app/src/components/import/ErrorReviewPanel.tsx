@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { AlertTriangle, ArrowLeft, CheckCircle, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle, Download, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ErrorRowEditor } from "./ErrorRowEditor";
 import type { ImportRowStatus } from "@/types/import";
@@ -12,6 +12,15 @@ interface ErrorReviewPanelProps {
   fieldLabels: Record<string, string>;
   onCorrectionsChange: (rowIndex: number, data: Record<string, string>) => void;
   onBack: () => void;
+  // Antes, confirmar la importacion solo era posible desde el paso 4,
+  // afuera de este panel -- para hacerlo, el usuario tenia que "Volver"
+  // primero, perdiendo de vista lo que acababa de corregir. Javier: "al
+  // editar los campos no hay ningun boton como comenzar importacion ni
+  // nada, simplemente los corrijo y no hay ninguna opcion para comenzar.
+  // Falto eso." (21-sep-2026, SPEC 2.60). Ahora el mismo boton que existe
+  // en el paso 4 tambien esta disponible aqui.
+  onConfirmImport: () => void;
+  committing: boolean;
 }
 
 // Panel de correccion PREVIA a la importacion (ver SPEC: "primero detecte
@@ -29,6 +38,8 @@ export function ErrorReviewPanel({
   fieldLabels,
   onCorrectionsChange,
   onBack,
+  onConfirmImport,
+  committing,
 }: ErrorReviewPanelProps) {
   const [correctedRows, setCorrectedRows] = useState<Map<number, Record<string, string>>>(
     new Map()
@@ -163,13 +174,23 @@ export function ErrorReviewPanel({
         )}
       </div>
 
-      {/* Estado */}
-      <div className="pt-4 border-t">
+      {/* Estado + confirmar. Mismo boton y mismo criterio que el paso 4: se
+          importan las validas mas las corregidas hasta ahora, sin exigir
+          que todas las pendientes queden corregidas primero. */}
+      <div className="pt-4 border-t flex items-center justify-between gap-4 flex-wrap">
         <p className="text-sm text-gray-600">
           {correctedCount > 0
             ? `${correctedCount} registro(s) corregido(s) se incluirán en la importación junto con las ${validCount} fila(s) válida(s). ${pendingCount} fila(s) sin corregir quedarán fuera.`
             : `Corrige los registros con errores para incluirlos en la importación. Las ${validCount} fila(s) válida(s) se importarán igual.`}
         </p>
+        <button
+          onClick={onConfirmImport}
+          disabled={committing}
+          className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors whitespace-nowrap"
+        >
+          <Download size={20} />
+          <span>{committing ? "Importando..." : "Realizar importación"}</span>
+        </button>
       </div>
     </div>
   );

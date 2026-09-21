@@ -2737,8 +2737,124 @@ Javier, al revisar el alcance de SPEC 2.57: *"la 3 ya que no se usa ninguna func
 
 **Lo que NO se toca:** el enum `EstadoDevolucionTipo` se queda -- no era exclusivo de `Termination`, lo usan también `Assignment.condicionCargadorEntrega` y `condicionCargadorDevolucion`, el estado del cargador de SPEC 2.48. El test de `/reportes` que validaba los filtros de Prisma contra el DMMF se reescribe para cubrir `Asset` y `Employee`, que son los modelos que la página consulta ahora.
 
+## 2.59 Importación de Activos: la fecha de entrega puede quedar como "desconocida" (20-sep-2026)
+
+Javier, probando la importación en vivo: *"que puedo hacer si el activo no tiene fecha de entrega, me la pide obligatorio que puedo colocarle para rellenar"*, y confirmó *"no tienen ninguna fecha registrada nose que hacer en ese caso"* para las filas donde ese dato nunca existió.
+
+**El problema:** una fila con empleado asignado (estado "Asignado" o "No devuelto", SPEC 2.57) exigía una fecha de entrega parseable o rechazaba la fila completa. Eso funcionaba para errores de formato ("32-13-2026"), pero no daba ninguna salida cuando la fecha simplemente **nunca se registró** -- el caso típico de datos históricos migrados a mano. La única alternativa habría sido inventar una fecha, que es exactamente lo que un cambio anterior de esta misma sesión decidió evitar (no hay fecha-por-defecto silenciosa).
+
+**La solución:** se distingue "dato ausente" de "dato inválido". Si la celda de fecha de entrega viene vacía, la fila se importa igual y la asignación queda con `fechaEntrega = null` ("fecha desconocida"), conservando el empleado y la asignación (o sea, quién tiene el equipo). Si la celda trae un valor pero no se puede interpretar como fecha, sigue siendo un error que hay que corregir en el Excel -- eso no cambió.
+
+**Alcance:**
+- `Assignment.fechaEntrega` pasa a ser nullable en el schema. Requiere migración.
+- `procesarFila.ts`: la fila ya no se rechaza por fecha vacía; la asignación se crea aunque `fechaEntrega` sea `null`.
+- La creación manual de asignaciones (`AsignarActivoForm`, `POST /api/asignaciones`) no cambia -- ahí la persona siempre elige una fecha real desde un calendario, así que se sigue exigiendo.
+- Pantallas que muestran `fechaEntrega` de una asignación (ficha del empleado, detalle de asignación, tabla de asignaciones del activo, trazabilidad) ahora muestran "fecha desconocida" en vez de fallar cuando no hay valor.
+- La validación que compara fecha de devolución contra fecha de entrega (`PATCH /api/asignaciones/[id]`) se omite cuando la entrega es desconocida, ya que no hay con qué comparar.
+
+**Decisión explícita de Javier:** ante tres opciones (permitir fecha desconocida en el sistema, completar una fecha aproximada manualmente en el Excel antes de importar, o quitar el RUT del empleado para no exigir fecha), eligió la primera -- conservar la asignación con la fecha en null, en vez de perder el dato de custodia o inventar una fecha.
+
+## 2.61 Importación de Activos: se conservan tres datos que se perdían en silencio (21-sep-2026)
+
+Javier, verificando el import contra el Excel real: primero sobre "Historial de asignaciones" (contador antiguo tipo "1", "2" o "1+", sin nombre de la persona) -- *"aunque no llevemos datos de la persona que fue asignada, la idea sería, aún así, que quede en el registro que fue asignado una vez"*; luego sobre "Mantención" y "Próxima Mantención" -- *"cuando se hace la mantención se queda registrado. Y en la próxima mantención, la idea es registrar o crear un ticket de mantención utilizando esas fechas"*; y por último sobre "Nombre Equipo" -- *"¿Qué lógica estamos haciendo actualmente para eso?"* (la respuesta, revisando el código: ninguna -- el campo existía en el mapeo del import pero se descartaba en silencio).
+
+**1. Historial de asignaciones.** No alcanza para crear un `Employee` ni una `Assignment` real (no hay con quién vincularlo), pero tampoco se pierde: si la columna trae un valor, se agrega una línea al historial del activo (`AssetHistory`, tipo "asignacion") con el texto literal de la celda -- "Historial previo a la migración: asignado 1+ veces (sin datos de la persona)". Decisión explícita de Javier (opción A, entre dos alternativas): una sola línea informativa por activo, sin inventar una cantidad exacta a partir de un dato que de por sí ya era impreciso ("1+" no es un número).
+
+**2. Ticket de mantención pendiente.** Antes, cuando una fila traía AMBAS fechas (una "Mantención" ya realizada y una "Próxima Mantención" futura), se creaba un solo registro completado y la fecha próxima quedaba solo como un dato informativo dentro de ese mismo registro -- invisible en la cola de mantenciones pendientes del sistema. Ahora se crean DOS registros: uno completado con la fecha realizada, y un ticket pendiente aparte con la fecha próxima, visible como cualquier otra mantención pendiente. Si la fila solo trae una de las dos fechas, el comportamiento no cambia (un único registro, pendiente o completado según corresponda).
+
+**3. Nombre Equipo.** El campo `Asset.nombreEquipo` ya existía en el schema (y ya se mostraba en la ficha del activo, en "Especificaciones Técnicas" -- ver SPEC sobre la vista de detalle) -- lo que faltaba era que el import lo leyera. `procesarFila.ts` nunca llamaba `obtener("nombreEquipo")`: la columna se ofrecía en el mapeo de la pantalla de import y el dato se descartaba en silencio. No requiere migración, solo el fix en el import.
+
+## 2.62 Ficha de Activo: la fecha de entrega ya no se muestra disfrazada de fecha de compra (21-sep-2026)
+
+Javier, revisando la ficha de un activo importado: *"por qué en el detalle de activo la fecha de entrega sale como fecha de compra?"*.
+
+**Causa:** en `procesarFila.ts`, cuando el Excel no traía una columna real de "Fecha de compra" (como el de Notebooks, que solo tiene "Fecha de entrega"), se usaba la fecha de entrega como respaldo para no dejar esa tarjeta vacía -- comportamiento intencional pero mal comunicado: la ficha del activo mostraba esa fecha bajo el rótulo "Fecha Compra" sin ninguna indicación de que era una estimación, dando a entender que el equipo se compró el mismo día que se entregó a la persona.
+
+**Solución:** se elimina el respaldo. Sin un dato real de "Fecha de compra" en el Excel, el campo queda simplemente sin registrar ("No registrada" en la ficha), en vez de mostrar una fecha ajena bajo un rótulo equivocado. No afecta ningún cálculo automático -- "Fin de garantía" es un campo manual independiente, el import nunca lo tocó.
+
+## 2.63 Buscador de Activos: ahora busca por palabras, no por frase completa (21-sep-2026)
+
+Javier, probando el buscador: *"solo me busca, me deja buscar valores individuales, como por ejemplo la serie, marca... pero solo por separado. No me deja ingresar el nombre del equipo completo, como por ejemplo Hp Probook 640 G2"*.
+
+**Causa:** `GET /api/activos` comparaba el termino de busqueda COMPLETO contra cada campo por separado (`numeroSerie contains X` OR `marca contains X` OR `modelo contains X`). Marca ("Hp") y modelo ("ProBook 640 G2") son columnas distintas, asi que ningun campo por si solo contiene jamas la frase completa "Hp Probook 640 G2" -- la busqueda solo funcionaba si el termino coincidia entero con UN campo (ej. buscar solo "Probook" si encontraba modelo).
+
+**Solucion:** el termino se separa en palabras: cada palabra debe aparecer en ALGUNO de los campos (numeroSerie, marca, modelo, nombreEquipo), no necesariamente en el mismo. "Hp Probook 640 G2" ahora matchea un activo con marca="Hp" y modelo="ProBook 640 G2" porque cada palabra encuentra su campo, aunque esten repartidas en columnas distintas.
+
+## 2.64 Historial de Activo: las entradas de mantención muestran la fecha del evento (21-sep-2026)
+
+Javier: *"en el historial de evento... la mantención, la idea es que salga la mantención realizada, la idea es que salga la fecha en que se realizó la mantención. Y si sale mantención programada, la idea es que salga la fecha de esa mantención programada"*.
+
+**Causa:** las entradas de `AssetHistory` para mantención (tipo "mantencion") describían el evento ("Mantención realizada", "Mantención programada", "Mantención completada") sin la fecha real del evento -- solo el `createdAt` de la entrada (el momento en que se hizo el clic o se importó la fila) aparece en la línea de tiempo, que puede ser muy distinta de cuándo se realizó o para cuándo se programó la mantención (esto se nota especialmente en datos importados: una mantención "realizada" el 2025-03-30 se ve en el historial con fecha de creación 2026-09-21).
+
+**Solución:** la fecha del evento se agrega al texto de la descripción en los cuatro lugares que crean una entrada de historial de mantención:
+- Import (`procesarFila.ts`): "Mantención realizada el 30-03-2025" / "Mantención programada el 30-03-2026".
+- Crear mantención con fecha programada (`POST /api/mantenciones`): "Mantención Preventiva programada para el ...".
+- Completar mantención (`POST /api/mantenciones/[id]/completar`): "Mantención Preventiva realizada el ...".
+- Editar mantención a completada (`PUT /api/mantenciones/[id]`): "Mantención Preventiva realizada el ...".
+
+## 2.65 Historial de asignaciones importado: una línea por asignación en vez de un contador (21-sep-2026)
+
+Javier, revisando el resultado de SPEC 2.61: *"no se ve tan cómodo el nombre de +1 o +2, ¿no sería mejor crear una fila por cada asignación y poner sin datos de la persona?"*.
+
+**Antes:** una sola línea de historial citando el texto literal del Excel: "Historial previo a la migración: asignado 1+ veces (sin datos de la persona)".
+
+**Ahora:** se crea UNA línea de historial por cada asignación que indique el Excel. Si el valor es un número exacto (1, 2...) se crean esa cantidad de líneas idénticas: "Asignación histórica previa a la migración, sin datos de la persona". Si el valor es impreciso ("1+", que no es un número real), se crea 1 sola línea con el texto original entre paréntesis, para no perder el matiz de "al menos": "... (dato original: \"1+\")". Tope defensivo de 20 líneas por activo, para que un valor absurdo en el Excel no genere cientos de filas de historial.
+
+## 2.66 Export de Activos: completo, ordenado y con resumen (21-sep-2026)
+
+Javier: *"hay que hacer el export de los activos, que podrías agregar para que sea intuitivo, fácil de leer y tenga todos los datos de los activos"*.
+
+**Faltaba:** el export (`GET /api/activos/exportar`) no traía **Sede** -- justo el dato más relevante para auditar un sistema multi-sede -- ni Nombre Equipo, Fecha de Baja, Fecha de Venta, Conectividad, Lista de Distribución, Incidencia, N° Activación, Tipo Plan, Tiene Cargador ni Fecha de Creación. Era un subconjunto de la ficha del activo, no el detalle completo.
+
+**Cambios:**
+- Se agregan todos los campos del Activo que faltaban (listados arriba).
+- Las columnas se reordenan en grupos lógicos: Identificación → Estado y ubicación → Asignación → Especificaciones técnicas → Microsoft/gestión → Fechas → Otros -- en vez del orden en que se habían ido agregando campos históricamente.
+- Se activa el filtro de columnas de Excel (`!autofilter`) sobre toda la tabla, para poder filtrar/ordenar cualquier columna sin armar una tabla dinámica aparte.
+- Se agrega una segunda hoja "Resumen": conteo de activos por Sede y por Estado, con fila de totales -- el mismo tipo de verificación que se hace a mano al revisar una importación, ahora disponible en cada export.
+- El orden de filas pasa a ser por Sede, luego Categoría, luego Marca (antes era por fecha de creación, que no agrupa nada útil para leer).
+
+**No incluido:** estilos de celda (negrita, colores) -- la librería `xlsx` que usa el proyecto (SheetJS, edición gratuita) no persiste estilos personalizados al escribir el archivo; se comprobó directamente que un `.s` con negrita/color no aparece en el archivo generado. El filtro de columnas y la hoja de Resumen sí son soportados y sí funcionan.
+
+## 2.67 Export de Activos: una hoja por Sede (21-sep-2026)
+
+Javier, sobre el export de SPEC 2.66: *"que tal si lo haces más ordenado, una hoja por sede y las columnas con filtro sus títulos"*.
+
+**Cambio:** en vez de una sola hoja "Activos" con todas las sedes mezcladas, el archivo ahora trae una hoja por Sede (más "Resumen" como primera hoja, para ver el total de un vistazo). Cada hoja de sede tiene el mismo detalle completo de columnas de SPEC 2.66 y el mismo filtro de columnas activado. Los activos sin sede asignada quedan en una hoja aparte "(Sin sede)".
+
+**Detalle técnico:** el nombre de cada hoja se sanea (máximo 31 caracteres, sin los símbolos `\ / ? * [ ]`, que Excel no permite en un nombre de hoja) y se numeran si dos sedes distintas truncaran al mismo nombre.
+
+## 2.68 Export de Activos: colores por grupo de columnas y mas datos (22-sep-2026)
+
+Javier, sobre un Excel de referencia (`Inventario_Normalizado_Con_Sede.xlsx`) que subio: *"ponele colores a las columnas que se vea atractivo y sea intuitivo y te faltan mas datos, la idea es que tenga datos como estos"*.
+
+**Sobre los colores:** SPEC 2.66 habia dejado registrado que la libreria `xlsx` (SheetJS, edicion gratuita) no persiste estilos personalizados de celda -- se comprobo de nuevo, dos veces, inspeccionando directamente el `styles.xml` dentro del `.xlsx` generado, sin encontrar el negrita/color aplicado. Se le pregunto a Javier si agregar una libreria nueva (`exceljs`) que si soporta estilos reales, o dejar el export sin colores; eligio agregarla. El proyecto ahora usa `exceljs` en vez de `xlsx` para este export.
+
+**Cambios:**
+- Cada grupo de columnas (Identificacion, Estado y ubicacion, Asignacion, Especificaciones tecnicas, Microsoft/gestion, Mantencion, Fechas, Otros) tiene su propio color de encabezado, con texto en negrita.
+- Las filas de datos alternan un fondo gris muy claro para que sean mas faciles de seguir con la vista en tablas largas.
+- La fila de encabezado queda fija (no se pierde de vista al hacer scroll) en cada hoja.
+- Se agregan los campos que Javier senalo en su Excel de referencia y que no vivian en el Activo sino en otras tablas: **Jefatura**, **Supervisor** y **Correo Empresa** (del empleado asignado), **Fecha de Entrega** (de la asignacion vigente del activo) y **Ultima Mantencion Realizada** / **Proxima Mantencion Programada** (calculadas a partir de las mantenciones del activo: la fecha realizada mas reciente entre las completadas, y la fecha programada mas cercana entre las pendientes).
+- El filtro de columnas de Excel y la hoja "Resumen" con conteo por Sede y Estado (SPEC 2.66) y la organizacion de una hoja por Sede (SPEC 2.67) se mantienen igual.
+
 ## Changelog SPEC
 
+- **v1.92 (2026-09-22):**
+  - Sección 2.68 (nueva): el export de Activos suma color por grupo de columnas y bandeado de filas (via `exceljs`, ya que `xlsx` no soporta estilos de celda) y nuevos campos: Jefatura, Supervisor, Correo Empresa, Fecha de Entrega, Ultima Mantencion Realizada y Proxima Mantencion Programada. Pedido de Javier: que el export se vea atractivo e intuitivo y tenga mas datos, senalando un Excel de referencia.
+- **v1.91 (2026-09-21):**
+  - Sección 2.67 (nueva): el export de Activos pasa de una hoja unica con todas las sedes mezcladas a una hoja por Sede (mas "Resumen" primero), cada una con su propio filtro de columnas. Pedido de Javier para que el archivo quede mas ordenado.
+- **v1.90 (2026-09-21):**
+  - Sección 2.66 (nueva): el export de Activos gana los campos que le faltaban (Sede, Nombre Equipo, Fecha Baja/Venta, Conectividad, Lista Distribucion, Incidencia, N° Activacion, Tipo Plan, Tiene Cargador, Fecha Creacion), columnas reordenadas por grupos logicos, filtro de columnas de Excel activado, y una hoja "Resumen" con conteo por Sede y Estado. Pedido de Javier: que el export sea intuitivo, facil de leer y tenga todos los datos.
+- **v1.89 (2026-09-21):**
+  - Sección 2.65 (nueva): el historial de asignaciones importado (SPEC 2.61) pasa de una sola linea con el contador literal ("1+") a una linea por asignacion ("Asignacion historica... sin datos de la persona"), con tope de 20 por activo. Pedido de Javier: encontro el contador literal poco prolijo.
+- **v1.88 (2026-09-21):**
+  - Sección 2.64 (nueva): las entradas de historial de mantención (import, crear, completar, editar) ahora incluyen la fecha del evento en el propio texto -- antes solo decian "realizada"/"programada"/"completada" sin fecha, y solo el `createdAt` de la entrada (momento del clic o de la importacion) aparecia en la linea de tiempo, que puede no tener nada que ver con cuando se realizo o para cuando se programo la mantencion. Pedido de Javier al revisar el historial de un activo importado.
+- **v1.87 (2026-09-21):**
+  - Sección 2.63 (nueva): el buscador de Activos ahora separa el termino en palabras y exige que cada una aparezca en algun campo (serie, marca, modelo o nombre de equipo), no que el texto completo coincida con uno solo. Antes "Hp Probook 640 G2" no encontraba nada porque marca y modelo estan en columnas separadas. Pedido de Javier al probar el buscador.
+- **v1.86 (2026-09-21):**
+  - Sección 2.62 (nueva): se elimina el respaldo que usaba la fecha de entrega como fecha de compra cuando el Excel no traia esa columna -- la ficha del activo mostraba esa fecha bajo el rotulo equivocado, sin avisar que era una estimacion. Ahora queda "No registrada" si no hay un dato real. Pedido de Javier al revisar la ficha de un activo importado.
+  - Sección 2.61 (nueva): tres datos del Excel que se perdian en silencio durante el import ahora se conservan -- "Historial de asignaciones" (contador antiguo sin nombre de persona) queda como una linea informativa en el historial del activo; "Proxima Mantencion" ahora crea un ticket de mantencion pendiente aparte cuando tambien hay una mantencion ya realizada en la misma fila (antes quedaba solo como dato informativo, invisible en la cola de pendientes); y "Nombre Equipo" -- un campo que ya existia en el Asset y ya se mostraba en la ficha, pero que el import nunca leia -- ahora se guarda correctamente. No requiere migracion. Pedido de Javier al verificar el import contra el Excel real.
+- **v1.85 (2026-09-20):**
+  - Sección 2.59 (nueva): `Assignment.fechaEntrega` pasa a ser nullable -- una fila de importación sin ese dato ya no se rechaza, se guarda como "fecha desconocida" en vez de inventar una fecha o perder la asignación. La creación manual de asignaciones sigue exigiendo una fecha real. Requiere migración. Pedido de Javier, que encontró filas de datos históricos sin ese campo al probar la importación en vivo.
 - **v1.84 (2026-09-20):**
   - Sección 2.58 (nueva): se elimina el módulo antiguo de Desvinculaciones (modelo `Termination`, sus páginas y endpoints, `executeTerminationReturn`, sus validaciones), que ya no era alcanzable desde ninguna pantalla y duplicaba, peor, lo que hoy hace el flujo de Solicitudes. Se van con él el "Reporte para RRHH" y su Excel (construidos enteros sobre ese modelo, a rehacer más adelante sobre los offboarding de Solicitudes), el KPI "Devoluciones Pend." del Dashboard con sus alertas, y la opción de limpieza de datos correspondiente. Se conserva el enum `EstadoDevolucionTipo`, que también usa el estado del cargador (SPEC 2.48). Requiere migración: elimina la tabla `terminations`. Pedido de Javier para limpiar código sin uso.
 - **v1.83 (2026-09-20):**

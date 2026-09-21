@@ -4,6 +4,7 @@ import { updateMaintenanceSchema, completeMaintenanceSchema } from "@/lib/valida
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
+import { formatearFechaCorta } from '@/lib/utils/fechas';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -138,7 +139,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           data: {
             assetId: existingMaintenance.assetId,
             tipoEvento: "mantencion",
-            descripcion: `Mantención ${updatedMaintenance.tipo.nombre} completada: ${data.resultado || "Sin observaciones"}`,
+            descripcion: `Mantención ${updatedMaintenance.tipo.nombre} realizada el ${formatearFechaCorta(updatedMaintenance.fechaRealizada)}: ${data.resultado || "Sin observaciones"}`,
             datosAnteriores: { estado: "en_mantencion" },
             datosNuevos: { estado: nuevoEstado, maintenanceId: id },
             usuarioSistema: data.realizadoPor || "Sistema",

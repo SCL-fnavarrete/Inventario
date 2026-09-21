@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Search, History, Laptop, Users, Wrench, FileText } from "lucide-react";
+import { formatearFecha } from "@/lib/utils/fechas";
 
 interface HistoryEvent {
   id: string;
@@ -24,7 +25,7 @@ interface AssetData {
   history: HistoryEvent[];
   assignments: {
     id: string;
-    fechaEntrega: string;
+    fechaEntrega: string | null;
     fechaDevolucion: string | null;
     tipoMovimiento: string;
     activo: boolean;
@@ -216,7 +217,7 @@ export default function ReporteTrazabilidadPage() {
                       <div className="text-sm text-gray-700 mt-1">
                         <span>
                           Entrega:{" "}
-                          {new Date(asig.fechaEntrega).toLocaleDateString("es-CL")}
+                          {formatearFecha(asig.fechaEntrega, {}, "fecha desconocida")}
                         </span>
                         {asig.fechaDevolucion && (
                           <span className="ml-4">
