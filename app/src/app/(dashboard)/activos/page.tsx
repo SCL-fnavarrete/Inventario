@@ -687,8 +687,15 @@ function ActivosPageContent() {
           isUpdating={isUpdatingStatus}
         />
       ) : viewMode === "cards" ? (
-        /* Cards View */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        /* Cards View.
+           22-sep-2026 (SPEC 2.70, pedido de Javier: "al agrandar la
+           pantalla las tarjetas se achican y todo aparece afuera"): el
+           salto de 2 a 3 columnas coincidia con el breakpoint (lg, 1024px)
+           en el que el Sidebar deja de ser un overlay y pasa a ocupar
+           256px fijos (ver Sidebar.tsx) -- doble golpe: menos ancho
+           disponible Y mas columnas repartiendolo (460px a 221px medido).
+           Se corre el salto a 3 columnas a xl (1280px). */
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {loading ? (
             <div className="col-span-full flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-gray-400" />

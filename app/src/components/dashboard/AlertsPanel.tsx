@@ -20,6 +20,7 @@ interface Maintenance {
     numeroSerie: string | null;
     marca: string;
     modelo: string;
+    sede: { nombre: string } | null;
   };
 }
 
@@ -27,6 +28,7 @@ interface KitItemSinStock {
   id: string;
   nombre: string;
   categoria: "kit_bienvenida" | "epp";
+  sedeNombre: string | null;
 }
 
 interface KitItemBajoStock extends KitItemSinStock {
@@ -57,6 +59,21 @@ const categoriaKitLabels: Record<KitItemSinStock["categoria"], string> = {
   kit_bienvenida: "Kit de Bienvenida",
   epp: "EPP",
 };
+
+/**
+ * Etiqueta de sede para una alerta (21-sep-2026, SPEC 2.69). Con "Todas las
+ * sedes" seleccionado, las alertas de distintas sedes quedan mezcladas en la
+ * misma lista -- sin esto no habia forma de saber, por ejemplo, si una
+ * "Mantencion Vencida" era de Santiago o de Concepcion sin entrar al detalle.
+ * `null` es un caso real (activo/articulo sin sede asignada), no un error.
+ */
+function EtiquetaSede({ nombre }: { nombre: string | null }) {
+  return (
+    <span className="inline-block mt-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">
+      {nombre ?? "Sin sede"}
+    </span>
+  );
+}
 
 // Antes ambas categorias vivian en /configuracion/kit-epp; se movieron a
 // Activos (9-sep-2026) para que el tecnico pudiera seguir usandolas -- ver
@@ -109,19 +126,20 @@ export function AlertsPanel({
               href={`/mantenciones/${m.id}`}
               className="flex items-start gap-3 p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
             >
-              <div className="p-2 bg-red-100 rounded-full">
+              <div className="p-2 bg-red-100 rounded-full shrink-0">
                 <XCircle className="h-4 w-4 text-red-600" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-red-900">
                   Mantención Vencida
                 </p>
-                <p className="text-xs text-red-700 truncate">
+                <p className="text-xs text-red-700 break-words">
                   {m.asset.marca} {m.asset.modelo} ({m.asset.numeroSerie})
                 </p>
                 <p className="text-xs text-red-600">{m.descripcion}</p>
+                <EtiquetaSede nombre={m.asset.sede?.nombre ?? null} />
               </div>
-              <ChevronRight className="h-4 w-4 text-red-400" />
+              <ChevronRight className="h-4 w-4 text-red-400 shrink-0" />
             </Link>
           ))}
 
@@ -132,14 +150,14 @@ export function AlertsPanel({
               href={`/mantenciones/${m.id}`}
               className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors"
             >
-              <div className="p-2 bg-yellow-100 rounded-full">
+              <div className="p-2 bg-yellow-100 rounded-full shrink-0">
                 <Clock className="h-4 w-4 text-yellow-600" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-yellow-900">
                   Mantención Próxima
                 </p>
-                <p className="text-xs text-yellow-700 truncate">
+                <p className="text-xs text-yellow-700 break-words">
                   {m.asset.marca} {m.asset.modelo} ({m.asset.numeroSerie})
                 </p>
                 <p className="text-xs text-yellow-600">
@@ -147,8 +165,9 @@ export function AlertsPanel({
                     ? formatearFecha(m.fechaProgramada)
                     : "Sin fecha"}
                 </p>
+                <EtiquetaSede nombre={m.asset.sede?.nombre ?? null} />
               </div>
-              <ChevronRight className="h-4 w-4 text-yellow-400" />
+              <ChevronRight className="h-4 w-4 text-yellow-400 shrink-0" />
             </Link>
           ))}
 
@@ -159,16 +178,17 @@ export function AlertsPanel({
               href={kitEppHref[item.categoria]}
               className="flex items-start gap-3 p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
             >
-              <div className="p-2 bg-red-100 rounded-full">
+              <div className="p-2 bg-red-100 rounded-full shrink-0">
                 <PackageX className="h-4 w-4 text-red-600" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-red-900">Sin Stock</p>
-                <p className="text-xs text-red-700 truncate">
+                <p className="text-xs text-red-700 break-words">
                   {item.nombre} ({categoriaKitLabels[item.categoria]})
                 </p>
+                <EtiquetaSede nombre={item.sedeNombre} />
               </div>
-              <ChevronRight className="h-4 w-4 text-red-400" />
+              <ChevronRight className="h-4 w-4 text-red-400 shrink-0" />
             </Link>
           ))}
 
@@ -179,19 +199,20 @@ export function AlertsPanel({
               href={kitEppHref[item.categoria]}
               className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors"
             >
-              <div className="p-2 bg-yellow-100 rounded-full">
+              <div className="p-2 bg-yellow-100 rounded-full shrink-0">
                 <PackageX className="h-4 w-4 text-yellow-600" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-yellow-900">Stock Bajo</p>
-                <p className="text-xs text-yellow-700 truncate">
+                <p className="text-xs text-yellow-700 break-words">
                   {item.nombre} ({categoriaKitLabels[item.categoria]})
                 </p>
                 <p className="text-xs text-yellow-600">
                   Quedan {item.cantidad} (mínimo configurado: {item.stockMinimo})
                 </p>
+                <EtiquetaSede nombre={item.sedeNombre} />
               </div>
-              <ChevronRight className="h-4 w-4 text-yellow-400" />
+              <ChevronRight className="h-4 w-4 text-yellow-400 shrink-0" />
             </Link>
           ))}
 
@@ -202,16 +223,22 @@ export function AlertsPanel({
               href={`/activos?categoriaId=${cat.id}&estado=disponible`}
               className="flex items-start gap-3 p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
             >
-              <div className="p-2 bg-red-100 rounded-full">
+              <div className="p-2 bg-red-100 rounded-full shrink-0">
                 <Package className="h-4 w-4 text-red-600" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-red-900">Sin Stock</p>
-                <p className="text-xs text-red-700 truncate">
+                <p className="text-xs text-red-700 break-words">
                   {cat.nombre}
                 </p>
+                {/* Stock de Activos por categoria se cuenta sumando todas las
+                    sedes (no es un catalogo por sede como Kit/EPP) -- la
+                    etiqueta aclara eso explicitamente en vez de dejarla vacia,
+                    que se leia como un dato faltante al lado de alertas que
+                    si muestran sede (SPEC 2.69). */}
+                <EtiquetaSede nombre="Todas las sedes" />
               </div>
-              <ChevronRight className="h-4 w-4 text-red-400" />
+              <ChevronRight className="h-4 w-4 text-red-400 shrink-0" />
             </Link>
           ))}
 
@@ -222,19 +249,20 @@ export function AlertsPanel({
               href={`/activos?categoriaId=${cat.id}&estado=disponible`}
               className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors"
             >
-              <div className="p-2 bg-yellow-100 rounded-full">
+              <div className="p-2 bg-yellow-100 rounded-full shrink-0">
                 <Package className="h-4 w-4 text-yellow-600" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-yellow-900">Stock Bajo</p>
-                <p className="text-xs text-yellow-700 truncate">
+                <p className="text-xs text-yellow-700 break-words">
                   {cat.nombre}
                 </p>
                 <p className="text-xs text-yellow-600">
                   Quedan {cat.disponibles} (mínimo configurado: {cat.stockMinimo})
                 </p>
+                <EtiquetaSede nombre="Todas las sedes" />
               </div>
-              <ChevronRight className="h-4 w-4 text-yellow-400" />
+              <ChevronRight className="h-4 w-4 text-yellow-400 shrink-0" />
             </Link>
           ))}
         </div>

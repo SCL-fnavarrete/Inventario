@@ -112,8 +112,25 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
     }),
     prisma.maintenance.findMany({
       where: { estado: "pendiente", ...swAsset },
+      // Orden por fechaProgramada asc (21-sep-2026, SPEC 2.69): antes no
+      // tenia orderBy, asi que el orden dependia de como Postgres devolviera
+      // las filas (en la practica, orden de insercion). Al recortar a 5 con
+      // slice(0,5) mas abajo, eso hacia que "Todas las sedes" mostrara solo
+      // las vencidas/proximas de la sede con mas antiguedad en la base
+      // (Santiago) y nunca llegara a las de Concepcion/Peru, aunque el total
+      // contado si las incluyera. Ordenar por fecha ascendente ademas es lo
+      // correcto para "urgencia": la vencida mas antigua primero, la
+      // proxima mas cercana primero.
+      orderBy: { fechaProgramada: "asc" },
       include: {
-        asset: { select: { numeroSerie: true, marca: true, modelo: true } },
+        asset: {
+          select: {
+            numeroSerie: true,
+            marca: true,
+            modelo: true,
+            sede: { select: { nombre: true } },
+          },
+        },
       },
     }),
     prisma.assignment.findMany({
@@ -132,6 +149,7 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
     prisma.welcomeKitItem.findMany({
       where: sw,
       orderBy: { nombre: 'asc' },
+      include: { sede: { select: { nombre: true } } },
     }),
   ]);
 
@@ -221,16 +239,27 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
   ].filter((e) => e.cantidad > 0);
 
   // Mantenciones pendientes: se piden todas una sola vez (antes eran 3
-  // consultas -- un count() y dos findMany() con take:5 -- todas con el
-  // mismo `estado: "pendiente"`). Vencidas/Proximas/el total ahora se
-  // derivan en memoria del mismo resultado.
+  // consultas -- un count() y dos findMany() -- todas con el mismo
+  // `estado: "pendiente"`). Vencidas/Proximas/el total ahora se derivan en
+  // memoria del mismo resultado.
+  //
+  // 22-sep-2026 (SPEC 2.69 bis, pedido explicito de Javier): se quita el
+  // `.slice(0, 5)` que traia esto desde el inicio -- el panel de Alertas
+  // mostraba como maximo 5 vencidas y 5 proximas, sin importar cuantas
+  // hubiera en realidad (la tarjeta "Mantenciones Pend." si mostraba el
+  // total real, asi que el recorte solo afectaba la lista del panel). Con
+  // varias sedes eso ademas ocultaba mantenciones reales de sedes que no
+  // alcanzaban a entrar en el cupo de 5 (el bug que motivo el orderBy de
+  // arriba). Ahora se listan todas; el panel ya es scrolleable
+  // (`max-h-96 overflow-y-auto` en AlertsPanel) para que una lista larga no
+  // rompa el layout del Dashboard.
   const pendingMaintenance = maintenancesPendientes.length;
-  const mantencionesVencidas = maintenancesPendientes
-    .filter((m) => m.fechaProgramada && m.fechaProgramada < today)
-    .slice(0, 5);
-  const mantencionesProximas = maintenancesPendientes
-    .filter((m) => m.fechaProgramada && m.fechaProgramada >= today && m.fechaProgramada <= nextWeek)
-    .slice(0, 5);
+  const mantencionesVencidas = maintenancesPendientes.filter(
+    (m) => m.fechaProgramada && m.fechaProgramada < today
+  );
+  const mantencionesProximas = maintenancesPendientes.filter(
+    (m) => m.fechaProgramada && m.fechaProgramada >= today && m.fechaProgramada <= nextWeek
+  );
 
   // "Asig. Ultimos 30 dias" ya no es una consulta aparte: se deriva
   // filtrando en memoria "Asignaciones ultimos 6 meses" (los 30 dias son
@@ -289,10 +318,10 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
   // algo. Un articulo en 0 cuenta solo como "sin stock", no en ambas.
   const sinStockItems = kitItems
     .filter((item) => item.cantidad === 0)
-    .map((item) => ({ id: item.id, nombre: item.nombre, categoria: item.categoria }));
+    .map((item) => ({ id: item.id, nombre: item.nombre, categoria: item.categoria, sedeNombre: item.sede?.nombre ?? null }));
   const bajoStockItems = kitItems
     .filter((item) => item.cantidad > 0 && item.cantidad <= item.stockMinimo)
-    .map((item) => ({ id: item.id, nombre: item.nombre, categoria: item.categoria, cantidad: item.cantidad, stockMinimo: item.stockMinimo }));
+    .map((item) => ({ id: item.id, nombre: item.nombre, categoria: item.categoria, cantidad: item.cantidad, stockMinimo: item.stockMinimo, sedeNombre: item.sede?.nombre ?? null }));
 
   return {
     totalAssets,
@@ -386,8 +415,18 @@ export default async function DashboardPage() {
         bajoStockCategorias={data.bajoStockCategorias}
       />
 
-      {/* Stats Grid - KPIs Principales */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      {/* Stats Grid - KPIs Principales.
+          22-sep-2026 (SPEC 2.70, pedido de Javier: "al agrandar la pantalla
+          las tarjetas se achican y todo aparece afuera"): el salto de 3 a 6
+          columnas ocurria justo en el mismo breakpoint (lg, 1024px) en el que
+          el Sidebar deja de ser un overlay y pasa a ocupar 256px fijos del
+          ancho (ver Sidebar.tsx, "fixed lg:static") -- doble golpe a la vez:
+          menos ancho disponible Y mas columnas repartiendolo, asi que cada
+          tarjeta se achicaba a menos de la mitad (460px a 221px medido) en
+          vez de crecer al agrandar la ventana. Se corre el salto a 6
+          columnas a xl (1280px), donde el Sidebar ya esta fijo desde antes y
+          el ancho extra es real. */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <div className="bg-white rounded-lg shadow p-4">
           {/* "Total Activos" cuenta TODOS los estados, incluido vendido --
               a proposito, para responder "cuantos activos hemos tenido en
@@ -462,8 +501,10 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Segunda fila de KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      {/* Segunda fila de KPIs -- 4 tarjetas (Equipos Vendidos, Mantenciones
+          Pend., Asig. Ultimos 30d, Solicitudes Abiertas), no 5: se corrige el
+          conteo de columnas de paso (SPEC 2.70). */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* "Empleados Activos" se reemplaza por "Equipos Vendidos"
             (11-sep-2026, SPEC 2.16, pedido explicito de Javier): un activo
             vendido ya no cuenta en ninguna tarjeta de arriba ni en "Stock
@@ -533,8 +574,11 @@ export default async function DashboardPage() {
         asignacionesChartData={data.asignacionesChartData}
       />
 
-      {/* Activos por Categoria y stock de Kit de Bienvenida/EPP */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Activos por Categoria y stock de Kit de Bienvenida/EPP.
+          Mismo motivo que el Stats Grid de arriba (SPEC 2.70): de 1 a 3
+          columnas justo cuando el Sidebar pasa a ocupar ancho fijo se sentia
+          como que las tarjetas se achicaban al agrandar la ventana. */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Activos por Categoría */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">

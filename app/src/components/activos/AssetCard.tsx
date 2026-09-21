@@ -105,17 +105,19 @@ export function AssetCard({ asset, compact = false }: AssetCardProps) {
   if (compact) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-gray-100 rounded-lg">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-gray-100 rounded-lg shrink-0">
             <CategoryIcon categoria={asset.categoria.nombre} className="w-5 h-5 text-gray-600" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-sm text-gray-900 truncate">
+            <p className="font-medium text-sm text-gray-900 break-words">
               {asset.marca} {asset.modelo}
             </p>
-            <p className="text-xs text-gray-500 truncate">{displayCode}</p>
+            <p className="text-xs text-gray-500 break-words">{displayCode}</p>
           </div>
-          <AssetStatusBadge status={asset.estado} size="sm" />
+          <div className="shrink-0">
+            <AssetStatusBadge status={asset.estado} size="sm" />
+          </div>
         </div>
       </div>
     );
@@ -200,16 +202,16 @@ export function AssetCard({ asset, compact = false }: AssetCardProps) {
 
         {/* Assigned user */}
         {asset.empleadoActual && (
-          <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-            <div className="p-1.5 bg-blue-50 rounded-full">
+          <div className="flex items-start gap-2 pt-2 border-t border-gray-100">
+            <div className="p-1.5 bg-blue-50 rounded-full shrink-0">
               <User className="w-3.5 h-3.5 text-blue-600" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
+              <p className="text-sm font-medium text-gray-900 break-words">
                 {asset.empleadoActual.nombres} {asset.empleadoActual.apellidoPaterno}
               </p>
               {asset.empleadoActual.cargo && (
-                <p className="text-xs text-gray-500 truncate">
+                <p className="text-xs text-gray-500 break-words">
                   {asset.empleadoActual.cargo}
                 </p>
               )}

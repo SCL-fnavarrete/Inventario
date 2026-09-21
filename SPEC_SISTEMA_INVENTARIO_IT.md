@@ -2836,8 +2836,35 @@ Javier, sobre un Excel de referencia (`Inventario_Normalizado_Con_Sede.xlsx`) qu
 - Se agregan los campos que Javier senalo en su Excel de referencia y que no vivian en el Activo sino en otras tablas: **Jefatura**, **Supervisor** y **Correo Empresa** (del empleado asignado), **Fecha de Entrega** (de la asignacion vigente del activo) y **Ultima Mantencion Realizada** / **Proxima Mantencion Programada** (calculadas a partir de las mantenciones del activo: la fecha realizada mas reciente entre las completadas, y la fecha programada mas cercana entre las pendientes).
 - El filtro de columnas de Excel y la hoja "Resumen" con conteo por Sede y Estado (SPEC 2.66) y la organizacion de una hoja por Sede (SPEC 2.67) se mantienen igual.
 
+## 2.69 Dashboard: alertas de Mantencion no mostraban todas las sedes al elegir "Todas las sedes" (22-sep-2026)
+
+Javier, probando el Dashboard con admin y el selector en "Todas las sedes": *"en dashboard en la zona de alertas al elejir todas las sedes solo me entrega la sedes de santiago"*.
+
+**Causa:** `prisma.maintenance.findMany` (mantenciones pendientes) no tenia `orderBy`, asi que Postgres devolvia las filas en un orden arbitrario (en la practica, orden de insercion). El total contado (`Mantenciones Pend.`, la tarjeta KPI) siempre fue correcto y sumaba las tres sedes -- el problema estaba en el panel de Alertas, que recorta a los primeros 5 "vencidas" y primeros 5 "proximas" con `slice(0, 5)`. Con Santiago siendo la sede con mas historial (y por lo tanto la que aparecia primero en un resultado sin ordenar), sus mantenciones llenaban el cupo de 5 antes de que las de Concepcion o Peru tuvieran oportunidad de aparecer, aunque el filtro de sede en si funcionaba bien (con una sede especifica elegida, sus propias alertas se veian sin problema).
+
+**Solucion:**
+- Se agrega `orderBy: { fechaProgramada: "asc" }` a la consulta. Ademas de corregir el sesgo hacia una sola sede, esto es lo correcto para "urgencia": la vencida mas antigua aparece primero, la proxima mas cercana tambien.
+- Se agrega la sede de cada alerta directamente en la tarjeta (`asset.sede.nombre` para Mantenciones y Kit/EPP, que si son catalogos por sede) para que, con varias sedes mezcladas en la misma lista, quede claro de donde es cada una sin tener que entrar al detalle. Las alertas de "Stock de Activos por categoria" muestran "Todas las sedes" en vez de una sede especifica -- a diferencia de Kit/EPP, ese stock se cuenta sumando el inventario de todas las sedes junto, no es un catalogo separado por sede.
+
+## 2.70 Alertas y tarjetas de Activos: sin tope fijo, texto que no se corta, y sin encogerse al agrandar la ventana (22-sep-2026)
+
+Javier, tres pedidos seguidos sobre el mismo panel de Alertas del Dashboard y las tarjetas de Activos:
+- *"la idea es que muestre todo no una cantidad fijas de alertas"*
+- *"haz que las tarjetas que usamos sean responsive y se adaptan al tamaño del contenido"*
+- *"el problema es que al agrandar la pantalla las tarjetas se achican y todo aparece afuera"*
+
+**1. Tope fijo de 5 alertas.** `mantencionesVencidas`/`mantencionesProximas` recortaban con `.slice(0, 5)` sin importar cuantas hubiera en realidad (la tarjeta KPI "Mantenciones Pend." si mostraba el total real). Se quita el recorte -- se listan todas. El panel ya era scrolleable (`max-h-96 overflow-y-auto`), asi que una lista larga (68 vencidas en los datos de prueba) no rompe el layout del Dashboard, solo scrollea.
+
+**2. Texto cortado con "...".** Las lineas de detalle de cada alerta (`AlertsPanel.tsx`) y de cada tarjeta de Activo (`AssetCard.tsx`: nombre/modelo, numero de serie, nombre y cargo del empleado asignado) usaban `truncate`, que corta a una sola linea sin importar el largo real del contenido. Se reemplaza por `break-words` para que el texto envuelva en varias lineas y la tarjeta crezca segun su contenido, y se agrega `shrink-0` a los iconos y badges de cada tarjeta para que no se compriman cuando el texto de al lado ocupa mas espacio. No se toco la vista de tabla de Activos (columnas TIPO/N° SERIE/etc.): ahi el recorte con `max-w-xs` mantiene las filas de una tabla densa con alto uniforme, un criterio distinto al de una tarjeta.
+
+**3. Tarjetas que se achican al agrandar la ventana.** Causa real, medida directamente: el Sidebar pasa de overlay a `fixed lg:static` (ocupando 256px fijos del ancho) justo en el mismo breakpoint de Tailwind (`lg`, 1024px) en el que varias grillas de tarjetas subian su numero de columnas (`lg:grid-cols-3`, `lg:grid-cols-6`). Al cruzar los 1024px, dos cosas malas pasaban a la vez: aparecia el Sidebar (menos ancho disponible) Y se repartia ese ancho menor entre mas columnas -- una tarjeta de Activos medida pasaba de 460px a 221px (menos de la mitad) al agrandar la ventana de 1000 a 1030px. La solucion no es dejar de subir columnas, es no hacerlo en el mismo breakpoint en que el Sidebar le quita espacio al contenido: se corren esos saltos de columnas de `lg` a `xl` (1280px) en las cuatro grillas afectadas (KPIs principales, segunda fila de KPIs, Activos por Categoria/Kit/EPP del Dashboard, y las tarjetas de Activos). De paso se corrige que la segunda fila de KPIs declaraba `grid-cols-5` para 4 tarjetas reales.
+
 ## Changelog SPEC
 
+- **v1.94 (2026-09-22):**
+  - Sección 2.70 (nueva): el panel de Alertas ya no recorta a 5 items (se listan todas), el texto largo en las alertas y en las tarjetas de Activos ya no se corta con "..." (envuelve en varias lineas), y se corrige que varias grillas de tarjetas subian su numero de columnas justo en el breakpoint en que el Sidebar pasa a ocupar ancho fijo, lo que hacia que las tarjetas se achicaran a menos de la mitad al agrandar la ventana. Tres pedidos seguidos de Javier sobre el mismo panel.
+- **v1.93 (2026-09-22):**
+  - Sección 2.69 (nueva): el panel de Alertas del Dashboard no mostraba mantenciones de todas las sedes al elegir "Todas las sedes" -- faltaba `orderBy` en la consulta y el recorte a 5 alertas dejaba fuera a las sedes con menos antigüedad en la base. Se ordena por fecha y se agrega la etiqueta de sede a cada alerta. Pedido de Javier tras notar que el selector "Todas las sedes" solo entregaba datos de Santiago.
 - **v1.92 (2026-09-22):**
   - Sección 2.68 (nueva): el export de Activos suma color por grupo de columnas y bandeado de filas (via `exceljs`, ya que `xlsx` no soporta estilos de celda) y nuevos campos: Jefatura, Supervisor, Correo Empresa, Fecha de Entrega, Ultima Mantencion Realizada y Proxima Mantencion Programada. Pedido de Javier: que el export se vea atractivo e intuitivo y tenga mas datos, senalando un Excel de referencia.
 - **v1.91 (2026-09-21):**
