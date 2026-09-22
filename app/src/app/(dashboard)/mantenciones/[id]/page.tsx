@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   ArrowLeft,
   Wrench,
-  Calendar,
-  User,
   Laptop,
   Smartphone,
   Monitor,
@@ -119,10 +117,6 @@ export default function MantencionDetallePage({
     proximaMantencion: "",
   });
 
-  useEffect(() => {
-    fetchMaintenance();
-  }, [id]);
-
   // "Realizado por" auto-fills with the current session user.
   useEffect(() => {
     if (session?.user?.name) {
@@ -130,7 +124,7 @@ export default function MantencionDetallePage({
     }
   }, [session]);
 
-  async function fetchMaintenance() {
+  const fetchMaintenance = useCallback(async () => {
     try {
       const res = await fetch(`/api/mantenciones/${id}`);
       if (!res.ok) {
@@ -155,7 +149,11 @@ export default function MantencionDetallePage({
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
+
+  useEffect(() => {
+    fetchMaintenance();
+  }, [fetchMaintenance]);
 
   async function handleStartMaintenance() {
     if (!maintenance) return;
@@ -309,7 +307,6 @@ export default function MantencionDetallePage({
 
   const config = estadoConfig[maintenance.estado] || estadoConfig.pendiente;
   const StatusIcon = config.icon;
-  const canEdit = maintenance.estado === "pendiente" || maintenance.estado === "en_proceso";
 
   return (
     <div className="space-y-6">

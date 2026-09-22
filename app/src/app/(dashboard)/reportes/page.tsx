@@ -1,14 +1,10 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import {
-  FileText,
   Package,
   Users,
   History,
   FileSpreadsheet,
-  Download,
   TrendingUp,
   AlertTriangle,
 } from "lucide-react";
@@ -52,7 +48,6 @@ async function getReporteSummary() {
 }
 
 export default async function ReportesPage() {
-  const session = await getServerSession(authOptions);
   const summary = await getReporteSummary();
 
   const reportes = [

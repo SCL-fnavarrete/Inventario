@@ -39,11 +39,11 @@ model Employee {
   nombres              String          @map("nombre")
   apellidoPaterno      String          @map("apellido_paterno")
   apellidoMaterno      String?         @map("apellido_materno")
-  // El correo de empresa es obligatorio y el personal opcional: es la
-  // cuenta corporativa la que siempre existe y con la que se identifica a
-  // la persona en TI.
+  // El correo personal es el obligatorio y unico; el de empresa quedo
+  // opcional (se conserva para no perder los datos ya importados, pero ya
+  // no se exige ni se usa como identificador principal).
   correoPersonal       String?         @unique @map("correo_personal")
-  correoEmpresa        String          @unique @map("correo_empresa")
+  correoEmpresa        String?         @unique @map("correo_empresa")
   cargo                String?
   jefatura             String?
   supervisor           String?
@@ -85,6 +85,37 @@ model Employee {
   @@index([createdAt])
   @@index([sedeId])
   @@map("employees")
+}
+
+// Catalogos de opciones para los campos de software del activo (antes
+// texto libre): se administran en Configuracion igual que AssetCategory.
+// El activo sigue guardando el nombre como texto plano; el catalogo solo
+// alimenta el selector y evita duplicados por typo o mayusculas.
+model SistemaOperativo {
+  id        String   @id @default(uuid())
+  nombre    String   @unique
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("sistemas_operativos")
+}
+
+model Antivirus {
+  id        String   @id @default(uuid())
+  nombre    String   @unique
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("antivirus_opciones")
+}
+
+model LicenciaMicrosoft365 {
+  id        String   @id @default(uuid())
+  nombre    String   @unique
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("licencias_microsoft365")
 }
 
 model AssetCategory {

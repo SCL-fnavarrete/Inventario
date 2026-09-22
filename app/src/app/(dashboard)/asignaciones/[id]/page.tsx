@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
-  FileText,
   // Se sigue usando en la seccion "Datos de Devolucion", que es solo
   // informativa (no hay boton para registrar una devolucion desde aca).
   Undo2,
@@ -145,11 +144,7 @@ export default function AsignacionDetailPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetchAssignment();
-  }, [id]);
-
-  async function fetchAssignment() {
+  const fetchAssignment = useCallback(async () => {
     try {
       const res = await fetch(`/api/asignaciones/${id}`);
       if (!res.ok) {
@@ -162,7 +157,11 @@ export default function AsignacionDetailPage({
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
+
+  useEffect(() => {
+    fetchAssignment();
+  }, [fetchAssignment]);
 
   if (loading) {
     return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -77,10 +77,6 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
     sedeId: "",
   });
 
-  useEffect(() => {
-    fetchEmployee();
-  }, [id]);
-
   // La sede solo la puede reasignar admin (ver PUT /api/empleados/[id]);
   // el tecnico ni siquiera necesita ver el select.
   useEffect(() => {
@@ -91,7 +87,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
       .catch(() => setSedes([]));
   }, [esAdmin]);
 
-  async function fetchEmployee() {
+  const fetchEmployee = useCallback(async () => {
     try {
       const res = await fetch(`/api/empleados/${id}`);
       if (!res.ok) {
@@ -125,7 +121,11 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
+
+  useEffect(() => {
+    fetchEmployee();
+  }, [fetchEmployee]);
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>

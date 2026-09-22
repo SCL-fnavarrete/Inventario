@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Save } from "lucide-react";
@@ -48,11 +48,7 @@ export default function EditarActivoPage({
     tipoLicenciaMicrosoft365: "",
   });
 
-  useEffect(() => {
-    fetchData();
-  }, [id]);
-
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     try {
       const [catRes, assetRes] = await Promise.all([
         fetch("/api/categorias"),
@@ -101,7 +97,11 @@ export default function EditarActivoPage({
     } finally {
       setLoadingData(false);
     }
-  }
+  }, [id]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>

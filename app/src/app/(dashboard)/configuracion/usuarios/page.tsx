@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Save, X, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Plus, Edit, Trash2, Save, ShieldCheck, ShieldAlert } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 

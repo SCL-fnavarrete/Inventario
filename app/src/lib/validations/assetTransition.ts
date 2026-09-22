@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { estadoActivoEnum, condicionActivoEnum } from './asset';
+import { estadoActivoEnum } from './asset';
 
 // Transiciones válidas del ciclo de vida de activos
 export const assetTransitionSchema = z.object({

@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { logger } from "@/lib/logger";
-import * as XLSX from "xlsx";
 import { formatearRut, validarDigitoVerificador, limpiarRut } from "@/lib/validations/rut";
 import { convertExcelDateValue, parseDDMMYYYYToDate } from "@/lib/excel-utils";
 import {
@@ -104,9 +102,9 @@ export async function POST(request: NextRequest) {
         const rut = formatearRut(rutRaw);
         const nombres = valorColumna(row, COLUMNAS_EMPLEADO.nombres);
         const apellidoPaterno = valorColumna(row, COLUMNAS_EMPLEADO.apellidoPaterno);
-        // La columna de correo de la planilla trae la cuenta corporativa,
-        // que es la obligatoria en el modelo.
-        const correoEmpresa = valorColumna(row, COLUMNAS_EMPLEADO.correoPersonal);
+        // La planilla trae un solo correo por persona; se guarda como
+        // correo personal, que es el obligatorio del modelo.
+        const correoPersonal = valorColumna(row, COLUMNAS_EMPLEADO.correoPersonal);
 
         // Validar campos requeridos
         if (!nombres) {
@@ -117,8 +115,8 @@ export async function POST(request: NextRequest) {
           results.errors.push({ row: rowNum, rut, error: "Apellido paterno requerido" });
           continue;
         }
-        if (!correoEmpresa) {
-          results.errors.push({ row: rowNum, rut, error: "Correo de empresa requerido" });
+        if (!correoPersonal) {
+          results.errors.push({ row: rowNum, rut, error: "Correo requerido" });
           continue;
         }
 
@@ -168,7 +166,7 @@ export async function POST(request: NextRequest) {
           rut,
           nombres,
           apellidoPaterno,
-          correoEmpresa: correoEmpresa.toLowerCase(),
+          correoPersonal: correoPersonal.toLowerCase(),
           ...(apellidoMaterno !== undefined && { apellidoMaterno }),
           ...(cargo !== undefined && { cargo }),
           ...(jefatura !== undefined && { jefatura }),
@@ -192,16 +190,16 @@ export async function POST(request: NextRequest) {
           });
           results.updated++;
         } else {
-          // Verificar correo de empresa único
+          // Verificar correo personal único
           const existingByEmail = await prisma.employee.findUnique({
-            where: { correoEmpresa: employeeData.correoEmpresa },
+            where: { correoPersonal: employeeData.correoPersonal },
           });
 
           if (existingByEmail) {
             results.errors.push({
               row: rowNum,
               rut,
-              error: `Correo ${employeeData.correoEmpresa} ya existe para otro empleado`,
+              error: `Correo ${employeeData.correoPersonal} ya existe para otro empleado`,
             });
             continue;
           }

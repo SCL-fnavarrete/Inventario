@@ -32,10 +32,11 @@ export const createEmployeeSchema = z.object({
   nombres: z.string().min(1, "El nombre es requerido").max(100, "Máximo 100 caracteres"),
   apellidoPaterno: z.string().min(1, "El apellido paterno es requerido").max(100, "Máximo 100 caracteres"),
   apellidoMaterno: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
-  // El obligatorio es el correo de empresa, no el personal: es el que
-  // siempre existe y con el que se identifica a la persona.
-  correoPersonal: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional().nullable(),
-  correoEmpresa: z.string().email("Email inválido").max(150, "Máximo 150 caracteres"),
+  // El obligatorio es el correo personal: es el unico que se exige y con
+  // el que se identifica a la persona. El de empresa quedo opcional (se
+  // conserva si viene del Excel, pero ya no es requisito).
+  correoPersonal: z.string().email("Email inválido").max(150, "Máximo 150 caracteres"),
+  correoEmpresa: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional().nullable(),
   cargo: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   jefatura: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   supervisor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
@@ -63,11 +64,11 @@ export const updateEmployeeSchema = z.object({
   nombres: z.string().min(1, "El nombre es requerido").max(100, "Máximo 100 caracteres").optional(),
   apellidoPaterno: z.string().min(1, "El apellido paterno es requerido").max(100, "Máximo 100 caracteres").optional(),
   apellidoMaterno: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
-  correoPersonal: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional().nullable(),
-  // En la edicion sigue siendo `.optional()` (como todo el resto de este
-  // schema, que permite actualizaciones parciales), pero ya no acepta null:
-  // un empleado no puede quedarse sin correo de empresa.
-  correoEmpresa: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional(),
+  // Sigue siendo `.optional()` porque este schema permite actualizaciones
+  // parciales (el campo puede no venir en la peticion), pero ya no acepta
+  // null: un empleado no puede quedarse sin correo personal.
+  correoPersonal: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional(),
+  correoEmpresa: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional().nullable(),
   cargo: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   jefatura: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   supervisor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
@@ -110,10 +111,10 @@ export const importEmployeeSchema = z.object({
   nombres: z.string().min(1, "El nombre es requerido"),
   apellidoPaterno: z.string().min(1, "El apellido paterno es requerido"),
   apellidoMaterno: z.string().optional().nullable(),
-  // La planilla trae la cuenta corporativa, asi que el correo obligatorio
-  // de la importacion es el de empresa. El particular queda opcional.
-  correoEmpresa: z.string().email("Email inválido"),
-  correoPersonal: z.string().email("Email inválido").optional().nullable(),
+  // El correo obligatorio de la importacion es el personal, igual que en
+  // el resto del sistema; el de empresa queda opcional.
+  correoPersonal: z.string().email("Email inválido"),
+  correoEmpresa: z.string().email("Email inválido").optional().nullable(),
   cargo: z.string().optional().nullable(),
   jefatura: z.string().optional().nullable(),
   supervisor: z.string().optional().nullable(),

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { updateMaintenanceSchema, completeMaintenanceSchema } from "@/lib/validations/maintenance";
+import { updateMaintenanceSchema } from "@/lib/validations/maintenance";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';

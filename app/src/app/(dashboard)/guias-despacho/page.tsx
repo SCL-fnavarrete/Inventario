@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Plus, Search } from "lucide-react";
 import { GuiaDespachoTable } from "@/components/guias-despacho/GuiaDespachoTable";
 import { ESTADO_GUIA_LABELS, type DispatchGuideListItem } from "@/types/guia-despacho";
-import { EstadoGuia } from "@prisma/client";
 import { Can } from "@/components/auth/Can";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";

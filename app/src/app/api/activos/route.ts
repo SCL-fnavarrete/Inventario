@@ -93,6 +93,9 @@ export async function GET(request: NextRequest) {
               cargo: true
             },
           },
+          sede: {
+            select: { id: true, nombre: true },
+          },
         },
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * limit,

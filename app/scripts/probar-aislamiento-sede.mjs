@@ -97,7 +97,6 @@ async function iniciarSesion(email, password, etiqueta) {
 }
 
 // ------------------------------------------------------------------ ayudas
-const esVacio = (d) => !d || (Array.isArray(d) ? d.length === 0 : (d.data || []).length === 0);
 const filas = (d) => (Array.isArray(d) ? d : d?.data || []);
 
 /** Busca en un JSON cualquier rastro de una cadena (serie, RUT, nombre). */

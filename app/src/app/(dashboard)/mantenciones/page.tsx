@@ -6,7 +6,6 @@ import {
   Wrench,
   Plus,
   Search,
-  Filter,
   Calendar,
   AlertTriangle,
   CheckCircle,
@@ -112,14 +111,6 @@ function getCategoryIcon(categoryName: string) {
 function formatDate(dateString: string | null): string {
   if (!dateString) return "-";
   return formatearFecha(dateString);
-}
-
-function formatCurrency(amount: number | null): string {
-  if (!amount) return "-";
-  return new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: "CLP",
-  }).format(amount);
 }
 
 function isOverdue(fechaProgramada: string | null, estado: string): boolean {

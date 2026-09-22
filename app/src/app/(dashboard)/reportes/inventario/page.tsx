@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { ArrowLeft, Download, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, FileSpreadsheet } from "lucide-react";
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";

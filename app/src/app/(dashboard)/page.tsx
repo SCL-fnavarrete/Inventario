@@ -9,7 +9,6 @@ import {
   Smartphone,
   Monitor,
   Users,
-  AlertTriangle,
   CheckCircle,
   Wrench,
   TrendingUp,
@@ -302,14 +301,6 @@ export default async function DashboardPage() {
   // cacheada con los totales de otra sede.
   const sedeIdFiltro = (await cookies()).get("inventario-sede-seleccionada")?.value || null;
   const data = await getDashboardData(session, sedeIdFiltro);
-
-  const totalAlertas =
-    data.mantencionesVencidas.length +
-    data.mantencionesProximas.length +
-    data.sinStockItems.length +
-    data.bajoStockItems.length +
-    data.sinStockCategorias.length +
-    data.bajoStockCategorias.length;
 
   return (
     <div className="space-y-6">

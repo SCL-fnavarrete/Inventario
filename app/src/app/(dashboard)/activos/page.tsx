@@ -61,6 +61,7 @@ type Asset = {
     id: string;
     nombre: string;
   };
+  sede: { id: string; nombre: string } | null;
   empleadoActual: {
     id: string;
     nombres: string;
@@ -161,7 +162,7 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: "asignado", label: "Asignado a", visible: true },
   { id: "specs", label: "Especificaciones", visible: true },
   { id: "fechaCompra", label: "Fecha Compra", visible: true },
-  { id: "ubicacion", label: "Ubicaci\u00f3n", visible: true },
+  { id: "sede", label: "Sede", visible: true },
   { id: "software", label: "Software", visible: true },
   { id: "acciones", label: "Acciones", visible: true, required: true },
 ];
@@ -209,7 +210,10 @@ function ActivosPageContent() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"table" | "cards" | "kanban">("table");
   const [bajaModalAssetId, setBajaModalAssetId] = useState<string | null>(null);
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  // El setter solo lo usaba handleStatusChange, que esta comentado mas
+  // abajo (drag-and-drop de Kanban deshabilitado); isUpdatingStatus queda
+  // en false, que es el comportamiento actual real.
+  const [isUpdatingStatus] = useState(false);
   // Message shown when a Kanban card move is not allowed.
   const [kanbanError, setKanbanError] = useState<string | null>(null);
 
@@ -830,13 +834,13 @@ function ActivosPageContent() {
                           </td>
                         )}
 
-                        {/* Ubicacion */}
-                        {visibleColumns.find((c) => c.id === "ubicacion") && (
+                        {/* Sede */}
+                        {visibleColumns.find((c) => c.id === "sede") && (
                           <td className="px-4 py-3 whitespace-nowrap align-top">
-                            {asset.ubicacionFisica ? (
+                            {asset.sede?.nombre ? (
                               <div className="flex items-center gap-1 text-sm text-gray-600">
                                 <MapPin size={14} className="text-gray-400" />
-                                <span>{asset.ubicacionFisica}</span>
+                                <span>{asset.sede.nombre}</span>
                               </div>
                             ) : (
                               <p className="text-sm text-gray-400">-</p>
@@ -1013,10 +1017,10 @@ function ActivosPageContent() {
                                       </span>
                                     </dd>
                                   </div>
-                                  {asset.ubicacionFisica && (
+                                  {asset.sede?.nombre && (
                                     <div className="flex justify-between">
-                                      <dt className="text-gray-500">Ubicación:</dt>
-                                      <dd className="text-gray-900">{asset.ubicacionFisica}</dd>
+                                      <dt className="text-gray-500">Sede:</dt>
+                                      <dd className="text-gray-900">{asset.sede.nombre}</dd>
                                     </div>
                                   )}
                                 </dl>

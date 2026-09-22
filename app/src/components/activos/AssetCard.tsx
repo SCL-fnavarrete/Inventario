@@ -16,7 +16,7 @@ import {
   Edit2
 } from "lucide-react";
 import { createElement } from "react";
-import { Badge, AssetStatusBadge } from "@/components/ui/Badge";
+import { AssetStatusBadge } from "@/components/ui/Badge";
 import Link from "next/link";
 import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 

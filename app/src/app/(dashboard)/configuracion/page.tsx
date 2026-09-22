@@ -8,6 +8,7 @@ import {
   ShieldAlert,
   MapPin,
   History,
+  ListChecks,
 } from "lucide-react";
 
 // Proveedores and Microsoft Sync are hidden from this menu (their
@@ -28,6 +29,14 @@ const configSections = [
     href: "/configuracion/categorias",
     icon: FolderTree,
     color: "bg-blue-100 text-blue-600",
+    adminOnly: false,
+  },
+  {
+    title: "Opciones de Activos",
+    description: "Administra las opciones de Sistema Operativo, Antivirus y Licencia Microsoft 365",
+    href: "/configuracion/opciones-activos",
+    icon: ListChecks,
+    color: "bg-cyan-100 text-cyan-600",
     adminOnly: false,
   },
   {

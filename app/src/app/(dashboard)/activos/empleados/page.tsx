@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   Search,
-  Filter,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -13,7 +12,6 @@ import {
   User,
   Users,
   UserX,
-  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ActivosTabs } from "@/components/activos";
@@ -34,7 +32,9 @@ type Employee = {
   correoPersonal?: string | null;
   cargo: string | null;
   jefatura: string | null;
+  supervisor: string | null;
   ubicacion: string | null;
+  sede: { id: string; nombre: string } | null;
   tipoContrato: TipoContrato;
   estado: EstadoEmpleado;
   fechaIngreso: string | null;
@@ -43,6 +43,12 @@ type Employee = {
     assignments: number;
     kitAssignments: number;
   };
+};
+
+type Sede = {
+  id: string;
+  codigo: string;
+  nombre: string;
 };
 
 type Pagination = {
@@ -84,8 +90,8 @@ export default function PersonalPage() {
   const { data: session } = useSession();
   // Selecting a sede in the nav also filters this screen.
   const { sedeSeleccionada } = useSedeSeleccionada();
-  // Ubicaciones is a legacy free-text field superseded by Sede; its
-  // filter/card are admin-only.
+  // Sede filter (local to this screen) is admin-only, like the legacy
+  // ubicacion filter it replaces.
   const esAdmin = session?.user?.role === "admin";
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
@@ -100,8 +106,8 @@ export default function PersonalPage() {
   const debouncedSearch = useDebouncedValue(search, 350);
   const [estadoFilter, setEstadoFilter] = useState("");
   const [tipoContratoFilter, setTipoContratoFilter] = useState("");
-  const [ubicacionFilter, setUbicacionFilter] = useState("");
-  const [ubicaciones, setUbicaciones] = useState<string[]>([]);
+  const [sedeFilter, setSedeFilter] = useState("");
+  const [sedes, setSedes] = useState<Sede[]>([]);
   const [stats, setStats] = useState<Stats>({
     totalEmpleados: 0,
     activos: 0,
@@ -111,11 +117,11 @@ export default function PersonalPage() {
   useEffect(() => {
     fetchEmployees();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.page, debouncedSearch, estadoFilter, tipoContratoFilter, ubicacionFilter, sedeSeleccionada]);
+  }, [pagination.page, debouncedSearch, estadoFilter, tipoContratoFilter, sedeFilter, sedeSeleccionada]);
 
   useEffect(() => {
     if (esAdmin) {
-      fetchUbicaciones();
+      fetchSedes();
     }
     fetchStats();
     // Recompute stat cards when the sede filter changes so they don't stay
@@ -123,38 +129,13 @@ export default function PersonalPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [esAdmin, sedeSeleccionada]);
 
-  async function fetchUbicaciones() {
+  async function fetchSedes() {
     try {
-      const res = await fetch("/api/empleados?limit=100");
+      const res = await fetch("/api/sedes?activas=true");
       const data = await res.json();
-
-      if (!res.ok || !data.data) {
-        console.error("Error fetching ubicaciones:", data.error);
-        return;
-      }
-
-      const allEmployees: Employee[] = [...data.data];
-      const totalPages = data.pagination?.totalPages || 1;
-
-      if (totalPages > 1) {
-        const promises = [];
-        for (let page = 2; page <= Math.min(totalPages, 10); page++) {
-          promises.push(fetch(`/api/empleados?limit=100&page=${page}`).then((r) => r.json()));
-        }
-        const results = await Promise.all(promises);
-        results.forEach((result) => {
-          if (result.data) {
-            allEmployees.push(...result.data);
-          }
-        });
-      }
-
-      const uniqueUbicaciones = [...new Set(
-        allEmployees.filter((e: Employee) => e.ubicacion).map((e: Employee) => e.ubicacion)
-      )] as string[];
-      setUbicaciones(uniqueUbicaciones);
+      setSedes(data);
     } catch (error) {
-      console.error("Error fetching ubicaciones:", error);
+      console.error("Error fetching sedes:", error);
     }
   }
 
@@ -212,8 +193,11 @@ export default function PersonalPage() {
       if (terminoBusqueda) params.append("search", terminoBusqueda);
       if (estadoFilter) params.append("estado", estadoFilter);
       if (tipoContratoFilter) params.append("tipoContrato", tipoContratoFilter);
-      if (ubicacionFilter) params.append("ubicacion", ubicacionFilter);
-      if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
+      // sedeFilter (local, admin-only) narrows further within whatever the
+      // global nav sede filter already scopes to; both map to the same
+      // sedeId param, so the local one takes precedence when set.
+      if (sedeFilter) params.append("sedeId", sedeFilter);
+      else if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
 
       const res = await fetch(`/api/empleados?${params}`);
       const data = await res.json();
@@ -237,7 +221,7 @@ export default function PersonalPage() {
     if (filterType === "reset") {
       setEstadoFilter("");
       setTipoContratoFilter("");
-      setUbicacionFilter("");
+      setSedeFilter("");
       setSearch("");
       setPagination((prev) => ({ ...prev, page: 1 }));
     } else {
@@ -246,7 +230,7 @@ export default function PersonalPage() {
     }
   }
 
-  const hasActiveFilters = estadoFilter || tipoContratoFilter || ubicacionFilter || search;
+  const hasActiveFilters = estadoFilter || tipoContratoFilter || sedeFilter || search;
 
   return (
     <div className="space-y-6">
@@ -380,27 +364,21 @@ export default function PersonalPage() {
             </select>
             {esAdmin && (
               <select
-                value={ubicacionFilter}
+                value={sedeFilter}
                 onChange={(e) => {
-                  setUbicacionFilter(e.target.value);
+                  setSedeFilter(e.target.value);
                   setPagination((prev) => ({ ...prev, page: 1 }));
                 }}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="">Todas las ubicaciones</option>
-                {ubicaciones.map((ubi) => (
-                  <option key={ubi} value={ubi}>
-                    {ubi}
+                <option value="">Todas las sedes</option>
+                {sedes.map((sede) => (
+                  <option key={sede.id} value={sede.id}>
+                    {sede.nombre}
                   </option>
                 ))}
               </select>
             )}
-            <button
-              type="submit"
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <Filter size={20} />
-            </button>
           </div>
         </form>
       </div>
@@ -424,6 +402,18 @@ export default function PersonalPage() {
                   Cargo
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Jefe
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Supervisor
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Ubicación
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Sede
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Contrato
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -440,13 +430,13 @@ export default function PersonalPage() {
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={11} className="px-6 py-12 text-center text-gray-500">
                     Cargando...
                   </td>
                 </tr>
               ) : employees.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={11} className="px-6 py-12 text-center text-gray-500">
                     No se encontraron empleados
                   </td>
                 </tr>
@@ -459,37 +449,34 @@ export default function PersonalPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">
-                          {employee.nombres} {employee.apellidoPaterno}
-                          {employee.origenMicrosoft && (
-                            <span className="ml-1.5 inline-flex items-center text-[10px] bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded font-normal">
-                              Microsoft
-                            </span>
-                          )}
-                        </p>
-                        {employee.ubicacion && (
-                          <p className="text-xs text-gray-500 flex items-center gap-1">
-                            <MapPin size={12} />
-                            {employee.ubicacion}
-                          </p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {employee.nombres} {employee.apellidoPaterno}
+                        {employee.origenMicrosoft && (
+                          <span className="ml-1.5 inline-flex items-center text-[10px] bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded font-normal">
+                            Microsoft
+                          </span>
                         )}
-                      </div>
+                      </p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-gray-600">{employee.correoEmpresa ?? employee.correoPersonal ?? ''}</p>
+                      <p className="text-sm text-gray-600">{employee.correoPersonal ?? employee.correoEmpresa ?? ''}</p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <p className="text-sm text-gray-900">
-                          {employee.cargo || "-"}
-                        </p>
-                        {employee.jefatura && (
-                          <p className="text-xs text-gray-500">
-                            Jefe: {employee.jefatura}
-                          </p>
-                        )}
-                      </div>
+                      <p className="text-sm text-gray-900">
+                        {employee.cargo || "-"}
+                      </p>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <p className="text-sm text-gray-600">{employee.jefatura || "-"}</p>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <p className="text-sm text-gray-600">{employee.supervisor || "-"}</p>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <p className="text-sm text-gray-600">{employee.ubicacion || "-"}</p>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <p className="text-sm text-gray-600">{employee.sede?.nombre || "-"}</p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span

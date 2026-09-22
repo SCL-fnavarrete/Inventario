@@ -7,6 +7,8 @@ import Link from "next/link";
 import { ArrowLeft, Save } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { CatalogSelect } from "@/components/ui/CatalogSelect";
+import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 
 type Category = {
   id: string;
@@ -22,6 +24,7 @@ type Sede = {
 export default function NuevoActivoPage() {
   const router = useRouter();
   const { data: session } = useSession();
+  const { sedeSeleccionada } = useSedeSeleccionada();
   // The sede field is visible to any role; it defaults to the user's own
   // sede (see the useEffect below and sedeScope.ts) but can be changed
   // explicitly since a user may manage assets across sedes.
@@ -60,13 +63,18 @@ export default function NuevoActivoPage() {
     fetchSedes();
   }, []);
 
-  // Prefill the user's own sede once the session loads; `|| prev.sedeId`
-  // avoids overwriting a manual selection made before the session resolved.
+  // Prefill de sede: la sede elegida en el nav (sedeSeleccionada) manda
+  // sobre la sede propia de la sesion -- el hook ya devuelve la sede propia
+  // como "sedeSeleccionada" para quien tiene la sede bloqueada (no admin),
+  // asi que aca solo hace falta mirar ese valor. Si el nav esta en "Todas
+  // las sedes" (null, solo posible para admin), el campo queda vacio y el
+  // usuario debe elegirla explicitamente antes de guardar. `|| prev.sedeId`
+  // evita pisar una seleccion manual ya hecha en el formulario.
   useEffect(() => {
-    if (session?.user?.sedeId) {
-      setFormData((prev) => ({ ...prev, sedeId: prev.sedeId || session.user.sedeId! }));
+    if (sedeSeleccionada) {
+      setFormData((prev) => ({ ...prev, sedeId: prev.sedeId || sedeSeleccionada }));
     }
-  }, [session?.user?.sedeId]);
+  }, [sedeSeleccionada]);
 
   async function fetchCategories() {
     try {
@@ -377,26 +385,22 @@ export default function NuevoActivoPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Sistema Operativo
                 </label>
-                <input
-                  type="text"
-                  name="sistemaOperativo"
+                <CatalogSelect
+                  endpoint="/api/sistemas-operativos"
                   value={formData.sistemaOperativo}
-                  onChange={handleChange}
-                  placeholder="ej: Windows 11 Pro"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  onChange={(nombre) => setFormData((prev) => ({ ...prev, sistemaOperativo: nombre }))}
+                  placeholder="Selecciona un sistema operativo"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Antivirus
                 </label>
-                <input
-                  type="text"
-                  name="antivirus"
+                <CatalogSelect
+                  endpoint="/api/antivirus"
                   value={formData.antivirus}
-                  onChange={handleChange}
-                  placeholder="ej: Windows Defender"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  onChange={(nombre) => setFormData((prev) => ({ ...prev, antivirus: nombre }))}
+                  placeholder="Selecciona un antivirus"
                 />
               </div>
               {/* The network name is requested when the asset is assigned
@@ -406,13 +410,11 @@ export default function NuevoActivoPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Licencia Microsoft 365
                 </label>
-                <input
-                  type="text"
-                  name="tipoLicenciaMicrosoft365"
+                <CatalogSelect
+                  endpoint="/api/licencias-m365"
                   value={formData.tipoLicenciaMicrosoft365}
-                  onChange={handleChange}
-                  placeholder="ej: Premium (vacío si no tiene)"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  onChange={(nombre) => setFormData((prev) => ({ ...prev, tipoLicenciaMicrosoft365: nombre }))}
+                  placeholder="Selecciona una licencia (vacío si no tiene)"
                 />
               </div>
             </div>

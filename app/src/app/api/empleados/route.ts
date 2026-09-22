@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
         },
         orderBy: { [filters.sortBy]: filters.sortOrder },
         include: {
+          sede: { select: { id: true, nombre: true } },
           _count: {
             select: {
               assignments: { where: { activo: true } },
@@ -130,6 +131,7 @@ export async function GET(request: NextRequest) {
           take: filters.limit,
           orderBy: { [filters.sortBy]: filters.sortOrder },
           include: {
+            sede: { select: { id: true, nombre: true } },
             _count: {
               select: {
                 assignments: { where: { activo: true } },
@@ -187,27 +189,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verificar si ya existe un empleado con el mismo correo de empresa
-    // (obligatorio); el correo personal solo se valida si viene.
-    const existingByCorreoEmpresa = await prisma.employee.findUnique({
-      where: { correoEmpresa: data.correoEmpresa },
+    // Verificar si ya existe un empleado con el mismo correo personal
+    // (obligatorio); el de empresa solo se valida si viene.
+    const existingByCorreoPersonal = await prisma.employee.findUnique({
+      where: { correoPersonal: data.correoPersonal },
     });
 
-    if (existingByCorreoEmpresa) {
+    if (existingByCorreoPersonal) {
       return NextResponse.json(
-        { error: "Ya existe un empleado con este correo de empresa" },
+        { error: "Ya existe un empleado con este correo personal" },
         { status: 409 }
       );
     }
 
-    if (data.correoPersonal) {
-      const existingByEmail = await prisma.employee.findUnique({
-        where: { correoPersonal: data.correoPersonal },
+    if (data.correoEmpresa) {
+      const existingByCorreoEmpresa = await prisma.employee.findUnique({
+        where: { correoEmpresa: data.correoEmpresa },
       });
 
-      if (existingByEmail) {
+      if (existingByCorreoEmpresa) {
         return NextResponse.json(
-          { error: "Ya existe un empleado con este correo personal" },
+          { error: "Ya existe un empleado con este correo de empresa" },
           { status: 409 }
         );
       }

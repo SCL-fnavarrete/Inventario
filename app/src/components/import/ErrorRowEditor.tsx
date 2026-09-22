@@ -3,15 +3,47 @@
 import { useState } from "react";
 import { AlertCircle, CheckCircle, Edit2, Save, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CatalogSelect } from "@/components/ui/CatalogSelect";
 import type { ImportRowStatus, ValidationError } from "@/types/import";
+import type { EstadoActivo, CondicionActivo } from "@prisma/client";
+
+type Sede = { id: string; nombre: string };
 
 interface ErrorRowEditorProps {
   row: ImportRowStatus;
   fieldLabels: Record<string, string>;
+  sedes: Sede[];
   onSave: (rowIndex: number, updatedData: Record<string, string>) => void;
 }
 
-export function ErrorRowEditor({ row, fieldLabels, onSave }: ErrorRowEditorProps) {
+// Mismas etiquetas que usa el listado de activos (src/app/(dashboard)/activos/page.tsx),
+// duplicadas aqui porque ese archivo no las exporta.
+const estadoLabels: Record<EstadoActivo, string> = {
+  disponible: "Disponible",
+  asignado: "Asignado",
+  en_mantencion: "En Mantención",
+  no_devuelto: "No devuelto",
+  baja: "Baja",
+  vendido: "Vendido",
+};
+
+const condicionLabels: Record<CondicionActivo, string> = {
+  nuevo: "Nuevo",
+  usado: "Usado",
+  danado: "Dañado",
+};
+
+// Campos importados que alimentan directamente un catalogo administrable
+// (CatalogSelect), en vez de dominio fijo o texto libre.
+const CATALOG_FIELD_ENDPOINTS: Record<string, string> = {
+  sistemaOperativo: "/api/sistemas-operativos",
+  antivirus: "/api/antivirus",
+  // La columna de importacion "microsoft365" alimenta el campo
+  // tipoLicenciaMicrosoft365 del activo (ver src/lib/importacion/procesarFila.ts).
+  microsoft365: "/api/licencias-m365",
+};
+
+export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEditorProps) {
   const [editedData, setEditedData] = useState<Record<string, string>>(row.data);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -132,15 +164,7 @@ export function ErrorRowEditor({ row, fieldLabels, onSave }: ErrorRowEditorProps
                 {hasError && <span className="text-red-500 ml-1">*</span>}
               </label>
               {isEditing ? (
-                <input
-                  type="text"
-                  value={editedData[fieldKey] || ""}
-                  onChange={(e) => handleFieldChange(fieldKey, e.target.value)}
-                  className={cn(
-                    "w-full px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none",
-                    hasError ? "border-red-400 bg-red-50" : "border-gray-300"
-                  )}
-                />
+                renderEditControl(fieldKey, editedData[fieldKey] || "", handleFieldChange, hasError, sedes)
               ) : (
                 <div
                   className={cn(
@@ -157,5 +181,101 @@ export function ErrorRowEditor({ row, fieldLabels, onSave }: ErrorRowEditorProps
         })}
       </div>
     </div>
+  );
+}
+
+const inputClassName = (hasError: boolean) =>
+  cn(
+    "w-full px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none",
+    hasError ? "border-red-400 bg-red-50" : "border-gray-300"
+  );
+
+/**
+ * Decide que control mostrar para un campo en edicion. Los campos con
+ * dominio cerrado (sede, estado, condicion) o alimentados por un catalogo
+ * administrable (sistema operativo, antivirus, licencia M365) usan un
+ * select en vez de texto libre; el resto sigue como input de texto.
+ */
+function renderEditControl(
+  fieldKey: string,
+  value: string,
+  handleFieldChange: (field: string, value: string) => void,
+  hasError: boolean,
+  sedes: Sede[]
+) {
+  if (fieldKey === "sede" || fieldKey === "sedeId") {
+    return (
+      <select
+        value={value}
+        onChange={(e) => handleFieldChange(fieldKey, e.target.value)}
+        className={inputClassName(hasError)}
+      >
+        <option value="">Selecciona una sede...</option>
+        {sedes.map((s) => (
+          <option key={s.id} value={s.nombre}>
+            {s.nombre}
+          </option>
+        ))}
+        {/* Valor historico que no matchea ninguna sede activa: se deja
+            visible para no perderlo de vista aunque no este en la lista. */}
+        {value && !sedes.some((s) => s.nombre === value) && (
+          <option value={value}>{value}</option>
+        )}
+      </select>
+    );
+  }
+
+  if (fieldKey === "estado") {
+    return (
+      <select
+        value={value}
+        onChange={(e) => handleFieldChange(fieldKey, e.target.value)}
+        className={inputClassName(hasError)}
+      >
+        <option value="">Selecciona un estado...</option>
+        {(Object.entries(estadoLabels) as [EstadoActivo, string][]).map(([valor, label]) => (
+          <option key={valor} value={valor}>
+            {label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  if (fieldKey === "condicion") {
+    return (
+      <select
+        value={value}
+        onChange={(e) => handleFieldChange(fieldKey, e.target.value)}
+        className={inputClassName(hasError)}
+      >
+        <option value="">Selecciona una condición...</option>
+        {(Object.entries(condicionLabels) as [CondicionActivo, string][]).map(([valor, label]) => (
+          <option key={valor} value={valor}>
+            {label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  const catalogEndpoint = CATALOG_FIELD_ENDPOINTS[fieldKey];
+  if (catalogEndpoint) {
+    return (
+      <CatalogSelect
+        endpoint={catalogEndpoint}
+        value={value}
+        onChange={(nombre) => handleFieldChange(fieldKey, nombre)}
+      />
+    );
+  }
+
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => handleFieldChange(fieldKey, e.target.value)}
+      className={inputClassName(hasError)}
+    />
   );
 }

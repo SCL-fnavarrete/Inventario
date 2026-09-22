@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -150,11 +150,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchFicha();
-  }, [id]);
-
-  async function fetchFicha() {
+  const fetchFicha = useCallback(async () => {
     try {
       const res = await fetch(`/api/empleados/${id}/ficha`);
       if (!res.ok) {
@@ -167,7 +163,11 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
+
+  useEffect(() => {
+    fetchFicha();
+  }, [fetchFicha]);
 
   if (loading) {
     return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
@@ -80,11 +80,7 @@ export default function GuiaDespachoDetailPage({
     fechaRecepcion: new Date().toISOString().slice(0, 16),
   });
 
-  useEffect(() => {
-    fetchGuide();
-  }, [id]);
-
-  async function fetchGuide() {
+  const fetchGuide = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/guias-despacho/${id}`);
@@ -98,7 +94,11 @@ export default function GuiaDespachoDetailPage({
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
+
+  useEffect(() => {
+    fetchGuide();
+  }, [fetchGuide]);
 
   async function handleConfirmarRecepcion() {
     setUpdating(true);

@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AlertTriangle, ArrowLeft, CheckCircle, Download, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ErrorRowEditor } from "./ErrorRowEditor";
 import type { ImportRowStatus } from "@/types/import";
+
+type Sede = { id: string; nombre: string };
 
 interface ErrorReviewPanelProps {
   errorRows: ImportRowStatus[];
@@ -36,6 +38,27 @@ export function ErrorReviewPanel({
     new Map()
   );
   const [filter, setFilter] = useState<"all" | "errors" | "corrected">("all");
+
+  // Sedes reales para el selector de "Sede" al corregir una fila. Se
+  // fetchean una sola vez aqui (no por cada fila del editor) para no
+  // repetir la misma consulta cuando hay muchas filas con errores.
+  const [sedes, setSedes] = useState<Sede[]>([]);
+  useEffect(() => {
+    let cancelado = false;
+    async function cargarSedes() {
+      try {
+        const res = await fetch("/api/sedes?activas=true");
+        const data = await res.json();
+        if (!cancelado) setSedes(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelado) setSedes([]);
+      }
+    }
+    cargarSedes();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   const handleRowSave = (rowIndex: number, updatedData: Record<string, string>) => {
     setCorrectedRows((prev) => new Map(prev).set(rowIndex, updatedData));
@@ -159,6 +182,7 @@ export function ErrorReviewPanel({
               key={row.rowIndex}
               row={row}
               fieldLabels={fieldLabels}
+              sedes={sedes}
               onSave={handleRowSave}
             />
           ))

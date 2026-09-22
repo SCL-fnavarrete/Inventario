@@ -402,7 +402,7 @@ export default function NuevaSolicitudPage() {
           nombres: newEmp.nombres,
           apellidoPaterno: newEmp.apellidoPaterno,
           apellidoMaterno: newEmp.apellidoMaterno || null,
-          correoEmpresa: newEmp.correoEmpresa,
+          correoEmpresa: newEmp.correoEmpresa || null,
           correoPersonal: newEmp.correoPersonal || null,
           rut: newEmp.rut || null,
           cargo: newEmp.cargo || null,
@@ -598,11 +598,11 @@ export default function NuevaSolicitudPage() {
       if (
         !onboardingEmp.nombres.trim() ||
         !onboardingEmp.apellidoPaterno.trim() ||
-        // El obligatorio es el correo de empresa.
-        !onboardingEmp.correoEmpresa.trim() ||
+        // El obligatorio es el correo personal.
+        !onboardingEmp.correoPersonal.trim() ||
         !onboardingEmp.cargo.trim()
       ) {
-        setOnboardingEmpError('Nombres, apellido paterno, correo de empresa y cargo son obligatorios.');
+        setOnboardingEmpError('Nombres, apellido paterno, correo personal y cargo son obligatorios.');
         return;
       }
       if (!fechaIngreso) {
@@ -759,7 +759,7 @@ export default function NuevaSolicitudPage() {
             nombres: onboardingEmp.nombres,
             apellidoPaterno: onboardingEmp.apellidoPaterno,
             apellidoMaterno: onboardingEmp.apellidoMaterno || null,
-            correoEmpresa: onboardingEmp.correoEmpresa,
+            correoEmpresa: onboardingEmp.correoEmpresa || null,
             correoPersonal: onboardingEmp.correoPersonal || null,
             rut: onboardingEmp.rut || null,
             cargo: onboardingEmp.cargo || null,
@@ -1061,7 +1061,7 @@ export default function NuevaSolicitudPage() {
                         )}
                       </p>
                       <p className="text-sm text-gray-500">
-                        {selectedEmployee.rut || '—'} · {selectedEmployee.correoEmpresa ?? selectedEmployee.correoPersonal ?? ''}
+                        {selectedEmployee.rut || '—'} · {selectedEmployee.correoPersonal ?? selectedEmployee.correoEmpresa ?? ''}
                         {selectedEmployee.cargo ? ` · ${selectedEmployee.cargo}` : ''}
                       </p>
                     </div>
@@ -1108,7 +1108,7 @@ export default function NuevaSolicitudPage() {
                               <span className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
                                 <span>{emp.rut || 'Sin RUT'}</span>
                                 <span>·</span>
-                                <span>{emp.correoEmpresa ?? emp.correoPersonal ?? ''}</span>
+                                <span>{emp.correoPersonal ?? emp.correoEmpresa ?? ''}</span>
                                 {emp.cargo && (
                                   <>
                                     <span>·</span>
@@ -1228,22 +1228,22 @@ export default function NuevaSolicitudPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Correo Empresa *</label>
-                <input
-                  type="email"
-                  value={onboardingEmp.correoEmpresa}
-                  onChange={(e) => setOnboardingEmp({ ...onboardingEmp, correoEmpresa: e.target.value })}
-                  placeholder="nombre@sclconsultores.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Correo Personal</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Correo Personal *</label>
                 <input
                   type="email"
                   value={onboardingEmp.correoPersonal}
                   onChange={(e) => setOnboardingEmp({ ...onboardingEmp, correoPersonal: e.target.value })}
-                  placeholder="nombre.personal@gmail.com (opcional)"
+                  placeholder="nombre.personal@gmail.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Correo Empresa</label>
+                <input
+                  type="email"
+                  value={onboardingEmp.correoEmpresa}
+                  onChange={(e) => setOnboardingEmp({ ...onboardingEmp, correoEmpresa: e.target.value })}
+                  placeholder="nombre@sclconsultores.com (opcional)"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
@@ -1815,7 +1815,7 @@ export default function NuevaSolicitudPage() {
                     {selectedEmployee.apellidoMaterno ? ` ${selectedEmployee.apellidoMaterno}` : ''}
                   </p>
                   <p className="text-sm text-gray-500">
-                    {selectedEmployee.rut || '—'} · {selectedEmployee.correoEmpresa ?? selectedEmployee.correoPersonal ?? ''}
+                    {selectedEmployee.rut || '—'} · {selectedEmployee.correoPersonal ?? selectedEmployee.correoEmpresa ?? ''}
                     {selectedEmployee.cargo ? ` · ${selectedEmployee.cargo}` : ''}
                   </p>
                 </div>
@@ -1862,7 +1862,7 @@ export default function NuevaSolicitudPage() {
                           <span className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
                             <span>{emp.rut || 'Sin RUT'}</span>
                             <span>·</span>
-                            <span>{emp.correoEmpresa ?? emp.correoPersonal ?? ''}</span>
+                            <span>{emp.correoPersonal ?? emp.correoEmpresa ?? ''}</span>
                             {emp.cargo && (
                               <>
                                 <span>·</span>
@@ -2529,13 +2529,25 @@ export default function NuevaSolicitudPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Correo Empresa *
+                  Correo Personal *
+                </label>
+                <input
+                  type="email"
+                  value={newEmp.correoPersonal ?? ''}
+                  onChange={(e) => setNewEmp({ ...newEmp, correoPersonal: e.target.value })}
+                  placeholder="nombre.personal@gmail.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Correo Empresa
                 </label>
                 <input
                   type="email"
                   value={newEmp.correoEmpresa ?? ''}
                   onChange={(e) => setNewEmp({ ...newEmp, correoEmpresa: e.target.value })}
-                  placeholder="nombre@sclconsultores.com"
+                  placeholder="nombre@sclconsultores.com (opcional)"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>

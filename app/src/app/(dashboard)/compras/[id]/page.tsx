@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -168,17 +168,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
   const [kitItemCantidad, setKitItemCantidad] = useState("1");
   const [addingKitItem, setAddingKitItem] = useState(false);
 
-  useEffect(() => {
-    fetchPurchase();
-  }, [id]);
-
-  useEffect(() => {
-    if (assetSearch.length >= 2) {
-      searchAssets();
-    }
-  }, [assetSearch]);
-
-  async function fetchPurchase() {
+  const fetchPurchase = useCallback(async () => {
     try {
       const res = await fetch(`/api/compras/${id}`);
       if (!res.ok) {
@@ -191,7 +181,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
 
   function abrirEdicion() {
     if (!purchase) return;
@@ -252,7 +242,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
     }
   }
 
-  async function searchAssets() {
+  const searchAssets = useCallback(async () => {
     setLoadingAssets(true);
     try {
       // Acotado a la sede de la compra, igual que el catalogo de Kit/EPP
@@ -272,7 +262,17 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
     } finally {
       setLoadingAssets(false);
     }
-  }
+  }, [assetSearch, purchase]);
+
+  useEffect(() => {
+    fetchPurchase();
+  }, [fetchPurchase]);
+
+  useEffect(() => {
+    if (assetSearch.length >= 2) {
+      searchAssets();
+    }
+  }, [assetSearch, searchAssets]);
 
   async function addAssetToPurchase(asset: Asset) {
     setAddingAsset(true);

@@ -13,7 +13,6 @@ import {
   FileText,
   Package,
   CheckCircle2,
-  XCircle,
   Loader2
 } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";

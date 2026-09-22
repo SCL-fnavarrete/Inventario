@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as XLSX from "xlsx";
 import { formatearRut, validarDigitoVerificador, limpiarRut } from "@/lib/validations/rut";
 import { convertExcelDateValue } from "@/lib/excel-utils";
 import {

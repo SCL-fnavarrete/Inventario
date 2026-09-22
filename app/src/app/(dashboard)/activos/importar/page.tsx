@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
@@ -42,7 +41,6 @@ type PreviewData = {
 };
 
 export default function ImportarActivosPage() {
-  const router = useRouter();
   const { data: session } = useSession();
   // Sede a la que se importan los equipos. El backend la exige siempre;
   // para el tecnico viene precargada con la suya (mismo patron que
@@ -615,15 +613,21 @@ export default function ImportarActivosPage() {
               )}
 
               <div className="mt-4 flex gap-4">
-                {/* <a> normal (no next/link Link) a proposito: fuerza una
-                    recarga completa de /activos para pedir datos frescos
-                    al servidor. */}
-                <a
-                  href="/activos"
+                {/* Boton, no <Link>: una navegacion normal reutiliza la
+                    instancia ya montada de /activos (Router Cache) y no
+                    vuelve a pedir los datos recien importados. Se fuerza
+                    una recarga completa por JS en vez de un <a>, para no
+                    disparar la regla de ESLint que asume que todo <a>
+                    interno deberia ser <Link>. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.location.href = "/activos";
+                  }}
                   className="text-blue-600 hover:text-blue-800 font-medium"
                 >
                   Ver activos importados →
-                </a>
+                </button>
               </div>
             </div>
           </div>
