@@ -439,44 +439,37 @@ export async function POST(request: NextRequest) {
         cierraDeInmediato = true;
       }
 
-      // Cambio de equipo: si al crear el ticket ya se eligio el equipo viejo
-      // a devolver (con el estado en que vuelve) y el equipo nuevo de
-      // reemplazo, se ejecuta el cambio de una. A diferencia de la
-      // transicion manual (que pasa por "cambio_ejecutado" y despues por
-      // "confirmacion_rrhh"), aca el ticket queda cerrado de inmediato: este
-      // sistema lo usa solo soporte/admin (no RRHH), asi que no hace falta
-      // un segundo paso de confirmacion -- la misma persona que ejecuta el
-      // cambio es quien cierra el ticket.
-      if (
-        data.tipo === 'cambio_equipo' &&
-        data.oldAssignmentId &&
-        data.newAssetId &&
-        data.estadoDevolucionAnterior
-      ) {
-        await executeReturn(tx, {
-          assignmentId: data.oldAssignmentId,
-          fechaDevolucion: new Date(),
-          recibidoPor: systemUser.nombre,
-          estadoDevolucion: data.estadoDevolucionAnterior,
-          observacionesDevolucion: data.observacionesDevolucionAnterior || null,
-          condicionCargadorDevolucion: data.condicionCargadorAnterior || null,
-          observacionesCargador: data.observacionesCargadorAnterior || null,
-          expectedEmployeeId: empId,
-        });
-        assignmentIds.push(data.oldAssignmentId);
-
-        const nuevaAsignacion = await executeAssignment(tx, {
-          assetId: data.newAssetId,
-          employeeId: empId,
-          fechaEntrega: new Date(),
-          lugarEntrega: null,
-          entregadoPor: systemUser.nombre,
-          tipoMovimiento: 'cambio',
-          motivo: `Cambio de equipo - ${numero}`,
-          condicionCargadorEntrega: data.condicionCargadorNuevo || null,
-          observacionesCargador: data.observacionesCargadorNuevo || null,
-        });
-        assignmentIds.push(nuevaAsignacion.id);
+      // Cambio de equipo (SPEC 2.84): uno o varios pares equipo viejo ->
+      // reemplazo, todos en esta transaccion (si uno falla, no se aplica
+      // ninguno). assignmentIds guarda los pares en orden [viejo1, nuevo1,
+      // viejo2, nuevo2, ...]: el comprobante los lee asi, y los tickets de un
+      // solo par siguen siendo [viejo, nuevo]. El ticket nace cerrado: cambia
+      // y cierra la misma persona (soporte), no hay confirmacion de RRHH.
+      if (data.tipo === 'cambio_equipo') {
+        for (const cambio of data.cambios) {
+          await executeReturn(tx, {
+            assignmentId: cambio.oldAssignmentId,
+            fechaDevolucion: new Date(),
+            recibidoPor: systemUser.nombre,
+            estadoDevolucion: cambio.estadoDevolucion,
+            observacionesDevolucion: cambio.observacionesDevolucion || null,
+            condicionCargadorDevolucion: cambio.condicionCargadorAnterior || null,
+            observacionesCargador: cambio.observacionesCargadorAnterior || null,
+            expectedEmployeeId: empId,
+          });
+          const nuevaAsignacion = await executeAssignment(tx, {
+            assetId: cambio.newAssetId,
+            employeeId: empId,
+            fechaEntrega: new Date(),
+            lugarEntrega: null,
+            entregadoPor: systemUser.nombre,
+            tipoMovimiento: 'cambio',
+            motivo: `Cambio de equipo - ${numero}`,
+            condicionCargadorEntrega: cambio.condicionCargadorNuevo || null,
+            observacionesCargador: cambio.observacionesCargadorNuevo || null,
+          });
+          assignmentIds.push(cambio.oldAssignmentId, nuevaAsignacion.id);
+        }
 
         estadoReal = 'confirmacion_rrhh';
         cierraDeInmediato = true;

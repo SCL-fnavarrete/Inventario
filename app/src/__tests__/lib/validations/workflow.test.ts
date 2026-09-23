@@ -76,119 +76,93 @@ describe('createWorkflowRequestSchema — onboarding', () => {
 // ============================================================
 // CAMBIO_EQUIPO
 // ============================================================
-describe('createWorkflowRequestSchema — cambio_equipo', () => {
-  // Elegir el equipo a cambiar es obligatorio, por eso los "datos minimos"
-  // de un cambio_equipo incluyen los tres campos de ejecucion.
+describe('createWorkflowRequestSchema — cambio_equipo (SPEC 2.84)', () => {
+  // Uno o varios equipos a cambiar, cada uno con su reemplazo y el estado en
+  // que vuelve; se ejecutan al crear el ticket.
+  const uuid = (n: number) => `550e8400-e29b-41d4-a716-44665544000${n}`;
+  const cambio = (viejo: number, nuevo: number) => ({
+    oldAssignmentId: uuid(viejo),
+    newAssetId: uuid(nuevo),
+    estadoDevolucion: 'ok' as const,
+  });
   const validCambio = {
     ...baseFields,
     tipo: 'cambio_equipo' as const,
     motivoCambio: 'Pantalla rota, equipo inoperable',
-    oldAssignmentId: '550e8400-e29b-41d4-a716-446655440001',
-    newAssetId: '550e8400-e29b-41d4-a716-446655440002',
-    estadoDevolucionAnterior: 'ok' as const,
+    cambios: [cambio(1, 2)],
   };
 
-  test('acepta datos mínimos válidos de cambio_equipo', () => {
-    const result = createWorkflowRequestSchema.safeParse(validCambio);
+  test('acepta un cambio de un equipo', () => {
+    expect(createWorkflowRequestSchema.safeParse(validCambio).success).toBe(true);
+  });
+
+  test('acepta el cambio de varios equipos a la vez', () => {
+    const result = createWorkflowRequestSchema.safeParse({
+      ...validCambio,
+      cambios: [cambio(1, 2), cambio(3, 4), cambio(5, 6)],
+    });
     expect(result.success).toBe(true);
   });
 
-  test('rechaza cambio_equipo sin el equipo a cambiar (SPEC 2.45)', () => {
-    const { oldAssignmentId, newAssetId, estadoDevolucionAnterior, ...sinEquipo } = validCambio;
-    void oldAssignmentId;
+  test('acepta observaciones, "no_devuelto" y datos del cargador', () => {
+    const result = createWorkflowRequestSchema.safeParse({
+      ...validCambio,
+      cambios: [
+        {
+          ...cambio(1, 2),
+          estadoDevolucion: 'no_devuelto' as const,
+          observacionesDevolucion: 'No lo entregó',
+          condicionCargadorAnterior: 'con_danos',
+          condicionCargadorNuevo: 'operativo',
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test('rechaza sin equipos a cambiar (falta la lista o viene vacía)', () => {
+    const { cambios, ...sinCambios } = validCambio;
+    void cambios;
+    expect(createWorkflowRequestSchema.safeParse(sinCambios).success).toBe(false);
+    expect(createWorkflowRequestSchema.safeParse({ ...validCambio, cambios: [] }).success).toBe(false);
+  });
+
+  test('rechaza un cambio sin reemplazo o sin estado de devolución', () => {
+    const { newAssetId, ...sinReemplazo } = cambio(1, 2);
     void newAssetId;
-    void estadoDevolucionAnterior;
-    const result = createWorkflowRequestSchema.safeParse(sinEquipo);
+    const { estadoDevolucion, ...sinEstado } = cambio(1, 2);
+    void estadoDevolucion;
+    expect(
+      createWorkflowRequestSchema.safeParse({ ...validCambio, cambios: [sinReemplazo] }).success
+    ).toBe(false);
+    expect(
+      createWorkflowRequestSchema.safeParse({ ...validCambio, cambios: [sinEstado] }).success
+    ).toBe(false);
+  });
+
+  test('rechaza el mismo equipo dos veces', () => {
+    const result = createWorkflowRequestSchema.safeParse({
+      ...validCambio,
+      cambios: [cambio(1, 2), cambio(1, 3)],
+    });
     expect(result.success).toBe(false);
   });
 
-  test('rechaza cambio_equipo sin motivoCambio', () => {
+  test('rechaza el mismo reemplazo para dos equipos', () => {
+    const result = createWorkflowRequestSchema.safeParse({
+      ...validCambio,
+      cambios: [cambio(1, 2), cambio(3, 2)],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('rechaza cambio_equipo sin motivoCambio o con motivo vacío', () => {
     const { motivoCambio, ...sin } = validCambio;
-    const result = createWorkflowRequestSchema.safeParse(sin);
-    expect(result.success).toBe(false);
-  });
-
-  test('rechaza cambio_equipo con motivoCambio vacío', () => {
-    const result = createWorkflowRequestSchema.safeParse({
-      ...validCambio,
-      motivoCambio: '',
-    });
-    expect(result.success).toBe(false);
-  });
-
-});
-
-// ============================================================
-// CAMBIO_EQUIPO — ejecución inmediata al crear el ticket
-// ============================================================
-describe('createWorkflowRequestSchema — cambio_equipo con ejecución inmediata', () => {
-  const validCambio = {
-    ...baseFields,
-    tipo: 'cambio_equipo' as const,
-    motivoCambio: 'Pantalla rota, equipo inoperable',
-  };
-  const datosEjecucion = {
-    oldAssignmentId: '550e8400-e29b-41d4-a716-446655440001',
-    newAssetId: '550e8400-e29b-41d4-a716-446655440002',
-    estadoDevolucionAnterior: 'ok' as const,
-  };
-
-  // Sin stock de reemplazo en la sede, la solicitud completa no se puede
-  // crear.
-  test('rechaza cambio_equipo sin datos de ejecución (ya no existe "solo incidencia")', () => {
-    const result = createWorkflowRequestSchema.safeParse(validCambio);
-    expect(result.success).toBe(false);
-  });
-
-  test('acepta cambio_equipo con los 3 datos de ejecución completos', () => {
-    const result = createWorkflowRequestSchema.safeParse({
-      ...validCambio,
-      ...datosEjecucion,
-    });
-    expect(result.success).toBe(true);
-  });
-
-  test('acepta observacionesDevolucionAnterior opcional junto a los 3 obligatorios', () => {
-    const result = createWorkflowRequestSchema.safeParse({
-      ...validCambio,
-      ...datosEjecucion,
-      observacionesDevolucionAnterior: 'Equipo con rayones menores',
-    });
-    expect(result.success).toBe(true);
-  });
-
-  test('rechaza cambio_equipo con solo oldAssignmentId (falta newAssetId y estado)', () => {
-    const result = createWorkflowRequestSchema.safeParse({
-      ...validCambio,
-      oldAssignmentId: datosEjecucion.oldAssignmentId,
-    });
-    expect(result.success).toBe(false);
-  });
-
-  test('rechaza cambio_equipo con oldAssignmentId + newAssetId pero sin estadoDevolucionAnterior', () => {
-    const result = createWorkflowRequestSchema.safeParse({
-      ...validCambio,
-      oldAssignmentId: datosEjecucion.oldAssignmentId,
-      newAssetId: datosEjecucion.newAssetId,
-    });
-    expect(result.success).toBe(false);
-  });
-
-  test('rechaza cambio_equipo con solo estadoDevolucionAnterior', () => {
-    const result = createWorkflowRequestSchema.safeParse({
-      ...validCambio,
-      estadoDevolucionAnterior: 'danado' as const,
-    });
-    expect(result.success).toBe(false);
-  });
-
-  test('acepta estadoDevolucionAnterior "no_devuelto" dentro del set completo', () => {
-    const result = createWorkflowRequestSchema.safeParse({
-      ...validCambio,
-      ...datosEjecucion,
-      estadoDevolucionAnterior: 'no_devuelto' as const,
-    });
-    expect(result.success).toBe(true);
+    void motivoCambio;
+    expect(createWorkflowRequestSchema.safeParse(sin).success).toBe(false);
+    expect(createWorkflowRequestSchema.safeParse({ ...validCambio, motivoCambio: '' }).success).toBe(
+      false
+    );
   });
 });
 

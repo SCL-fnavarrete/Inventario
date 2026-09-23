@@ -18,7 +18,8 @@ import { cn } from '@/lib/utils';
 import { CategoryIcon } from '@/components/activos/CategoryIcon';
 import {
   SeleccionarCambioEquipo,
-  type SeleccionCambioEquipo,
+  itemCambioCompleto,
+  type ItemCambioEquipo,
 } from '@/components/solicitudes/SeleccionarCambioEquipo';
 import { buttonClasses } from '@/components/ui/buttonStyles';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -194,7 +195,7 @@ const ETIQUETAS_ERROR: Record<string, string> = {
   kitEpp: 'Kit de Bienvenida / EPP',
   sedeId: 'Sede',
   motivoCambio: 'Motivo del cambio',
-  cambioSeleccion: 'Equipo a cambiar',
+  cambioSeleccion: 'Equipos a cambiar',
   fechaCambioCoordinada: 'Fecha del cambio',
   lugarCambio: 'Lugar del cambio',
   otCambioChilexpress: 'N° de OT Chilexpress',
@@ -352,10 +353,11 @@ export default function NuevaSolicitudPage() {
   const [lugarCambio, setLugarCambio] = useState('');
   const [otCambioChilexpress, setOtCambioChilexpress] = useState('');
   const [ciudadCambio, setCiudadCambio] = useState('');
-  // Si se completa (equipo viejo + estado + equipo nuevo), el cambio se
+  // Equipos marcados para cambiar (uno o varios, SPEC 2.84), cada uno con su
+  // estado de devolucion y su reemplazo; se ejecutan al crear el ticket.
+  const [cambios, setCambios] = useState<ItemCambioEquipo[]>([]);
   // ejecuta de inmediato al crear el ticket; si se deja en null, el ticket
   // nace en "Incidencia Detectada" como antes.
-  const [cambioSeleccion, setCambioSeleccion] = useState<SeleccionCambioEquipo | null>(null);
 
   // Offboarding fields
   const [fechaDesvinculacion, setFechaDesvinculacion] = useState('');
@@ -464,7 +466,7 @@ export default function NuevaSolicitudPage() {
     setEmployeeEppAssignments([]);
     setDevolucionEppEstados({});
     setDevolucionEppObservaciones({});
-    setCambioSeleccion(null);
+    setCambios([]);
   };
 
   // Create new employee (usado por cambio_equipo / offboarding, vía modal)
@@ -745,8 +747,10 @@ export default function NuevaSolicitudPage() {
     if (!selectedEmployee) errores.employeeId = 'Elige el empleado';
     if (!motivoCambio.trim()) errores.motivoCambio = DATO_OBLIGATORIO;
     if (selectedEmployee) {
-      if (!cambioSeleccion) {
-        errores.cambioSeleccion = 'Elige el equipo a cambiar, su estado y el reemplazo';
+      if (cambios.length === 0) {
+        errores.cambioSeleccion = 'Marca al menos un equipo a cambiar';
+      } else if (!cambios.every(itemCambioCompleto)) {
+        errores.cambioSeleccion = 'Completa el estado de devolución y el reemplazo de cada equipo marcado';
       }
       validarCoordinacion(errores, medioCambio, {
         fecha: ['fechaCambioCoordinada', fechaCambioCoordinada],
@@ -960,29 +964,24 @@ export default function NuevaSolicitudPage() {
           ...base,
           employeeId,
           motivoCambio,
-          // Solo se manda si se completo la seleccion (equipo viejo + estado
-          // + equipo nuevo); si no, el ticket nace en "Incidencia Detectada"
-          // y se completa despues desde el detalle.
-          ...(cambioSeleccion && {
-            oldAssignmentId: cambioSeleccion.oldAssignmentId,
-            newAssetId: cambioSeleccion.newAssetId,
-            estadoDevolucionAnterior: cambioSeleccion.estadoDevolucion,
-            observacionesDevolucionAnterior: cambioSeleccion.observaciones || undefined,
+          cambios: cambios.map((c) => ({
+            oldAssignmentId: c.oldAssignmentId,
+            newAssetId: c.newAssetId,
+            estadoDevolucion: c.estadoDevolucion,
+            observacionesDevolucion: c.observaciones || undefined,
             // Condicion del cargador, si el equipo la trae.
-            condicionCargadorAnterior: cambioSeleccion.condicionCargadorAnterior || undefined,
-            observacionesCargadorAnterior:
-              cambioSeleccion.observacionesCargadorAnterior || undefined,
-            condicionCargadorNuevo: cambioSeleccion.condicionCargadorNuevo || undefined,
-            observacionesCargadorNuevo: cambioSeleccion.observacionesCargadorNuevo || undefined,
-            // Coordinacion de cambio: junto con la seleccion del equipo de
-            // reemplazo, en el mismo formulario.
-            fechaCambioCoordinada: fechaCambioCoordinada || undefined,
-            medioCambio,
-            lugarCambio: medioCambio === 'presencial' ? lugarCambio || undefined : undefined,
-            otCambioChilexpress:
-              medioCambio === 'chilexpress' ? otCambioChilexpress || undefined : undefined,
-            ciudadCambio: medioCambio === 'chilexpress' ? ciudadCambio || undefined : undefined,
-          }),
+            condicionCargadorAnterior: c.condicionCargadorAnterior || undefined,
+            observacionesCargadorAnterior: c.observacionesCargadorAnterior || undefined,
+            condicionCargadorNuevo: c.condicionCargadorNuevo || undefined,
+            observacionesCargadorNuevo: c.observacionesCargadorNuevo || undefined,
+          })),
+          // Coordinacion de la entrega de los reemplazos, en el mismo formulario.
+          fechaCambioCoordinada: fechaCambioCoordinada || undefined,
+          medioCambio,
+          lugarCambio: medioCambio === 'presencial' ? lugarCambio || undefined : undefined,
+          otCambioChilexpress:
+            medioCambio === 'chilexpress' ? otCambioChilexpress || undefined : undefined,
+          ciudadCambio: medioCambio === 'chilexpress' ? ciudadCambio || undefined : undefined,
         };
       } else if (tipo === 'offboarding') {
         body = {
@@ -2102,7 +2101,7 @@ export default function NuevaSolicitudPage() {
                     'block text-sm font-medium mb-2',
                     fieldErrors.cambioSeleccion ? 'text-red-600' : 'text-fg-muted'
                   )}>
-                    Equipo a cambiar *
+                    Equipos a cambiar *
                   </label>
                   <AvisoSeccion mensaje={fieldErrors.cambioSeleccion} className="mb-2" />
                   {loadingAssignments ? (
@@ -2112,14 +2111,17 @@ export default function NuevaSolicitudPage() {
                     </div>
                   ) : (
                     <SeleccionarCambioEquipo
+                      // Otra sede, otro inventario: se remonta el selector.
+                      key={sedeId}
                       asignacionesActivas={employeeAssignments}
                       // Reemplazos solo de la sede de la solicitud (la del empleado).
                       sedeId={sedeId}
-                      submitting={submitting}
-                      showSubmitButton={false}
-                      onChange={(sel) => {
-                        setCambioSeleccion(sel);
-                        if (sel) setFieldErrors((prev) => { const { cambioSeleccion: _, ...rest } = prev; return rest; });
+                      marcarIncompletos={!!fieldErrors.cambioSeleccion}
+                      onChange={(lista) => {
+                        setCambios(lista);
+                        if (lista.length > 0 && lista.every(itemCambioCompleto)) {
+                          limpiarError('cambioSeleccion');
+                        }
                       }}
                     />
                   )}

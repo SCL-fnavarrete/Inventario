@@ -137,20 +137,25 @@ const cambioEquipoFields = z.object({
   // A diferencia de onboarding, aca el empleado siempre existe de antes.
   employeeId: z.string().uuid('ID de empleado inválido'),
   motivoCambio: z.string().min(1, 'Motivo de cambio requerido'),
-  // Elegir el equipo a cambiar es obligatorio: el cambio se ejecuta de
-  // inmediato al crear la solicitud (ver POST /api/solicitudes).
-  // observacionesDevolucionAnterior sigue opcional (nota libre).
-  oldAssignmentId: z.string().uuid('ID de asignación inválido'),
-  newAssetId: z.string().uuid('ID de activo inválido'),
-  estadoDevolucionAnterior: z.enum(['ok', 'danado', 'no_devuelto']),
-  observacionesDevolucionAnterior: z.string().optional().nullable(),
-  // Condicion del cargador: solo aplica si el equipo es un notebook con
-  // tieneCargador. "Anterior" es el del equipo devuelto, "Nuevo" el del
-  // equipo de reemplazo.
-  condicionCargadorAnterior: condicionCargadorSchema.optional().nullable(),
-  observacionesCargadorAnterior: z.string().optional().nullable(),
-  condicionCargadorNuevo: condicionCargadorSchema.optional().nullable(),
-  observacionesCargadorNuevo: z.string().optional().nullable(),
+  // Uno o varios equipos a cambiar (SPEC 2.84), cada uno con su reemplazo:
+  // se ejecutan de inmediato al crear la solicitud (ver POST /api/solicitudes).
+  cambios: z
+    .array(
+      z.object({
+        oldAssignmentId: z.string().uuid('ID de asignación inválido'),
+        newAssetId: z.string().uuid('ID de activo inválido'),
+        estadoDevolucion: z.enum(['ok', 'danado', 'no_devuelto']),
+        observacionesDevolucion: z.string().optional().nullable(),
+        // Condicion del cargador: solo aplica si el equipo es un notebook con
+        // tieneCargador. "Anterior" es el del equipo devuelto, "Nuevo" el del
+        // equipo de reemplazo.
+        condicionCargadorAnterior: condicionCargadorSchema.optional().nullable(),
+        observacionesCargadorAnterior: z.string().optional().nullable(),
+        condicionCargadorNuevo: condicionCargadorSchema.optional().nullable(),
+        observacionesCargadorNuevo: z.string().optional().nullable(),
+      })
+    )
+    .min(1, 'Elige al menos un equipo a cambiar'),
   // Coordinacion de cambio: permite coordinar la entrega del equipo nuevo
   // en el mismo formulario de creacion.
   fechaCambioCoordinada: z.string().optional().nullable(),
@@ -221,8 +226,18 @@ export const createWorkflowRequestSchema = z
         message: 'Falta el empleado: manda un employeeId o los datos del nuevo empleado',
       });
     }
-    // oldAssignmentId/newAssetId/estadoDevolucionAnterior ya son
-    // obligatorios en cambioEquipoFields (sin .optional()), zod los exige solo.
+    // Un mismo equipo no se cambia dos veces, ni un reemplazo se entrega
+    // por dos equipos distintos.
+    if (data.tipo === 'cambio_equipo') {
+      const viejos = data.cambios.map((c) => c.oldAssignmentId);
+      const nuevos = data.cambios.map((c) => c.newAssetId);
+      if (new Set(viejos).size !== viejos.length) {
+        ctx.addIssue({ code: 'custom', path: ['cambios'], message: 'Un equipo aparece dos veces en el cambio' });
+      }
+      if (new Set(nuevos).size !== nuevos.length) {
+        ctx.addIssue({ code: 'custom', path: ['cambios'], message: 'Un reemplazo aparece para dos equipos' });
+      }
+    }
   });
 
 // Schema for cancelling a request (ver POST /api/solicitudes/[id]/cancelar).

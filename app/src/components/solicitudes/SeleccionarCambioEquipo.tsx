@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Laptop,
   Smartphone,
@@ -16,8 +16,8 @@ import {
   AlertCircle,
   ArrowRight,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { especificacionesActivoTexto } from "@/lib/utils/assetSpecs";
-import { buttonClasses } from "@/components/ui/buttonStyles";
 import { SelectCondicionCargador } from "./SelectCondicionCargador";
 import {
   CONDICION_CARGADOR_POR_DEFECTO,
@@ -57,23 +57,38 @@ type ActivoDisponible = {
 
 type Categoria = { id: string; nombre: string };
 
-// Seleccion completa (equipo viejo + estado en que vuelve + equipo nuevo).
-// La usa el padre en modo embebido (ver prop onChange abajo) para mandarla
-// como parte de un submit mas grande -- p.ej. al crear el ticket completo
-// desde /solicitudes/nueva.
-export type SeleccionCambioEquipo = {
+type EstadoDevolucion = "ok" | "danado" | "no_devuelto";
+
+/**
+ * Un equipo marcado para cambiar: el que se devuelve (con su estado) y su
+ * reemplazo. newAssetId y estadoDevolucion quedan en "" mientras falten;
+ * el padre valida con itemCambioCompleto antes de enviar.
+ */
+export type ItemCambioEquipo = {
   oldAssignmentId: string;
   newAssetId: string;
-  estadoDevolucion: "ok" | "danado" | "no_devuelto";
+  estadoDevolucion: EstadoDevolucion | "";
   observaciones: string;
-  // Condicion del cargador: solo aplica si el equipo es un notebook con
-  // tieneCargador; para el resto queda "" (el padre lo manda como
-  // null/undefined). "Anterior" es el cargador que se devuelve, "Nuevo" el
-  // del reemplazo.
+  // Condicion del cargador: solo si el equipo tiene cargador; si no, "".
+  // "Anterior" es el cargador que se devuelve, "Nuevo" el del reemplazo.
   condicionCargadorAnterior: CondicionCargador | "";
   observacionesCargadorAnterior: string;
   condicionCargadorNuevo: CondicionCargador | "";
   observacionesCargadorNuevo: string;
+};
+
+export function itemCambioCompleto(item: ItemCambioEquipo): boolean {
+  return !!item.newAssetId && !!item.estadoDevolucion;
+}
+
+const ITEM_VACIO: Omit<ItemCambioEquipo, "oldAssignmentId"> = {
+  newAssetId: "",
+  estadoDevolucion: "",
+  observaciones: "",
+  condicionCargadorAnterior: "",
+  observacionesCargadorAnterior: "",
+  condicionCargadorNuevo: "",
+  observacionesCargadorNuevo: "",
 };
 
 const ICONOS: Record<string, React.ReactNode> = {
@@ -83,6 +98,7 @@ const ICONOS: Record<string, React.ReactNode> = {
   "Audífonos": <Headphones className="h-4 w-4" />,
   Impresora: <Printer className="h-4 w-4" />,
   Mouse: <Mouse className="h-4 w-4" />,
+  Keyboard: <Keyboard className="h-4 w-4" />,
   Teclado: <Keyboard className="h-4 w-4" />,
   Webcam: <Webcam className="h-4 w-4" />,
   "Docking Station": <HardDrive className="h-4 w-4" />,
@@ -97,95 +113,48 @@ function iconoDe(nombre: string): React.ReactNode {
 const especificaciones = especificacionesActivoTexto;
 
 /**
- * Selector de "Cambio de Equipo". Funciona en dos pasos: primero el tecnico
- * elige cual de los equipos actualmente asignados al empleado se va a
- * cambiar, y una vez elegido, el componente busca en el inventario que hay
- * disponible de esa misma categoria para elegir el reemplazo.
- *
- * Tiene dos modos de uso:
- * - Standalone (default, showSubmitButton=true): trae su propio boton
- *   "Ejecutar cambio" que llama a onSubmit. Lo usa el detalle del ticket en
- *   la etapa "Incidencia Detectada".
- * - Embebido (showSubmitButton=false): no muestra boton propio -- reporta la
- *   seleccion completa (o null si esta incompleta) via onChange cada vez que
- *   cambia, para que el padre la junte con el resto de un formulario mas
- *   grande. Lo usa /solicitudes/nueva al crear el ticket.
+ * Selector de "Cambio de Equipo" (SPEC 2.84). El tecnico marca uno o varios
+ * de los equipos asignados al empleado, de cualquier categoria; por cada
+ * uno elige el estado en que vuelve y un reemplazo disponible de la misma
+ * categoria en la sede. Un reemplazo ya elegido no se ofrece para otro
+ * equipo. Reporta la lista (incluso incompleta) via onChange; con
+ * marcarIncompletos, los equipos marcados sin completar se ven en rojo.
+ * El inventario se carga para la sede con que se monto: si la sede cambia,
+ * el padre lo remonta (key={sedeId}).
  */
 export function SeleccionarCambioEquipo({
   asignacionesActivas,
   sedeId,
-  submitting,
-  onSubmit,
-  showSubmitButton = true,
   onChange,
+  marcarIncompletos = false,
 }: {
   asignacionesActivas: AsignacionActiva[];
   /** Sede de la SOLICITUD: solo se ofrecen equipos de esa bodega. */
   sedeId?: string | null;
-  submitting: boolean;
-  onSubmit?: (
-    oldAssignmentId: string,
-    newAssetId: string,
-    estadoDevolucion: "ok" | "danado" | "no_devuelto",
-    observaciones: string,
-    condicionCargadorAnterior: CondicionCargador | "",
-    observacionesCargadorAnterior: string,
-    condicionCargadorNuevo: CondicionCargador | "",
-    observacionesCargadorNuevo: string
-  ) => void;
-  showSubmitButton?: boolean;
-  onChange?: (seleccion: SeleccionCambioEquipo | null) => void;
+  onChange: (items: ItemCambioEquipo[]) => void;
+  marcarIncompletos?: boolean;
 }) {
-  const [oldAssignmentId, setOldAssignmentId] = useState("");
-  const [newAssetId, setNewAssetId] = useState("");
-  const [estadoDevolucion, setEstadoDevolucion] = useState<"ok" | "danado" | "no_devuelto" | "">("");
-  const [observaciones, setObservaciones] = useState("");
-  const [condicionCargadorAnterior, setCondicionCargadorAnterior] = useState<CondicionCargador | "">("");
-  const [observacionesCargadorAnterior, setObservacionesCargadorAnterior] = useState("");
-  const [condicionCargadorNuevo, setCondicionCargadorNuevo] = useState<CondicionCargador | "">("");
-  const [observacionesCargadorNuevo, setObservacionesCargadorNuevo] = useState("");
-  const [disponibles, setDisponibles] = useState<ActivoDisponible[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Equipos marcados, por id de asignacion.
+  const [items, setItems] = useState<Record<string, ItemCambioEquipo>>({});
+  // Inventario disponible por nombre de categoria; se carga al marcar el
+  // primer equipo de esa categoria (ver alternar).
+  const [disponibles, setDisponibles] = useState<Record<string, ActivoDisponible[]>>({});
+  const [cargando, setCargando] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
+  const categoriasRef = useRef<Promise<Categoria[]> | null>(null);
 
   const activas = asignacionesActivas.filter((a) => a.activo);
-  const seleccionada = activas.find((a) => a.id === oldAssignmentId);
-  // Lo que se ve es lo que se guarda: si el equipo tiene cargador y no se
-  // toco el select, se manda el valor por defecto que muestra.
-  const cargadorAnteriorEfectivo: CondicionCargador | "" = seleccionada?.asset.tieneCargador
-    ? condicionCargadorAnterior || CONDICION_CARGADOR_POR_DEFECTO
-    : "";
-  const cargadorNuevoEfectivo: CondicionCargador | "" = disponibles.find((a) => a.id === newAssetId)
-    ?.tieneCargador
-    ? condicionCargadorNuevo || CONDICION_CARGADOR_POR_DEFECTO
-    : "";
 
-  useEffect(() => {
-    setNewAssetId("");
-    setDisponibles([]);
-    setEstadoDevolucion("");
-    setObservaciones("");
-    setCondicionCargadorAnterior("");
-    setObservacionesCargadorAnterior("");
-    setCondicionCargadorNuevo("");
-    setObservacionesCargadorNuevo("");
-    if (!seleccionada) return;
-
-    let cancelado = false;
-    async function cargar() {
-      setLoading(true);
-      setError("");
-      try {
-        const catRes = await fetch("/api/categorias");
-        const catData = await catRes.json();
-        const categorias: Categoria[] = catData.data || catData;
-        const categoria = categorias.find(
-          (c) => c.nombre === seleccionada!.asset.categoria.nombre
-        );
-        if (!categoria) {
-          if (!cancelado) setDisponibles([]);
-          return;
-        }
+  async function cargarCategoria(nombre: string) {
+    if (disponibles[nombre] || cargando[nombre]) return;
+    setCargando((prev) => ({ ...prev, [nombre]: true }));
+    try {
+      categoriasRef.current ??= fetch("/api/categorias")
+        .then((r) => r.json())
+        .then((data) => data.data || data);
+      const categoria = (await categoriasRef.current).find((cat) => cat.nombre === nombre);
+      let lista: ActivoDisponible[] = [];
+      if (categoria) {
         const params = new URLSearchParams({
           categoriaId: categoria.id,
           estado: "disponible",
@@ -193,55 +162,57 @@ export function SeleccionarCambioEquipo({
         });
         // Solo el inventario de la sede de la solicitud.
         if (sedeId) params.set("sedeId", sedeId);
-        const disponiblesRes = await fetch(`/api/activos?${params}`);
-        const disponiblesData = await disponiblesRes.json();
-        if (!cancelado) {
-          setDisponibles(disponiblesData.data || []);
-        }
-      } catch {
-        if (!cancelado) setError("No se pudo cargar el inventario disponible");
-      } finally {
-        if (!cancelado) setLoading(false);
+        lista = (await (await fetch(`/api/activos?${params}`)).json()).data || [];
       }
+      setDisponibles((prev) => ({ ...prev, [nombre]: lista }));
+    } catch {
+      setError("No se pudo cargar el inventario disponible");
+    } finally {
+      setCargando((prev) => ({ ...prev, [nombre]: false }));
     }
-    cargar();
-    return () => {
-      cancelado = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [oldAssignmentId, sedeId]);
+  }
 
-  // Modo embebido: cada vez que cambia algo de la seleccion, se informa al
-  // padre la seleccion completa, o null si todavia falta algo. onChange es
-  // el setter de estado del padre (referencia estable), asi que no hace
-  // falta incluirlo en las dependencias.
+  const disponibleDe = (item: ItemCambioEquipo) => {
+    const asignacion = activas.find((a) => a.id === item.oldAssignmentId);
+    const lista = asignacion ? disponibles[asignacion.asset.categoria.nombre] || [] : [];
+    return lista.find((d) => d.id === item.newAssetId);
+  };
+
+  // Lo que se ve es lo que se guarda: con cargador y sin tocar el select,
+  // se manda el valor por defecto que muestra.
+  const efectivo = (item: ItemCambioEquipo): ItemCambioEquipo => {
+    const asignacion = activas.find((a) => a.id === item.oldAssignmentId);
+    return {
+      ...item,
+      condicionCargadorAnterior: asignacion?.asset.tieneCargador
+        ? item.condicionCargadorAnterior || CONDICION_CARGADOR_POR_DEFECTO
+        : "",
+      condicionCargadorNuevo: disponibleDe(item)?.tieneCargador
+        ? item.condicionCargadorNuevo || CONDICION_CARGADOR_POR_DEFECTO
+        : "",
+    };
+  };
+
+  // Informa al padre la lista en el orden de los equipos del empleado.
+  // onChange es un setter de estado del padre (referencia estable).
   useEffect(() => {
-    if (!onChange) return;
-    if (oldAssignmentId && newAssetId && estadoDevolucion) {
-      onChange({
-        oldAssignmentId,
-        newAssetId,
-        estadoDevolucion,
-        observaciones,
-        condicionCargadorAnterior: cargadorAnteriorEfectivo,
-        observacionesCargadorAnterior,
-        condicionCargadorNuevo: cargadorNuevoEfectivo,
-        observacionesCargadorNuevo,
-      });
-    } else {
-      onChange(null);
-    }
+    onChange(activas.filter((a) => items[a.id]).map((a) => efectivo(items[a.id])));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    oldAssignmentId,
-    newAssetId,
-    estadoDevolucion,
-    observaciones,
-    cargadorAnteriorEfectivo,
-    observacionesCargadorAnterior,
-    cargadorNuevoEfectivo,
-    observacionesCargadorNuevo,
-  ]);
+  }, [items, disponibles]);
+
+  const alternar = (id: string, marcado: boolean) => {
+    setItems((prev) => {
+      const next = { ...prev };
+      if (marcado) next[id] = { oldAssignmentId: id, ...ITEM_VACIO };
+      else delete next[id];
+      return next;
+    });
+    const categoria = activas.find((a) => a.id === id)?.asset.categoria.nombre;
+    if (marcado && categoria) cargarCategoria(categoria);
+  };
+
+  const actualizar = (id: string, cambios: Partial<ItemCambioEquipo>) =>
+    setItems((prev) => ({ ...prev, [id]: { ...prev[id], ...cambios } }));
 
   if (activas.length === 0) {
     return (
@@ -252,205 +223,200 @@ export function SeleccionarCambioEquipo({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {error && (
         <div className="flex items-center gap-2 text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 text-sm">
           <AlertCircle className="h-4 w-4 flex-shrink-0" />
           {error}
         </div>
       )}
+      <p className="text-xs text-fg-subtle">
+        Marca los equipos que se cambian (uno, varios o todos) y elige el reemplazo de cada uno.
+      </p>
 
-      {/* Paso 1: elegir que equipo se va a cambiar */}
-      <div>
-        <label className="field-label mb-2">
-          1. ¿Qué equipo vas a cambiar?
-        </label>
-        <select
-          value={oldAssignmentId}
-          onChange={(e) => setOldAssignmentId(e.target.value)}
-          className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
-        >
-          <option value="">Seleccionar equipo actual...</option>
-          {activas.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.asset.categoria.nombre} · {a.asset.marca} {a.asset.modelo} ·{" "}
-              {a.asset.numeroSerie || "s/serie"}
-            </option>
-          ))}
-        </select>
-      </div>
+      {activas.map((a) => {
+        const item = items[a.id];
+        const categoria = a.asset.categoria.nombre;
+        const incompleto = !!item && marcarIncompletos && !itemCambioCompleto(item);
+        // Reemplazos ya elegidos para otros equipos no se ofrecen aca.
+        const usados = new Set(
+          Object.values(items)
+            .filter((it) => it.oldAssignmentId !== a.id && it.newAssetId)
+            .map((it) => it.newAssetId)
+        );
+        const opciones = (disponibles[categoria] || []).filter((d) => !usados.has(d.id));
+        const nuevo = item ? disponibleDe(item) : undefined;
 
-      {/* Estado en que se devuelve el equipo viejo: sin esto, todo cambio
-          quedaba registrado como "buen estado" sin preguntar, sin importar
-          que el motivo del cambio fuera justamente que el equipo esta
-          danado o no aparece. */}
-      {seleccionada && (
-        <div>
-          <label className="field-label mb-2">
-            ¿En qué estado devuelve el equipo actual?
-          </label>
-          <div className="flex gap-4 text-sm text-fg-muted mb-2">
-            <label className="flex items-center gap-1.5">
+        return (
+          <div
+            key={a.id}
+            // Marcado e incompleto tras intentar enviar: en rojo y enfocable,
+            // para que enfocarPrimerError() lleve hasta aca.
+            tabIndex={incompleto ? -1 : undefined}
+            aria-invalid={incompleto}
+            className={cn(
+              "rounded-lg border p-3 outline-none",
+              incompleto
+                ? "border-red-500 bg-red-50"
+                : item
+                  ? "border-primary-200 bg-primary-50"
+                  : "border-line"
+            )}
+          >
+            <label className="flex cursor-pointer items-center gap-3">
               <input
-                type="radio"
-                name="estadoDevolucionCambio"
-                checked={estadoDevolucion === "ok"}
-                onChange={() => setEstadoDevolucion("ok")}
+                type="checkbox"
+                className="field-checkbox"
+                checked={!!item}
+                onChange={(e) => alternar(a.id, e.target.checked)}
               />
-              Buen estado
+              <span className="text-fg-muted">{iconoDe(categoria)}</span>
+              <span className="min-w-0 text-sm">
+                <span className="font-medium text-fg">
+                  {categoria}: {a.asset.marca} {a.asset.modelo}
+                </span>
+                <span className="block text-xs text-fg-subtle">
+                  Serie: {a.asset.numeroSerie || "Sin serie"}
+                </span>
+              </span>
             </label>
-            <label className="flex items-center gap-1.5">
-              <input
-                type="radio"
-                name="estadoDevolucionCambio"
-                checked={estadoDevolucion === "danado"}
-                onChange={() => setEstadoDevolucion("danado")}
-              />
-              Dañado
-            </label>
-            <label className="flex items-center gap-1.5">
-              <input
-                type="radio"
-                name="estadoDevolucionCambio"
-                checked={estadoDevolucion === "no_devuelto"}
-                onChange={() => setEstadoDevolucion("no_devuelto")}
-              />
-              No devolvió
-            </label>
-          </div>
-          <input
-            type="text"
-            value={observaciones}
-            onChange={(e) => setObservaciones(e.target.value)}
-            placeholder="Observaciones (opcional)"
-            className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
-          />
-        </div>
-      )}
 
-      {/* Estado del cargador del equipo que se devuelve, solo si es un
-          notebook con cargador. Es puramente informativo para el acta,
-          no afecta el estado del equipo ni gatilla baja. */}
-      {seleccionada && seleccionada.asset.tieneCargador && (
-        <div className="border border-line rounded-lg p-3">
-          <p className="text-xs font-medium text-fg-muted mb-2">
-            Estado del cargador que devuelve
-          </p>
-          <SelectCondicionCargador
-            contexto="devolucion"
-            value={condicionCargadorAnterior}
-            onChange={setCondicionCargadorAnterior}
-            className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm mb-2"
-          />
-          <input
-            type="text"
-            value={observacionesCargadorAnterior}
-            onChange={(e) => setObservacionesCargadorAnterior(e.target.value)}
-            placeholder="Observación del cargador (opcional)"
-            className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
-          />
-        </div>
-      )}
-
-      {/* Paso 2: elegir el reemplazo, solo aparece una vez elegido el paso 1 */}
-      {seleccionada && (
-        <div className="border border-line rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2 text-fg-muted font-medium">
-            {iconoDe(seleccionada.asset.categoria.nombre)}
-            2. Nuevo {seleccionada.asset.categoria.nombre}
-            <ArrowRight className="h-4 w-4 text-fg-subtle" />
-          </div>
-
-          {loading ? (
-            <div className="flex items-center gap-2 text-fg-subtle text-sm py-4">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Cargando inventario disponible...
-            </div>
-          ) : disponibles.length === 0 ? (
-            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-              No hay equipo disponible de {seleccionada.asset.categoria.nombre.toLowerCase()} en
-              el inventario ahora mismo.
-              {/* En modo embebido, sin reemplazo disponible la solicitud no
-                  se puede crear todavia. */}
-              {!showSubmitButton && ' No podrás crear la solicitud hasta que haya stock.'}
-            </p>
-          ) : (
-            <>
-              <select
-                value={newAssetId}
-                onChange={(e) => setNewAssetId(e.target.value)}
-                className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
-              >
-                <option value="">Seleccionar equipo nuevo...</option>
-                {disponibles.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.marca} {a.modelo} · {a.numeroSerie || "s/serie"}
-                    {especificaciones(a) ? ` · ${especificaciones(a)}` : ""}
-                  </option>
-                ))}
-              </select>
-              {disponibles.find((a) => a.id === newAssetId) && (
-                <div className="mt-2 text-xs text-fg-subtle bg-surface-muted rounded-lg p-2">
-                  {especificaciones(disponibles.find((a) => a.id === newAssetId)!) ||
-                    "Sin especificaciones registradas"}
-                </div>
-              )}
-              {/* Estado del cargador del equipo nuevo, mismo criterio que en
-                  la entrega de Onboarding. */}
-              {disponibles.find((a) => a.id === newAssetId)?.tieneCargador && (
-                <div className="mt-2 border border-line rounded-lg p-3">
-                  <p className="text-xs font-medium text-fg-muted mb-2">
-                    Estado del cargador del equipo nuevo
+            {item && (
+              <div className="mt-3 space-y-3 pl-7">
+                {incompleto && (
+                  <p className="text-xs text-red-600">
+                    Falta {!item.estadoDevolucion && !item.newAssetId
+                      ? "el estado de devolución y el reemplazo"
+                      : !item.estadoDevolucion
+                        ? "el estado de devolución"
+                        : "el reemplazo"}
+                    .
                   </p>
-                  <SelectCondicionCargador
-                    contexto="entrega"
-                    value={condicionCargadorNuevo}
-                    onChange={setCondicionCargadorNuevo}
-                    className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm mb-2"
-                  />
+                )}
+
+                {/* Estado en que vuelve el equipo actual. */}
+                <div>
+                  <p className="field-label">¿En qué estado lo devuelve?</p>
+                  <div className="flex flex-wrap gap-4 text-sm text-fg-muted">
+                    {(
+                      [
+                        ["ok", "Buen estado"],
+                        ["danado", "Dañado"],
+                        ["no_devuelto", "No devolvió"],
+                      ] as const
+                    ).map(([valor, etiqueta]) => (
+                      <label key={valor} className="flex items-center gap-1.5">
+                        <input
+                          type="radio"
+                          name={`estado-cambio-${a.id}`}
+                          checked={item.estadoDevolucion === valor}
+                          onChange={() => actualizar(a.id, { estadoDevolucion: valor })}
+                        />
+                        {etiqueta}
+                      </label>
+                    ))}
+                  </div>
                   <input
                     type="text"
-                    value={observacionesCargadorNuevo}
-                    onChange={(e) => setObservacionesCargadorNuevo(e.target.value)}
-                    placeholder="Observación del cargador (opcional)"
-                    className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
+                    value={item.observaciones}
+                    onChange={(e) => actualizar(a.id, { observaciones: e.target.value })}
+                    placeholder="Observaciones (opcional)"
+                    className="field-input field-input-sm mt-2"
                   />
                 </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
 
-      {showSubmitButton && (
-        <button
-          type="button"
-          disabled={submitting || !oldAssignmentId || !newAssetId || !estadoDevolucion}
-          onClick={() =>
-            estadoDevolucion &&
-            onSubmit?.(
-              oldAssignmentId,
-              newAssetId,
-              estadoDevolucion,
-              observaciones,
-              cargadorAnteriorEfectivo,
-              observacionesCargadorAnterior,
-              cargadorNuevoEfectivo,
-              observacionesCargadorNuevo
-            )
-          }
-          className={buttonClasses()}
-        >
-          {submitting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Ejecutando cambio...
-            </>
-          ) : (
-            "Ejecutar cambio"
-          )}
-        </button>
-      )}
+                {/* Cargador del equipo que se devuelve (informativo, para el acta). */}
+                {a.asset.tieneCargador && (
+                  <div className="rounded-lg border border-line bg-surface p-3">
+                    <p className="mb-2 text-xs font-medium text-fg-muted">
+                      Estado del cargador que devuelve
+                    </p>
+                    <SelectCondicionCargador
+                      contexto="devolucion"
+                      value={item.condicionCargadorAnterior}
+                      onChange={(v) => actualizar(a.id, { condicionCargadorAnterior: v })}
+                      className="field-input field-input-sm mb-2"
+                    />
+                    <input
+                      type="text"
+                      value={item.observacionesCargadorAnterior}
+                      onChange={(e) =>
+                        actualizar(a.id, { observacionesCargadorAnterior: e.target.value })
+                      }
+                      placeholder="Observación del cargador (opcional)"
+                      className="field-input field-input-sm"
+                    />
+                  </div>
+                )}
+
+                {/* Reemplazo: misma categoria, inventario de la sede. */}
+                <div>
+                  <p className="field-label flex items-center gap-1.5">
+                    Nuevo {categoria.toLowerCase()}
+                    <ArrowRight className="h-3.5 w-3.5 text-fg-subtle" />
+                  </p>
+                  {cargando[categoria] || !disponibles[categoria] ? (
+                    <div className="flex items-center gap-2 py-2 text-sm text-fg-subtle">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Cargando inventario disponible...
+                    </div>
+                  ) : opciones.length === 0 && !item.newAssetId ? (
+                    <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                      No hay {categoria.toLowerCase()} disponible en esta sede (o ya se eligieron
+                      todos para otros equipos). No podrás crear la solicitud hasta que haya stock.
+                    </p>
+                  ) : (
+                    <>
+                      <select
+                        value={item.newAssetId}
+                        onChange={(e) =>
+                          actualizar(a.id, { newAssetId: e.target.value, condicionCargadorNuevo: "" })
+                        }
+                        className="field-input field-input-sm"
+                      >
+                        <option value="">Seleccionar equipo nuevo...</option>
+                        {opciones.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.marca} {d.modelo} · {d.numeroSerie || "s/serie"}
+                            {especificaciones(d) ? ` · ${especificaciones(d)}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      {nuevo && (
+                        <div className="mt-2 rounded-lg bg-surface-muted p-2 text-xs text-fg-subtle">
+                          {especificaciones(nuevo) || "Sin especificaciones registradas"}
+                        </div>
+                      )}
+                      {nuevo?.tieneCargador && (
+                        <div className="mt-2 rounded-lg border border-line bg-surface p-3">
+                          <p className="mb-2 text-xs font-medium text-fg-muted">
+                            Estado del cargador del equipo nuevo
+                          </p>
+                          <SelectCondicionCargador
+                            contexto="entrega"
+                            value={item.condicionCargadorNuevo}
+                            onChange={(v) => actualizar(a.id, { condicionCargadorNuevo: v })}
+                            className="field-input field-input-sm mb-2"
+                          />
+                          <input
+                            type="text"
+                            value={item.observacionesCargadorNuevo}
+                            onChange={(e) =>
+                              actualizar(a.id, { observacionesCargadorNuevo: e.target.value })
+                            }
+                            placeholder="Observación del cargador (opcional)"
+                            className="field-input field-input-sm"
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

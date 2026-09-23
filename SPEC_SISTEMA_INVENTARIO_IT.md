@@ -3015,7 +3015,19 @@ Pedido de Javier. Los documentos de los cinco procesos (Comprobante de Entrega, 
 
 El Anexo de Entrega (`AnexoEntregaTemplate.tsx`) no cambia: tiene otras columnas y otro sistema de estilos (`pdfStyles.ts`).
 
+## 2.84 Cambio de equipo: varios equipos en una misma solicitud (23-sep-2026)
+
+Pedido de Javier: el técnico debe poder cambiar la cantidad de equipos que quiera en un mismo ticket (uno, varios o todos los del empleado), de cualquier categoría.
+
+- **Formulario** (`SeleccionarCambioEquipo`): los equipos activos del empleado aparecen con casillas. Por cada equipo marcado se elige el estado en que vuelve (Buen estado, Dañado, No devolvió), su cargador si lo tiene, el reemplazo y el cargador del reemplazo. El reemplazo sale de los disponibles de la **misma categoría** del equipo que se devuelve, en la sede de la solicitud, y un reemplazo ya elegido no se ofrece para otro equipo. Al menos un equipo marcado y cada uno completo son obligatorios; lo que falta se marca en rojo (mismo mecanismo que 2.82).
+- **API** (`POST /api/solicitudes`, tipo `cambio_equipo`): el payload reemplaza los campos de un solo par (`oldAssignmentId`, `newAssetId`, `estadoDevolucionAnterior`…) por una lista `cambios` (mínimo uno). Zod rechaza un equipo o un reemplazo repetido. Todos los pares se ejecutan en la misma transacción: si uno falla, no se aplica ninguno. El ticket sigue naciendo cerrado.
+- **`WorkflowRequest.assignmentIds`** guarda los pares en orden `[viejo1, nuevo1, viejo2, nuevo2, …]`; un ticket de un solo par sigue siendo `[viejo, nuevo]`, así que los tickets anteriores se leen igual.
+- **Comprobante de Cambio**: las tablas de equipos nuevos y devueltos llevan una fila por equipo y la tabla de cargadores los lista todos. Con dos o más equipos el documento puede pasar a una segunda hoja; las firmas nunca se cortan. De paso, el estado del equipo devuelto es el real ("Devolución OK", "Devuelto dañado" o "No devuelto"); antes decía siempre "Devolución OK".
+- Se elimina el modo "Ejecutar cambio" (`onSubmit`) del selector, que solo usaba la página de detalle antes de 2.82.
+
 ## Changelog SPEC
+- **v2.8 (2026-09-23):**
+  - Sección 2.84 (nueva): cambio de equipo de uno o varios equipos en la misma solicitud (lista `cambios` en la API, todos en una transacción); el comprobante muestra todos los pares y el estado real de cada equipo devuelto.
 - **v2.7 (2026-09-23):**
   - Sección 2.83 (nueva): tabla de equipos única (`TablaEquipoActa`) en Comprobante de Entrega, Acta de Devolución y Comprobante de Cambio, con columnas nuevas N° de Serie y Especificaciones; cláusula de OT en la devolución y el cambio por Chilexpress.
 - **v2.6 (2026-09-23):**

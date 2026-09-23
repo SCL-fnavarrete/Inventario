@@ -11,8 +11,9 @@ type Props = {
   motivoCambio: string;
   /** N° de OT si el cambio se coordino por despacho (Chilexpress). */
   otNumero: string | null;
-  equipoAnterior: FilaEquipoActa;
-  equipoNuevo: FilaEquipoActa;
+  /** Un equipo por cada par del cambio (SPEC 2.84), en el mismo orden. */
+  equiposAnteriores: FilaEquipoActa[];
+  equiposNuevos: FilaEquipoActa[];
   gestionadoPor: string;
 };
 
@@ -28,8 +29,8 @@ export function ComprobanteCambioTemplate({
   fecha,
   motivoCambio,
   otNumero,
-  equipoAnterior,
-  equipoNuevo,
+  equiposAnteriores,
+  equiposNuevos,
   gestionadoPor,
 }: Props) {
   return (
@@ -57,20 +58,22 @@ export function ComprobanteCambioTemplate({
         {/* Dos tablas compactas y un solo bloque de cargadores al final, para
             que todo (firmas incluidas) quepa en una hoja. */}
         <TablaEquipoActa
-          titulo="Equipo asignado (nuevo):"
+          titulo={equiposNuevos.length > 1 ? 'Equipos asignados (nuevos):' : 'Equipo asignado (nuevo):'}
           columnaEstado="Estado"
-          filas={[equipoNuevo]}
+          filas={equiposNuevos}
           compacta
           sinCargador
         />
         <TablaEquipoActa
-          titulo="Equipo devuelto (anterior):"
+          titulo={
+            equiposAnteriores.length > 1 ? 'Equipos devueltos (anteriores):' : 'Equipo devuelto (anterior):'
+          }
           columnaEstado="Estado"
-          filas={[equipoAnterior]}
+          filas={equiposAnteriores}
           compacta
           sinCargador
         />
-        <TablaCargadorActa filas={[equipoNuevo, equipoAnterior]} compacta />
+        <TablaCargadorActa filas={[...equiposNuevos, ...equiposAnteriores]} compacta />
 
         <Text style={styles.docObsCompacto}>
           <Text style={styles.italic}>

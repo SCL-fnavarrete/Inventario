@@ -179,19 +179,42 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
     },
   });
 
-  // Se usa WorkflowRequest.assignmentIds en vez del historial de
-  // transiciones, porque no todo ticket pasa por una transicion explicita.
-  // En ambos caminos de ejecucion se guarda [oldAssignmentId,
-  // newAssignmentId], en ese orden.
-  const [oldAssignmentId, newAssignmentId] = solicitud.assignmentIds;
+  // WorkflowRequest.assignmentIds guarda los pares en orden [viejo1, nuevo1,
+  // viejo2, nuevo2, ...] (SPEC 2.84); un ticket de un solo par es [viejo, nuevo].
+  const ids = solicitud.assignmentIds;
+  const pares: [string, string | undefined][] = [];
+  for (let i = 0; i < ids.length; i += 2) pares.push([ids[i], ids[i + 1]]);
 
-  const assignments = await prisma.assignment.findMany({
-    where: { id: { in: [oldAssignmentId, newAssignmentId].filter(Boolean) } },
-    include: { asset: { include: { categoria: true } } },
+  const porId = new Map(
+    (
+      await prisma.assignment.findMany({
+        where: { id: { in: ids } },
+        include: { asset: { include: { categoria: true } } },
+      })
+    ).map((a) => [a.id, a])
+  );
+
+  const equiposNuevos = pares.map(([, nuevoId]) => {
+    const a = nuevoId ? porId.get(nuevoId) : undefined;
+    return a
+      ? filaEquipo(a.asset, 'Entregado OK', textoCargador(a, a.condicionCargadorEntrega, 'entrega'))
+      : FILA_VACIA;
   });
-
-  const newAssignment = assignments.find((a) => a.id === newAssignmentId) || null;
-  const oldAssignment = assignments.find((a) => a.id === oldAssignmentId) || null;
+  // El estado es el real de la devolucion (antes decia siempre "Devolución OK").
+  const equiposAnteriores = pares.map(([viejoId]) => {
+    const a = porId.get(viejoId);
+    return a
+      ? filaEquipo(
+          a.asset,
+          a.estadoDevolucion === 'danado'
+            ? 'Devuelto dañado'
+            : a.estadoDevolucion === 'no_devuelto'
+              ? 'No devuelto'
+              : 'Devolución OK',
+          textoCargador(a, a.condicionCargadorDevolucion, 'devolucion')
+        )
+      : FILA_VACIA;
+  });
 
   // Coordinacion "por OT": clausula de OT en la intro, igual que la entrega.
   const otNumero = solicitud.medioCambio === 'chilexpress' ? solicitud.otCambioChilexpress : null;
@@ -202,20 +225,8 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
     fecha: formatearFecha(new Date(), {}, '—'),
     motivoCambio: solicitud.motivoCambio || '—',
     otNumero,
-    equipoNuevo: newAssignment
-      ? filaEquipo(
-          newAssignment.asset,
-          'Entregado OK',
-          textoCargador(newAssignment, newAssignment.condicionCargadorEntrega, 'entrega')
-        )
-      : FILA_VACIA,
-    equipoAnterior: oldAssignment
-      ? filaEquipo(
-          oldAssignment.asset,
-          'Devolución OK',
-          textoCargador(oldAssignment, oldAssignment.condicionCargadorDevolucion, 'devolucion')
-        )
-      : FILA_VACIA,
+    equiposNuevos: equiposNuevos.length > 0 ? equiposNuevos : [FILA_VACIA],
+    equiposAnteriores: equiposAnteriores.length > 0 ? equiposAnteriores : [FILA_VACIA],
     // Solo el nombre, sin correo entre parentesis -- mismo criterio que
     // el Comprobante de Entrega.
     gestionadoPor: (solicitud.responsableActual || solicitud.solicitante).nombre,
