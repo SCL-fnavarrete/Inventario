@@ -162,11 +162,8 @@ src/
 
 | Rol | Permisos |
 |-----|----------|
-| **admin** | Acceso completo, gestión de usuarios |
-| **tecnico** | Asignar/recibir equipos, mantenciones |
-| **supervisor** | Ver reportes de su área |
-| **rrhh** | Solo lectura de fichas de empleados |
-| **auditor** | Solo lectura de todo el sistema |
+| **admin** | Acceso completo, gestión de usuarios; ve todas las sedes |
+| **tecnico** | Asignar/recibir equipos, solicitudes, mantenciones, compras y guías; solo en su propia sede |
 
 ## Flujos Principales
 

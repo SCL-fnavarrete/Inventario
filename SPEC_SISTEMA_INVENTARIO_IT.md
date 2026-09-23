@@ -18,13 +18,15 @@ Una empresa de servicios IT necesita gestionar el ciclo de vida completo de acti
 6. **Reportes para RRHH**: Generar fichas de entrega/devolución para gestión de descuentos
 
 ## 1.3 Usuarios del Sistema
+
+El sistema tiene exactamente dos roles de login (enum `SystemRole`):
+
 | Rol | Permisos |
 |-----|----------|
-| Admin IT | CRUD completo, reportes, configuración |
-| Técnico IT | Asignar/recibir equipos, registrar mantenciones |
-| Supervisor | Ver reportes de su área, aprobar solicitudes |
-| RRHH | Solo lectura de fichas de empleados y estados de devolución |
-| Auditor | Solo lectura de todo el sistema |
+| Admin IT (`admin`) | CRUD completo, usuarios, configuración; ve todas las sedes |
+| Técnico IT (`tecnico`) | Trabajo operativo de soporte (activos, empleados, solicitudes, mantenciones, compras, guías, Kit/EPP), solo en su propia sede (ver 2.8) |
+
+Los roles `supervisor`, `rrhh` y `auditor` del diseño original se eliminaron (migración `20260909180000_solo_roles_admin_tecnico`): el sistema lo usa solo soporte. RRHH sigue apareciendo como departamento externo que recibe las actas, y en el nombre histórico de algunos estados de solicitud (`registro_rrhh`, `confirmacion_rrhh`), pero no es un usuario del sistema.
 
 ### 1.3.1 Matriz de permisos (implementación)
 
@@ -36,56 +38,49 @@ puedan discrepar.
 
 Lectura (R) · Escritura (W) · Borrado (D).
 
-| Recurso | Admin | Técnico | Supervisor | RRHH | Auditor |
-|---|---|---|---|---|---|
-| activos | RWD | RW | R | R | R |
-| empleados | RWD | RW | R | R | R |
-| asignaciones | RWD | RW | R | R | R |
-| solicitudes | RWD | RW | RW | R | R |
-| mantenciones | RWD | RW | R | — | R |
-| tiposMantencion | RWD | RWD | R | — | R |
-| desvinculaciones | RWD | RW | R | R | R |
-| guias | RWD | RW | R | — | R |
-| compras | RWD | RW | R | — | R |
-| proveedores | RWD | R | R | — | R |
-| categorias | RWD | R | R | — | R |
-| usuarios | RWD | — | — | — | — |
-| reportes | R | R | R | R | R |
-| configuracion | RWD | — | — | — | — |
+| Recurso | Admin | Técnico |
+|---|---|---|
+| activos | RWD | RW |
+| empleados | RWD | RW |
+| asignaciones | RWD | RW |
+| solicitudes | RWD | RW |
+| mantenciones | RWD | RW |
+| tiposMantencion | RWD | RWD |
+| desvinculaciones | RWD | RW |
+| guias | RWD | RW |
+| compras | RWD | RW |
+| categorias | RWD | R |
+| kitEpp | RWD | RW |
+| usuarios | RWD | — |
+| sedes | RWD | R |
+| reportes (Dashboard) | R | R |
+| configuracion | RWD | — |
 
 **Reglas que la matriz hace cumplir:**
 
-1. **`rrhh` y `auditor` no escriben ni borran en ningún recurso.** Es la
-   traducción literal de "solo lectura" de la tabla de roles.
-2. **El borrado es exclusivo de `admin`, con una excepción: `tiposMantencion`.**
+1. **El borrado es exclusivo de `admin`, con una excepción: `tiposMantencion`.**
    El técnico opera el parque, no lo destruye. Para activos con historial el
    borrado además está prohibido por completo (ver 2.7.7). La excepción es el
    catálogo `tiposMantencion` (`maintenance_types`): admin y técnico lo
    crean/editan/eliminan por igual, porque es una lista operativa del día a día
    (no configuración del sistema) y el técnico es quien registra las
    mantenciones. Un tipo en uso se retira con `activo = false`, no se borra.
-3. **`usuarios` y `configuracion` quedan fuera del alcance del técnico**: son
-   información de identidad y de sistema. `compras` sí es alcance del técnico
-   desde el 11-sep-2026 (ver 2.10) — puede registrar y ver sus propias
-   compras (RW, nunca D), sin restricción de campos: el modelo ya no tiene
-   proveedor ni dato financiero (monto, moneda, método de pago, precio
-   unitario) para ningún rol, admin incluido -- se eliminaron del todo.
-4. **`reportes` no tiene escritura para nadie**: un reporte se deriva de los
-   datos, no se edita.
-5. **Las transiciones del workflow no se autorizan con esta matriz.** La regla
+2. **`usuarios` y `configuracion` quedan fuera del alcance del técnico**: son
+   información de identidad y de sistema. `categorias` y `sedes` son datos
+   maestros: el técnico los lee, solo admin los cambia. `compras` y `kitEpp`
+   sí son alcance del técnico (RW, nunca D): registra lo que llega y entrega
+   artículos en terreno (ver 2.10).
+3. **`reportes` no tiene escritura para nadie**: controla el Dashboard, que
+   se deriva de los datos. Conserva el nombre aunque el módulo Reportes se
+   eliminó (2.79).
+4. **Las transiciones del workflow no se autorizan con esta matriz.** La regla
    de qué rol puede ejecutar cada transición vive en la máquina de estados de
-   solicitudes (sección 2.5) y es la única fuente de esa decisión. Por eso
-   `rrhh` no tiene `write` sobre `solicitudes` y aun así puede ejecutar las
-   transiciones de confirmación que le corresponden: la ruta de transición
-   sólo exige poder **leer** la solicitud y delega la autorización real en la
-   máquina de estados.
-
-**Consecuencia del punto 1 sobre la importación masiva.** Antes de la v1.3 el
-código permitía importar activos a `supervisor` y empleados a `supervisor` y
-`rrhh`, en contradicción directa con "solo lectura". La matriz corrige esa
-divergencia a favor del SPEC: **importar activos y empleados requiere `admin`
-o `tecnico`**. Si el negocio necesita que RRHH cargue el maestro de empleados,
-el cambio se hace en esta matriz y en esta sección, no en la ruta.
+   solicitudes (sección 2.5) y es la única fuente de esa decisión: la ruta de
+   transición sólo exige poder **leer** la solicitud y delega la autorización
+   real en la máquina de estados.
+5. **El aislamiento por sede no es parte de la matriz**: lo aplica
+   `sedeScope.ts` sobre los datos (ver 2.8). La matriz dice qué puede hacer
+   cada rol; la sede, sobre qué registros.
 
 ---
 
@@ -391,7 +386,7 @@ CREATE TABLE system_users (
     email VARCHAR(150) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     nombre VARCHAR(100) NOT NULL,
-    rol ENUM('admin', 'tecnico', 'supervisor', 'rrhh', 'auditor') NOT NULL,
+    rol ENUM('admin', 'tecnico') NOT NULL,          -- ver 1.3
     activo BOOLEAN DEFAULT true,
     ultimo_login TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -578,26 +573,28 @@ El sistema de solicitudes es un **orquestador de procesos** que encapsula flujos
 
 | Tipo | Descripción | Iniciador | Efecto final |
 |------|-------------|-----------|--------------|
-| `onboarding` | Nuevo empleado necesita equipos | RRHH/Admin | Crea `assignments` para cada activo entregado |
+| `onboarding` | Nuevo empleado necesita equipos | Técnico/Admin | Crea `assignments` para cada activo entregado |
 | `cambio_equipo` | Reemplazo por falla o pérdida | Técnico/Admin | Devuelve activo viejo + asigna activo nuevo |
-| `devolucion_termino` | Empleado se desvincula | RRHH/Admin | Crea `termination` con estados por tipo de equipo |
+| `devolucion_termino` | Empleado se desvincula | Técnico/Admin | Crea `termination` con estados por tipo de equipo |
 
 ### 2.5.2 Máquinas de estado por tipo
+
+Desde 2.82 toda solicitud se crea completa y nace en su estado final; estos diagramas describen los estados posibles y las transiciones que quedan para tickets heredados.
 
 ```
 ONBOARDING:
   solicitud_recibida → [tecnico|admin] → gestion_ti
   gestion_ti         → [tecnico|admin] → equipos_entregados   ← SIDE EFFECT: crea assignments
-  equipos_entregados → [rrhh|admin]    → registro_rrhh        ← ESTADO FINAL
+  equipos_entregados → [tecnico|admin] → registro_rrhh        ← ESTADO FINAL
 
 CAMBIO_EQUIPO:
   incidencia_detectada → [tecnico|admin] → cambio_ejecutado   ← SIDE EFFECT: devuelve + asigna
-  cambio_ejecutado     → [rrhh|admin]    → confirmacion_rrhh  ← ESTADO FINAL
+  cambio_ejecutado     → [tecnico|admin] → confirmacion_rrhh  ← ESTADO FINAL
 
 DEVOLUCION_TERMINO:
   solicitud_emitida     → [tecnico|admin] → coordinacion_en_curso
   coordinacion_en_curso → [tecnico|admin] → equipo_recibido
-  equipo_recibido       → [rrhh|admin]    → consolidacion_cierre  ← SIDE EFFECT: crea termination
+  equipo_recibido       → [tecnico|admin] → consolidacion_cierre  ← SIDE EFFECT: crea termination
                                                                    ← ESTADO FINAL
 
 CANCELACIÓN (los tres tipos):
@@ -612,7 +609,7 @@ CANCELACIÓN (los tres tipos):
 
 ### 2.5.3 Reglas de negocio
 
-1. **Roles por estado:** Solo `tecnico` y `admin` pueden avanzar estados intermedios de TI. Solo `rrhh` y `admin` pueden avanzar estados de confirmación RRHH. No hay retroceso de estados.
+1. **Roles por estado:** Solo `tecnico` y `admin` ejecutan transiciones, incluidas las de cierre (RRHH no usa el sistema: los estados `*_rrhh` conservan su nombre histórico). No hay retroceso de estados.
 2. **Activos asignables:** Un activo solo puede asignarse si su `estado` es `disponible` o `reutilizable`.
 3. **Empleados asignables:** Un empleado solo puede recibir asignación si su `estado` es `activo`.
 4. **Devolución con daño:** Si `estadoDevolucion = danado`, el activo devuelto queda en `baja`. Si es `ok` o `incompleto`, queda en `reutilizable`.

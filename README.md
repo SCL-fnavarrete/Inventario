@@ -89,11 +89,8 @@ Inventario_Equipo/
 
 | Rol | Permisos |
 |-----|----------|
-| **admin** | Acceso completo, gestion de usuarios, Microsoft Sync |
-| **tecnico** | Asignar/recibir equipos, mantenciones |
-| **supervisor** | Ver reportes de su area |
-| **rrhh** | Lectura de fichas de empleados, desvinculaciones |
-| **auditor** | Solo lectura de todo el sistema |
+| **admin** | Acceso completo, gestion de usuarios, Microsoft Sync; ve todas las sedes |
+| **tecnico** | Asignar/recibir equipos, solicitudes, mantenciones, compras y guias; solo en su propia sede |
 
 ## Estados de Activos
 
