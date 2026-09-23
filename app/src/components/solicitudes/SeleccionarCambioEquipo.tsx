@@ -93,8 +93,7 @@ function iconoDe(nombre: string): React.ReactNode {
 }
 
 // La lista de campos que se muestran por categoría vive en
-// especificacionesActivoTexto (@/lib/utils/assetSpecs), compartida con
-// SeleccionarEquiposOnboarding.
+// especificacionesActivoTexto (@/lib/utils/assetSpecs).
 const especificaciones = especificacionesActivoTexto;
 
 /**

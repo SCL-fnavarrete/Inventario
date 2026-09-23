@@ -2993,7 +2993,22 @@ La condición del cargador (`Assignment.condicionCargadorEntrega` y `condicionCa
 
 Migración `20260923120000_condicion_cargador`: recrea el tipo convirtiendo los datos existentes con `CASE`, aborta si encuentra filas en `pendiente` (no tienen equivalente) y elimina `EstadoDevolucionTipo`, que solo usaban esas dos columnas.
 
+## 2.82 Las solicitudes se crean y se cierran en el mismo formulario (23-sep-2026)
+
+Pedido de Javier: sin etapas intermedias. Una solicitud se crea completa en `/solicitudes/nueva` y nace cerrada; la página de detalle queda como vista de consulta. Las máquinas de estado de 2.5.2 siguen existiendo (`workflowStateMachine.ts`, `PATCH /api/solicitudes/[id]/transicion`), pero ya no hay botones que las recorran salvo el cierre de tickets heredados.
+
+**`POST /api/solicitudes`: el ticket nace en su estado final o no se crea (400 con el motivo).**
+- **Onboarding** → `registro_rrhh` con `fechaCierre`, con o sin equipos. Exige que cada categoría requerida tenga su equipo elegido, fecha y lugar de entrega (u OT y ciudad, si es por Chilexpress) cuando hay equipos, que todo el Kit/EPP requerido se entregue al crear, y que Kit de Bienvenida / EPP marcados tengan al menos un artículo. Antes nacía en `solicitud_recibida`, `gestion_ti` o `equipos_entregados`.
+- **Cambio de equipo** → `confirmacion_rrhh` (sin cambios: la validación ya exigía equipo viejo, estado de devolución y equipo nuevo).
+- **Offboarding** → `consolidacion_cierre` y empleado desvinculado. Exige calificar la devolución de todas las asignaciones activas y todo el EPP del empleado ("No devolvió" cuenta como calificado). También cierra si el empleado no tiene nada que devolver; antes ese caso quedaba en `solicitud_emitida`.
+
+**Detalle de la solicitud.** Se eliminan el stepper de progreso y los paneles de etapa (Gestión TI, coordinación de entrega, cambio de equipo, recepción de equipos, "Siguiente paso") con sus handlers, y el componente `SeleccionarEquiposOnboarding`, que ya no usaba nadie. Se mantienen el checklist de pendientes, la entrega de Kit/EPP, los documentos, la actividad y la cancelación.
+
+**Tickets heredados.** Un ticket abierto solo puede venir del flujo anterior. El detalle muestra un aviso y, si está a un paso del final (`equipos_entregados`, `cambio_ejecutado`, `equipo_recibido`), un botón "Cerrar ticket" que usa la transición existente con sus validaciones. En etapas anteriores solo queda la cancelación, si el ticket no ejecutó efectos.
+
 ## Changelog SPEC
+- **v2.6 (2026-09-23):**
+  - Sección 2.82 (nueva): toda solicitud nace cerrada al crearse (onboarding pasa a cerrarse también) o la API la rechaza con 400; offboarding sin nada que devolver también cierra. El detalle pierde el stepper y los paneles de etapa; los tickets heredados abiertos muestran un aviso y, si están a un paso del final, "Cerrar ticket".
 - **v2.5 (2026-09-23):**
   - Sección 2.81 (nueva): la condición del cargador pasa a un enum propio `CondicionCargador` (`operativo`, `con_danos`, `no_incluido`), con migración que convierte los datos existentes.
 - **v2.4 (2026-09-23):**

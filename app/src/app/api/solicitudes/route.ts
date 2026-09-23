@@ -7,6 +7,7 @@ import { Prisma, Employee } from '@prisma/client';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { sedeWhere, sedeIdParaCrear, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { normalizeRut } from '@/lib/utils/rut';
+import { ValidationError } from '@/lib/errors';
 import { removeAccents, matchNoAccent } from '@/lib/utils/text';
 
 async function generateNumero(): Promise<string> {
@@ -164,6 +165,13 @@ export async function POST(request: NextRequest) {
 
     const data = validationResult.data;
 
+    // El ticket se crea y se cierra en el mismo formulario (SPEC 2.82): sin
+    // los datos completos no se crea, en vez de quedar en una etapa intermedia.
+    if (data.tipo === 'onboarding') {
+      const errorOnboarding = await validarOnboardingCompleto(data);
+      if (errorOnboarding) throw new ValidationError(errorOnboarding);
+    }
+
     // Find the system user by session email
     const systemUser = await prisma.systemUser.findUnique({
       where: { email: session.user?.email || '' },
@@ -312,17 +320,13 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Si al crear la solicitud de onboarding ya se eligieron equipos
-      // especificos (no solo categorias), se asignan de una -- el Activo
-      // queda reservado (estado 'asignado') desde este momento, aunque la
-      // entrega fisica sea despues. Si ademas ya se completo la
-      // coordinacion de entrega en el mismo formulario de creacion y
-      // quedaron cubiertas todas las categorias requeridas, el ticket se
-      // salta Gestion TI por completo y nace directo en "Equipos
-      // Entregados". Si falta alguna categoria, o no se coordino la fecha
-      // todavia, el ticket entra a Gestion TI a completar lo que falta.
+      // Onboarding: los equipos elegidos se asignan de una (el Activo queda
+      // 'asignado' aunque la entrega fisica sea despues) y el ticket nace
+      // cerrado. Cada categoria requerida debe tener su equipo.
       let estadoReal = estadoInicial;
+      let cierraDeInmediato = false;
       const assignmentIds: string[] = [];
+      let categoriasAsignadas: string[] = [];
 
       if (
         data.tipo === 'onboarding' &&
@@ -350,15 +354,16 @@ export async function POST(request: NextRequest) {
           assignmentIds.push(assignment.id);
         }
 
-        const categoriasAsignadas = asignados.map((a) => a.categoria.nombre);
-        const cubreTodasLasCategorias = data.categoriasRequeridas.every((c) =>
-          categoriasAsignadas.includes(c)
-        );
+        categoriasAsignadas = asignados.map((a) => a.categoria.nombre);
+      }
 
-        estadoReal =
-          cubreTodasLasCategorias && data.fechaEntregaCoordinada
-            ? 'equipos_entregados'
-            : 'gestion_ti';
+      if (data.tipo === 'onboarding') {
+        const sinEquipo = data.categoriasRequeridas.filter((c) => !categoriasAsignadas.includes(c));
+        if (sinEquipo.length > 0) {
+          throw new ValidationError(`Falta elegir un equipo para: ${sinEquipo.join(', ')}`);
+        }
+        estadoReal = 'registro_rrhh';
+        cierraDeInmediato = true;
       }
 
       // Offboarding: si el tecnico ya tiene los equipos (y el EPP) en mano
@@ -371,13 +376,10 @@ export async function POST(request: NextRequest) {
       // equipo_recibido) para que el paso "Recibir Equipos" del detalle
       // siga ofreciendo, correctamente, solo lo que todavia falta. El Kit de
       // Bienvenida no se devuelve (es consumible).
-      let cierraDeInmediato = false;
       const kitReturnIds: string[] = [];
-      if (
-        data.tipo === 'offboarding' &&
-        ((data.devoluciones && data.devoluciones.length > 0) ||
-          (data.devolucionesEpp && data.devolucionesEpp.length > 0))
-      ) {
+      // Se evalua aunque no venga ninguna devolucion: un empleado sin
+      // equipos ni EPP tambien se desvincula y cierra de inmediato.
+      if (data.tipo === 'offboarding') {
         // (ver executeReturn) "no_devuelto" deja la asignacion activa a
         // proposito -- no deberia ser posible en un empleado que recien va a
         // desvincularse, pero se filtra igual por consistencia con el resto
@@ -397,6 +399,11 @@ export async function POST(request: NextRequest) {
           eppPendiente.every((k) =>
             (data.devolucionesEpp || []).some((d) => d.kitAssignmentId === k.id)
           );
+        if (!cubreTodo) {
+          throw new ValidationError(
+            'Debes calificar la devolución de todos los equipos y EPP del empleado. Si no los entregó, márcalos como "No devolvió".'
+          );
+        }
 
         for (const dev of data.devoluciones || []) {
           await executeReturn(tx, {
@@ -428,8 +435,8 @@ export async function POST(request: NextRequest) {
           kitReturnIds.push(dev.kitAssignmentId);
         }
 
-        estadoReal = cubreTodo ? 'consolidacion_cierre' : estadoInicial;
-        cierraDeInmediato = cubreTodo;
+        estadoReal = 'consolidacion_cierre';
+        cierraDeInmediato = true;
       }
 
       // Cambio de equipo: si al crear el ticket ya se eligio el equipo viejo
@@ -510,15 +517,7 @@ export async function POST(request: NextRequest) {
           ejecutadoPorId: systemUser.id,
           comentario: [
             esReincorporacion && 'Reincorporación: empleado reactivado (desvinculado → activo)',
-            estadoReal !== estadoInicial
-              ? data.tipo === 'cambio_equipo'
-                ? 'Solicitud creada con el cambio de equipo ya ejecutado y ticket cerrado de inmediato'
-                : 'Solicitud creada con equipos ya asignados'
-              : data.tipo === 'offboarding' && assignmentIds.length + kitReturnIds.length > 0
-                ? cierraDeInmediato
-                  ? 'Solicitud creada con equipos recibidos y ticket cerrado de inmediato'
-                  : 'Solicitud creada con una parte de los equipos ya recibida'
-                : 'Solicitud creada',
+            'Solicitud creada y cerrada en el mismo formulario',
           ]
             .filter(Boolean)
             .join(' — '),
@@ -583,4 +582,49 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return handleApiError(error, 'Error al crear solicitud');
   }
+}
+
+type DatosOnboarding = Extract<
+  ReturnType<typeof createWorkflowRequestSchema.parse>,
+  { tipo: 'onboarding' }
+>;
+
+/**
+ * Datos que un onboarding necesita para nacer cerrado (SPEC 2.82). Devuelve
+ * el motivo si falta algo; la cobertura de categorias se valida en la
+ * transaccion, junto con la asignacion de los equipos.
+ */
+async function validarOnboardingCompleto(data: DatosOnboarding): Promise<string | null> {
+  if (data.assetIdsSeleccionados.length > 0) {
+    const faltaEntrega =
+      !data.fechaEntregaCoordinada ||
+      (data.medioEntrega === 'chilexpress'
+        ? !data.otChilexpressEntrega || !data.ciudadEntrega
+        : !data.lugarEntrega);
+    if (faltaEntrega) {
+      return 'Faltan los datos de entrega de los equipos: fecha y lugar, o N° de OT y ciudad de destino.';
+    }
+  }
+
+  // Todo lo requerido de Kit/EPP se entrega al crear: nada puede quedar pendiente.
+  const entregados = new Set(data.kitItemsSeleccionados.map((k) => k.itemId));
+  if (data.kitItemsRequeridos.some((k) => !entregados.has(k.itemId))) {
+    return 'Todo el Kit de Bienvenida y EPP requerido debe entregarse al crear la solicitud.';
+  }
+
+  const categorias = new Set(
+    (
+      await prisma.welcomeKitItem.findMany({
+        where: { id: { in: [...entregados] } },
+        select: { categoria: true },
+      })
+    ).map((i) => i.categoria)
+  );
+  if (data.kitBienvenidaSolicitado && !categorias.has('kit_bienvenida')) {
+    return 'Elige al menos un artículo del Kit de Bienvenida o desmarca la opción.';
+  }
+  if (data.eppSolicitado && !categorias.has('epp')) {
+    return 'Elige al menos un artículo de EPP o desmarca la opción.';
+  }
+  return null;
 }
