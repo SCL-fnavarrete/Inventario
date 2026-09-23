@@ -13,6 +13,8 @@ import {
   Clock,
   AlertCircle,
   MapPin,
+  Trash2,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TipoEvento } from "@prisma/client";
@@ -22,6 +24,8 @@ import { buttonClasses } from "@/components/ui/buttonStyles";
 import { AssetStatusBadge } from "@/components/ui/Badge";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { CONDICION_ACTIVO_LABEL } from "@/lib/constants/estadosActivo";
+import { Can } from "@/components/auth/Can";
+import { motivoSinBaja } from "@/lib/constants/estadosActivo";
 
 // Covers the full TipoEvento enum so no event type renders as raw text
 // in the audit history.
@@ -145,6 +149,9 @@ export default async function DetalleActivoPage({
     especificaciones.microsoft365 = asset.tipoLicenciaMicrosoft365;
   }
 
+  // Por que no se puede dar de baja (null si se puede).
+  const bloqueoBaja = motivoSinBaja(asset.estado);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -158,10 +165,43 @@ export default async function DetalleActivoPage({
         title={`${asset.marca} ${asset.modelo}`}
         description={`${asset.categoria.nombre} • ${asset.numeroSerie ?? "Sin n° de serie"}`}
         actions={
-          <Link href={`/activos/${asset.id}/editar`} className={buttonClasses()}>
-            <Edit size={18} />
-            <span>Editar</span>
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href={`/activos/${asset.id}/editar`} className={buttonClasses()}>
+              <Edit size={18} />
+              <span>Editar</span>
+            </Link>
+            {/* La baja pasa siempre por Mantenciones (SPEC 2.88). Si no se
+                puede, el boton queda desactivado y dice por que. */}
+            {asset.estado === "baja" ? (
+              <Can recurso="activos">
+                <Link href={`/activos/${asset.id}/venta`} className={buttonClasses({ variant: "outline" })}>
+                  <DollarSign size={18} />
+                  <span>Registrar venta</span>
+                </Link>
+              </Can>
+            ) : asset.estado !== "vendido" ? (
+              <Can recurso="mantenciones">
+                {bloqueoBaja ? (
+                  <span
+                    aria-disabled="true"
+                    title={bloqueoBaja}
+                    className={cn(buttonClasses({ variant: "outline" }), "cursor-not-allowed opacity-60")}
+                  >
+                    <Trash2 size={18} />
+                    <span>Dar de baja</span>
+                  </span>
+                ) : (
+                  <Link
+                    href={`/mantenciones/baja?activoId=${asset.id}`}
+                    className={buttonClasses({ variant: "outline" })}
+                  >
+                    <Trash2 size={18} />
+                    <span>Dar de baja</span>
+                  </Link>
+                )}
+              </Can>
+            ) : null}
+          </div>
         }
       />
 

@@ -1,70 +1,8 @@
 import {
-  assetBajaSchema,
   assetVentaSchema,
   motivoBajaEnum,
   resultadoMantencionEnum,
 } from '@/lib/validations/assetTransition';
-
-// SPEC: Sección 2.7.3 — Proceso de Baja
-describe('assetBajaSchema', () => {
-  const validBaja = {
-    motivo: 'obsolescencia' as const,
-    condicionFinal: 'usado' as const,
-  };
-
-  test('acepta baja válida con motivo y condición', () => {
-    expect(assetBajaSchema.safeParse(validBaja).success).toBe(true);
-  });
-
-  test('acepta todos los motivos válidos', () => {
-    const motivos = ['obsolescencia', 'falla_irreparable', 'robo', 'extravio', 'otro'] as const;
-    motivos.forEach((motivo) => {
-      const data = motivo === 'otro'
-        ? { ...validBaja, motivo, motivoDetalle: 'Motivo personalizado' }
-        : { ...validBaja, motivo };
-      expect(assetBajaSchema.safeParse(data).success).toBe(true);
-    });
-  });
-
-  test('rechaza motivo inválido', () => {
-    expect(assetBajaSchema.safeParse({ ...validBaja, motivo: 'inventado' }).success).toBe(false);
-  });
-
-  test('rechaza condición final inválida', () => {
-    expect(assetBajaSchema.safeParse({ ...validBaja, condicionFinal: 'nuevo' }).success).toBe(false);
-  });
-
-  test('motivo "otro" sin detalle es inválido', () => {
-    const result = assetBajaSchema.safeParse({ ...validBaja, motivo: 'otro' });
-    expect(result.success).toBe(false);
-  });
-
-  test('motivo "otro" con detalle es válido', () => {
-    const result = assetBajaSchema.safeParse({
-      ...validBaja,
-      motivo: 'otro',
-      motivoDetalle: 'Equipo perdido en traslado',
-    });
-    expect(result.success).toBe(true);
-  });
-
-  test('motivo "otro" con detalle vacío es inválido', () => {
-    const result = assetBajaSchema.safeParse({
-      ...validBaja,
-      motivo: 'otro',
-      motivoDetalle: '',
-    });
-    expect(result.success).toBe(false);
-  });
-
-  test('motivo no-otro sin detalle es válido', () => {
-    const result = assetBajaSchema.safeParse({
-      motivo: 'robo',
-      condicionFinal: 'danado',
-    });
-    expect(result.success).toBe(true);
-  });
-});
 
 // SPEC: Sección 2.7.4 — Proceso de Venta
 describe('assetVentaSchema', () => {

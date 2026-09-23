@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { resultadoMantencionEnum } from "./assetTransition";
+import { motivoBajaEnum, resultadoMantencionEnum } from "./assetTransition";
 
 // El tipo de mantencion es una fila de MaintenanceType, referenciada por id
 // (ver prisma/schema.prisma y src/app/api/mantenciones/tipos).
@@ -94,6 +94,34 @@ export const completeMaintenanceSchema = z
     }
   );
 
+// Dar de baja un equipo por mantencion (SPEC 2.88): cierra su mantencion
+// abierta, o registra una ya cerrada, como "No reparable".
+export const bajaPorMantencionSchema = z
+  .object({
+    assetId: z.string().uuid("Equipo inválido"),
+    // Se usa solo si el equipo no tiene una mantencion abierta.
+    tipoId: tipoIdSchema,
+    motivo: motivoBajaEnum,
+    motivoDetalle: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
+    observaciones: z.string().max(1000, "Máximo 1000 caracteres").optional().nullable(),
+    fechaRealizada: z
+      .string()
+      .min(1, "Fecha requerida")
+      .transform((val, ctx) => {
+        const fecha = new Date(val);
+        if (isNaN(fecha.getTime())) {
+          ctx.addIssue({ code: "custom", message: "Fecha inválida" });
+          return z.NEVER;
+        }
+        return fecha;
+      }),
+    realizadoPor: z.string().min(1, "Requerido").max(100, "Máximo 100 caracteres"),
+  })
+  .refine((d) => d.motivo !== "otro" || !!d.motivoDetalle?.trim(), {
+    message: 'Describe el motivo cuando eliges "Otro"',
+    path: ["motivoDetalle"],
+  });
+
 // Schema para filtros de búsqueda
 export const maintenanceFiltersSchema = z.object({
   search: z.string().optional(),
@@ -118,4 +146,5 @@ export const maintenanceFiltersSchema = z.object({
 export type CreateMaintenanceInput = z.infer<typeof createMaintenanceSchema>;
 export type UpdateMaintenanceInput = z.infer<typeof updateMaintenanceSchema>;
 export type CompleteMaintenanceInput = z.infer<typeof completeMaintenanceSchema>;
+export type BajaPorMantencionInput = z.input<typeof bajaPorMantencionSchema>;
 export type MaintenanceFilters = z.infer<typeof maintenanceFiltersSchema>;

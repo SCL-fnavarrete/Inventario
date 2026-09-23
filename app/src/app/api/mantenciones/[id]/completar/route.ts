@@ -63,7 +63,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const usuario = session.user?.email || data.realizadoPor;
 
     // Valida la transicion a "baja" con la misma logica que
-    // POST /api/activos/[id]/baja, en vez de escribir el estado directo.
+    // POST /api/mantenciones/baja, en vez de escribir el estado directo.
     if (data.resultadoTipo === "no_reparable") {
       const transitionResult = validateTransition(maintenance.asset.estado, "baja", {
         hasActiveAssignment: false,

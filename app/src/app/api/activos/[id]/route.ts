@@ -36,9 +36,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             },
           },
         },
-       maintenances: {
+        // Mantenciones abiertas: la pagina de baja (SPEC 2.88) cierra la
+        // mas antigua en vez de crear otra.
+        maintenances: {
           where: { estado: { in: ['pendiente', 'en_proceso'] } },
-          select: { id: true, estado: true },
+          select: { id: true, estado: true, descripcion: true, tipo: { select: { nombre: true } } },
+          orderBy: { createdAt: 'asc' },
         },
       },
     });
@@ -310,7 +313,7 @@ export async function DELETE(
           eventosHistorial: existingAsset._count.history,
           asignaciones: existingAsset._count.assignments,
           alternativas: {
-            baja: `POST /api/activos/${id}/baja`,
+            baja: `POST /api/mantenciones/baja`,
             descartarDuplicado: `DELETE /api/activos/${id}?descartar=true&motivo=...`,
           },
         }

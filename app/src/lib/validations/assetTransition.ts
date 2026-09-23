@@ -16,19 +16,6 @@ export const motivoBajaEnum = z.enum([
   'otro',
 ]);
 
-export const condicionFinalBajaEnum = z.enum(['danado', 'usado']);
-
-export const assetBajaSchema = z
-  .object({
-    motivo: motivoBajaEnum,
-    motivoDetalle: z.string().max(500).optional().nullable(),
-    condicionFinal: condicionFinalBajaEnum,
-  })
-  .refine((data) => data.motivo !== 'otro' || (data.motivoDetalle && data.motivoDetalle.length > 0), {
-    message: 'Se requiere detalle cuando el motivo es "otro"',
-    path: ['motivoDetalle'],
-  });
-
 // Proceso de venta de un activo
 export const assetVentaSchema = z.object({
   comprador: z.string().min(1, 'El comprador es requerido').max(200),
@@ -47,7 +34,6 @@ export const resultadoMantencionEnum = z.enum(['reparado', 'no_reparable', 'pend
 
 // Tipos inferidos
 export type AssetTransitionInput = z.infer<typeof assetTransitionSchema>;
-export type AssetBajaInput = z.infer<typeof assetBajaSchema>;
 export type AssetVentaInput = z.infer<typeof assetVentaSchema>;
 export type MotivoBaja = z.infer<typeof motivoBajaEnum>;
 export type ResultadoMantencion = z.infer<typeof resultadoMantencionEnum>;

@@ -96,7 +96,7 @@ En produccion (Vercel) se aplica con `npm run db:migrate:prod`.
 - **UI language:** All user-facing text is in Spanish
 - **RUT handling:** RUT is optional (`String?`). Employees synced from Microsoft may not have RUT. Always use null-safe access (`employee.rut || "—"`) and optional chaining (`employee.rut?.toLowerCase()`)
 - **Microsoft Sync:** Read-only integration with Microsoft Entra ID via Graph API. Sync is manual (admin-only button). Employees matched by `correo` on first sync, by `microsoftId` on subsequent syncs. Never writes to Entra ID
-- **Transiciones de estado de activos:** Toda transición de estado de un activo debe pasar por `assetStateMachine.validateTransition()`, dentro de su proceso: solicitudes (asignar, devolver, cambiar), mantenciones, `/api/activos/[id]/baja` y `/api/activos/[id]/venta`. El PUT de `/api/activos/[id]` no cambia el estado: lo rechaza con 409 (SPEC 2.86)
+- **Transiciones de estado de activos:** Toda transición de estado de un activo debe pasar por `assetStateMachine.validateTransition()`, dentro de su proceso: solicitudes (asignar, devolver, cambiar), mantenciones (la baja pasa siempre por una mantención "No reparable": `/api/mantenciones/baja` o al completar una, SPEC 2.88) y `/api/activos/[id]/venta`. El PUT de `/api/activos/[id]` no cambia el estado: lo rechaza con 409 (SPEC 2.86)
 - **Workflow/Solicitudes:** El sistema de solicitudes orquesta flujos completos (onboarding, cambio equipo, devolución por término). `workflowStateMachine` valida transiciones; `workflowExecutionService` ejecuta las acciones reales (crea asignaciones, desvinculaciones, guías). Las transiciones quedan en `WorkflowTransition` para auditoría
 - **Estilos y tema:** seguir `app/docs/DESIGN_SYSTEM.md`. Nunca colores fijos para superficies o texto (`bg-white`, `text-gray-900`, hex): usar los tokens (`bg-surface`, `text-fg`, `border-line`...) para que funcione el modo oscuro. Tarjetas destacadas con `card-feature` y color derivado de un dato real (`lib/constants/tonos.ts`); `<Tilt>` solo en pocas tarjetas, nunca en listas grandes
 - **Component structure:** Feature components in named dirs (`components/activos/`, `components/dashboard/`), reusable primitives in `components/ui/`
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
 
 Un activo con historial o asignaciones **no se borra** (SPEC 2.7.7): su
 registro es evidencia de auditoria. `DELETE /api/activos/[id]` responde 409 y
-apunta a `/baja`. Para duplicados de importacion existe
+apunta a darlo de baja por Mantenciones (`/api/mantenciones/baja`). Para duplicados de importacion existe
 `DELETE /api/activos/[id]?descartar=true&motivo=...`, que marca `deletedAt` y
 deja el evento en el historial. Los listados y reportes filtran con
 `ACTIVOS_VIGENTES` de `src/lib/queries/activos.ts`.

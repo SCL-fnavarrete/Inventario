@@ -71,7 +71,7 @@ export function etiquetaEstadoDevolucion(estado: string): string {
   return ESTADO_DEVOLUCION_LABEL[estado] ?? estado;
 }
 
-/** Motivo de baja de un activo (assetBajaSchema), para el historial y la UI. */
+/** Motivo de baja de un activo (motivoBajaEnum), para el historial y la UI. */
 export const MOTIVO_BAJA_LABEL: Record<MotivoBaja, string> = {
   obsolescencia: 'Obsolescencia',
   falla_irreparable: 'Falla irreparable',
@@ -82,6 +82,30 @@ export const MOTIVO_BAJA_LABEL: Record<MotivoBaja, string> = {
 
 export function etiquetaMotivoBaja(motivo: string): string {
   return MOTIVO_BAJA_LABEL[motivo as MotivoBaja] ?? motivo;
+}
+
+/**
+ * Por que un equipo no se puede dar de baja, o null si se puede (SPEC 2.88).
+ * La baja pasa siempre por una mantencion "No reparable", y solo desde
+ * disponible o en mantencion: un equipo asignado o no devuelto primero tiene
+ * que volver con una solicitud. La usan la API y los botones de la interfaz.
+ */
+export function motivoSinBaja(estado: string): string | null {
+  switch (estado) {
+    case 'disponible':
+    case 'en_mantencion':
+      return null;
+    case 'asignado':
+      return 'Está asignado: primero devuélvelo con una solicitud de desvinculación o cambio de equipo.';
+    case 'no_devuelto':
+      return 'No fue devuelto: primero recupéralo con una solicitud de desvinculación.';
+    case 'baja':
+      return 'Ya está dado de baja.';
+    case 'vendido':
+      return 'Ya fue vendido.';
+    default:
+      return `No se puede dar de baja en estado "${etiquetaEstadoActivo(estado)}".`;
+  }
 }
 
 /** Etiqueta de una condicion que puede venir como texto libre. */

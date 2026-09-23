@@ -2405,7 +2405,7 @@ justamente lo que da fe de lo ocurrido.
 
 | Situación del activo | Respuesta |
 |---|---|
-| Tiene historial o asignaciones | **409**, indicando que corresponde darlo de baja con `POST /api/activos/{id}/baja` |
+| Tiene historial o asignaciones | **409**, indicando que corresponde darlo de baja por Mantenciones (`POST /api/mantenciones/baja`, SPEC 2.88) |
 | Está asignado a alguien (`estado = asignado`) | **409**: primero se devuelve el equipo |
 | Sin historial ni asignaciones (creado por error) | Borrado físico permitido |
 
@@ -3080,7 +3080,27 @@ Decisiones de Javier tras probar el flujo: *"cuando se desvincula un empleado y 
 **Devolución dañada → mantención.** Un equipo devuelto "Dañado" (desvinculación, cambio de equipo o recuperación) ya no pasa directo a `baja`: queda `en_mantencion` con condición dañado, y se crea una mantención pendiente para hoy, tipo "Correctiva" (o el primer tipo activo si no existe), con la descripción "Evaluar equipo devuelto dañado por …". El historial registra la devolución y el envío a mantención. Desde Mantenciones el técnico la cierra como "Reparado" (vuelve a disponible) o "No reparable" (pasa a baja, con motivo). Antes la baja era automática, sin motivo y sin vuelta atrás.
 - `assetStateMachine`: nueva transición `no_devuelto → en_mantencion` (recuperado dañado); el mensaje de `asignado → disponible` con devolución dañada dice ahora "debe ir a mantención".
 
+## 2.88 La baja de un equipo pasa siempre por Mantenciones (23-sep-2026)
+
+Pedido de Javier: *"la idea sería que para dar de baja deba ir a mantención y darlo de baja desde ahí, por ejemplo un botón para darlo de baja pero que lleve a mantención listo con los datos y el equipo para darse de baja; prefiero eso que el formulario que tiene el kanban"*.
+
+**Regla.** Un equipo se da de baja solo con una mantención cerrada como "No reparable", y solo desde `disponible` o `en_mantencion`. Un equipo `asignado` primero se devuelve con una solicitud; uno `no_devuelto`, primero se recupera (SPEC 2.87). La regla vive en `motivoSinBaja()` (`lib/constants/estadosActivo.ts`), que usan la API y los botones.
+
+**Página "Dar de baja equipo"** (`/mantenciones/baja?activoId=`). Llega con el equipo elegido y los datos ya llenos: tipo de mantención (Correctiva por defecto), fecha de hoy y el usuario como "Realizado por". Solo se elige el motivo (Obsolescencia, Falla irreparable, Robo, Extravío u Otro con detalle) y, opcionalmente, observaciones. Si el equipo ya tiene una mantención abierta (por ejemplo, la que se crea al devolverlo dañado, SPEC 2.87), se cierra esa misma en vez de crear otra, y la página lo avisa.
+
+**`POST /api/mantenciones/baja`** (permiso `mantenciones/write`, schema `bajaPorMantencionSchema`). En una transacción: cierra la mantención abierta más antigua, o crea una ya cerrada, con `resultadoTipo = no_reparable` y el motivo; cancela las demás mantenciones abiertas del equipo; pasa el activo a `baja` con `fechaBaja`; registra la baja en el historial ("Mantención Correctiva: Falla irreparable") y en la auditoría. Rechaza con 409 los estados que no admiten baja.
+
+**Por dónde se llega:**
+- Botón **"Dar de baja"** en el detalle del equipo. Si no se puede, aparece desactivado y explica por qué.
+- Enlace **"Dar de baja"** en las mantenciones abiertas de la lista de Mantenciones.
+- Tablero de Activos: arrastrar a "Baja" lleva a esta página.
+- Además, en el detalle de un equipo en Baja aparece **"Registrar venta"** (antes solo se llegaba arrastrando en el tablero).
+
+**Se elimina** la baja directa: `POST /api/activos/[id]/baja`, la página `/activos/[id]/baja`, el formulario `BajaActivoForm` (modal del tablero) y `assetBajaSchema`/`condicionFinalBajaEnum`. `motivoBajaEnum` se conserva para el nuevo formulario. `GET /api/activos/[id]` entrega las mantenciones abiertas con su tipo y descripción.
+
 ## Changelog SPEC
+- **v2.12 (2026-09-23):**
+  - Sección 2.88 (nueva): la baja de un equipo pasa siempre por Mantenciones. Página "Dar de baja equipo" con los datos listos y `POST /api/mantenciones/baja`; botones "Dar de baja" y "Registrar venta" en el detalle del equipo; se elimina la baja directa (`/api/activos/[id]/baja` y su formulario).
 - **v2.11 (2026-09-23):**
   - Sección 2.87 (nueva): recuperación de equipos "No devuelto" con una nueva desvinculación sobre el empleado ya desvinculado; el Acta de Devolución lista solo lo devuelto (sin devolución, no hay acta); un equipo devuelto dañado pasa a mantención (Correctiva) en vez de ir directo a baja.
 - **v2.10 (2026-09-23):**

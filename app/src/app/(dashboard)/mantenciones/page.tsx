@@ -438,6 +438,17 @@ export default function MantencionesPage() {
                           >
                             Ver detalle
                           </Link>
+                          {/* Baja por mantencion (SPEC 2.88): cierra esta misma. */}
+                          {(maintenance.estado === "pendiente" || maintenance.estado === "en_proceso") && (
+                            <Can recurso="mantenciones">
+                              <Link
+                                href={`/mantenciones/baja?activoId=${maintenance.asset.id}`}
+                                className="ml-3 text-red-600 hover:text-red-800 text-sm font-medium"
+                              >
+                                Dar de baja
+                              </Link>
+                            </Can>
+                          )}
                         </td>
                       </tr>
                     );

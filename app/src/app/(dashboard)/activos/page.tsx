@@ -28,11 +28,8 @@ import {
 import { cn } from "@/lib/utils";
 import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard, ActivosTabs } from "@/components/activos";
 import { Can } from "@/components/auth/Can";
-import { Modal } from "@/components/ui/Modal";
-import { useToast } from "@/components/ui/Toast";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
-import { BajaActivoForm } from "@/components/activos/BajaActivoForm";
 import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 import { formatearFecha } from "@/lib/utils/fechas";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
@@ -159,14 +156,12 @@ function ActivosPageContent() {
   const debouncedSearchInput = useDebouncedValue(searchInput, 350);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"table" | "cards" | "kanban">("table");
-  const [bajaModalAssetId, setBajaModalAssetId] = useState<string | null>(null);
   // El setter solo lo usaba handleStatusChange, que esta comentado mas
   // abajo (drag-and-drop de Kanban deshabilitado); isUpdatingStatus queda
   // en false, que es el comportamiento actual real.
   const [isUpdatingStatus] = useState(false);
   // Message shown when a Kanban card move is not allowed.
   const [kanbanError, setKanbanError] = useState<string | null>(null);
-  const toast = useToast();
 
   // Update URL params
   const updateUrlParams = useCallback((updates: Record<string, string | null>) => {
@@ -348,25 +343,10 @@ function ActivosPageContent() {
     return;
   }
 
-  // Dar de baja un equipo con una mantencion abierta: /baja lo rechaza, se
-  // da de baja cerrando esa mantencion como "No reparable". Se lleva ahi.
-  if (newStatus === "baja" && currentStatus === "en_mantencion") {
-    const res = await fetch(`/api/activos/${assetId}`);
-    const detalle: { maintenances?: { id: string }[] } = res.ok ? await res.json() : {};
-    const abierta = detalle.maintenances?.[0];
-    if (abierta) {
-      toast.warning(
-        "Mantención abierta",
-        'Para darlo de baja, cierra la mantención como "No reparable".'
-      );
-      router.push(`/mantenciones/${abierta.id}`);
-      return;
-    }
-  }
-
-  //dar de baja: se necesita un motivo
+  // Dar de baja: siempre por Mantenciones, con el equipo ya elegido (SPEC
+  // 2.88). Si tiene una mantencion abierta, la pagina cierra esa.
   if (newStatus === "baja" && (currentStatus === "en_mantencion" || currentStatus === "disponible")) {
-    setBajaModalAssetId(assetId);
+    router.push(`/mantenciones/baja?activoId=${assetId}`);
     return;
   }
 
@@ -1007,28 +987,6 @@ function ActivosPageContent() {
         </div>
       )}
 
-      <Modal
-        isOpen={!!bajaModalAssetId}
-        onClose={() => setBajaModalAssetId(null)}
-        title="Dar de baja"
-        size="lg"
-      >
-        {bajaModalAssetId && (
-          <BajaActivoForm
-            assetId={bajaModalAssetId}
-            onCancel={() => setBajaModalAssetId(null)}
-            onSuccess={async () => {
-              setAllAssets((prev) =>
-                prev.map((a) => (a.id === bajaModalAssetId ? { ...a, estado: "baja" as Asset["estado"] } : a))
-              );
-              const statsRes = await fetch(urlStats(sedeSeleccionada));
-              const statsData = await statsRes.json();
-              setStats(statsData);
-              setBajaModalAssetId(null);
-            }}
-          />
-        )}
-      </Modal>
     </div>
   );
 }
