@@ -2,7 +2,7 @@ import React from 'react';
 import { Document, Page, Text, View } from '@react-pdf/renderer';
 import { EMPRESA } from './pdfStyles';
 import { sclStyles as styles, LogoSCL } from './pdfSclBrand';
-import { TablaEquipoActa, type FilaEquipoActa } from './TablaEquipoActa';
+import { TablaCargadorActa, TablaEquipoActa, type FilaEquipoActa } from './TablaEquipoActa';
 
 type Props = {
   empleadoNombre: string;
@@ -54,19 +54,23 @@ export function ComprobanteCambioTemplate({
           , con motivo de: <Text style={styles.bold}>{motivoCambio}</Text>.
         </Text>
 
-        {/* Dos tablas: compactas para que las firmas entren en la misma hoja. */}
+        {/* Dos tablas compactas y un solo bloque de cargadores al final, para
+            que todo (firmas incluidas) quepa en una hoja. */}
         <TablaEquipoActa
           titulo="Equipo asignado (nuevo):"
           columnaEstado="Estado"
           filas={[equipoNuevo]}
           compacta
+          sinCargador
         />
         <TablaEquipoActa
           titulo="Equipo devuelto (anterior):"
           columnaEstado="Estado"
           filas={[equipoAnterior]}
           compacta
+          sinCargador
         />
+        <TablaCargadorActa filas={[equipoNuevo, equipoAnterior]} compacta />
 
         <Text style={styles.docObsCompacto}>
           <Text style={styles.italic}>

@@ -46,17 +46,18 @@ function filaEquipo(
     numeroSerie: string | null;
   },
   estado: string,
-  cargador: string | null
+  cargador: FilaEquipoActa['cargador']
 ): FilaEquipoActa {
   return {
     equipo: asset.categoria.nombre,
     marca: asset.marca,
     numeroSerie: asset.numeroSerie,
-    descripcion: [asset.modelo, cargador && `Cargador: ${cargador}`].filter(Boolean).join('\n'),
+    descripcion: asset.modelo,
     especificaciones: especificacionesActivo({ ...asset, pulgadas: asset.pulgadas?.toString() ?? null })
       .map(({ etiqueta, valor }) => `${etiqueta}: ${valor}`)
       .join('\n'),
     estado,
+    cargador,
   };
 }
 
@@ -68,20 +69,19 @@ const FILA_VACIA: FilaEquipoActa = {
   descripcion: '—',
   especificaciones: '',
   estado: '—',
+  cargador: null,
 };
 
-// Texto del cargador para el acta: etiqueta de la condicion y, si hay, la
-// observacion entre parentesis ("Con daños (cable pelado)"). Null si el
-// equipo no tiene cargador o nunca se registro.
+// Cargador para la tabla aparte del acta: etiqueta de la condicion y la
+// observacion. Null si el equipo no tiene cargador o nunca se registro.
 function textoCargador(
   asignacion: { observacionesCargador: string | null },
   condicion: string | null | undefined,
   contexto: ContextoCargador
-): string | null {
+): FilaEquipoActa['cargador'] {
   const etiqueta = etiquetaCondicionCargador(condicion, contexto);
   if (!etiqueta) return null;
-  const obs = asignacion.observacionesCargador?.trim();
-  return obs ? `${etiqueta} (${obs})` : etiqueta;
+  return { condicion: etiqueta, observacion: asignacion.observacionesCargador?.trim() || null };
 }
 
 export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer> {
