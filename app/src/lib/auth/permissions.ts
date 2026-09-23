@@ -139,7 +139,8 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
     delete: ADMIN,
   },
 
-  // Nadie "escribe" un reporte: se generan a partir de los datos.
+  // Dashboard (KPIs, alertas, graficos). Conserva el nombre "reportes"
+  // aunque el modulo Reportes se elimino (SPEC 2.79). Solo lectura.
   reportes: {
     read: AMBOS,
     write: SOLO_LECTURA,

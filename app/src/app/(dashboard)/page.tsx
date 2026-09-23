@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
-import { DashboardTabs } from "@/components/dashboard/DashboardTabs";
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import { ESTADO_ACTIVO_COLOR } from "@/lib/constants/estadosActivo";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
@@ -309,9 +308,6 @@ export default async function DashboardPage() {
         title="Dashboard"
         description={`Bienvenido, ${session?.user?.name ?? ""}. Resumen del inventario IT.`}
       />
-
-      {/* Pestanas Resumen / Reportes */}
-      <DashboardTabs />
 
       {/* Alertas: justo despues del titulo, para que lo primero que se ve al
           entrar sea lo que necesita atencion (mantenciones, devoluciones,

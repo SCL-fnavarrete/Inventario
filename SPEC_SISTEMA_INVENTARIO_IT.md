@@ -2957,7 +2957,18 @@ Pedido de Javier: rediseño exclusivamente visual (sin tocar lógica, API, valid
 
 Cambios visibles de paso: las tarjetas de estado de Activos marcan la seleccionada con un anillo de su color en vez de relleno sólido; el `Toast` pasa a superficie opaca teñida (un fondo `bg-*-50` quedaba translúcido en oscuro); el `Modal` gana borde; "Guías de Despacho" y "Configuración" llevan tilde en el menú.
 
+## 2.79 Se elimina el módulo Reportes (23-sep-2026)
+
+Pedido de Javier: el módulo no se usa. La pestaña "Reportes" del Dashboard ya estaba oculta (comentada en `DashboardTabs`), pero las pantallas seguían accesibles por URL. Se elimina completo:
+- Pantallas `/reportes` (índice), `/reportes/inventario`, `/reportes/stock`, `/reportes/empleados`, `/reportes/obsoletos` y `/reportes/trazabilidad`.
+- APIs `/api/reportes/{inventario,stock,empleados,obsoletos}/excel`, `/api/reportes/trazabilidad` y `/api/reportes/compras` (esta última ya no la llamaba ninguna pantalla).
+- `components/reportes/EmpleadosSearchList.tsx`, su test (`__tests__/app/reportes/page.test.tsx`) y `DashboardTabs`: con una sola pestaña ("Resumen") la barra no aportaba nada.
+
+Se mantiene el recurso `reportes` de la matriz de permisos (SPEC 1.3.1) con el mismo nombre: sigue controlando el Dashboard (`/`, `/api/dashboard/stats`, `/api/dashboard/alertas`). La exportación de Activos (`/api/activos/exportar`) es independiente y no cambia; el historial de un equipo se sigue viendo en su ficha (`/activos/[id]`).
+
 ## Changelog SPEC
+- **v2.3 (2026-09-23):**
+  - Sección 2.79 (nueva): se elimina el módulo Reportes completo (pantallas, exportaciones a Excel, trazabilidad, `/api/reportes/compras` sin uso y `DashboardTabs`). El recurso de permisos `reportes` se conserva porque controla el Dashboard.
 - **v2.2 (2026-09-23):**
   - Sección 2.78 (nueva): rediseño visual. Logo oficial de SCL y favicon; `Navbar` superior sticky con blur en reemplazo del `Sidebar`; modo oscuro con tokens semánticos, script de migración de colores fijos (`scripts/migrar-tokens-tema.mjs`) y escalas de color ajustadas por tema; tarjetas `card-feature` con color derivado del estado real e inclinación 3D (`<Tilt>`, `vanilla-tilt` con import dinámico) en KPIs y accesos, nunca en listas grandes. Guía en `app/docs/DESIGN_SYSTEM.md`.
 - **v2.1 (2026-09-22):**
