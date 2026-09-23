@@ -241,10 +241,18 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
     },
   });
 
-  // Get recently returned assignments
-  const returnedAssignments = solicitud.employee.assignments.filter(
-    (a) => !a.activo && a.fechaDevolucion
-  );
+  // Solo lo calificado en ESTE ticket (assignmentIds): antes se listaba toda
+  // devolucion historica del empleado, incluidos equipos devueltos en un
+  // cambio de equipo anterior. Se filtra por estadoDevolucion y no por
+  // fechaDevolucion, porque "no_devuelto" deja la asignacion activa y sin
+  // fecha, pero igual va en el acta. Tickets antiguos sin assignmentIds
+  // conservan el criterio anterior.
+  const returnedAssignments =
+    solicitud.assignmentIds.length > 0
+      ? solicitud.employee.assignments.filter(
+          (a) => solicitud.assignmentIds.includes(a.id) && a.estadoDevolucion
+        )
+      : solicitud.employee.assignments.filter((a) => !a.activo && a.fechaDevolucion);
 
   const assets = returnedAssignments.map((a) =>
     filaEquipo(
@@ -253,7 +261,9 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
         ? 'OK'
         : a.estadoDevolucion === 'danado'
           ? 'No OK'
-          : a.estadoDevolucion || 'OK',
+          : a.estadoDevolucion === 'no_devuelto'
+            ? 'No devuelto'
+            : a.estadoDevolucion || 'OK',
       textoCargador(a, a.condicionCargadorDevolucion, 'devolucion')
     )
   );
