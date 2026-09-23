@@ -61,8 +61,8 @@ const roleColors: Record<string, string> = {
 };
 
 const roleDescriptions: Record<string, string> = {
-  admin: "CRUD completo, reportes, configuración, ve todas las sedes",
-  tecnico: "Trabajo operativo de soporte; ve todas las sedes, sin acceso a Configuración",
+  admin: "CRUD completo, configuración, ve todas las sedes",
+  tecnico: "Trabajo operativo de soporte, solo en su propia sede; sin acceso a Configuración",
 };
 
 export default function UsuariosPage() {

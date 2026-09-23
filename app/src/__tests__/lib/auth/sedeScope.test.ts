@@ -1,6 +1,7 @@
 import {
   tieneVisibilidadTotal,
   sedeWhere,
+  sedeWhereConFiltro,
   assertSedeAccess,
   sedeIdParaCrear,
 } from '@/lib/auth/sedeScope';
@@ -51,6 +52,22 @@ describe('sedeWhere', () => {
   test('tecnico sin sede asignada no ve nada, en vez de ver los huerfanos', () => {
     expect(sedeWhere(sesion('tecnico', null))).toEqual({
       sedeId: '__sin_sede_asignada__',
+    });
+  });
+});
+
+describe('sedeWhereConFiltro (SPEC 2.80)', () => {
+  test('admin con sede del navbar queda filtrado a esa sede', () => {
+    expect(sedeWhereConFiltro(sesion('admin', null), 'sede-2')).toEqual({ sedeId: 'sede-2' });
+  });
+
+  test('admin sin filtro ve todas las sedes', () => {
+    expect(sedeWhereConFiltro(sesion('admin', null), null)).toEqual({});
+  });
+
+  test('tecnico ignora el filtro y queda en su propia sede', () => {
+    expect(sedeWhereConFiltro(sesion('tecnico', 'sede-1'), 'sede-2')).toEqual({
+      sedeId: 'sede-1',
     });
   });
 });

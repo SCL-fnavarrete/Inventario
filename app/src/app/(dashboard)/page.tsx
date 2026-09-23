@@ -1,8 +1,8 @@
-import { cookies } from "next/headers";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import type { SesionAutenticada } from "@/lib/auth/guard";
-import { sedeWhere, tieneVisibilidadTotal } from "@/lib/auth/sedeScope";
+import { sedeWhereConFiltro } from "@/lib/auth/sedeScope";
+import { leerSedeFiltroDesdeCookie } from "@/lib/auth/sedeFiltroCookie";
 import { prisma } from "@/lib/prisma";
 import {
   Users,
@@ -34,13 +34,9 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
   // sedeId propio y se filtran via su relacion a Asset. `swAsset` tambien
   // excluye activos con `deletedAt` (ACTIVOS_VIGENTES).
   //
-  // La sede elegida en el selector del nav llega por cookie (server
-  // component, sin localStorage) y solo se respeta para quien tiene
-  // visibilidad total; para el resto manda sedeWhere(session).
-  const sw = {
-    ...sedeWhere(session),
-    ...(sedeIdFiltro && tieneVisibilidadTotal(session) ? { sedeId: sedeIdFiltro } : {}),
-  };
+  // La sede del navbar solo se respeta para quien ve todas las sedes (ver
+  // sedeWhereConFiltro); para el resto manda su propia sede.
+  const sw = sedeWhereConFiltro(session, sedeIdFiltro);
   const swAsset = { asset: { ...sw, ...ACTIVOS_VIGENTES } };
 
   const today = new Date();
@@ -295,11 +291,7 @@ export default async function DashboardPage() {
   // asi que el cast es seguro -- ver requireSession() en guard.ts, que hace
   // lo mismo para las rutas de API.
   const session = (await getServerSession(authOptions)) as SesionAutenticada;
-  // Sede elegida en el selector del nav. Viaja por cookie porque este es un
-  // server component (ver SedeSeleccionadaProvider); leerla ademas hace que
-  // Next re-renderice el Resumen cuando cambia, en vez de servir una version
-  // cacheada con los totales de otra sede.
-  const sedeIdFiltro = (await cookies()).get("inventario-sede-seleccionada")?.value || null;
+  const sedeIdFiltro = await leerSedeFiltroDesdeCookie();
   const data = await getDashboardData(session, sedeIdFiltro);
 
   return (

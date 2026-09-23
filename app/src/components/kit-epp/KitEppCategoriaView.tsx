@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Plus, Edit, Trash2, Save, X } from "lucide-react";
 import { ActivosTabs } from "@/components/activos";
-import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
+import { useCampoSede, useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -56,15 +56,16 @@ export function KitEppCategoriaView({
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "admin";
 
-  // La sede propia precarga el formulario de creacion, igual que Activos >
-  // Nuevo. En edicion NO aplica: ahi manda la sede que ya tiene el articulo.
+  // formData.sedeId solo lo usa la edicion (la sede que ya tiene el
+  // articulo). Al crear, la sede sale de useCampoSede (SPEC 2.80).
   const formInicial = {
     nombre: "",
     categoria,
     cantidad: 0,
     stockMinimo: 5,
-    sedeId: session?.user?.sedeId ?? "",
+    sedeId: "",
   };
+  const [sedeNueva, setSedeNueva, reiniciarSedeNueva] = useCampoSede();
 
   const [items, setItems] = useState<KitItem[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
@@ -118,19 +119,22 @@ export function KitEppCategoriaView({
       setError("El nombre es requerido");
       return;
     }
+    // Todo articulo debe quedar en una sede; sin ella no se guarda.
+    if (!sedeNueva) {
+      setError("Debes seleccionar una sede");
+      return;
+    }
     try {
       const res = await fetch("/api/kit-items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // sedeId "" (sin seleccionar / tecnico que no ve el campo) no es un
-        // uuid valido -- se omite en vez de mandarlo vacío.
-        body: JSON.stringify({ ...formData, sedeId: formData.sedeId || undefined }),
+        body: JSON.stringify({ ...formData, sedeId: sedeNueva }),
       });
       if (res.ok) {
         // Aviso cuando el articulo se guarda en una sede distinta a la que
         // filtra el menu: la fila recien creada no aparece en la tabla,
         // porque esta filtrada por la sede del selector.
-        const sedeGuardada = formData.sedeId || null;
+        const sedeGuardada = sedeNueva;
         if (sedeSeleccionada && sedeGuardada !== sedeSeleccionada) {
           const nombreSede = sedeGuardada
             ? sedes.find((s) => s.id === sedeGuardada)?.nombre || "otra sede"
@@ -243,6 +247,8 @@ export function KitEppCategoriaView({
                 onClick={() => {
                   setIsCreating(true);
                   setFormData(formInicial);
+                  // Cada articulo nuevo vuelve a partir de la sede del navbar.
+                  reiniciarSedeNueva();
                 }}
                 className={buttonClasses()}
               >
@@ -321,8 +327,8 @@ export function KitEppCategoriaView({
                 <div>
                   <label className="field-label">Sede</label>
                   <select
-                    value={formData.sedeId}
-                    onChange={(e) => setFormData({ ...formData, sedeId: e.target.value })}
+                    value={sedeNueva}
+                    onChange={(e) => setSedeNueva(e.target.value)}
                     disabled={!isAdmin}
                     className="field-input"
                   >

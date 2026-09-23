@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { SEDE_COOKIE } from "@/lib/constants/sede";
 
 /**
  * Selector de sede global. El filtrado por sede es un filtro de UI elegido
@@ -24,7 +25,7 @@ const CLAVE_STORAGE = "inventario-sede-seleccionada";
  * valida con la sesion quien puede ver que (ver sedeScope.ts). `SameSite=Lax`
  * y sin `Secure` para que funcione igual en http://localhost.
  */
-const CLAVE_COOKIE = "inventario-sede-seleccionada";
+const CLAVE_COOKIE = SEDE_COOKIE;
 const DIAS_COOKIE = 365;
 
 function escribirCookie(sedeId: string | null) {
@@ -143,4 +144,35 @@ export function useSedeSeleccionada(): SedeSeleccionadaContextValue {
     throw new Error("useSedeSeleccionada debe usarse dentro de <SedeSeleccionadaProvider>");
   }
   return ctx;
+}
+
+/**
+ * Sede por defecto para un registro nuevo (SPEC 2.80): la del navbar; si el
+ * navbar esta en "Todas las sedes", la propia de la sesion; si tampoco hay,
+ * "" (el formulario exige elegirla). `lista` es false mientras carga la
+ * sesion: hasta entonces el valor todavia puede cambiar.
+ */
+export function useSedePorDefecto(): { sedeId: string; lista: boolean } {
+  const { sedeSeleccionada } = useSedeSeleccionada();
+  const { data: session, status } = useSession();
+  return {
+    sedeId: sedeSeleccionada ?? session?.user?.sedeId ?? "",
+    lista: status !== "loading",
+  };
+}
+
+/**
+ * Estado del campo Sede de un formulario de creacion. Mientras no se toque,
+ * el valor ES la sede por defecto (estado derivado, sin effects): si la del
+ * navbar llega tarde por la hidratacion, el campo se completa solo. Una vez
+ * fijado con el setter (a mano, o por codigo como la sede del empleado en
+ * offboarding), un cambio del navbar ya no lo pisa. `reiniciar` vuelve a
+ * seguir el default, para formularios que se reabren con otro registro.
+ */
+export function useCampoSede() {
+  const { sedeId: porDefecto } = useSedePorDefecto();
+  const [manual, setManual] = useState<string | null>(null);
+  const setSede = useCallback((sedeId: string) => setManual(sedeId), []);
+  const reiniciar = useCallback(() => setManual(null), []);
+  return [manual ?? porDefecto, setSede, reiniciar] as const;
 }

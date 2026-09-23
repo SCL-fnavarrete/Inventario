@@ -17,6 +17,7 @@ import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { useCampoSede } from "@/components/providers/SedeSeleccionadaProvider";
 
 type Sede = {
   id: string;
@@ -57,12 +58,11 @@ export default function NuevaGuiaDespachoPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [sedes, setSedes] = useState<Sede[]>([]);
 
-  // Sede origen: se elige explicitamente desde que sede despacha, en vez
-  // de asumir en silencio la sede propia del usuario (evita mezclar en un
-  // mismo despacho equipos de sedes distintas). El dropdown viene
-  // precargado con la sede propia del usuario (ver useEffect mas abajo)
-  // para no obligar a elegir en el caso comun.
-  const [sedeOrigenId, setSedeOrigenId] = useState("");
+  // Sede origen: se elige explicitamente desde que sede despacha (evita
+  // mezclar en un mismo despacho equipos de sedes distintas). Viene
+  // precargada con la sede del navbar o la propia (useCampoSede, SPEC 2.80).
+  // La destino no se precarga: nunca puede ser la misma que el origen.
+  const [sedeOrigenId, setSedeOrigenId] = useCampoSede();
   // Solo admin puede elegir la sede.
   const esAdminSede = session?.user?.role === "admin";
 
@@ -88,15 +88,6 @@ export default function NuevaGuiaDespachoPage() {
   useEffect(() => {
     fetchSedes();
   }, []);
-
-  // Precarga la sede origen propia del usuario apenas la sesion esta
-  // disponible -- el "prev ||" evita pisar una eleccion manual hecha antes
-  // de que la sesion terminara de cargar.
-  useEffect(() => {
-    if (session?.user?.sedeId) {
-      setSedeOrigenId((prev) => prev || session.user.sedeId!);
-    }
-  }, [session?.user?.sedeId]);
 
   async function fetchSedes() {
     try {
@@ -285,7 +276,12 @@ export default function NuevaGuiaDespachoPage() {
         ) : (
           <SelectorActivos
             selectedAssets={selectedAssets}
-            onSelectionChange={setSelectedAssets}
+            onSelectionChange={(activos) => {
+              // Con equipos elegidos la sede origen queda fijada: un cambio
+              // posterior del navbar no debe dejarlos en otra sede.
+              setSedeOrigenId(sedeOrigenId);
+              setSelectedAssets(activos);
+            }}
             sedeId={sedeOrigenId}
           />
         )}

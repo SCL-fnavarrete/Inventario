@@ -2966,7 +2966,30 @@ Pedido de Javier: el módulo no se usa. La pestaña "Reportes" del Dashboard ya 
 
 Se mantiene el recurso `reportes` de la matriz de permisos (SPEC 1.3.1) con el mismo nombre: sigue controlando el Dashboard (`/`, `/api/dashboard/stats`, `/api/dashboard/alertas`). La exportación de Activos (`/api/activos/exportar`) es independiente y no cambia; el historial de un equipo se sigue viendo en su ficha (`/activos/[id]`).
 
+## 2.80 La sede del navbar es el valor por defecto de los formularios de creación (23-sep-2026)
+
+Pedido de Javier: los listados ya filtraban por la sede del navbar, pero los formularios de creación precargaban solo `session.user.sedeId`. Un admin (sin sede propia) tenía que elegir la sede a mano en cada formulario aunque ya la hubiera elegido en el navbar. Solo es comodidad de interfaz: las reglas de seguridad de `sedeScope.ts` no cambian.
+
+**Regla.** La sede por defecto de un registro nuevo es: (a) la sede efectiva del navbar; (b) si el navbar está en "Todas las sedes", la propia de la sesión; (c) si tampoco hay, vacío, y el formulario exige elegirla. El admin puede cambiarla en el formulario; el técnico sigue fijo en su sede. Un campo que el usuario ya tocó no lo pisa un cambio posterior del navbar; uno sin tocar sí se completa si el valor del navbar llega tarde (hidratación). Los formularios de edición y detalle no cambian: un registro existente conserva su sede. Donde la sede sale del propio dato, gana el dato: en offboarding y cambio de equipo, la sede de la solicitud es la del empleado.
+
+**Implementación (un solo mecanismo).**
+- `useSedePorDefecto()` y `useCampoSede()` en `SedeSeleccionadaProvider.tsx`. `useCampoSede` devuelve `[valor, setValor, reiniciar]`: mientras no se use el setter, el valor es la sede por defecto (estado derivado, sin `useEffect`); el setter marca el campo como elegido. Reemplaza los `useEffect` de precarga de Nueva Solicitud, Nueva Compra, Nueva Guía (sede origen; la destino no se precarga), Importar Activos, Kit/EPP (solo al crear) y Nuevo Activo.
+- Cuando el formulario ya tiene elecciones que dependen de la sede (equipos de una guía o de una compra, equipo específico o Kit/EPP de un onboarding, archivo ya validado en la importación), la sede queda fijada, para que un cambio del navbar no deje esas elecciones en otra sede.
+- Servidor: `sedeWhereConFiltro(session, sedeId)` en `sedeScope.ts` (el filtro solo aplica con `tieneVisibilidadTotal`) y `leerSedeFiltroDesdeCookie()` en `lib/auth/sedeFiltroCookie.ts`. Los usa el Dashboard; la cookie comparte su nombre con el provider vía `lib/constants/sede.ts`.
+
+**Importación de activos.** Para admin, dejar la sede vacía significa "detectar por la columna Sede" del archivo. Con la precarga, un archivo multi-sede quedaría completo en la sede del navbar, así que el texto de ayuda indica elegir "Detectar automáticamente" en ese caso.
+
+**Correcciones de paso.**
+- Nueva Solicitud, modal "Crear empleado": no enviaba `sedeId` y `POST /api/empleados` la exige para admin (`sedeIdParaCrear` con `requerido`), así que un admin no podía crear empleados desde ahí. Ahora envía la sede de la solicitud y, para admin, muestra un selector de sede obligatorio.
+- Nueva Solicitud, búsqueda de empleado: se acota a la sede del navbar cuando hay una elegida.
+- Nueva Solicitud, cambio de equipo: `SeleccionarCambioEquipo` no recibía `sedeId` y ofrecía reemplazos de todas las sedes; ahora recibe la sede de la solicitud.
+- Configuración > Usuarios: la descripción del rol Técnico decía "ve todas las sedes"; ahora dice que trabaja solo en su propia sede (SPEC 2.29.1).
+
+`AsignarActivoForm` no se modificó: no lo renderiza ninguna pantalla.
+
 ## Changelog SPEC
+- **v2.4 (2026-09-23):**
+  - Sección 2.80 (nueva): la sede del navbar precarga los formularios de creación (navbar > sede propia > vacío; sin pisar una elección manual) con `useCampoSede`; helpers de servidor `sedeWhereConFiltro` y `leerSedeFiltroDesdeCookie`. Corrige el modal "Crear empleado" de Nueva Solicitud (no enviaba la sede), acota la búsqueda de empleados a la sede del navbar y pasa la sede a `SeleccionarCambioEquipo`.
 - **v2.3 (2026-09-23):**
   - Sección 2.79 (nueva): se elimina el módulo Reportes completo (pantallas, exportaciones a Excel, trazabilidad, `/api/reportes/compras` sin uso y `DashboardTabs`). El recurso de permisos `reportes` se conserva porque controla el Dashboard.
 - **v2.2 (2026-09-23):**

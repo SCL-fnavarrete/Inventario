@@ -7,7 +7,7 @@ import { Save } from "lucide-react";
 import { CatalogSelect } from "@/components/ui/CatalogSelect";
 import { Button } from "@/components/ui/Button";
 import { buttonClasses } from "@/components/ui/buttonStyles";
-import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
+import { useCampoSede } from "@/components/providers/SedeSeleccionadaProvider";
 import { ESTADO_ACTIVO_LABEL, CONDICION_ACTIVO_LABEL } from "@/lib/constants/estadosActivo";
 
 /**
@@ -180,7 +180,9 @@ interface ActivoFormProps {
 export function ActivoForm({ modo, initialValues = ACTIVO_FORM_VACIO, onSubmit, cancelHref }: ActivoFormProps) {
   const crear = modo === "crear";
   const { data: session } = useSession();
-  const { sedeSeleccionada } = useSedeSeleccionada();
+  // Sede al crear: precargada con la del navbar o la propia (useCampoSede,
+  // SPEC 2.80). Al editar no se muestra: el activo conserva la suya.
+  const [sedeId, setSedeId] = useCampoSede();
   const esAdminSede = session?.user?.role === "admin";
 
   const [values, setValues] = useState<ActivoFormValues>(initialValues);
@@ -201,15 +203,6 @@ export function ActivoForm({ modo, initialValues = ACTIVO_FORM_VACIO, onSubmit, 
     }
   }, [crear]);
 
-  // Prefill de sede al crear: la elegida en el nav manda (para quien tiene
-  // sede bloqueada, el hook ya devuelve la propia). Con "Todas las sedes"
-  // queda vacia y hay que elegirla. `||` no pisa una eleccion manual.
-  useEffect(() => {
-    if (crear && sedeSeleccionada) {
-      setValues((prev) => ({ ...prev, sedeId: prev.sedeId || sedeSeleccionada }));
-    }
-  }, [crear, sedeSeleccionada]);
-
   const set = (name: keyof ActivoFormValues) => (valor: string) =>
     setValues((prev) => ({ ...prev, [name]: valor }));
   const bind = (name: keyof ActivoFormValues) => ({
@@ -224,7 +217,7 @@ export function ActivoForm({ modo, initialValues = ACTIVO_FORM_VACIO, onSubmit, 
     e.preventDefault();
     setGuardando(true);
     try {
-      await onSubmit(values);
+      await onSubmit(crear ? { ...values, sedeId } : values);
     } finally {
       setGuardando(false);
     }
@@ -301,7 +294,14 @@ export function ActivoForm({ modo, initialValues = ACTIVO_FORM_VACIO, onSubmit, 
                 : "Es tu sede: los equipos que crees quedan registrados en ella."
             }
           >
-            <select {...bind("sedeId")} required disabled={!esAdminSede}>
+            <select
+              name="sedeId"
+              value={sedeId}
+              onChange={(e) => setSedeId(e.target.value)}
+              className="field-input"
+              required
+              disabled={!esAdminSede}
+            >
               <option value="" disabled>
                 Selecciona una sede...
               </option>

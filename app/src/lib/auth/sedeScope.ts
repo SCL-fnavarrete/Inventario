@@ -34,6 +34,19 @@ export function sedeWhere(session: SesionAutenticada): Record<string, unknown> {
 }
 
 /**
+ * `sedeWhere` mas un filtro de sede opcional (la del navbar, por cookie o
+ * `?sedeId=`). El filtro solo aplica a quien ve todas las sedes: para el
+ * resto manda su propia sede, se pida lo que se pida.
+ */
+export function sedeWhereConFiltro(
+  session: SesionAutenticada,
+  sedeIdFiltro?: string | null
+): Record<string, unknown> {
+  if (sedeIdFiltro && tieneVisibilidadTotal(session)) return { sedeId: sedeIdFiltro };
+  return sedeWhere(session);
+}
+
+/**
  * Exige que el registro (ya cargado) pertenezca a la sede de la sesion.
  * Lanza 404 -- no 403 -- para no revelar que el registro existe en otra
  * sede. Admin siempre pasa.

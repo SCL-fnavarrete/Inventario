@@ -19,6 +19,7 @@ import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { ESTADOS_RECONOCIDOS } from "@/lib/importacion/activos";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { useCampoSede } from "@/components/providers/SedeSeleccionadaProvider";
 import { StatCard, StatGrid } from "@/components/ui/StatCard";
 
 type Category = {
@@ -43,10 +44,10 @@ type PreviewData = {
 
 export default function ImportarActivosPage() {
   const { data: session } = useSession();
-  // Sede a la que se importan los equipos. El backend la exige siempre;
-  // para el tecnico viene precargada con la suya (mismo patron que
-  // Activos > Nuevo).
-  const [sedeId, setSedeId] = useState("");
+  // Sede a la que se importan los equipos, precargada con la del navbar o
+  // la propia (useCampoSede, SPEC 2.80). Para admin, vacio significa
+  // "detectar por la columna Sede" del archivo.
+  const [sedeId, setSedeId] = useCampoSede();
 // Solo admin puede elegir la sede.
   const esAdminSede = session?.user?.role === "admin";
   const [sedes, setSedes] = useState<Sede[]>([]);
@@ -113,14 +114,6 @@ export default function ImportarActivosPage() {
     }
     fetchSedes();
   }, []);
-
-  // Precarga la sede del usuario. El "|| prev" evita pisar una eleccion
-  // manual si ya eligio otra.
-  useEffect(() => {
-    if (session?.user?.sedeId) {
-      setSedeId((prev) => prev || session.user.sedeId!);
-    }
-  }, [session?.user?.sedeId]);
 
   // Descripciones breves de cada campo del mapeo: que dato exactamente se
   // espera en esa columna, ya que el nombre del campo solo (ej: "RUT") no
@@ -431,6 +424,9 @@ export default function ImportarActivosPage() {
     formData.append("categoria", categoria);
     formData.append("mapping", JSON.stringify(columnMapping));
     if (sedeId) formData.append("sedeId", sedeId);
+    // Fija la sede con la que se valido: un cambio posterior del navbar no
+    // debe hacer que la importacion use otra distinta a la de la vista previa.
+    setSedeId(sedeId);
     // Correcciones ya hechas a mano en el panel de errores (ver
     // handleRevalidateAll) -- sin esto, revalidar el Excel completo
     // pisaba cualquier arreglo manual con el dato crudo del archivo de
@@ -807,7 +803,7 @@ export default function ImportarActivosPage() {
                 <p className="mt-1 text-xs text-fg-subtle">
                   {esAdminSede
                     ? sedeId
-                      ? "Todos los equipos de este archivo quedarán en esta sede, sea quien sea que haga la importación."
+                      ? "Todos los equipos de este archivo quedarán en esta sede. Si el archivo trae equipos de varias sedes, elige \"Detectar automáticamente por columna Sede\"."
                       : "Sin sede fija, cada fila se asigna según su columna \"Sede\" (debe coincidir con el nombre real de una sede). Las filas sin match quedarán marcadas para corregir a mano."
                     : "Es tu sede: los equipos de este archivo quedarán en ella. Si una fila declara otra sede, no se importa."}
                 </p>

@@ -20,6 +20,7 @@ import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { useCampoSede } from "@/components/providers/SedeSeleccionadaProvider";
 
 type Sede = {
   id: string;
@@ -126,11 +127,12 @@ export default function NuevaCompraPage() {
     ? PERIFERICOS_SIMPLES.includes(selectedNewAssetCategory.nombre.toLowerCase())
     : false;
 
+  // Sede the purchase is attributed to; visible to any role. Prefilled
+  // with the navbar sede or the user's own (useCampoSede, SPEC 2.80).
+  const [sedeId, setSedeId] = useCampoSede();
+
   // Form data
   const [formData, setFormData] = useState({
-    // Sede the purchase is attributed to; visible to any role, defaults
-    // to the user's own sede (see useEffect below).
-    sedeId: "",
     numeroFactura: "",
     fechaFactura: new Date().toISOString().split("T")[0],
     rutProveedor: "",
@@ -150,28 +152,20 @@ export default function NuevaCompraPage() {
     fetchCategories();
   }, []);
 
-  // Prefill the user's sede; `|| prev.sedeId` avoids overwriting a manual
-  // selection already made.
-  useEffect(() => {
-    if (session?.user?.sedeId) {
-      setFormData((prev) => ({ ...prev, sedeId: prev.sedeId || session.user.sedeId! }));
-    }
-  }, [session?.user?.sedeId]);
-
   // The Kit/EPP catalog depends on the sede selected above.
   useEffect(() => {
-    if (formData.sedeId) {
+    if (sedeId) {
       fetchKitItemsCatalogo();
     } else {
       setKitItemsCatalogo([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.sedeId]);
+  }, [sedeId]);
 
   async function fetchKitItemsCatalogo() {
     try {
       const params = new URLSearchParams();
-      if (formData.sedeId) params.set("sedeId", formData.sedeId);
+      if (sedeId) params.set("sedeId", sedeId);
       const res = await fetch(`/api/kit-items?${params}`);
       const data = await res.json();
       setKitItemsCatalogo(Array.isArray(data) ? data : []);
@@ -182,6 +176,9 @@ export default function NuevaCompraPage() {
 
   function addKitItem() {
     if (!kitItemToAdd) return;
+    // Con lineas agregadas la sede queda fijada: un cambio del navbar no
+    // debe dejarlas asociadas a otra sede.
+    setSedeId(sedeId);
     const item = kitItemsCatalogo.find((i) => i.id === kitItemToAdd);
     if (!item) return;
     const cantidad = Math.max(1, parseInt(kitItemCantidad, 10) || 1);
@@ -234,7 +231,7 @@ export default function NuevaCompraPage() {
       searchAssets();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assetSearch, formData.sedeId]);
+  }, [assetSearch, sedeId]);
 
   async function searchAssets() {
     setLoadingAssets(true);
@@ -245,7 +242,7 @@ export default function NuevaCompraPage() {
         search: assetSearch,
         limit: "20",
       });
-      if (formData.sedeId) params.set("sedeId", formData.sedeId);
+      if (sedeId) params.set("sedeId", sedeId);
       const res = await fetch(`/api/activos?${params}`);
       const data = await res.json();
       // Filter out already selected assets
@@ -259,6 +256,7 @@ export default function NuevaCompraPage() {
   }
 
   function addAsset(asset: Asset) {
+    setSedeId(sedeId);
     setSelectedAssets((prev) => [
       ...prev,
       {
@@ -309,7 +307,7 @@ export default function NuevaCompraPage() {
           pulgadas: newAssetForm.pulgadas || null,
           conectividad: newAssetForm.conectividad || null,
           // New assets are created in the purchase's own sede.
-          sedeId: formData.sedeId || undefined,
+          sedeId: sedeId || undefined,
         }),
       });
 
@@ -321,6 +319,7 @@ export default function NuevaCompraPage() {
       }
 
       const asset = await res.json();
+      setSedeId(sedeId);
       setSelectedAssets((prev) => [
         ...prev,
         {
@@ -376,7 +375,7 @@ export default function NuevaCompraPage() {
     try {
       const payload = {
         // Required field; the backend rejects an empty value.
-        sedeId: formData.sedeId || undefined,
+        sedeId: sedeId || undefined,
         numeroFactura: formData.numeroFactura,
         fechaFactura: formData.fechaFactura,
         rutProveedor: formData.rutProveedor || null,
@@ -438,9 +437,9 @@ export default function NuevaCompraPage() {
                 Sede <span className="text-red-500">*</span>
               </label>
               <select
-                value={formData.sedeId}
+                value={sedeId}
                 onChange={(e) => {
-                  setFormData({ ...formData, sedeId: e.target.value });
+                  setSedeId(e.target.value);
                   // Clear selections made under the previous sede, since
                   // they no longer apply.
                   setSelectedAssets([]);
@@ -541,8 +540,8 @@ export default function NuevaCompraPage() {
                   setShowNewAssetForm(false);
                   setShowAssetSearch(true);
                 }}
-                disabled={!formData.sedeId}
-                title={!formData.sedeId ? "Primero elige la sede de la compra" : undefined}
+                disabled={!sedeId}
+                title={!sedeId ? "Primero elige la sede de la compra" : undefined}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus size={16} />
@@ -554,8 +553,8 @@ export default function NuevaCompraPage() {
                   setShowAssetSearch(false);
                   setShowNewAssetForm(true);
                 }}
-                disabled={!formData.sedeId}
-                title={!formData.sedeId ? "Primero elige la sede de la compra" : undefined}
+                disabled={!sedeId}
+                title={!sedeId ? "Primero elige la sede de la compra" : undefined}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <PackagePlus size={16} />
@@ -564,7 +563,7 @@ export default function NuevaCompraPage() {
             </div>
           </div>
 
-          {!formData.sedeId && (
+          {!sedeId && (
             <div className="mb-4 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
               <p>Elige la sede de la compra arriba para poder vincular equipos: el inventario que se ofrece es el de esa sede.</p>
@@ -944,8 +943,8 @@ export default function NuevaCompraPage() {
             <button
               type="button"
               onClick={() => setShowKitItemPicker((v) => !v)}
-              disabled={!formData.sedeId}
-              title={!formData.sedeId ? "Primero elige la sede de la compra" : undefined}
+              disabled={!sedeId}
+              title={!sedeId ? "Primero elige la sede de la compra" : undefined}
               className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus size={16} />
@@ -953,7 +952,7 @@ export default function NuevaCompraPage() {
             </button>
           </div>
 
-          {!formData.sedeId && (
+          {!sedeId && (
             <div className="mb-4 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
               <p>Elige la sede de la compra arriba para ver el catálogo de Kit/EPP de esa sede.</p>
@@ -1061,7 +1060,7 @@ export default function NuevaCompraPage() {
           </Link>
           <button
             type="submit"
-            disabled={saving || !formData.numeroFactura || !formData.sedeId || sinLineas}
+            disabled={saving || !formData.numeroFactura || !sedeId || sinLineas}
             className={buttonClasses({ className: "px-6" })}
           >
             {saving ? (
