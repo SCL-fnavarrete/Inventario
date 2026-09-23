@@ -28,6 +28,8 @@ describe('assetStateMachine — canTransitionAsset', () => {
     ['asignado', 'no_devuelto'],
     ['no_devuelto', 'disponible'],
     ['no_devuelto', 'baja'],
+    // SPEC 2.87: recuperado danado, pasa a evaluacion.
+    ['no_devuelto', 'en_mantencion'],
   ];
 
   test.each(validTransitions)('%s → %s es válida', (from, to) => {
@@ -48,7 +50,6 @@ describe('assetStateMachine — canTransitionAsset', () => {
     ['disponible', 'no_devuelto'],
     ['en_mantencion', 'no_devuelto'],
     ['no_devuelto', 'asignado'],
-    ['no_devuelto', 'en_mantencion'],
     ['no_devuelto', 'vendido'],
   ];
 
@@ -71,8 +72,8 @@ describe('assetStateMachine — getValidTransitions', () => {
     ]);
   });
 
-  test('no_devuelto puede ir a disponible y baja', () => {
-    expect(getValidTransitions('no_devuelto')).toEqual(['disponible', 'baja']);
+  test('no_devuelto puede ir a disponible, en_mantencion y baja', () => {
+    expect(getValidTransitions('no_devuelto')).toEqual(['disponible', 'en_mantencion', 'baja']);
   });
 
   test('en_mantencion puede ir a disponible, asignado y baja', () => {
@@ -164,14 +165,14 @@ describe('assetStateMachine — validateTransition', () => {
     expect(result.errors[0]).toContain('devolución');
   });
 
-  test('asignado→disponible con devolución danado es inválida (debe ir a baja)', () => {
+  test('asignado→disponible con devolución danado es inválida (debe ir a mantención)', () => {
     const result = validateTransition('asignado', 'disponible', {
       ...baseContext,
       hasActiveAssignment: true,
       estadoDevolucion: 'danado',
     });
     expect(result.valid).toBe(false);
-    expect(result.errors[0]).toContain('baja');
+    expect(result.errors[0]).toContain('mantención');
   });
 
   test('asignado→disponible con devolución ok es válida', () => {

@@ -587,7 +587,11 @@ export default function SolicitudDetailPage() {
               (data.estado === 'equipos_entregados' || data.estado === 'registro_rrhh')
                 ? { tipo: 'comprobante-entrega', label: 'Comprobante de Entrega' }
                 : data.tipo === 'offboarding' &&
-                    (data.estado === 'equipo_recibido' || data.estado === 'consolidacion_cierre')
+                    (data.estado === 'equipo_recibido' || data.estado === 'consolidacion_cierre') &&
+                    // Sin equipos devueltos no hay acta (SPEC 2.87).
+                    data.equiposDevueltos.some(
+                      (a) => !!a.estadoDevolucion && a.estadoDevolucion !== 'no_devuelto'
+                    )
                   ? { tipo: 'acta-devolucion', label: 'Acta de Devolución' }
                   : data.tipo === 'cambio_equipo' &&
                       (data.estado === 'cambio_ejecutado' || data.estado === 'confirmacion_rrhh')

@@ -31,7 +31,7 @@ const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
     // unico estado que cuenta como stock disponible. Que el equipo sea
     // usado lo indica `condicion`, un campo aparte.
     { to: 'disponible', description: 'Devolver equipo (ok/incompleto)' },
-    { to: 'baja', description: 'Devolver equipo (dañado) → baja' },
+    { to: 'baja', description: 'Dar de baja (requiere devolución dañada)' },
     { to: 'en_mantencion', description: 'Enviar a mantención' },
     // Empleado se desvincula sin devolver el equipo: estado propio para
     // poder contarlo y filtrarlo aparte de las asignaciones vigentes.
@@ -46,6 +46,9 @@ const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
   vendido: [], // Estado terminal
   no_devuelto: [
     { to: 'disponible', description: 'Equipo recuperado en buen estado' },
+    // SPEC 2.87: recuperado danado, pasa a evaluacion como cualquier
+    // devolucion danada.
+    { to: 'en_mantencion', description: 'Equipo recuperado dañado: a evaluación' },
     { to: 'baja', description: 'Equipo dado por perdido' },
   ],
 };
@@ -65,7 +68,7 @@ const TRANSITION_PRECONDITIONS: Record<string, (ctx: TransitionContext) => strin
       errors.push('Requiere registrar devolución del equipo');
     }
     if (ctx.estadoDevolucion === 'danado') {
-      errors.push('Equipo dañado no puede volver a disponible, debe ir a baja');
+      errors.push('Equipo dañado no puede volver a disponible, debe ir a mantención');
     }
     return errors;
   },

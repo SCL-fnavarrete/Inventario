@@ -208,6 +208,9 @@ export async function POST(request: NextRequest) {
     // Se guarda para poder reactivar mas abajo (dentro de la transaccion) si
     // es un onboarding sobre alguien desvinculado que se reincorpora.
     let empleadoExistente: Employee | null = null;
+    // Recuperacion (SPEC 2.87): desvinculacion de alguien ya desvinculado que
+    // tiene equipos "No devuelto"; sirve para registrar los que entrega.
+    let esRecuperacion = false;
     if (data.tipo !== 'onboarding' || data.employeeId) {
       empleadoExistente = await prisma.employee.findUnique({
         where: { id: data.employeeId },
@@ -221,12 +224,23 @@ export async function POST(request: NextRequest) {
       // (estado -> activo) en vez de bloquearlo, ver dentro de la
       // transaccion mas abajo.
       if (empleadoExistente.estado === 'desvinculado' && data.tipo !== 'onboarding') {
-        return NextResponse.json(
-          {
-            error: `${empleadoExistente.nombres} ${empleadoExistente.apellidoPaterno} ya está desvinculado. No se puede crear una nueva solicitud para este empleado.`,
-          },
-          { status: 409 }
-        );
+        const pendientes =
+          data.tipo === 'offboarding'
+            ? await prisma.assignment.count({
+                where: { employeeId: empleadoExistente.id, activo: true, estadoDevolucion: 'no_devuelto' },
+              })
+            : 0;
+        if (pendientes === 0) {
+          return NextResponse.json(
+            {
+              error: `${empleadoExistente.nombres} ${empleadoExistente.apellidoPaterno} ya está desvinculado${
+                data.tipo === 'offboarding' ? ' y no tiene equipos pendientes de devolución' : ''
+              }. No se puede crear una nueva solicitud para este empleado.`,
+            },
+            { status: 409 }
+          );
+        }
+        esRecuperacion = true;
       }
       // Defensa en profundidad: aunque el selector de empleados ya viene
       // filtrado por sede, un no-admin no puede crear una solicitud para un
@@ -289,7 +303,19 @@ export async function POST(request: NextRequest) {
         data.medioCambio === 'chilexpress' ? data.otCambioChilexpress : null;
       camposComunes.ciudadCambio = data.medioCambio === 'chilexpress' ? data.ciudadCambio : null;
     } else if (data.tipo === 'offboarding') {
-      camposComunes.fechaDesvinculacion = data.fechaDesvinculacion;
+      if (esRecuperacion) {
+        // La fecha es la de la desvinculacion original: el acta la muestra
+        // como fecha de termino.
+        const original = await prisma.workflowRequest.findFirst({
+          where: { employeeId: data.employeeId, tipo: 'offboarding', fechaDesvinculacion: { not: null } },
+          orderBy: { createdAt: 'desc' },
+          select: { fechaDesvinculacion: true },
+        });
+        camposComunes.fechaDesvinculacion = original?.fechaDesvinculacion ?? data.fechaDesvinculacion ?? null;
+      } else {
+        if (!data.fechaDesvinculacion) throw new ValidationError('Fecha de desvinculación requerida');
+        camposComunes.fechaDesvinculacion = data.fechaDesvinculacion;
+      }
       camposComunes.medioDevolucion = data.medioDevolucion;
       camposComunes.otChilexpress = data.otChilexpress;
       camposComunes.ciudadDevolucion = data.ciudadDevolucion;
@@ -410,10 +436,24 @@ export async function POST(request: NextRequest) {
         // proposito -- no deberia ser posible en un empleado que recien va a
         // desvincularse, pero se filtra igual por consistencia con el resto
         // de los chequeos de "que falta calificar".
+        // Lo que hay que calificar: lo que el empleado tiene en uso o, en una
+        // recuperacion, lo que quedo "No devuelto".
         const asignacionesActivas = await tx.assignment.findMany({
-          where: { employeeId: empId, activo: true, estadoDevolucion: null },
+          where: {
+            employeeId: empId,
+            activo: true,
+            estadoDevolucion: esRecuperacion ? 'no_devuelto' : null,
+          },
           select: { id: true },
         });
+        const yaNoDevueltas = new Set(
+          (
+            await tx.assignment.findMany({
+              where: { employeeId: empId, activo: true, estadoDevolucion: 'no_devuelto' },
+              select: { id: true },
+            })
+          ).map((a) => a.id)
+        );
         const eppPendiente = await tx.kitAssignment.findMany({
           where: { employeeId: empId, estado: 'entregado', item: { categoria: 'epp' } },
           select: { id: true },
@@ -431,7 +471,14 @@ export async function POST(request: NextRequest) {
           );
         }
 
+        if (esRecuperacion && !(data.devoluciones || []).some((d) => d.estadoDevolucion !== 'no_devuelto')) {
+          throw new ValidationError('Marca al menos un equipo como devuelto (Buen estado o Dañado).');
+        }
+
         for (const dev of data.devoluciones || []) {
+          // Un equipo que ya estaba "No devuelto" y sigue sin devolverse no
+          // cambia: ni historial nuevo ni fila en el acta.
+          if (dev.estadoDevolucion === 'no_devuelto' && yaNoDevueltas.has(dev.assignmentId)) continue;
           await executeReturn(tx, {
             assignmentId: dev.assignmentId,
             fechaDevolucion: new Date(),
@@ -560,6 +607,7 @@ export async function POST(request: NextRequest) {
           ejecutadoPorId: systemUser.id,
           comentario: [
             esReincorporacion && 'Reincorporación: empleado reactivado (desvinculado → activo)',
+            esRecuperacion && 'Recuperación de equipos de un empleado ya desvinculado',
             'Solicitud creada y cerrada en el mismo formulario',
           ]
             .filter(Boolean)

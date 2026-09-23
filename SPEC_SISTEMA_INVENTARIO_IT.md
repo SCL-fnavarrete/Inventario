@@ -3060,9 +3060,29 @@ Pedido de Javier: revisar los tres módulos, de código y funcionalmente, en bus
 - `/api/activos/[id]/reasignar` y `assetReassignmentSchema`: cierra el pendiente de 2.18. La reasignación se hace con Solicitudes.
 - `AsignarActivoForm`: ninguna pantalla lo usaba.
 
-**Pendiente (a decidir):** un equipo "No devuelto" queda a nombre de un empleado desvinculado, y hoy no se puede crear una solicitud de devolución para recuperarlo (la API responde 409 "ya está desvinculado").
+**Pendiente resuelto en 2.87:** recuperar un equipo "No devuelto" de alguien ya desvinculado.
+
+## 2.87 Equipos no devueltos, acta y devolución dañada (23-sep-2026)
+
+Decisiones de Javier tras probar el flujo: *"cuando se desvincula un empleado y el equipo no lo regresa se queda registrado que el equipo siga asignado al empleado pero el estado es Desvinculado y para sacar el equipo debería hacer otra solicitud; si no regresa el equipo no se debería generar un acta"*, y para un equipo devuelto dañado: *"prefiero mandarlo a mantención y ahí darlo de baja"*.
+
+**Equipo no devuelto (se mantiene).** Al desvincular con "No devolvió", el empleado pasa a desvinculado y el equipo sigue a su nombre, con la asignación activa y el activo en estado `no_devuelto`. Si nunca se devuelve, queda así.
+
+**Recuperación.** Para registrar la entrega posterior se crea otra solicitud de Desvinculación sobre el mismo empleado:
+- `POST /api/solicitudes` (tipo `offboarding`) acepta un empleado desvinculado **solo si tiene asignaciones activas con `estadoDevolucion = no_devuelto`**; sin equipos pendientes sigue respondiendo 409 ("ya está desvinculado y no tiene equipos pendientes de devolución").
+- Se califican solo esos equipos: Buen estado (vuelve a disponible), Dañado (pasa a mantención, ver abajo) o "Sigue sin devolver" (queda igual, sin historial nuevo). Debe devolverse al menos uno.
+- No se pide fecha de desvinculación: el ticket guarda la de la desvinculación original (`fechaDesvinculacion` pasa a opcional en el schema y la exige el servidor en una desvinculación normal).
+- El ticket nace cerrado; el empleado sigue desvinculado. La transición inicial lo anota como "Recuperación de equipos de un empleado ya desvinculado".
+- En Nueva Solicitud, al elegir un empleado desvinculado en Desvinculación, se muestra el aviso "Recuperación de equipos", se oculta la fecha y la tercera opción se llama "Sigue sin devolver".
+
+**Acta de Devolución solo con lo devuelto.** El acta lista solo los equipos devueltos en ese ticket (Buen estado o Dañado); un "No devuelto" no va en el acta. Si no se devolvió nada, el detalle no muestra el botón y `GET /api/solicitudes/[id]/documento/acta-devolucion` responde 400 "No hay equipos devueltos en esta solicitud". La solicitud de recuperación genera su propia acta con lo que finalmente se devolvió.
+
+**Devolución dañada → mantención.** Un equipo devuelto "Dañado" (desvinculación, cambio de equipo o recuperación) ya no pasa directo a `baja`: queda `en_mantencion` con condición dañado, y se crea una mantención pendiente para hoy, tipo "Correctiva" (o el primer tipo activo si no existe), con la descripción "Evaluar equipo devuelto dañado por …". El historial registra la devolución y el envío a mantención. Desde Mantenciones el técnico la cierra como "Reparado" (vuelve a disponible) o "No reparable" (pasa a baja, con motivo). Antes la baja era automática, sin motivo y sin vuelta atrás.
+- `assetStateMachine`: nueva transición `no_devuelto → en_mantencion` (recuperado dañado); el mensaje de `asignado → disponible` con devolución dañada dice ahora "debe ir a mantención".
 
 ## Changelog SPEC
+- **v2.11 (2026-09-23):**
+  - Sección 2.87 (nueva): recuperación de equipos "No devuelto" con una nueva desvinculación sobre el empleado ya desvinculado; el Acta de Devolución lista solo lo devuelto (sin devolución, no hay acta); un equipo devuelto dañado pasa a mantención (Correctiva) en vez de ir directo a baja.
 - **v2.10 (2026-09-23):**
   - Sección 2.86 (nueva): revisión de Solicitudes, Dashboard y Activos. El estado del activo no se edita; validación del reemplazo en el cambio de equipo; detalle con todos los pares; documentos con los equipos y la fecha del ticket; número de ticket sin choques; devoluciones y vencidas corregidas; historial de baja legible; se elimina código sin uso.
 - **v2.9 (2026-09-23):**

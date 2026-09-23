@@ -171,11 +171,18 @@ const devolucionTerminoFields = z.object({
   ...baseRequestFields,
   // Igual que en cambio_equipo: el empleado ya existe de antes.
   employeeId: z.string().uuid('ID de empleado inválido'),
-  fechaDesvinculacion: z.string().min(1, 'Fecha de desvinculación requerida').transform((val) => {
-    const date = new Date(val);
-    if (isNaN(date.getTime())) throw new Error('Fecha de desvinculación inválida');
-    return date;
-  }),
+  // Opcional aca: la exige el servidor, salvo en la recuperacion de equipos
+  // de alguien ya desvinculado, que usa la de la desvinculacion original
+  // (SPEC 2.87).
+  fechaDesvinculacion: z
+    .string()
+    .min(1, 'Fecha de desvinculación requerida')
+    .transform((val) => {
+      const date = new Date(val);
+      if (isNaN(date.getTime())) throw new Error('Fecha de desvinculación inválida');
+      return date;
+    })
+    .optional(),
   medioDevolucion: z.string().max(100).optional().nullable(),
   otChilexpress: z.string().max(100).optional().nullable(),
   ciudadDevolucion: z.string().max(200).optional().nullable(),

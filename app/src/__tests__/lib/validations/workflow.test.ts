@@ -249,10 +249,12 @@ describe('createWorkflowRequestSchema — offboarding', () => {
     expect(result.success).toBe(true);
   });
 
-  test('rechaza offboarding sin fechaDesvinculacion', () => {
-    const { fechaDesvinculacion, ...sin } = validDevolucion;
+  // SPEC 2.87: la exige el servidor, salvo en la recuperacion de equipos
+  // de alguien ya desvinculado (usa la de la desvinculacion original).
+  test('acepta offboarding sin fechaDesvinculacion', () => {
+    const { fechaDesvinculacion: _omitida, ...sin } = validDevolucion;
     const result = createWorkflowRequestSchema.safeParse(sin);
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   test('rechaza offboarding con fechaDesvinculacion vacía', () => {

@@ -2,6 +2,8 @@ import { Prisma } from '@prisma/client';
 import type { CondicionCargador } from '@/lib/constants/condicionCargador';
 import { ConflictError, NotFoundError } from '@/lib/errors';
 import { etiquetaEstadoActivo, etiquetaEstadoDevolucion } from '@/lib/constants/estadosActivo';
+import { auditLogService } from '@/lib/services/auditLogService';
+import { inicioDeHoy } from '@/lib/utils/fechas';
 
 type PrismaTx = Prisma.TransactionClient;
 
@@ -290,17 +292,19 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
   });
 
   // Devolver en buen estado deja el equipo listo para entregar de nuevo:
-  // vuelve directo a "disponible". Danado sigue yendo a baja.
-  const nuevoEstado: 'disponible' | 'baja' = params.estadoDevolucion === 'danado' ? 'baja' : 'disponible';
+  // vuelve directo a "disponible". Danado pasa a mantencion para que el
+  // tecnico evalue si se repara o se da de baja (SPEC 2.87); antes iba
+  // directo a "baja", sin vuelta atras.
+  const danado = params.estadoDevolucion === 'danado';
+  const nuevoEstado: 'disponible' | 'en_mantencion' = danado ? 'en_mantencion' : 'disponible';
 
   await tx.asset.update({
     where: { id: assignment.assetId },
     data: {
       estado: nuevoEstado,
-      ...(params.estadoDevolucion === 'danado' && { condicion: 'danado' }),
+      ...(danado && { condicion: 'danado' }),
       ...(params.estadoDevolucion === 'ok' && { condicion: 'usado' }),
       empleadoActualId: null,
-      ...(nuevoEstado === 'baja' && { fechaBaja: new Date() }),
     },
   });
 
@@ -322,9 +326,70 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
     },
   });
 
+  if (danado) {
+    await enviarAMantencionPorDano(tx, {
+      assetId: assignment.assetId,
+      empleado: `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno}`,
+      observaciones: params.observacionesDevolucion ?? null,
+      usuario: params.recibidoPor || 'Sistema',
+    });
+  }
+
   // Se devuelve la asignacion ya actualizada, no la que se leyo al entrar:
   // esa todavia dice activo: true y sin fecha de devolucion.
   return actualizada;
+}
+
+/**
+ * Un equipo devuelto danado queda con una mantencion pendiente para hoy, del
+ * tipo "Correctiva" (o el primer tipo activo si ese no existe). Desde
+ * Mantenciones el tecnico la cierra como "Reparado" (vuelve a disponible) o
+ * "No reparable" (pasa a baja). SPEC 2.87.
+ */
+async function enviarAMantencionPorDano(
+  tx: PrismaTx,
+  datos: { assetId: string; empleado: string; observaciones: string | null; usuario: string }
+) {
+  const tipo =
+    (await tx.maintenanceType.findFirst({ where: { nombre: 'Correctiva', activo: true } })) ??
+    (await tx.maintenanceType.findFirst({ where: { activo: true }, orderBy: { nombre: 'asc' } }));
+  if (!tipo) {
+    throw new ConflictError(
+      'No hay tipos de mantención activos para recibir un equipo dañado. Crea uno en Mantenciones > Tipos.'
+    );
+  }
+
+  const descripcion = `Evaluar equipo devuelto dañado por ${datos.empleado}${
+    datos.observaciones ? `: ${datos.observaciones}` : ''
+  }`;
+  const mantencion = await tx.maintenance.create({
+    data: {
+      assetId: datos.assetId,
+      tipoId: tipo.id,
+      descripcion,
+      fechaProgramada: inicioDeHoy(),
+      estado: 'pendiente',
+    },
+  });
+
+  await tx.assetHistory.create({
+    data: {
+      assetId: datos.assetId,
+      tipoEvento: 'mantencion',
+      descripcion: `Enviado a mantención ${tipo.nombre} por devolución con daño: se evalúa si se repara o se da de baja`,
+      datosNuevos: { estado: 'en_mantencion', maintenanceId: mantencion.id },
+      usuarioSistema: datos.usuario,
+    },
+  });
+
+  await auditLogService.registrarCreacion(
+    'mantencion',
+    mantencion.id,
+    `Mantención creada: ${tipo.nombre} por devolución de equipo dañado`,
+    { assetId: datos.assetId, tipoId: tipo.id, descripcion, estado: 'pendiente' },
+    datos.usuario,
+    tx
+  );
 }
 
 /**

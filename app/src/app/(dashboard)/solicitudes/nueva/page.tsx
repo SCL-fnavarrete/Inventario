@@ -61,6 +61,8 @@ type Employee = {
 type EmployeeAssignment = {
   id: string;
   activo: boolean;
+  // "no_devuelto" si quedo pendiente en una desvinculacion anterior.
+  estadoDevolucion?: string | null;
   asset: {
     id: string;
     marca: string;
@@ -234,6 +236,10 @@ export default function NuevaSolicitudPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  // Desvinculacion de alguien ya desvinculado: solo sirve para recuperar sus
+  // equipos "No devuelto" (SPEC 2.87). Usa la fecha de la desvinculacion
+  // original, asi que no se pide.
+  const esRecuperacion = tipo === 'offboarding' && selectedEmployee?.estado === 'desvinculado';
   // Asignaciones activas del empleado, para poder calificarlas y cerrarlas
   // de una al crear el ticket -- offboarding (devoluciones) y cambio_equipo
   // (equipo viejo a cambiar) comparten esta misma carga.
@@ -770,10 +776,21 @@ export default function NuevaSolicitudPage() {
   const validarOffboarding = (): Record<string, string> => {
     const errores: Record<string, string> = {};
     if (!selectedEmployee) errores.employeeId = 'Elige el empleado';
-    if (!fechaDesvinculacion) errores.fechaDesvinculacion = DATO_OBLIGATORIO;
+    if (!esRecuperacion && !fechaDesvinculacion) errores.fechaDesvinculacion = DATO_OBLIGATORIO;
+    if (esRecuperacion && !loadingAssignments && employeeAssignments.length === 0) {
+      errores.employeeId = 'Ya está desvinculado y no tiene equipos pendientes de devolución';
+    }
     if (selectedEmployee) {
       if (employeeAssignments.some((a) => !devolucionEstados[a.id])) {
-        errores.devoluciones = 'Califica cada equipo (usa "No devolvió" si no lo entregó)';
+        errores.devoluciones = esRecuperacion
+          ? 'Califica cada equipo (usa "Sigue sin devolver" si todavía no lo entrega)'
+          : 'Califica cada equipo (usa "No devolvió" si no lo entregó)';
+      } else if (
+        esRecuperacion &&
+        employeeAssignments.length > 0 &&
+        employeeAssignments.every((a) => devolucionEstados[a.id] === 'no_devuelto')
+      ) {
+        errores.devoluciones = 'Marca al menos un equipo como devuelto (Buen estado o Dañado)';
       }
       if (employeeEppAssignments.some((k) => !devolucionEppEstados[k.id])) {
         errores.devolucionesEpp = 'Califica cada artículo de EPP';
@@ -987,7 +1004,7 @@ export default function NuevaSolicitudPage() {
         body = {
           ...base,
           employeeId,
-          fechaDesvinculacion,
+          fechaDesvinculacion: esRecuperacion ? undefined : fechaDesvinculacion,
           medioDevolucion,
           otChilexpress: medioDevolucion === 'chilexpress' ? otChilexpress || undefined : undefined,
           ciudadDevolucion: medioDevolucion === 'chilexpress' ? ciudadDevolucion || undefined : undefined,
@@ -2241,6 +2258,17 @@ export default function NuevaSolicitudPage() {
             <div className="space-y-4 border-t pt-4">
               <h3 className="font-medium text-fg">Datos de Devolución</h3>
 
+              {esRecuperacion && selectedEmployee && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  <p className="font-medium">Recuperación de equipos</p>
+                  <p className="mt-0.5 text-amber-800">
+                    {selectedEmployee.nombres} {selectedEmployee.apellidoPaterno} ya está
+                    desvinculado. Aquí se registran los equipos que quedaron &quot;No devuelto&quot;
+                    y que entrega ahora; los que sigan sin devolver quedan como están.
+                  </p>
+                </div>
+              )}
+
               {/* Equipos actuales del empleado */}
               {selectedEmployee && (
                 <div>
@@ -2256,8 +2284,11 @@ export default function NuevaSolicitudPage() {
                   ) : employeeAssignments.length > 0 ? (
                     <div className="space-y-3">
                       <p className="text-xs text-fg-subtle">
-                        Califica cada equipo: el ticket se cierra al enviarse. Si el empleado no
-                        lo entregó, marca &quot;No devolvió&quot;.
+                        Califica cada equipo: el ticket se cierra al enviarse.{' '}
+                        {esRecuperacion
+                          ? 'Si todavía no lo entrega, marca "Sigue sin devolver".'
+                          : 'Si el empleado no lo entregó, marca "No devolvió".'}{' '}
+                        Un equipo dañado pasa a Mantención para evaluarlo.
                       </p>
                       <div className="space-y-2">
                         {employeeAssignments.map((a) => {
@@ -2325,7 +2356,7 @@ export default function NuevaSolicitudPage() {
                                           setDevolucionEstados((prev) => ({ ...prev, [a.id]: 'no_devuelto' }));
                                         }}
                                       />
-                                      No devolvió
+                                      {esRecuperacion ? 'Sigue sin devolver' : 'No devolvió'}
                                     </label>
                                   </div>
                                   <input
@@ -2462,6 +2493,7 @@ export default function NuevaSolicitudPage() {
                 </div>
               )}
 
+              {!esRecuperacion && (
               <div>
                 <label className={cn(
                   'block text-sm font-medium mb-1',
@@ -2478,6 +2510,7 @@ export default function NuevaSolicitudPage() {
                 />
                 <MensajeCampo mensaje={fieldErrors.fechaDesvinculacion} />
               </div>
+              )}
 
               {/* Coordinacion de devolucion en su propia tarjeta, separada de
                   los datos de la desvinculacion. Mismo patron

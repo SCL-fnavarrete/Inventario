@@ -7,6 +7,7 @@ import { ComprobanteCambioTemplate } from '@/lib/templates/ComprobanteCambioTemp
 import { ActaDevolucionTemplate } from '@/lib/templates/ActaDevolucionTemplate';
 import type { FilaEquipoActa } from '@/lib/templates/TablaEquipoActa';
 import { prisma } from '@/lib/prisma';
+import { ValidationError } from '@/lib/errors';
 import { especificacionesActivo, type ActivoParaSpecs } from '@/lib/utils/assetSpecs';
 import { formatearFecha } from "@/lib/utils/fechas";
 import {
@@ -283,18 +284,26 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
     },
   });
 
-  // Solo lo calificado en ESTE ticket (assignmentIds): antes se listaba toda
-  // devolucion historica del empleado, incluidos equipos devueltos en un
-  // cambio de equipo anterior. Se filtra por estadoDevolucion y no por
-  // fechaDevolucion, porque "no_devuelto" deja la asignacion activa y sin
-  // fecha, pero igual va en el acta. Tickets antiguos sin assignmentIds
-  // conservan el criterio anterior.
+  // Solo lo DEVUELTO en este ticket (assignmentIds): un equipo "No devuelto"
+  // no se entrego, asi que no va en un acta de devolucion (SPEC 2.87). Antes
+  // se listaba con estado "No devuelto" y con espacio para la firma del
+  // colaborador. Tickets antiguos sin assignmentIds conservan el criterio
+  // anterior (asignaciones cerradas con fecha de devolucion).
   const returnedAssignments =
     solicitud.assignmentIds.length > 0
       ? solicitud.employee.assignments.filter(
-          (a) => solicitud.assignmentIds.includes(a.id) && a.estadoDevolucion
+          (a) =>
+            solicitud.assignmentIds.includes(a.id) &&
+            !!a.estadoDevolucion &&
+            a.estadoDevolucion !== 'no_devuelto'
         )
       : solicitud.employee.assignments.filter((a) => !a.activo && a.fechaDevolucion);
+
+  if (returnedAssignments.length === 0) {
+    throw new ValidationError(
+      'No hay equipos devueltos en esta solicitud: el acta se genera solo con lo que se devuelve.'
+    );
+  }
 
   const assets = returnedAssignments.map((a) =>
     filaEquipo(
