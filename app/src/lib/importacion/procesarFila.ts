@@ -9,6 +9,7 @@ import {
   resolverCondicion,
   resolverEstado,
   resolverSedeParaFila,
+  resolverValorCatalogo,
   tieneMicrosoft365,
 } from "@/lib/importacion/activos";
 import { limpiarRut } from "@/lib/validations/rut";
@@ -34,6 +35,12 @@ export interface ContextoFila {
   tipoMantencionId: string;
   sedeIdExplicita: string | null;
   mapaSedes: Record<string, string>;
+  /** Igual que mapaSedes, pero para las opciones de cada catalogo
+   * administrable (Configuracion > Opciones de Activos): texto normalizado
+   * -> nombre canonico. Se arman una sola vez por importacion. */
+  mapaSistemasOperativos: Record<string, string>;
+  mapaAntivirus: Record<string, string>;
+  mapaLicenciasM365: Record<string, string>;
   /** Compartido y mutado entre filas del mismo archivo (en orden), para que
    * una fila detecte que otra fila anterior del MISMO archivo ya "reservo"
    * un numero de serie o un RUT -- igual en preview que en la escritura real. */
@@ -46,6 +53,10 @@ export interface ResultadoFilaError {
   tipo: ValidationErrorType;
   mensaje: string;
   data: Record<string, string>;
+  /** Campo al que se le puede atribuir el error, para que la pantalla de
+   * revision resalte el control correcto (ver ErrorRowEditor). Opcional --
+   * no todos los errores son de un campo puntual. */
+  campo?: string;
 }
 export interface ResultadoFilaValida {
   status: "valid";
@@ -204,7 +215,7 @@ export async function procesarFila(
       }
 
       const base = `${nombres.toLowerCase().replace(/\s+/g, ".")}.${apellidoPaterno.toLowerCase()}`;
-      let correoEmpresa = obtener("correo") || `${base}@empresa.cl`;
+      let correoEmpresa = obtener("correoEmpresa") || `${base}@empresa.cl`;
       const correoTomado = await prismaClient.employee.findUnique({
         where: { correoEmpresa },
         select: { id: true },
@@ -213,12 +224,31 @@ export async function procesarFila(
         correoEmpresa = `${base}.${limpiarRut(rutEmpleado).toLowerCase()}@empresa.cl`;
       }
 
+      // El correo personal no es obligatorio en esta importacion (a
+      // diferencia del alta manual de empleado): si el Excel no lo trae,
+      // el empleado se crea igual y el dato se completa despues desde su
+      // ficha. Si lo trae pero ya esta en uso por OTRO empleado, se
+      // descarta (queda vacio) en vez de hacer fallar toda la fila -- el
+      // RUT es el identificador real de esta importacion.
+      const correoPersonalIngresado = obtener("correoPersonal") || null;
+      let correoPersonal: string | null = correoPersonalIngresado;
+      if (correoPersonal) {
+        const personalTomado = await prismaClient.employee.findUnique({
+          where: { correoPersonal },
+          select: { id: true },
+        });
+        if (personalTomado) {
+          correoPersonal = null;
+        }
+      }
+
       datosEmpleadoNuevo = {
         rut: rutEmpleado,
         nombres,
         apellidoPaterno,
         apellidoMaterno: obtener("apellidoM") || null,
         correoEmpresa,
+        correoPersonal,
         cargo: obtener("cargo") || null,
         jefatura: obtener("jefatura") || null,
         supervisor: obtener("supervisor") || null,
@@ -237,11 +267,50 @@ export async function procesarFila(
   const numeroTelefono = obtener("numeroTelefono") || null;
   const pulgadasStr = obtener("pulgadas");
   const pulgadas = pulgadasStr ? parseFloat(pulgadasStr) : null;
-  const sistemaOperativo = obtener("sistemaOperativo") || null;
+  // --- Sistema operativo, antivirus y licencia M365: deben calzar con el
+  // catalogo administrable (Configuracion > Opciones de Activos). Ver
+  // resolverValorCatalogo -- un valor que no matchea ninguna opcion (ni
+  // siquiera ignorando mayusculas/tildes) no se guarda a ciegas, la fila
+  // queda para revision manual en vez de romper el conteo "en uso".
+  const resolucionSO = resolverValorCatalogo(obtener("sistemaOperativo"), ctx.mapaSistemasOperativos);
+  if ("error" in resolucionSO) {
+    return {
+      status: "error",
+      tipo: resolucionSO.error,
+      campo: "sistemaOperativo",
+      mensaje: `Sistema operativo no reconocido: "${resolucionSO.valorOriginal}". Selecciona una opción del catálogo o créala.`,
+      data: datosFila,
+    };
+  }
+  const sistemaOperativo = resolucionSO.valor;
+
+  const resolucionAntivirus = resolverValorCatalogo(obtener("antivirus"), ctx.mapaAntivirus);
+  if ("error" in resolucionAntivirus) {
+    return {
+      status: "error",
+      tipo: resolucionAntivirus.error,
+      campo: "antivirus",
+      mensaje: `Antivirus no reconocido: "${resolucionAntivirus.valorOriginal}". Selecciona una opción del catálogo o créala.`,
+      data: datosFila,
+    };
+  }
+  const antivirus = resolucionAntivirus.valor;
+
   const ubicacionFisica = obtener("comuna") || null;
-  const valorMicrosoft365 = obtener("microsoft365");
+
+  const resolucionM365 = resolverValorCatalogo(obtener("microsoft365"), ctx.mapaLicenciasM365);
+  if ("error" in resolucionM365) {
+    return {
+      status: "error",
+      tipo: resolucionM365.error,
+      campo: "microsoft365",
+      mensaje: `Licencia Microsoft 365 no reconocida: "${resolucionM365.valorOriginal}". Selecciona una opción del catálogo o créala.`,
+      data: datosFila,
+    };
+  }
+  const valorMicrosoft365 = resolucionM365.valor;
   const microsoft365 = tieneMicrosoft365(valorMicrosoft365);
-  const tipoLicenciaMicrosoft365 = valorMicrosoft365 || null;
+  const tipoLicenciaMicrosoft365 = valorMicrosoft365;
   // Sin un dato real de "Fecha de compra" en el Excel, el campo queda sin
   // registrar en vez de usar la fecha de entrega como respaldo (mostrarla
   // bajo el rotulo "Fecha Compra" seria una estimacion no declarada).
@@ -314,6 +383,7 @@ export async function procesarFila(
         numeroTelefono,
         pulgadas,
         sistemaOperativo,
+        antivirus,
         ubicacionFisica,
         microsoft365,
         tipoLicenciaMicrosoft365,

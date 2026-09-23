@@ -9,6 +9,7 @@ export type ValidationErrorType =
   | "invalid_assignment_date"
   | "sede_no_reconocida"
   | "sede_ajena"
+  | "catalogo_no_reconocido"
   | "unknown_error";
 
 export interface ValidationError {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { AlertTriangle, ArrowLeft, CheckCircle, Download, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle, Download, RefreshCw, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ErrorRowEditor } from "./ErrorRowEditor";
 import type { ImportRowStatus } from "@/types/import";
@@ -18,6 +18,14 @@ interface ErrorReviewPanelProps {
   // tener que volver al paso 4 primero.
   onConfirmImport: () => void;
   committing: boolean;
+  // Vuelve a validar TODO el Excel desde cero (mismo camino que el boton
+  // "Validar" inicial, que ya trae el catalogo/sedes actualizados). Se usa
+  // despues de corregir algo (ej. crear una opcion de catalogo que
+  // faltaba) para ver de inmediato, en este mismo panel, si ya quedo todo
+  // bien o si todavia falta algo -- sin tener que cerrar esta pantalla ni
+  // volver a abrirla.
+  onRevalidateAll: () => void;
+  revalidating: boolean;
 }
 
 // Panel de correccion PREVIA a la importacion. No escribe nada por si
@@ -33,6 +41,8 @@ export function ErrorReviewPanel({
   onBack,
   onConfirmImport,
   committing,
+  onRevalidateAll,
+  revalidating,
 }: ErrorReviewPanelProps) {
   const [correctedRows, setCorrectedRows] = useState<Map<number, Record<string, string>>>(
     new Map()
@@ -123,6 +133,22 @@ export function ErrorReviewPanel({
           <p className="text-2xl font-bold text-blue-600">{correctedCount}</p>
           <p className="text-sm text-blue-700">Corregidas</p>
         </div>
+      </div>
+
+      {/* Revalida todo el Excel sin salir de esta pantalla -- si despues
+          de corregir algo (ej. crear una opcion de catalogo) ya no quedan
+          errores, este mismo panel se cierra solo porque no hay nada mas
+          que revisar (ver pagina padre). */}
+      <div className="mb-4">
+        <button
+          onClick={onRevalidateAll}
+          disabled={revalidating}
+          title="Vuelve a validar todo el Excel de una, con los datos que hayas corregido mientras tanto (por ejemplo una opción de catálogo nueva)"
+          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        >
+          <RefreshCw size={14} className={revalidating ? "animate-spin" : undefined} />
+          {revalidating ? "Revalidando..." : "Revalidar todo el Excel"}
+        </button>
       </div>
 
       {/* Filtros */}

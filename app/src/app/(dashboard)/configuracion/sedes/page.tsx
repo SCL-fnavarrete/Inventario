@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Plus, Edit, Save, X, MapPin } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { useToast } from "@/components/ui/Toast";
 
 type Sede = {
   id: string;
@@ -13,6 +14,7 @@ type Sede = {
 };
 
 export default function SedesPage() {
+  const toast = useToast();
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -20,7 +22,6 @@ export default function SedesPage() {
   const [formData, setFormData] = useState({ codigo: "", nombre: "", activa: true });
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [success, setSuccess] = useState("");
 
   useEffect(() => {
     fetchSedes();
@@ -58,8 +59,7 @@ export default function SedesPage() {
         setFormData({ codigo: "", nombre: "", activa: true });
         setError("");
         setFieldErrors({});
-        setSuccess("Sede creada exitosamente");
-        setTimeout(() => setSuccess(""), 3000);
+        toast.success("Sede creada exitosamente");
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear sede");
         setError(message);
@@ -90,8 +90,7 @@ export default function SedesPage() {
         setFormData({ codigo: "", nombre: "", activa: true });
         setError("");
         setFieldErrors({});
-        setSuccess("Sede actualizada exitosamente");
-        setTimeout(() => setSuccess(""), 3000);
+        toast.success("Sede actualizada exitosamente");
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar sede");
         setError(message);
@@ -112,8 +111,7 @@ export default function SedesPage() {
       });
       if (res.ok) {
         await fetchSedes();
-        setSuccess(`Sede ${sede.activa ? "desactivada" : "activada"} exitosamente`);
-        setTimeout(() => setSuccess(""), 3000);
+        toast.success(`Sede ${sede.activa ? "desactivada" : "activada"} exitosamente`);
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al cambiar el estado de la sede");
         setError(message);
@@ -177,12 +175,6 @@ export default function SedesPage() {
       </div>
 
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
-
-      {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
-          {success}
-        </div>
-      )}
 
       {/* Formulario de creación */}
       {isCreating && (

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { useToast } from "@/components/ui/Toast";
 
 // Reads/writes real settings via /api/configuracion/parametros (SystemConfig
 // table). Only two sections are kept: Datos de la Empresa (reference data,
@@ -52,10 +53,10 @@ const sections: { id: ConfigSection; title: string; description: string; icon: R
 ];
 
 export default function ParametrosPage() {
+  const toast = useToast();
   const [activeSection, setActiveSection] = useState<ConfigSection>("empresa");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
@@ -123,8 +124,7 @@ export default function ParametrosPage() {
       }
       const data = await res.json();
       setForm((prev) => ({ ...prev, updatedAt: data.updatedAt, updatedPor: data.updatedPor }));
-      setSuccess("Configuración guardada exitosamente");
-      setTimeout(() => setSuccess(""), 3000);
+      toast.success("Configuración guardada exitosamente");
     } catch (err) {
       console.error("Error saving parametros:", err);
       setError("Error al guardar la configuración");
@@ -149,11 +149,6 @@ export default function ParametrosPage() {
       </div>
 
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
-      {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
-          {success}
-        </div>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="md:col-span-1">

@@ -145,7 +145,15 @@ export function CatalogSelect({ endpoint, value, onChange, placeholder, classNam
         </select>
         <button
           type="button"
-          onClick={() => setAgregando(true)}
+          onClick={() => {
+            // Si el valor actual no calza con ninguna opcion del catalogo
+            // (dato recien importado o corregido a mano), se parte con ese
+            // mismo texto para que crear la opcion sea confirmar, no
+            // retipear -- justo el caso de una fila de importacion que
+            // quedo pendiente por un antivirus/SO/licencia no reconocido.
+            setNuevoNombre((prev) => prev || value);
+            setAgregando(true);
+          }}
           className="px-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
           title="Agregar opción nueva"
         >

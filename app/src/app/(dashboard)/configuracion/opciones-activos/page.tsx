@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Plus, Save, Pencil, Trash2, X, Check } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 /**
  * Administracion de los catalogos de opciones que alimentan los
@@ -57,6 +58,11 @@ export default function OpcionesActivosPage() {
   // Edicion de nombre en linea, en vez de un modal aparte.
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [nombreEditado, setNombreEditado] = useState("");
+
+  // Confirmacion de eliminacion con el mismo componente que usa el resto
+  // del sistema, en vez de window.confirm() del navegador.
+  const [opcionAEliminar, setOpcionAEliminar] = useState<Opcion | null>(null);
+  const [eliminando, setEliminando] = useState(false);
 
   const catalogo = CATALOGOS.find((c) => c.key === tabActiva)!;
 
@@ -154,25 +160,32 @@ export default function OpcionesActivosPage() {
     }
   };
 
-  const handleEliminar = async (opcion: Opcion) => {
-    const aviso =
-      opcion.enUso > 0
-        ? `"${opcion.nombre}" esta guardada en ${opcion.enUso} activo${opcion.enUso === 1 ? "" : "s"}. Esos activos conservan el dato tal cual, pero la opcion dejara de estar disponible para elegirla en activos nuevos. ¿Eliminar de todas formas?`
-        : `¿Eliminar la opción "${opcion.nombre}"?`;
-    if (!window.confirm(aviso)) return;
+  const pedirEliminar = (opcion: Opcion) => {
+    setOpcionAEliminar(opcion);
+  };
 
+  const confirmarEliminar = async () => {
+    if (!opcionAEliminar) return;
+    const opcion = opcionAEliminar;
+
+    setEliminando(true);
     try {
       const res = await fetch(`${catalogo.endpoint}/${opcion.id}`, { method: "DELETE" });
       if (res.ok) {
         await fetchOpciones(catalogo.endpoint);
+        setOpcionAEliminar(null);
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al eliminar opción");
         setError(message);
         setFieldErrors(fe);
+        setOpcionAEliminar(null);
       }
     } catch (err) {
       setError("Error al eliminar opción");
       console.error(err);
+      setOpcionAEliminar(null);
+    } finally {
+      setEliminando(false);
     }
   };
 
@@ -359,7 +372,7 @@ export default function OpcionesActivosPage() {
                             <Pencil size={18} />
                           </button>
                           <button
-                            onClick={() => handleEliminar(opcion)}
+                            onClick={() => pedirEliminar(opcion)}
                             className="p-1 rounded text-red-600 hover:bg-red-50"
                             title="Eliminar"
                           >
@@ -375,6 +388,21 @@ export default function OpcionesActivosPage() {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        isOpen={opcionAEliminar !== null}
+        onClose={() => setOpcionAEliminar(null)}
+        onConfirm={confirmarEliminar}
+        loading={eliminando}
+        variant="danger"
+        title={`Eliminar opción — ${catalogo.label}`}
+        message={
+          opcionAEliminar && opcionAEliminar.enUso > 0
+            ? `"${opcionAEliminar.nombre}" está guardada en ${opcionAEliminar.enUso} activo${opcionAEliminar.enUso === 1 ? "" : "s"}. Esos activos conservan el dato tal cual, pero la opción dejará de estar disponible para elegirla en activos nuevos. ¿Eliminar de todas formas?`
+            : `¿Eliminar la opción "${opcionAEliminar?.nombre}"?`
+        }
+        confirmLabel="Eliminar"
+      />
     </div>
   );
 }

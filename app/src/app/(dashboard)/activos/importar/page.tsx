@@ -72,6 +72,13 @@ export default function ImportarActivosPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [showErrorReview, setShowErrorReview] = useState(false);
+  // Se incrementa cada vez que llega una validacion nueva (no en cada
+  // correccion suelta). Se usa como `key` de ErrorReviewPanel: al cambiar,
+  // React lo desmonta y remonta, limpiando su estado interno (filas
+  // marcadas como corregidas, filtro) -- necesario porque "Revalidar todo
+  // el Excel" no cierra el panel, y sin esto quedarian corregidas a la
+  // vista filas que la nueva validacion ya no considera corregidas.
+  const [validationVersion, setValidationVersion] = useState(0);
 
   // Cargar categorías desde la API
   useEffect(() => {
@@ -135,7 +142,8 @@ export default function ImportarActivosPage() {
     observaciones: "Notas adicionales sobre el equipo.",
     fechaEntrega: "Fecha en que el equipo fue entregado a la persona (dd-mm-aaaa). Se usa como fecha de asignación.",
     fechaCompra: "Fecha de compra o factura del equipo (dd-mm-aaaa).",
-    correo: "Correo del empleado. Si se deja en blanco, se genera uno automáticamente.",
+    correoPersonal: "Correo personal del empleado. No es obligatorio para importar; si falta, queda vacío y se puede completar después desde la ficha del empleado.",
+    correoEmpresa: "Correo corporativo del empleado. Si se deja en blanco, se genera uno automáticamente.",
     cargo: "Cargo o puesto del empleado.",
     comuna: "Comuna donde se ubica el equipo (dato informativo; no determina la sede).",
     nombreEquipo: "Nombre o identificador interno asignado al equipo.",
@@ -207,7 +215,8 @@ export default function ImportarActivosPage() {
     { key: "fechaEntrega", label: "Fecha de entrega", categories: ["*"] },
     { key: "fechaCompra", label: "Fecha de compra", categories: ["*"] },
     // Campos opcionales para Notebook
-    { key: "correo", label: "Correo", categories: ["notebook"] },
+    { key: "correoPersonal", label: "Correo Personal", categories: ["notebook"] },
+    { key: "correoEmpresa", label: "Correo Empresa", categories: ["notebook"] },
     { key: "cargo", label: "Cargo", categories: ["notebook"] },
     { key: "comuna", label: "Comuna", categories: ["notebook"] },
     // "equipo" (tipo: Notebook/Celular/etc.) se elimino del mapeo -- no se
@@ -338,6 +347,7 @@ export default function ImportarActivosPage() {
         discoDuro: ["disco duro", "disco"],
         almacenamiento: ["almacenamiento", "ssd", "hdd"],
         sistemaOperativo: ["o.s.", "os", "sistema operativo"],
+        antivirus: ["antivirus", "anti-virus", "antivirus instalado"],
         microsoft365: ["microsoft 365", "microsoft365", "microsoft 365 empresa", "office 365", "o365"],
         fechaEntrega: ["fecha de entrega", "fecha entrega"],
         // Campos de Mantención
@@ -360,7 +370,8 @@ export default function ImportarActivosPage() {
         nombre: ["nombre"],
         apellidoP: ["apellido p", "apellido paterno"],
         apellidoM: ["apellido m", "apellido materno"],
-        correo: ["correo", "email", "mail"],
+        correoEmpresa: ["correo empresa", "correo de la empresa", "correo corporativo", "mail empresa"],
+        correoPersonal: ["correo personal", "mail personal", "correo", "email", "mail"],
         cargo: ["cargo", "puesto"],
         jefatura: ["jefatura"],
         supervisor: ["supervisor"],
@@ -389,14 +400,18 @@ export default function ImportarActivosPage() {
   // negocio que la escritura real -- ver procesarFila.ts. No se escribe
   // nada en la base todavia: eso ocurre recien en handleConfirmImport,
   // cuando el usuario aprieta "Realizar importación".
-  async function handleValidate() {
+  // Nucleo compartido entre "Validar" (paso inicial) y "Revalidar todo el
+  // Excel" (desde el panel de errores): corre exactamente la misma
+  // vista previa. null significa que ya se seteo error/fieldErrors y quien
+  // llamo no debe hacer nada mas.
+  async function ejecutarValidacion(): Promise<ImportPreviewResult | null> {
     if (!file || !sheetName || !categoria) {
       setError("Datos incompletos");
-      return;
+      return null;
     }
     if (!esAdminSede && !sedeId) {
       setError("Selecciona la sede a la que se importarán estos equipos");
-      return;
+      return null;
     }
 
     const missingRequired = requiredFields.filter(
@@ -406,9 +421,39 @@ export default function ImportarActivosPage() {
       setError(
         `Faltan campos requeridos: ${missingRequired.map((f) => f.label).join(", ")}`
       );
-      return;
+      return null;
     }
 
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("sheetName", sheetName);
+    formData.append("categoria", categoria);
+    formData.append("mapping", JSON.stringify(columnMapping));
+    if (sedeId) formData.append("sedeId", sedeId);
+    // Correcciones ya hechas a mano en el panel de errores (ver
+    // handleRevalidateAll) -- sin esto, revalidar el Excel completo
+    // pisaba cualquier arreglo manual con el dato crudo del archivo de
+    // nuevo, como si nunca se hubiera corregido.
+    if (Object.keys(corrections).length > 0) {
+      formData.append("corrections", JSON.stringify(corrections));
+    }
+
+    const res = await fetch("/api/activos/importar/preview", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const { message, fieldErrors: fe } = await parseApiError(res, "Error al validar los datos");
+      setError(message);
+      setFieldErrors(fe);
+      return null;
+    }
+
+    return (await res.json()) as ImportPreviewResult;
+  }
+
+  async function handleValidate() {
     setValidating(true);
     setError("");
     setFieldErrors({});
@@ -417,27 +462,43 @@ export default function ImportarActivosPage() {
     setShowErrorReview(false);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("sheetName", sheetName);
-      formData.append("categoria", categoria);
-      formData.append("mapping", JSON.stringify(columnMapping));
-      if (sedeId) formData.append("sedeId", sedeId);
-
-      const res = await fetch("/api/activos/importar/preview", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al validar los datos");
-        setError(message);
-        setFieldErrors(fe);
-        return;
+      const data = await ejecutarValidacion();
+      if (data) {
+        setValidation(data);
+        setValidationVersion((v) => v + 1);
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al validar los datos");
+    } finally {
+      setValidating(false);
+    }
+  }
 
-      const data: ImportPreviewResult = await res.json();
-      setValidation(data);
+  // Boton "Revalidar todo el Excel" del panel de errores: a diferencia de
+  // handleValidate, NO oculta el panel mientras corre ni de entrada -- la
+  // idea es que, tras corregir algo (ej. crear una opcion de catalogo que
+  // faltaba), apretar este boton muestre el resultado en el mismo lugar
+  // donde estaban los errores, sin tener que cerrar y volver a abrir la
+  // revision. Si ya no queda ningun error, recien ahi se cierra el panel
+  // solo, porque no hay nada mas que revisar.
+  async function handleRevalidateAll() {
+    setValidating(true);
+    setError("");
+    setFieldErrors({});
+
+    try {
+      // ejecutarValidacion() lee `corrections` (las manda al servidor para
+      // que las use en vez del dato crudo del Excel -- ver comentario
+      // ahi mismo), asi que recien se limpia DESPUES de tener una
+      // respuesta exitosa: si la revalidacion falla (ej. sin conexion),
+      // las correcciones hechas a mano no se pierden.
+      const data = await ejecutarValidacion();
+      if (data) {
+        setValidation(data);
+        setValidationVersion((v) => v + 1);
+        setShowErrorReview(data.errorCount > 0);
+        setCorrections({});
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al validar los datos");
     } finally {
@@ -546,6 +607,7 @@ export default function ImportarActivosPage() {
       {/* Panel de Revision de Errores (solo corrige, no escribe nada) */}
       {showErrorReview && validation && errorRows.length > 0 && (
         <ErrorReviewPanel
+          key={validationVersion}
           errorRows={errorRows}
           validCount={validation.validCount}
           fieldLabels={getFieldLabels()}
@@ -553,6 +615,8 @@ export default function ImportarActivosPage() {
           onBack={() => setShowErrorReview(false)}
           onConfirmImport={handleConfirmImport}
           committing={committing}
+          onRevalidateAll={handleRevalidateAll}
+          revalidating={validating}
         />
       )}
 

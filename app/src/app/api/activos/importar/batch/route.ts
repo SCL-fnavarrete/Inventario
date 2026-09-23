@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { construirMapaSedes } from "@/lib/importacion/activos";
+import { logger } from "@/lib/logger";
+import { construirMapaCatalogo, construirMapaSedes } from "@/lib/importacion/activos";
 import { procesarFila, type ContextoFila } from "@/lib/importacion/procesarFila";
 import type { CorrectedRow, ImportRowStatus, ImportBatchResult } from "@/types/import";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
@@ -36,6 +37,18 @@ export async function POST(request: NextRequest) {
 
     const mapaSedes = construirMapaSedes(
       await prisma.sede.findMany({ select: { id: true, nombre: true, codigo: true } })
+    );
+    // Catalogos administrables (Configuracion > Opciones de Activos): se
+    // traen en vivo, una sola vez por importacion, para validar sistema
+    // operativo/antivirus/licencia M365 fila por fila sin texto fijo.
+    const mapaSistemasOperativos = construirMapaCatalogo(
+      await prisma.sistemaOperativo.findMany({ select: { nombre: true } })
+    );
+    const mapaAntivirus = construirMapaCatalogo(
+      await prisma.antivirus.findMany({ select: { nombre: true } })
+    );
+    const mapaLicenciasM365 = construirMapaCatalogo(
+      await prisma.licenciaMicrosoft365.findMany({ select: { nombre: true } })
     );
 
     let categoryRecord = await prisma.assetCategory.findFirst({
@@ -73,6 +86,9 @@ export async function POST(request: NextRequest) {
       tipoMantencionId: tipoMantencionImportada.id,
       sedeIdExplicita,
       mapaSedes,
+      mapaSistemasOperativos,
+      mapaAntivirus,
+      mapaLicenciasM365,
       existingSeriesSet,
       employeeCache: new Map<string, string>(),
     };
@@ -85,6 +101,7 @@ export async function POST(request: NextRequest) {
         tipo: "unknown_error" as const,
         mensaje: error instanceof Error ? error.message : "Error desconocido",
         data: row.data,
+        campo: undefined as string | undefined,
       }));
 
       if (resultado.status === "error") {
@@ -93,7 +110,7 @@ export async function POST(request: NextRequest) {
           excelRow: row.rowIndex + 2,
           status: "error",
           data: resultado.data,
-          errors: [{ type: resultado.tipo, message: resultado.mensaje }],
+          errors: [{ type: resultado.tipo, field: resultado.campo, message: resultado.mensaje }],
           warnings: [],
         });
         continue;
@@ -108,6 +125,65 @@ export async function POST(request: NextRequest) {
         warnings: [],
         assetId: resultado.status === "imported" ? resultado.assetId : undefined,
       });
+    }
+
+    // Sistema Operativo, Antivirus y Licencia M365 son texto plano en el
+    // Activo, pero tambien alimentan un catalogo administrable en
+    // Configuracion (ver /api/sistemas-operativos y hermanos). El import no
+    // pasa por ese catalogo -- por eso, despues de escribir los activos, se
+    // agregan ahi los valores nuevos que trajo esta tanda (misma logica que
+    // el boton "+ Agregar opcion" de cada formulario: si ya existe un
+    // nombre igual sin importar mayusculas, no se duplica). El texto usado
+    // es EXACTAMENTE el que quedo guardado en los activos -- de ahi sale el
+    // conteo "en uso" de cada opcion, que compara por igualdad exacta.
+    const nombresSO = new Set<string>();
+    const nombresAntivirus = new Set<string>();
+    const nombresLicencia = new Set<string>();
+    for (const r of results) {
+      if (r.status !== "imported") continue;
+      const so = (r.data.sistemaOperativo || "").trim();
+      const av = (r.data.antivirus || "").trim();
+      const lic = (r.data.microsoft365 || "").trim();
+      if (so) nombresSO.add(so);
+      if (av) nombresAntivirus.add(av);
+      if (lic) nombresLicencia.add(lic);
+    }
+
+    // Best-effort: si esto falla, los activos ya importados se quedan
+    // importados igual -- el catalogo se puede completar despues a mano.
+    try {
+      for (const nombre of nombresSO) {
+        const existente = await prisma.sistemaOperativo.findFirst({
+          where: { nombre: { equals: nombre, mode: "insensitive" } },
+        });
+        if (!existente) {
+          await prisma.sistemaOperativo.create({ data: { nombre } });
+        } else if (!existente.activo) {
+          await prisma.sistemaOperativo.update({ where: { id: existente.id }, data: { activo: true } });
+        }
+      }
+      for (const nombre of nombresAntivirus) {
+        const existente = await prisma.antivirus.findFirst({
+          where: { nombre: { equals: nombre, mode: "insensitive" } },
+        });
+        if (!existente) {
+          await prisma.antivirus.create({ data: { nombre } });
+        } else if (!existente.activo) {
+          await prisma.antivirus.update({ where: { id: existente.id }, data: { activo: true } });
+        }
+      }
+      for (const nombre of nombresLicencia) {
+        const existente = await prisma.licenciaMicrosoft365.findFirst({
+          where: { nombre: { equals: nombre, mode: "insensitive" } },
+        });
+        if (!existente) {
+          await prisma.licenciaMicrosoft365.create({ data: { nombre } });
+        } else if (!existente.activo) {
+          await prisma.licenciaMicrosoft365.update({ where: { id: existente.id }, data: { activo: true } });
+        }
+      }
+    } catch (error) {
+      logger.error("No se pudieron completar las opciones de catalogo tras la importacion", error);
     }
 
     const response: ImportBatchResult = {

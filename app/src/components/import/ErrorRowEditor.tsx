@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AlertCircle, CheckCircle, Edit2, Save, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CatalogSelect } from "@/components/ui/CatalogSelect";
+import { parseEstado, parseCondicion } from "@/lib/importacion/estadoCondicion";
 import type { ImportRowStatus, ValidationError } from "@/types/import";
 import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 
@@ -43,8 +44,31 @@ const CATALOG_FIELD_ENDPOINTS: Record<string, string> = {
   microsoft365: "/api/licencias-m365",
 };
 
+// El Excel trae el estado/condicion como texto libre ("Disponible",
+// "ACTIVO", con o sin tildes) pero el <select> compara contra la palabra
+// EXACTA del enum ("disponible"). Sin esto, una fila que ya trae un dato
+// valido se ve en blanco en el selector -- como si no tuviera nada -- solo
+// porque no coincide letra por letra, obligando a elegirlo de nuevo aunque
+// ya estuviera bien. Se usa la misma interpretacion que ya corre en el
+// servidor (parseEstado/parseCondicion) para no duplicar el criterio de que
+// cuenta como reconocido.
+function normalizarEstadoCondicion(data: Record<string, string>): Record<string, string> {
+  const normalizado = { ...data };
+  if (normalizado.estado) {
+    const estado = parseEstado(normalizado.estado);
+    if (estado) normalizado.estado = estado;
+  }
+  if (normalizado.condicion) {
+    const condicion = parseCondicion(normalizado.condicion);
+    if (condicion) normalizado.condicion = condicion;
+  }
+  return normalizado;
+}
+
 export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEditorProps) {
-  const [editedData, setEditedData] = useState<Record<string, string>>(row.data);
+  const [editedData, setEditedData] = useState<Record<string, string>>(() =>
+    normalizarEstadoCondicion(row.data)
+  );
   const [isEditing, setIsEditing] = useState(false);
 
   const handleFieldChange = (field: string, value: string) => {
@@ -57,7 +81,7 @@ export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEdit
   };
 
   const handleCancel = () => {
-    setEditedData(row.data);
+    setEditedData(normalizarEstadoCondicion(row.data));
     setIsEditing(false);
   };
 

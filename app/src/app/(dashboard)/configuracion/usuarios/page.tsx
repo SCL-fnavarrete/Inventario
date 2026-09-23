@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { Plus, Edit, Trash2, Save, ShieldCheck, ShieldAlert } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 
 const usuarioFieldLabels: Record<string, string> = {
   email: "Email",
@@ -15,8 +17,8 @@ const usuarioFieldLabels: Record<string, string> = {
 };
 
 /**
- * Confirmacion en modal propio para eliminar un usuario, en vez de
- * confirm() del navegador, con el mismo formato que el resto del sistema.
+ * Confirmacion para eliminar un usuario con el componente compartido
+ * ConfirmDialog, en vez de confirm() del navegador.
  */
 type Confirmacion = {
   titulo: string;
@@ -60,6 +62,7 @@ const roleDescriptions: Record<string, string> = {
 };
 
 export default function UsuariosPage() {
+  const toast = useToast();
   const [users, setUsers] = useState<SystemUser[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,7 +78,6 @@ export default function UsuariosPage() {
   });
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [success, setSuccess] = useState("");
   const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
 
   useEffect(() => {
@@ -131,8 +133,7 @@ export default function UsuariosPage() {
         setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
         setError("");
         setFieldErrors({});
-        setSuccess("Usuario creado exitosamente");
-        setTimeout(() => setSuccess(""), 3000);
+        toast.success("Usuario creado exitosamente");
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear usuario");
         setError(message);
@@ -179,8 +180,7 @@ export default function UsuariosPage() {
         setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
         setError("");
         setFieldErrors({});
-        setSuccess("Usuario actualizado exitosamente");
-        setTimeout(() => setSuccess(""), 3000);
+        toast.success("Usuario actualizado exitosamente");
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar usuario");
         setError(message);
@@ -211,8 +211,7 @@ export default function UsuariosPage() {
 
       if (res.ok) {
         await fetchUsers();
-        setSuccess("Usuario eliminado exitosamente");
-        setTimeout(() => setSuccess(""), 3000);
+        toast.success("Usuario eliminado exitosamente");
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al eliminar usuario");
         setError(message);
@@ -234,8 +233,7 @@ export default function UsuariosPage() {
 
       if (res.ok) {
         await fetchUsers();
-        setSuccess(`Usuario ${user.activo ? "desactivado" : "activado"} exitosamente`);
-        setTimeout(() => setSuccess(""), 3000);
+        toast.success(`Usuario ${user.activo ? "desactivado" : "activado"} exitosamente`);
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al cambiar estado del usuario");
         setError(message);
@@ -313,12 +311,6 @@ export default function UsuariosPage() {
       </div>
 
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} fieldLabels={usuarioFieldLabels} />
-
-      {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
-          {success}
-        </div>
-      )}
 
       {/* Roles info cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -544,32 +536,17 @@ export default function UsuariosPage() {
         </table>
       </div>
 
-      {/* Confirmacion de eliminacion, con el mismo formato que el resto del
-          sistema en vez del confirm() del navegador. */}
-      {confirmacion && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {confirmacion.titulo}
-            </h3>
-            <p className="text-gray-600 mb-4">{confirmacion.mensaje}</p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setConfirmacion(null)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => confirmacion.onConfirm()}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                {confirmacion.textoBoton}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Confirmacion con el componente compartido, en vez del confirm()
+          del navegador. */}
+      <ConfirmDialog
+        isOpen={confirmacion !== null}
+        onClose={() => setConfirmacion(null)}
+        onConfirm={() => confirmacion?.onConfirm()}
+        variant="danger"
+        title={confirmacion?.titulo ?? ""}
+        message={confirmacion?.mensaje ?? ""}
+        confirmLabel={confirmacion?.textoBoton ?? "Eliminar"}
+      />
     </div>
   );
 }
