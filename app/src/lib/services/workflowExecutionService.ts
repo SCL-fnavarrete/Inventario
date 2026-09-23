@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import type { CondicionCargador } from '@/lib/constants/condicionCargador';
 import { ConflictError, NotFoundError } from '@/lib/errors';
+import { etiquetaEstadoDevolucion } from '@/lib/constants/estadosActivo';
 
 type PrismaTx = Prisma.TransactionClient;
 
@@ -304,7 +305,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
     data: {
       assetId: assignment.assetId,
       tipoEvento: 'devolucion',
-      descripcion: `Devuelto por ${assignment.employee.nombres} ${assignment.employee.apellidoPaterno}. Estado: ${params.estadoDevolucion}`,
+      descripcion: `Devuelto por ${assignment.employee.nombres} ${assignment.employee.apellidoPaterno}. Estado: ${etiquetaEstadoDevolucion(params.estadoDevolucion)}`,
       datosAnteriores: {
         estado: assignment.asset.estado,
         empleadoActualId: assignment.asset.empleadoActualId,

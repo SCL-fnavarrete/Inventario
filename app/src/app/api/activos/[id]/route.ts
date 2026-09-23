@@ -86,7 +86,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       if (duplicateSerie) {
         return NextResponse.json(
-          { error: 'Ya existe un activo con este numero de serie' },
+          { error: 'Ya existe un activo con este número de serie' },
           { status: 400 }
         );
       }

@@ -3025,7 +3025,19 @@ Pedido de Javier: el técnico debe poder cambiar la cantidad de equipos que quie
 - **Comprobante de Cambio**: las tablas de equipos nuevos y devueltos llevan una fila por equipo y la tabla de cargadores los lista todos. Con dos o más equipos el documento puede pasar a una segunda hoja; las firmas nunca se cortan. De paso, el estado del equipo devuelto es el real ("Devolución OK", "Devuelto dañado" o "No devuelto"); antes decía siempre "Devolución OK".
 - Se elimina el modo "Ejecutar cambio" (`onSubmit`) del selector, que solo usaba la página de detalle antes de 2.82.
 
+## 2.85 Textos legibles en historial y pantallas (23-sep-2026)
+
+El historial del activo mostraba el valor interno del estado ("Devuelto por … Estado: danado"). Regla: **ningún texto visible muestra el valor interno de un enum**; se usan las etiquetas de `lib/constants/estadosActivo.ts`.
+
+- Nuevas etiquetas `ESTADO_DEVOLUCION_LABEL` (ok = Buen estado, danado = Dañado, incompleto = Incompleto, no_devuelto = No devuelto) y la función `etiquetaCondicionActivo`.
+- `assetHistoryService` y `workflowExecutionService` escriben el historial con etiquetas: estado de devolución, cambio de estado ("de "Disponible" a "En Mantención"") y nombres de especificaciones ("Disco duro", "RAM").
+- Migración de datos `20260923180000_historial_etiquetas_legibles` (sin cambios de schema): reescribe con las mismas etiquetas los registros de historial ya guardados.
+- Pantallas que mostraban el valor interno: venta de activo, detalle de asignación, programar mantención, detalle de mantención, aviso de "Asignar activo" y medio de devolución en el detalle de la solicitud.
+- Faltas de ortografía en textos visibles y mensajes de error de la API (tildes y ñ): alertas del dashboard, importación, formularios de solicitud, catálogos de opciones y validaciones.
+
 ## Changelog SPEC
+- **v2.9 (2026-09-23):**
+  - Sección 2.85 (nueva): el historial y las pantallas muestran etiquetas legibles en vez del valor interno de los estados; migración de datos que corrige el historial existente; correcciones de ortografía en textos visibles.
 - **v2.8 (2026-09-23):**
   - Sección 2.84 (nueva): cambio de equipo de uno o varios equipos en la misma solicitud (lista `cambios` en la API, todos en una transacción); el comprobante muestra todos los pares y el estado real de cada equipo devuelto.
 - **v2.7 (2026-09-23):**

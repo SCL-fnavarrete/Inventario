@@ -54,6 +54,27 @@ export const CONDICION_ACTIVO_BADGE: Record<CondicionActivo, string> = {
   danado: 'bg-red-50 text-red-800 border-red-200',
 };
 
+/**
+ * Estado en que vuelve un equipo (Assignment.estadoDevolucion y las
+ * devoluciones de solicitudes). Para el historial y las pantallas: nunca se
+ * muestra el valor interno ("danado", "no_devuelto").
+ */
+export const ESTADO_DEVOLUCION_LABEL: Record<string, string> = {
+  ok: 'Buen estado',
+  danado: 'Dañado',
+  incompleto: 'Incompleto',
+  no_devuelto: 'No devuelto',
+};
+
+export function etiquetaEstadoDevolucion(estado: string): string {
+  return ESTADO_DEVOLUCION_LABEL[estado] ?? estado;
+}
+
+/** Etiqueta de una condicion que puede venir como texto libre. */
+export function etiquetaCondicionActivo(condicion: string): string {
+  return CONDICION_ACTIVO_LABEL[condicion as CondicionActivo] ?? condicion;
+}
+
 /** Etiqueta de un estado que puede venir como texto libre (URL, Excel). */
 export function etiquetaEstadoActivo(estado: string): string {
   return ESTADO_ACTIVO_LABEL[estado as EstadoActivo] ?? estado;

@@ -14,6 +14,7 @@ import {
   Trash2,
   Play,
 } from "lucide-react";
+import { etiquetaCondicionActivo, etiquetaEstadoActivo } from "@/lib/constants/estadosActivo";
 import { cn } from "@/lib/utils";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
@@ -600,11 +601,11 @@ export default function MantencionDetallePage({
               </div>
               <div>
                 <p className="text-fg-subtle">Estado Actual</p>
-                <p className="font-medium capitalize">{maintenance.asset.estado}</p>
+                <p className="font-medium">{etiquetaEstadoActivo(maintenance.asset.estado)}</p>
               </div>
               <div>
                 <p className="text-fg-subtle">Condición</p>
-                <p className="font-medium capitalize">{maintenance.asset.condicion}</p>
+                <p className="font-medium">{etiquetaCondicionActivo(maintenance.asset.condicion)}</p>
               </div>
             </div>
             <Link

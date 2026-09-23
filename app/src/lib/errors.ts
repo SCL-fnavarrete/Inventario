@@ -26,7 +26,7 @@ export class UnauthorizedError extends ApiError {
 }
 
 export class ForbiddenError extends ApiError {
-  constructor(message = 'No tienes permisos para realizar esta accion') {
+  constructor(message = 'No tienes permisos para realizar esta acción') {
     super(403, message);
     this.name = 'ForbiddenError';
   }
@@ -48,7 +48,7 @@ export class ConflictError extends ApiError {
 }
 
 export class ValidationError extends ApiError {
-  constructor(message = 'Datos invalidos', details?: unknown) {
+  constructor(message = 'Datos inválidos', details?: unknown) {
     super(400, message, details);
     this.name = 'ValidationError';
   }

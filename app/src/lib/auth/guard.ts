@@ -134,7 +134,7 @@ export function handleApiError(
         {
           error: campos
             ? `Ya existe un registro con ese valor en: ${campos}`
-            : 'Ya existe un registro con ese valor unico',
+            : 'Ya existe un registro con ese valor único',
           // Prisma no da un mensaje por campo especifico, pero se identifica
           // cual campo duplicado es, para que el frontend lo marque en el
           // formulario.

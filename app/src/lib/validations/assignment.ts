@@ -13,7 +13,7 @@ const fechaObligatoria = z
   .string()
   .min(1, "La fecha es requerida")
   .transform((val) => new Date(val))
-  .refine((fecha) => !isNaN(fecha.getTime()), "Fecha invalida")
+  .refine((fecha) => !isNaN(fecha.getTime()), "Fecha inválida")
   // Se tolera un dia de margen porque el navegador y el servidor pueden estar
   // en husos distintos y una entrega de hoy no debe rechazarse por eso.
   .refine(

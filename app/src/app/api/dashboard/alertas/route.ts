@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
     mantencionesVencidas.forEach((m) => {
       alertas.push({
         tipo: "error",
-        categoria: "Mantencion Vencida",
+        categoria: "Mantención Vencida",
         mensaje: `${m.asset.marca} ${m.asset.modelo} (${m.asset.numeroSerie}) - ${m.descripcion}`,
         fecha: m.fechaProgramada,
         link: `/mantenciones/${m.id}`,
@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
     mantencionesProximas.forEach((m) => {
       alertas.push({
         tipo: "warning",
-        categoria: "Mantencion Proxima",
+        categoria: "Mantención Próxima",
         mensaje: `${m.asset.marca} ${m.asset.modelo} (${m.asset.numeroSerie}) - ${m.descripcion}`,
         fecha: m.fechaProgramada,
         link: `/mantenciones/${m.id}`,
@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
     activosDanados.forEach((a) => {
       alertas.push({
         tipo: "error",
-        categoria: "Equipo Danado",
+        categoria: "Equipo Dañado",
         mensaje: `${a.categoria?.nombre}: ${a.marca} ${a.modelo} (${a.numeroSerie})`,
         fecha: null,
         link: `/activos/${a.id}`,
@@ -161,7 +161,7 @@ export async function GET(request: NextRequest) {
     garantiaPorVencer.forEach((a) => {
       alertas.push({
         tipo: "info",
-        categoria: "Garantia por Vencer",
+        categoria: "Garantía por Vencer",
         mensaje: `${a.marca} ${a.modelo} (${a.numeroSerie})`,
         fecha: a.fechaGarantiaFin,
         link: `/activos/${a.id}`,

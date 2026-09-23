@@ -149,7 +149,7 @@ export default function ImportarActivosPage() {
     // Contador impreciso ("1", "2", "1+") de cuantas veces se asigno el
     // equipo antes; no crea asignaciones reales, solo queda como nota en
     // el historial del activo.
-    historialAsignaciones: "Cantidad de veces que el equipo fue asignado antes (dato historico, sin nombre de la persona). Ej: 1, 2, 1+.",
+    historialAsignaciones: "Cantidad de veces que el equipo fue asignado antes (dato histórico, sin nombre de la persona). Ej: 1, 2, 1+.",
     mantencion: "Fecha de la última mantención realizada (dd-mm-aaaa).",
     proximaMantencion: "Fecha programada para la próxima mantención (dd-mm-aaaa).",
     antivirus: "Antivirus instalado en el equipo.",
@@ -223,8 +223,8 @@ export default function ImportarActivosPage() {
     { key: "ram", label: "RAM", categories: ["notebook"] },
     { key: "sistemaOperativo", label: "O.S.", categories: ["notebook"] },
     { key: "microsoft365", label: "Microsoft 365 Empresa", categories: ["notebook"] },
-    { key: "mantencion", label: "Mantencion", categories: ["notebook"] },
-    { key: "proximaMantencion", label: "Proxima Mantencion", categories: ["notebook"] },
+    { key: "mantencion", label: "Mantención", categories: ["notebook"] },
+    { key: "proximaMantencion", label: "Próxima Mantención", categories: ["notebook"] },
     { key: "antivirus", label: "Antivirus", categories: ["notebook"] },
     // Campos para Monitor
     { key: "pulgadas", label: "Pulgadas", categories: ["monitor"] },
@@ -630,8 +630,8 @@ export default function ImportarActivosPage() {
                 )}
               >
                 {batchResult.success
-                  ? "Importacion completada"
-                  : "Importacion con advertencias"}
+                  ? "Importación completada"
+                  : "Importación con advertencias"}
               </h3>
 
               <StatGrid cols={2} className="mt-4 mb-4">
@@ -1089,7 +1089,7 @@ export default function ImportarActivosPage() {
             creará o vinculará el empleado y marcará el activo como asignado
           </li>
           <li>
-            Si incluyes fecha de <strong>Mantencion</strong>, el sistema creará
+            Si incluyes fecha de <strong>Mantención</strong>, el sistema creará
             automáticamente un registro en el módulo de Mantenciones
           </li>
           <li>

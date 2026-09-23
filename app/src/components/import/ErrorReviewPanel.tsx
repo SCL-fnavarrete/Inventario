@@ -105,10 +105,10 @@ export function ErrorReviewPanel({
         <div>
           <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
             <AlertTriangle className="text-yellow-500" />
-            Revision de Registros con Errores
+            Revisión de Registros con Errores
           </h2>
           <p className="text-sm text-fg-muted mt-1">
-            Corrige los datos problematicos. Los cambios se guardan aqui y se incluyen
+            Corrige los datos problemáticos. Los cambios se guardan aquí y se incluyen
             recien al confirmar la importación.
           </p>
         </div>

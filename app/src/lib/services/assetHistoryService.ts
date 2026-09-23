@@ -1,5 +1,15 @@
 import { prisma } from '@/lib/prisma'
 import { TipoEvento, Asset, Prisma } from '@prisma/client'
+import { etiquetaEstadoActivo, etiquetaEstadoDevolucion } from '@/lib/constants/estadosActivo'
+
+// Nombre legible de cada especificacion en el texto del historial.
+const ETIQUETA_SPEC: Record<string, string> = {
+  procesador: 'Procesador',
+  ram: 'RAM',
+  discoDuro: 'Disco duro',
+  sistemaOperativo: 'Sistema operativo',
+  pulgadas: 'Pulgadas',
+}
 
 /**
  * Cliente dentro de una `prisma.$transaction`. Mismo alias que usa
@@ -104,7 +114,7 @@ export const assetHistoryService = {
     return this.registrar({
       assetId,
       tipoEvento: 'devolucion',
-      descripcion: `Devuelto por ${empleadoNombre} (${empleadoRut}) - Estado: ${estadoDevolucion}`,
+      descripcion: `Devuelto por ${empleadoNombre} (${empleadoRut}) - Estado: ${etiquetaEstadoDevolucion(estadoDevolucion)}`,
       datosNuevos: {
         empleadoNombre,
         empleadoRut,
@@ -130,7 +140,7 @@ export const assetHistoryService = {
     return this.registrar({
       assetId,
       tipoEvento: 'cambio_estado',
-      descripcion: `Estado cambiado de "${estadoAnterior}" a "${estadoNuevo}"${motivo ? `: ${motivo}` : ''}`,
+      descripcion: `Estado cambiado de "${etiquetaEstadoActivo(estadoAnterior)}" a "${etiquetaEstadoActivo(estadoNuevo)}"${motivo ? `: ${motivo}` : ''}`,
       datosAnteriores: { estado: estadoAnterior },
       datosNuevos: { estado: estadoNuevo, motivo },
       usuarioSistema: usuario,
@@ -177,7 +187,7 @@ export const assetHistoryService = {
     const nuevos = datosNuevos as Record<string, unknown>;
     const cambios = Object.keys(nuevos)
       .filter(key => anteriores[key] !== nuevos[key])
-      .map(key => key)
+      .map(key => ETIQUETA_SPEC[key] ?? key)
       .join(', ')
 
     return this.registrar({

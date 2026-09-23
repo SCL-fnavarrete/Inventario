@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Search, XCircle } from "lucide-react";
+import { etiquetaEstadoActivo } from "@/lib/constants/estadosActivo";
 
 type Asset = {
   id: string;
@@ -183,8 +184,8 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
 
       {!asignable && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800">
-          Este equipo esta en estado <strong>{asset.estado}</strong> y solo se pueden
-          entregar equipos disponibles. Si ya esta asignado y quieres
+          Este equipo está en estado <strong>{etiquetaEstadoActivo(asset.estado)}</strong> y solo se pueden
+          entregar equipos disponibles. Si ya está asignado y quieres
           pasarlo a otra persona, usa Reasignar.
         </div>
       )}
@@ -294,7 +295,7 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                     className="field-input"
                   />
                   <p className="mt-1 text-xs text-fg-subtle">
-                    Si el equipo se entrego antes, corrige la fecha aqui.
+                    Si el equipo se entregó antes, corrige la fecha aquí.
                   </p>
                 </div>
 

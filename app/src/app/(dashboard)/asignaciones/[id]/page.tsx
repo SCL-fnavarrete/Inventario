@@ -18,6 +18,7 @@ import {
   Mail,
   Loader2,
 } from "lucide-react";
+import { etiquetaEstadoActivo } from "@/lib/constants/estadosActivo";
 import { cn } from "@/lib/utils";
 import { formatearFechaLarga, formatearFechaHoraCorta } from "@/lib/utils/fechas";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
@@ -297,7 +298,7 @@ export default function AsignacionDetailPage({
                       : "bg-gray-100 text-fg"
                   )}
                 >
-                  {assignment.asset.estado}
+                  {etiquetaEstadoActivo(assignment.asset.estado)}
                 </span>
               </div>
 

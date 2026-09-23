@@ -809,7 +809,7 @@ export default function NuevaSolicitudPage() {
     fechaIngreso: 'Fecha de Ingreso',
     cargoSolicitado: 'Cargo',
     motivoCambio: 'Motivo del Cambio',
-    fechaDesvinculacion: 'Fecha de Desvinculacion',
+    fechaDesvinculacion: 'Fecha de Desvinculación',
     observaciones: 'Observaciones',
   };
 
@@ -1037,7 +1037,7 @@ export default function NuevaSolicitudPage() {
           for (const issue of err.details) {
             const fieldPath = issue.path?.join('.') || '';
             const fieldName = fieldLabels[fieldPath] || fieldPath;
-            const msg = issue.message || 'Campo invalido';
+            const msg = issue.message || 'Campo inválido';
             errors[fieldPath] = msg;
             messages.push(`${fieldName}: ${msg}`);
           }
@@ -2085,7 +2085,7 @@ export default function NuevaSolicitudPage() {
                     setMotivoCambio(e.target.value);
                     limpiarError('motivoCambio');
                   }}
-                  placeholder="Ej: Sobrecalentamiento, pantalla danada..."
+                  placeholder="Ej: Sobrecalentamiento, pantalla dañada..."
                   rows={3}
                   aria-invalid={!!fieldErrors.motivoCambio}
                   className={claseInput(fieldErrors.motivoCambio)}
@@ -2239,7 +2239,7 @@ export default function NuevaSolicitudPage() {
 
           {tipo === 'offboarding' && (
             <div className="space-y-4 border-t pt-4">
-              <h3 className="font-medium text-fg">Datos de Devolucion</h3>
+              <h3 className="font-medium text-fg">Datos de Devolución</h3>
 
               {/* Equipos actuales del empleado */}
               {selectedEmployee && (
@@ -2467,7 +2467,7 @@ export default function NuevaSolicitudPage() {
                   'block text-sm font-medium mb-1',
                   fieldErrors.fechaDesvinculacion ? 'text-red-600' : 'text-fg-muted'
                 )}>
-                  Fecha Desvinculacion *
+                  Fecha Desvinculación *
                 </label>
                 <input
                   type="date"

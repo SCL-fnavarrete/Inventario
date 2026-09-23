@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
 
       if (existingAsset) {
         return NextResponse.json(
-          { error: "Ya existe un activo con este numero de serie" },
+          { error: "Ya existe un activo con este número de serie" },
           { status: 400 }
         );
       }

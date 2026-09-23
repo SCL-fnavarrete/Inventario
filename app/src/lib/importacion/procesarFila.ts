@@ -173,7 +173,7 @@ export async function procesarFila(
     return {
       status: "error",
       tipo: "invalid_format",
-      mensaje: `RUT invalido: "${lecturaRut.valor}" (digito verificador incorrecto)`,
+      mensaje: `RUT inválido: "${lecturaRut.valor}" (dígito verificador incorrecto)`,
       data: datosFila,
     };
   }

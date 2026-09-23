@@ -19,7 +19,7 @@ export const condicionActivoEnum = z.enum(["nuevo", "usado", "danado"]);
 
 // Schema base para activos
 export const assetSchema = z.object({
-  categoriaId: z.string().uuid("ID de categoria invalido"),
+  categoriaId: z.string().uuid("ID de categoría inválido"),
 
   // Identificacion
   numeroSerie: z.string().max(50, "Máximo 50 caracteres").optional().nullable(),
@@ -80,7 +80,7 @@ export const assetSchema = z.object({
 
 // Schema para crear activo (campos requeridos)
 export const createAssetSchema = assetSchema.extend({
-  categoriaId: z.string().uuid("ID de categoria invalido"),
+  categoriaId: z.string().uuid("ID de categoría inválido"),
   marca: z.string().min(1, "La marca es requerida").max(50, "Máximo 50 caracteres"),
   modelo: z.string().min(1, "El modelo es requerido").max(100, "Máximo 100 caracteres"),
   // Todo equipo que se registra nace disponible: es la unica posicion inicial

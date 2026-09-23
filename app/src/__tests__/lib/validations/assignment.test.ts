@@ -296,7 +296,7 @@ describe('Assignment Validation - reglas de fecha', () => {
   test('rechaza un texto que no es fecha en vez de crear un Invalid Date', () => {
     const result = createAssignmentSchema.safeParse({ ...base, fechaEntrega: 'cualquier cosa' })
     expect(result.success).toBe(false)
-    expect(mensajes(result)).toContain('Fecha invalida')
+    expect(mensajes(result)).toContain('Fecha inválida')
   })
 
   test('rechaza la fecha vacia', () => {

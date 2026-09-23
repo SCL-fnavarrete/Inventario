@@ -1036,7 +1036,9 @@ export default function SolicitudDetailPage() {
                   {data.medioDevolucion && (
                     <div>
                       <dt className="text-fg-subtle">Medio</dt>
-                      <dd className="text-fg">{data.medioDevolucion}</dd>
+                      <dd className="text-fg">
+                        {data.medioDevolucion === 'presencial' ? 'Presencial' : 'Despacho (Chilexpress)'}
+                      </dd>
                     </div>
                   )}
                   {data.otChilexpress && (

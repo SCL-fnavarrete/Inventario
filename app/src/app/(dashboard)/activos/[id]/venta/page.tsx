@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { XCircle, DollarSign } from 'lucide-react';
+import { etiquetaEstadoActivo } from '@/lib/constants/estadosActivo';
 import { parseApiError, type FieldErrors } from '@/lib/utils/apiErrors';
 import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -97,7 +98,7 @@ export default function VentaActivoPage() {
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
           <XCircle className="text-red-500" size={20} />
           <p className="text-red-700">
-            El activo debe estar en estado &quot;Baja&quot; para vender. Estado actual: {asset.estado}
+            El activo debe estar en estado &quot;Baja&quot; para vender. Estado actual: {etiquetaEstadoActivo(asset.estado)}
           </p>
         </div>
       )}
@@ -108,7 +109,7 @@ export default function VentaActivoPage() {
       <div className="bg-surface-muted rounded-lg p-4">
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div><span className="text-fg-subtle">Categoría:</span> <span className="font-medium">{asset.categoria.nombre}</span></div>
-          <div><span className="text-fg-subtle">Estado:</span> <span className="font-medium">{asset.estado}</span></div>
+          <div><span className="text-fg-subtle">Estado:</span> <span className="font-medium">{etiquetaEstadoActivo(asset.estado)}</span></div>
           <div><span className="text-fg-subtle">Marca/Modelo:</span> <span className="font-medium">{asset.marca} {asset.modelo}</span></div>
           <div><span className="text-fg-subtle">Serie:</span> <span className="font-medium">{asset.numeroSerie || '-'}</span></div>
         </div>

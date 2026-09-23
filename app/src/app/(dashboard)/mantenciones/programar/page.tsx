@@ -13,6 +13,7 @@ import {
   CheckCircle,
   ChevronDown,
 } from "lucide-react";
+import { etiquetaEstadoActivo } from "@/lib/constants/estadosActivo";
 import { cn } from "@/lib/utils";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
@@ -402,7 +403,7 @@ export default function ProgramarMantencionPage() {
                           "bg-orange-100 text-orange-700"
                       )}
                     >
-                      {asset.estado}
+                      {etiquetaEstadoActivo(asset.estado)}
                     </span>
                   </div>
                 </button>
