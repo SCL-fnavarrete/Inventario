@@ -3003,7 +3003,20 @@ Pedido de Javier: sin etapas intermedias. Una solicitud se crea completa en `/so
 
 **Tickets heredados.** Un ticket abierto solo puede venir del flujo anterior. El detalle muestra un aviso y, si está a un paso del final (`equipos_entregados`, `cambio_ejecutado`, `equipo_recibido`), un botón "Cerrar ticket" que usa la transición existente con sus validaciones. En etapas anteriores solo queda la cancelación, si el ticket no ejecutó efectos.
 
+## 2.83 Tabla de equipos única en los documentos, con N° de Serie y Especificaciones (23-sep-2026)
+
+Pedido de Javier. Los documentos de los cinco procesos (Comprobante de Entrega, presencial y por OT; Acta de Devolución, presencial y por OT; Comprobante de Cambio) comparten ahora una sola tabla de equipos, `lib/templates/TablaEquipoActa.tsx`. Reemplaza tres copias casi idénticas (la tabla del Comprobante de Entrega, la del Acta de Devolución y el `TablaEquipo` local del Comprobante de Cambio).
+
+- **Columnas:** Equipo · Marca · **N° de Serie** (en negrita, "—" si falta) · Descripción de equipo (modelo y condición del cargador) · Especificaciones · una última columna cuyo título depende del documento ("Entregado" o "Estado"). El Comprobante de Cambio la usa dos veces, para el equipo nuevo y el devuelto.
+- **Especificaciones** salen de `especificacionesActivo` (`lib/utils/assetSpecs.ts`), la misma fuente que usa el resto de la aplicación, una por línea: procesador, RAM, disco y sistema operativo en notebooks; IMEI, número y plan en celulares; pulgadas en monitores. Antes la entrega las juntaba en la descripción y la devolución y el cambio las omitían.
+- **Devolución por OT (nuevo) y Cambio por OT:** cuando `medioDevolucion` o `medioCambio` es `chilexpress`, el documento agrega la misma cláusula que ya tenía la entrega por OT ("correspondiente a la Orden de Trabajo (OT) N° …"), con `otChilexpress` u `otCambioChilexpress`.
+- **Diagramación:** el bloque de firmas no se corta entre hojas y se redujo el espacio antes de las firmas, para que los documentos con filas más altas sigan cabiendo en una hoja A4.
+
+El Anexo de Entrega (`AnexoEntregaTemplate.tsx`) no cambia: tiene otras columnas y otro sistema de estilos (`pdfStyles.ts`).
+
 ## Changelog SPEC
+- **v2.7 (2026-09-23):**
+  - Sección 2.83 (nueva): tabla de equipos única (`TablaEquipoActa`) en Comprobante de Entrega, Acta de Devolución y Comprobante de Cambio, con columnas nuevas N° de Serie y Especificaciones; cláusula de OT en la devolución y el cambio por Chilexpress.
 - **v2.6 (2026-09-23):**
   - Sección 2.82 (nueva): toda solicitud nace cerrada al crearse (onboarding pasa a cerrarse también) o la API la rechaza con 400; offboarding sin nada que devolver también cierra. El detalle pierde el stepper y los paneles de etapa; los tickets heredados abiertos muestran un aviso y, si están a un paso del final, "Cerrar ticket".
 - **v2.5 (2026-09-23):**

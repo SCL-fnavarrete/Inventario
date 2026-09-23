@@ -2,20 +2,14 @@ import React from 'react';
 import { Document, Page, Text, View } from '@react-pdf/renderer';
 import { EMPRESA } from './pdfStyles';
 import { sclStyles as styles, LogoSCL } from './pdfSclBrand';
-
-type AssetInfo = {
-  equipo: string;
-  marca: string;
-  descripcion: string;
-  entregado: string;
-};
+import { TablaEquipoActa, type FilaEquipoActa } from './TablaEquipoActa';
 
 type Props = {
   empleadoNombre: string;
   empleadoRut: string;
   fecha: string;
   otNumero: string | null;
-  assets: AssetInfo[];
+  assets: FilaEquipoActa[];
   observacion: string;
   gestionadoPor: string;
 };
@@ -57,38 +51,15 @@ export function ComprobanteEntregaTemplate({
           :
         </Text>
 
-        <Text style={styles.equipLabel}>Equipo asignado:</Text>
-        <View style={styles.table}>
-          <View style={styles.tableHeaderRow}>
-            <Text style={[styles.tableHeaderCell, { width: '18%' }]}>Equipo</Text>
-            <Text style={[styles.tableHeaderCell, { width: '15%' }]}>Marca</Text>
-            <Text style={[styles.tableHeaderCell, { width: '53%', textAlign: 'left' }]}>
-              Descripción de equipo
-            </Text>
-            <Text style={[styles.tableHeaderCell, { width: '14%' }]}>Entregado</Text>
-          </View>
-          {assets.map((asset, i) => (
-            <View key={i} style={styles.tableRow}>
-              <Text style={[styles.tableCell, { width: '18%', textAlign: 'center' }]}>
-                {asset.equipo}
-              </Text>
-              <Text style={[styles.tableCell, { width: '15%', textAlign: 'center' }]}>
-                {asset.marca || '—'}
-              </Text>
-              <Text style={[styles.tableCell, { width: '53%' }]}>{asset.descripcion || '—'}</Text>
-              <Text style={[styles.tableCell, { width: '14%', textAlign: 'center' }]}>
-                {asset.entregado}
-              </Text>
-            </View>
-          ))}
-        </View>
+        <TablaEquipoActa titulo="Equipo asignado:" columnaEstado="Entregado" filas={assets} />
 
         <Text style={styles.docObs}>
           <Text style={styles.bold}>Observación: </Text>
           <Text style={styles.italic}>{observacion || 'n/a'}</Text>
         </Text>
 
-        <View style={styles.signatures}>
+        {/* Las firmas nunca se cortan entre hojas. */}
+        <View style={styles.signatures} wrap={false}>
           <View style={styles.signatureBlock}>
             <View style={styles.signatureLine} />
             <Text style={styles.signatureRole}>Firma del colaborador</Text>

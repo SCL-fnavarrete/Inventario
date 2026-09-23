@@ -5,7 +5,9 @@ import { AnexoEntregaTemplate } from '@/lib/templates/AnexoEntregaTemplate';
 import { ComprobanteEntregaTemplate } from '@/lib/templates/ComprobanteEntregaTemplate';
 import { ComprobanteCambioTemplate } from '@/lib/templates/ComprobanteCambioTemplate';
 import { ActaDevolucionTemplate } from '@/lib/templates/ActaDevolucionTemplate';
+import type { FilaEquipoActa } from '@/lib/templates/TablaEquipoActa';
 import { prisma } from '@/lib/prisma';
+import { especificacionesActivo, type ActivoParaSpecs } from '@/lib/utils/assetSpecs';
 import { formatearFecha } from "@/lib/utils/fechas";
 import {
   etiquetaCondicionCargador,
@@ -31,42 +33,42 @@ function formatDateLarga(date: Date | string | null): string {
   return `${DIAS[d.getDay()]}, ${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`;
 }
 
-// Descripcion de equipo en una sola linea: especificaciones tecnicas para
-// notebooks, datos de linea para celulares.
-function descripcionAsset(
-  asset: {
-    procesador: string | null;
-    ram: string | null;
-    discoDuro: string | null;
-    sistemaOperativo: string | null;
-    numeroTelefono: string | null;
+// Fila de la tabla de equipos de un acta (TablaEquipoActa). El N° de serie y
+// las especificaciones van en columnas propias; la descripcion queda para el
+// modelo y la condicion del cargador, sin repetir lo anterior.
+function filaEquipo(
+  // pulgadas llega como Decimal de Prisma: se pasa a texto para assetSpecs.
+  asset: Omit<ActivoParaSpecs, 'pulgadas'> & {
+    pulgadas: { toString(): string } | null;
+    categoria: { nombre: string };
+    marca: string;
+    modelo: string;
+    numeroSerie: string | null;
   },
-  // Condicion del cargador: se agrega como un dato mas de la descripcion,
-  // no como columna propia.
-  cargador?: string | null
-): string {
-  const partes: string[] = [];
-  if (asset.procesador) partes.push(`Proc: ${asset.procesador}`);
-  if (asset.ram) partes.push(`RAM: ${asset.ram}`);
-  if (asset.discoDuro) partes.push(`Disco: ${asset.discoDuro}`);
-  if (asset.sistemaOperativo) partes.push(`SO: ${asset.sistemaOperativo}`);
-  if (asset.numeroTelefono) partes.push(`Tel: ${asset.numeroTelefono}`);
-  if (cargador) partes.push(`Cargador: ${cargador}`);
-  return partes.join(' | ');
+  estado: string,
+  cargador: string | null
+): FilaEquipoActa {
+  return {
+    equipo: asset.categoria.nombre,
+    marca: asset.marca,
+    numeroSerie: asset.numeroSerie,
+    descripcion: [asset.modelo, cargador && `Cargador: ${cargador}`].filter(Boolean).join('\n'),
+    especificaciones: especificacionesActivo({ ...asset, pulgadas: asset.pulgadas?.toString() ?? null })
+      .map(({ etiqueta, valor }) => `${etiqueta}: ${valor}`)
+      .join('\n'),
+    estado,
+  };
 }
 
-// Descripcion para equipos que se devuelven o cambian: a diferencia de
-// descripcionAsset, aca importa identificar el equipo fisico concreto
-// (modelo y N° de serie), no sus specs tecnicas.
-function descripcionEquipoDevuelto(
-  asset: { modelo: string; numeroSerie: string | null },
-  cargador?: string | null
-): string {
-  const partes: string[] = [`Modelo: ${asset.modelo}`];
-  partes.push(`N° Serie: ${asset.numeroSerie || 's/serie'}`);
-  if (cargador) partes.push(`Cargador: ${cargador}`);
-  return partes.join(' | ');
-}
+// Fila vacia para un equipo que no se encontro (ticket sin asignacion).
+const FILA_VACIA: FilaEquipoActa = {
+  equipo: '—',
+  marca: '—',
+  numeroSerie: null,
+  descripcion: '—',
+  especificaciones: '',
+  estado: '—',
+};
 
 // Texto del cargador para el acta: etiqueta de la condicion y, si hay, la
 // observacion entre parentesis ("Con daños (cable pelado)"). Null si el
@@ -144,12 +146,9 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
     },
   });
 
-  const assets = solicitud.employee.assignments.map((a) => ({
-    equipo: a.asset.categoria.nombre,
-    marca: a.asset.marca,
-    descripcion: descripcionAsset(a.asset, textoCargador(a, a.condicionCargadorEntrega, 'entrega')),
-    entregado: 'OK',
-  }));
+  const assets = solicitud.employee.assignments.map((a) =>
+    filaEquipo(a.asset, 'OK', textoCargador(a, a.condicionCargadorEntrega, 'entrega'))
+  );
 
   // Coordinacion "por OT": se agrega la clausula de OT a la intro cuando
   // el medio de entrega es chilexpress.
@@ -194,36 +193,29 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
   const newAssignment = assignments.find((a) => a.id === newAssignmentId) || null;
   const oldAssignment = assignments.find((a) => a.id === oldAssignmentId) || null;
 
-  const toAssetInfo = (
-    asset: { categoria: { nombre: string }; marca: string; modelo: string; numeroSerie: string | null },
-    estado: string,
-    cargador: string | null
-  ) => ({
-    equipo: asset.categoria.nombre,
-    marca: asset.marca,
-    descripcion: descripcionEquipoDevuelto(asset, cargador),
-    estado,
-  });
+  // Coordinacion "por OT": clausula de OT en la intro, igual que la entrega.
+  const otNumero = solicitud.medioCambio === 'chilexpress' ? solicitud.otCambioChilexpress : null;
 
   const element = React.createElement(ComprobanteCambioTemplate, {
     empleadoNombre: `${solicitud.employee.nombres} ${solicitud.employee.apellidoPaterno}`,
     empleadoRut: solicitud.employee.rut || '—',
     fecha: formatearFecha(new Date(), {}, '—'),
     motivoCambio: solicitud.motivoCambio || '—',
+    otNumero,
     equipoNuevo: newAssignment
-      ? toAssetInfo(
+      ? filaEquipo(
           newAssignment.asset,
           'Entregado OK',
           textoCargador(newAssignment, newAssignment.condicionCargadorEntrega, 'entrega')
         )
-      : { equipo: '—', marca: '—', descripcion: '—', estado: '—' },
+      : FILA_VACIA,
     equipoAnterior: oldAssignment
-      ? toAssetInfo(
+      ? filaEquipo(
           oldAssignment.asset,
           'Devolución OK',
           textoCargador(oldAssignment, oldAssignment.condicionCargadorDevolucion, 'devolucion')
         )
-      : { equipo: '—', marca: '—', descripcion: '—', estado: '—' },
+      : FILA_VACIA,
     // Solo el nombre, sin correo entre parentesis -- mismo criterio que
     // el Comprobante de Entrega.
     gestionadoPor: (solicitud.responsableActual || solicitud.solicitante).nombre,
@@ -254,23 +246,27 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
     (a) => !a.activo && a.fechaDevolucion
   );
 
-  const assets = returnedAssignments.map((a) => ({
-    equipo: a.asset.categoria.nombre,
-    marca: a.asset.marca,
-    descripcion: descripcionEquipoDevuelto(a.asset, textoCargador(a, a.condicionCargadorDevolucion, 'devolucion')),
-    estado:
+  const assets = returnedAssignments.map((a) =>
+    filaEquipo(
+      a.asset,
       a.estadoDevolucion === 'ok'
         ? 'OK'
         : a.estadoDevolucion === 'danado'
           ? 'No OK'
           : a.estadoDevolucion || 'OK',
-  }));
+      textoCargador(a, a.condicionCargadorDevolucion, 'devolucion')
+    )
+  );
+
+  // Coordinacion "por OT": clausula de OT en la intro, igual que la entrega.
+  const otNumero = solicitud.medioDevolucion === 'chilexpress' ? solicitud.otChilexpress : null;
 
   const element = React.createElement(ActaDevolucionTemplate, {
     empleadoNombre: `${solicitud.employee.nombres} ${solicitud.employee.apellidoPaterno}`,
     empleadoRut: solicitud.employee.rut || '—',
     fechaTermino: formatearFecha(solicitud.fechaDesvinculacion, {}, '—'),
     fechaDevolucion: formatearFecha(new Date(), {}, '—'),
+    otNumero,
     assets,
     observacion: solicitud.observaciones || 'n/a',
     // Solo nombre, sin correo -- mismo criterio que el resto de los

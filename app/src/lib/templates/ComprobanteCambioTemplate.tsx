@@ -2,64 +2,32 @@ import React from 'react';
 import { Document, Page, Text, View } from '@react-pdf/renderer';
 import { EMPRESA } from './pdfStyles';
 import { sclStyles as styles, LogoSCL } from './pdfSclBrand';
-
-type AssetInfo = {
-  equipo: string;
-  marca: string;
-  descripcion: string;
-  estado: string;
-};
+import { TablaEquipoActa, type FilaEquipoActa } from './TablaEquipoActa';
 
 type Props = {
   empleadoNombre: string;
   empleadoRut: string;
   fecha: string;
   motivoCambio: string;
-  equipoAnterior: AssetInfo;
-  equipoNuevo: AssetInfo;
+  /** N° de OT si el cambio se coordino por despacho (Chilexpress). */
+  otNumero: string | null;
+  equipoAnterior: FilaEquipoActa;
+  equipoNuevo: FilaEquipoActa;
   gestionadoPor: string;
 };
 
 /**
  * Comprobante de cambio de equipo. Comparte el mismo formato (logo SCL,
  * colores, tipografia y tabla) que el Comprobante de Entrega de onboarding.
+ * Si el cambio se coordino "por OT" se agrega la clausula de OT en la intro.
  */
-
-function TablaEquipo({ label, asset }: { label: string; asset: AssetInfo }) {
-  return (
-    <>
-      <Text style={styles.equipLabel}>{label}</Text>
-      <View style={styles.table}>
-        <View style={styles.tableHeaderRow}>
-          <Text style={[styles.tableHeaderCell, { width: '18%' }]}>Equipo</Text>
-          <Text style={[styles.tableHeaderCell, { width: '15%' }]}>Marca</Text>
-          <Text style={[styles.tableHeaderCell, { width: '53%', textAlign: 'left' }]}>
-            Descripción de equipo
-          </Text>
-          <Text style={[styles.tableHeaderCell, { width: '14%' }]}>Estado</Text>
-        </View>
-        <View style={styles.tableRow}>
-          <Text style={[styles.tableCell, { width: '18%', textAlign: 'center' }]}>
-            {asset.equipo}
-          </Text>
-          <Text style={[styles.tableCell, { width: '15%', textAlign: 'center' }]}>
-            {asset.marca || '—'}
-          </Text>
-          <Text style={[styles.tableCell, { width: '53%' }]}>{asset.descripcion || '—'}</Text>
-          <Text style={[styles.tableCell, { width: '14%', textAlign: 'center' }]}>
-            {asset.estado}
-          </Text>
-        </View>
-      </View>
-    </>
-  );
-}
 
 export function ComprobanteCambioTemplate({
   empleadoNombre,
   empleadoRut,
   fecha,
   motivoCambio,
+  otNumero,
   equipoAnterior,
   equipoNuevo,
   gestionadoPor,
@@ -75,12 +43,30 @@ export function ComprobanteCambioTemplate({
           A través del presente con fecha {fecha}, <Text style={styles.bold}>{EMPRESA.nombre}</Text>{' '}
           deja constancia del cambio de equipo realizado a{' '}
           <Text style={styles.bold}>{empleadoNombre}</Text> RUT{' '}
-          <Text style={styles.bold}>{empleadoRut}</Text>, con motivo de:{' '}
-          <Text style={styles.bold}>{motivoCambio}</Text>.
+          <Text style={styles.bold}>{empleadoRut}</Text>
+          {otNumero ? (
+            <>
+              , correspondiente a la Orden de Trabajo (OT) N° <Text style={styles.bold}>{otNumero}</Text>
+            </>
+          ) : (
+            ''
+          )}
+          , con motivo de: <Text style={styles.bold}>{motivoCambio}</Text>.
         </Text>
 
-        <TablaEquipo label="Equipo asignado (nuevo):" asset={equipoNuevo} />
-        <TablaEquipo label="Equipo devuelto (anterior):" asset={equipoAnterior} />
+        {/* Dos tablas: compactas para que las firmas entren en la misma hoja. */}
+        <TablaEquipoActa
+          titulo="Equipo asignado (nuevo):"
+          columnaEstado="Estado"
+          filas={[equipoNuevo]}
+          compacta
+        />
+        <TablaEquipoActa
+          titulo="Equipo devuelto (anterior):"
+          columnaEstado="Estado"
+          filas={[equipoAnterior]}
+          compacta
+        />
 
         <Text style={styles.docObsCompacto}>
           <Text style={styles.italic}>
@@ -89,7 +75,8 @@ export function ComprobanteCambioTemplate({
           </Text>
         </Text>
 
-        <View style={styles.signatures}>
+        {/* Las firmas nunca se cortan entre hojas. */}
+        <View style={styles.signatures} wrap={false}>
           <View style={styles.signatureBlock}>
             <View style={styles.signatureLine} />
             <Text style={styles.signatureRole}>Firma del colaborador</Text>

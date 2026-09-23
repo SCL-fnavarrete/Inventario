@@ -119,14 +119,16 @@ export const sclStyles = StyleSheet.create({
     borderColor: '#000',
     padding: 5,
   },
+  // Espacio antes de las firmas: las filas de equipos traen especificaciones
+  // (varias lineas), asi que se mantiene justo para que todo quepa en una hoja.
   docObs: {
-    marginTop: 36,
-    marginBottom: 80,
+    marginTop: 24,
+    marginBottom: 48,
     fontSize: 11,
   },
   docObsCompacto: {
-    marginTop: 20,
-    marginBottom: 40,
+    marginTop: 10,
+    marginBottom: 12,
     fontSize: 11,
   },
   italic: {
