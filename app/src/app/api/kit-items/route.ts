@@ -41,7 +41,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = createKitItemSchema.parse(body);
-    const sedeId = sedeIdParaCrear(session, validated.sedeId);
+    // Obligatoria: un articulo sin sede no aparece al filtrar por sede.
+    const sedeId = sedeIdParaCrear(session, validated.sedeId, { requerido: true });
 
     // El nombre no se duplica dentro de la misma sede/categoria, pero dos
     // sedes distintas si pueden tener un articulo con el mismo nombre --

@@ -136,9 +136,7 @@ export function KitEppCategoriaView({
         // porque esta filtrada por la sede del selector.
         const sedeGuardada = sedeNueva;
         if (sedeSeleccionada && sedeGuardada !== sedeSeleccionada) {
-          const nombreSede = sedeGuardada
-            ? sedes.find((s) => s.id === sedeGuardada)?.nombre || "otra sede"
-            : "sin sede";
+          const nombreSede = sedes.find((s) => s.id === sedeGuardada)?.nombre || "otra sede";
           setAviso(
             `"${formData.nombre.trim()}" se guardó correctamente en ${nombreSede}. No aparece en esta lista porque el menú está filtrando por otra sede.`
           );
@@ -325,14 +323,19 @@ export function KitEppCategoriaView({
                 {/* Sede visible para cualquier rol, para que el articulo siempre
                     quede con sede asignada y aparezca al filtrar el menu. */}
                 <div>
-                  <label className="field-label">Sede</label>
+                  <label className="field-label">
+                    Sede <span className="text-red-500">*</span>
+                  </label>
                   <select
                     value={sedeNueva}
                     onChange={(e) => setSedeNueva(e.target.value)}
                     disabled={!isAdmin}
+                    required
                     className="field-input"
                   >
-                    <option value="">Sin sede (no aparece al filtrar por sede)</option>
+                    <option value="" disabled>
+                      Selecciona una sede...
+                    </option>
                     {sedes.map((sede) => (
                       <option key={sede.id} value={sede.id}>
                         {sede.nombre}
@@ -341,7 +344,7 @@ export function KitEppCategoriaView({
                   </select>
                   <p className="text-xs text-fg-subtle mt-1">
                     {isAdmin
-                      ? "Sede a la que pertenece este stock. Si lo dejas sin sede, no aparecerá cuando filtres por una sede en el menú."
+                      ? "Obligatorio: sede a la que pertenece este stock."
                       : "Es tu sede: el stock que crees queda registrado en ella."}
                   </p>
                 </div>

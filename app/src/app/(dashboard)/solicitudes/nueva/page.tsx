@@ -22,6 +22,16 @@ import {
 } from '@/components/solicitudes/SeleccionarCambioEquipo';
 import { buttonClasses } from '@/components/ui/buttonStyles';
 import { PageHeader } from '@/components/ui/PageHeader';
+import {
+  AvisoSeccion,
+  CampoFormulario,
+  CampoTexto,
+  MensajeCampo,
+  claseInput,
+  enfocarPrimerError,
+  sinErrores,
+} from '@/components/ui/CampoFormulario';
+import { useCampoSede, useSedeSeleccionada } from '@/components/providers/SedeSeleccionadaProvider';
 
 type Employee = {
   id: string;
@@ -151,11 +161,46 @@ const NEW_EMPLOYEE_INITIAL = {
   tipoContrato: 'contrato' as string,
 };
 
+// Datos obligatorios del empleado nuevo en un onboarding (campo -> nombre
+// visible en el mensaje de error).
+const CAMPOS_OBLIGATORIOS_ONBOARDING = [
+  ['nombres', 'Nombres'],
+  ['apellidoPaterno', 'Apellido paterno'],
+  ['apellidoMaterno', 'Apellido materno'],
+  ['rut', 'RUT'],
+  ['correoPersonal', 'Correo personal'],
+  ['cargo', 'Cargo'],
+  ['supervisor', 'Supervisor'],
+  ['telefonoContacto', 'Celular de contacto'],
+  ['direccionParticular', 'Dirección particular'],
+] as const;
+
+// Nombre visible de cada campo validado, para el resumen de errores.
+const ETIQUETAS_ERROR_ONBOARDING: Record<string, string> = {
+  ...Object.fromEntries(CAMPOS_OBLIGATORIOS_ONBOARDING),
+  employeeId: 'Empleado',
+  cargoSolicitado: 'Cargo solicitado',
+  fechaIngreso: 'Fecha de ingreso',
+  equipos: 'Equipos',
+  fechaEntregaCoordinada: 'Fecha de entrega',
+  lugarEntrega: 'Lugar de entrega',
+  otChilexpressEntrega: 'N° de OT Chilexpress',
+  ciudadEntrega: 'Ubicación de destino',
+  kitEpp: 'Kit de Bienvenida / EPP',
+  sedeId: 'Sede',
+};
+
+const DATO_OBLIGATORIO = 'Este dato es obligatorio';
+
 export default function NuevaSolicitudPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const [sedes, setSedes] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
-  const [sedeId, setSedeId] = useState('');
+  // Sede de la solicitud: precargada con la del navbar o la propia
+  // (useCampoSede, SPEC 2.80). En offboarding/cambio de equipo la fija el
+  // empleado elegido (ver selectEmployee).
+  const [sedeId, setSedeId] = useCampoSede();
+  const { sedeSeleccionada } = useSedeSeleccionada();
   // Solo admin elige sede.
   const esAdminSede = session?.user?.role === 'admin';
   const [step, setStep] = useState(1);
@@ -193,6 +238,9 @@ export default function NuevaSolicitudPage() {
   const [newEmp, setNewEmp] = useState({ ...NEW_EMPLOYEE_INITIAL });
   const [creatingEmployee, setCreatingEmployee] = useState(false);
   const [createError, setCreateError] = useState('');
+  // Sede del empleado que se crea desde el modal: parte de la sede de la
+  // solicitud. POST /api/empleados la exige para admin (sedeIdParaCrear).
+  const [sedeEmpleadoNuevo, setSedeEmpleadoNuevo] = useState('');
 
   // Onboarding: nuevo empleado (paso 2), sin persistir hasta el submit final
   const [onboardingEmp, setOnboardingEmp] = useState({ ...NEW_EMPLOYEE_INITIAL });
@@ -209,6 +257,14 @@ export default function NuevaSolicitudPage() {
   // boleta en vez de contrato) -- se deja elegir de nuevo en vez de heredar
   // el que tenia guardado.
   const [tipoContratoReincorporacion, setTipoContratoReincorporacion] = useState('contrato');
+
+  // Tipo de contrato vigente en el paso de onboarding, sea empleado nuevo o
+  // reincorporacion -- Kit de Bienvenida y EPP solo corresponden a
+  // "contrato"; a boleta de honorarios no se le entrega, asi que esa
+  // seccion se deshabilita cuando corresponde.
+  const tipoContratoOnboardingActual =
+    modoEmpleadoOnboarding === 'nuevo' ? onboardingEmp.tipoContrato : tipoContratoReincorporacion;
+  const kitEppBloqueadoPorContrato = tipoContratoOnboardingActual === 'boleta';
 
   // Form state
   const [employeeId, setEmployeeId] = useState('');
@@ -256,6 +312,18 @@ export default function NuevaSolicitudPage() {
   const [kitCantidadesSeleccionadas, setKitCantidadesSeleccionadas] = useState<Record<string, number>>(
     {}
   );
+
+  // Si el tipo de contrato cambia a boleta (honorarios), Kit de Bienvenida y
+  // EPP dejan de corresponder -- se desmarca y limpia cualquier seleccion
+  // previa para no dejar una solicitud armada con algo que ya no se puede
+  // pedir.
+  useEffect(() => {
+    if (kitEppBloqueadoPorContrato) {
+      setKitBienvenidaSolicitado(false);
+      setEppSolicitado(false);
+      setKitCantidadesSeleccionadas({});
+    }
+  }, [kitEppBloqueadoPorContrato]);
 
   // Cambio equipo fields
   const [motivoCambio, setMotivoCambio] = useState('');
@@ -310,6 +378,9 @@ export default function NuevaSolicitudPage() {
         sortBy: 'nombres',
         sortOrder: 'asc',
       });
+      // Acota a la sede del navbar si hay una elegida; la API solo lo
+      // aplica a quien ve todas las sedes (el resto ya ve solo la suya).
+      if (sedeSeleccionada) params.set('sedeId', sedeSeleccionada);
       const res = await fetch(`/api/empleados?${params}`);
       if (res.ok) {
         const json = await res.json();
@@ -321,7 +392,7 @@ export default function NuevaSolicitudPage() {
     } finally {
       setSearchLoading(false);
     }
-  }, []);
+  }, [sedeSeleccionada]);
 
   const handleSearchChange = (value: string) => {
     setSearchEmployee(value);
@@ -354,6 +425,7 @@ export default function NuevaSolicitudPage() {
 
   const selectEmployee = (emp: Employee) => {
     setSelectedEmployee(emp);
+    setFieldErrors((prev) => sinErrores(prev, 'employeeId'));
     setEmployeeId(emp.id);
     setSearchEmployee('');
     setShowResults(false);
@@ -380,6 +452,10 @@ export default function NuevaSolicitudPage() {
   // Create new employee (usado por cambio_equipo / offboarding, vía modal)
   const handleCreateEmployee = async () => {
     setCreateError('');
+    if (esAdminSede && !sedeEmpleadoNuevo) {
+      setCreateError('Debes seleccionar la sede del empleado');
+      return;
+    }
     setCreatingEmployee(true);
     try {
       const res = await fetch('/api/empleados', {
@@ -396,6 +472,7 @@ export default function NuevaSolicitudPage() {
           ubicacion: newEmp.ubicacion || null,
           tipoContrato: newEmp.tipoContrato,
           estado: 'activo',
+          sedeId: sedeEmpleadoNuevo || undefined,
         }),
       });
 
@@ -426,6 +503,7 @@ export default function NuevaSolicitudPage() {
   };
 
   const openCreateModal = () => {
+    setSedeEmpleadoNuevo(sedeId);
     // Pre-fill name from search if available
     if (searchEmployee.trim()) {
       const parts = searchEmployee.trim().split(' ');
@@ -454,15 +532,6 @@ export default function NuevaSolicitudPage() {
       cancelado = true;
     };
   }, []);
-
-  // Precarga la sede propia del usuario apenas la sesion esta disponible;
-  // el "prev ||" evita pisar una eleccion manual hecha antes. El usuario
-  // igual puede cambiarla.
-  useEffect(() => {
-    if (session?.user?.sedeId) {
-      setSedeId((prev) => prev || session.user.sedeId!);
-    }
-  }, [session?.user?.sedeId]);
 
   useEffect(() => {
     let cancelado = false;
@@ -554,6 +623,88 @@ export default function NuevaSolicitudPage() {
     };
   }, [tipo, sedeId]);
 
+  // Quita el error de uno o varios campos apenas el usuario los corrige.
+  const limpiarError = (...campos: string[]) =>
+    setFieldErrors((prev) => sinErrores(prev, ...campos));
+
+  const actualizarOnboardingEmp = (campo: keyof typeof onboardingEmp, valor: string) => {
+    setOnboardingEmp((prev) => ({ ...prev, [campo]: valor }));
+    limpiarError(campo);
+  };
+
+  // Todos los obligatorios del onboarding (empleado nuevo o reincorporacion),
+  // juntos, para marcar cada campo que falta de una vez y no solo el primero.
+  const validarOnboarding = (): Record<string, string> => {
+    const errores: Record<string, string> = {};
+
+    if (modoEmpleadoOnboarding === 'nuevo') {
+      for (const [campo] of CAMPOS_OBLIGATORIOS_ONBOARDING) {
+        if (!onboardingEmp[campo].trim()) errores[campo] = DATO_OBLIGATORIO;
+      }
+      if (
+        !errores.correoPersonal &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(onboardingEmp.correoPersonal.trim())
+      ) {
+        errores.correoPersonal = 'Correo inválido';
+      }
+    } else {
+      if (!selectedEmployee) errores.employeeId = 'Elige el empleado que se reincorpora';
+      if (!cargoSolicitadoReincorporacion.trim()) errores.cargoSolicitado = DATO_OBLIGATORIO;
+    }
+    if (!fechaIngreso) errores.fechaIngreso = DATO_OBLIGATORIO;
+
+    // Se pide al menos algo (un equipo, el Kit de Bienvenida o EPP) y todo
+    // lo pedido debe tener stock.
+    if (categoriasRequeridas.length === 0 && !kitBienvenidaSolicitado && !eppSolicitado) {
+      errores.equipos =
+        'Debes seleccionar al menos un equipo, el Kit de Bienvenida o EPP para crear la solicitud.';
+    } else {
+      const categoriasSinStock = categoriasRequeridas.filter((nombre) => {
+        const cat = categorias.find((c) => c.nombre === nombre);
+        const disp = cat ? disponiblesPorCategoria[cat.id] : undefined;
+        return !disp || disp.total === 0;
+      });
+      if (categoriasSinStock.length > 0) {
+        errores.equipos = `Sin stock disponible: ${categoriasSinStock.join(', ')}. Desmarca ${
+          categoriasSinStock.length === 1 ? 'esa categoría' : 'esas categorías'
+        } o espera a que haya stock.`;
+      }
+    }
+
+    // Coordinacion de entrega: obligatoria si se reservo al menos un equipo.
+    if (Object.values(equipoSeleccionado).length > 0) {
+      if (!fechaEntregaCoordinada) errores.fechaEntregaCoordinada = DATO_OBLIGATORIO;
+      if (medioEntrega === 'presencial') {
+        if (!lugarEntrega.trim()) errores.lugarEntrega = DATO_OBLIGATORIO;
+      } else {
+        if (!otChilexpressEntrega.trim()) errores.otChilexpressEntrega = DATO_OBLIGATORIO;
+        if (!ciudadEntrega.trim()) errores.ciudadEntrega = DATO_OBLIGATORIO;
+      }
+    }
+
+    // Kit/EPP: solo cuentan los articulos que quedaron marcados.
+    const mensajesKit: string[] = [];
+    for (const [categoria, solicitado, nombre] of [
+      ['kit_bienvenida', kitBienvenidaSolicitado, 'Kit de Bienvenida'],
+      ['epp', eppSolicitado, 'EPP'],
+    ] as const) {
+      if (!solicitado) continue;
+      const elegidos = kitCatalog.filter(
+        (it) => it.categoria === categoria && (kitCantidadesSeleccionadas[it.id] || 0) > 0
+      );
+      const sinStock = elegidos.filter((it) => it.cantidad < 1).map((it) => it.nombre);
+      if (elegidos.length === 0) {
+        mensajesKit.push(`${nombre}: elige al menos un artículo o desmarca la opción.`);
+      } else if (sinStock.length > 0) {
+        mensajesKit.push(`${nombre} sin stock de: ${sinStock.join(', ')}. Quita esos artículos para continuar.`);
+      }
+    }
+    if (mensajesKit.length > 0) errores.kitEpp = mensajesKit.join(' ');
+
+    if (!sedeId) errores.sedeId = 'Debes seleccionar una sede';
+    return errores;
+  };
+
   const handleCancelOnboarding = () => {
     setTipo('');
     setOnboardingEmp({ ...NEW_EMPLOYEE_INITIAL });
@@ -581,19 +732,16 @@ export default function NuevaSolicitudPage() {
     setFieldErrors({});
     setOnboardingEmpError('');
 
-    if (tipo === 'onboarding' && modoEmpleadoOnboarding === 'nuevo') {
-      if (
-        !onboardingEmp.nombres.trim() ||
-        !onboardingEmp.apellidoPaterno.trim() ||
-        // El obligatorio es el correo personal.
-        !onboardingEmp.correoPersonal.trim() ||
-        !onboardingEmp.cargo.trim()
-      ) {
-        setOnboardingEmpError('Nombres, apellido paterno, correo personal y cargo son obligatorios.');
-        return;
-      }
-      if (!fechaIngreso) {
-        setFieldErrors({ fechaIngreso: 'Fecha de ingreso requerida' });
+    if (tipo === 'onboarding') {
+      const errores = validarOnboarding();
+      if (Object.keys(errores).length > 0) {
+        setFieldErrors(errores);
+        setOnboardingEmpError(
+          `Faltan o están incorrectos: ${Object.keys(errores)
+            .map((campo) => ETIQUETAS_ERROR_ONBOARDING[campo] ?? campo)
+            .join(', ')}.`
+        );
+        enfocarPrimerError();
         return;
       }
     }
@@ -602,47 +750,8 @@ export default function NuevaSolicitudPage() {
     // eligio sede, no se manda -- evita un ticket sin sede asignada.
     if (!sedeId) {
       setFieldErrors({ sedeId: 'Debes seleccionar una sede' });
+      enfocarPrimerError();
       return;
-    }
-
-    if (tipo === 'onboarding' && modoEmpleadoOnboarding === 'existente') {
-      if (!selectedEmployee) {
-        setFieldErrors({ employeeId: 'Elige el empleado que se reincorpora' });
-        return;
-      }
-      if (!cargoSolicitadoReincorporacion.trim()) {
-        setFieldErrors({ cargoSolicitado: 'Cargo requerido' });
-        return;
-      }
-      if (!fechaIngreso) {
-        setFieldErrors({ fechaIngreso: 'Fecha de ingreso requerida' });
-        return;
-      }
-    }
-
-    // Coordinacion de entrega: si se reservo al menos un equipo, la
-    // fecha/medio/lugar son obligatorios.
-    if (tipo === 'onboarding' && Object.values(equipoSeleccionado).length > 0) {
-      if (!fechaEntregaCoordinada) {
-        setError(
-          medioEntrega === 'presencial'
-            ? 'Falta la fecha y hora de entrega'
-            : 'Falta la fecha estimada de entrega'
-        );
-        return;
-      }
-      if (medioEntrega === 'presencial' && !lugarEntrega.trim()) {
-        setError('Falta el lugar de entrega');
-        return;
-      }
-      if (medioEntrega === 'chilexpress' && !otChilexpressEntrega.trim()) {
-        setError('Falta el N° de OT Chilexpress');
-        return;
-      }
-      if (medioEntrega === 'chilexpress' && !ciudadEntrega.trim()) {
-        setError('Falta la ubicación de destino');
-        return;
-      }
     }
 
     // Elegir el equipo a cambiar (viejo + estado en que vuelve + reemplazo)
@@ -946,15 +1055,15 @@ export default function NuevaSolicitudPage() {
                 }}
                 className={cn(
                   'flex items-center gap-4 p-5 border-2 rounded-xl text-left transition-all hover:shadow-md',
-                  tipo === t.value ? t.color : 'border-gray-200 hover:border-gray-300'
+                  tipo === t.value ? t.color : 'border-line hover:border-line-strong'
                 )}
               >
                 <div className="card p-3">
-                  <Icon className="h-6 w-6 text-gray-700" />
+                  <Icon className="h-6 w-6 text-fg-muted" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">{t.label}</h3>
-                  <p className="text-sm text-gray-500">{t.description}</p>
+                  <h3 className="font-semibold text-fg">{t.label}</h3>
+                  <p className="text-sm text-fg-subtle">{t.description}</p>
                 </div>
               </button>
             );
@@ -966,10 +1075,10 @@ export default function NuevaSolicitudPage() {
       {step === 2 && tipo === 'onboarding' && (
         <div className="card p-6 space-y-6">
           <div>
-            <h3 className="font-medium text-gray-900">
+            <h3 className="font-medium text-fg">
               {modoEmpleadoOnboarding === 'nuevo' ? 'Datos del Nuevo Empleado' : 'Empleado que se reincorpora'}
             </h3>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-fg-subtle mt-1">
               {modoEmpleadoOnboarding === 'nuevo'
                 ? 'Estos datos se guardan junto con la solicitud al presionar "Siguiente" y avanzar; el empleado se crea recién al enviar la solicitud.'
                 : 'Si la persona ya trabajó aquí antes y quedó desvinculada, búscala y elígela: se reactiva automáticamente (pasa a "activo") al crear el ticket, sin crear un registro duplicado.'}
@@ -987,8 +1096,8 @@ export default function NuevaSolicitudPage() {
               className={cn(
                 'px-3 py-1.5 rounded-lg border',
                 modoEmpleadoOnboarding === 'nuevo'
-                  ? 'bg-primary-700 text-white border-primary-700'
-                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                  ? 'bg-brand text-white border-primary-700'
+                  : 'bg-surface text-fg-muted border-line-strong hover:bg-surface-muted'
               )}
             >
               Empleado nuevo
@@ -999,15 +1108,15 @@ export default function NuevaSolicitudPage() {
               className={cn(
                 'px-3 py-1.5 rounded-lg border',
                 modoEmpleadoOnboarding === 'existente'
-                  ? 'bg-primary-700 text-white border-primary-700'
-                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                  ? 'bg-brand text-white border-primary-700'
+                  : 'bg-surface text-fg-muted border-line-strong hover:bg-surface-muted'
               )}
             >
               Ya trabajó aquí (reincorporación)
             </button>
           </div>
 
-          {onboardingEmpError && modoEmpleadoOnboarding === 'nuevo' && (
+          {onboardingEmpError && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">
               {onboardingEmpError}
             </div>
@@ -1016,20 +1125,12 @@ export default function NuevaSolicitudPage() {
           {modoEmpleadoOnboarding === 'existente' && (
             <div className="space-y-4">
               <div>
-                <label className={cn(
-                  'block text-sm font-medium mb-2',
-                  fieldErrors.employeeId ? 'text-red-600' : 'text-gray-700'
-                )}>
-                  Empleado *
-                  {fieldErrors.employeeId && (
-                    <span className="ml-2 text-xs font-normal">({fieldErrors.employeeId})</span>
-                  )}
-                </label>
+                <label className="field-label mb-2">Empleado *</label>
 
                 {selectedEmployee ? (
                   <div className="flex items-center justify-between bg-primary-50 border border-primary-200 rounded-lg p-3">
                     <div>
-                      <p className="font-medium text-gray-900 flex items-center gap-2">
+                      <p className="font-medium text-fg flex items-center gap-2">
                         {selectedEmployee.nombres} {selectedEmployee.apellidoPaterno}
                         {selectedEmployee.apellidoMaterno ? ` ${selectedEmployee.apellidoMaterno}` : ''}
                         {selectedEmployee.estado === 'desvinculado' && (
@@ -1038,24 +1139,24 @@ export default function NuevaSolicitudPage() {
                           </span>
                         )}
                         {selectedEmployee.estado === 'activo' && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-500">
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-fg-subtle">
                             Ya está activo
                           </span>
                         )}
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-fg-subtle">
                         {selectedEmployee.rut || '—'} · {selectedEmployee.correoPersonal ?? selectedEmployee.correoEmpresa ?? ''}
                         {selectedEmployee.cargo ? ` · ${selectedEmployee.cargo}` : ''}
                       </p>
                     </div>
-                    <button onClick={clearEmployee} className="text-gray-400 hover:text-gray-600 p-1">
+                    <button onClick={clearEmployee} className="text-fg-subtle hover:text-fg-muted p-1">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
                 ) : (
                   <div ref={searchContainerRef} className="relative">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle" />
                       <input
                         type="text"
                         placeholder="Buscar por nombre, RUT o correo (mín. 2 caracteres)..."
@@ -1064,14 +1165,18 @@ export default function NuevaSolicitudPage() {
                         onFocus={() => {
                           if (searchResults.length > 0) setShowResults(true);
                         }}
-                        className="field-input pl-10 pr-10"
+                        aria-invalid={!!fieldErrors.employeeId}
+                        className={cn(
+                          'field-input pl-10 pr-10',
+                          fieldErrors.employeeId && 'border-red-500 bg-red-50'
+                        )}
                       />
                       {searchLoading && (
-                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle animate-spin" />
                       )}
                     </div>
                     {showResults && (
-                      <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                      <div className="absolute z-10 mt-1 w-full bg-surface border border-line rounded-lg shadow-lg max-h-64 overflow-y-auto">
                         {searchResults.length > 0 ? (
                           searchResults.map((emp) => (
                             <button
@@ -1079,7 +1184,7 @@ export default function NuevaSolicitudPage() {
                               onClick={() => selectEmployee(emp)}
                               className="w-full text-left px-4 py-3 hover:bg-primary-50 border-b last:border-b-0 transition-colors"
                             >
-                              <span className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                              <span className="text-sm font-medium text-fg flex items-center gap-2">
                                 {emp.nombres} {emp.apellidoPaterno}
                                 {emp.apellidoMaterno ? ` ${emp.apellidoMaterno}` : ''}
                                 {emp.estado === 'desvinculado' && (
@@ -1088,7 +1193,7 @@ export default function NuevaSolicitudPage() {
                                   </span>
                                 )}
                               </span>
-                              <span className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+                              <span className="flex items-center gap-2 text-xs text-fg-subtle mt-0.5">
                                 <span>{emp.rut || 'Sin RUT'}</span>
                                 <span>·</span>
                                 <span>{emp.correoPersonal ?? emp.correoEmpresa ?? ''}</span>
@@ -1102,15 +1207,16 @@ export default function NuevaSolicitudPage() {
                             </button>
                           ))
                         ) : (
-                          <p className="px-4 py-6 text-center text-sm text-gray-500">
+                          <p className="px-4 py-6 text-center text-sm text-fg-subtle">
                             No se encontraron empleados para &quot;{searchEmployee}&quot;. Si no existe, usa
                             &quot;Empleado nuevo&quot; arriba.
                           </p>
                         )}
                       </div>
                     )}
-                    {!showResults && searchEmployee.length === 0 && (
-                      <p className="text-xs text-gray-400 mt-1">
+                    <MensajeCampo mensaje={fieldErrors.employeeId} />
+                    {!fieldErrors.employeeId && !showResults && searchEmployee.length === 0 && (
+                      <p className="text-xs text-fg-subtle mt-1">
                         Escribe al menos 2 caracteres para buscar.
                       </p>
                     )}
@@ -1119,231 +1225,180 @@ export default function NuevaSolicitudPage() {
               </div>
 
               <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className={cn(
-                    'block text-sm font-medium mb-1',
-                    fieldErrors.cargoSolicitado ? 'text-red-600' : 'text-gray-700'
-                  )}>
-                    Cargo Solicitado *
-                  </label>
-                  <input
-                    type="text"
-                    value={cargoSolicitadoReincorporacion}
-                    onChange={(e) => { setCargoSolicitadoReincorporacion(e.target.value); setFieldErrors((prev) => { const { cargoSolicitado: _, ...rest } = prev; return rest; }); }}
-                    placeholder="Puede ser el mismo cargo anterior u otro"
-                    className={cn('w-full px-3 py-2 border rounded-lg', fieldErrors.cargoSolicitado ? 'border-red-500 bg-red-50' : 'border-gray-300')}
-                  />
-                </div>
-                <div>
-                  <label className="field-label">
-                    Tipo Contrato *
-                  </label>
+                <CampoTexto
+                  label="Cargo Solicitado"
+                  obligatorio
+                  error={fieldErrors.cargoSolicitado}
+                  value={cargoSolicitadoReincorporacion}
+                  onChange={(v) => {
+                    setCargoSolicitadoReincorporacion(v);
+                    limpiarError('cargoSolicitado');
+                  }}
+                  placeholder="Puede ser el mismo cargo anterior u otro"
+                />
+                <CampoFormulario
+                  label="Tipo Contrato"
+                  obligatorio
+                  ayuda="Puede haber cambiado desde la vez anterior."
+                >
                   <select
                     value={tipoContratoReincorporacion}
                     onChange={(e) => setTipoContratoReincorporacion(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className={claseInput()}
                   >
                     <option value="contrato">Contrato</option>
                     <option value="boleta">Boleta</option>
                   </select>
-                  <p className="text-xs text-gray-400 mt-1">Puede haber cambiado desde la vez anterior.</p>
-                </div>
-                <div>
-                  <label className={cn(
-                    'block text-sm font-medium mb-1',
-                    fieldErrors.fechaIngreso ? 'text-red-600' : 'text-gray-700'
-                  )}>
-                    Fecha de Ingreso *
-                  </label>
-                  <input
-                    type="date"
-                    value={fechaIngreso}
-                    onChange={(e) => { setFechaIngreso(e.target.value); setFieldErrors((prev) => { const { fechaIngreso: _, ...rest } = prev; return rest; }); }}
-                    className={cn('w-full px-3 py-2 border rounded-lg', fieldErrors.fechaIngreso ? 'border-red-500 bg-red-50' : 'border-gray-300')}
-                  />
-                </div>
+                </CampoFormulario>
+                <CampoTexto
+                  label="Fecha de Ingreso"
+                  obligatorio
+                  type="date"
+                  error={fieldErrors.fechaIngreso}
+                  value={fechaIngreso}
+                  onChange={(v) => {
+                    setFechaIngreso(v);
+                    limpiarError('fechaIngreso');
+                  }}
+                />
               </div>
             </div>
           )}
 
           {modoEmpleadoOnboarding === 'nuevo' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="field-label">Nombres *</label>
-                <input
-                  type="text"
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <CampoTexto
+                  label="Nombres"
+                  obligatorio
+                  error={fieldErrors.nombres}
                   value={onboardingEmp.nombres}
-                  onChange={(e) => setOnboardingEmp({ ...onboardingEmp, nombres: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  onChange={(v) => actualizarOnboardingEmp('nombres', v)}
                 />
-              </div>
-              <div>
-                <label className="field-label">Apellido Paterno *</label>
-                <input
-                  type="text"
+                <CampoTexto
+                  label="Apellido Paterno"
+                  obligatorio
+                  error={fieldErrors.apellidoPaterno}
                   value={onboardingEmp.apellidoPaterno}
-                  onChange={(e) => setOnboardingEmp({ ...onboardingEmp, apellidoPaterno: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  onChange={(v) => actualizarOnboardingEmp('apellidoPaterno', v)}
                 />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="field-label">Apellido Materno</label>
-                <input
-                  type="text"
+              <div className="grid grid-cols-2 gap-4">
+                <CampoTexto
+                  label="Apellido Materno"
+                  obligatorio
+                  error={fieldErrors.apellidoMaterno}
                   value={onboardingEmp.apellidoMaterno}
-                  onChange={(e) => setOnboardingEmp({ ...onboardingEmp, apellidoMaterno: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  onChange={(v) => actualizarOnboardingEmp('apellidoMaterno', v)}
                 />
-              </div>
-              <div>
-                <label className="field-label">RUT</label>
-                <input
-                  type="text"
+                <CampoTexto
+                  label="RUT"
+                  obligatorio
+                  error={fieldErrors.rut}
                   value={onboardingEmp.rut}
-                  onChange={(e) => setOnboardingEmp({ ...onboardingEmp, rut: e.target.value })}
+                  onChange={(v) => actualizarOnboardingEmp('rut', v)}
                   placeholder="12.345.678-9"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="field-label">Correo Personal *</label>
-                <input
+              <div className="grid grid-cols-2 gap-4">
+                <CampoTexto
+                  label="Correo Personal"
+                  obligatorio
                   type="email"
+                  error={fieldErrors.correoPersonal}
                   value={onboardingEmp.correoPersonal}
-                  onChange={(e) => setOnboardingEmp({ ...onboardingEmp, correoPersonal: e.target.value })}
+                  onChange={(v) => actualizarOnboardingEmp('correoPersonal', v)}
                   placeholder="nombre.personal@gmail.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
-              </div>
-              <div>
-                <label className="field-label">Correo Empresa</label>
-                <input
+                <CampoTexto
+                  label="Correo Empresa"
                   type="email"
                   value={onboardingEmp.correoEmpresa}
-                  onChange={(e) => setOnboardingEmp({ ...onboardingEmp, correoEmpresa: e.target.value })}
+                  onChange={(v) => actualizarOnboardingEmp('correoEmpresa', v)}
                   placeholder="nombre@sclconsultores.com (opcional)"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="field-label">Cargo *</label>
-                <input
-                  type="text"
+              <div className="grid grid-cols-3 gap-4">
+                <CampoTexto
+                  label="Cargo"
+                  obligatorio
+                  error={fieldErrors.cargo}
                   value={onboardingEmp.cargo}
-                  onChange={(e) => setOnboardingEmp({ ...onboardingEmp, cargo: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  onChange={(v) => actualizarOnboardingEmp('cargo', v)}
                 />
-              </div>
-              <div>
-                <label className="field-label">Tipo Contrato *</label>
-                <select
-                  value={onboardingEmp.tipoContrato}
-                  onChange={(e) => setOnboardingEmp({ ...onboardingEmp, tipoContrato: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                >
-                  <option value="contrato">Contrato</option>
-                  <option value="boleta">Boleta</option>
-                </select>
-              </div>
-              <div>
-                <label className={cn(
-                  'block text-sm font-medium mb-1',
-                  fieldErrors.fechaIngreso ? 'text-red-600' : 'text-gray-700'
-                )}>
-                  Fecha de Ingreso *
-                </label>
-                <input
+                <CampoFormulario label="Tipo Contrato" obligatorio>
+                  <select
+                    value={onboardingEmp.tipoContrato}
+                    onChange={(e) => actualizarOnboardingEmp('tipoContrato', e.target.value)}
+                    className={claseInput()}
+                  >
+                    <option value="contrato">Contrato</option>
+                    <option value="boleta">Boleta</option>
+                  </select>
+                </CampoFormulario>
+                <CampoTexto
+                  label="Fecha de Ingreso"
+                  obligatorio
                   type="date"
+                  error={fieldErrors.fechaIngreso}
                   value={fechaIngreso}
-                  onChange={(e) => { setFechaIngreso(e.target.value); setFieldErrors((prev) => { const { fechaIngreso: _, ...rest } = prev; return rest; }); }}
-                  className={cn('w-full px-3 py-2 border rounded-lg', fieldErrors.fechaIngreso ? 'border-red-500 bg-red-50' : 'border-gray-300')}
+                  onChange={(v) => {
+                    setFechaIngreso(v);
+                    limpiarError('fechaIngreso');
+                  }}
                 />
               </div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="field-label">División</label>
-                <input
-                  type="text"
+              <div className="grid grid-cols-3 gap-4">
+                <CampoTexto
+                  label="División"
                   value={onboardingEmp.division}
-                  onChange={(e) => setOnboardingEmp({ ...onboardingEmp, division: e.target.value })}
+                  onChange={(v) => actualizarOnboardingEmp('division', v)}
                   placeholder="Ej: SCL"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
-              </div>
-              <div>
-                <label className="field-label">Área</label>
-                <input
-                  type="text"
+                <CampoTexto
+                  label="Área"
                   value={onboardingEmp.area}
-                  onChange={(e) => setOnboardingEmp({ ...onboardingEmp, area: e.target.value })}
+                  onChange={(v) => actualizarOnboardingEmp('area', v)}
                   placeholder="Ej: RPA y Soporte IT"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
-              </div>
-              <div>
-                <label className="field-label">Sub-Área</label>
-                <input
-                  type="text"
+                <CampoTexto
+                  label="Sub-Área"
                   value={onboardingEmp.subArea}
-                  onChange={(e) => setOnboardingEmp({ ...onboardingEmp, subArea: e.target.value })}
+                  onChange={(v) => actualizarOnboardingEmp('subArea', v)}
                   placeholder="Ej: RPA"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
-            </div>
-            <div>
-              <label className="field-label">Supervisor</label>
-              <input
-                type="text"
+              <CampoTexto
+                label="Supervisor"
+                obligatorio
+                error={fieldErrors.supervisor}
                 value={onboardingEmp.supervisor}
-                onChange={(e) => setOnboardingEmp({ ...onboardingEmp, supervisor: e.target.value })}
+                onChange={(v) => actualizarOnboardingEmp('supervisor', v)}
                 placeholder="Nombre del supervisor directo"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
               />
-            </div>
-            <div>
-              <label className="field-label">Celular Contacto</label>
-              <input
-                type="text"
+              <CampoTexto
+                label="Celular Contacto"
+                obligatorio
+                error={fieldErrors.telefonoContacto}
                 value={onboardingEmp.telefonoContacto}
-                onChange={(e) => setOnboardingEmp({ ...onboardingEmp, telefonoContacto: e.target.value })}
+                onChange={(v) => actualizarOnboardingEmp('telefonoContacto', v)}
                 placeholder="+56 9 1234 5678"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
               />
-            </div>
-            <div>
-              <label className="field-label">
-                Dirección Particular
-              </label>
-              <input
-                type="text"
+              <CampoTexto
+                label="Dirección Particular"
+                obligatorio
+                error={fieldErrors.direccionParticular}
                 value={onboardingEmp.direccionParticular}
-                onChange={(e) => setOnboardingEmp({ ...onboardingEmp, direccionParticular: e.target.value })}
+                onChange={(v) => actualizarOnboardingEmp('direccionParticular', v)}
                 placeholder="Incluir comuna y región"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
               />
-            </div>
-            <div>
-              <label className="field-label">
-                Listas de Distribución
-              </label>
-              <input
-                type="text"
+              <CampoTexto
+                label="Listas de Distribución"
                 value={onboardingEmp.listasDistribucion}
-                onChange={(e) => setOnboardingEmp({ ...onboardingEmp, listasDistribucion: e.target.value })}
+                onChange={(v) => actualizarOnboardingEmp('listasDistribucion', v)}
                 placeholder="Ej: SCL Masivo, Corporativo..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
               />
             </div>
-          </div>
           )}
 
           {/* Responsable de la solicitud (solo lectura) */}
@@ -1357,94 +1412,97 @@ export default function NuevaSolicitudPage() {
                   : 'Cargando...'
               }
               disabled
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600"
+              className="w-full px-3 py-2 border border-line rounded-lg bg-surface-muted text-fg-muted"
             />
           </div>
 
           <div>
             <label className="field-label mb-2">
-              Equipos Requeridos
+              Equipos Requeridos *
             </label>
+            <AvisoSeccion mensaje={fieldErrors.equipos} className="mb-2" />
             {categorias.length === 0 ? (
-              <p className="text-sm text-gray-400">Cargando categorías...</p>
+              <p className="text-sm text-fg-subtle">Cargando categorías...</p>
             ) : (
               <div className="flex flex-col gap-2">
                 {categorias.map((cat) => {
                   const disp = disponiblesPorCategoria[cat.id];
                   const expandida = categoriaExpandida === cat.id;
-                  const requerida = categoriasRequeridas.includes(cat.nombre);
                   const seleccionado = equipoSeleccionado[cat.id];
+                  const equipoElegido = seleccionado
+                    ? disp?.items.find((item) => item.id === seleccionado)
+                    : undefined;
+                  const conStock = !!disp && disp.total > 0;
+                  // La categoria queda requerida solo al elegir un equipo
+                  // concreto: la casilla va en el equipo, no en la categoria.
+                  const elegirEquipo = (itemId: string | null) => {
+                    // Con un equipo elegido la sede queda fijada: un cambio
+                    // del navbar no debe dejarlo en otra sede.
+                    if (itemId) setSedeId(sedeId);
+                    setEquipoSeleccionado((prev) => {
+                      const next = { ...prev };
+                      if (itemId) next[cat.id] = itemId;
+                      else delete next[cat.id];
+                      return next;
+                    });
+                    setCategoriasRequeridas((prev) =>
+                      toggleCategoriaRequerida(prev, cat.nombre, itemId !== null)
+                    );
+                    limpiarError('equipos', 'fechaEntregaCoordinada', 'lugarEntrega', 'otChilexpressEntrega', 'ciudadEntrega');
+                  };
                   return (
                     <div key={cat.id} className="flex flex-col">
-                      <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-2 flex-1">
-                          <input
-                            type="checkbox"
-                            checked={requerida}
-                            onChange={(e) => {
-                              setCategoriasRequeridas((prev) =>
-                                toggleCategoriaRequerida(prev, cat.nombre, e.target.checked)
-                              );
-                              if (!e.target.checked) {
-                                setEquipoSeleccionado((prev) => {
-                                  const next = { ...prev };
-                                  delete next[cat.id];
-                                  return next;
-                                });
-                              }
-                            }}
-                            className="rounded border-gray-300"
-                          />
-                          <span className="flex items-center gap-1 text-sm">
-                            <CategoryIcon categoria={cat.nombre} className="h-4 w-4" />
-                            {cat.nombre}
-                          </span>
-                        </label>
+                      <button
+                        type="button"
+                        onClick={() => conStock && setCategoriaExpandida(expandida ? null : cat.id)}
+                        disabled={!conStock}
+                        className={cn(
+                          'flex items-center gap-2 w-full text-left rounded-lg px-2 py-1.5',
+                          conStock ? 'hover:bg-surface-muted' : 'cursor-not-allowed opacity-70'
+                        )}
+                      >
+                        <span className="flex items-center gap-1 text-sm flex-1">
+                          <CategoryIcon categoria={cat.nombre} className="h-4 w-4" />
+                          {cat.nombre}
+                          {equipoElegido && (
+                            <span className="ml-2 text-xs text-fg-subtle truncate">
+                              — {equipoElegido.marca} {equipoElegido.modelo}
+                            </span>
+                          )}
+                        </span>
                         {seleccionado && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-primary-50 text-primary-800 border border-primary-200">
                             Reservado
                           </span>
                         )}
                         {disp !== undefined && (
-                          <button
-                            type="button"
-                            onClick={() => setCategoriaExpandida(expandida ? null : cat.id)}
+                          <span
                             className={cn(
                               'flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border',
-                              disp.total > 0
+                              conStock
                                 ? 'bg-green-50 text-green-700 border-green-200'
                                 : 'bg-red-50 text-red-700 border-red-200'
                             )}
                           >
                             {disp.total} disponible{disp.total === 1 ? '' : 's'}
-                            {disp.total > 0 && (expandida ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
-                          </button>
+                            {conStock && (expandida ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
+                          </span>
                         )}
-                      </div>
+                      </button>
                       {expandida && disp && disp.items.length > 0 && (
                         <div className="ml-6 mt-1 mb-1 space-y-0.5">
-                          <p className="text-xs text-gray-400">
-                            {requerida
-                              ? 'Elige uno para reservarlo desde ya, o déjalo sin elegir y se asigna después en Gestión TI.'
-                              : 'Marca la categoría para poder reservar un equipo.'}
+                          <p className="text-xs text-fg-subtle">
+                            Marca el equipo que se entregará (uno por categoría).
                           </p>
-                          <ul className="text-xs text-gray-600 space-y-0.5 max-h-60 overflow-y-auto pr-1">
+                          <ul className="text-xs text-fg-muted space-y-0.5 max-h-60 overflow-y-auto pr-1">
                             {disp.items.map((item) => (
                               <li key={item.id}>
-                                <label
-                                  className={cn(
-                                    'flex items-center gap-2',
-                                    !requerida && 'opacity-50 cursor-not-allowed'
-                                  )}
-                                >
+                                <label className="flex items-center gap-2 cursor-pointer">
                                   <input
-                                    type="radio"
-                                    name={`equipo-${cat.id}`}
-                                    disabled={!requerida}
+                                    type="checkbox"
                                     checked={seleccionado === item.id}
-                                    onChange={() =>
-                                      setEquipoSeleccionado((prev) => ({ ...prev, [cat.id]: item.id }))
-                                    }
+                                    onChange={(e) => elegirEquipo(e.target.checked ? item.id : null)}
+                                    className="rounded border-line-strong"
                                   />
                                   <span>
                                     {item.marca} {item.modelo}
@@ -1455,7 +1513,7 @@ export default function NuevaSolicitudPage() {
                                       </span>
                                     )}
                                     {especificacionesEquipo(item) && (
-                                      <span className="block text-gray-400">
+                                      <span className="block text-fg-subtle">
                                         {especificacionesEquipo(item)}
                                       </span>
                                     )}
@@ -1463,26 +1521,9 @@ export default function NuevaSolicitudPage() {
                                 </label>
                               </li>
                             ))}
-                            {seleccionado && (
-                              <li>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setEquipoSeleccionado((prev) => {
-                                      const next = { ...prev };
-                                      delete next[cat.id];
-                                      return next;
-                                    })
-                                  }
-                                  className="text-primary-700 hover:underline"
-                                >
-                                  Quitar selección
-                                </button>
-                              </li>
-                            )}
                           </ul>
                           {disp.total > disp.items.length && (
-                            <p className="text-gray-400">y {disp.total - disp.items.length} más...</p>
+                            <p className="text-fg-subtle">y {disp.total - disp.items.length} más...</p>
                           )}
                         </div>
                       )}
@@ -1490,8 +1531,8 @@ export default function NuevaSolicitudPage() {
                           un notebook con cargador. */}
                       {seleccionado &&
                         disp?.items.find((item) => item.id === seleccionado)?.tieneCargador && (
-                          <div className="ml-6 mt-1 mb-1 border border-gray-200 rounded-lg p-2">
-                            <p className="text-xs font-medium text-gray-600 mb-1">
+                          <div className="ml-6 mt-1 mb-1 border border-line rounded-lg p-2">
+                            <p className="text-xs font-medium text-fg-muted mb-1">
                               Estado del cargador
                             </p>
                             <select
@@ -1505,7 +1546,7 @@ export default function NuevaSolicitudPage() {
                                   },
                                 }))
                               }
-                              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded mb-1"
+                              className="w-full px-2 py-1.5 text-xs border border-line-strong rounded mb-1"
                             >
                               <option value="ok">Ok</option>
                               <option value="danado">Dañado</option>
@@ -1524,7 +1565,7 @@ export default function NuevaSolicitudPage() {
                                 }))
                               }
                               placeholder="Observación (opcional)"
-                              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded"
+                              className="w-full px-2 py-1.5 text-xs border border-line-strong rounded"
                             />
                           </div>
                         )}
@@ -1540,22 +1581,22 @@ export default function NuevaSolicitudPage() {
               sentido si ya se reservo al menos un equipo. */}
           {Object.values(equipoSeleccionado).length > 0 && (
             <div className="border-t pt-4">
-              <h3 className="font-medium text-gray-900 mb-1">Coordinar Entrega</h3>
-              <p className="text-xs text-gray-500 mb-3">
+              <h3 className="font-medium text-fg mb-1">Coordinar Entrega</h3>
+              <p className="text-xs text-fg-subtle mb-3">
                 Define cuándo y cómo se le hará llegar el equipo reservado.
               </p>
               <div className="space-y-3">
-                <div>
-                  <label className="field-label">
-                    {medioEntrega === 'presencial' ? 'Fecha y hora de entrega' : 'Fecha y hora de entrega estimada'}
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={fechaEntregaCoordinada}
-                    onChange={(e) => setFechaEntregaCoordinada(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
+                <CampoTexto
+                  label={medioEntrega === 'presencial' ? 'Fecha y hora de entrega' : 'Fecha y hora de entrega estimada'}
+                  obligatorio
+                  type="datetime-local"
+                  error={fieldErrors.fechaEntregaCoordinada}
+                  value={fechaEntregaCoordinada}
+                  onChange={(v) => {
+                    setFechaEntregaCoordinada(v);
+                    limpiarError('fechaEntregaCoordinada');
+                  }}
+                />
                 <div>
                   <label className="field-label">Medio</label>
                   <div className="flex gap-4">
@@ -1564,7 +1605,10 @@ export default function NuevaSolicitudPage() {
                         type="radio"
                         name="medioEntregaNueva"
                         checked={medioEntrega === 'presencial'}
-                        onChange={() => setMedioEntrega('presencial')}
+                        onChange={() => {
+                          setMedioEntrega('presencial');
+                          limpiarError('otChilexpressEntrega', 'ciudadEntrega');
+                        }}
                       />
                       Presencial
                     </label>
@@ -1573,51 +1617,51 @@ export default function NuevaSolicitudPage() {
                         type="radio"
                         name="medioEntregaNueva"
                         checked={medioEntrega === 'chilexpress'}
-                        onChange={() => setMedioEntrega('chilexpress')}
+                        onChange={() => {
+                          setMedioEntrega('chilexpress');
+                          limpiarError('lugarEntrega');
+                        }}
                       />
                       Despacho (Chilexpress)
                     </label>
                   </div>
                 </div>
                 {medioEntrega === 'presencial' ? (
-                  <div>
-                    <label className="field-label">
-                      Lugar de entrega
-                    </label>
-                    <input
-                      type="text"
-                      value={lugarEntrega}
-                      onChange={(e) => setLugarEntrega(e.target.value)}
-                      placeholder="ej: Oficina Santiago, piso 4"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    />
-                  </div>
+                  <CampoTexto
+                    label="Lugar de entrega"
+                    obligatorio
+                    error={fieldErrors.lugarEntrega}
+                    value={lugarEntrega}
+                    onChange={(v) => {
+                      setLugarEntrega(v);
+                      limpiarError('lugarEntrega');
+                    }}
+                    placeholder="ej: Oficina Santiago, piso 4"
+                  />
                 ) : (
                   <>
-                    <div>
-                      <label className="field-label">
-                        N° de OT Chilexpress
-                      </label>
-                      <input
-                        type="text"
-                        value={otChilexpressEntrega}
-                        onChange={(e) => setOtChilexpressEntrega(e.target.value)}
-                        placeholder="ej: CH-2026-004567"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="field-label">
-                        Ubicación de destino
-                      </label>
-                      <input
-                        type="text"
-                        value={ciudadEntrega}
-                        onChange={(e) => setCiudadEntrega(e.target.value)}
-                        placeholder="ej: Hotel HD Express, Concepción"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                      />
-                    </div>
+                    <CampoTexto
+                      label="N° de OT Chilexpress"
+                      obligatorio
+                      error={fieldErrors.otChilexpressEntrega}
+                      value={otChilexpressEntrega}
+                      onChange={(v) => {
+                        setOtChilexpressEntrega(v);
+                        limpiarError('otChilexpressEntrega');
+                      }}
+                      placeholder="ej: CH-2026-004567"
+                    />
+                    <CampoTexto
+                      label="Ubicación de destino"
+                      obligatorio
+                      error={fieldErrors.ciudadEntrega}
+                      value={ciudadEntrega}
+                      onChange={(v) => {
+                        setCiudadEntrega(v);
+                        limpiarError('ciudadEntrega');
+                      }}
+                      placeholder="ej: Hotel HD Express, Concepción"
+                    />
                   </>
                 )}
               </div>
@@ -1626,12 +1670,13 @@ export default function NuevaSolicitudPage() {
 
           {/* Kit de Bienvenida / EPP: aparte de Equipos Requeridos, no son Activos */}
           <div className="border-t pt-4">
-            <h3 className="font-medium text-gray-900 mb-1">Kit de Bienvenida y EPP</h3>
-            <p className="text-xs text-gray-500 mb-3">
-              Si hay stock puedes elegir de una los artículos y cantidades para reservarlos desde
-              ahora. Si no, igual puedes marcar la categoría y entregarlo después al gestionar la
-              solicitud.
+            <h3 className="font-medium text-fg mb-1">Kit de Bienvenida y EPP</h3>
+            <p className="text-xs text-fg-subtle mb-3">
+              {kitEppBloqueadoPorContrato
+                ? 'No aplica para boleta de honorarios: solo se entrega a personal con contrato.'
+                : 'Al marcar una opción se seleccionan todos sus artículos (1 de cada uno); puedes quitar los que no correspondan. No se puede crear la solicitud con artículos sin stock marcados.'}
             </p>
+            <AvisoSeccion mensaje={fieldErrors.kitEpp} className="mb-3" />
             <div className="flex flex-col gap-2">
               {(['kit_bienvenida', 'epp'] as const).map((categoria) => {
                 const items = kitCatalog.filter((it) => it.categoria === categoria);
@@ -1644,21 +1689,35 @@ export default function NuevaSolicitudPage() {
                 return (
                   <div key={categoria} className="flex flex-col">
                     <div className="flex items-center gap-2">
-                      <label className="flex items-center gap-2 flex-1">
+                      <label
+                        className={cn(
+                          'flex items-center gap-2 flex-1',
+                          kitEppBloqueadoPorContrato && 'opacity-50 cursor-not-allowed'
+                        )}
+                      >
                         <input
                           type="checkbox"
                           checked={requerida}
+                          disabled={kitEppBloqueadoPorContrato}
                           onChange={(e) => {
-                            setRequerida(e.target.checked);
-                            if (!e.target.checked) {
-                              setKitCantidadesSeleccionadas((prev) => {
-                                const next = { ...prev };
-                                items.forEach((it) => delete next[it.id]);
-                                return next;
+                            const marcado = e.target.checked;
+                            setRequerida(marcado);
+                            limpiarError('kitEpp', 'equipos');
+                            // El stock de Kit/EPP es por sede: fija la sede.
+                            if (marcado) setSedeId(sedeId);
+                            // Al marcar se seleccionan todos los articulos (1
+                            // de cada uno); despues se pueden quitar uno a uno.
+                            setKitCantidadesSeleccionadas((prev) => {
+                              const next = { ...prev };
+                              items.forEach((it) => {
+                                if (marcado) next[it.id] = 1;
+                                else delete next[it.id];
                               });
-                            }
+                              return next;
+                            });
+                            if (marcado) setKitCategoriaExpandida(categoria);
                           }}
-                          className="rounded border-gray-300"
+                          className="rounded border-line-strong"
                         />
                         <span className="text-sm">{label}</span>
                       </label>
@@ -1683,33 +1742,50 @@ export default function NuevaSolicitudPage() {
                     </div>
                     {expandida && items.length > 0 && (
                       <div className="ml-6 mt-1 mb-1 space-y-1">
-                        <p className="text-xs text-gray-400">
+                        <p className="text-xs text-fg-subtle">
                           {requerida
-                            ? 'Elige cantidades para reservarlas desde ya, o déjalo en 0 y se entrega después.'
-                            : `Marca "${label}" para poder reservar artículos.`}
+                            ? 'Se reserva 1 de cada artículo marcado. Quita los que no correspondan:'
+                            : `Incluye (1 de cada uno al marcar "${label}"):`}
                         </p>
-                        {items.map((it) => (
-                          <div key={it.id} className="flex items-center justify-between gap-3 text-xs">
-                            <span className="text-gray-700">
-                              {it.nombre} <span className="text-gray-400">({it.cantidad} disp.)</span>
-                            </span>
-                            <input
-                              type="number"
-                              min={0}
-                              max={it.cantidad}
-                              disabled={!requerida}
-                              value={kitCantidadesSeleccionadas[it.id] || ''}
-                              onChange={(e) =>
-                                setKitCantidadesSeleccionadas((prev) => ({
-                                  ...prev,
-                                  [it.id]: Math.max(0, Math.min(it.cantidad, Number(e.target.value) || 0)),
-                                }))
-                              }
-                              placeholder="0"
-                              className="w-16 border border-gray-300 rounded px-2 py-1 disabled:bg-gray-100"
-                            />
-                          </div>
-                        ))}
+                        {items.map((it) => {
+                          const elegido = (kitCantidadesSeleccionadas[it.id] || 0) > 0;
+                          return (
+                            <label
+                              key={it.id}
+                              className={cn(
+                                'flex items-center justify-between gap-3 text-xs',
+                                !requerida && 'opacity-60 cursor-not-allowed'
+                              )}
+                            >
+                              <span className="flex items-center gap-2 text-fg-muted">
+                                <input
+                                  type="checkbox"
+                                  checked={elegido}
+                                  disabled={!requerida}
+                                  onChange={(e) => {
+                                    const marcarItem = e.target.checked;
+                                    setKitCantidadesSeleccionadas((prev) => {
+                                      const next = { ...prev };
+                                      if (marcarItem) next[it.id] = 1;
+                                      else delete next[it.id];
+                                      return next;
+                                    });
+                                    limpiarError('kitEpp');
+                                  }}
+                                  className="rounded border-line-strong"
+                                />
+                                {it.nombre} <span className="text-fg-subtle">({it.cantidad} disp.)</span>
+                              </span>
+                              {it.cantidad < 1 ? (
+                                <span className={elegido ? 'text-red-600 font-medium' : 'text-fg-subtle'}>
+                                  Sin stock
+                                </span>
+                              ) : (
+                                elegido && <span className="text-fg">1 unidad</span>
+                              )}
+                            </label>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -1724,10 +1800,17 @@ export default function NuevaSolicitudPage() {
             </label>
             <select
               value={sedeId}
-              onChange={(e) => setSedeId(e.target.value)}
+              onChange={(e) => {
+                setSedeId(e.target.value);
+                limpiarError('sedeId');
+              }}
               required
               disabled={!esAdminSede}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
+              aria-invalid={!!fieldErrors.sedeId}
+              className={cn(
+                claseInput(fieldErrors.sedeId),
+                'disabled:bg-surface-muted disabled:text-fg-muted disabled:cursor-not-allowed'
+              )}
             >
               <option value="" disabled>
                 Selecciona una sede...
@@ -1738,7 +1821,8 @@ export default function NuevaSolicitudPage() {
                 </option>
               ))}
             </select>
-            <p className="text-xs text-gray-500 mt-1">
+            <MensajeCampo mensaje={fieldErrors.sedeId} />
+            <p className="text-xs text-fg-subtle mt-1">
               {esAdminSede
                 ? 'Obligatorio: a qué sede pertenece esta solicitud.'
                 : 'Es tu sede: la solicitud queda registrada en ella.'}
@@ -1752,7 +1836,7 @@ export default function NuevaSolicitudPage() {
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              className="w-full px-3 py-2 border border-line-strong rounded-lg"
             />
           </div>
 
@@ -1760,7 +1844,7 @@ export default function NuevaSolicitudPage() {
           <div className="flex justify-between pt-4 border-t">
             <button
               onClick={handleCancelOnboarding}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              className="px-4 py-2 text-fg-muted hover:text-fg"
             >
               Cancelar
             </button>
@@ -1782,7 +1866,7 @@ export default function NuevaSolicitudPage() {
           <div>
             <label className={cn(
               'block text-sm font-medium mb-2',
-              fieldErrors.employeeId ? 'text-red-600' : 'text-gray-700'
+              fieldErrors.employeeId ? 'text-red-600' : 'text-fg-muted'
             )}>
               Empleado *
               {fieldErrors.employeeId && (
@@ -1793,18 +1877,18 @@ export default function NuevaSolicitudPage() {
             {selectedEmployee ? (
               <div className="flex items-center justify-between bg-primary-50 border border-primary-200 rounded-lg p-3">
                 <div>
-                  <p className="font-medium text-gray-900">
+                  <p className="font-medium text-fg">
                     {selectedEmployee.nombres} {selectedEmployee.apellidoPaterno}
                     {selectedEmployee.apellidoMaterno ? ` ${selectedEmployee.apellidoMaterno}` : ''}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-fg-subtle">
                     {selectedEmployee.rut || '—'} · {selectedEmployee.correoPersonal ?? selectedEmployee.correoEmpresa ?? ''}
                     {selectedEmployee.cargo ? ` · ${selectedEmployee.cargo}` : ''}
                   </p>
                 </div>
                 <button
                   onClick={clearEmployee}
-                  className="text-gray-400 hover:text-gray-600 p-1"
+                  className="text-fg-subtle hover:text-fg-muted p-1"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -1812,7 +1896,7 @@ export default function NuevaSolicitudPage() {
             ) : (
               <div ref={searchContainerRef} className="relative">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle" />
                   <input
                     type="text"
                     placeholder="Buscar por nombre, RUT o correo (mín. 2 caracteres)..."
@@ -1824,13 +1908,13 @@ export default function NuevaSolicitudPage() {
                     className="field-input pl-10 pr-10"
                   />
                   {searchLoading && (
-                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle animate-spin" />
                   )}
                 </div>
 
                 {/* Search Results Dropdown */}
                 {showResults && (
-                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                  <div className="absolute z-10 mt-1 w-full bg-surface border border-line rounded-lg shadow-lg max-h-64 overflow-y-auto">
                     {searchResults.length > 0 ? (
                       searchResults.map((emp) => (
                         <button
@@ -1838,11 +1922,11 @@ export default function NuevaSolicitudPage() {
                           onClick={() => selectEmployee(emp)}
                           className="w-full text-left px-4 py-3 hover:bg-primary-50 border-b last:border-b-0 transition-colors"
                         >
-                          <span className="text-sm font-medium text-gray-900">
+                          <span className="text-sm font-medium text-fg">
                             {emp.nombres} {emp.apellidoPaterno}
                             {emp.apellidoMaterno ? ` ${emp.apellidoMaterno}` : ''}
                           </span>
-                          <span className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+                          <span className="flex items-center gap-2 text-xs text-fg-subtle mt-0.5">
                             <span>{emp.rut || 'Sin RUT'}</span>
                             <span>·</span>
                             <span>{emp.correoPersonal ?? emp.correoEmpresa ?? ''}</span>
@@ -1857,12 +1941,12 @@ export default function NuevaSolicitudPage() {
                       ))
                     ) : (
                       <div className="px-4 py-6 text-center">
-                        <p className="text-sm text-gray-500 mb-3">
+                        <p className="text-sm text-fg-subtle mb-3">
                           No se encontraron empleados para &quot;{searchEmployee}&quot;
                         </p>
                         <button
                           onClick={openCreateModal}
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-success-hover transition-colors"
                         >
                           <UserPlus className="h-4 w-4" />
                           Crear nuevo empleado
@@ -1874,7 +1958,7 @@ export default function NuevaSolicitudPage() {
                     {searchResults.length > 0 && (
                       <button
                         onClick={openCreateModal}
-                        className="w-full text-left px-4 py-3 hover:bg-green-50 border-t border-gray-200 transition-colors flex items-center gap-2"
+                        className="w-full text-left px-4 py-3 hover:bg-green-50 border-t border-line transition-colors flex items-center gap-2"
                       >
                         <UserPlus className="h-4 w-4 text-green-600" />
                         <span className="text-sm text-green-700 font-medium">
@@ -1887,11 +1971,11 @@ export default function NuevaSolicitudPage() {
 
                 {/* Hint text */}
                 {!showResults && searchEmployee.length === 0 && (
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-fg-subtle mt-1">
                     Escribe al menos 2 caracteres para buscar. Si no existe,{' '}
                     <button
                       type="button"
-                      onClick={() => setShowCreateModal(true)}
+                      onClick={openCreateModal}
                       className="text-primary-700 hover:underline"
                     >
                       crea uno nuevo
@@ -1914,18 +1998,18 @@ export default function NuevaSolicitudPage() {
                   : 'Cargando...'
               }
               disabled
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600"
+              className="w-full px-3 py-2 border border-line rounded-lg bg-surface-muted text-fg-muted"
             />
           </div>
 
           {tipo === 'cambio_equipo' && (
             <div className="space-y-4 border-t pt-4">
-              <h3 className="font-medium text-gray-900">Datos del Cambio</h3>
+              <h3 className="font-medium text-fg">Datos del Cambio</h3>
 
               <div>
                 <label className={cn(
                   'block text-sm font-medium mb-1',
-                  fieldErrors.motivoCambio ? 'text-red-600' : 'text-gray-700'
+                  fieldErrors.motivoCambio ? 'text-red-600' : 'text-fg-muted'
                 )}>
                   Motivo del Cambio *
                 </label>
@@ -1934,7 +2018,7 @@ export default function NuevaSolicitudPage() {
                   onChange={(e) => { setMotivoCambio(e.target.value); setFieldErrors((prev) => { const { motivoCambio: _, ...rest } = prev; return rest; }); }}
                   placeholder="Ej: Sobrecalentamiento, pantalla danada..."
                   rows={3}
-                  className={cn('w-full px-3 py-2 border rounded-lg', fieldErrors.motivoCambio ? 'border-red-500 bg-red-50' : 'border-gray-300')}
+                  className={cn('w-full px-3 py-2 border rounded-lg', fieldErrors.motivoCambio ? 'border-red-500 bg-red-50' : 'border-line-strong')}
                 />
               </div>
 
@@ -1944,18 +2028,20 @@ export default function NuevaSolicitudPage() {
                 <div>
                   <label className={cn(
                     'block text-sm font-medium mb-2',
-                    fieldErrors.cambioSeleccion ? 'text-red-600' : 'text-gray-700'
+                    fieldErrors.cambioSeleccion ? 'text-red-600' : 'text-fg-muted'
                   )}>
                     Equipo a cambiar *
                   </label>
                   {loadingAssignments ? (
-                    <div className="flex items-center gap-2 text-gray-500 text-sm py-3">
+                    <div className="flex items-center gap-2 text-fg-subtle text-sm py-3">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Cargando equipos...
                     </div>
                   ) : (
                     <SeleccionarCambioEquipo
                       asignacionesActivas={employeeAssignments}
+                      // Reemplazos solo de la sede de la solicitud (la del empleado).
+                      sedeId={sedeId}
                       submitting={submitting}
                       showSubmitButton={false}
                       onChange={(sel) => {
@@ -1972,9 +2058,9 @@ export default function NuevaSolicitudPage() {
                   Onboarding y "Coordinar Devolucion" en Offboarding. */}
               {selectedEmployee && (
                 <>
-                  <hr className="border-gray-200" />
+                  <hr className="border-line" />
                   <div>
-                    <h4 className="font-medium text-gray-900 mb-1">Coordinar Entrega del Reemplazo</h4>
+                    <h4 className="font-medium text-fg mb-1">Coordinar Entrega del Reemplazo</h4>
                   <div className="space-y-3">
                     <div>
                       <label className="field-label">
@@ -1984,7 +2070,7 @@ export default function NuevaSolicitudPage() {
                         type="datetime-local"
                         value={fechaCambioCoordinada}
                         onChange={(e) => setFechaCambioCoordinada(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                       />
                     </div>
                     <div>
@@ -2018,7 +2104,7 @@ export default function NuevaSolicitudPage() {
                           value={lugarCambio}
                           onChange={(e) => setLugarCambio(e.target.value)}
                           placeholder="ej: Oficina Santiago, piso 4"
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                         />
                       </div>
                     ) : (
@@ -2032,7 +2118,7 @@ export default function NuevaSolicitudPage() {
                             value={otCambioChilexpress}
                             onChange={(e) => setOtCambioChilexpress(e.target.value)}
                             placeholder="ej: CH-2026-004567"
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                           />
                         </div>
                         <div>
@@ -2044,7 +2130,7 @@ export default function NuevaSolicitudPage() {
                             value={ciudadCambio}
                             onChange={(e) => setCiudadCambio(e.target.value)}
                             placeholder="ej: Hotel HD Express, Concepción"
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                           />
                         </div>
                       </>
@@ -2058,7 +2144,7 @@ export default function NuevaSolicitudPage() {
 
           {tipo === 'offboarding' && (
             <div className="space-y-4 border-t pt-4">
-              <h3 className="font-medium text-gray-900">Datos de Devolucion</h3>
+              <h3 className="font-medium text-fg">Datos de Devolucion</h3>
 
               {/* Equipos actuales del empleado */}
               {selectedEmployee && (
@@ -2067,13 +2153,13 @@ export default function NuevaSolicitudPage() {
                     Equipos a devolver
                   </label>
                   {loadingAssignments ? (
-                    <div className="flex items-center gap-2 text-gray-500 text-sm py-3">
+                    <div className="flex items-center gap-2 text-fg-subtle text-sm py-3">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Cargando equipos...
                     </div>
                   ) : employeeAssignments.length > 0 ? (
                     <div className="space-y-3">
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-fg-subtle">
                         Si ya tienes los equipos en mano, califica cada uno abajo y el ticket se
                         cerrará solo al enviarse. Si no, déjalos sin calificar y hazlo después.
                       </p>
@@ -2090,16 +2176,16 @@ export default function NuevaSolicitudPage() {
                                   <CategoryIcon categoria={asset.categoria.nombre} className="h-4 w-4" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-gray-900">
+                                  <p className="text-sm font-medium text-fg">
                                     {asset.categoria.nombre}: {asset.marca} {asset.modelo}
                                   </p>
-                                  <p className="text-xs text-gray-500">
+                                  <p className="text-xs text-fg-subtle">
                                     Serie: {asset.numeroSerie || 'Sin serie'}
                                   </p>
                                 </div>
                               </div>
                               <div className="mt-3 pl-1 space-y-2">
-                                  <div className="flex gap-4 text-sm text-gray-700">
+                                  <div className="flex gap-4 text-sm text-fg-muted">
                                     <label className="flex items-center gap-1.5">
                                       <input
                                         type="radio"
@@ -2144,13 +2230,13 @@ export default function NuevaSolicitudPage() {
                                       }))
                                     }
                                     placeholder="Observaciones (opcional)"
-                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                                    className="w-full px-2 py-1.5 text-sm border border-line-strong rounded"
                                   />
                                   {/* Estado del cargador, solo si el equipo
                                       es un notebook con cargador. */}
                                   {asset.tieneCargador && (
-                                    <div className="border border-gray-200 rounded-lg p-2 bg-white">
-                                      <p className="text-xs font-medium text-gray-600 mb-1">
+                                    <div className="border border-line rounded-lg p-2 bg-surface">
+                                      <p className="text-xs font-medium text-fg-muted mb-1">
                                         Estado del cargador
                                       </p>
                                       <select
@@ -2161,7 +2247,7 @@ export default function NuevaSolicitudPage() {
                                             [a.id]: e.target.value as 'ok' | 'danado' | 'no_aplica',
                                           }))
                                         }
-                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded mb-1"
+                                        className="w-full px-2 py-1.5 text-sm border border-line-strong rounded mb-1"
                                       >
                                         <option value="ok">Ok</option>
                                         <option value="danado">Dañado</option>
@@ -2177,7 +2263,7 @@ export default function NuevaSolicitudPage() {
                                           }))
                                         }
                                         placeholder="Observación del cargador (opcional)"
-                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                                        className="w-full px-2 py-1.5 text-sm border border-line-strong rounded"
                                       />
                                     </div>
                                   )}
@@ -2206,8 +2292,8 @@ export default function NuevaSolicitudPage() {
                   <div className="space-y-2">
                     {employeeEppAssignments.map((k) => (
                       <div key={k.id} className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                        <p className="text-sm font-medium text-gray-900 mb-2">{k.item.nombre}</p>
-                        <div className="flex gap-4 text-sm text-gray-700 mb-2">
+                        <p className="text-sm font-medium text-fg mb-2">{k.item.nombre}</p>
+                        <div className="flex gap-4 text-sm text-fg-muted mb-2">
                           <label className="flex items-center gap-1.5">
                             <input
                               type="radio"
@@ -2252,7 +2338,7 @@ export default function NuevaSolicitudPage() {
                             }))
                           }
                           placeholder="Observaciones (opcional)"
-                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                          className="w-full px-2 py-1.5 text-sm border border-line-strong rounded"
                         />
                       </div>
                     ))}
@@ -2263,7 +2349,7 @@ export default function NuevaSolicitudPage() {
               <div>
                 <label className={cn(
                   'block text-sm font-medium mb-1',
-                  fieldErrors.fechaDesvinculacion ? 'text-red-600' : 'text-gray-700'
+                  fieldErrors.fechaDesvinculacion ? 'text-red-600' : 'text-fg-muted'
                 )}>
                   Fecha Desvinculacion *
                 </label>
@@ -2271,16 +2357,16 @@ export default function NuevaSolicitudPage() {
                   type="date"
                   value={fechaDesvinculacion}
                   onChange={(e) => { setFechaDesvinculacion(e.target.value); setFieldErrors((prev) => { const { fechaDesvinculacion: _, ...rest } = prev; return rest; }); }}
-                  className={cn('w-full px-3 py-2 border rounded-lg max-w-xs', fieldErrors.fechaDesvinculacion ? 'border-red-500 bg-red-50' : 'border-gray-300')}
+                  className={cn('w-full px-3 py-2 border rounded-lg max-w-xs', fieldErrors.fechaDesvinculacion ? 'border-red-500 bg-red-50' : 'border-line-strong')}
                 />
               </div>
 
               {/* Coordinacion de devolucion en su propia tarjeta, separada de
                   los datos de la desvinculacion. Mismo patron
                   presencial/chilexpress que Onboarding y Cambio de Equipo. */}
-              <hr className="border-gray-200" />
+              <hr className="border-line" />
               <div>
-                <h4 className="font-medium text-gray-900 mb-1">Coordinar Devolución</h4>
+                <h4 className="font-medium text-fg mb-1">Coordinar Devolución</h4>
                 <div className="space-y-3">
                   <div>
                     <label className="field-label">Medio</label>
@@ -2315,7 +2401,7 @@ export default function NuevaSolicitudPage() {
                       type="datetime-local"
                       value={fechaDevolucionCoordinada}
                       onChange={(e) => setFechaDevolucionCoordinada(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                     />
                   </div>
                   {medioDevolucion === 'presencial' ? (
@@ -2328,7 +2414,7 @@ export default function NuevaSolicitudPage() {
                         value={lugarDevolucion}
                         onChange={(e) => setLugarDevolucion(e.target.value)}
                         placeholder="ej: Oficina Santiago, piso 4"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                       />
                     </div>
                   ) : (
@@ -2342,7 +2428,7 @@ export default function NuevaSolicitudPage() {
                           value={otChilexpress}
                           onChange={(e) => setOtChilexpress(e.target.value)}
                           placeholder="ej: CH-2026-004567"
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                         />
                       </div>
                       <div>
@@ -2354,7 +2440,7 @@ export default function NuevaSolicitudPage() {
                           value={ciudadDevolucion}
                           onChange={(e) => setCiudadDevolucion(e.target.value)}
                           placeholder="ej: Hotel HD Express, Concepción"
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                         />
                       </div>
                     </>
@@ -2376,14 +2462,14 @@ export default function NuevaSolicitudPage() {
                 type="text"
                 value={sedes.find((s) => s.id === sedeId)?.nombre || 'Cargando...'}
                 disabled
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600"
+                className="w-full px-3 py-2 border border-line rounded-lg bg-surface-muted text-fg-muted"
               />
             ) : (
               <select
                 value={sedeId}
                 onChange={(e) => setSedeId(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                className="w-full px-3 py-2 border border-line-strong rounded-lg"
               >
                 <option value="" disabled>
                   Selecciona una sede...
@@ -2395,7 +2481,7 @@ export default function NuevaSolicitudPage() {
                 ))}
               </select>
             )}
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-fg-subtle mt-1">
               {(tipo === 'offboarding' || tipo === 'cambio_equipo') && selectedEmployee
                 ? 'Es la sede del empleado.'
                 : !esAdminSede
@@ -2411,7 +2497,7 @@ export default function NuevaSolicitudPage() {
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              className="w-full px-3 py-2 border border-line-strong rounded-lg"
             />
           </div>
 
@@ -2419,7 +2505,7 @@ export default function NuevaSolicitudPage() {
           <div className="flex justify-between pt-4 border-t">
             <button
               onClick={() => setStep(1)}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              className="px-4 py-2 text-fg-muted hover:text-fg"
             >
               Volver
             </button>
@@ -2439,12 +2525,12 @@ export default function NuevaSolicitudPage() {
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowCreateModal(false)} />
-          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto">
+          <div className="relative bg-surface rounded-xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Crear Nuevo Empleado</h2>
+              <h2 className="text-lg font-bold text-fg">Crear Nuevo Empleado</h2>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-fg-subtle hover:text-fg-muted"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -2457,6 +2543,28 @@ export default function NuevaSolicitudPage() {
             )}
 
             <div className="space-y-4">
+              {esAdminSede && (
+                <div>
+                  <label className="field-label">
+                    Sede *
+                  </label>
+                  <select
+                    value={sedeEmpleadoNuevo}
+                    onChange={(e) => setSedeEmpleadoNuevo(e.target.value)}
+                    required
+                    className="field-input"
+                  >
+                    <option value="" disabled>
+                      Selecciona una sede...
+                    </option>
+                    {sedes.map((sede) => (
+                      <option key={sede.id} value={sede.id}>
+                        {sede.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="field-label">
@@ -2466,7 +2574,7 @@ export default function NuevaSolicitudPage() {
                     type="text"
                     value={newEmp.nombres}
                     onChange={(e) => setNewEmp({ ...newEmp, nombres: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-line-strong rounded-lg"
                   />
                 </div>
                 <div>
@@ -2477,7 +2585,7 @@ export default function NuevaSolicitudPage() {
                     type="text"
                     value={newEmp.apellidoPaterno}
                     onChange={(e) => setNewEmp({ ...newEmp, apellidoPaterno: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-line-strong rounded-lg"
                   />
                 </div>
               </div>
@@ -2490,7 +2598,7 @@ export default function NuevaSolicitudPage() {
                     type="text"
                     value={newEmp.apellidoMaterno}
                     onChange={(e) => setNewEmp({ ...newEmp, apellidoMaterno: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-line-strong rounded-lg"
                   />
                 </div>
                 <div>
@@ -2500,7 +2608,7 @@ export default function NuevaSolicitudPage() {
                     value={newEmp.rut}
                     onChange={(e) => setNewEmp({ ...newEmp, rut: e.target.value })}
                     placeholder="12.345.678-9"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-line-strong rounded-lg"
                   />
                 </div>
               </div>
@@ -2513,7 +2621,7 @@ export default function NuevaSolicitudPage() {
                   value={newEmp.correoPersonal ?? ''}
                   onChange={(e) => setNewEmp({ ...newEmp, correoPersonal: e.target.value })}
                   placeholder="nombre.personal@gmail.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-3 py-2 border border-line-strong rounded-lg"
                 />
               </div>
               <div>
@@ -2525,7 +2633,7 @@ export default function NuevaSolicitudPage() {
                   value={newEmp.correoEmpresa ?? ''}
                   onChange={(e) => setNewEmp({ ...newEmp, correoEmpresa: e.target.value })}
                   placeholder="nombre@sclconsultores.com (opcional)"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-3 py-2 border border-line-strong rounded-lg"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -2535,7 +2643,7 @@ export default function NuevaSolicitudPage() {
                     type="text"
                     value={newEmp.cargo}
                     onChange={(e) => setNewEmp({ ...newEmp, cargo: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-line-strong rounded-lg"
                   />
                 </div>
                 <div>
@@ -2545,7 +2653,7 @@ export default function NuevaSolicitudPage() {
                   <select
                     value={newEmp.tipoContrato}
                     onChange={(e) => setNewEmp({ ...newEmp, tipoContrato: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-line-strong rounded-lg"
                   >
                     <option value="contrato">Contrato</option>
                     <option value="boleta">Boleta</option>
@@ -2558,7 +2666,7 @@ export default function NuevaSolicitudPage() {
                   type="text"
                   value={newEmp.ubicacion}
                   onChange={(e) => setNewEmp({ ...newEmp, ubicacion: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-3 py-2 border border-line-strong rounded-lg"
                 />
               </div>
             </div>
@@ -2566,7 +2674,7 @@ export default function NuevaSolicitudPage() {
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                className="px-4 py-2 text-fg-muted hover:text-fg"
               >
                 Cancelar
               </button>
@@ -2578,7 +2686,7 @@ export default function NuevaSolicitudPage() {
                   !newEmp.apellidoPaterno ||
                   !newEmp.correoPersonal
                 }
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-success-hover disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {creatingEmployee ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
