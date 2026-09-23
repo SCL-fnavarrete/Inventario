@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   CheckCircle,
   UserCheck,
+  UserX,
   Wrench,
   XCircle,
+  DollarSign,
   Loader2,
   GripVertical
 } from "lucide-react";
@@ -43,11 +46,13 @@ interface KanbanBoardProps {
   isUpdating?: boolean;
 }
 
-type StatusType = "disponible" | "asignado" | "en_mantencion" | "baja";
+type StatusType = "disponible" | "asignado" | "en_mantencion" | "no_devuelto" | "baja" | "vendido";
 
 const columns: {
   id: StatusType;
   label: string;
+  // Solo para ver: no se puede soltar un equipo ahi (se llega por su proceso).
+  soloLectura?: boolean;
   icon: React.ComponentType<{ className?: string }>;
   color: string;
   bgColor: string;
@@ -78,6 +83,15 @@ const columns: {
     borderColor: "border-amber-200",
   },
   {
+    id: "no_devuelto",
+    label: "No devuelto",
+    icon: UserX,
+    color: "text-orange-600",
+    bgColor: "bg-orange-50",
+    borderColor: "border-orange-200",
+    soloLectura: true,
+  },
+  {
     id: "baja",
     label: "Baja",
     icon: XCircle,
@@ -85,9 +99,19 @@ const columns: {
     bgColor: "bg-red-50",
     borderColor: "border-red-200",
   },
+  {
+    id: "vendido",
+    label: "Vendido",
+    icon: DollarSign,
+    color: "text-fg-muted",
+    bgColor: "bg-surface-muted",
+    borderColor: "border-line",
+    soloLectura: true,
+  },
 ];
 
 export function KanbanBoard({ assets, onStatusChange, isUpdating }: KanbanBoardProps) {
+  const router = useRouter();
   const [draggedAssetId, setDraggedAssetId] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
@@ -131,7 +155,7 @@ export function KanbanBoard({ assets, onStatusChange, isUpdating }: KanbanBoardP
       acc[col.id] = assets.filter((a) => a.estado === col.id);
       return acc;
     },
-    { disponible: [], asignado: [], en_mantencion: [], baja: [] }
+    { disponible: [], asignado: [], en_mantencion: [], no_devuelto: [], baja: [], vendido: [] }
   );
 
   return (
@@ -148,9 +172,11 @@ export function KanbanBoard({ assets, onStatusChange, isUpdating }: KanbanBoardP
               flex-shrink-0 w-72 rounded-xl border-2 transition-all duration-200
               ${isDragOver ? `${column.borderColor} ${column.bgColor}` : "border-line bg-surface-muted"}
             `}
-            onDragOver={(e) => handleDragOver(e, column.id)}
+            // Una columna de solo lectura no acepta equipos: sin preventDefault
+            // el navegador no permite soltar.
+            onDragOver={column.soloLectura ? undefined : (e) => handleDragOver(e, column.id)}
             onDragLeave={handleDragLeave}
-            onDrop={(e) => handleDrop(e, column.id)}
+            onDrop={column.soloLectura ? undefined : (e) => handleDrop(e, column.id)}
           >
             {/* Column Header */}
             <div className={`
@@ -191,6 +217,15 @@ export function KanbanBoard({ assets, onStatusChange, isUpdating }: KanbanBoardP
                     draggable={!!onStatusChange && !isUpdating}
                     onDragStart={(e) => handleDragStart(e, asset.id)}
                     onDragEnd={handleDragEnd}
+                    // Clic abre el detalle; el navegador no dispara clic tras
+                    // arrastrar, asi que no se confunde con mover la tarjeta.
+                    onClick={() => router.push(`/activos/${asset.id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") router.push(`/activos/${asset.id}`);
+                    }}
+                    role="link"
+                    tabIndex={0}
+                    title="Ver detalle"
                     className={`
                       relative cursor-grab active:cursor-grabbing
                       ${draggedAssetId === asset.id ? "opacity-50" : ""}

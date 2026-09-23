@@ -3098,7 +3098,17 @@ Pedido de Javier: *"la idea sería que para dar de baja deba ir a mantención y 
 
 **Se elimina** la baja directa: `POST /api/activos/[id]/baja`, la página `/activos/[id]/baja`, el formulario `BajaActivoForm` (modal del tablero) y `assetBajaSchema`/`condicionFinalBajaEnum`. `motivoBajaEnum` se conserva para el nuevo formulario. `GET /api/activos/[id]` entrega las mantenciones abiertas con su tipo y descripción.
 
+## 2.89 Activos: ver y editar desde las tres vistas (23-sep-2026)
+
+Pedido de Javier: en Activos, solo la vista de tarjetas permitía entrar al detalle y editar un equipo.
+
+- **Tabla:** la columna Acciones (Ver detalle, Editar) queda fija en el borde derecho; antes quedaba fuera de la pantalla porque la tabla es más ancha que la vista. El N° de serie y la marca son enlaces al detalle.
+- **Tablero:** un clic en la tarjeta abre el detalle (arrastrar sigue cambiando de columna) y cada tarjeta muestra los íconos Ver detalle y Editar. Se agregan las columnas **No devuelto** y **Vendido**, solo para ver: no aceptan equipos, porque se llega a esos estados por su proceso.
+- Solo cambia la interfaz; no hay cambios de datos ni de reglas.
+
 ## Changelog SPEC
+- **v2.13 (2026-09-23):**
+  - Sección 2.89 (nueva): en Activos se entra al detalle y a editar desde la tabla, el tablero y las tarjetas; el tablero muestra las columnas No devuelto y Vendido (solo lectura).
 - **v2.12 (2026-09-23):**
   - Sección 2.88 (nueva): la baja de un equipo pasa siempre por Mantenciones. Página "Dar de baja equipo" con los datos listos y `POST /api/mantenciones/baja`; botones "Dar de baja" y "Registrar venta" en el detalle del equipo; se elimina la baja directa (`/api/activos/[id]/baja` y su formulario).
 - **v2.11 (2026-09-23):**

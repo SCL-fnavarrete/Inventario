@@ -63,8 +63,29 @@ export function AssetCard({ asset, compact = false }: AssetCardProps) {
             </p>
             <p className="text-xs text-fg-subtle break-words">{displayCode}</p>
           </div>
-          <div className="shrink-0">
+          <div className="shrink-0 flex flex-col items-end gap-1">
             <AssetStatusBadge status={asset.estado} size="sm" />
+            {/* No se arrastran ni abren la tarjeta: cada uno va a lo suyo. */}
+            <div className="flex gap-0.5">
+              <Link
+                href={`/activos/${asset.id}`}
+                draggable={false}
+                onClick={(e) => e.stopPropagation()}
+                className="p-1 text-fg-subtle hover:text-primary-700 hover:bg-primary-50 rounded transition-colors"
+                title="Ver detalle"
+              >
+                <Eye className="w-3.5 h-3.5" />
+              </Link>
+              <Link
+                href={`/activos/${asset.id}/editar`}
+                draggable={false}
+                onClick={(e) => e.stopPropagation()}
+                className="p-1 text-fg-subtle hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                title="Editar"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </div>
         </div>
       </div>

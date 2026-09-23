@@ -587,7 +587,12 @@ function ActivosPageContent() {
                   {visibleColumns.map((col) => (
                     <th
                       key={col.id}
-                      className="table-th px-4 whitespace-nowrap"
+                      className={cn(
+                        "table-th px-4 whitespace-nowrap",
+                        // Acciones fija a la derecha: la tabla es mas ancha que
+                        // la pantalla y los botones quedaban fuera de vista.
+                        col.id === "acciones" && "sticky right-0 z-10 bg-surface-muted shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]"
+                      )}
                     >
                       {col.label}
                     </th>
@@ -617,7 +622,7 @@ function ActivosPageContent() {
                   assets.map((asset) => {
                     const isExpanded = expandedRows.has(asset.id);
                     return [
-                      <tr key={asset.id} className="hover:bg-surface-muted transition-colors">
+                      <tr key={asset.id} className="group hover:bg-surface-muted transition-colors">
                         <td className="px-4 py-3 align-top">
                           <button
                             onClick={() => toggleRowExpansion(asset.id)}
@@ -648,9 +653,12 @@ function ActivosPageContent() {
                         {visibleColumns.find((c) => c.id === "identificacion") && (
                           <td className="px-4 py-3 whitespace-nowrap align-top">
                             <div>
-                              <p className="text-sm font-medium text-fg">
+                              <Link
+                                href={`/activos/${asset.id}`}
+                                className="text-sm font-medium text-fg hover:text-primary-700 hover:underline"
+                              >
                                 {asset.numeroSerie || "-"}
-                              </p>
+                              </Link>
                               {asset.imei && (
                                 <p className="text-xs text-fg-subtle">IMEI: {asset.imei}</p>
                               )}
@@ -662,9 +670,12 @@ function ActivosPageContent() {
                         {visibleColumns.find((c) => c.id === "marca") && (
                           <td className="px-4 py-3 whitespace-nowrap align-top">
                             <div>
-                              <p className="text-sm font-medium text-fg">
+                              <Link
+                                href={`/activos/${asset.id}`}
+                                className="block text-sm font-medium text-fg hover:text-primary-700 hover:underline"
+                              >
                                 {asset.marca}
-                              </p>
+                              </Link>
                               <p className="text-xs text-fg-subtle">{asset.modelo}</p>
                             </div>
                           </td>
@@ -797,7 +808,7 @@ function ActivosPageContent() {
 
                         {/* Acciones */}
                         {visibleColumns.find((c) => c.id === "acciones") && (
-                          <td className="px-4 py-3 whitespace-nowrap text-right align-top">
+                          <td className="sticky right-0 z-10 bg-surface group-hover:bg-surface-muted px-4 py-3 whitespace-nowrap text-right align-top shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)] transition-colors">
                             <div className="flex justify-end gap-1">
                               <Link
                                 href={`/activos/${asset.id}`}
