@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Montserrat } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
+// Tipografia de marca (sclconsultores.com). next/font la sirve desde el
+// propio dominio, sin peticion a Google ni salto de layout al cargar.
+const montserrat = Montserrat({
   subsets: ["latin"],
-  variable: "--font-inter",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-montserrat",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -18,11 +22,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
-      <body
-        className={`${inter.variable} font-sans antialiased`}
-        suppressHydrationWarning
-      >
+    <html lang="es" className={montserrat.variable}>
+      <body className="font-sans antialiased" suppressHydrationWarning>
         {children}
       </body>
     </html>

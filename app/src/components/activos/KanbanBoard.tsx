@@ -65,9 +65,9 @@ const columns: {
     id: "asignado",
     label: "Asignado",
     icon: UserCheck,
-    color: "text-blue-600",
-    bgColor: "bg-blue-50",
-    borderColor: "border-blue-200",
+    color: "text-primary-700",
+    bgColor: "bg-primary-50",
+    borderColor: "border-primary-200",
   },
   {
     id: "en_mantencion",
@@ -205,7 +205,7 @@ export function KanbanBoard({ assets, onStatusChange, isUpdating }: KanbanBoardP
                     <AssetCard asset={asset} compact />
                     {isUpdating && draggedAssetId === asset.id && (
                       <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-lg">
-                        <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                        <Loader2 className="w-5 h-5 animate-spin text-primary-700" />
                       </div>
                     )}
                   </div>

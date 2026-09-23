@@ -13,18 +13,17 @@ import {
   Plus,
   X,
   Search,
-  Laptop,
-  Smartphone,
-  Monitor,
   Eye,
   Shirt,
-  Pencil,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+  Pencil } from "lucide-react";
 import { Can } from "@/components/auth/Can";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
-import { formatearFecha } from "@/lib/utils/fechas";
+import { formatearFechaLarga } from "@/lib/utils/fechas";
+import { CategoryIcon } from "@/components/activos/CategoryIcon";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { AssetStatusBadge } from "@/components/ui/Badge";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 /**
  * Confirmacion en modal propio, en vez de confirm()/alert() del navegador:
@@ -98,35 +97,6 @@ type Purchase = {
   };
 };
 
-function formatDate(dateString: string): string {
-  return formatearFecha(dateString, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
-
-function getCategoryIcon(categoryName: string) {
-  switch (categoryName.toLowerCase()) {
-    case "notebook":
-      return <Laptop className="h-4 w-4" />;
-    case "celular":
-      return <Smartphone className="h-4 w-4" />;
-    case "monitor":
-      return <Monitor className="h-4 w-4" />;
-    default:
-      return <Package className="h-4 w-4" />;
-  }
-}
-
-const estadoConfig: Record<string, { label: string; color: string; bgColor: string }> = {
-  disponible: { label: "Disponible", color: "text-green-700", bgColor: "bg-green-100" },
-  asignado: { label: "Asignado", color: "text-blue-700", bgColor: "bg-blue-100" },
-  en_mantencion: { label: "En Mantención", color: "text-orange-700", bgColor: "bg-orange-100" },
-  no_devuelto: { label: "No devuelto", color: "text-amber-800", bgColor: "bg-amber-100" },
-  baja: { label: "Baja", color: "text-red-700", bgColor: "bg-red-100" },
-  vendido: { label: "Vendido", color: "text-gray-700", bgColor: "bg-gray-100" },
-};
 
 export default function CompraDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -478,7 +448,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
           <Can recurso="compras">
             <button
               onClick={abrirEdicion}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              className={buttonClasses({ variant: "outline" })}
             >
               <Pencil size={20} />
               Editar
@@ -503,7 +473,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       {/* Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Datos de la Factura */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <FileText className="h-5 w-5 text-gray-400" />
             Datos de la Factura
@@ -515,7 +485,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             </div>
             <div>
               <dt className="text-sm text-gray-500">Fecha</dt>
-              <dd className="font-medium">{formatDate(purchase.fechaFactura)}</dd>
+              <dd className="font-medium">{formatearFechaLarga(purchase.fechaFactura)}</dd>
             </div>
             <div>
               <dt className="text-sm text-gray-500">Sede</dt>
@@ -541,7 +511,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
         </div>
 
         {/* Resumen de Activos */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <Package className="h-5 w-5 text-gray-400" />
             Resumen de Activos
@@ -560,7 +530,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Activos Vinculados */}
-      <div className="bg-white rounded-lg shadow">
+      <div className="card">
         <div className="p-6 border-b flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <Package className="h-5 w-5 text-gray-400" />
@@ -568,7 +538,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
           </h2>
           <button
             onClick={() => setShowAssetSearch(true)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100"
           >
             <Plus size={16} />
             Agregar Activo
@@ -586,7 +556,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                 onChange={(e) => setAssetSearch(e.target.value)}
                 placeholder="Buscar activo por serie, marca, modelo..."
                 autoFocus
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input pl-10 pr-4"
               />
               <button
                 type="button"
@@ -626,9 +596,9 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                       </p>
                     </div>
                     {addingAsset ? (
-                      <Loader2 size={18} className="animate-spin text-blue-600" />
+                      <Loader2 size={18} className="animate-spin text-primary-700" />
                     ) : (
-                      <Plus size={18} className="text-blue-600" />
+                      <Plus size={18} className="text-primary-700" />
                     )}
                   </button>
                 ))}
@@ -642,32 +612,31 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4">
                     Activo
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4">
                     Serie
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4">
                     Estado
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4">
                     Asignado a
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4 text-right">
                     Acciones
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {purchase.purchaseAssets.map((pa) => {
-                  const config = estadoConfig[pa.asset.estado] || estadoConfig.disponible;
                   return (
                     <tr key={pa.id} className="hover:bg-gray-50">
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
                           <span className="text-gray-400">
-                            {getCategoryIcon(pa.asset.categoria.nombre)}
+                            <CategoryIcon categoria={pa.asset.categoria.nombre} className="h-4 w-4" />
                           </span>
                           <div>
                             <p className="font-medium text-sm">
@@ -683,21 +652,13 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                         {pa.asset.numeroSerie || "-"}
                       </td>
                       <td className="px-4 py-4">
-                        <span
-                          className={cn(
-                            "inline-flex px-2 py-1 text-xs font-medium rounded-full",
-                            config.bgColor,
-                            config.color
-                          )}
-                        >
-                          {config.label}
-                        </span>
+                        <AssetStatusBadge status={pa.asset.estado} size="sm" />
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-500">
                         {pa.asset.empleadoActual ? (
                           <Link
                             href={`/empleados/${pa.asset.empleadoActual.id}`}
-                            className="text-blue-600 hover:text-blue-800"
+                            className="text-primary-700 hover:text-primary-900"
                           >
                             {pa.asset.empleadoActual.nombres} {pa.asset.empleadoActual.apellidoPaterno}
                           </Link>
@@ -709,7 +670,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                         <div className="flex items-center justify-end gap-2">
                           <Link
                             href={`/activos/${pa.assetId}`}
-                            className="p-1.5 text-gray-400 hover:text-blue-600"
+                            className="p-1.5 text-gray-400 hover:text-primary-700"
                             title="Ver activo"
                           >
                             <Eye size={18} />
@@ -735,7 +696,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             <p>No hay activos vinculados</p>
             <button
               onClick={() => setShowAssetSearch(true)}
-              className="mt-4 text-blue-600 hover:text-blue-800 text-sm"
+              className="mt-4 text-primary-700 hover:text-primary-900 text-sm"
             >
               Vincular primer activo
             </button>
@@ -744,7 +705,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Kit/EPP Vinculados */}
-      <div className="bg-white rounded-lg shadow">
+      <div className="card">
         <div className="p-6 border-b flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <Shirt className="h-5 w-5 text-gray-400" />
@@ -755,7 +716,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
               setShowKitItemPicker(true);
               fetchKitItemsCatalogo();
             }}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100"
           >
             <Plus size={16} />
             Agregar Artículo
@@ -769,7 +730,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
               <select
                 value={kitItemToAdd}
                 onChange={(e) => setKitItemToAdd(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="field-input field-input-sm"
               >
                 <option value="">Selecciona un artículo...</option>
                 {kitItemsCatalogo.map((item) => (
@@ -786,14 +747,14 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                 min={1}
                 value={kitItemCantidad}
                 onChange={(e) => setKitItemCantidad(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="field-input field-input-sm"
               />
             </div>
             <button
               type="button"
               onClick={addKitItemToPurchase}
               disabled={!kitItemToAdd || addingKitItem}
-              className="flex items-center justify-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              className={buttonClasses({ size: "sm" })}
             >
               {addingKitItem ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus size={16} />}
               Agregar
@@ -813,16 +774,16 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4">
                     Artículo
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4">
                     Cantidad comprada
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4">
                     Stock actual del artículo
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4 text-right">
                     Acciones
                   </th>
                 </tr>
@@ -866,7 +827,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                 setShowKitItemPicker(true);
                 fetchKitItemsCatalogo();
               }}
-              className="mt-4 text-blue-600 hover:text-blue-800 text-sm"
+              className="mt-4 text-primary-700 hover:text-primary-900 text-sm"
             >
               Vincular primer artículo
             </button>
@@ -876,30 +837,15 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
       {/* Confirmacion de desvincular activo / articulo de Kit/EPP. Mismo
           formato que el modal de eliminar factura de mas abajo. */}
-      {confirmacion && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {confirmacion.titulo}
-            </h3>
-            <p className="text-gray-600 mb-4">{confirmacion.mensaje}</p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setConfirmacion(null)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => confirmacion.onConfirm()}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                {confirmacion.textoBoton}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={confirmacion !== null}
+        onClose={() => setConfirmacion(null)}
+        onConfirm={() => confirmacion?.onConfirm()}
+        variant="danger"
+        title={confirmacion?.titulo ?? ""}
+        message={confirmacion?.mensaje}
+        confirmLabel={confirmacion?.textoBoton}
+      />
 
       {/* Modal de confirmación de eliminación */}
       {/* Editar datos de la factura */}
@@ -910,7 +856,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             <form onSubmit={guardarEdicion} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     N° Factura <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -918,11 +864,11 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                     required
                     value={editForm.numeroFactura}
                     onChange={(e) => setEditForm({ ...editForm, numeroFactura: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="field-input"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Fecha de la factura <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -930,11 +876,11 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                     required
                     value={editForm.fechaFactura}
                     onChange={(e) => setEditForm({ ...editForm, fechaFactura: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="field-input"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     RUT proveedor
                   </label>
                   <input
@@ -942,22 +888,22 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                     placeholder="11.223.344-K"
                     value={editForm.rutProveedor}
                     onChange={(e) => setEditForm({ ...editForm, rutProveedor: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="field-input"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Orden de compra
                   </label>
                   <input
                     type="text"
                     value={editForm.ordenCompra}
                     onChange={(e) => setEditForm({ ...editForm, ordenCompra: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="field-input"
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Sede <span className="text-red-500">*</span>
                   </label>
                   <select
@@ -965,7 +911,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                     onChange={(e) => setEditForm({ ...editForm, sedeId: e.target.value })}
                     required
                     disabled={!esAdminSede}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
+                    className="field-input"
                   >
                     <option value="" disabled>
                       Selecciona una sede...
@@ -990,14 +936,14 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                 <button
                   type="button"
                   onClick={() => setShowEditForm(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className={buttonClasses({ variant: "outline" })}
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={savingEdit}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className={buttonClasses()}
                 >
                   {savingEdit && <Loader2 className="h-4 w-4 animate-spin" />}
                   Guardar cambios
@@ -1009,7 +955,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       )}
 
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               Eliminar Compra
@@ -1031,14 +977,14 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
               <button
                 onClick={() => setShowDeleteConfirm(false)}
                 disabled={deleting}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                className={buttonClasses({ variant: "outline" })}
               >
                 Cancelar
               </button>
               <button
                 onClick={deletePurchase}
                 disabled={deleting}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                className={buttonClasses({ variant: "danger" })}
               >
                 {deleting ? (
                   <>

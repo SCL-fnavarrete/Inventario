@@ -17,6 +17,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { especificacionesActivoTexto } from "@/lib/utils/assetSpecs";
+import { buttonClasses } from "@/components/ui/buttonStyles";
 
 type AsignacionActiva = {
   id: string;
@@ -248,7 +249,7 @@ export function SeleccionarCambioEquipo({
 
       {/* Paso 1: elegir que equipo se va a cambiar */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="field-label mb-2">
           1. ¿Qué equipo vas a cambiar?
         </label>
         <select
@@ -272,7 +273,7 @@ export function SeleccionarCambioEquipo({
           danado o no aparece. */}
       {seleccionada && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="field-label mb-2">
             ¿En qué estado devuelve el equipo actual?
           </label>
           <div className="flex gap-4 text-sm text-gray-700 mb-2">
@@ -435,7 +436,7 @@ export function SeleccionarCambioEquipo({
               observacionesCargadorNuevo
             )
           }
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className={buttonClasses()}
         >
           {submitting ? (
             <>

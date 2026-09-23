@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AlertTriangle, XCircle, CheckCircle } from "lucide-react";
 import type { AssetBajaInput } from "@/lib/validations/assetTransition";
+import { buttonClasses } from "@/components/ui/buttonStyles";
 
 // Derivados del schema Zod: si cambia un motivo, esto deja de compilar.
 const motivoLabels: Record<AssetBajaInput["motivo"], string> = {
@@ -128,7 +129,7 @@ export function BajaActivoForm({ assetId, onSuccess, onCancel }: BajaActivoFormP
               </p>
               <Link
                 href="/solicitudes/nueva"
-                className="mt-2 inline-block px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                className={buttonClasses({ variant: "danger", className: "mt-2" })}
               >
                 Ir a Solicitudes
               </Link>
@@ -165,7 +166,7 @@ export function BajaActivoForm({ assetId, onSuccess, onCancel }: BajaActivoFormP
             <button
               onClick={() => setStep(2)}
               disabled={!canProceed}
-              className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={buttonClasses({ variant: "danger", className: "px-6" })}
             >
               Continuar
             </button>
@@ -179,7 +180,7 @@ export function BajaActivoForm({ assetId, onSuccess, onCancel }: BajaActivoFormP
           <h2 className="text-lg font-semibold">Paso 2: Datos de Baja</h2>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Motivo de baja *</label>
+            <label className="field-label mb-2">Motivo de baja *</label>
             <div className="grid grid-cols-2 gap-2">
               {Object.entries(motivoLabels).map(([key, label]) => (
                 <button
@@ -197,7 +198,7 @@ export function BajaActivoForm({ assetId, onSuccess, onCancel }: BajaActivoFormP
 
           {motivo === "otro" && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Detalle del motivo *</label>
+              <label className="field-label">Detalle del motivo *</label>
               <textarea
                 value={motivoDetalle}
                 onChange={(e) => setMotivoDetalle(e.target.value)}
@@ -209,7 +210,7 @@ export function BajaActivoForm({ assetId, onSuccess, onCancel }: BajaActivoFormP
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Condición final *</label>
+            <label className="field-label mb-2">Condición final *</label>
             <div className="flex gap-2">
               {Object.entries(condicionLabels).map(([key, label]) => (
                 <button
@@ -239,7 +240,7 @@ export function BajaActivoForm({ assetId, onSuccess, onCancel }: BajaActivoFormP
             <button
               onClick={handleSubmit}
               disabled={!motivo || !condicionFinal || (motivo === "otro" && !motivoDetalle) || submitting}
-              className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={buttonClasses({ variant: "danger", className: "px-6" })}
             >
               {submitting ? "Procesando..." : "Confirmar Baja"}
             </button>

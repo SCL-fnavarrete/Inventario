@@ -1,29 +1,183 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ========================================
+   SISTEMA DE DISENO -- tokens de marca SCL
+   Valores tomados del CSS de sclconsultores.com (--scl-*). En Tailwind v4
+   los tokens viven aqui, no en tailwind.config: cada --color-X genera
+   bg-X, text-X, border-X, etc. Ningun componente debe usar hex sueltos.
+   ======================================== */
+@theme {
+  /* Primario: 500/600/800/950 son los valores exactos del sitio
+     (scl-lightblue, scl-blue, scl-blue-dark, scl-blue-navy); el resto son
+     tintes/sombras derivados para tener una escala completa. Botones
+     solidos usan 700: blanco sobre 600 queda en 4.45:1, bajo AA. */
+  --color-primary-50: #f0f9fc;
+  --color-primary-100: #dbf1f9;
+  --color-primary-200: #b3e1f2;
+  --color-primary-300: #7acce8;
+  --color-primary-400: #3db4dd;
+  --color-primary-500: #009cd2;
+  --color-primary-600: #0080b0;
+  --color-primary-700: #006a93;
+  --color-primary-800: #005a7d;
+  --color-primary-900: #003f5e;
+  --color-primary-950: #002b4d;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* Acento naranjo de marca (scl-orange). Contraste 3:1 con blanco: solo
+     para iconos, indicadores y bordes; como texto se usa accent-dark. */
+  --color-accent: #d88024;
+  --color-accent-light: #fdf3e7;
+  --color-accent-dark: #92400e;
 
-/* Forzar modo claro para la aplicación */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #f3f4f6;
-    --foreground: #171717;
+  /* Grises propios de la marca (scl-gray). Los neutros de la interfaz
+     siguen siendo los gray-* de Tailwind, igual que en el sitio. */
+  --color-brand-gray: #666361;
+  --color-brand-gray-dark: #3d3b3a;
+
+  /* Superficies: las tarjetas del sitio son rounded-2xl con borde tenue y
+     sombra que crece al hover; los controles (botones, inputs) rounded-lg. */
+  --radius-card: 1rem;
+  --radius-control: 0.5rem;
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-card-hover: 0 10px 25px -5px rgb(0 43 77 / 0.12), 0 4px 10px -6px rgb(0 43 77 / 0.08);
+
+  /* El sitio anima todo a 300ms; es la duracion por defecto de transition-*. */
+  --default-transition-duration: 300ms;
+
+  --animate-fade-in: fadeIn 150ms ease-out;
+  --animate-modal-in: modalIn 200ms ease-out;
+  --animate-toast-in: toastIn 200ms ease-out;
+  --animate-shimmer: shimmer 1.5s ease-in-out infinite;
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  @keyframes modalIn {
+    0% {
+      opacity: 0;
+      transform: scale(0.95) translateY(-10px);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  @keyframes toastIn {
+    0% {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
   }
 }
 
+/* inline: --font-montserrat la define next/font en <html>, asi que se
+   resuelve en tiempo de uso y no en :root. */
+@theme inline {
+  --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ========================================
+   PRIMITIVAS DE FORMULARIO Y SUPERFICIE
+   Inputs, labels y contenedores se repetian como la misma cadena de clases
+   en ~190 lugares. Como son elementos nativos (con ref, onChange, etc.), se
+   definen como utilidades en vez de envolverlos en componentes. Cada una
+   declara varias propiedades, asi que Tailwind v4 las ordena antes que las
+   utilidades simples: un `border-red-500` o `text-center` agregado en la
+   pagina sigue ganando.
+   ======================================== */
+
+/* Contenedor blanco estandar (tarjetas, tablas, formularios). El padding
+   queda afuera a proposito: cada pantalla usa el que necesita. */
+@utility card {
+  background-color: #fff;
+  border: 1px solid var(--color-gray-100);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+@utility field-label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  font-weight: 500;
+  color: var(--color-gray-700);
+}
+
+/* El tamano se controla con variables para que field-input-sm no compita
+   con field-input por las mismas propiedades. */
+@utility field-input {
+  width: 100%;
+  padding: var(--field-py, 0.5rem) var(--field-px, 0.75rem);
+  font-size: var(--field-fs, inherit);
+  background-color: #fff;
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-control);
+  transition-property: border-color, box-shadow;
+  transition-duration: 150ms;
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary-500) 25%, transparent);
+  }
+
+  &:disabled {
+    background-color: var(--color-gray-50);
+    color: var(--color-gray-600);
+    cursor: not-allowed;
+  }
+}
+
+@utility field-input-sm {
+  --field-py: 0.375rem;
+  --field-fs: var(--text-sm);
+}
+
+@utility field-checkbox {
+  border-radius: 0.25rem;
+  border-color: var(--color-gray-300);
+  accent-color: var(--color-primary-700);
+}
+
+/* Celda de cabecera de tabla. Alinea a la izquierda por defecto; las
+   columnas numericas o de acciones agregan text-center / text-right. */
+@utility table-th {
+  padding-inline: 1.5rem;
+  padding-block: 0.75rem;
+  text-align: left;
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-gray-500);
+}
+
+/* La app es solo modo claro: el fondo no cambia con prefers-color-scheme. */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-gray-50);
+  color: var(--color-gray-800);
   min-height: 100vh;
   overflow-x: hidden;
 }
@@ -32,127 +186,39 @@ html {
   overflow-x: hidden;
 }
 
-/* Estilos para select y opciones - Asegurar legibilidad */
-select {
-  color: #1f2937; /* gray-800 */
-  background-color: #ffffff;
-}
-
-select option {
-  color: #1f2937; /* gray-800 - texto oscuro para mejor legibilidad */
-  background-color: #ffffff;
-  padding: 8px 12px;
-}
-
-select option:hover,
-select option:focus,
-select option:checked {
-  background-color: #3b82f6; /* blue-500 */
-  color: #ffffff;
-}
-
-/* Placeholder option (primera opción vacía) */
-select option[value=""] {
-  color: #6b7280; /* gray-500 */
-}
-
-/* Asegurar que el select muestre texto oscuro cuando tiene valor */
-select:not(:invalid) {
-  color: #1f2937;
-}
-
-/* Input y textarea consistencia */
+/* Controles nativos: algunos navegadores en modo oscuro pintan select/option
+   con fondo oscuro aunque la app sea clara; se fija el esquema claro. */
 input,
 textarea,
 select {
-  color: #1f2937;
+  color: var(--color-gray-800);
+}
+
+select,
+select option {
+  background-color: #fff;
+}
+
+select option {
+  padding: 8px 12px;
+}
+
+select option:checked {
+  background-color: var(--color-primary-600);
+  color: #fff;
+}
+
+select option[value=""] {
+  color: var(--color-gray-500);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #9ca3af; /* gray-400 */
-}
-
-/* Asegurar contraste en tarjetas blancas */
-.bg-white {
-  color: #1f2937; /* gray-800 */
-}
-
-.bg-white p,
-.bg-white span,
-.bg-white h1,
-.bg-white h2,
-.bg-white h3,
-.bg-white h4,
-.bg-white td,
-.bg-white th {
-  color: inherit;
-}
-
-/* Labels grises con buen contraste */
-.text-gray-500 {
-  color: #6b7280 !important; /* gray-500 - visible */
-}
-
-/* Texto principal oscuro */
-.text-gray-900 {
-  color: #111827 !important; /* gray-900 - muy oscuro */
-}
-
-.font-medium:not([class*="text-"]) {
-  color: #1f2937; /* gray-800 */
+  color: var(--color-gray-400);
 }
 
 /* ========================================
-   UI COMPONENT ANIMATIONS
-   ======================================== */
-
-/* Skeleton shimmer animation */
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-/* Modal entrance animation */
-@keyframes modalIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.95) translateY(-10px);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-/* Toast entrance animation */
-@keyframes toastIn {
-  0% {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-/* Fade in animation */
-@keyframes fadeIn {
-  0% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-/* ========================================
-   ACCESSIBILITY - prefers-reduced-motion
+   ACCESIBILIDAD
    ======================================== */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -165,15 +231,11 @@ textarea::placeholder {
   }
 }
 
-/* ========================================
-   FOCUS VISIBLE IMPROVEMENTS
-   ======================================== */
 :focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--color-primary-600);
   outline-offset: 2px;
 }
 
-/* Remove default focus for mouse users */
 :focus:not(:focus-visible) {
   outline: none;
 }

@@ -9,6 +9,7 @@ import {
   Legend,
   PieLabelRenderProps,
 } from "recharts";
+import { COLOR_MARCA } from "@/lib/constants/coloresGraficos";
 
 interface EstadosChartProps {
   data: {
@@ -55,7 +56,7 @@ export function EstadosChart({ data }: EstadosChartProps) {
             return percent > 0.05 ? `${name} ${(percent * 100).toFixed(0)}%` : "";
           }}
           outerRadius={100}
-          fill="#8884d8"
+          fill={COLOR_MARCA.primario}
           dataKey="cantidad"
         >
           {formattedData.map((entry, index) => (

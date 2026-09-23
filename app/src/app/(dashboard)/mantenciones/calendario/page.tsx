@@ -3,19 +3,17 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Calendar,
-  Laptop,
-  Smartphone,
-  Monitor,
-  Package,
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MantencionesTabs } from "@/components/mantenciones";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
+import { CategoryIcon } from "@/components/activos/CategoryIcon";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 type Maintenance = {
   id: string;
@@ -36,7 +34,7 @@ type Maintenance = {
 
 const estadoColors: Record<string, string> = {
   pendiente: "bg-orange-100 border-orange-300 text-orange-800",
-  en_proceso: "bg-blue-100 border-blue-300 text-blue-800",
+  en_proceso: "bg-primary-100 border-primary-300 text-primary-900",
   completada: "bg-green-100 border-green-300 text-green-800",
   cancelada: "bg-gray-100 border-gray-300 text-gray-500",
 };
@@ -46,19 +44,6 @@ const MONTHS = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
 ];
-
-function getCategoryIcon(categoryName: string) {
-  switch (categoryName.toLowerCase()) {
-    case "notebook":
-      return <Laptop className="h-3 w-3" />;
-    case "celular":
-      return <Smartphone className="h-3 w-3" />;
-    case "monitor":
-      return <Monitor className="h-3 w-3" />;
-    default:
-      return <Package className="h-3 w-3" />;
-  }
-}
 
 export default function CalendarioMantencionesPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -176,32 +161,27 @@ export default function CalendarioMantencionesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/mantenciones"
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft size={20} />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Calendario de Mantenciones</h1>
-            <p className="text-gray-600">Vista mensual de mantenciones programadas</p>
-          </div>
-        </div>
-        <button
-          onClick={goToToday}
-          className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-        >
-          Hoy
-        </button>
-      </div>
+      <PageHeader
+        backHref="/mantenciones"
+        title="Calendario de Mantenciones"
+        description="Vista mensual de mantenciones programadas"
+        actions={
+          <>
+            <button
+              onClick={goToToday}
+              className={buttonClasses({ variant: "outline" })}
+            >
+              Hoy
+            </button>
+          </>
+        }
+      />
 
       <MantencionesTabs />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Calendar */}
-        <div className="lg:col-span-3 bg-white rounded-lg shadow p-6">
+        <div className="card lg:col-span-3 p-6">
           {/* Month Navigation */}
           <div className="flex items-center justify-between mb-6">
             <button
@@ -266,8 +246,8 @@ export default function CalendarioMantencionesPage() {
                         day.currentMonth
                           ? "bg-white hover:bg-gray-50"
                           : "bg-gray-50 text-gray-400",
-                        isToday && "border-blue-500 border-2",
-                        isSelected && "bg-blue-50 border-blue-500",
+                        isToday && "border-primary-500 border-2",
+                        isSelected && "bg-primary-50 border-primary-500",
                         hasOverdue && "bg-red-50"
                       )}
                     >
@@ -276,7 +256,7 @@ export default function CalendarioMantencionesPage() {
                           className={cn(
                             "text-sm font-medium",
                             isToday &&
-                              "bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center"
+                              "bg-primary-700 text-white w-6 h-6 rounded-full flex items-center justify-center"
                           )}
                         >
                           {day.day}
@@ -297,7 +277,7 @@ export default function CalendarioMantencionesPage() {
                             )}
                           >
                             <span className="inline-flex items-center gap-1">
-                              {getCategoryIcon(m.asset.categoria.nombre)}
+                              <CategoryIcon categoria={m.asset.categoria.nombre} className="h-3 w-3" />
                               {m.tipo.nombre}
                             </span>
                           </div>
@@ -317,7 +297,7 @@ export default function CalendarioMantencionesPage() {
         </div>
 
         {/* Sidebar - Selected Day Details */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h3 className="font-semibold mb-4">
             {selectedDay ? (
               <>
@@ -341,7 +321,7 @@ export default function CalendarioMantencionesPage() {
                     )}
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      {getCategoryIcon(m.asset.categoria.nombre)}
+                      <CategoryIcon categoria={m.asset.categoria.nombre} className="h-3 w-3" />
                       <span className="font-medium text-sm">
                         {m.tipo.nombre}
                       </span>
@@ -377,7 +357,7 @@ export default function CalendarioMantencionesPage() {
                 <span>Pendiente</span>
               </div>
               <div className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-3 rounded bg-blue-100 border border-blue-300"></div>
+                <div className="w-3 h-3 rounded bg-primary-100 border border-primary-300"></div>
                 <span>En Proceso</span>
               </div>
               <div className="flex items-center gap-2 text-xs">

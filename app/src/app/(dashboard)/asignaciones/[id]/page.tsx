@@ -7,10 +7,6 @@ import {
   // Se sigue usando en la seccion "Datos de Devolucion", que es solo
   // informativa (no hay boton para registrar una devolucion desde aca).
   Undo2,
-  Laptop,
-  Smartphone,
-  Monitor,
-  Package,
   User,
   Calendar,
   MapPin,
@@ -23,7 +19,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatearFecha } from "@/lib/utils/fechas";
+import { formatearFechaLarga, formatearFechaHoraCorta } from "@/lib/utils/fechas";
+import { CategoryIcon } from "@/components/activos/CategoryIcon";
 
 type Assignment = {
   id: string;
@@ -89,7 +86,7 @@ const tipoMovimientoLabels: Record<string, string> = {
 
 const tipoMovimientoColors: Record<string, string> = {
   ingreso: "bg-green-100 text-green-800",
-  cambio: "bg-blue-100 text-blue-800",
+  cambio: "bg-primary-100 text-primary-900",
   reemplazo: "bg-purple-100 text-purple-800",
   temporal: "bg-orange-100 text-orange-800",
 };
@@ -101,38 +98,6 @@ const estadoDevolucionInfo: Record<string, { label: string; className: string }>
   incompleto: { label: "Incompleto", className: "bg-amber-100 text-amber-800" },
   danado: { label: "Dañado", className: "bg-red-100 text-red-800" },
 };
-
-function getCategoryIcon(categoryName: string) {
-  switch (categoryName.toLowerCase()) {
-    case "notebook":
-      return <Laptop className="h-6 w-6" />;
-    case "celular":
-      return <Smartphone className="h-6 w-6" />;
-    case "monitor":
-      return <Monitor className="h-6 w-6" />;
-    default:
-      return <Package className="h-6 w-6" />;
-  }
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return formatearFecha(dateString, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
-
-function formatDateTime(dateString: string): string {
-  return new Date(dateString).toLocaleString("es-CL", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 export default function AsignacionDetailPage({
   params,
@@ -166,7 +131,7 @@ export default function AsignacionDetailPage({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary-700" />
       </div>
     );
   }
@@ -225,8 +190,8 @@ export default function AsignacionDetailPage({
             </p>
             <p className={cn("text-sm", assignment.activo ? "text-green-600" : "text-gray-600")}>
               {assignment.activo
-                ? `Desde ${formatDate(assignment.fechaEntrega)}`
-                : `Devuelto el ${formatDate(assignment.fechaDevolucion)}`}
+                ? `Desde ${formatearFechaLarga(assignment.fechaEntrega, "-")}`
+                : `Devuelto el ${formatearFechaLarga(assignment.fechaDevolucion, "-")}`}
             </p>
           </div>
         </div>
@@ -242,10 +207,10 @@ export default function AsignacionDetailPage({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Employee Info */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <User className="h-5 w-5 text-blue-600" />
+            <div className="p-2 bg-primary-100 rounded-lg">
+              <User className="h-5 w-5 text-primary-700" />
             </div>
             <h2 className="text-lg font-semibold">Datos del Empleado</h2>
           </div>
@@ -291,7 +256,7 @@ export default function AsignacionDetailPage({
 
             <Link
               href={`/empleados/${assignment.employee.id}`}
-              className="block text-center text-sm text-blue-600 hover:underline pt-2"
+              className="block text-center text-sm text-primary-700 hover:underline pt-2"
             >
               Ver ficha completa del empleado →
             </Link>
@@ -299,10 +264,10 @@ export default function AsignacionDetailPage({
         </div>
 
         {/* Asset Info */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-purple-100 rounded-lg">
-              {getCategoryIcon(assignment.asset.categoria.nombre)}
+              <CategoryIcon categoria={assignment.asset.categoria.nombre} className="h-6 w-6" />
             </div>
             <h2 className="text-lg font-semibold">Datos del Equipo</h2>
           </div>
@@ -326,7 +291,7 @@ export default function AsignacionDetailPage({
                   className={cn(
                     "inline-block px-2 py-1 text-xs font-medium rounded-full mt-1",
                     assignment.asset.estado === "asignado"
-                      ? "bg-blue-100 text-blue-800"
+                      ? "bg-primary-100 text-primary-900"
                       : assignment.asset.estado === "disponible"
                       ? "bg-green-100 text-green-800"
                       : "bg-gray-100 text-gray-800"
@@ -400,7 +365,7 @@ export default function AsignacionDetailPage({
         </div>
 
         {/* Delivery Info */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-green-100 rounded-lg">
               <Calendar className="h-5 w-5 text-green-600" />
@@ -411,7 +376,7 @@ export default function AsignacionDetailPage({
           <div className="space-y-3">
             <div className="flex justify-between py-2 border-b">
               <span className="text-gray-500">Fecha de entrega</span>
-              <span className="font-medium">{formatDate(assignment.fechaEntrega)}</span>
+              <span className="font-medium">{formatearFechaLarga(assignment.fechaEntrega, "-")}</span>
             </div>
             <div className="flex justify-between py-2 border-b">
               <span className="text-gray-500">Lugar de entrega</span>
@@ -443,7 +408,7 @@ export default function AsignacionDetailPage({
 
         {/* Return Info (if returned) */}
         {!assignment.activo && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-orange-100 rounded-lg">
                 <Undo2 className="h-5 w-5 text-orange-600" />
@@ -454,7 +419,7 @@ export default function AsignacionDetailPage({
             <div className="space-y-3">
               <div className="flex justify-between py-2 border-b">
                 <span className="text-gray-500">Fecha de devolución</span>
-                <span className="font-medium">{formatDate(assignment.fechaDevolucion)}</span>
+                <span className="font-medium">{formatearFechaLarga(assignment.fechaDevolucion, "-")}</span>
               </div>
               <div className="flex justify-between py-2 border-b">
                 <span className="text-gray-500">Recibido por</span>
@@ -487,7 +452,7 @@ export default function AsignacionDetailPage({
 
       {/* Asset History */}
       {assignment.asset.history && assignment.asset.history.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-gray-100 rounded-lg">
               <History className="h-5 w-5 text-gray-600" />
@@ -503,7 +468,7 @@ export default function AsignacionDetailPage({
                     className={cn(
                       "w-3 h-3 rounded-full",
                       event.tipoEvento === "asignacion"
-                        ? "bg-blue-500"
+                        ? "bg-primary-500"
                         : event.tipoEvento === "devolucion"
                         ? "bg-orange-500"
                         : "bg-gray-400"
@@ -516,7 +481,7 @@ export default function AsignacionDetailPage({
                 <div className="flex-1 pb-4">
                   <p className="text-sm font-medium">{event.descripcion}</p>
                   <p className="text-xs text-gray-500">
-                    {formatDateTime(event.createdAt)}
+                    {formatearFechaHoraCorta(event.createdAt, "-")}
                     {event.usuarioSistema && ` • ${event.usuarioSistema}`}
                   </p>
                 </div>
@@ -528,8 +493,8 @@ export default function AsignacionDetailPage({
 
       {/* Timestamps */}
       <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-500">
-        <p>Registro creado: {formatDateTime(assignment.createdAt)}</p>
-        <p>Última actualización: {formatDateTime(assignment.updatedAt)}</p>
+        <p>Registro creado: {formatearFechaHoraCorta(assignment.createdAt, "-")}</p>
+        <p>Última actualización: {formatearFechaHoraCorta(assignment.updatedAt, "-")}</p>
       </div>
     </div>
   );

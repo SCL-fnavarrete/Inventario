@@ -5,8 +5,10 @@ import type { SesionAutenticada } from "@/lib/auth/guard";
 import { sedeWhere } from "@/lib/auth/sedeScope";
 
 import Link from "next/link";
-import { ArrowLeft, FileSpreadsheet, AlertTriangle, Calendar, Monitor } from "lucide-react";
+import { FileSpreadsheet, AlertTriangle, Calendar, Monitor } from "lucide-react";
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatCard, StatGrid } from "@/components/ui/StatCard";
 
 async function getActivosObsoletos(session: SesionAutenticada) {
   const cincoAnosAtras = new Date();
@@ -20,8 +22,7 @@ async function getActivosObsoletos(session: SesionAutenticada) {
       OR: [
         { sistemaOperativo: { contains: "Windows 10", mode: "insensitive" } },
         { fechaCompra: { lt: cincoAnosAtras } },
-      ],
-    },
+      ] },
     include: {
       categoria: true,
       assignments: {
@@ -70,48 +71,29 @@ export default async function ReporteObsoletosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/reportes"
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5 text-gray-600" />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Equipos Obsoletos</h1>
-            <p className="text-gray-600">
-              Activos con Windows 10 o más de 5 años de antigüedad
-            </p>
-          </div>
-        </div>
-        <a
-          href="/api/reportes/obsoletos/excel"
-          className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-        >
-          <FileSpreadsheet className="h-4 w-4" />
-          Exportar Excel
-        </a>
-      </div>
+      <PageHeader
+        backHref="/reportes"
+        title="Equipos Obsoletos"
+        description="Activos con Windows 10 o más de 5 años de antigüedad"
+        actions={
+          <>
+            <a
+              href="/api/reportes/obsoletos/excel"
+              className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Exportar Excel
+            </a>
+          </>
+        }
+      />
 
       {/* Resumen */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-yellow-50 rounded-lg shadow p-4 text-center">
-          <AlertTriangle className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-yellow-700">{activos.length}</p>
-          <p className="text-sm text-yellow-600">Total Obsoletos</p>
-        </div>
-        <div className="bg-orange-50 rounded-lg shadow p-4 text-center">
-          <Monitor className="h-8 w-8 text-orange-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-orange-700">{windows10.length}</p>
-          <p className="text-sm text-orange-600">Con Windows 10</p>
-        </div>
-        <div className="bg-red-50 rounded-lg shadow p-4 text-center">
-          <Calendar className="h-8 w-8 text-red-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-red-700">{antiguos.length}</p>
-          <p className="text-sm text-red-600">Más de 5 años</p>
-        </div>
-      </div>
+      <StatGrid cols={3}>
+        <StatCard variant="soft" tone="warning" icon={AlertTriangle} label="Total Obsoletos" value={activos.length} />
+        <StatCard variant="soft" tone="orange" icon={Monitor} label="Con Windows 10" value={windows10.length} />
+        <StatCard variant="soft" tone="danger" icon={Calendar} label="Más de 5 años" value={antiguos.length} />
+      </StatGrid>
 
       {/* Alerta */}
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -131,7 +113,7 @@ export default async function ReporteObsoletosPage() {
       </div>
 
       {/* Tabla de Equipos */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="px-6 py-4 border-b">
           <h2 className="text-lg font-semibold text-gray-900">
             Listado de Equipos Obsoletos
@@ -141,28 +123,28 @@ export default async function ReporteObsoletosPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Categoría
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Nº Serie
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Marca/Modelo
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Sistema Operativo
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Fecha Compra
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Antigüedad
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Asignado a
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Motivo
                 </th>
               </tr>
@@ -183,7 +165,7 @@ export default async function ReporteObsoletosPage() {
                     <td className="px-4 py-3 text-sm font-mono text-gray-900">
                       <Link
                         href={`/activos/${activo.id}`}
-                        className="text-blue-600 hover:underline"
+                        className="text-primary-700 hover:underline"
                       >
                         {activo.numeroSerie || "-"}
                       </Link>
@@ -257,7 +239,7 @@ export default async function ReporteObsoletosPage() {
       </div>
 
       {/* Recomendaciones */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           Recomendaciones
         </h2>

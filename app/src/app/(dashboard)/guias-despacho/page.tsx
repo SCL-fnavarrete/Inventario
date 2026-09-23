@@ -8,6 +8,8 @@ import { ESTADO_GUIA_LABELS, type DispatchGuideListItem } from "@/types/guia-des
 import { Can } from "@/components/auth/Can";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default function GuiasDespachoPage() {
   const [guides, setGuides] = useState<DispatchGuideListItem[]>([]);
@@ -76,24 +78,26 @@ export default function GuiasDespachoPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Guías de Despacho</h1>
-          <p className="text-gray-600">Gestiona el despacho de equipos</p>
-        </div>
-        <Can recurso="guias">
-          <Link
-            href="/guias-despacho/nueva"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={20} />
-            Nueva Guía
-          </Link>
-        </Can>
-      </div>
+      <PageHeader
+        title="Guías de Despacho"
+        description="Gestiona el despacho de equipos"
+        actions={
+          <>
+            <Can recurso="guias">
+              <Link
+                href="/guias-despacho/nueva"
+                className={buttonClasses()}
+              >
+                <Plus size={20} />
+                Nueva Guía
+              </Link>
+            </Can>
+          </>
+        }
+      />
 
       {/* Filtros */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="card p-4">
         <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
@@ -102,7 +106,7 @@ export default function GuiasDespachoPage() {
               placeholder="Buscar por número, OT Chilexpress o receptor..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="field-input pl-10 pr-4"
             />
           </div>
           <div className="flex gap-2">
@@ -112,7 +116,7 @@ export default function GuiasDespachoPage() {
                 setEstadoFilter(e.target.value);
                 setPage(1);
               }}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
             >
               <option value="all">Todos los estados</option>
               {Object.entries(ESTADO_GUIA_LABELS).map(([value, label]) => (
@@ -134,7 +138,7 @@ export default function GuiasDespachoPage() {
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className={buttonClasses({ variant: "outline" })}
           >
             Anterior
           </button>
@@ -144,7 +148,7 @@ export default function GuiasDespachoPage() {
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className={buttonClasses({ variant: "outline" })}
           >
             Siguiente
           </button>

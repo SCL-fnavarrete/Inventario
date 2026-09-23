@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
-  ArrowLeft,
   Save,
   Loader2,
   FileText,
@@ -19,6 +18,8 @@ import {
 } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 type Sede = {
   id: string;
@@ -414,24 +415,17 @@ export default function NuevaCompraPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          href="/compras"
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <ArrowLeft size={24} />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Nueva Compra</h1>
-          <p className="text-gray-600">Registrar factura y vincular activos</p>
-        </div>
-      </div>
+      <PageHeader
+        backHref="/compras"
+        title="Nueva Compra"
+        description="Registrar factura y vincular activos"
+      />
 
       <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Datos de la factura */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <FileText className="h-5 w-5 text-gray-400" />
             Datos de la Factura
@@ -440,7 +434,7 @@ export default function NuevaCompraPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Sede */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 Sede <span className="text-red-500">*</span>
               </label>
               <select
@@ -456,7 +450,7 @@ export default function NuevaCompraPage() {
                 }}
                 required
                 disabled={!esAdminSede}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
+                className="field-input"
               >
                 <option value="" disabled>
                   Selecciona una sede...
@@ -476,7 +470,7 @@ export default function NuevaCompraPage() {
 
             {/* Número de Factura */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 N° Factura <span className="text-red-500">*</span>
               </label>
               <input
@@ -485,13 +479,13 @@ export default function NuevaCompraPage() {
                 onChange={(e) => setFormData({ ...formData, numeroFactura: e.target.value })}
                 required
                 placeholder="Ej: F-00123456"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
               />
             </div>
 
             {/* Fecha Factura */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 Fecha Factura <span className="text-red-500">*</span>
               </label>
               <input
@@ -499,13 +493,13 @@ export default function NuevaCompraPage() {
                 value={formData.fechaFactura}
                 onChange={(e) => setFormData({ ...formData, fechaFactura: e.target.value })}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
               />
             </div>
 
             {/* Orden de Compra */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 Orden de Compra
               </label>
               <input
@@ -513,13 +507,13 @@ export default function NuevaCompraPage() {
                 value={formData.ordenCompra}
                 onChange={(e) => setFormData({ ...formData, ordenCompra: e.target.value })}
                 placeholder="Ej: OC-2024-001"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
               />
             </div>
 
             {/* RUT Proveedor */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 RUT del Proveedor
               </label>
               <input
@@ -527,14 +521,14 @@ export default function NuevaCompraPage() {
                 value={formData.rutProveedor}
                 onChange={(e) => setFormData({ ...formData, rutProveedor: e.target.value })}
                 placeholder="Ej: 76.123.456-7"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
               />
             </div>
           </div>
         </div>
 
         {/* Vincular Activos */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
               <Package className="h-5 w-5 text-gray-400" />
@@ -549,7 +543,7 @@ export default function NuevaCompraPage() {
                 }}
                 disabled={!formData.sedeId}
                 title={!formData.sedeId ? "Primero elige la sede de la compra" : undefined}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus size={16} />
                 Buscar Existente
@@ -593,7 +587,7 @@ export default function NuevaCompraPage() {
                       setNewAssetForm({ ...newAssetForm, categoriaId: e.target.value })
                     }
                     required
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="field-input field-input-sm"
                   >
                     <option value="" disabled>
                       Selecciona una categoría...
@@ -616,7 +610,7 @@ export default function NuevaCompraPage() {
                       setNewAssetForm({ ...newAssetForm, numeroSerie: e.target.value })
                     }
                     placeholder="Opcional"
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="field-input field-input-sm"
                   />
                 </div>
                 <div>
@@ -628,7 +622,7 @@ export default function NuevaCompraPage() {
                     value={newAssetForm.marca}
                     onChange={(e) => setNewAssetForm({ ...newAssetForm, marca: e.target.value })}
                     required
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="field-input field-input-sm"
                   />
                 </div>
                 <div>
@@ -640,7 +634,7 @@ export default function NuevaCompraPage() {
                     value={newAssetForm.modelo}
                     onChange={(e) => setNewAssetForm({ ...newAssetForm, modelo: e.target.value })}
                     required
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="field-input field-input-sm"
                   />
                 </div>
               </div>
@@ -658,7 +652,7 @@ export default function NuevaCompraPage() {
                         value={newAssetForm.procesador}
                         onChange={handleNewAssetChange}
                         placeholder="ej: Intel Core i7-1165G7"
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="field-input field-input-sm"
                       />
                     </div>
                     <div>
@@ -669,7 +663,7 @@ export default function NuevaCompraPage() {
                         value={newAssetForm.ram}
                         onChange={handleNewAssetChange}
                         placeholder="ej: 16GB"
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="field-input field-input-sm"
                       />
                     </div>
                     <div>
@@ -680,7 +674,7 @@ export default function NuevaCompraPage() {
                         value={newAssetForm.almacenamiento}
                         onChange={handleNewAssetChange}
                         placeholder="ej: 512GB SSD"
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="field-input field-input-sm"
                       />
                     </div>
                     <div>
@@ -691,7 +685,7 @@ export default function NuevaCompraPage() {
                         value={newAssetForm.sistemaOperativo}
                         onChange={handleNewAssetChange}
                         placeholder="ej: Windows 11 Pro"
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="field-input field-input-sm"
                       />
                     </div>
                     <div>
@@ -702,7 +696,7 @@ export default function NuevaCompraPage() {
                         value={newAssetForm.antivirus}
                         onChange={handleNewAssetChange}
                         placeholder="ej: Windows Defender"
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="field-input field-input-sm"
                       />
                     </div>
                     <div>
@@ -713,7 +707,7 @@ export default function NuevaCompraPage() {
                         value={newAssetForm.tipoLicenciaMicrosoft365}
                         onChange={handleNewAssetChange}
                         placeholder="ej: Premium (vacío si no tiene)"
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="field-input field-input-sm"
                       />
                     </div>
                   </div>
@@ -731,7 +725,7 @@ export default function NuevaCompraPage() {
                         name="imei"
                         value={newAssetForm.imei}
                         onChange={handleNewAssetChange}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="field-input field-input-sm"
                       />
                     </div>
                     <div>
@@ -741,7 +735,7 @@ export default function NuevaCompraPage() {
                         name="numeroTelefono"
                         value={newAssetForm.numeroTelefono}
                         onChange={handleNewAssetChange}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="field-input field-input-sm"
                       />
                     </div>
                     <div>
@@ -752,7 +746,7 @@ export default function NuevaCompraPage() {
                         value={newAssetForm.almacenamiento}
                         onChange={handleNewAssetChange}
                         placeholder="ej: 128GB"
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="field-input field-input-sm"
                       />
                     </div>
                   </div>
@@ -771,7 +765,7 @@ export default function NuevaCompraPage() {
                         value={newAssetForm.pulgadas}
                         onChange={handleNewAssetChange}
                         placeholder="ej: 24"
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="field-input field-input-sm"
                       />
                     </div>
                   </div>
@@ -790,7 +784,7 @@ export default function NuevaCompraPage() {
                         name="conectividad"
                         value={newAssetForm.conectividad}
                         onChange={handleNewAssetChange}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="field-input field-input-sm"
                       >
                         <option value="">Seleccionar conectividad</option>
                         <option value="usb">USB</option>
@@ -812,7 +806,7 @@ export default function NuevaCompraPage() {
                     setShowNewAssetForm(false);
                     setNewAssetError(null);
                   }}
-                  className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  className={buttonClasses({ variant: "outline", size: "sm" })}
                 >
                   Cancelar
                 </button>
@@ -844,7 +838,7 @@ export default function NuevaCompraPage() {
                   onChange={(e) => setAssetSearch(e.target.value)}
                   placeholder="Buscar activo por serie, marca, modelo..."
                   autoFocus
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="field-input pl-10 pr-4"
                 />
                 <button
                   type="button"
@@ -882,7 +876,7 @@ export default function NuevaCompraPage() {
                           {asset.categoria.nombre} • {asset.numeroSerie || "Sin serie"}
                         </p>
                       </div>
-                      <Plus size={18} className="text-blue-600" />
+                      <Plus size={18} className="text-primary-700" />
                     </button>
                   ))}
                 </div>
@@ -941,7 +935,7 @@ export default function NuevaCompraPage() {
 
         {/* Kit/EPP items: pick a catalog item and quantity, added to the
             sede's stock when the purchase is saved. */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
               <Shirt className="h-5 w-5 text-gray-400" />
@@ -952,7 +946,7 @@ export default function NuevaCompraPage() {
               onClick={() => setShowKitItemPicker((v) => !v)}
               disabled={!formData.sedeId}
               title={!formData.sedeId ? "Primero elige la sede de la compra" : undefined}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus size={16} />
               Agregar Artículo
@@ -973,7 +967,7 @@ export default function NuevaCompraPage() {
                 <select
                   value={kitItemToAdd}
                   onChange={(e) => setKitItemToAdd(e.target.value)}
-                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="field-input field-input-sm"
                 >
                   <option value="">Selecciona un artículo...</option>
                   {kitItemsCatalogo.map((item) => (
@@ -995,14 +989,14 @@ export default function NuevaCompraPage() {
                   min={1}
                   value={kitItemCantidad}
                   onChange={(e) => setKitItemCantidad(e.target.value)}
-                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="field-input field-input-sm"
                 />
               </div>
               <button
                 type="button"
                 onClick={addKitItem}
                 disabled={!kitItemToAdd}
-                className="flex items-center justify-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className={buttonClasses({ size: "sm" })}
               >
                 <Plus size={16} />
                 Agregar
@@ -1061,14 +1055,14 @@ export default function NuevaCompraPage() {
           )}
           <Link
             href="/compras"
-            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            className={buttonClasses({ variant: "outline", className: "px-6" })}
           >
             Cancelar
           </Link>
           <button
             type="submit"
             disabled={saving || !formData.numeroFactura || !formData.sedeId || sinLineas}
-            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className={buttonClasses({ className: "px-6" })}
           >
             {saving ? (
               <>

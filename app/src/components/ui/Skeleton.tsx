@@ -19,7 +19,7 @@ const baseStyles = `
 `;
 
 const animationStyles = `
-  animate-[shimmer_1.5s_ease-in-out_infinite]
+  animate-shimmer
   motion-reduce:animate-none
   motion-reduce:bg-gray-200
 `;

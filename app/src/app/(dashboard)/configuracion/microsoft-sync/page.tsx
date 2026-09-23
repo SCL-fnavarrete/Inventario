@@ -1,9 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import {
-  ArrowLeft,
   Cloud,
   RefreshCw,
   CheckCircle,
@@ -15,6 +13,7 @@ import {
 } from 'lucide-react';
 import { parseApiError, type FieldErrors } from '@/lib/utils/apiErrors';
 import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 interface SyncStatus {
   configured: boolean;
@@ -98,23 +97,14 @@ export default function MicrosoftSyncPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          href="/configuracion"
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Microsoft Sync</h1>
-          <p className="text-gray-600 mt-1">
-            Sincronización de empleados desde Microsoft Entra ID
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        backHref="/configuracion"
+        title="Microsoft Sync"
+        description="Sincronización de empleados desde Microsoft Entra ID"
+      />
 
       {/* Estado de configuracion */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="card p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <Cloud size={20} className="text-sky-500" />
@@ -177,7 +167,7 @@ export default function MicrosoftSyncPage() {
       </div>
 
       {/* Boton de sincronizacion */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Sincronizar Empleados</h2>
         <p className="text-gray-600 text-sm mb-4">
           Sincroniza los empleados desde Microsoft Entra ID. Los nuevos usuarios se crean
@@ -232,7 +222,7 @@ export default function MicrosoftSyncPage() {
 
       {/* Resultado de sincronizacion */}
       {result && (
-        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <div className="card p-6 space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Resultado de Sincronización</h2>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -240,9 +230,9 @@ export default function MicrosoftSyncPage() {
               <p className="text-2xl font-bold text-green-700">{result.creados}</p>
               <p className="text-sm text-green-600">Creados</p>
             </div>
-            <div className="bg-blue-50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold text-blue-700">{result.actualizados}</p>
-              <p className="text-sm text-blue-600">Actualizados</p>
+            <div className="bg-primary-50 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-primary-800">{result.actualizados}</p>
+              <p className="text-sm text-primary-700">Actualizados</p>
             </div>
             <div className="bg-orange-50 rounded-lg p-3 text-center">
               <p className="text-2xl font-bold text-orange-700">{result.desactivados}</p>
@@ -293,7 +283,7 @@ export default function MicrosoftSyncPage() {
       )}
 
       {/* Instrucciones de configuracion */}
-      <div className="bg-white rounded-lg shadow">
+      <div className="card">
         <button
           onClick={() => setShowInstructions(!showInstructions)}
           className="w-full flex items-center justify-between p-6 text-left"

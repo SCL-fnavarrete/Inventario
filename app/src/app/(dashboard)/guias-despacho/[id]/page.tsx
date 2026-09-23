@@ -11,9 +11,6 @@ import {
   User,
   Calendar,
   FileText,
-  Laptop,
-  Smartphone,
-  Monitor,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
@@ -25,40 +22,9 @@ import {
   type DispatchGuideDetail,
 } from "@/types/guia-despacho";
 import { EstadoGuia } from "@prisma/client";
-import { formatearFecha } from "@/lib/utils/fechas";
-
-function formatDate(date: Date | string | null): string {
-  if (!date) return "-";
-  return formatearFecha(date, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
-
-function formatDateTime(date: Date | string | null): string {
-  if (!date) return "-";
-  return new Date(date).toLocaleString("es-CL", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function getCategoryIcon(categoryName: string) {
-  switch (categoryName.toLowerCase()) {
-    case "notebook":
-      return <Laptop className="h-5 w-5" />;
-    case "celular":
-      return <Smartphone className="h-5 w-5" />;
-    case "monitor":
-      return <Monitor className="h-5 w-5" />;
-    default:
-      return <Package className="h-5 w-5" />;
-  }
-}
+import { formatearFechaLarga, formatearFechaHoraCorta } from "@/lib/utils/fechas";
+import { CategoryIcon } from "@/components/activos/CategoryIcon";
+import { buttonClasses } from "@/components/ui/buttonStyles";
 
 export default function GuiaDespachoDetailPage({
   params,
@@ -153,7 +119,7 @@ export default function GuiaDespachoDetailPage({
         )}
         <Link
           href="/guias-despacho"
-          className="mt-4 inline-block text-blue-600 hover:text-blue-800"
+          className="mt-4 inline-block text-primary-700 hover:text-primary-900"
         >
           Volver al listado
         </Link>
@@ -193,7 +159,7 @@ export default function GuiaDespachoDetailPage({
               </span>
             </div>
             <p className="text-gray-600">
-              Creada el {formatDateTime(guide.createdAt)}
+              Creada el {formatearFechaHoraCorta(guide.createdAt, "-")}
             </p>
           </div>
         </div>
@@ -209,8 +175,8 @@ export default function GuiaDespachoDetailPage({
           -- los equipos ya quedaron disponibles en la sede destino al
           crear la guía. La guía no se puede anular. */}
       {guide.estado === EstadoGuia.despachado && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-blue-800 mb-3">
+        <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
+          <p className="text-primary-900 mb-3">
             ¿Ya llegó el paquete a {guide.sedeDestino.nombre}? Los equipos ya
             están disponibles ahí; confirma la recepción cuando lo tengas en tus manos.
           </p>
@@ -222,7 +188,7 @@ export default function GuiaDespachoDetailPage({
               Confirmar Recepción
             </button>
           ) : (
-            <p className="text-sm text-blue-700 italic">
+            <p className="text-sm text-primary-800 italic">
               Solo un técnico de {guide.sedeDestino.nombre} puede confirmar la recepción.
             </p>
           )}
@@ -231,9 +197,9 @@ export default function GuiaDespachoDetailPage({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Datos del Despacho */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <MapPin className="text-blue-600" size={20} />
+            <MapPin className="text-primary-700" size={20} />
             Datos del Despacho
           </h2>
           <dl className="space-y-3">
@@ -256,19 +222,19 @@ export default function GuiaDespachoDetailPage({
             </div>
             <div>
               <dt className="text-sm text-gray-500">Fecha de envío</dt>
-              <dd className="font-medium">{formatDateTime(guide.fechaDespacho)}</dd>
+              <dd className="font-medium">{formatearFechaHoraCorta(guide.fechaDespacho, "-")}</dd>
             </div>
             <div>
               <dt className="text-sm text-gray-500">Fecha estimada de llegada</dt>
-              <dd className="font-medium">{formatDate(guide.fechaEstimadaLlegada)}</dd>
+              <dd className="font-medium">{formatearFechaLarga(guide.fechaEstimadaLlegada, "-")}</dd>
             </div>
           </dl>
         </div>
 
         {/* Datos del Receptor */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <User className="text-blue-600" size={20} />
+            <User className="text-primary-700" size={20} />
             Receptor
           </h2>
           <dl className="space-y-3">
@@ -284,9 +250,9 @@ export default function GuiaDespachoDetailPage({
         </div>
 
         {/* Estado y Recepción */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Calendar className="text-blue-600" size={20} />
+            <Calendar className="text-primary-700" size={20} />
             Estado y Recepción
           </h2>
           <dl className="space-y-3">
@@ -306,7 +272,7 @@ export default function GuiaDespachoDetailPage({
             {guide.fechaRecepcion && (
               <div>
                 <dt className="text-sm text-gray-500">Fecha de Recepción</dt>
-                <dd className="font-medium">{formatDateTime(guide.fechaRecepcion)}</dd>
+                <dd className="font-medium">{formatearFechaHoraCorta(guide.fechaRecepcion, "-")}</dd>
               </div>
             )}
             {guide.recibidoPor && (
@@ -321,9 +287,9 @@ export default function GuiaDespachoDetailPage({
 
       {/* Observaciones */}
       {guide.observaciones && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <FileText className="text-blue-600" size={20} />
+            <FileText className="text-primary-700" size={20} />
             Observaciones
           </h2>
           <p className="text-gray-700 whitespace-pre-wrap">{guide.observaciones}</p>
@@ -331,28 +297,28 @@ export default function GuiaDespachoDetailPage({
       )}
 
       {/* Detalle de Equipos */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="card p-6">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Package className="text-blue-600" size={20} />
+          <Package className="text-primary-700" size={20} />
           Equipos ({guide.items.length})
         </h2>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Tipo
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Marca / Modelo
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   N° Serie
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   IMEI
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Especificaciones
                 </th>
               </tr>
@@ -370,7 +336,7 @@ export default function GuiaDespachoDetailPage({
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="p-1.5 bg-gray-100 rounded">
-                          {getCategoryIcon(asset.categoria.nombre)}
+                          <CategoryIcon categoria={asset.categoria.nombre} className="h-5 w-5" />
                         </div>
                         <span className="text-sm">{asset.categoria.nombre}</span>
                       </div>
@@ -409,7 +375,7 @@ export default function GuiaDespachoDetailPage({
             )}
             <div className="space-y-4 mb-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="field-label">
                   Recibido por <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -423,7 +389,7 @@ export default function GuiaDespachoDetailPage({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="field-label">
                   Fecha de Recepción
                 </label>
                 <input
@@ -439,7 +405,7 @@ export default function GuiaDespachoDetailPage({
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setShowConfirmModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className={buttonClasses({ variant: "outline" })}
               >
                 Cancelar
               </button>

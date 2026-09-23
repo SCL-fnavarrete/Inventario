@@ -5,22 +5,7 @@ import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { formatearFecha } from "@/lib/utils/fechas";
-
-// Mapeo de estados para mostrar en español
-const ESTADO_LABELS: Record<string, string> = {
-  disponible: "Disponible",
-  asignado: "Asignado",
-  en_mantencion: "En Mantención",
-  no_devuelto: "No devuelto",
-  baja: "Baja",
-  vendido: "Vendido",
-};
-
-const CONDICION_LABELS: Record<string, string> = {
-  nuevo: "Nuevo",
-  usado: "Usado",
-  danado: "Dañado",
-};
+import { CONDICION_ACTIVO_LABEL, ESTADO_ACTIVO_LABEL } from "@/lib/constants/estadosActivo";
 
 // Grupos de columnas y su color de encabezado. Se usa exceljs en vez de
 // xlsx (SheetJS CE) porque esta ultima no persiste estilos de celda.
@@ -264,8 +249,8 @@ export async function GET(request: NextRequest) {
         numeroActivacion: asset.numeroActivacion || "",
         tipoPlan: asset.tipoPlan || "",
         sede: asset.sede?.nombre || "",
-        estado: ESTADO_LABELS[asset.estado] || asset.estado,
-        condicion: CONDICION_LABELS[asset.condicion] || asset.condicion,
+        estado: ESTADO_ACTIVO_LABEL[asset.estado] || asset.estado,
+        condicion: CONDICION_ACTIVO_LABEL[asset.condicion] || asset.condicion,
         ubicacionFisica: asset.ubicacionFisica || "",
         asignadoA: asset.empleadoActual
           ? `${asset.empleadoActual.nombres} ${asset.empleadoActual.apellidoPaterno}`
@@ -307,19 +292,19 @@ export async function GET(request: NextRequest) {
     // Hoja de Resumen (siempre primero): conteo por Sede y Estado, para ver
     // de un vistazo el total sin armar una tabla dinamica en Excel.
     const sedesUnicas = [...new Set(assets.map((a) => a.sede?.nombre || "(sin sede)"))].sort();
-    const estadosUnicos = Object.values(ESTADO_LABELS);
+    const estadosUnicos = Object.values(ESTADO_ACTIVO_LABEL);
     const resumenFilas = sedesUnicas.map((nombreSede) => {
       const activosDeLaSede = assets.filter((a) => (a.sede?.nombre || "(sin sede)") === nombreSede);
       const fila: Record<string, string | number> = { sede: nombreSede, total: activosDeLaSede.length };
       for (const estadoLabel of estadosUnicos) {
-        const claveEstado = Object.entries(ESTADO_LABELS).find(([, v]) => v === estadoLabel)?.[0];
+        const claveEstado = Object.entries(ESTADO_ACTIVO_LABEL).find(([, v]) => v === estadoLabel)?.[0];
         fila[estadoLabel] = activosDeLaSede.filter((a) => a.estado === claveEstado).length;
       }
       return fila;
     });
     const totalGeneral: Record<string, string | number> = { sede: "TOTAL", total: assets.length };
     for (const estadoLabel of estadosUnicos) {
-      const claveEstado = Object.entries(ESTADO_LABELS).find(([, v]) => v === estadoLabel)?.[0];
+      const claveEstado = Object.entries(ESTADO_ACTIVO_LABEL).find(([, v]) => v === estadoLabel)?.[0];
       totalGeneral[estadoLabel] = assets.filter((a) => a.estado === claveEstado).length;
     }
     resumenFilas.push(totalGeneral);

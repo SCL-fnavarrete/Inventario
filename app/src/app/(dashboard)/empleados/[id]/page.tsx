@@ -24,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 import { formatearFecha } from "@/lib/utils/fechas";
+import { buttonClasses } from "@/components/ui/buttonStyles";
 
 type NotebookAsignado = {
   asignacionId: string;
@@ -139,11 +140,6 @@ const tipoContratoLabels: Record<TipoContrato, string> = {
   boleta: "Boleta",
 };
 
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return formatearFecha(dateString);
-}
-
 export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [ficha, setFicha] = useState<Ficha | null>(null);
@@ -218,7 +214,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
         </div>
         <Link
           href={`/empleados/${id}/editar`}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className={buttonClasses()}
         >
           <Edit size={20} />
           <span>Editar</span>
@@ -226,15 +222,15 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Ficha Azul - Datos del Empleado */}
-      <div className="bg-blue-600 rounded-lg shadow-lg text-white p-6">
+      <div className="bg-primary-700 rounded-lg shadow-lg text-white p-6">
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center">
+            <div className="w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center">
               <User size={32} />
             </div>
             <div>
               <h2 className="text-2xl font-bold">{ficha.empleado.nombreCompleto}</h2>
-              <p className="text-blue-200 font-mono">
+              <p className="text-primary-200 font-mono">
                 {ficha.empleado.rut || "Sin RUT"}
                 {ficha.empleado.origenMicrosoft && (
                   <span className="ml-2 inline-flex items-center text-[10px] bg-sky-500/20 text-sky-200 px-1.5 py-0.5 rounded">
@@ -254,44 +250,44 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="flex items-center gap-2">
-            <Mail size={18} className="text-blue-300" />
+            <Mail size={18} className="text-primary-300" />
             <span>{ficha.empleado.correoPersonal}</span>
           </div>
           {ficha.empleado.correoEmpresa && (
             <div className="flex items-center gap-2">
-              <Mail size={18} className="text-blue-300" />
+              <Mail size={18} className="text-primary-300" />
               <span>{ficha.empleado.correoEmpresa} (empresa)</span>
             </div>
           )}
           {ficha.empleado.telefonoContacto && (
             <div className="flex items-center gap-2">
-              <Phone size={18} className="text-blue-300" />
+              <Phone size={18} className="text-primary-300" />
               <span>{ficha.empleado.telefonoContacto}</span>
             </div>
           )}
           {ficha.empleado.cargo && (
             <div className="flex items-center gap-2">
-              <Briefcase size={18} className="text-blue-300" />
+              <Briefcase size={18} className="text-primary-300" />
               <span>{ficha.empleado.cargo}</span>
             </div>
           )}
           {ficha.empleado.ubicacion && (
             <div className="flex items-center gap-2">
-              <MapPin size={18} className="text-blue-300" />
+              <MapPin size={18} className="text-primary-300" />
               <span>{ficha.empleado.ubicacion}</span>
             </div>
           )}
           {ficha.empleado.jefatura && (
             <div className="flex items-center gap-2">
-              <Building size={18} className="text-blue-300" />
+              <Building size={18} className="text-primary-300" />
               <span>Jefe: {ficha.empleado.jefatura}</span>
             </div>
           )}
           <div className="flex items-center gap-2">
-            <Calendar size={18} className="text-blue-300" />
+            <Calendar size={18} className="text-primary-300" />
             <span>
               {tipoContratoLabels[ficha.empleado.tipoContrato]} desde{" "}
-              {formatDate(ficha.empleado.fechaIngreso)}
+              {formatearFecha(ficha.empleado.fechaIngreso, {}, "-")}
             </span>
           </div>
         </div>
@@ -353,10 +349,10 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
 
       {/* Notebooks */}
       {ficha.notebooks.length > 0 && (
-        <div className="bg-white rounded-lg shadow">
+        <div className="card">
           <div className="px-6 py-4 border-b flex items-center justify-between bg-gray-50">
             <div className="flex items-center gap-3">
-              <Laptop className="text-blue-600" />
+              <Laptop className="text-primary-700" />
               <h3 className="text-lg font-semibold">
                 Notebooks {ficha.notebooks.length > 1 && `(${ficha.notebooks.length})`}
               </h3>
@@ -411,7 +407,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Fecha Entrega</p>
-                    <p className="font-medium">{formatDate(notebook.fechaEntrega)}</p>
+                    <p className="font-medium">{formatearFecha(notebook.fechaEntrega, {}, "-")}</p>
                   </div>
                 </div>
               </div>
@@ -422,7 +418,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
 
       {/* Celulares */}
       {ficha.celulares.length > 0 && (
-        <div className="bg-white rounded-lg shadow">
+        <div className="card">
           <div className="px-6 py-4 border-b flex items-center justify-between bg-gray-50">
             <div className="flex items-center gap-3">
               <Smartphone className="text-green-600" />
@@ -472,7 +468,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Fecha Entrega</p>
-                    <p className="font-medium">{formatDate(celular.fechaEntrega)}</p>
+                    <p className="font-medium">{formatearFecha(celular.fechaEntrega, {}, "-")}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Lugar Entrega</p>
@@ -487,7 +483,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
 
       {/* Monitores */}
       {ficha.monitores.length > 0 && (
-        <div className="bg-white rounded-lg shadow">
+        <div className="card">
           <div className="px-6 py-4 border-b flex items-center justify-between bg-gray-50">
             <div className="flex items-center gap-3">
               <Monitor className="text-purple-600" />
@@ -519,7 +515,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Fecha Entrega</p>
-                    <p className="font-medium">{formatDate(monitor.fechaEntrega)}</p>
+                    <p className="font-medium">{formatearFecha(monitor.fechaEntrega, {}, "-")}</p>
                   </div>
                 </div>
               </div>
@@ -530,7 +526,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
 
       {/* Otros Equipos */}
       {ficha.otrosEquipos.length > 0 && (
-        <div className="bg-white rounded-lg shadow">
+        <div className="card">
           <div className="px-6 py-4 border-b flex items-center gap-3 bg-gray-50">
             <Package className="text-orange-600" />
             <h3 className="text-lg font-semibold">Otros Equipos</h3>
@@ -552,7 +548,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                       <td className="px-4 py-2">{equipo.categoria}</td>
                       <td className="px-4 py-2">{equipo.marca} {equipo.modelo}</td>
                       <td className="px-4 py-2 font-mono">{equipo.numeroSerie || "-"}</td>
-                      <td className="px-4 py-2">{formatDate(equipo.fechaEntrega)}</td>
+                      <td className="px-4 py-2">{formatearFecha(equipo.fechaEntrega, {}, "-")}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -565,7 +561,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
       {/* Kit Bienvenida y EPP */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Kit Bienvenida */}
-        <div className="bg-white rounded-lg shadow">
+        <div className="card">
           <div className="px-6 py-4 border-b flex items-center gap-3 bg-gray-50">
             <Gift className="text-pink-600" />
             <h3 className="text-lg font-semibold">Kit de Bienvenida</h3>
@@ -592,7 +588,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
         </div>
 
         {/* EPP */}
-        <div className="bg-white rounded-lg shadow">
+        <div className="card">
           <div className="px-6 py-4 border-b flex items-center gap-3 bg-gray-50">
             <HardHat className="text-yellow-600" />
             <h3 className="text-lg font-semibold">EPP</h3>

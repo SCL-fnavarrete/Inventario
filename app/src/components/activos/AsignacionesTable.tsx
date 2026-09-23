@@ -6,14 +6,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  Laptop,
-  Smartphone,
-  Monitor,
-  Package,
   Search,
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import { formatearFecha } from "@/lib/utils/fechas";
@@ -41,24 +38,6 @@ type Assignment = {
 };
 
 type Pagination = { page: number; limit: number; total: number; totalPages: number };
-
-function iconoCategoria(nombre: string) {
-  switch (nombre.toLowerCase()) {
-    case "notebook":
-      return <Laptop className="h-4 w-4" />;
-    case "celular":
-      return <Smartphone className="h-4 w-4" />;
-    case "monitor":
-      return <Monitor className="h-4 w-4" />;
-    default:
-      return <Package className="h-4 w-4" />;
-  }
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return formatearFecha(dateString);
-}
 
 /**
  * Tabla de asignaciones vigentes, embebida al fondo del modulo de Activos.
@@ -111,7 +90,7 @@ export function AsignacionesTable() {
   }, [pagination.page, debouncedSearch, sedeSeleccionada]);
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
+    <div className="card overflow-hidden">
       <div className="p-6 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1">
           <div>
@@ -128,7 +107,7 @@ export function AsignacionesTable() {
                 setSearch(e.target.value);
                 setPagination((prev) => ({ ...prev, page: 1 }));
               }}
-              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input pl-9 pr-3 text-sm"
             />
           </div>
         </div>
@@ -138,10 +117,10 @@ export function AsignacionesTable() {
         <table className="w-full">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Empleado</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Equipo</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entrega</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+              <th className="table-th">Empleado</th>
+              <th className="table-th">Equipo</th>
+              <th className="table-th">Entrega</th>
+              <th className="table-th text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -168,7 +147,7 @@ export function AsignacionesTable() {
                   </td>
                   <td className="px-6 py-3 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <span className="text-gray-400">{iconoCategoria(a.asset.categoria.nombre)}</span>
+                      <span className="text-gray-400"><CategoryIcon categoria={a.asset.categoria.nombre} className="h-4 w-4" /></span>
                       <div>
                         <p className="text-sm font-medium text-gray-900">
                           {a.asset.marca} {a.asset.modelo}
@@ -178,13 +157,13 @@ export function AsignacionesTable() {
                     </div>
                   </td>
                   <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900">
-                    {formatDate(a.fechaEntrega)}
+                    {formatearFecha(a.fechaEntrega, {}, "-")}
                   </td>
                   <td className="px-6 py-3 whitespace-nowrap text-right">
                     <div className="flex justify-end gap-1">
                       <Link
                         href={`/asignaciones/${a.id}`}
-                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                        className="p-2 text-gray-500 hover:text-primary-700 hover:bg-primary-50 rounded-lg"
                         title="Ver detalle"
                       >
                         <Eye size={16} />
@@ -227,7 +206,7 @@ export function AsignacionesTable() {
                   className={cn(
                     "min-w-[36px] h-9 px-2 rounded-lg border text-sm font-medium",
                     isCurrent
-                      ? "bg-blue-600 text-white border-blue-600 cursor-default"
+                      ? "bg-primary-700 text-white border-primary-700 cursor-default"
                       : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
                   )}
                   aria-current={isCurrent ? "page" : undefined}

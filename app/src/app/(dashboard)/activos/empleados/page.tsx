@@ -18,6 +18,7 @@ import { ActivosTabs } from "@/components/activos";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 // Read-only employee listing within Activos. Employees are created via the
 // onboarding flow; detail/edit lives in /empleados/[id].
@@ -82,7 +83,7 @@ const tipoContratoLabels: Record<TipoContrato, string> = {
 };
 
 const tipoContratoColors: Record<TipoContrato, string> = {
-  contrato: "bg-blue-100 text-blue-800",
+  contrato: "bg-primary-100 text-primary-900",
   boleta: "bg-purple-100 text-purple-800",
 };
 
@@ -235,14 +236,10 @@ export default function PersonalPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Personal</h1>
-          <p className="text-gray-600">
-            Colaboradores y sus asignaciones de equipos — se crean desde Solicitudes (Onboarding)
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Personal"
+        description="Colaboradores y sus asignaciones de equipos — se crean desde Solicitudes (Onboarding)"
+      />
 
       {/* Tabs del modulo: Equipos / Asignaciones / Personal (esta pagina) /
           Kit de Bienvenida / EPP (ver ActivosTabs -- compartido entre las 5) */}
@@ -259,14 +256,14 @@ export default function PersonalPage() {
             hasActiveFilters
               ? "hover:shadow-md hover:scale-105 cursor-pointer"
               : "opacity-75",
-            !hasActiveFilters && "ring-2 ring-blue-500 ring-offset-2"
+            !hasActiveFilters && "ring-2 ring-primary-500 ring-offset-2"
           )}
           aria-label="Ver todos los empleados - limpiar filtros"
           title={hasActiveFilters ? "Click para limpiar filtros" : "Mostrando todos"}
         >
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Users className="h-6 w-6 text-blue-600" />
+            <div className="p-2 bg-primary-100 rounded-lg">
+              <Users className="h-6 w-6 text-primary-700" />
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Empleados</p>
@@ -274,7 +271,7 @@ export default function PersonalPage() {
             </div>
           </div>
           {!hasActiveFilters && (
-            <p className="text-xs text-blue-600 mt-2 font-medium">Sin filtros activos</p>
+            <p className="text-xs text-primary-700 mt-2 font-medium">Sin filtros activos</p>
           )}
         </button>
 
@@ -331,7 +328,7 @@ export default function PersonalPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="card p-4">
         <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -343,7 +340,7 @@ export default function PersonalPage() {
                 setSearch(e.target.value);
                 setPagination((prev) => ({ ...prev, page: 1 }));
               }}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input pl-10 pr-4"
             />
           </div>
           <div className="flex flex-wrap gap-2">
@@ -353,7 +350,7 @@ export default function PersonalPage() {
                 setTipoContratoFilter(e.target.value);
                 setPagination((prev) => ({ ...prev, page: 1 }));
               }}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="">Todos los contratos</option>
               {Object.entries(tipoContratoLabels).map(([value, label]) => (
@@ -369,7 +366,7 @@ export default function PersonalPage() {
                   setSedeFilter(e.target.value);
                   setPagination((prev) => ({ ...prev, page: 1 }));
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               >
                 <option value="">Todas las sedes</option>
                 {sedes.map((sede) => (
@@ -384,45 +381,45 @@ export default function PersonalPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="table-th">
                   RUT
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="table-th">
                   Nombre
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="table-th">
                   Correo
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="table-th">
                   Cargo
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="table-th">
                   Jefe
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="table-th">
                   Supervisor
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="table-th">
                   Ubicación
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="table-th">
                   Sede
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="table-th">
                   Contrato
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="table-th">
                   Estado
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="table-th">
                   Equipos
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="table-th text-right">
                   Acciones
                 </th>
               </tr>
@@ -507,7 +504,7 @@ export default function PersonalPage() {
                       <div className="flex justify-end gap-2">
                         <Link
                           href={`/empleados/${employee.id}`}
-                          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="p-2 text-gray-500 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
                           title="Ver ficha"
                         >
                           <Eye size={18} />

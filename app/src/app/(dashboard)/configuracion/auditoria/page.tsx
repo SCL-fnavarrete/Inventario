@@ -53,7 +53,7 @@ const MODULOS = [
 ];
 
 const moduloColor: Record<string, string> = {
-  activo: "bg-blue-100 text-blue-800",
+  activo: "bg-primary-100 text-primary-900",
   solicitud: "bg-purple-100 text-purple-800",
   empleado: "bg-green-100 text-green-800",
   compra: "bg-teal-100 text-teal-800",
@@ -63,7 +63,7 @@ const moduloColor: Record<string, string> = {
   desvinculacion: "bg-rose-100 text-rose-800",
   kit_item: "bg-lime-100 text-lime-800",
   sede: "bg-amber-100 text-amber-800",
-  categoria: "bg-indigo-100 text-indigo-800",
+  categoria: "bg-primary-100 text-primary-900",
   tipo_mantencion: "bg-fuchsia-100 text-fuchsia-800",
   configuracion: "bg-slate-100 text-slate-800",
 };
@@ -134,7 +134,7 @@ export default function AuditoriaPage() {
         </p>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-4 flex flex-wrap gap-3 items-end">
+      <div className="card p-4 flex flex-wrap gap-3 items-end">
         <div className="flex-1 min-w-[180px]">
           <label className="block text-xs font-medium text-gray-500 mb-1">Módulo</label>
           <select
@@ -143,7 +143,7 @@ export default function AuditoriaPage() {
               setModulo(e.target.value);
               resetPagina();
             }}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="field-input text-sm"
           >
             {MODULOS.map((m) => (
               <option key={m.value} value={m.value}>
@@ -164,7 +164,7 @@ export default function AuditoriaPage() {
                 setUsuario(e.target.value);
                 resetPagina();
               }}
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input pl-9 pr-3 text-sm"
             />
           </div>
         </div>
@@ -180,7 +180,7 @@ export default function AuditoriaPage() {
                 setSearch(e.target.value);
                 resetPagina();
               }}
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input pl-9 pr-3 text-sm"
             />
           </div>
         </div>
@@ -193,7 +193,7 @@ export default function AuditoriaPage() {
               setFechaDesde(e.target.value);
               resetPagina();
             }}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
         <div>
@@ -205,7 +205,7 @@ export default function AuditoriaPage() {
               setFechaHasta(e.target.value);
               resetPagina();
             }}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
       </div>
@@ -218,17 +218,17 @@ export default function AuditoriaPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Módulo</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acción</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Detalle</th>
+                <th className="table-th px-4">Fecha</th>
+                <th className="table-th px-4">Módulo</th>
+                <th className="table-th px-4">Acción</th>
+                <th className="table-th px-4">Descripción</th>
+                <th className="table-th px-4">Usuario</th>
+                <th className="table-th px-4 text-right">Detalle</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -276,7 +276,7 @@ export default function AuditoriaPage() {
                           {tieneDetalle && (
                             <button
                               onClick={() => setExpandido(abierto ? null : ev.id)}
-                              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                              className="p-2 text-gray-500 hover:text-primary-700 hover:bg-primary-50 rounded-lg"
                               title="Ver datos anteriores/nuevos"
                             >
                               {abierto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}

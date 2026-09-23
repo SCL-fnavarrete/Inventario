@@ -75,7 +75,7 @@ export function Sidebar() {
       {/* Mobile menu button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-md shadow-md"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-control shadow-card text-primary-950"
       >
         {isOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
@@ -91,13 +91,13 @@ export function Sidebar() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed lg:static inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white transform transition-transform duration-200 ease-in-out",
+          "fixed lg:static inset-y-0 left-0 z-50 w-64 bg-primary-950 text-white transform transition-transform duration-200 ease-in-out",
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="p-4 border-b border-slate-700">
+          <div className="p-4 border-b border-white/10">
             <Image
               src="/logo-scl.png"
               alt="SCL Consultores"
@@ -112,19 +112,19 @@ export function Sidebar() {
               sede a la vez, o "Todas las sedes". Solo admin puede elegir; el
               resto ve su sede fija, ya que el backend la impone igual. */}
           <div className="px-4 pt-4">
-            <label htmlFor="selector-sede" className="block text-xs font-medium text-slate-400 mb-1">
+            <label htmlFor="selector-sede" className="block text-xs font-semibold uppercase tracking-wider text-primary-200/70 mb-1">
               Sede
             </label>
             {sedeBloqueada ? (
               <>
                 <div
                   id="selector-sede"
-                  className="w-full px-3 py-2 text-sm bg-slate-800/60 text-slate-300 border border-slate-700 rounded-lg"
+                  className="w-full px-3 py-2 text-sm bg-white/5 text-primary-100 border border-white/10 rounded-control"
                 >
                   {sedes.find((s) => s.id === sedeSeleccionada)?.nombre ||
                     "Sin sede asignada"}
                 </div>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-primary-200/60">
                   Tu usuario trabaja en esta sede.
                 </p>
               </>
@@ -133,7 +133,7 @@ export function Sidebar() {
                 id="selector-sede"
                 value={sedeSeleccionada ?? ""}
                 onChange={(e) => setSedeSeleccionada(e.target.value || null)}
-                className="w-full px-3 py-2 text-sm bg-slate-800 text-white border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 text-sm bg-white/10 text-white border border-white/15 rounded-control focus:outline-none focus:ring-2 focus:ring-primary-400"
               >
                 <option value="">Todas las sedes</option>
                 {sedes.map((sede) => (
@@ -163,10 +163,10 @@ export function Sidebar() {
                   href={item.href}
                   onClick={() => setIsOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
+                    "relative flex items-center gap-3 px-4 py-3 rounded-control font-medium transition-colors",
                     isActive
-                      ? "bg-blue-600 text-white"
-                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                      ? "bg-primary-700 text-white before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r before:bg-accent"
+                      : "text-primary-100/80 hover:bg-white/10 hover:text-white"
                   )}
                 >
                   <Icon size={20} />
@@ -177,14 +177,14 @@ export function Sidebar() {
           </nav>
 
           {/* User section */}
-          <div className="p-4 border-t border-slate-700">
+          <div className="p-4 border-t border-white/10">
             <div className="px-4 py-2">
               <p className="font-medium truncate">{userName}</p>
-              <p className="text-sm text-slate-400 capitalize">{userRole}</p>
+              <p className="text-sm text-primary-200/70 capitalize">{userRole}</p>
             </div>
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
-              className="flex items-center gap-3 w-full px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-3 text-primary-100/80 hover:bg-white/10 hover:text-white rounded-control transition-colors"
             >
               <LogOut size={20} />
               <span>Cerrar sesión</span>

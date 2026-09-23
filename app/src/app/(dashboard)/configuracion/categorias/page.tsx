@@ -5,6 +5,8 @@ import { Plus, Edit, Trash2, Save, X } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 /**
  * Confirmacion con el componente compartido ConfirmDialog, en vez de
@@ -178,62 +180,64 @@ export default function CategoriasPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700"></div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Categorías de Activos</h1>
-          <p className="text-gray-600 mt-1">Gestiona las categorías para clasificar los activos</p>
-        </div>
-        {!isCreating && !editingId && (
-          <button
-            onClick={() => {
-              setIsCreating(true);
-              setFormData(FORM_INICIAL);
-              setError("");
-              setFieldErrors({});
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={20} />
-            <span>Nueva Categoría</span>
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Categorías de Activos"
+        description="Gestiona las categorías para clasificar los activos"
+        actions={
+          <>
+            {!isCreating && !editingId && (
+              <button
+                onClick={() => {
+                  setIsCreating(true);
+                  setFormData(FORM_INICIAL);
+                  setError("");
+                  setFieldErrors({});
+                }}
+                className={buttonClasses()}
+              >
+                <Plus size={20} />
+                <span>Nueva Categoría</span>
+              </button>
+            )}
+          </>
+        }
+      />
 
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* Formulario de creación */}
       {isCreating && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Nueva Categoría</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 Nombre *
               </label>
               <input
                 type="text"
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
                 placeholder="Ej: Notebook, Celular, Monitor"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 Descripción
               </label>
               <input
                 type="text"
                 value={formData.descripcion}
                 onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
                 placeholder="Descripción de la categoría"
               />
             </div>
@@ -243,7 +247,7 @@ export default function CategoriasPage() {
                   type="checkbox"
                   checked={formData.requiereSerie}
                   onChange={(e) => setFormData({ ...formData, requiereSerie: e.target.checked })}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="field-checkbox"
                 />
                 <span className="text-sm text-gray-700">Requiere N° Serie</span>
               </label>
@@ -252,13 +256,13 @@ export default function CategoriasPage() {
                   type="checkbox"
                   checked={formData.requiereImei}
                   onChange={(e) => setFormData({ ...formData, requiereImei: e.target.checked })}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="field-checkbox"
                 />
                 <span className="text-sm text-gray-700">Requiere IMEI</span>
               </label>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 Stock mínimo (disponibles)
               </label>
               <input
@@ -266,7 +270,7 @@ export default function CategoriasPage() {
                 min={0}
                 value={formData.stockMinimo}
                 onChange={(e) => setFormData({ ...formData, stockMinimo: parseInt(e.target.value, 10) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
               />
               <p className="text-xs text-gray-500 mt-1">
                 El Dashboard avisa cuando los activos disponibles de esta categoría llegan a
@@ -277,13 +281,13 @@ export default function CategoriasPage() {
           <div className="flex justify-end gap-3 mt-4">
             <button
               onClick={cancelEdit}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className={buttonClasses({ variant: "outline" })}
             >
               Cancelar
             </button>
             <button
               onClick={handleCreate}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className={buttonClasses()}
             >
               <Save size={18} />
               Guardar
@@ -293,29 +297,29 @@ export default function CategoriasPage() {
       )}
 
       {/* Tabla de categorías */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="card overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th">
                 Nombre
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th">
                 Descripción
               </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th text-center">
                 Req. Serie
               </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th text-center">
                 Req. IMEI
               </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th text-center">
                 Stock mínimo
               </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th text-center">
                 Activos
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th text-right">
                 Acciones
               </th>
             </tr>
@@ -330,7 +334,7 @@ export default function CategoriasPage() {
                         type="text"
                         value={formData.nombre}
                         onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
                       />
                     </td>
                     <td className="px-6 py-4">
@@ -338,7 +342,7 @@ export default function CategoriasPage() {
                         type="text"
                         value={formData.descripcion}
                         onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
                       />
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -346,7 +350,7 @@ export default function CategoriasPage() {
                         type="checkbox"
                         checked={formData.requiereSerie}
                         onChange={(e) => setFormData({ ...formData, requiereSerie: e.target.checked })}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        className="field-checkbox"
                       />
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -354,7 +358,7 @@ export default function CategoriasPage() {
                         type="checkbox"
                         checked={formData.requiereImei}
                         onChange={(e) => setFormData({ ...formData, requiereImei: e.target.checked })}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        className="field-checkbox"
                       />
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -363,7 +367,7 @@ export default function CategoriasPage() {
                         min={0}
                         value={formData.stockMinimo}
                         onChange={(e) => setFormData({ ...formData, stockMinimo: parseInt(e.target.value, 10) || 0 })}
-                        className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-center"
+                        className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 text-center"
                       />
                     </td>
                     <td className="px-6 py-4 text-center text-gray-500">
@@ -424,7 +428,7 @@ export default function CategoriasPage() {
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => startEdit(category)}
-                          className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                          className="p-1 text-primary-700 hover:bg-primary-50 rounded"
                           title="Editar"
                         >
                           <Edit size={18} />

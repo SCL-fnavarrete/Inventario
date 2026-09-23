@@ -30,7 +30,7 @@ export function DashboardCharts({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
       {/* Gráfico de Stock por Categoría (Barras apiladas) */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           Stock por Categoría
         </h2>
@@ -38,7 +38,7 @@ export function DashboardCharts({
       </div>
 
       {/* Gráfico de Estados (Pie Chart) */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           Distribución por Estado
         </h2>
@@ -46,7 +46,7 @@ export function DashboardCharts({
       </div>
 
       {/* Gráfico de Asignaciones por Mes (Líneas) */}
-      <div className="bg-white rounded-lg shadow p-6 lg:col-span-2 xl:col-span-1">
+      <div className="card p-6 lg:col-span-2 xl:col-span-1">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           Movimientos (Últimos 6 meses)
         </h2>

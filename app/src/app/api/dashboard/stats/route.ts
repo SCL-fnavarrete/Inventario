@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { ESTADO_ACTIVO_COLOR } from "@/lib/constants/estadosActivo";
 
 // Filtra los KPIs del dashboard por sede para no exponer datos globales a
 // un usuario sin visibilidad total.
@@ -27,6 +28,7 @@ export async function GET(request: NextRequest) {
       maintenanceAssets,
       bajaAssets,
       noDevueltoAssets,
+      vendidoAssets,
       totalEmployees,
       activeEmployees,
       pendingMaintenance,
@@ -39,6 +41,7 @@ export async function GET(request: NextRequest) {
       prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, estado: "en_mantencion" } }),
       prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, estado: "baja" } }),
       prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, estado: "no_devuelto" } }),
+      prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sedeFiltro, estado: "vendido" } }),
       prisma.employee.count({ where: sedeFiltro }),
       prisma.employee.count({ where: { ...sedeFiltro, estado: "activo" } }),
       prisma.maintenance.count({ where: { estado: "pendiente", asset: sedeFiltro } }),
@@ -87,13 +90,15 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    // Estados para pie chart
+    // Estados para pie chart, incluido "vendido" como en la pagina del
+    // Dashboard (SPEC 2.77).
     const estadosData = [
-      { estado: "disponible", cantidad: availableAssets, color: "#22c55e" },
-      { estado: "asignado", cantidad: assignedAssets, color: "#3b82f6" },
-      { estado: "en_mantencion", cantidad: maintenanceAssets, color: "#f97316" },
-      { estado: "no_devuelto", cantidad: noDevueltoAssets, color: "#ea580c" },
-      { estado: "baja", cantidad: bajaAssets, color: "#ef4444" },
+      { estado: "disponible", cantidad: availableAssets, color: ESTADO_ACTIVO_COLOR.disponible },
+      { estado: "asignado", cantidad: assignedAssets, color: ESTADO_ACTIVO_COLOR.asignado },
+      { estado: "en_mantencion", cantidad: maintenanceAssets, color: ESTADO_ACTIVO_COLOR.en_mantencion },
+      { estado: "no_devuelto", cantidad: noDevueltoAssets, color: ESTADO_ACTIVO_COLOR.no_devuelto },
+      { estado: "baja", cantidad: bajaAssets, color: ESTADO_ACTIVO_COLOR.baja },
+      { estado: "vendido", cantidad: vendidoAssets, color: ESTADO_ACTIVO_COLOR.vendido },
     ].filter((e) => e.cantidad > 0);
 
     // Asignaciones por mes (ultimos 6 meses)
@@ -133,6 +138,7 @@ export async function GET(request: NextRequest) {
         availableAssets,
         assignedAssets,
         maintenanceAssets,
+        vendidoAssets,
         totalEmployees,
         activeEmployees,
         pendingMaintenance,

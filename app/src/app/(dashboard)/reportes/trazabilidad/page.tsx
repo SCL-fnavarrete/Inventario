@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Search, History, Laptop, Users, Wrench, FileText } from "lucide-react";
+import { Search, History, Laptop, Users, Wrench, FileText } from "lucide-react";
 import { formatearFecha } from "@/lib/utils/fechas";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 interface HistoryEvent {
   id: string;
@@ -84,11 +85,10 @@ export default function ReporteTrazabilidadPage() {
     mantencion: Wrench,
     cambio_estado: History,
     actualizacion_specs: Laptop,
-    baja: History,
-  };
+    baja: History };
 
   const EVENTO_COLORS: Record<string, string> = {
-    creacion: "bg-blue-100 text-blue-600",
+    creacion: "bg-primary-100 text-primary-700",
     asignacion: "bg-green-100 text-green-600",
     devolucion: "bg-orange-100 text-orange-600",
     mantencion: "bg-purple-100 text-purple-600",
@@ -99,28 +99,17 @@ export default function ReporteTrazabilidadPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link
-          href="/reportes"
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <ArrowLeft className="h-5 w-5 text-gray-600" />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Trazabilidad de Activos
-          </h1>
-          <p className="text-gray-600">
-            Historial completo de movimientos por activo
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        backHref="/reportes"
+        title="Trazabilidad de Activos"
+        description="Historial completo de movimientos por activo"
+      />
 
       {/* Búsqueda */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="card p-6">
         <div className="flex gap-4">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Buscar por Número de Serie o IMEI
             </label>
             <input
@@ -129,14 +118,14 @@ export default function ReporteTrazabilidadPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               placeholder="Ej: PF3BXB9T o 354964992749902"
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input"
             />
           </div>
           <div className="flex items-end">
             <button
               onClick={handleSearch}
               disabled={loading}
-              className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className={buttonClasses({ className: "px-6" })}
             >
               <Search className="h-4 w-4" />
               {loading ? "Buscando..." : "Buscar"}
@@ -153,7 +142,7 @@ export default function ReporteTrazabilidadPage() {
       {asset && (
         <div className="space-y-6">
           {/* Información del Activo */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Información del Activo
             </h2>
@@ -182,7 +171,7 @@ export default function ReporteTrazabilidadPage() {
           </div>
 
           {/* Historial de Asignaciones */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Historial de Asignaciones ({asset.assignments.length})
             </h2>
@@ -197,7 +186,7 @@ export default function ReporteTrazabilidadPage() {
                       asig.activo ? "bg-green-50 border border-green-200" : "bg-gray-50"
                     }`}
                   >
-                    <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-medium">
+                    <div className="flex-shrink-0 w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-primary-700 font-medium">
                       {asset.assignments.length - idx}
                     </div>
                     <div className="flex-1">
@@ -235,7 +224,7 @@ export default function ReporteTrazabilidadPage() {
           </div>
 
           {/* Historial de Mantenciones */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Historial de Mantenciones ({asset.maintenances.length})
             </h2>
@@ -289,7 +278,7 @@ export default function ReporteTrazabilidadPage() {
           </div>
 
           {/* Timeline de Eventos */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Timeline de Eventos ({asset.history.length})
             </h2>

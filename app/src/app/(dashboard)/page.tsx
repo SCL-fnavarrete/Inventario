@@ -5,9 +5,6 @@ import type { SesionAutenticada } from "@/lib/auth/guard";
 import { sedeWhere, tieneVisibilidadTotal } from "@/lib/auth/sedeScope";
 import { prisma } from "@/lib/prisma";
 import {
-  Laptop,
-  Smartphone,
-  Monitor,
   Users,
   CheckCircle,
   Wrench,
@@ -18,11 +15,14 @@ import {
   ClipboardList,
   DollarSign,
 } from "lucide-react";
-import Link from "next/link";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
 import { DashboardTabs } from "@/components/dashboard/DashboardTabs";
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { ESTADO_ACTIVO_COLOR } from "@/lib/constants/estadosActivo";
+import { CategoryIcon } from "@/components/activos/CategoryIcon";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatCard, StatGrid } from "@/components/ui/StatCard";
 
 /**
  * Trae todos los datos del Resumen del Dashboard en un unico batch de
@@ -167,12 +167,12 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
 
   // Estados para el pie chart, incluyendo "vendido".
   const estadosData = [
-    { estado: "disponible", cantidad: availableAssets, color: "#22c55e" },
-    { estado: "asignado", cantidad: assignedAssets, color: "#3b82f6" },
-    { estado: "en_mantencion", cantidad: maintenanceAssets, color: "#f97316" },
-    { estado: "no_devuelto", cantidad: noDevueltoAssets, color: "#ea580c" },
-    { estado: "baja", cantidad: bajaAssets, color: "#ef4444" },
-    { estado: "vendido", cantidad: vendidoAssets, color: "#6b7280" },
+    { estado: "disponible", cantidad: availableAssets, color: ESTADO_ACTIVO_COLOR.disponible },
+    { estado: "asignado", cantidad: assignedAssets, color: ESTADO_ACTIVO_COLOR.asignado },
+    { estado: "en_mantencion", cantidad: maintenanceAssets, color: ESTADO_ACTIVO_COLOR.en_mantencion },
+    { estado: "no_devuelto", cantidad: noDevueltoAssets, color: ESTADO_ACTIVO_COLOR.no_devuelto },
+    { estado: "baja", cantidad: bajaAssets, color: ESTADO_ACTIVO_COLOR.baja },
+    { estado: "vendido", cantidad: vendidoAssets, color: ESTADO_ACTIVO_COLOR.vendido },
   ].filter((e) => e.cantidad > 0);
 
   // Mantenciones pendientes: se piden todas una sola vez y vencidas/
@@ -304,13 +304,10 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">
-          Bienvenido, {session?.user?.name}. Resumen del inventario IT.
-        </p>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        description={`Bienvenido, ${session?.user?.name ?? ""}. Resumen del inventario IT.`}
+      />
 
       {/* Pestanas Resumen / Reportes */}
       <DashboardTabs />
@@ -327,144 +324,35 @@ export default async function DashboardPage() {
         bajoStockCategorias={data.bajoStockCategorias}
       />
 
-      {/* Stats Grid - KPIs Principales. El salto de columnas ocurre en xl
-          (1280px) para evitar que las tarjetas se achiquen justo cuando el
-          Sidebar pasa a ocupar ancho fijo. */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        <div className="bg-white rounded-lg shadow p-4">
-          {/* "Total Activos" cuenta todos los estados, incluido vendido;
-              las tarjetas de abajo excluyen vendido (ver "Equipos
-              Vendidos" mas abajo). */}
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500">Total Activos</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {data.totalAssets}
-              </p>
-            </div>
-            <div className="p-2 bg-blue-100 rounded-full">
-              <Package className="h-5 w-5 text-blue-600" />
-            </div>
-          </div>
-        </div>
+      {/* KPIs principales. "Total Activos" cuenta todos los estados, incluido
+          vendido; las demas tarjetas excluyen vendido (ver "Equipos Vendidos"). */}
+      <StatGrid cols={5}>
+        <StatCard label="Total Activos" value={data.totalAssets} tone="primary" icon={Package} />
+        <StatCard label="Disponibles" value={data.availableAssets} tone="success" icon={CheckCircle} />
+        <StatCard label="Asignados" value={data.assignedAssets} tone="primary" icon={Users} />
+        <StatCard label="En Mantención" value={data.maintenanceAssets} tone="warning" icon={Wrench} />
+        <StatCard label="Baja" value={data.bajaAssets} tone="danger" icon={XCircle} />
+      </StatGrid>
 
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500">Disponibles</p>
-              <p className="text-2xl font-bold text-green-600">
-                {data.availableAssets}
-              </p>
-            </div>
-            <div className="p-2 bg-green-100 rounded-full">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500">Asignados</p>
-              <p className="text-2xl font-bold text-blue-600">
-                {data.assignedAssets}
-              </p>
-            </div>
-            <div className="p-2 bg-blue-100 rounded-full">
-              <Users className="h-5 w-5 text-blue-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500">En Mantención</p>
-              <p className="text-2xl font-bold text-orange-600">
-                {data.maintenanceAssets}
-              </p>
-            </div>
-            <div className="p-2 bg-orange-100 rounded-full">
-              <Wrench className="h-5 w-5 text-orange-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500">Baja</p>
-              <p className="text-2xl font-bold text-red-600">{data.bajaAssets}</p>
-            </div>
-            <div className="p-2 bg-red-100 rounded-full">
-              <XCircle className="h-5 w-5 text-red-600" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Segunda fila de KPIs: Equipos Vendidos, Mantenciones Pend.,
-          Asig. Ultimos 30d, Solicitudes Abiertas. */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* Cantidad de equipos vendidos: un activo vendido sale del
-            parque operativo y no cuenta en las tarjetas ni en "Stock por
-            Categoria". */}
-        <Link href="/activos?estado=vendido" className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500">Equipos Vendidos</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {data.vendidoAssets}
-              </p>
-            </div>
-            <div className="p-2 bg-gray-100 rounded-full">
-              <DollarSign className="h-5 w-5 text-gray-600" />
-            </div>
-          </div>
-        </Link>
-
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500">Mantenciones Pend.</p>
-              <p className="text-2xl font-bold text-orange-600">
-                {data.pendingMaintenance}
-              </p>
-            </div>
-            <div className="p-2 bg-orange-100 rounded-full">
-              <Clock className="h-5 w-5 text-orange-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500">Asig. Últimos 30d</p>
-              <p className="text-2xl font-bold text-blue-600">
-                {data.recentAssignments}
-              </p>
-            </div>
-            <div className="p-2 bg-blue-100 rounded-full">
-              <TrendingUp className="h-5 w-5 text-blue-600" />
-            </div>
-          </div>
-        </div>
-
-        <Link href="/solicitudes" className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500">Solicitudes Abiertas</p>
-              <p className="text-2xl font-bold text-indigo-600">
-                {data.solicitudesAbiertas}
-              </p>
-            </div>
-            <div className="p-2 bg-indigo-100 rounded-full">
-              <ClipboardList className="h-5 w-5 text-indigo-600" />
-            </div>
-          </div>
-        </Link>
-      </div>
+      {/* Segunda fila. Un activo vendido sale del parque operativo y no cuenta
+          en las tarjetas de arriba ni en "Stock por Categoria". */}
+      <StatGrid cols={4}>
+        <StatCard
+          label="Equipos Vendidos"
+          value={data.vendidoAssets}
+          icon={DollarSign}
+          href="/activos?estado=vendido"
+        />
+        <StatCard label="Mantenciones Pend." value={data.pendingMaintenance} tone="orange" icon={Clock} />
+        <StatCard label="Asig. Últimos 30d" value={data.recentAssignments} tone="primary" icon={TrendingUp} />
+        <StatCard
+          label="Solicitudes Abiertas"
+          value={data.solicitudesAbiertas}
+          tone="primary"
+          icon={ClipboardList}
+          href="/solicitudes"
+        />
+      </StatGrid>
 
       {/* Gráficos */}
       <DashboardCharts
@@ -476,7 +364,7 @@ export default async function DashboardPage() {
       {/* Activos por Categoria y stock de Kit de Bienvenida/EPP. */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Activos por Categoría */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Activos por Categoría
             </h2>
@@ -484,18 +372,7 @@ export default async function DashboardPage() {
               {data.categories.map((cat) => (
                 <div key={cat.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    {cat.nombre === "Notebook" && (
-                      <Laptop className="h-5 w-5 text-gray-500" />
-                    )}
-                    {cat.nombre === "Celular" && (
-                      <Smartphone className="h-5 w-5 text-gray-500" />
-                    )}
-                    {cat.nombre === "Monitor" && (
-                      <Monitor className="h-5 w-5 text-gray-500" />
-                    )}
-                    {!["Notebook", "Celular", "Monitor"].includes(cat.nombre) && (
-                      <Package className="h-5 w-5 text-gray-500" />
-                    )}
+                    <CategoryIcon categoria={cat.nombre} className="h-5 w-5 text-gray-500" />
                     <span className="text-gray-700">{cat.nombre}</span>
                   </div>
                   <span className="font-semibold text-gray-900">
@@ -512,7 +389,7 @@ export default async function DashboardPage() {
           </div>
 
           {/* Kit de Bienvenida */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Kit de Bienvenida
             </h2>
@@ -542,7 +419,7 @@ export default async function DashboardPage() {
           </div>
 
           {/* EPP */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">EPP</h2>
             <div className="space-y-3">
               {data.eppItems.map((item) => (

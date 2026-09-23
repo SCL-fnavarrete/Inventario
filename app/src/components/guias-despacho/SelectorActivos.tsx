@@ -4,16 +4,14 @@ import { useState, useEffect } from "react";
 import {
   Search,
   Loader2,
-  Laptop,
-  Smartphone,
-  Monitor,
-  Package,
   X,
   ChevronDown,
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { etiquetaConectividad } from "@/lib/utils/assetSpecs";
+import { CategoryIcon } from "@/components/activos/CategoryIcon";
+import { AssetConditionBadge } from "@/components/ui/Badge";
 
 type Asset = {
   id: string;
@@ -45,38 +43,6 @@ interface SelectorActivosProps {
   // despacho equipos de sedes distintas. Un tecnico no necesita pasarlo:
   // /api/activos ya lo acota solo a lo suyo.
   sedeId?: string;
-}
-
-function getCategoryIcon(categoryName: string) {
-  const iconClass = "h-4 w-4";
-  switch (categoryName.toLowerCase()) {
-    case "notebook":
-      return <Laptop className={iconClass} />;
-    case "celular":
-      return <Smartphone className={iconClass} />;
-    case "monitor":
-      return <Monitor className={iconClass} />;
-    default:
-      return <Package className={iconClass} />;
-  }
-}
-
-function getConditionBadge(condicion: string) {
-  const labels: Record<string, string> = {
-    nuevo: "Nuevo",
-    usado: "Usado",
-    danado: "Dañado",
-  };
-  const colors: Record<string, string> = {
-    nuevo: "bg-green-100 text-green-700",
-    usado: "bg-amber-100 text-amber-700",
-    danado: "bg-red-100 text-red-700",
-  };
-  return (
-    <span className={cn("px-1.5 py-0.5 text-xs font-medium rounded", colors[condicion] || "bg-gray-100 text-gray-700")}>
-      {labels[condicion] || condicion}
-    </span>
-  );
 }
 
 export function SelectorActivos({
@@ -183,14 +149,14 @@ export function SelectorActivos({
             placeholder="Buscar por marca, modelo, serie, IMEI o teléfono..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            className="field-input pl-9 pr-3 text-sm outline-none"
           />
         </div>
         <div className="relative">
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="appearance-none pl-3 pr-8 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white cursor-pointer"
+            className="appearance-none pl-3 pr-8 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white cursor-pointer"
           >
             <option value="all">Todas las categorías</option>
             {categories.map((cat) => (
@@ -205,14 +171,14 @@ export function SelectorActivos({
 
       {/* Equipos seleccionados */}
       {selectedAssets.length > 0 && (
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-blue-800">
+            <span className="text-sm font-medium text-primary-900">
               {selectedAssets.length} equipo(s) seleccionado(s)
             </span>
             <button
               onClick={() => onSelectionChange([])}
-              className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+              className="text-xs text-primary-700 hover:text-primary-900 hover:underline"
             >
               Limpiar todo
             </button>
@@ -221,17 +187,17 @@ export function SelectorActivos({
             {selectedAssets.map((asset) => (
               <span
                 key={asset.id}
-                className="inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-blue-200 text-blue-800 rounded text-xs"
+                className="inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-primary-200 text-primary-900 rounded text-xs"
               >
-                {getCategoryIcon(asset.categoria.nombre)}
-                <span className="text-blue-600">{asset.categoria.nombre}</span>
+                <CategoryIcon categoria={asset.categoria.nombre} className="h-4 w-4" />
+                <span className="text-primary-700">{asset.categoria.nombre}</span>
                 <span className="font-medium">{asset.marca} {asset.modelo}</span>
                 {asset.numeroSerie && (
-                  <span className="text-blue-600">({asset.numeroSerie})</span>
+                  <span className="text-primary-700">({asset.numeroSerie})</span>
                 )}
                 <button
                   onClick={() => removeAsset(asset.id)}
-                  className="ml-0.5 hover:text-blue-600"
+                  className="ml-0.5 hover:text-primary-700"
                 >
                   <X size={12} />
                 </button>
@@ -244,7 +210,7 @@ export function SelectorActivos({
       {/* Tabla de equipos */}
       {loading ? (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="animate-spin mr-2 text-blue-600" size={20} />
+          <Loader2 className="animate-spin mr-2 text-primary-700" size={20} />
           <span className="text-gray-600 text-sm">Cargando equipos...</span>
         </div>
       ) : filteredAssets.length === 0 ? (
@@ -261,15 +227,15 @@ export function SelectorActivos({
                 className={cn(
                   "w-4 h-4 rounded border flex items-center justify-center transition-colors",
                   allFilteredSelected
-                    ? "bg-blue-600 border-blue-600 text-white"
+                    ? "bg-primary-700 border-primary-700 text-white"
                     : someFilteredSelected
-                    ? "bg-blue-100 border-blue-400"
-                    : "border-gray-300 hover:border-blue-400"
+                    ? "bg-primary-100 border-primary-400"
+                    : "border-gray-300 hover:border-primary-400"
                 )}
               >
                 {allFilteredSelected && <Check size={12} />}
                 {someFilteredSelected && !allFilteredSelected && (
-                  <div className="w-2 h-0.5 bg-blue-600 rounded" />
+                  <div className="w-2 h-0.5 bg-primary-700 rounded" />
                 )}
               </button>
             </div>
@@ -306,7 +272,7 @@ export function SelectorActivos({
                   className={cn(
                     "px-3 py-2.5 flex items-center gap-3 cursor-pointer transition-colors text-sm",
                     isSelected
-                      ? "bg-blue-50 hover:bg-blue-100"
+                      ? "bg-primary-50 hover:bg-primary-100"
                       : "hover:bg-gray-50"
                   )}
                 >
@@ -316,7 +282,7 @@ export function SelectorActivos({
                       className={cn(
                         "w-4 h-4 rounded border flex items-center justify-center transition-all",
                         isSelected
-                          ? "bg-blue-600 border-blue-600 text-white"
+                          ? "bg-primary-700 border-primary-700 text-white"
                           : "border-gray-300"
                       )}
                     >
@@ -327,16 +293,16 @@ export function SelectorActivos({
                   {/* Icono categoría */}
                   <div className={cn(
                     "w-8 flex justify-center",
-                    isSelected ? "text-blue-600" : "text-gray-500"
+                    isSelected ? "text-primary-700" : "text-gray-500"
                   )}>
-                    {getCategoryIcon(asset.categoria.nombre)}
+                    <CategoryIcon categoria={asset.categoria.nombre} className="h-4 w-4" />
                   </div>
 
                   {/* Equipo */}
                   <div className="flex-1 min-w-0">
                     <span className={cn(
                       "font-medium",
-                      isSelected ? "text-blue-900" : "text-gray-900"
+                      isSelected ? "text-primary-950" : "text-gray-900"
                     )}>
                       {asset.marca} {asset.modelo}
                     </span>
@@ -359,7 +325,7 @@ export function SelectorActivos({
 
                   {/* Condición */}
                   <div className="w-14 text-center">
-                    {getConditionBadge(asset.condicion)}
+                    <AssetConditionBadge condicion={asset.condicion} />
                   </div>
                 </div>
               );

@@ -1,13 +1,6 @@
 "use client";
 
 import {
-  Laptop,
-  Smartphone,
-  Monitor,
-  Mouse,
-  Headphones,
-  Printer,
-  Package,
   User,
   Cpu,
   HardDrive,
@@ -15,8 +8,8 @@ import {
   Eye,
   Edit2
 } from "lucide-react";
-import { createElement } from "react";
-import { AssetStatusBadge } from "@/components/ui/Badge";
+import { AssetConditionBadge, AssetStatusBadge } from "@/components/ui/Badge";
+import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import Link from "next/link";
 import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 
@@ -50,52 +43,6 @@ interface AssetCardProps {
   compact?: boolean;
 }
 
-const categoryIcons: Record<string, React.ComponentType<{ className?: string }>> = {
-  notebook: Laptop,
-  laptop: Laptop,
-  celular: Smartphone,
-  telefono: Smartphone,
-  smartphone: Smartphone,
-  monitor: Monitor,
-  mouse: Mouse,
-  audifonos: Headphones,
-  audifono: Headphones,
-  impresora: Printer,
-  printer: Printer,
-};
-
-function getCategoryIcon(categoryName: string): React.ComponentType<{ className?: string }> {
-  const lowerName = categoryName.toLowerCase();
-  for (const [key, icon] of Object.entries(categoryIcons)) {
-    if (lowerName.includes(key)) {
-      return icon;
-    }
-  }
-  return Package;
-}
-
-/**
- * Envuelve la seleccion del icono de categoria. El icono sale siempre de
- * `categoryIcons`, un mapa de modulo, asi que la referencia es estable entre
- * renders; envolverlo aqui se lo hace explicito al compilador de React.
- */
-function CategoryIcon({ categoria, className }: { categoria: string; className?: string }) {
-  return createElement(getCategoryIcon(categoria), { className });
-}
-
-// Valores del enum CondicionActivo: nuevo | usado | danado.
-const conditionColors: Record<CondicionActivo, string> = {
-  nuevo: "bg-emerald-100 text-emerald-700",
-  usado: "bg-blue-100 text-blue-700",
-  danado: "bg-red-100 text-red-700",
-};
-
-const conditionLabels: Record<CondicionActivo, string> = {
-  nuevo: "Nuevo",
-  usado: "Usado",
-  danado: "Dañado",
-};
-
 export function AssetCard({ asset, compact = false }: AssetCardProps) {
   const hasSpecs = asset.procesador || asset.ram || asset.discoDuro;
   // El equipo se identifica unicamente por su numero de serie.
@@ -103,7 +50,7 @@ export function AssetCard({ asset, compact = false }: AssetCardProps) {
 
   if (compact) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md transition-shadow">
+      <div className="card p-3 transition-shadow hover:shadow-card-hover">
         <div className="flex items-start gap-3">
           <div className="p-2 bg-gray-100 rounded-lg shrink-0">
             <CategoryIcon categoria={asset.categoria.nombre} className="w-5 h-5 text-gray-600" />
@@ -123,13 +70,13 @@ export function AssetCard({ asset, compact = false }: AssetCardProps) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-200 overflow-hidden group">
+    <div className="card overflow-hidden group transition-shadow hover:shadow-card-hover">
       {/* Header with category icon */}
       <div className="p-4 pb-3 border-b border-gray-100">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl">
-              <CategoryIcon categoria={asset.categoria.nombre} className="w-6 h-6 text-blue-600" />
+            <div className="p-3 bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl">
+              <CategoryIcon categoria={asset.categoria.nombre} className="w-6 h-6 text-primary-700" />
             </div>
             <div>
               <p className="font-semibold text-gray-900">
@@ -141,7 +88,7 @@ export function AssetCard({ asset, compact = false }: AssetCardProps) {
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <Link
               href={`/activos/${asset.id}`}
-              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              className="p-1.5 text-gray-400 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
               title="Ver detalle"
             >
               <Eye className="w-4 h-4" />
@@ -166,12 +113,7 @@ export function AssetCard({ asset, compact = false }: AssetCardProps) {
           </span>
           <div className="flex gap-1.5">
             <AssetStatusBadge status={asset.estado} size="sm" />
-            <span className={`
-              px-2 py-0.5 rounded-full text-xs font-medium
-              ${conditionColors[asset.condicion]}
-            `}>
-              {conditionLabels[asset.condicion]}
-            </span>
+            <AssetConditionBadge condicion={asset.condicion} />
           </div>
         </div>
 
@@ -202,8 +144,8 @@ export function AssetCard({ asset, compact = false }: AssetCardProps) {
         {/* Assigned user */}
         {asset.empleadoActual && (
           <div className="flex items-start gap-2 pt-2 border-t border-gray-100">
-            <div className="p-1.5 bg-blue-50 rounded-full shrink-0">
-              <User className="w-3.5 h-3.5 text-blue-600" />
+            <div className="p-1.5 bg-primary-50 rounded-full shrink-0">
+              <User className="w-3.5 h-3.5 text-primary-700" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 break-words">

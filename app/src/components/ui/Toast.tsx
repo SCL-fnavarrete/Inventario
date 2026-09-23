@@ -183,9 +183,9 @@ const variantStyles: Record<
     border: "border-amber-200",
   },
   info: {
-    bg: "bg-blue-50",
-    icon: "text-blue-500",
-    border: "border-blue-200",
+    bg: "bg-primary-50",
+    icon: "text-primary-500",
+    border: "border-primary-200",
   },
 };
 
@@ -212,7 +212,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
         shadow-lg
         ${styles.bg}
         ${styles.border}
-        animate-[toastIn_200ms_ease-out]
+        animate-toast-in
         motion-reduce:animate-none
       `}
       role="alert"

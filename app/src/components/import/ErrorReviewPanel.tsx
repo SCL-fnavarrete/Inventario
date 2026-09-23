@@ -5,6 +5,8 @@ import { AlertTriangle, ArrowLeft, CheckCircle, Download, RefreshCw, XCircle } f
 import { cn } from "@/lib/utils";
 import { ErrorRowEditor } from "./ErrorRowEditor";
 import type { ImportRowStatus } from "@/types/import";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { StatCard, StatGrid } from "@/components/ui/StatCard";
 
 type Sede = { id: string; nombre: string };
 
@@ -98,7 +100,7 @@ export function ErrorReviewPanel({
   }, [errorRows, correctedRows, filter]);
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="card p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -112,7 +114,7 @@ export function ErrorReviewPanel({
         </div>
         <button
           onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          className={buttonClasses({ variant: "outline" })}
         >
           <ArrowLeft size={16} />
           Volver
@@ -120,20 +122,11 @@ export function ErrorReviewPanel({
       </div>
 
       {/* Resumen */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-green-50 rounded-lg p-4 text-center">
-          <p className="text-2xl font-bold text-green-600">{validCount}</p>
-          <p className="text-sm text-green-700">Válidas</p>
-        </div>
-        <div className="bg-red-50 rounded-lg p-4 text-center">
-          <p className="text-2xl font-bold text-red-600">{pendingCount}</p>
-          <p className="text-sm text-red-700">Pendientes</p>
-        </div>
-        <div className="bg-blue-50 rounded-lg p-4 text-center">
-          <p className="text-2xl font-bold text-blue-600">{correctedCount}</p>
-          <p className="text-sm text-blue-700">Corregidas</p>
-        </div>
-      </div>
+      <StatGrid cols={3} className="mb-6 grid-cols-3">
+        <StatCard variant="soft" tone="success" label="Válidas" value={validCount} />
+        <StatCard variant="soft" tone="danger" label="Pendientes" value={pendingCount} />
+        <StatCard variant="soft" tone="primary" label="Corregidas" value={correctedCount} />
+      </StatGrid>
 
       {/* Revalida todo el Excel sin salir de esta pantalla -- si despues
           de corregir algo (ej. crear una opcion de catalogo) ya no quedan
@@ -144,7 +137,7 @@ export function ErrorReviewPanel({
           onClick={onRevalidateAll}
           disabled={revalidating}
           title="Vuelve a validar todo el Excel de una, con los datos que hayas corregido mientras tanto (por ejemplo una opción de catálogo nueva)"
-          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className={buttonClasses({ size: "sm" })}
         >
           <RefreshCw size={14} className={revalidating ? "animate-spin" : undefined} />
           {revalidating ? "Revalidando..." : "Revalidar todo el Excel"}
@@ -157,7 +150,7 @@ export function ErrorReviewPanel({
           onClick={() => setFilter("all")}
           className={cn(
             "px-3 py-1 text-sm rounded-full transition-colors",
-            filter === "all" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            filter === "all" ? "bg-primary-700 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
           )}
         >
           Todos ({errorRows.length})

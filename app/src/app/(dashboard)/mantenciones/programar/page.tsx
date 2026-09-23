@@ -3,16 +3,11 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import Link from "next/link";
 import {
-  ArrowLeft,
   Search,
   Wrench,
   Calendar,
   User,
-  Laptop,
-  Smartphone,
-  Monitor,
   Package,
   Loader2,
   CheckCircle,
@@ -22,6 +17,9 @@ import { cn } from "@/lib/utils";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
+import { CategoryIcon } from "@/components/activos/CategoryIcon";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 type Asset = {
   id: string;
@@ -50,19 +48,6 @@ type TipoMantencion = {
   descripcion: string | null;
   activo: boolean;
 };
-
-function getCategoryIcon(categoryName: string) {
-  switch (categoryName.toLowerCase()) {
-    case "notebook":
-      return <Laptop className="h-5 w-5" />;
-    case "celular":
-      return <Smartphone className="h-5 w-5" />;
-    case "monitor":
-      return <Monitor className="h-5 w-5" />;
-    default:
-      return <Package className="h-5 w-5" />;
-  }
-}
 
 export default function ProgramarMantencionPage() {
   const router = useRouter();
@@ -272,7 +257,7 @@ export default function ProgramarMantencionPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary-700 mx-auto mb-4" />
           <p className="text-gray-600">Cargando activo...</p>
         </div>
       </div>
@@ -282,18 +267,11 @@ export default function ProgramarMantencionPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          href="/mantenciones"
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Programar Mantención</h1>
-          <p className="text-gray-600">Programar una nueva mantención para un activo</p>
-        </div>
-      </div>
+      <PageHeader
+        backHref="/mantenciones"
+        title="Programar Mantención"
+        description="Programar una nueva mantención para un activo"
+      />
 
       {/* Progress Steps */}
       <div className="flex items-center justify-center gap-4">
@@ -303,7 +281,7 @@ export default function ProgramarMantencionPage() {
               className={cn(
                 "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
                 step >= s
-                  ? "bg-blue-600 text-white"
+                  ? "bg-primary-700 text-white"
                   : "bg-gray-200 text-gray-500"
               )}
             >
@@ -313,7 +291,7 @@ export default function ProgramarMantencionPage() {
               <div
                 className={cn(
                   "w-16 h-1 mx-2",
-                  step > s ? "bg-blue-600" : "bg-gray-200"
+                  step > s ? "bg-primary-700" : "bg-gray-200"
                 )}
               />
             )}
@@ -323,9 +301,9 @@ export default function ProgramarMantencionPage() {
 
       {/* Step 1: Select Asset */}
       {step === 1 && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
+            <span className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-bold">
               1
             </span>
             Seleccionar Equipo
@@ -340,14 +318,14 @@ export default function ProgramarMantencionPage() {
                 placeholder="Buscar por marca, modelo, serie o empleado asignado..."
                 value={assetSearch}
                 onChange={(e) => setAssetSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
               />
             </div>
             <div className="relative">
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="appearance-none h-full pl-4 pr-9 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white cursor-pointer"
+                className="appearance-none h-full pl-4 pr-9 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white cursor-pointer"
               >
                 <option value="all">Todas las categorías</option>
                 {categories.map((cat) => (
@@ -369,7 +347,7 @@ export default function ProgramarMantencionPage() {
           {/* Asset list */}
           {loadingAssets ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              <Loader2 className="h-8 w-8 animate-spin text-primary-700" />
               <span className="ml-3 text-gray-600">Cargando equipos...</span>
             </div>
           ) : filteredAssets.length === 0 ? (
@@ -390,10 +368,10 @@ export default function ProgramarMantencionPage() {
                 <button
                   key={asset.id}
                   onClick={() => handleSelectAsset(asset)}
-                  className="w-full flex items-center gap-3 p-4 hover:bg-blue-50 transition-colors text-left"
+                  className="w-full flex items-center gap-3 p-4 hover:bg-primary-50 transition-colors text-left"
                 >
                   <span className="flex-shrink-0 text-gray-400">
-                    {getCategoryIcon(asset.categoria.nombre)}
+                    <CategoryIcon categoria={asset.categoria.nombre} className="h-5 w-5" />
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-900 truncate">
@@ -419,7 +397,7 @@ export default function ProgramarMantencionPage() {
                         asset.estado === "disponible" &&
                           "bg-green-100 text-green-700",
                         asset.estado === "asignado" &&
-                          "bg-blue-100 text-blue-700",
+                          "bg-primary-100 text-primary-800",
                         asset.estado === "en_mantencion" &&
                           "bg-orange-100 text-orange-700"
                       )}
@@ -445,9 +423,9 @@ export default function ProgramarMantencionPage() {
 
       {/* Step 2: Tipo de Mantención */}
       {step === 2 && selectedAsset && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
+            <span className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-bold">
               2
             </span>
             Tipo de Mantención
@@ -457,7 +435,7 @@ export default function ProgramarMantencionPage() {
           <div className="mb-6 p-4 bg-gray-50 rounded-lg">
             <div className="flex items-center gap-3">
               <span className="text-gray-400">
-                {getCategoryIcon(selectedAsset.categoria.nombre)}
+                <CategoryIcon categoria={selectedAsset.categoria.nombre} className="h-5 w-5" />
               </span>
               <div>
                 <p className="font-medium">
@@ -479,7 +457,7 @@ export default function ProgramarMantencionPage() {
 
           {loadingTipos ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              <Loader2 className="h-8 w-8 animate-spin text-primary-700" />
             </div>
           ) : tiposMantencion.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
@@ -501,8 +479,8 @@ export default function ProgramarMantencionPage() {
                   className={cn(
                     "p-4 rounded-lg border text-left transition-colors",
                     formData.tipoId === tipo.id
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-blue-300 hover:bg-gray-50"
+                      ? "border-primary-500 bg-primary-50"
+                      : "border-gray-200 hover:border-primary-300 hover:bg-gray-50"
                   )}
                 >
                   <p className="font-medium">{tipo.nombre}</p>
@@ -517,7 +495,7 @@ export default function ProgramarMantencionPage() {
           <div className="mt-6 flex justify-between">
             <button
               onClick={() => setStep(1)}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              className={buttonClasses({ variant: "outline" })}
             >
               Volver
             </button>
@@ -527,9 +505,9 @@ export default function ProgramarMantencionPage() {
 
       {/* Step 3: Detalles de la Mantención */}
       {step === 3 && selectedAsset && formData.tipoId && (
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6">
+        <form onSubmit={handleSubmit} className="card p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
+            <span className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-bold">
               3
             </span>
             Detalles de la Mantención
@@ -553,7 +531,7 @@ export default function ProgramarMantencionPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 Descripción *
               </label>
               <textarea
@@ -564,12 +542,12 @@ export default function ProgramarMantencionPage() {
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, descripcion: e.target.value }))
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 <Calendar className="inline h-4 w-4 mr-1" />
                 Fecha Programada *
               </label>
@@ -580,7 +558,7 @@ export default function ProgramarMantencionPage() {
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, fechaProgramada: e.target.value }))
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
               />
               <p className="text-xs text-gray-500 mt-1">
                 Obligatoria: una mantención no puede quedar &quot;en proceso&quot; sin una fecha
@@ -589,7 +567,7 @@ export default function ProgramarMantencionPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 <User className="inline h-4 w-4 mr-1" />
                 Técnico Asignado
               </label>
@@ -616,14 +594,14 @@ export default function ProgramarMantencionPage() {
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              className={buttonClasses({ variant: "outline" })}
             >
               Volver
             </button>
             <button
               type="submit"
               disabled={submitting || !formData.descripcion || !formData.fechaProgramada}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className={buttonClasses({ className: "px-6" })}
             >
               {submitting ? (
                 <Loader2 className="animate-spin" size={20} />

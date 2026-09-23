@@ -5,6 +5,10 @@ import { Plus, Edit, Trash2, Save, X } from "lucide-react";
 import { MantencionesTabs } from "@/components/mantenciones";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { ActiveBadge } from "@/components/ui/Badge";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 // Maintenance types are an editable catalog (not a fixed enum), manageable
 // by both admin and technician roles, so this screen lives inside
@@ -196,17 +200,17 @@ export default function TiposMantencionPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700"></div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Mantenciones</h1>
-        <p className="text-gray-600">Gestión de mantenciones preventivas y correctivas</p>
-      </div>
+      <PageHeader
+        title="Mantenciones"
+        description="Gestión de mantenciones preventivas y correctivas"
+      />
 
       <MantencionesTabs />
 
@@ -224,7 +228,7 @@ export default function TiposMantencionPage() {
               setIsCreating(true);
               setFormData(FORM_INICIAL);
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className={buttonClasses()}
           >
             <Plus size={20} />
             <span>Nuevo Tipo</span>
@@ -236,26 +240,26 @@ export default function TiposMantencionPage() {
 
       {/* Formulario de creación */}
       {isCreating && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Nuevo Tipo de Mantención</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+              <label className="field-label">Nombre *</label>
               <input
                 type="text"
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
                 placeholder="Ej: Preventiva, Correctiva"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+              <label className="field-label">Descripción</label>
               <input
                 type="text"
                 value={formData.descripcion}
                 onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
                 placeholder="Cuándo se usa este tipo"
               />
             </div>
@@ -263,13 +267,13 @@ export default function TiposMantencionPage() {
           <div className="flex justify-end gap-3 mt-4">
             <button
               onClick={cancelEdit}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className={buttonClasses({ variant: "outline" })}
             >
               Cancelar
             </button>
             <button
               onClick={handleCreate}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className={buttonClasses()}
             >
               <Save size={18} />
               Guardar
@@ -279,23 +283,23 @@ export default function TiposMantencionPage() {
       )}
 
       {/* Tabla de tipos */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="card overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th">
                 Nombre
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th">
                 Descripción
               </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th text-center">
                 Estado
               </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th text-center">
                 Mantenciones
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th text-right">
                 Acciones
               </th>
             </tr>
@@ -310,7 +314,7 @@ export default function TiposMantencionPage() {
                         type="text"
                         value={formData.nombre}
                         onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
                       />
                     </td>
                     <td className="px-6 py-4">
@@ -318,7 +322,7 @@ export default function TiposMantencionPage() {
                         type="text"
                         value={formData.descripcion}
                         onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
                       />
                     </td>
                     <td className="px-6 py-4 text-center text-gray-400">-</td>
@@ -351,17 +355,7 @@ export default function TiposMantencionPage() {
                     </td>
                     <td className="px-6 py-4 text-gray-500">{tipo.descripcion || "-"}</td>
                     <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => handleToggleActivo(tipo)}
-                        className={`inline-flex px-2 py-1 text-xs rounded-full ${
-                          tipo.activo
-                            ? "bg-green-100 text-green-800 hover:bg-green-200"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                        }`}
-                        title={tipo.activo ? "Click para desactivar" : "Click para activar"}
-                      >
-                        {tipo.activo ? "Activo" : "Inactivo"}
-                      </button>
+                      <ActiveBadge activo={tipo.activo} onToggle={() => handleToggleActivo(tipo)} />
                     </td>
                     <td className="px-6 py-4 text-center text-gray-500">
                       {tipo._count?.maintenances || 0}
@@ -370,7 +364,7 @@ export default function TiposMantencionPage() {
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => startEdit(tipo)}
-                          className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                          className="p-1 text-primary-700 hover:bg-primary-50 rounded"
                           title="Editar"
                         >
                           <Edit size={18} />
@@ -408,30 +402,15 @@ export default function TiposMantencionPage() {
       </div>
 
       {/* Delete confirmation modal, matching the rest of the system's style. */}
-      {confirmacion && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {confirmacion.titulo}
-            </h3>
-            <p className="text-gray-600 mb-4">{confirmacion.mensaje}</p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setConfirmacion(null)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => confirmacion.onConfirm()}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                {confirmacion.textoBoton}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={confirmacion !== null}
+        onClose={() => setConfirmacion(null)}
+        onConfirm={() => confirmacion?.onConfirm()}
+        variant="danger"
+        title={confirmacion?.titulo ?? ""}
+        message={confirmacion?.mensaje}
+        confirmLabel={confirmacion?.textoBoton}
+      />
     </div>
   );
 }

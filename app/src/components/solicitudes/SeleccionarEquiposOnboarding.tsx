@@ -19,6 +19,7 @@ import {
   especificacionesActivo as especificacionesEtiquetadasActivo,
   especificacionesActivoTexto,
 } from "@/lib/utils/assetSpecs";
+import { buttonClasses } from "@/components/ui/buttonStyles";
 
 type ActivoDisponible = {
   id: string;
@@ -296,7 +297,7 @@ export function SeleccionarEquiposOnboarding({
           }
           onSubmit(assetIds, condicionCargadorPorAsset);
         }}
-        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        className={buttonClasses()}
       >
         {submitting ? (
           <>

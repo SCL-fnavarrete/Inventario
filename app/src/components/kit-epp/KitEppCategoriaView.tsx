@@ -5,6 +5,9 @@ import { useSession } from "next-auth/react";
 import { Plus, Edit, Trash2, Save, X } from "lucide-react";
 import { ActivosTabs } from "@/components/activos";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 type CategoriaKit = "kit_bienvenida" | "epp";
 
@@ -230,27 +233,26 @@ export function KitEppCategoriaView({
       {/* Tabs del modulo: Equipos / Personal / Kit de Bienvenida / EPP */}
       <ActivosTabs />
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{titulo}</h1>
-          <p className="text-gray-600 mt-1">
-            Artículos e insumos (no equipos) con su stock disponible. Al asignarse en una
-            solicitud de onboarding, la cantidad se descuenta automáticamente.
-          </p>
-        </div>
-        {!isCreating && !editingId && (
-          <button
-            onClick={() => {
-              setIsCreating(true);
-              setFormData(formInicial);
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={20} />
-            <span>Nuevo Artículo</span>
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title={<>{titulo}</>}
+        description="Artículos e insumos (no equipos) con su stock disponible. Al asignarse en una solicitud de onboarding, la cantidad se descuenta automáticamente."
+        actions={
+          <>
+            {!isCreating && !editingId && (
+              <button
+                onClick={() => {
+                  setIsCreating(true);
+                  setFormData(formInicial);
+                }}
+                className={buttonClasses()}
+              >
+                <Plus size={20} />
+                <span>Nuevo Artículo</span>
+              </button>
+            )}
+          </>
+        }
+      />
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -259,11 +261,11 @@ export function KitEppCategoriaView({
       )}
 
       {aviso && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg flex items-start justify-between gap-3">
+        <div className="bg-primary-50 border border-primary-200 text-primary-900 px-4 py-3 rounded-lg flex items-start justify-between gap-3">
           <span>{aviso}</span>
           <button
             onClick={() => setAviso("")}
-            className="text-blue-600 hover:text-blue-800 flex-shrink-0"
+            className="text-primary-700 hover:text-primary-900 flex-shrink-0"
             aria-label="Cerrar aviso"
           >
             <X className="h-4 w-4" />
@@ -273,42 +275,42 @@ export function KitEppCategoriaView({
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700"></div>
         </div>
       ) : (
         <>
           {isCreating && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Nuevo Artículo</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                  <label className="field-label">Nombre *</label>
                   <input
                     type="text"
                     value={formData.nombre}
                     onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="field-input"
                     placeholder="Ej: Libreta corporativa, Chaleco reflectante talla M"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad (stock) *</label>
+                  <label className="field-label">Cantidad (stock) *</label>
                   <input
                     type="number"
                     min={0}
                     value={formData.cantidad}
                     onChange={(e) => setFormData({ ...formData, cantidad: parseInt(e.target.value, 10) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="field-input"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Stock mínimo *</label>
+                  <label className="field-label">Stock mínimo *</label>
                   <input
                     type="number"
                     min={0}
                     value={formData.stockMinimo}
                     onChange={(e) => setFormData({ ...formData, stockMinimo: parseInt(e.target.value, 10) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="field-input"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     El Dashboard avisa cuando el stock llega a este número o menos.
@@ -317,12 +319,12 @@ export function KitEppCategoriaView({
                 {/* Sede visible para cualquier rol, para que el articulo siempre
                     quede con sede asignada y aparezca al filtrar el menu. */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Sede</label>
+                  <label className="field-label">Sede</label>
                   <select
                     value={formData.sedeId}
                     onChange={(e) => setFormData({ ...formData, sedeId: e.target.value })}
                     disabled={!isAdmin}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
+                    className="field-input"
                   >
                     <option value="">Sin sede (no aparece al filtrar por sede)</option>
                     {sedes.map((sede) => (
@@ -341,13 +343,13 @@ export function KitEppCategoriaView({
               <div className="flex justify-end gap-3 mt-4">
                 <button
                   onClick={cancelEdit}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className={buttonClasses({ variant: "outline" })}
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleCreate}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className={buttonClasses()}
                 >
                   <Save size={18} />
                   Guardar
@@ -356,25 +358,25 @@ export function KitEppCategoriaView({
             </div>
           )}
 
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="card overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="table-th">
                     Nombre
                   </th>
                   {/* Sede visible para cualquier rol, para que el tecnico vea en
                       que sede quedo cada articulo. */}
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="table-th">
                     Sede
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="table-th text-center">
                     Stock disponible
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="table-th text-center">
                     Stock mínimo
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="table-th text-right">
                     Acciones
                   </th>
                 </tr>
@@ -389,7 +391,7 @@ export function KitEppCategoriaView({
                             type="text"
                             value={formData.nombre}
                             onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                            className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
                           />
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-500">
@@ -401,7 +403,7 @@ export function KitEppCategoriaView({
                             min={0}
                             value={formData.cantidad}
                             onChange={(e) => setFormData({ ...formData, cantidad: parseInt(e.target.value, 10) || 0 })}
-                            className="w-24 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-center"
+                            className="w-24 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 text-center"
                           />
                         </td>
                         <td className="px-6 py-4 text-center">
@@ -410,7 +412,7 @@ export function KitEppCategoriaView({
                             min={0}
                             value={formData.stockMinimo}
                             onChange={(e) => setFormData({ ...formData, stockMinimo: parseInt(e.target.value, 10) || 0 })}
-                            className="w-24 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-center"
+                            className="w-24 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 text-center"
                           />
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -460,7 +462,7 @@ export function KitEppCategoriaView({
                           <div className="flex justify-end gap-2">
                             <button
                               onClick={() => startEdit(item)}
-                              className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                              className="p-1 text-primary-700 hover:bg-primary-50 rounded"
                               title="Editar"
                             >
                               <Edit size={18} />
@@ -499,30 +501,15 @@ export function KitEppCategoriaView({
 
       {/* Confirmacion de eliminacion, con el mismo formato que el resto del
           sistema en vez del confirm() del navegador. */}
-      {confirmacion && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {confirmacion.titulo}
-            </h3>
-            <p className="text-gray-600 mb-4">{confirmacion.mensaje}</p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setConfirmacion(null)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => confirmacion.onConfirm()}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                {confirmacion.textoBoton}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={confirmacion !== null}
+        onClose={() => setConfirmacion(null)}
+        onConfirm={() => confirmacion?.onConfirm()}
+        variant="danger"
+        title={confirmacion?.titulo ?? ""}
+        message={confirmacion?.mensaje}
+        confirmLabel={confirmacion?.textoBoton}
+      />
     </div>
   );
 }

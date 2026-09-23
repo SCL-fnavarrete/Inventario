@@ -3,28 +3,25 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import Link from 'next/link';
 import {
-  ArrowLeft,
   UserPlus,
   ArrowLeftRight,
   Undo2,
   X,
   Search,
   Loader2,
-  Laptop,
-  Smartphone,
-  Monitor,
-  Package,
   AlertCircle,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CategoryIcon } from '@/components/activos/CategoryIcon';
 import {
   SeleccionarCambioEquipo,
   type SeleccionCambioEquipo,
 } from '@/components/solicitudes/SeleccionarCambioEquipo';
+import { buttonClasses } from '@/components/ui/buttonStyles';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 type Employee = {
   id: string;
@@ -73,16 +70,6 @@ function toggleCategoriaRequerida(
 ): string[] {
   if (marcado) return lista.includes(nombre) ? lista : [...lista, nombre];
   return lista.filter((c) => c !== nombre);
-}
-
-const ICONOS_CATEGORIA: Record<string, React.ReactNode> = {
-  Notebook: <Laptop className="h-4 w-4" />,
-  Celular: <Smartphone className="h-4 w-4" />,
-  Monitor: <Monitor className="h-4 w-4" />,
-};
-
-function iconoCategoria(nombre: string): React.ReactNode {
-  return ICONOS_CATEGORIA[nombre] || <Package className="h-4 w-4" />;
 }
 
 // Equipo disponible para elegir en "Equipos Requeridos", con sus specs --
@@ -134,7 +121,7 @@ const TIPOS = [
     label: 'Cambio de Equipo',
     description: 'Reemplazar un equipo por falla o incidencia',
     icon: ArrowLeftRight,
-    color: 'border-blue-500 bg-blue-50',
+    color: 'border-primary-500 bg-primary-50',
   },
   {
     value: 'offboarding',
@@ -912,15 +899,11 @@ export default function NuevaSolicitudPage() {
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Link href="/solicitudes" className="p-2 hover:bg-gray-100 rounded-lg">
-          <ArrowLeft className="h-5 w-5 text-gray-600" />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Nueva Solicitud</h1>
-          <p className="text-gray-600">{stepDescriptions[step]}</p>
-        </div>
-      </div>
+      <PageHeader
+        backHref="/solicitudes"
+        title="Nueva Solicitud"
+        description={<>{stepDescriptions[step]}</>}
+      />
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -966,7 +949,7 @@ export default function NuevaSolicitudPage() {
                   tipo === t.value ? t.color : 'border-gray-200 hover:border-gray-300'
                 )}
               >
-                <div className="p-3 bg-white rounded-lg shadow-sm">
+                <div className="card p-3">
                   <Icon className="h-6 w-6 text-gray-700" />
                 </div>
                 <div>
@@ -981,7 +964,7 @@ export default function NuevaSolicitudPage() {
 
       {/* Step 2 (Onboarding): crear empleado */}
       {step === 2 && tipo === 'onboarding' && (
-        <div className="bg-white rounded-lg shadow p-6 space-y-6">
+        <div className="card p-6 space-y-6">
           <div>
             <h3 className="font-medium text-gray-900">
               {modoEmpleadoOnboarding === 'nuevo' ? 'Datos del Nuevo Empleado' : 'Empleado que se reincorpora'}
@@ -1004,7 +987,7 @@ export default function NuevaSolicitudPage() {
               className={cn(
                 'px-3 py-1.5 rounded-lg border',
                 modoEmpleadoOnboarding === 'nuevo'
-                  ? 'bg-blue-600 text-white border-blue-600'
+                  ? 'bg-primary-700 text-white border-primary-700'
                   : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
               )}
             >
@@ -1016,7 +999,7 @@ export default function NuevaSolicitudPage() {
               className={cn(
                 'px-3 py-1.5 rounded-lg border',
                 modoEmpleadoOnboarding === 'existente'
-                  ? 'bg-blue-600 text-white border-blue-600'
+                  ? 'bg-primary-700 text-white border-primary-700'
                   : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
               )}
             >
@@ -1044,7 +1027,7 @@ export default function NuevaSolicitudPage() {
                 </label>
 
                 {selectedEmployee ? (
-                  <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-center justify-between bg-primary-50 border border-primary-200 rounded-lg p-3">
                     <div>
                       <p className="font-medium text-gray-900 flex items-center gap-2">
                         {selectedEmployee.nombres} {selectedEmployee.apellidoPaterno}
@@ -1081,7 +1064,7 @@ export default function NuevaSolicitudPage() {
                         onFocus={() => {
                           if (searchResults.length > 0) setShowResults(true);
                         }}
-                        className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="field-input pl-10 pr-10"
                       />
                       {searchLoading && (
                         <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
@@ -1094,7 +1077,7 @@ export default function NuevaSolicitudPage() {
                             <button
                               key={emp.id}
                               onClick={() => selectEmployee(emp)}
-                              className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b last:border-b-0 transition-colors"
+                              className="w-full text-left px-4 py-3 hover:bg-primary-50 border-b last:border-b-0 transition-colors"
                             >
                               <span className="text-sm font-medium text-gray-900 flex items-center gap-2">
                                 {emp.nombres} {emp.apellidoPaterno}
@@ -1152,7 +1135,7 @@ export default function NuevaSolicitudPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Tipo Contrato *
                   </label>
                   <select
@@ -1187,7 +1170,7 @@ export default function NuevaSolicitudPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombres *</label>
+                <label className="field-label">Nombres *</label>
                 <input
                   type="text"
                   value={onboardingEmp.nombres}
@@ -1196,7 +1179,7 @@ export default function NuevaSolicitudPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Apellido Paterno *</label>
+                <label className="field-label">Apellido Paterno *</label>
                 <input
                   type="text"
                   value={onboardingEmp.apellidoPaterno}
@@ -1207,7 +1190,7 @@ export default function NuevaSolicitudPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Apellido Materno</label>
+                <label className="field-label">Apellido Materno</label>
                 <input
                   type="text"
                   value={onboardingEmp.apellidoMaterno}
@@ -1216,7 +1199,7 @@ export default function NuevaSolicitudPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">RUT</label>
+                <label className="field-label">RUT</label>
                 <input
                   type="text"
                   value={onboardingEmp.rut}
@@ -1228,7 +1211,7 @@ export default function NuevaSolicitudPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Correo Personal *</label>
+                <label className="field-label">Correo Personal *</label>
                 <input
                   type="email"
                   value={onboardingEmp.correoPersonal}
@@ -1238,7 +1221,7 @@ export default function NuevaSolicitudPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Correo Empresa</label>
+                <label className="field-label">Correo Empresa</label>
                 <input
                   type="email"
                   value={onboardingEmp.correoEmpresa}
@@ -1250,7 +1233,7 @@ export default function NuevaSolicitudPage() {
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cargo *</label>
+                <label className="field-label">Cargo *</label>
                 <input
                   type="text"
                   value={onboardingEmp.cargo}
@@ -1259,7 +1242,7 @@ export default function NuevaSolicitudPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo Contrato *</label>
+                <label className="field-label">Tipo Contrato *</label>
                 <select
                   value={onboardingEmp.tipoContrato}
                   onChange={(e) => setOnboardingEmp({ ...onboardingEmp, tipoContrato: e.target.value })}
@@ -1286,7 +1269,7 @@ export default function NuevaSolicitudPage() {
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">División</label>
+                <label className="field-label">División</label>
                 <input
                   type="text"
                   value={onboardingEmp.division}
@@ -1296,7 +1279,7 @@ export default function NuevaSolicitudPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Área</label>
+                <label className="field-label">Área</label>
                 <input
                   type="text"
                   value={onboardingEmp.area}
@@ -1306,7 +1289,7 @@ export default function NuevaSolicitudPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Sub-Área</label>
+                <label className="field-label">Sub-Área</label>
                 <input
                   type="text"
                   value={onboardingEmp.subArea}
@@ -1317,7 +1300,7 @@ export default function NuevaSolicitudPage() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Supervisor</label>
+              <label className="field-label">Supervisor</label>
               <input
                 type="text"
                 value={onboardingEmp.supervisor}
@@ -1327,7 +1310,7 @@ export default function NuevaSolicitudPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Celular Contacto</label>
+              <label className="field-label">Celular Contacto</label>
               <input
                 type="text"
                 value={onboardingEmp.telefonoContacto}
@@ -1337,7 +1320,7 @@ export default function NuevaSolicitudPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 Dirección Particular
               </label>
               <input
@@ -1349,7 +1332,7 @@ export default function NuevaSolicitudPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 Listas de Distribución
               </label>
               <input
@@ -1365,7 +1348,7 @@ export default function NuevaSolicitudPage() {
 
           {/* Responsable de la solicitud (solo lectura) */}
           <div className="border-t pt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Responsable</label>
+            <label className="field-label">Responsable</label>
             <input
               type="text"
               value={
@@ -1379,7 +1362,7 @@ export default function NuevaSolicitudPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="field-label mb-2">
               Equipos Requeridos
             </label>
             {categorias.length === 0 ? (
@@ -1413,12 +1396,12 @@ export default function NuevaSolicitudPage() {
                             className="rounded border-gray-300"
                           />
                           <span className="flex items-center gap-1 text-sm">
-                            {iconoCategoria(cat.nombre)}
+                            <CategoryIcon categoria={cat.nombre} className="h-4 w-4" />
                             {cat.nombre}
                           </span>
                         </label>
                         {seleccionado && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-primary-50 text-primary-800 border border-primary-200">
                             Reservado
                           </span>
                         )}
@@ -1491,7 +1474,7 @@ export default function NuevaSolicitudPage() {
                                       return next;
                                     })
                                   }
-                                  className="text-blue-600 hover:underline"
+                                  className="text-primary-700 hover:underline"
                                 >
                                   Quitar selección
                                 </button>
@@ -1563,7 +1546,7 @@ export default function NuevaSolicitudPage() {
               </p>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     {medioEntrega === 'presencial' ? 'Fecha y hora de entrega' : 'Fecha y hora de entrega estimada'}
                   </label>
                   <input
@@ -1574,7 +1557,7 @@ export default function NuevaSolicitudPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Medio</label>
+                  <label className="field-label">Medio</label>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 text-sm">
                       <input
@@ -1598,7 +1581,7 @@ export default function NuevaSolicitudPage() {
                 </div>
                 {medioEntrega === 'presencial' ? (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="field-label">
                       Lugar de entrega
                     </label>
                     <input
@@ -1612,7 +1595,7 @@ export default function NuevaSolicitudPage() {
                 ) : (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="field-label">
                         N° de OT Chilexpress
                       </label>
                       <input
@@ -1624,7 +1607,7 @@ export default function NuevaSolicitudPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="field-label">
                         Ubicación de destino
                       </label>
                       <input
@@ -1680,7 +1663,7 @@ export default function NuevaSolicitudPage() {
                         <span className="text-sm">{label}</span>
                       </label>
                       {seleccionCount > 0 && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-primary-50 text-primary-800 border border-primary-200">
                           Reservado
                         </span>
                       )}
@@ -1736,7 +1719,7 @@ export default function NuevaSolicitudPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Sede <span className="text-red-500">*</span>
             </label>
             <select
@@ -1764,7 +1747,7 @@ export default function NuevaSolicitudPage() {
 
           {/* Observaciones */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+            <label className="field-label">Observaciones</label>
             <textarea
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
@@ -1784,7 +1767,7 @@ export default function NuevaSolicitudPage() {
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={buttonClasses({ className: "px-6" })}
             >
               {submitting ? 'Creando...' : 'Crear Solicitud'}
             </button>
@@ -1794,7 +1777,7 @@ export default function NuevaSolicitudPage() {
 
       {/* Step 2 (Cambio de Equipo / Offboarding): formulario con búsqueda de empleado */}
       {step === 2 && tipo !== 'onboarding' && tipo !== '' && (
-        <div className="bg-white rounded-lg shadow p-6 space-y-6">
+        <div className="card p-6 space-y-6">
           {/* Employee Selection */}
           <div>
             <label className={cn(
@@ -1808,7 +1791,7 @@ export default function NuevaSolicitudPage() {
             </label>
 
             {selectedEmployee ? (
-              <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-center justify-between bg-primary-50 border border-primary-200 rounded-lg p-3">
                 <div>
                   <p className="font-medium text-gray-900">
                     {selectedEmployee.nombres} {selectedEmployee.apellidoPaterno}
@@ -1838,7 +1821,7 @@ export default function NuevaSolicitudPage() {
                     onFocus={() => {
                       if (searchResults.length > 0) setShowResults(true);
                     }}
-                    className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="field-input pl-10 pr-10"
                   />
                   {searchLoading && (
                     <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
@@ -1853,7 +1836,7 @@ export default function NuevaSolicitudPage() {
                         <button
                           key={emp.id}
                           onClick={() => selectEmployee(emp)}
-                          className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b last:border-b-0 transition-colors"
+                          className="w-full text-left px-4 py-3 hover:bg-primary-50 border-b last:border-b-0 transition-colors"
                         >
                           <span className="text-sm font-medium text-gray-900">
                             {emp.nombres} {emp.apellidoPaterno}
@@ -1909,7 +1892,7 @@ export default function NuevaSolicitudPage() {
                     <button
                       type="button"
                       onClick={() => setShowCreateModal(true)}
-                      className="text-blue-600 hover:underline"
+                      className="text-primary-700 hover:underline"
                     >
                       crea uno nuevo
                     </button>
@@ -1922,7 +1905,7 @@ export default function NuevaSolicitudPage() {
 
           {/* Responsable de la solicitud (solo lectura) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Responsable</label>
+            <label className="field-label">Responsable</label>
             <input
               type="text"
               value={
@@ -1994,7 +1977,7 @@ export default function NuevaSolicitudPage() {
                     <h4 className="font-medium text-gray-900 mb-1">Coordinar Entrega del Reemplazo</h4>
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="field-label">
                         {medioCambio === 'presencial' ? 'Fecha y hora del cambio' : 'Fecha estimada de llegada'}
                       </label>
                       <input
@@ -2005,7 +1988,7 @@ export default function NuevaSolicitudPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Medio</label>
+                      <label className="field-label">Medio</label>
                       <div className="flex gap-4">
                         <label className="flex items-center gap-2 text-sm">
                           <input
@@ -2029,7 +2012,7 @@ export default function NuevaSolicitudPage() {
                     </div>
                     {medioCambio === 'presencial' ? (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Lugar</label>
+                        <label className="field-label">Lugar</label>
                         <input
                           type="text"
                           value={lugarCambio}
@@ -2041,7 +2024,7 @@ export default function NuevaSolicitudPage() {
                     ) : (
                       <>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="field-label">
                             N° de OT Chilexpress
                           </label>
                           <input
@@ -2053,7 +2036,7 @@ export default function NuevaSolicitudPage() {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="field-label">
                             Ubicación de destino
                           </label>
                           <input
@@ -2080,7 +2063,7 @@ export default function NuevaSolicitudPage() {
               {/* Equipos actuales del empleado */}
               {selectedEmployee && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="field-label mb-2">
                     Equipos a devolver
                   </label>
                   {loadingAssignments ? (
@@ -2097,12 +2080,6 @@ export default function NuevaSolicitudPage() {
                       <div className="space-y-2">
                         {employeeAssignments.map((a) => {
                           const asset = a.asset;
-                          const iconMap: Record<string, React.ReactNode> = {
-                            notebook: <Laptop className="h-4 w-4" />,
-                            celular: <Smartphone className="h-4 w-4" />,
-                            monitor: <Monitor className="h-4 w-4" />,
-                          };
-                          const icon = iconMap[asset.categoria.nombre.toLowerCase()] || <Package className="h-4 w-4" />;
                           return (
                             <div
                               key={a.id}
@@ -2110,7 +2087,7 @@ export default function NuevaSolicitudPage() {
                             >
                               <div className="flex items-center gap-3">
                                 <div className="p-1.5 bg-orange-100 rounded-lg text-orange-700">
-                                  {icon}
+                                  <CategoryIcon categoria={asset.categoria.nombre} className="h-4 w-4" />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-medium text-gray-900">
@@ -2223,7 +2200,7 @@ export default function NuevaSolicitudPage() {
                   no se pide de vuelta -- es consumible. */}
               {selectedEmployee && employeeEppAssignments.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="field-label mb-2">
                     EPP a devolver
                   </label>
                   <div className="space-y-2">
@@ -2306,7 +2283,7 @@ export default function NuevaSolicitudPage() {
                 <h4 className="font-medium text-gray-900 mb-1">Coordinar Devolución</h4>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Medio</label>
+                    <label className="field-label">Medio</label>
                     <div className="flex gap-4">
                       <label className="flex items-center gap-2 text-sm">
                         <input
@@ -2329,7 +2306,7 @@ export default function NuevaSolicitudPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="field-label">
                       {medioDevolucion === 'presencial'
                         ? 'Fecha y hora de la devolución'
                         : 'Fecha estimada de llegada'}
@@ -2343,7 +2320,7 @@ export default function NuevaSolicitudPage() {
                   </div>
                   {medioDevolucion === 'presencial' ? (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="field-label">
                         Lugar de devolución
                       </label>
                       <input
@@ -2357,7 +2334,7 @@ export default function NuevaSolicitudPage() {
                   ) : (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="field-label">
                           N° de OT Chilexpress
                         </label>
                         <input
@@ -2369,7 +2346,7 @@ export default function NuevaSolicitudPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="field-label">
                           Ubicación de destino
                         </label>
                         <input
@@ -2390,7 +2367,7 @@ export default function NuevaSolicitudPage() {
           {/* En Desvinculacion y Cambio de Equipo la sede ya no se elige: el
               empleado ya pertenece a una y se fija sola al elegirlo. */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Sede <span className="text-red-500">*</span>
             </label>
             {((tipo === 'offboarding' || tipo === 'cambio_equipo') && selectedEmployee) ||
@@ -2429,7 +2406,7 @@ export default function NuevaSolicitudPage() {
 
           {/* Observaciones */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+            <label className="field-label">Observaciones</label>
             <textarea
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
@@ -2449,7 +2426,7 @@ export default function NuevaSolicitudPage() {
             <button
               onClick={handleSubmit}
               disabled={submitting || !employeeId}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={buttonClasses({ className: "px-6" })}
             >
               {submitting ? 'Creando...' : 'Crear Solicitud'}
             </button>
@@ -2482,7 +2459,7 @@ export default function NuevaSolicitudPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Nombres *
                   </label>
                   <input
@@ -2493,7 +2470,7 @@ export default function NuevaSolicitudPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Apellido Paterno *
                   </label>
                   <input
@@ -2506,7 +2483,7 @@ export default function NuevaSolicitudPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Apellido Materno
                   </label>
                   <input
@@ -2517,7 +2494,7 @@ export default function NuevaSolicitudPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">RUT</label>
+                  <label className="field-label">RUT</label>
                   <input
                     type="text"
                     value={newEmp.rut}
@@ -2528,7 +2505,7 @@ export default function NuevaSolicitudPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="field-label">
                   Correo Personal *
                 </label>
                 <input
@@ -2540,7 +2517,7 @@ export default function NuevaSolicitudPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="field-label">
                   Correo Empresa
                 </label>
                 <input
@@ -2553,7 +2530,7 @@ export default function NuevaSolicitudPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cargo</label>
+                  <label className="field-label">Cargo</label>
                   <input
                     type="text"
                     value={newEmp.cargo}
@@ -2562,7 +2539,7 @@ export default function NuevaSolicitudPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Tipo Contrato *
                   </label>
                   <select
@@ -2576,7 +2553,7 @@ export default function NuevaSolicitudPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación</label>
+                <label className="field-label">Ubicación</label>
                 <input
                   type="text"
                   value={newEmp.ubicacion}

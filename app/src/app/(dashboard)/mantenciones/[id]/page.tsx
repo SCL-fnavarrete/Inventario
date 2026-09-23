@@ -5,12 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
-  ArrowLeft,
   Wrench,
-  Laptop,
-  Smartphone,
-  Monitor,
-  Package,
   AlertCircle,
   CheckCircle,
   XCircle,
@@ -23,6 +18,9 @@ import { cn } from "@/lib/utils";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { formatearFecha } from "@/lib/utils/fechas";
+import { CategoryIcon } from "@/components/activos/CategoryIcon";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 type Maintenance = {
   id: string;
@@ -62,28 +60,10 @@ type Maintenance = {
 
 const estadoConfig: Record<string, { label: string; icon: typeof CheckCircle; color: string; bgColor: string }> = {
   pendiente: { label: "Pendiente", icon: Clock, color: "text-orange-600", bgColor: "bg-orange-100" },
-  en_proceso: { label: "En Proceso", icon: Wrench, color: "text-blue-600", bgColor: "bg-blue-100" },
+  en_proceso: { label: "En Proceso", icon: Wrench, color: "text-primary-700", bgColor: "bg-primary-100" },
   completada: { label: "Completada", icon: CheckCircle, color: "text-green-600", bgColor: "bg-green-100" },
   cancelada: { label: "Cancelada", icon: XCircle, color: "text-gray-600", bgColor: "bg-gray-100" },
 };
-
-function getCategoryIcon(categoryName: string) {
-  switch (categoryName.toLowerCase()) {
-    case "notebook":
-      return <Laptop className="h-5 w-5" />;
-    case "celular":
-      return <Smartphone className="h-5 w-5" />;
-    case "monitor":
-      return <Monitor className="h-5 w-5" />;
-    default:
-      return <Package className="h-5 w-5" />;
-  }
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return formatearFecha(dateString);
-}
 
 function formatCurrency(amount: number | null): string {
   if (!amount) return "-";
@@ -311,53 +291,44 @@ export default function MantencionDetallePage({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/mantenciones"
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft size={20} />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Detalle de Mantención</h1>
-            <p className="text-gray-600">
-              {maintenance.asset.marca} {maintenance.asset.modelo}
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          {maintenance.estado === "pendiente" && (
-            <>
+      <PageHeader
+        backHref="/mantenciones"
+        title="Detalle de Mantención"
+        description={<>{maintenance.asset.marca} {maintenance.asset.modelo}</>}
+        actions={
+          <>
+            {maintenance.estado === "pendiente" && (
+              <>
+                <button
+                  onClick={handleStartMaintenance}
+                  disabled={submitting}
+                  className={buttonClasses()}
+                >
+                  <Play size={20} />
+                  Iniciar
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className={buttonClasses({ variant: "danger" })}
+                >
+                  <Trash2 size={20} />
+                  Eliminar
+                </button>
+              </>
+            )}
+            {maintenance.estado === "en_proceso" && (
               <button
-                onClick={handleStartMaintenance}
+                onClick={handleCancelMaintenance}
                 disabled={submitting}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
               >
-                <Play size={20} />
-                Iniciar
+                <XCircle size={20} />
+                Cancelar
               </button>
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                <Trash2 size={20} />
-                Eliminar
-              </button>
-            </>
-          )}
-          {maintenance.estado === "en_proceso" && (
-            <button
-              onClick={handleCancelMaintenance}
-              disabled={submitting}
-              className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
-            >
-              <XCircle size={20} />
-              Cancelar
-            </button>
-          )}
-        </div>
-      </div>
+            )}
+          </>
+        }
+      />
 
       {/* Status Banner */}
       <div
@@ -373,11 +344,11 @@ export default function MantencionDetallePage({
               no subtitle is shown rather than an alarming placeholder. */}
           {maintenance.estado === "completada" && maintenance.fechaRealizada ? (
             <p className="text-sm text-gray-600">
-              {`Completada el ${formatDate(maintenance.fechaRealizada)}`}
+              {`Completada el ${formatearFecha(maintenance.fechaRealizada, {}, "-")}`}
             </p>
           ) : maintenance.fechaProgramada ? (
             <p className="text-sm text-gray-600">
-              {`Programada para ${formatDate(maintenance.fechaProgramada)}`}
+              {`Programada para ${formatearFecha(maintenance.fechaProgramada, {}, "-")}`}
             </p>
           ) : null}
         </div>
@@ -389,7 +360,7 @@ export default function MantencionDetallePage({
         {/* Left Column - Maintenance Info */}
         <div className="lg:col-span-2 space-y-6">
           {/* Maintenance Details */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <h2 className="text-lg font-semibold mb-4">Información de la Mantención</h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -401,7 +372,7 @@ export default function MantencionDetallePage({
               <div>
                 <p className="text-sm text-gray-500">Fecha Programada</p>
                 <p className="font-medium">
-                  {formatDate(maintenance.fechaProgramada ?? maintenance.createdAt)}
+                  {formatearFecha(maintenance.fechaProgramada ?? maintenance.createdAt, {}, "-")}
                 </p>
               </div>
               <div>
@@ -432,12 +403,12 @@ export default function MantencionDetallePage({
           {/* Completion form is shown inline on the detail page (not a
               modal) once the maintenance is en_proceso. */}
           {maintenance.estado === "en_proceso" && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h2 className="text-lg font-semibold mb-4">Completar Mantención</h2>
               <form onSubmit={handleCompleteMaintenance} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="field-label">
                       Fecha Realizada *
                     </label>
                     <input
@@ -447,12 +418,12 @@ export default function MantencionDetallePage({
                       onChange={(e) =>
                         setCompleteForm((prev) => ({ ...prev, fechaRealizada: e.target.value }))
                       }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="field-input"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="field-label">
                       Realizado por
                     </label>
                     <input
@@ -469,7 +440,7 @@ export default function MantencionDetallePage({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Resultado *
                   </label>
                   <textarea
@@ -480,12 +451,12 @@ export default function MantencionDetallePage({
                     onChange={(e) =>
                       setCompleteForm((prev) => ({ ...prev, resultado: e.target.value }))
                     }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="field-input"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="field-label mb-2">
                     ¿Qué pasa con el equipo? *
                   </label>
                   <div className="grid grid-cols-3 gap-2">
@@ -539,7 +510,7 @@ export default function MantencionDetallePage({
 
                 {completeForm.resultadoTipo === "no_reparable" && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="field-label">
                       Motivo de la baja *
                     </label>
                     <textarea
@@ -550,13 +521,13 @@ export default function MantencionDetallePage({
                       onChange={(e) =>
                         setCompleteForm((prev) => ({ ...prev, motivoBaja: e.target.value }))
                       }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="field-input"
                     />
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Próxima Mantención
                   </label>
                   <input
@@ -565,7 +536,7 @@ export default function MantencionDetallePage({
                     onChange={(e) =>
                       setCompleteForm((prev) => ({ ...prev, proximaMantencion: e.target.value }))
                     }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="field-input"
                   />
                 </div>
 
@@ -585,16 +556,16 @@ export default function MantencionDetallePage({
 
           {/* Result (if completed) */}
           {maintenance.estado === "completada" && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h2 className="text-lg font-semibold mb-4">Resultado de la Mantención</h2>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-500">Fecha Realizada</p>
-                  <p className="font-medium">{formatDate(maintenance.fechaRealizada)}</p>
+                  <p className="font-medium">{formatearFecha(maintenance.fechaRealizada, {}, "-")}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Próxima Mantención</p>
-                  <p className="font-medium">{formatDate(maintenance.proximaMantencion)}</p>
+                  <p className="font-medium">{formatearFecha(maintenance.proximaMantencion, {}, "-")}</p>
                 </div>
                 <div className="col-span-2">
                   <p className="text-sm text-gray-500">Resultado</p>
@@ -607,11 +578,11 @@ export default function MantencionDetallePage({
 
         {/* Right Column - Asset Info */}
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <h2 className="text-lg font-semibold mb-4">Activo</h2>
             <div className="flex items-center gap-3 mb-4">
               <span className="text-gray-400">
-                {getCategoryIcon(maintenance.asset.categoria.nombre)}
+                <CategoryIcon categoria={maintenance.asset.categoria.nombre} className="h-5 w-5" />
               </span>
               <div>
                 <p className="font-medium">
@@ -645,7 +616,7 @@ export default function MantencionDetallePage({
           </div>
 
           {maintenance.asset.empleadoActual && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h2 className="text-lg font-semibold mb-4">Asignado a</h2>
               <div className="space-y-3 text-sm">
                 <div>
@@ -680,14 +651,14 @@ export default function MantencionDetallePage({
             <div className="flex justify-end gap-4">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className={buttonClasses({ variant: "outline" })}
               >
                 Cancelar
               </button>
               <button
                 onClick={handleDelete}
                 disabled={submitting}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                className={buttonClasses({ variant: "danger" })}
               >
                 {submitting ? "Eliminando..." : "Eliminar"}
               </button>

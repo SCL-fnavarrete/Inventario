@@ -4,9 +4,11 @@ import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { Save, Loader2 } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 const empleadoFieldLabels: Record<string, string> = {
   rut: "RUT",
@@ -24,8 +26,7 @@ const empleadoFieldLabels: Record<string, string> = {
   fechaIngreso: "Fecha de Ingreso",
   fechaTermino: "Fecha de Término",
   telefonoContacto: "Teléfono de Contacto",
-  sedeId: "Sede",
-};
+  sedeId: "Sede" };
 
 type Sede = { id: string; nombre: string; codigo: string; activa: boolean };
 
@@ -188,25 +189,14 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href={`/empleados/${id}`}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft size={24} />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Editar Empleado</h1>
-            <p className="text-gray-600">
-              {formData.nombres} {formData.apellidoPaterno}
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        backHref={`/empleados/${id}`}
+        title="Editar Empleado"
+        description={<>{formData.nombres} {formData.apellidoPaterno}</>}
+      />
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6">
+      <form onSubmit={handleSubmit} className="card p-6">
         {error && (
           <div className="mb-6">
             <ApiErrorSummary error={error} fieldErrors={fieldErrors} fieldLabels={empleadoFieldLabels} />
@@ -222,7 +212,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               RUT
             </label>
             <input
@@ -230,12 +220,12 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="rut"
               value={formData.rut}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Correo Personal <span className="text-red-500">*</span>
             </label>
             <input
@@ -244,12 +234,12 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               value={formData.correoPersonal}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Correo Empresa
             </label>
             <input
@@ -257,12 +247,12 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="correoEmpresa"
               value={formData.correoEmpresa}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Nombres <span className="text-red-500">*</span>
             </label>
             <input
@@ -271,12 +261,12 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               value={formData.nombres}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Apellido Paterno <span className="text-red-500">*</span>
             </label>
             <input
@@ -285,12 +275,12 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               value={formData.apellidoPaterno}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Apellido Materno
             </label>
             <input
@@ -298,12 +288,12 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="apellidoMaterno"
               value={formData.apellidoMaterno}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Teléfono de Contacto
             </label>
             <input
@@ -311,7 +301,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="telefonoContacto"
               value={formData.telefonoContacto}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input"
             />
           </div>
 
@@ -329,7 +319,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               contrario, guardar cualquier otro cambio lo devolveria a
               "activo" sin que nadie lo pidiera. */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Estado <span className="text-red-500">*</span>
             </label>
             {formData.estado === "desvinculado" ? (
@@ -351,7 +341,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
                 value={formData.estado}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
               >
                 <option value="activo">Activo</option>
                 <option value="licencia">En Licencia</option>
@@ -360,7 +350,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Tipo de Contrato <span className="text-red-500">*</span>
             </label>
             <select
@@ -368,7 +358,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               value={formData.tipoContrato}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input"
             >
               <option value="contrato">Contrato</option>
               <option value="boleta">Boleta</option>
@@ -376,7 +366,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Cargo
             </label>
             <input
@@ -384,12 +374,12 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="cargo"
               value={formData.cargo}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Jefatura
             </label>
             <input
@@ -397,12 +387,12 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="jefatura"
               value={formData.jefatura}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Supervisor
             </label>
             <input
@@ -410,12 +400,12 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="supervisor"
               value={formData.supervisor}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Ubicación
             </label>
             <input
@@ -423,12 +413,12 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="ubicacion"
               value={formData.ubicacion}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Fecha de Ingreso
             </label>
             <input
@@ -436,12 +426,12 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="fechaIngreso"
               value={formData.fechaIngreso}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Fecha de Término
             </label>
             <input
@@ -449,13 +439,13 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="fechaTermino"
               value={formData.fechaTermino}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input"
             />
           </div>
 
           {esAdmin && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 Sede <span className="text-red-500">*</span>
               </label>
               <select
@@ -467,7 +457,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
                    ignora el sedeId que mande un tecnico, esto evita que
                    parezca editable. */
                 disabled={!esAdmin}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
+                className="field-input"
               >
                 <option value="" disabled>
                   Selecciona una sede...
@@ -492,14 +482,14 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
         <div className="mt-8 flex justify-end gap-4">
           <Link
             href={`/empleados/${id}`}
-            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            className={buttonClasses({ variant: "outline", className: "px-6" })}
           >
             Cancelar
           </Link>
           <button
             type="submit"
             disabled={saving}
-            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className={buttonClasses({ className: "px-6" })}
           >
             {saving ? (
               <>

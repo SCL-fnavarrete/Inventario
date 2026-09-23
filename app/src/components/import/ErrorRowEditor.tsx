@@ -7,6 +7,10 @@ import { CatalogSelect } from "@/components/ui/CatalogSelect";
 import { parseEstado, parseCondicion } from "@/lib/importacion/estadoCondicion";
 import type { ImportRowStatus, ValidationError } from "@/types/import";
 import type { EstadoActivo, CondicionActivo } from "@prisma/client";
+import {
+  CONDICION_ACTIVO_LABEL as condicionLabels,
+  ESTADO_ACTIVO_LABEL as estadoLabels,
+} from "@/lib/constants/estadosActivo";
 
 type Sede = { id: string; nombre: string };
 
@@ -16,23 +20,6 @@ interface ErrorRowEditorProps {
   sedes: Sede[];
   onSave: (rowIndex: number, updatedData: Record<string, string>) => void;
 }
-
-// Mismas etiquetas que usa el listado de activos (src/app/(dashboard)/activos/page.tsx),
-// duplicadas aqui porque ese archivo no las exporta.
-const estadoLabels: Record<EstadoActivo, string> = {
-  disponible: "Disponible",
-  asignado: "Asignado",
-  en_mantencion: "En Mantención",
-  no_devuelto: "No devuelto",
-  baja: "Baja",
-  vendido: "Vendido",
-};
-
-const condicionLabels: Record<CondicionActivo, string> = {
-  nuevo: "Nuevo",
-  usado: "Usado",
-  danado: "Dañado",
-};
 
 // Campos importados que alimentan directamente un catalogo administrable
 // (CatalogSelect), en vez de dominio fijo o texto libre.
@@ -138,7 +125,7 @@ export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEdit
         {!isEditing ? (
           <button
             onClick={() => setIsEditing(true)}
-            className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+            className="flex items-center gap-1 px-3 py-1 text-sm bg-primary-100 text-primary-800 rounded hover:bg-primary-200 transition-colors"
           >
             <Edit2 size={14} />
             Editar
@@ -210,7 +197,7 @@ export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEdit
 
 const inputClassName = (hasError: boolean) =>
   cn(
-    "w-full px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none",
+    "w-full px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-primary-500 focus:outline-none",
     hasError ? "border-red-400 bg-red-50" : "border-gray-300"
   );
 

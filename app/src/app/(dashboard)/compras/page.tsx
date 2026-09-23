@@ -19,6 +19,9 @@ import { Can } from "@/components/auth/Can";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import { formatearFecha } from "@/lib/utils/fechas";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatCard, StatGrid } from "@/components/ui/StatCard";
 
 type Purchase = {
   id: string;
@@ -35,10 +38,6 @@ type Purchase = {
 type Stats = {
   totalCompras: number;
 };
-
-function formatDate(dateString: string): string {
-  return formatearFecha(dateString);
-}
 
 export default function ComprasPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -90,55 +89,37 @@ export default function ComprasPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Compras y Facturas</h1>
-          <p className="text-gray-600">Gestión de facturas y vinculación con activos</p>
-        </div>
-        <div className="flex gap-2">
-          <Can recurso="compras">
-            <Link
-              href="/compras/nueva"
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <Plus size={20} />
-              Nueva Compra
-            </Link>
-          </Can>
-        </div>
-      </div>
+      <PageHeader
+        title="Compras y Facturas"
+        description="Gestión de facturas y vinculación con activos"
+        actions={
+          <>
+            <Can recurso="compras">
+              <Link
+                href="/compras/nueva"
+                className={buttonClasses()}
+              >
+                <Plus size={20} />
+                Nueva Compra
+              </Link>
+            </Can>
+          </>
+        }
+      />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Total Facturas</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.totalCompras || 0}</p>
-            </div>
-            <div className="p-3 bg-blue-100 rounded-full">
-              <FileText className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Activos Vinculados</p>
-              <p className="text-2xl font-bold text-orange-600">
-                {purchases.reduce((sum, p) => sum + p._count.purchaseAssets, 0)}
-              </p>
-            </div>
-            <div className="p-3 bg-orange-100 rounded-full">
-              <Package className="h-6 w-6 text-orange-600" />
-            </div>
-          </div>
-        </div>
-      </div>
+      <StatGrid cols={2} className="grid-cols-1 sm:grid-cols-2">
+        <StatCard label="Total Facturas" value={stats?.totalCompras || 0} tone="primary" icon={FileText} />
+        <StatCard
+          label="Activos Vinculados"
+          value={purchases.reduce((sum, p) => sum + p._count.purchaseAssets, 0)}
+          tone="orange"
+          icon={Package}
+        />
+      </StatGrid>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="card p-4">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
@@ -151,7 +132,7 @@ export default function ComprasPage() {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input pl-10 pr-4"
               />
             </div>
 
@@ -168,7 +149,7 @@ export default function ComprasPage() {
                   setFechaDesde(e.target.value);
                   setPage(1);
                 }}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               />
             </div>
             <div className="flex items-center gap-2">
@@ -180,7 +161,7 @@ export default function ComprasPage() {
                   setFechaHasta(e.target.value);
                   setPage(1);
                 }}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               />
             </div>
             {/* Siempre visible; se deshabilita cuando no hay nada que
@@ -193,7 +174,7 @@ export default function ComprasPage() {
                 setPage(1);
               }}
               disabled={!fechaDesde && !fechaHasta && !search}
-              className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={buttonClasses({ variant: "outline" })}
             >
               <RefreshCw size={16} />
               Limpiar filtros
@@ -203,7 +184,7 @@ export default function ComprasPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
@@ -215,7 +196,7 @@ export default function ComprasPage() {
             <Can recurso="compras">
               <Link
                 href="/compras/nueva"
-                className="mt-4 text-blue-600 hover:text-blue-800 text-sm"
+                className="mt-4 text-primary-700 hover:text-primary-900 text-sm"
               >
                 Registrar primera compra
               </Link>
@@ -227,25 +208,25 @@ export default function ComprasPage() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="table-th px-4">
                       N° Factura
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="table-th px-4">
                       RUT Proveedor
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="table-th px-4">
                       Sede
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="table-th px-4">
                       Fecha
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                    <th className="table-th px-4 text-center">
                       Activos
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="table-th px-4">
                       OC
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                    <th className="table-th px-4 text-right">
                       Acciones
                     </th>
                   </tr>
@@ -268,7 +249,7 @@ export default function ComprasPage() {
                         )}
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-500">
-                        {formatDate(purchase.fechaFactura)}
+                        {formatearFecha(purchase.fechaFactura)}
                       </td>
                       <td className="px-4 py-4 text-center">
                         <span className={cn(
@@ -287,7 +268,7 @@ export default function ComprasPage() {
                         <div className="flex items-center justify-end gap-2">
                           <Link
                             href={`/compras/${purchase.id}`}
-                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                            className="text-primary-700 hover:text-primary-900 text-sm font-medium"
                           >
                             Ver detalle
                           </Link>

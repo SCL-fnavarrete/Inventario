@@ -203,7 +203,7 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && buscarEmpleados()}
                   placeholder="Buscar por nombre, apellido, RUT o correo"
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="field-input flex-1"
                 />
                 <button
                   onClick={buscarEmpleados}
@@ -236,7 +236,7 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                         );
                       }}
                       className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
-                        selectedEmployee?.id === emp.id ? "bg-indigo-50" : ""
+                        selectedEmployee?.id === emp.id ? "bg-primary-50" : ""
                       }`}
                     >
                       <p className="font-medium text-gray-900">
@@ -260,7 +260,7 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                 <button
                   onClick={() => setStep(2)}
                   disabled={!selectedEmployee}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                  className="px-6 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-800 disabled:opacity-50"
                 >
                   Continuar
                 </button>
@@ -283,7 +283,7 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Fecha de entrega *
                   </label>
                   <input
@@ -291,7 +291,7 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                     value={fechaEntrega}
                     max={hoyISO()}
                     onChange={(e) => setFechaEntrega(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="field-input"
                   />
                   <p className="mt-1 text-xs text-gray-500">
                     Si el equipo se entrego antes, corrige la fecha aqui.
@@ -299,13 +299,13 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Tipo de movimiento *
                   </label>
                   <select
                     value={tipoMovimiento}
                     onChange={(e) => setTipoMovimiento(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="field-input"
                   >
                     {TIPOS_MOVIMIENTO.map((t) => (
                       <option key={t.value} value={t.value}>
@@ -316,7 +316,7 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Lugar de entrega
                   </label>
                   <input
@@ -324,12 +324,12 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                     value={lugarEntrega}
                     onChange={(e) => setLugarEntrega(e.target.value)}
                     placeholder="Oficina, domicilio, sucursal..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="field-input"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Entregado por
                   </label>
                   <input
@@ -337,13 +337,13 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                     value={entregadoPor}
                     onChange={(e) => setEntregadoPor(e.target.value)}
                     placeholder="Quien hace la entrega"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="field-input"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="field-label">
                   Nombre del equipo en la red
                 </label>
                 <input
@@ -351,7 +351,7 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                   value={nombreEquipo}
                   onChange={(e) => setNombreEquipo(e.target.value)}
                   placeholder="Ej: SCL-CROJAS"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="field-input"
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   Se propone según la convención de la empresa (SCL + inicial del nombre +
@@ -361,13 +361,13 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Motivo</label>
+                <label className="field-label">Motivo</label>
                 <textarea
                   value={motivo}
                   onChange={(e) => setMotivo(e.target.value)}
                   rows={2}
                   placeholder="Opcional"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="field-input"
                 />
               </div>
 
@@ -381,7 +381,7 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                 <button
                   onClick={handleSubmit}
                   disabled={submitting || !fechaEntrega}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                  className="px-6 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-800 disabled:opacity-50"
                 >
                   {submitting ? "Asignando..." : "Confirmar entrega"}
                 </button>

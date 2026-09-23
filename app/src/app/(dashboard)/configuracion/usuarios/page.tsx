@@ -6,6 +6,10 @@ import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
+import { formatearFechaHoraCorta } from "@/lib/utils/fechas";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { ActiveBadge } from "@/components/ui/Badge";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 const usuarioFieldLabels: Record<string, string> = {
   email: "Email",
@@ -53,7 +57,7 @@ const roleLabels: Record<string, string> = {
 
 const roleColors: Record<string, string> = {
   admin: "bg-red-100 text-red-800",
-  tecnico: "bg-blue-100 text-blue-800",
+  tecnico: "bg-primary-100 text-primary-900",
 };
 
 const roleDescriptions: Record<string, string> = {
@@ -268,59 +272,51 @@ export default function UsuariosPage() {
     setFieldErrors({});
   };
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "Nunca";
-    return new Date(dateString).toLocaleDateString("es-CL", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
+  
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700"></div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Usuarios del Sistema</h1>
-          <p className="text-gray-600 mt-1">Administra los usuarios y sus roles de acceso</p>
-        </div>
-        {!isCreating && !editingId && (
-          <button
-            onClick={() => {
-              setIsCreating(true);
-              setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
-              setError("");
-              setFieldErrors({});
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={20} />
-            <span>Nuevo Usuario</span>
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Usuarios del Sistema"
+        description="Administra los usuarios y sus roles de acceso"
+        actions={
+          <>
+            {!isCreating && !editingId && (
+              <button
+                onClick={() => {
+                  setIsCreating(true);
+                  setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
+                  setError("");
+                  setFieldErrors({});
+                }}
+                className={buttonClasses()}
+              >
+                <Plus size={20} />
+                <span>Nuevo Usuario</span>
+              </button>
+            )}
+          </>
+        }
+      />
 
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} fieldLabels={usuarioFieldLabels} />
 
       {/* Roles info cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {Object.entries(roleLabels).map(([key, label]) => (
-          <div key={key} className="bg-white rounded-lg shadow p-3">
+          <div key={key} className="card p-3">
             <div className="flex items-center gap-2 mb-1">
               {key === "admin" ? (
                 <ShieldAlert size={16} className="text-red-600" />
               ) : (
-                <ShieldCheck size={16} className="text-blue-600" />
+                <ShieldCheck size={16} className="text-primary-700" />
               )}
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${roleColors[key]}`}>
                 {label}
@@ -333,55 +329,55 @@ export default function UsuariosPage() {
 
       {/* Formulario de creación/edición */}
       {(isCreating || editingId) && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             {isCreating ? "Nuevo Usuario" : "Editar Usuario"}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 Nombre Completo *
               </label>
               <input
                 type="text"
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
                 placeholder="Nombre del usuario"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 Email *
               </label>
               <input
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
                 placeholder="correo@ejemplo.com"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 Contraseña {isCreating ? "*" : "(dejar vacío para mantener)"}
               </label>
               <input
                 type="password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
                 placeholder={isCreating ? "Contraseña" : "Nueva contraseña (opcional)"}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="field-label">
                 Rol *
               </label>
               <select
                 value={formData.rol}
                 onChange={(e) => setFormData({ ...formData, rol: e.target.value as SystemUser["rol"] })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
               >
                 <option value="admin">Administrador</option>
                 <option value="tecnico">Técnico IT</option>
@@ -393,11 +389,11 @@ export default function UsuariosPage() {
               </div>
             ) : (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Sede *</label>
+                <label className="field-label">Sede *</label>
                 <select
                   value={formData.sedeId}
                   onChange={(e) => setFormData({ ...formData, sedeId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="field-input"
                 >
                   <option value="">Seleccionar sede...</option>
                   {sedes.map((sede) => (
@@ -418,7 +414,7 @@ export default function UsuariosPage() {
                     type="checkbox"
                     checked={formData.activo}
                     onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="field-checkbox"
                   />
                   <span className="text-sm text-gray-700">Usuario Activo</span>
                 </label>
@@ -428,13 +424,13 @@ export default function UsuariosPage() {
           <div className="flex justify-end gap-3 mt-4">
             <button
               onClick={cancelEdit}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className={buttonClasses({ variant: "outline" })}
             >
               Cancelar
             </button>
             <button
               onClick={() => (isCreating ? handleCreate() : handleUpdate(editingId!))}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className={buttonClasses()}
             >
               <Save size={18} />
               {isCreating ? "Crear Usuario" : "Guardar Cambios"}
@@ -444,26 +440,26 @@ export default function UsuariosPage() {
       )}
 
       {/* Tabla de usuarios */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="card overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th">
                 Usuario
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th">
                 Rol
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th">
                 Sede
               </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th text-center">
                 Estado
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th">
                 Último Acceso
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th text-right">
                 Acciones
               </th>
             </tr>
@@ -490,26 +486,16 @@ export default function UsuariosPage() {
                   )}
                 </td>
                 <td className="px-6 py-4 text-center">
-                  <button
-                    onClick={() => toggleUserStatus(user)}
-                    className={`inline-flex px-2 py-1 text-xs rounded-full cursor-pointer hover:opacity-80 ${
-                      user.activo
-                        ? "bg-green-100 text-green-800"
-                        : "bg-red-100 text-red-800"
-                    }`}
-                    title={user.activo ? "Clic para desactivar" : "Clic para activar"}
-                  >
-                    {user.activo ? "Activo" : "Inactivo"}
-                  </button>
+                  <ActiveBadge activo={user.activo} onToggle={() => toggleUserStatus(user)} />
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500">
-                  {formatDate(user.ultimoLogin)}
+                  {formatearFechaHoraCorta(user.ultimoLogin, "Nunca")}
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={() => startEdit(user)}
-                      className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                      className="p-1 text-primary-700 hover:bg-primary-50 rounded"
                       title="Editar"
                     >
                       <Edit size={18} />

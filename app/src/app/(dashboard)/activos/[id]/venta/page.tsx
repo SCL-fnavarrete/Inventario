@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, XCircle, DollarSign } from 'lucide-react';
+import { XCircle, DollarSign } from 'lucide-react';
 import { parseApiError, type FieldErrors } from '@/lib/utils/apiErrors';
 import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 type Asset = {
   id: string;
@@ -61,8 +62,7 @@ export default function VentaActivoPage() {
           comprador,
           monto: parseFloat(monto),
           moneda,
-          fechaVenta,
-        }),
+          fechaVenta }),
       });
 
       if (!res.ok) {
@@ -87,15 +87,11 @@ export default function VentaActivoPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link href={`/activos/${id}`} className="p-2 hover:bg-gray-100 rounded-lg">
-          <ArrowLeft size={24} />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Registrar Venta</h1>
-          <p className="text-gray-600">{asset.marca} {asset.modelo} • {asset.numeroSerie}</p>
-        </div>
-      </div>
+      <PageHeader
+        backHref={`/activos/${id}`}
+        title="Registrar Venta"
+        description={<>{asset.marca} {asset.modelo} • {asset.numeroSerie}</>}
+      />
 
       {!canSell && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
@@ -119,14 +115,14 @@ export default function VentaActivoPage() {
       </div>
 
       {canSell && (
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="card p-6 space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <DollarSign className="text-emerald-600" size={24} />
             <h2 className="text-lg font-semibold">Datos de la Venta</h2>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Comprador *</label>
+            <label className="field-label">Comprador *</label>
             <input
               type="text"
               value={comprador}
@@ -139,7 +135,7 @@ export default function VentaActivoPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Monto *</label>
+              <label className="field-label">Monto *</label>
               <input
                 type="number"
                 value={monto}
@@ -151,7 +147,7 @@ export default function VentaActivoPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Moneda</label>
+              <label className="field-label">Moneda</label>
               <select
                 value={moneda}
                 onChange={(e) => setMoneda(e.target.value)}
@@ -164,7 +160,7 @@ export default function VentaActivoPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de venta *</label>
+            <label className="field-label">Fecha de venta *</label>
             <input
               type="date"
               value={fechaVenta}

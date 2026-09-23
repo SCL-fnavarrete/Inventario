@@ -74,6 +74,18 @@ export function formatearFechaHora(
 }
 
 /**
+ * Marca de tiempo compacta (DD-MM-YYYY, HH:MM) para tablas y detalles.
+ * Guias, Usuarios y Asignaciones tenian cada una su propia version.
+ */
+export function formatearFechaHoraCorta(valor: ValorFecha, siVacio = ""): string {
+  return formatearFechaHora(
+    valor,
+    { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" },
+    siVacio
+  );
+}
+
+/**
  * Fecha de calendario en formato corto (DD-MM-YYYY), para nombres de
  * archivo o exportaciones. Misma regla de UTC que `formatearFecha`.
  */

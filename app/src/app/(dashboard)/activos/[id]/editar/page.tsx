@@ -1,576 +1,100 @@
 "use client";
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, Save } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { PageHeader } from "@/components/ui/PageHeader";
+import {
+  ActivoForm,
+  payloadActivo,
+  valoresDesdeActivo,
+  type ActivoFormValues,
+} from "@/components/activos/ActivoForm";
 
-type Category = {
-  id: string;
-  nombre: string;
-};
-
-export default function EditarActivoPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function EditarActivoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const [initialValues, setInitialValues] = useState<ActivoFormValues | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [formData, setFormData] = useState({
-    categoriaId: "",
-    marca: "",
-    modelo: "",
-    numeroSerie: "",
-    estado: "disponible",
-    condicion: "nuevo",
-    fechaCompra: "",
-    fechaGarantiaFin: "",
-    procesador: "",
-    ram: "",
-    almacenamiento: "",
-    sistemaOperativo: "",
-    imei: "",
-    numeroTelefono: "",
-    pulgadas: "",
-    observaciones: "",
-    antivirus: "",
-    incidencia: "",
-    nombreEquipo: "",
-    conectividad: "",
-    tipoLicenciaMicrosoft365: "",
-  });
-
-  const fetchData = useCallback(async () => {
-    try {
-      const [catRes, assetRes] = await Promise.all([
-        fetch("/api/categorias"),
-        fetch(`/api/activos/${id}`),
-      ]);
-
-      const [cats, asset] = await Promise.all([
-        catRes.json(),
-        assetRes.json(),
-      ]);
-
-      setCategories(cats);
-
-      if (asset) {
-        setFormData({
-          categoriaId: asset.categoriaId,
-          marca: asset.marca,
-          modelo: asset.modelo,
-          numeroSerie: asset.numeroSerie || "",
-          estado: asset.estado,
-          condicion: asset.condicion,
-          fechaCompra: asset.fechaCompra
-            ? new Date(asset.fechaCompra).toISOString().split("T")[0]
-            : "",
-          fechaGarantiaFin: asset.fechaGarantiaFin
-            ? new Date(asset.fechaGarantiaFin).toISOString().split("T")[0]
-            : "",
-          procesador: asset.procesador || "",
-          ram: asset.ram || "",
-          almacenamiento: asset.discoDuro || "",
-          sistemaOperativo: asset.sistemaOperativo || "",
-          imei: asset.imei || "",
-          numeroTelefono: asset.numeroTelefono || "",
-          pulgadas: asset.pulgadas?.toString() || "",
-          observaciones: asset.observaciones || "",
-          antivirus: asset.antivirus || "",
-          incidencia: asset.incidencia || "",
-          nombreEquipo: asset.nombreEquipo || "",
-          conectividad: asset.conectividad || "",
-          tipoLicenciaMicrosoft365: asset.tipoLicenciaMicrosoft365 || "",
-        });
-      }
-    } catch (err) {
-      console.error("Error fetching data:", err);
-      setCategories([]);
-    } finally {
-      setLoadingData(false);
-    }
-  }, [id]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    let cancelado = false;
+    async function cargar() {
+      try {
+        const res = await fetch(`/api/activos/${id}`);
+        if (!res.ok) {
+          const { message } = await parseApiError(res, "No se pudo cargar el activo");
+          if (!cancelado) setError(message);
+          return;
+        }
+        const asset = await res.json();
+        if (!cancelado) setInitialValues(valoresDesdeActivo(asset));
+      } catch (err) {
+        console.error("Error fetching asset:", err);
+        if (!cancelado) setError("No se pudo cargar el activo");
+      } finally {
+        if (!cancelado) setLoadingData(false);
+      }
+    }
+    cargar();
+    return () => {
+      cancelado = true;
+    };
+  }, [id]);
 
-  function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
+  async function guardar(values: ActivoFormValues) {
     setError(null);
     setFieldErrors({});
-
     try {
-      const payload = {
-        categoriaId: formData.categoriaId,
-        marca: formData.marca,
-        modelo: formData.modelo,
-        numeroSerie: formData.numeroSerie || null,
-        estado: formData.estado,
-        condicion: formData.condicion,
-        fechaCompra: formData.fechaCompra || null,
-        fechaGarantiaFin: formData.fechaGarantiaFin || null,
-        procesador: formData.procesador || null,
-        ram: formData.ram || null,
-        discoDuro: formData.almacenamiento || null,
-        sistemaOperativo: formData.sistemaOperativo || null,
-        imei: formData.imei || null,
-        numeroTelefono: formData.numeroTelefono || null,
-        pulgadas: formData.pulgadas || null,
-        observaciones: formData.observaciones || null,
-        antivirus: formData.antivirus || null,
-        incidencia: formData.incidencia || null,
-        nombreEquipo: formData.nombreEquipo || null,
-        conectividad: formData.conectividad || null,
-        // Igual que en Nuevo Activo: no hay checkbox propio de "tiene M365";
-        // se deriva de si hay un plan cargado.
-        tipoLicenciaMicrosoft365: formData.tipoLicenciaMicrosoft365 || null,
-        microsoft365: Boolean(formData.tipoLicenciaMicrosoft365),
-      };
-
       const res = await fetch(`/api/activos/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payloadActivo(values, "editar")),
       });
-
       if (!res.ok) {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar activo");
         setError(message);
         setFieldErrors(fe);
         return;
       }
-
       router.push(`/activos/${id}`);
     } catch (err) {
       console.error("Error updating asset:", err);
       setError(err instanceof Error ? err.message : "Error al actualizar activo");
-    } finally {
-      setLoading(false);
     }
   }
 
   if (loadingData) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex min-h-[400px] items-center justify-center">
         <p className="text-gray-500">Cargando...</p>
       </div>
     );
   }
 
-  const selectedCategory = categories.find((c) => c.id === formData.categoriaId);
-  const isNotebook = selectedCategory?.nombre.toLowerCase() === "notebook";
-  const isCelular = selectedCategory?.nombre.toLowerCase() === "celular";
-  const isMonitor = selectedCategory?.nombre.toLowerCase() === "monitor";
-  const PERIFERICOS_SIMPLES = ["mouse", "teclado", "webcam", "audífonos"];
-  const isPerifericoSimple = selectedCategory
-    ? PERIFERICOS_SIMPLES.includes(selectedCategory.nombre.toLowerCase())
-    : false;
-
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          href={`/activos/${id}`}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <ArrowLeft size={24} />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Editar Activo</h1>
-          <p className="text-gray-600">
-            {formData.marca} {formData.modelo} - {formData.numeroSerie}
-          </p>
-        </div>
-      </div>
-
-      {/* Error message */}
+      <PageHeader
+        backHref={`/activos/${id}`}
+        title="Editar Activo"
+        description={
+          initialValues
+            ? `${initialValues.marca} ${initialValues.modelo} - ${initialValues.numeroSerie}`
+            : undefined
+        }
+      />
       <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
-
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Informacion General */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Informacion General
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Categoria *
-              </label>
-              <select
-                name="categoriaId"
-                value={formData.categoriaId}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Seleccionar categoria</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Marca *
-              </label>
-              <input
-                type="text"
-                name="marca"
-                value={formData.marca}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Modelo *
-              </label>
-              <input
-                type="text"
-                name="modelo"
-                value={formData.modelo}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Numero de Serie
-              </label>
-              <input
-                type="text"
-                name="numeroSerie"
-                value={formData.numeroSerie}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Estado
-              </label>
-              <select
-                name="estado"
-                value={formData.estado}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="disponible">Disponible</option>
-                <option value="asignado">Asignado</option>
-                <option value="en_mantencion">En Mantencion</option>
-                <option value="no_devuelto">No devuelto</option>
-                <option value="baja">Baja</option>
-                <option value="vendido">Vendido</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Condicion
-              </label>
-              <select
-                name="condicion"
-                value={formData.condicion}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="nuevo">Nuevo</option>
-                <option value="usado">Usado</option>
-                <option value="danado">Danado</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Fecha de Compra
-              </label>
-              <input
-                type="date"
-                name="fechaCompra"
-                value={formData.fechaCompra}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Fin de Garantia
-              </label>
-              <input
-                type="date"
-                name="fechaGarantiaFin"
-                value={formData.fechaGarantiaFin}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                Opcional. El dashboard avisa cuando faltan 30 dias para vencer.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Especificaciones Tecnicas - Notebook */}
-        {isNotebook && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Especificaciones Tecnicas - Notebook
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Procesador
-                </label>
-                <input
-                  type="text"
-                  name="procesador"
-                  value={formData.procesador}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  RAM
-                </label>
-                <input
-                  type="text"
-                  name="ram"
-                  value={formData.ram}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Almacenamiento
-                </label>
-                <input
-                  type="text"
-                  name="almacenamiento"
-                  value={formData.almacenamiento}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Sistema Operativo
-                </label>
-                <input
-                  type="text"
-                  name="sistemaOperativo"
-                  value={formData.sistemaOperativo}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Antivirus
-                </label>
-                <input
-                  type="text"
-                  name="antivirus"
-                  value={formData.antivirus}
-                  onChange={handleChange}
-                  placeholder="ej: Windows Defender"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nombre del Equipo
-                </label>
-                <input
-                  type="text"
-                  name="nombreEquipo"
-                  value={formData.nombreEquipo}
-                  onChange={handleChange}
-                  placeholder="ej: NB-SCL-001"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Licencia Microsoft 365
-                </label>
-                <input
-                  type="text"
-                  name="tipoLicenciaMicrosoft365"
-                  value={formData.tipoLicenciaMicrosoft365}
-                  onChange={handleChange}
-                  placeholder="ej: Premium (vacío si no tiene)"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Especificaciones Tecnicas - Celular */}
-        {isCelular && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Especificaciones Tecnicas - Celular
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  IMEI
-                </label>
-                <input
-                  type="text"
-                  name="imei"
-                  value={formData.imei}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Numero de Telefono
-                </label>
-                <input
-                  type="text"
-                  name="numeroTelefono"
-                  value={formData.numeroTelefono}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Almacenamiento
-                </label>
-                <input
-                  type="text"
-                  name="almacenamiento"
-                  value={formData.almacenamiento}
-                  onChange={handleChange}
-                  placeholder="ej: 128GB"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Especificaciones Tecnicas - Monitor */}
-        {isMonitor && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Especificaciones Tecnicas - Monitor
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Pulgadas
-                </label>
-                <input
-                  type="text"
-                  name="pulgadas"
-                  value={formData.pulgadas}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Especificaciones Tecnicas - Perifericos simples (Mouse, Teclado, Webcam, Audifonos) */}
-        {isPerifericoSimple && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Especificaciones Tecnicas - {selectedCategory?.nombre}
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Conectividad
-                </label>
-                <select
-                  name="conectividad"
-                  value={formData.conectividad}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Seleccionar conectividad</option>
-                  <option value="usb">USB</option>
-                  <option value="bluetooth">Bluetooth</option>
-                  <option value="cable">Cable</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Observaciones */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Observaciones</h2>
-          <textarea
-            name="observaciones"
-            value={formData.observaciones}
-            onChange={handleChange}
-            rows={4}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Incidencia
-            </label>
-            <textarea
-              name="incidencia"
-              value={formData.incidencia}
-              onChange={handleChange}
-              rows={2}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Incidencias reportadas (robo, falla, etc.)..."
-            />
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex justify-end gap-4">
-          <Link
-            href={`/activos/${id}`}
-            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Cancelar
-          </Link>
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
-            <Save size={20} />
-            <span>{loading ? "Guardando..." : "Guardar Cambios"}</span>
-          </button>
-        </div>
-      </form>
+      {initialValues && (
+        <ActivoForm
+          modo="editar"
+          initialValues={initialValues}
+          onSubmit={guardar}
+          cancelHref={`/activos/${id}`}
+        />
+      )}
     </div>
   );
 }

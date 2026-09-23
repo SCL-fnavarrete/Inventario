@@ -1,192 +1,135 @@
 "use client";
 
 import { forwardRef, type HTMLAttributes } from "react";
+import type { CondicionActivo, EstadoActivo } from "@prisma/client";
+import { cn } from "@/lib/utils";
+import {
+  CONDICION_ACTIVO_BADGE,
+  CONDICION_ACTIVO_LABEL,
+  ESTADO_ACTIVO_BADGE,
+  ESTADO_ACTIVO_LABEL,
+} from "@/lib/constants/estadosActivo";
 
-// Estados específicos del sistema de inventario
-type AssetStatus =
-  | "disponible"
-  | "asignado"
-  | "en_mantencion"
-  | "reutilizable"
-  | "no_devuelto"
-  | "baja"
-  | "vendido";
-
-// Variantes genéricas
-type BadgeVariant =
-  | AssetStatus
-  | "info"
-  | "success"
-  | "warning"
-  | "error"
-  | "neutral";
-
+type BadgeVariant = "primary" | "info" | "success" | "warning" | "error" | "neutral";
 type BadgeSize = "sm" | "md";
-type BadgeStyle = "solid" | "outline";
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   variant?: BadgeVariant;
   size?: BadgeSize;
-  styleType?: BadgeStyle;
   dot?: boolean;
   children: React.ReactNode;
 }
 
-const variantColors: Record<
-  BadgeVariant,
-  { solid: string; outline: string; dot: string }
-> = {
-  // Estados de activos
-  disponible: {
-    solid: "bg-emerald-100 text-emerald-800 border-emerald-200",
-    outline: "bg-transparent text-emerald-700 border-emerald-400",
-    dot: "bg-emerald-500",
-  },
-  asignado: {
-    solid: "bg-blue-100 text-blue-800 border-blue-200",
-    outline: "bg-transparent text-blue-700 border-blue-400",
-    dot: "bg-blue-500",
-  },
-  en_mantencion: {
-    solid: "bg-amber-100 text-amber-800 border-amber-200",
-    outline: "bg-transparent text-amber-700 border-amber-400",
-    dot: "bg-amber-500",
-  },
-  reutilizable: {
-    solid: "bg-purple-100 text-purple-800 border-purple-200",
-    outline: "bg-transparent text-purple-700 border-purple-400",
-    dot: "bg-purple-500",
-  },
-  no_devuelto: {
-    solid: "bg-orange-100 text-orange-800 border-orange-200",
-    outline: "bg-transparent text-orange-700 border-orange-400",
-    dot: "bg-orange-500",
-  },
-  baja: {
-    solid: "bg-red-100 text-red-800 border-red-200",
-    outline: "bg-transparent text-red-700 border-red-400",
-    dot: "bg-red-500",
-  },
-  vendido: {
-    solid: "bg-gray-100 text-gray-700 border-gray-200",
-    outline: "bg-transparent text-gray-600 border-gray-400",
-    dot: "bg-gray-500",
-  },
-  // Variantes genéricas
-  info: {
-    solid: "bg-sky-100 text-sky-800 border-sky-200",
-    outline: "bg-transparent text-sky-700 border-sky-400",
-    dot: "bg-sky-500",
-  },
-  success: {
-    solid: "bg-emerald-100 text-emerald-800 border-emerald-200",
-    outline: "bg-transparent text-emerald-700 border-emerald-400",
-    dot: "bg-emerald-500",
-  },
-  warning: {
-    solid: "bg-amber-100 text-amber-800 border-amber-200",
-    outline: "bg-transparent text-amber-700 border-amber-400",
-    dot: "bg-amber-500",
-  },
-  error: {
-    solid: "bg-red-100 text-red-800 border-red-200",
-    outline: "bg-transparent text-red-700 border-red-400",
-    dot: "bg-red-500",
-  },
-  neutral: {
-    solid: "bg-gray-100 text-gray-700 border-gray-200",
-    outline: "bg-transparent text-gray-600 border-gray-400",
-    dot: "bg-gray-500",
-  },
+// Los colores por estado de activo no viven aqui sino en
+// lib/constants/estadosActivo, que tambien consumen tablas y reportes.
+const variantStyles: Record<BadgeVariant, string> = {
+  primary: "bg-primary-50 text-primary-800 border-primary-200",
+  info: "bg-sky-50 text-sky-800 border-sky-200",
+  success: "bg-emerald-50 text-emerald-800 border-emerald-200",
+  warning: "bg-amber-50 text-amber-800 border-amber-200",
+  error: "bg-red-50 text-red-800 border-red-200",
+  neutral: "bg-gray-100 text-gray-700 border-gray-200",
 };
 
 const sizeStyles: Record<BadgeSize, { badge: string; dot: string }> = {
-  sm: {
-    badge: "px-2 py-0.5 text-xs",
-    dot: "w-1.5 h-1.5",
-  },
-  md: {
-    badge: "px-2.5 py-1 text-xs",
-    dot: "w-2 h-2",
-  },
-};
-
-// Mapeo de estados para display
-const statusLabels: Record<AssetStatus, string> = {
-  disponible: "Disponible",
-  asignado: "Asignado",
-  en_mantencion: "En Mantención",
-  reutilizable: "Reutilizable",
-  no_devuelto: "No devuelto",
-  baja: "Baja",
-  vendido: "Vendido",
+  sm: { badge: "px-2 py-0.5 text-xs", dot: "w-1.5 h-1.5" },
+  md: { badge: "px-2.5 py-1 text-xs", dot: "w-2 h-2" },
 };
 
 export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
-  (
-    {
-      variant = "neutral",
-      size = "md",
-      styleType = "solid",
-      dot = false,
-      children,
-      className = "",
-      ...props
-    },
-    ref
-  ) => {
-    const colors = variantColors[variant];
-    const sizes = sizeStyles[size];
-
-    return (
-      <span
-        ref={ref}
-        className={`
-          inline-flex items-center gap-1.5
-          font-medium
-          rounded-full
-          border
-          select-none
-          ${sizes.badge}
-          ${colors[styleType]}
-          ${className}
-        `}
-        {...props}
-      >
-        {dot && (
-          <span
-            className={`
-              rounded-full
-              flex-shrink-0
-              ${sizes.dot}
-              ${colors.dot}
-            `}
-            aria-hidden="true"
-          />
-        )}
-        {children}
-      </span>
-    );
-  }
+  ({ variant = "neutral", size = "md", dot = false, children, className, ...props }, ref) => (
+    <span
+      ref={ref}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border font-medium select-none",
+        sizeStyles[size].badge,
+        variantStyles[variant],
+        className
+      )}
+      {...props}
+    >
+      {dot && (
+        <span
+          className={cn("rounded-full flex-shrink-0 bg-current opacity-70", sizeStyles[size].dot)}
+          aria-hidden="true"
+        />
+      )}
+      {children}
+    </span>
+  )
 );
 
 Badge.displayName = "Badge";
 
-// Helper para convertir estado a label
-export function getStatusLabel(status: AssetStatus): string {
-  return statusLabels[status] || status;
+export function getStatusLabel(status: EstadoActivo | string): string {
+  return ESTADO_ACTIVO_LABEL[status as EstadoActivo] ?? status;
 }
 
-// Componente especializado para estados de activos
+/** Estado del ciclo de vida de un activo, con el color del sistema. */
 export const AssetStatusBadge = forwardRef<
   HTMLSpanElement,
-  Omit<BadgeProps, "variant" | "children"> & { status: AssetStatus }
->(({ status, ...props }, ref) => (
-  <Badge ref={ref} variant={status} dot {...props}>
+  Omit<BadgeProps, "variant" | "children"> & { status: EstadoActivo | string }
+>(({ status, className, ...props }, ref) => (
+  <Badge ref={ref} dot className={cn(ESTADO_ACTIVO_BADGE[status as EstadoActivo], className)} {...props}>
     {getStatusLabel(status)}
   </Badge>
 ));
 
 AssetStatusBadge.displayName = "AssetStatusBadge";
+
+/**
+ * Condicion fisica de un activo (nuevo / usado / danado). Acepta string
+ * porque algunos selectores tipan la condicion como texto; un valor
+ * desconocido cae al badge neutro con el valor tal cual.
+ */
+export function AssetConditionBadge({
+  condicion,
+  size = "sm",
+}: {
+  condicion: CondicionActivo | string;
+  size?: BadgeSize;
+}) {
+  const clave = condicion as CondicionActivo;
+  return (
+    <Badge size={size} className={CONDICION_ACTIVO_BADGE[clave]}>
+      {CONDICION_ACTIVO_LABEL[clave] ?? condicion}
+    </Badge>
+  );
+}
+
+/**
+ * Activo/Inactivo de registros de catalogo (sedes, usuarios, tipos de
+ * mantencion). Cada pantalla lo armaba a mano con su propio ternario de
+ * clases; `labels` permite el femenino ("Activa") sin otra variante.
+ * Con `onToggle` el badge es un boton que alterna el estado.
+ */
+export function ActiveBadge({
+  activo,
+  labels = ["Activo", "Inactivo"],
+  size = "sm",
+  onToggle,
+}: {
+  activo: boolean;
+  labels?: [string, string];
+  size?: BadgeSize;
+  onToggle?: () => void;
+}) {
+  const badge = (
+    <Badge variant={activo ? "success" : "neutral"} size={size}>
+      {activo ? labels[0] : labels[1]}
+    </Badge>
+  );
+  if (!onToggle) return badge;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      title={activo ? "Clic para desactivar" : "Clic para activar"}
+      className="rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+    >
+      {badge}
+    </button>
+  );
+}
 
 export default Badge;

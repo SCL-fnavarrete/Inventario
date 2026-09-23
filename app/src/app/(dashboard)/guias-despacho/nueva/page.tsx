@@ -15,6 +15,8 @@ import {
 import { SelectorActivos } from "@/components/guias-despacho/SelectorActivos";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 type Sede = {
   id: string;
@@ -178,19 +180,9 @@ export default function NuevaGuiaDespachoPage() {
   if (result?.success) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/guias-despacho"
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft size={24} />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Nueva Guía de Despacho</h1>
-          </div>
-        </div>
+        <PageHeader backHref="/guias-despacho" title="Nueva Guía de Despacho" />
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <div className="p-6 bg-green-50 rounded-lg text-center">
             <CheckCircle className="mx-auto text-green-600 mb-4" size={48} />
             <h2 className="text-xl font-semibold text-green-800 mb-2">
@@ -205,13 +197,13 @@ export default function NuevaGuiaDespachoPage() {
             <div className="mt-6 flex justify-center gap-4">
               <Link
                 href="/guias-despacho"
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                className={buttonClasses({ variant: "outline" })}
               >
                 Ver Listado
               </Link>
               <Link
                 href={`/guias-despacho/${result.guideId}`}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className={buttonClasses()}
               >
                 Ver Detalle
               </Link>
@@ -241,13 +233,13 @@ export default function NuevaGuiaDespachoPage() {
       <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
 
       {/* Sección: Sede origen */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div className="card p-6 space-y-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
-          <MapPin className="text-blue-600" size={20} />
+          <MapPin className="text-primary-700" size={20} />
           Sede origen
         </h2>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="field-label">
             Sede origen <span className="text-red-500">*</span>
           </label>
           <select
@@ -261,7 +253,7 @@ export default function NuevaGuiaDespachoPage() {
               setSelectedAssets([]);
             }}
             required
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
+            className="field-input"
           >
             <option value="" disabled>
               Selecciona una sede...
@@ -281,9 +273,9 @@ export default function NuevaGuiaDespachoPage() {
       </div>
 
       {/* Sección: Equipos */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div className="card p-6 space-y-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
-          <Package className="text-blue-600" size={20} />
+          <Package className="text-primary-700" size={20} />
           Equipos a despachar
         </h2>
         {!sedeOrigenId ? (
@@ -300,15 +292,15 @@ export default function NuevaGuiaDespachoPage() {
       </div>
 
       {/* Sección: Datos del Despacho */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div className="card p-6 space-y-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
-          <MapPin className="text-blue-600" size={20} />
+          <MapPin className="text-primary-700" size={20} />
           Datos del despacho
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               OT Chilexpress <span className="text-red-500">*</span>
             </label>
             <input
@@ -318,11 +310,11 @@ export default function NuevaGuiaDespachoPage() {
               onChange={(e) =>
                 setDispatchData((prev) => ({ ...prev, otChilexpress: e.target.value }))
               }
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="field-input"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Sede destino <span className="text-red-500">*</span>
             </label>
             <select
@@ -330,7 +322,7 @@ export default function NuevaGuiaDespachoPage() {
               onChange={(e) =>
                 setDispatchData((prev) => ({ ...prev, sedeDestinoId: e.target.value }))
               }
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="field-input"
             >
               <option value="">Seleccionar sede</option>
               {sedesDestinoDisponibles.map((sede) => (
@@ -341,7 +333,7 @@ export default function NuevaGuiaDespachoPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Fecha de envío <span className="text-red-500">*</span>
             </label>
             <input
@@ -350,11 +342,11 @@ export default function NuevaGuiaDespachoPage() {
               onChange={(e) =>
                 setDispatchData((prev) => ({ ...prev, fechaDespacho: e.target.value }))
               }
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="field-input"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Fecha estimada de llegada
             </label>
             <input
@@ -363,11 +355,11 @@ export default function NuevaGuiaDespachoPage() {
               onChange={(e) =>
                 setDispatchData((prev) => ({ ...prev, fechaEstimadaLlegada: e.target.value }))
               }
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="field-input"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Emisor
             </label>
             <input
@@ -381,7 +373,7 @@ export default function NuevaGuiaDespachoPage() {
             </p>
           </div>
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Observaciones
             </label>
             <textarea
@@ -391,16 +383,16 @@ export default function NuevaGuiaDespachoPage() {
               }
               rows={3}
               placeholder="Notas adicionales sobre el despacho..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="field-input"
             />
           </div>
         </div>
       </div>
 
       {/* Sección: Receptor */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div className="card p-6 space-y-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
-          <User className="text-blue-600" size={20} />
+          <User className="text-primary-700" size={20} />
           Datos del receptor
         </h2>
         <p className="text-sm text-gray-500">
@@ -410,7 +402,7 @@ export default function NuevaGuiaDespachoPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               Nombre y apellido <span className="text-red-500">*</span>
             </label>
             <input
@@ -420,11 +412,11 @@ export default function NuevaGuiaDespachoPage() {
               onChange={(e) =>
                 setReceptor((prev) => ({ ...prev, nombre: e.target.value }))
               }
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="field-input"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="field-label">
               RUT <span className="text-red-500">*</span>
             </label>
             <input
@@ -434,16 +426,16 @@ export default function NuevaGuiaDespachoPage() {
               onChange={(e) =>
                 setReceptor((prev) => ({ ...prev, rut: e.target.value }))
               }
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="field-input"
             />
           </div>
         </div>
       </div>
 
       {/* Sección: Confirmación */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div className="card p-6 space-y-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
-          <CheckCircle className="text-blue-600" size={20} />
+          <CheckCircle className="text-primary-700" size={20} />
           Confirmar
         </h2>
 
@@ -456,7 +448,7 @@ export default function NuevaGuiaDespachoPage() {
         <div className="flex justify-end gap-3">
           <Link
             href="/guias-despacho"
-            className="flex items-center gap-2 px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            className={buttonClasses({ variant: "outline", className: "px-6" })}
           >
             Cancelar
           </Link>

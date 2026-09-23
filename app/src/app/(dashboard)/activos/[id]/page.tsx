@@ -6,12 +6,7 @@ import { authOptions } from "@/lib/auth";
 import type { SesionAutenticada } from "@/lib/auth/guard";
 import { tieneVisibilidadTotal } from "@/lib/auth/sedeScope";
 import {
-  ArrowLeft,
   Edit,
-  Laptop,
-  Smartphone,
-  Monitor,
-  Package,
   User,
   Calendar,
   Tag,
@@ -20,32 +15,13 @@ import {
   MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { EstadoActivo, CondicionActivo, TipoEvento } from "@prisma/client";
+import type { TipoEvento } from "@prisma/client";
 import { formatearFecha } from "@/lib/utils/fechas";
-
-const estadoColors: Record<EstadoActivo, string> = {
-  disponible: "bg-green-100 text-green-800",
-  asignado: "bg-blue-100 text-blue-800",
-  en_mantencion: "bg-yellow-100 text-yellow-800",
-  no_devuelto: "bg-orange-100 text-orange-800",
-  baja: "bg-red-100 text-red-800",
-  vendido: "bg-gray-100 text-gray-800",
-};
-
-const estadoLabels: Record<EstadoActivo, string> = {
-  disponible: "Disponible",
-  asignado: "Asignado",
-  en_mantencion: "En Mantención",
-  no_devuelto: "No devuelto",
-  baja: "Baja",
-  vendido: "Vendido",
-};
-
-const condicionLabels: Record<CondicionActivo, string> = {
-  nuevo: "Nuevo",
-  usado: "Usado",
-  danado: "Dañado",
-};
+import { CategoryIcon } from "@/components/activos/CategoryIcon";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { AssetStatusBadge } from "@/components/ui/Badge";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { CONDICION_ACTIVO_LABEL } from "@/lib/constants/estadosActivo";
 
 // Covers the full TipoEvento enum so no event type renders as raw text
 // in the audit history.
@@ -63,19 +39,6 @@ const tipoEventoLabels: Record<TipoEvento, string> = {
   // Emitted when linking existing assets to a Compra.
   compra: "Compra",
 };
-
-function getCategoryIcon(categoryName: string) {
-  switch (categoryName.toLowerCase()) {
-    case "notebook":
-      return <Laptop className="h-8 w-8" />;
-    case "celular":
-      return <Smartphone className="h-8 w-8" />;
-    case "monitor":
-      return <Monitor className="h-8 w-8" />;
-    default:
-      return <Package className="h-8 w-8" />;
-  }
-}
 
 async function getAsset(id: string) {
   const asset = await prisma.asset.findUnique({
@@ -185,67 +148,46 @@ export default async function DetalleActivoPage({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/activos"
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft size={24} />
-          </Link>
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-100 rounded-xl text-blue-600">
-              {getCategoryIcon(asset.categoria.nombre)}
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                {asset.marca} {asset.modelo}
-              </h1>
-              <p className="text-gray-600">
-                {asset.categoria.nombre} • {asset.numeroSerie}
-              </p>
-            </div>
+      <PageHeader
+        backHref="/activos"
+        leading={
+          <div className="rounded-card bg-primary-50 p-3 text-primary-700">
+            <CategoryIcon categoria={asset.categoria.nombre} className="h-8 w-8" />
           </div>
-        </div>
-        <Link
-          href={`/activos/${asset.id}/editar`}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Edit size={20} />
-          <span>Editar</span>
-        </Link>
-      </div>
+        }
+        title={`${asset.marca} ${asset.modelo}`}
+        description={`${asset.categoria.nombre} • ${asset.numeroSerie ?? "Sin n° de serie"}`}
+        actions={
+          <Link href={`/activos/${asset.id}/editar`} className={buttonClasses()}>
+            <Edit size={18} />
+            <span>Editar</span>
+          </Link>
+        }
+      />
 
       {/* Status Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="card p-4">
           <div className="flex items-center gap-3">
             <Tag className="h-5 w-5 text-gray-400" />
             <div>
               <p className="text-sm text-gray-500">Estado</p>
-              <span
-                className={cn(
-                  "px-2 py-1 text-sm font-medium rounded-full",
-                  estadoColors[asset.estado]
-                )}
-              >
-                {estadoLabels[asset.estado]}
-              </span>
+              <AssetStatusBadge status={asset.estado} />
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="card p-4">
           <div className="flex items-center gap-3">
             <AlertCircle className="h-5 w-5 text-gray-400" />
             <div>
               <p className="text-sm text-gray-500">Condición</p>
               <p className="font-medium text-gray-900">
-                {condicionLabels[asset.condicion]}
+                {CONDICION_ACTIVO_LABEL[asset.condicion]}
               </p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="card p-4">
           <div className="flex items-center gap-3">
             <MapPin className="h-5 w-5 text-gray-400" />
             <div>
@@ -256,7 +198,7 @@ export default async function DetalleActivoPage({
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="card p-4">
           <div className="flex items-center gap-3">
             <User className="h-5 w-5 text-gray-400" />
             <div>
@@ -269,7 +211,7 @@ export default async function DetalleActivoPage({
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="card p-4">
           <div className="flex items-center gap-3">
             <Calendar className="h-5 w-5 text-gray-400" />
             <div>
@@ -288,7 +230,7 @@ export default async function DetalleActivoPage({
         {/* Main Info */}
         <div className="lg:col-span-2 space-y-6">
           {/* Información General */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Información General
             </h2>
@@ -322,7 +264,7 @@ export default async function DetalleActivoPage({
 
           {/* Especificaciones Técnicas */}
           {especificaciones && Object.keys(especificaciones).length > 0 && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Especificaciones Técnicas
               </h2>
@@ -339,7 +281,7 @@ export default async function DetalleActivoPage({
 
           {/* Observaciones */}
           {asset.observaciones && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Observaciones
               </h2>
@@ -354,7 +296,7 @@ export default async function DetalleActivoPage({
               shown with a "No registrado" placeholder instead of a
               fabricated employee. */}
           {(asset.assignments.length > 0 || asset.historialAsignacionesSinPersona.length > 0) && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Historial de Asignaciones
               </h2>
@@ -426,7 +368,7 @@ export default async function DetalleActivoPage({
           {/* Only shown when the asset is linked to a purchase invoice;
               manually created or imported assets may have none. */}
           {asset.purchaseAssets.length > 0 && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 {asset.purchaseAssets.length === 1 ? "Compra asociada" : "Compras asociadas"}
               </h2>
@@ -439,7 +381,7 @@ export default async function DetalleActivoPage({
                       </p>
                       <Link
                         href={`/compras/${pa.purchase.id}`}
-                        className="text-sm text-blue-600 hover:text-blue-800 whitespace-nowrap"
+                        className="text-sm text-primary-700 hover:text-primary-900 whitespace-nowrap"
                       >
                         Ver compra
                       </Link>
@@ -456,7 +398,7 @@ export default async function DetalleActivoPage({
             </div>
           )}
 
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Historial de Eventos
             </h2>
@@ -471,7 +413,7 @@ export default async function DetalleActivoPage({
                     key={evento.id}
                     className="relative pl-6 pb-4 border-l-2 border-gray-200 last:pb-0"
                   >
-                    <div className="absolute -left-2 top-0 w-4 h-4 bg-blue-500 rounded-full" />
+                    <div className="absolute -left-2 top-0 w-4 h-4 bg-primary-500 rounded-full" />
                     <div>
                       <p className="font-medium text-gray-900">
                         {tipoEventoLabels[evento.tipoEvento] || evento.tipoEvento}

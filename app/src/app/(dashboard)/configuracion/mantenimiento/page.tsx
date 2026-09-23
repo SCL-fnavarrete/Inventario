@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { buttonClasses } from "@/components/ui/buttonStyles";
 
 type DataCounts = {
   activos: number;
@@ -42,7 +43,7 @@ const deleteOptions: DeleteOption[] = [
     label: "Activos",
     description: "Eliminar activos sin historial de auditoría (datos de prueba)",
     icon: Laptop,
-    color: "text-blue-600 bg-blue-100",
+    color: "text-primary-700 bg-primary-100",
     warning: "Solo se eliminan los activos que no tienen historial ni guías de despacho asociadas. Los activos con historial se conservan siempre.",
   },
   {
@@ -74,7 +75,7 @@ const deleteOptions: DeleteOption[] = [
     label: "Compras y Facturas",
     description: "Eliminar todas las compras registradas",
     icon: Package,
-    color: "text-indigo-600 bg-indigo-100",
+    color: "text-primary-700 bg-primary-100",
     warning: "Esto eliminará todas las facturas y su vinculación con activos.",
   },
 ];
@@ -156,7 +157,7 @@ export default function MantenimientoPage() {
   if (status === "loading" || loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700"></div>
       </div>
     );
   }
@@ -204,7 +205,7 @@ export default function MantenimientoPage() {
       )}
 
       {/* Opciones de eliminación */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           Seleccione qué datos desea eliminar
         </h2>
@@ -254,7 +255,7 @@ export default function MantenimientoPage() {
 
       {/* Panel de confirmación */}
       {selectedOption && (
-        <div className="bg-white rounded-lg shadow p-6 border-2 border-red-300">
+        <div className="card p-6 border-2 border-red-300">
           <div className="flex items-start gap-4 mb-6">
             <div className="p-3 bg-red-100 rounded-full">
               <AlertTriangle className="h-6 w-6 text-red-600" />
@@ -306,7 +307,7 @@ export default function MantenimientoPage() {
               <button
                 onClick={handleDelete}
                 disabled={confirmText !== "ELIMINAR" || deleting}
-                className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className={buttonClasses({ variant: "danger", size: "lg", className: "px-6" })}
               >
                 {deleting ? (
                   <>

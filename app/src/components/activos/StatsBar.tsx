@@ -46,8 +46,8 @@ const statusConfig = {
   asignado: {
     label: "Asignado",
     icon: UserCheck,
-    color: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100",
-    activeColor: "bg-blue-600 text-white border-blue-600",
+    color: "bg-primary-50 text-primary-800 border-primary-200 hover:bg-primary-100",
+    activeColor: "bg-primary-700 text-white border-primary-700",
   },
   en_mantencion: {
     label: "Mantenci\u00f3n",
@@ -113,7 +113,7 @@ export function StatsBar({ data, isLoading, selectedStatus, onStatusClick }: Sta
               flex items-center gap-3 p-4 rounded-xl border-2 flex-1 min-w-[150px]
               transition-all duration-200
               ${isActive ? config.activeColor : config.color}
-              focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+              focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500
             `}
           >
             <div className={`

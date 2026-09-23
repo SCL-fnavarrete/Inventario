@@ -13,6 +13,8 @@ import {
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { useToast } from "@/components/ui/Toast";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 // Reads/writes real settings via /api/configuracion/parametros (SystemConfig
 // table). Only two sections are kept: Datos de la Empresa (reference data,
@@ -41,7 +43,7 @@ const sections: { id: ConfigSection; title: string; description: string; icon: R
     title: "Datos de la Empresa",
     description: "Información general de la empresa (referencia -- no se usa en actas ni reportes)",
     icon: Building2,
-    color: "bg-blue-100 text-blue-600",
+    color: "bg-primary-100 text-primary-700",
   },
   {
     id: "seguridad",
@@ -143,10 +145,10 @@ export default function ParametrosPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Parámetros Generales</h1>
-        <p className="text-gray-600 mt-1">Datos de la empresa y seguridad de acceso</p>
-      </div>
+      <PageHeader
+        title="Parámetros Generales"
+        description="Datos de la empresa y seguridad de acceso"
+      />
 
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
@@ -161,7 +163,7 @@ export default function ParametrosPage() {
                   key={section.id}
                   onClick={() => setActiveSection(section.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                    active ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-50"
+                    active ? "bg-primary-50 text-primary-800" : "text-gray-600 hover:bg-gray-50"
                   }`}
                 >
                   <div className={`p-2 rounded-lg ${section.color}`}>
@@ -176,7 +178,7 @@ export default function ParametrosPage() {
           </nav>
         </div>
 
-        <div className="md:col-span-3 bg-white rounded-lg shadow p-6">
+        <div className="card md:col-span-3 p-6">
           <div className="mb-4">
             <h2 className="text-lg font-semibold text-gray-900">
               {sections.find((s) => s.id === activeSection)?.title}
@@ -190,7 +192,7 @@ export default function ParametrosPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     <Building2 size={16} className="inline mr-1" />
                     Nombre de la Empresa
                   </label>
@@ -198,20 +200,20 @@ export default function ParametrosPage() {
                     type="text"
                     value={form.empresaNombre ?? ""}
                     onChange={(e) => setForm({ ...form, empresaNombre: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="field-input"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">RUT Empresa</label>
+                  <label className="field-label">RUT Empresa</label>
                   <input
                     type="text"
                     value={form.empresaRut ?? ""}
                     onChange={(e) => setForm({ ...form, empresaRut: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="field-input"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     <MapPin size={16} className="inline mr-1" />
                     Dirección
                   </label>
@@ -219,11 +221,11 @@ export default function ParametrosPage() {
                     type="text"
                     value={form.empresaDireccion ?? ""}
                     onChange={(e) => setForm({ ...form, empresaDireccion: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="field-input"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     <Phone size={16} className="inline mr-1" />
                     Teléfono
                   </label>
@@ -231,11 +233,11 @@ export default function ParametrosPage() {
                     type="text"
                     value={form.empresaTelefono ?? ""}
                     onChange={(e) => setForm({ ...form, empresaTelefono: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="field-input"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     <Mail size={16} className="inline mr-1" />
                     Email de Contacto
                   </label>
@@ -243,16 +245,16 @@ export default function ParametrosPage() {
                     type="email"
                     value={form.empresaEmail ?? ""}
                     onChange={(e) => setForm({ ...form, empresaEmail: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="field-input"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Sitio Web</label>
+                  <label className="field-label">Sitio Web</label>
                   <input
                     type="text"
                     value={form.empresaSitioWeb ?? ""}
                     onChange={(e) => setForm({ ...form, empresaSitioWeb: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="field-input"
                   />
                 </div>
               </div>
@@ -268,7 +270,7 @@ export default function ParametrosPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Duración de sesión (horas)
                   </label>
                   <input
@@ -279,7 +281,7 @@ export default function ParametrosPage() {
                     onChange={(e) =>
                       setForm({ ...form, duracionSesionHoras: parseInt(e.target.value) || 1 })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="field-input"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     Solo afecta sesiones nuevas (al iniciar sesión) y aplica después de reiniciar el
@@ -287,7 +289,7 @@ export default function ParametrosPage() {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Intentos máximos de login
                   </label>
                   <input
@@ -298,11 +300,11 @@ export default function ParametrosPage() {
                     onChange={(e) =>
                       setForm({ ...form, maxIntentosLogin: parseInt(e.target.value) || 1 })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="field-input"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     Minutos de bloqueo tras exceder intentos
                   </label>
                   <input
@@ -313,7 +315,7 @@ export default function ParametrosPage() {
                     onChange={(e) =>
                       setForm({ ...form, minutosBloqueoLogin: parseInt(e.target.value) || 1 })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="field-input"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     Estos dos aplican de inmediato al siguiente intento de login.
@@ -335,7 +337,7 @@ export default function ParametrosPage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className={buttonClasses()}
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               {saving ? "Guardando..." : "Guardar Cambios"}

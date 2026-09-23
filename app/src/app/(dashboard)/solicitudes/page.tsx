@@ -18,6 +18,8 @@ import { cn } from '@/lib/utils';
 import { Can } from "@/components/auth/Can";
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 type WorkflowRequest = {
   id: string;
@@ -55,7 +57,7 @@ const tipoLabels: Record<string, string> = {
 
 const tipoColors: Record<string, string> = {
   onboarding: 'bg-green-100 text-green-800',
-  cambio_equipo: 'bg-blue-100 text-blue-800',
+  cambio_equipo: 'bg-primary-100 text-primary-900',
   offboarding: 'bg-orange-100 text-orange-800',
 };
 
@@ -128,24 +130,26 @@ export default function SolicitudesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Solicitudes</h1>
-          <p className="text-gray-600">Gestión de solicitudes de equipos y workflows</p>
-        </div>
-        <Can recurso="solicitudes">
-          <Link
-            href="/solicitudes/nueva"
-            className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            Nueva Solicitud
-          </Link>
-        </Can>
-      </div>
+      <PageHeader
+        title="Solicitudes"
+        description="Gestión de solicitudes de equipos y workflows"
+        actions={
+          <>
+            <Can recurso="solicitudes">
+              <Link
+                href="/solicitudes/nueva"
+                className={buttonClasses()}
+              >
+                <Plus className="h-4 w-4" />
+                Nueva Solicitud
+              </Link>
+            </Can>
+          </>
+        }
+      />
 
       {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-4">
+      <div className="card p-4 space-y-4">
         <div className="flex gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -154,7 +158,7 @@ export default function SolicitudesPage() {
               placeholder="Buscar por número, empleado, RUT..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input pl-10 pr-4"
             />
           </div>
           <button
@@ -162,7 +166,7 @@ export default function SolicitudesPage() {
             className={cn(
               'flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors',
               showFilters
-                ? 'bg-blue-50 border-blue-300 text-blue-700'
+                ? 'bg-primary-50 border-primary-300 text-primary-800'
                 : 'border-gray-300 text-gray-700 hover:bg-gray-50'
             )}
           >
@@ -174,7 +178,7 @@ export default function SolicitudesPage() {
               onClick={() => setViewMode('table')}
               className={cn(
                 'p-2 transition-colors',
-                viewMode === 'table' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'
+                viewMode === 'table' ? 'bg-primary-700 text-white' : 'text-gray-500 hover:bg-gray-100'
               )}
             >
               <List className="h-4 w-4" />
@@ -184,7 +188,7 @@ export default function SolicitudesPage() {
               className={cn(
                 'p-2 transition-colors',
                 viewMode === 'kanban'
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-primary-700 text-white'
                   : 'text-gray-500 hover:bg-gray-100'
               )}
             >
@@ -231,34 +235,34 @@ export default function SolicitudesPage() {
       {/* Content */}
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700" />
         </div>
       ) : viewMode === 'table' ? (
         /* Table View */
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4">
                     Número
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4">
                     Tipo
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4">
                     Empleado
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4">
                     Estado
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4">
                     Responsable
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4">
                     Fecha
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="table-th px-4">
                     Acciones
                   </th>
                 </tr>
@@ -266,7 +270,7 @@ export default function SolicitudesPage() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {requests.map((req) => (
                   <tr key={req.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium text-blue-600">
+                    <td className="px-4 py-3 text-sm font-medium text-primary-700">
                       <Link href={`/solicitudes/${req.id}`}>{req.numero}</Link>
                     </td>
                     <td className="px-4 py-3">
@@ -291,7 +295,7 @@ export default function SolicitudesPage() {
                           'inline-flex px-2 py-1 text-xs font-medium rounded-full',
                           req.fechaCierre
                             ? 'bg-gray-100 text-gray-700'
-                            : 'bg-blue-100 text-blue-800'
+                            : 'bg-primary-100 text-primary-900'
                         )}
                       >
                         {req.fechaCierre ? 'Cerrado' : 'Abierto'}
@@ -307,7 +311,7 @@ export default function SolicitudesPage() {
                       <div className="flex items-center gap-3">
                         <Link
                           href={`/solicitudes/${req.id}`}
-                          className="text-blue-600 hover:text-blue-800"
+                          className="text-primary-700 hover:text-primary-900"
                           title="Ver solicitud"
                         >
                           <Notebook className="h-4 w-4" />
@@ -400,12 +404,12 @@ export default function SolicitudesPage() {
                         className="block bg-white rounded-lg shadow-sm p-3 hover:shadow-md transition-shadow"
                       >
                         <div className="flex justify-between items-start mb-2">
-                          <span className="text-xs font-medium text-blue-600">{req.numero}</span>
+                          <span className="text-xs font-medium text-primary-700">{req.numero}</span>
                         </div>
                         <p className="text-sm font-medium text-gray-900">
                           {req.employee.nombres} {req.employee.apellidoPaterno}
                         </p>
-                        <span className="inline-flex mt-1 px-1.5 py-0.5 text-xs rounded bg-indigo-100 text-indigo-800">
+                        <span className="inline-flex mt-1 px-1.5 py-0.5 text-xs rounded bg-primary-100 text-primary-900">
                           {estadoLabels[req.estado] || req.estado}
                         </span>
                       </Link>

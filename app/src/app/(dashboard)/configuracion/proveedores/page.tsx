@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { PackageX } from "lucide-react";
+import { buttonClasses } from "@/components/ui/buttonStyles";
 
 // Proveedores was removed (unused table). This page shows a message
 // instead of redirecting silently, for anyone arriving via an old link.
@@ -16,7 +17,7 @@ export default function ProveedoresEliminadoPage() {
       </p>
       <Link
         href="/configuracion"
-        className="mt-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        className={buttonClasses({ className: "mt-6" })}
       >
         Volver a Configuración
       </Link>

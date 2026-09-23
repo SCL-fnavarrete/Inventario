@@ -13,11 +13,6 @@ function renderPdf(element: React.ReactElement) {
   return renderToBuffer(element as React.ReactElement<DocumentProps>);
 }
 
-function formatDate(date: Date | string | null): string {
-  if (!date) return '—';
-  return formatearFecha(date);
-}
-
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const MESES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -112,8 +107,8 @@ export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer>
     empleadoNombre: `${solicitud.employee.nombres} ${solicitud.employee.apellidoPaterno}`,
     empleadoRut: solicitud.employee.rut || '—',
     cargo: solicitud.cargoSolicitado || solicitud.employee.cargo || '—',
-    fechaContrato: formatDate(solicitud.employee.fechaIngreso),
-    fechaEntrega: formatDate(new Date()),
+    fechaContrato: formatearFecha(solicitud.employee.fechaIngreso, {}, '—'),
+    fechaEntrega: formatearFecha(new Date(), {}, '—'),
     assets,
     // Solo nombre, sin correo -- mismo criterio que el resto de los
     // documentos.
@@ -206,7 +201,7 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
   const element = React.createElement(ComprobanteCambioTemplate, {
     empleadoNombre: `${solicitud.employee.nombres} ${solicitud.employee.apellidoPaterno}`,
     empleadoRut: solicitud.employee.rut || '—',
-    fecha: formatDate(new Date()),
+    fecha: formatearFecha(new Date(), {}, '—'),
     motivoCambio: solicitud.motivoCambio || '—',
     equipoNuevo: newAssignment
       ? toAssetInfo(newAssignment.asset, 'Entregado OK', labelCargador(newAssignment.condicionCargadorEntrega))
@@ -259,8 +254,8 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
   const element = React.createElement(ActaDevolucionTemplate, {
     empleadoNombre: `${solicitud.employee.nombres} ${solicitud.employee.apellidoPaterno}`,
     empleadoRut: solicitud.employee.rut || '—',
-    fechaTermino: formatDate(solicitud.fechaDesvinculacion),
-    fechaDevolucion: formatDate(new Date()),
+    fechaTermino: formatearFecha(solicitud.fechaDesvinculacion, {}, '—'),
+    fechaDevolucion: formatearFecha(new Date(), {}, '—'),
     assets,
     observacion: solicitud.observaciones || 'n/a',
     // Solo nombre, sin correo -- mismo criterio que el resto de los

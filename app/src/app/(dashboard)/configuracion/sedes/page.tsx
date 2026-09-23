@@ -5,6 +5,9 @@ import { Plus, Edit, Save, X, MapPin } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { useToast } from "@/components/ui/Toast";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { ActiveBadge } from "@/components/ui/Badge";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 type Sede = {
   id: string;
@@ -142,52 +145,50 @@ export default function SedesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700"></div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Sedes</h1>
-          <p className="text-gray-600 mt-1">
-            Cada activo, empleado, solicitud y guía de despacho queda ligado a una sede, que se
-            elige explícitamente al crearlo. Admin y técnico ven todas las sedes; el selector del
-            menú filtra lo que se muestra en pantalla, no lo que cada usuario puede ver.
-          </p>
-        </div>
-        {!isCreating && !editingId && (
-          <button
-            onClick={() => {
-              setIsCreating(true);
-              setFormData({ codigo: "", nombre: "", activa: true });
-              setError("");
-              setFieldErrors({});
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={20} />
-            <span>Nueva Sede</span>
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Sedes"
+        description="Cada activo, empleado, solicitud y guía de despacho queda ligado a una sede, que se elige explícitamente al crearlo. Admin y técnico ven todas las sedes; el selector del menú filtra lo que se muestra en pantalla, no lo que cada usuario puede ver."
+        actions={
+          <>
+            {!isCreating && !editingId && (
+              <button
+                onClick={() => {
+                  setIsCreating(true);
+                  setFormData({ codigo: "", nombre: "", activa: true });
+                  setError("");
+                  setFieldErrors({});
+                }}
+                className={buttonClasses()}
+              >
+                <Plus size={20} />
+                <span>Nueva Sede</span>
+              </button>
+            )}
+          </>
+        }
+      />
 
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* Formulario de creación */}
       {isCreating && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Nueva Sede</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Código *</label>
+              <label className="field-label">Código *</label>
               <input
                 type="text"
                 value={formData.codigo}
                 onChange={(e) => setFormData({ ...formData, codigo: e.target.value.toUpperCase() })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
                 placeholder="Ej: STGO, CCP"
                 maxLength={10}
               />
@@ -196,12 +197,12 @@ export default function SedesPage() {
               </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+              <label className="field-label">Nombre *</label>
               <input
                 type="text"
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
                 placeholder="Ej: Santiago, Concepción"
               />
             </div>
@@ -209,13 +210,13 @@ export default function SedesPage() {
           <div className="flex justify-end gap-3 mt-4">
             <button
               onClick={cancelEdit}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className={buttonClasses({ variant: "outline" })}
             >
               Cancelar
             </button>
             <button
               onClick={handleCreate}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className={buttonClasses()}
             >
               <Save size={18} />
               Guardar
@@ -225,20 +226,20 @@ export default function SedesPage() {
       )}
 
       {/* Tabla de sedes */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="card overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th">
                 Código
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th">
                 Nombre
               </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th text-center">
                 Estado
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th text-right">
                 Acciones
               </th>
             </tr>
@@ -254,7 +255,7 @@ export default function SedesPage() {
                         type="text"
                         value={formData.nombre}
                         onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
                       />
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -263,7 +264,7 @@ export default function SedesPage() {
                           type="checkbox"
                           checked={formData.activa}
                           onChange={(e) => setFormData({ ...formData, activa: e.target.checked })}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="field-checkbox"
                         />
                         <span className="text-sm text-gray-700">Activa</span>
                       </label>
@@ -297,20 +298,12 @@ export default function SedesPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => toggleActiva(sede)}
-                        className={`inline-flex px-2 py-1 text-xs rounded-full cursor-pointer hover:opacity-80 ${
-                          sede.activa ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                        }`}
-                        title={sede.activa ? "Clic para desactivar" : "Clic para activar"}
-                      >
-                        {sede.activa ? "Activa" : "Inactiva"}
-                      </button>
+                      <ActiveBadge activo={sede.activa} labels={["Activa", "Inactiva"]} onToggle={() => toggleActiva(sede)} />
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button
                         onClick={() => startEdit(sede)}
-                        className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                        className="p-1 text-primary-700 hover:bg-primary-50 rounded"
                         title="Editar"
                       >
                         <Edit size={18} />

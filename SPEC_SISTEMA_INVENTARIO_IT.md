@@ -2914,7 +2914,30 @@ Causa: en el formulario de Nueva Solicitud, al expandir una categoría para eleg
 
 Se sube el límite a 100 (mismo orden de magnitud que ya usa `SelectorActivos` en Guías de Despacho, que pide 200) y la lista desplegable gana scroll propio (`max-h-60 overflow-y-auto`) para poder recorrer todos los disponibles sin que la pantalla del formulario crezca sin límite.
 
+## 2.77 Identidad visual SCL, sistema de diseño y formulario único de Activo (22-sep-2026)
+
+Pedido de Javier: alinear el aspecto del sistema con la marca de sclconsultores.com (paleta, tipografía, botones, tarjetas) sin tocar la estructura de un sistema de gestión, y aprovechar para eliminar código duplicado.
+
+**Sistema de diseño.** Los tokens viven en `app/src/app/globals.css` (bloque `@theme` de Tailwind v4, que reemplaza a `tailwind.config`); ningún componente usa colores hex sueltos.
+- Paleta tomada del CSS real del sitio: `primary-500 #009CD2`, `primary-600 #0080B0`, `primary-800 #005A7D`, `primary-950 #002B4D` (los demás tonos de la escala son derivados), acento naranjo `accent #D88024`, grises de marca `brand-gray`. Los botones sólidos usan `primary-700`: blanco sobre `primary-600` da 4,45:1, bajo el mínimo AA.
+- Tipografía Montserrat vía `next/font` (autohospedada). Antes se cargaba Inter pero una regla `font-family: Arial` la anulaba.
+- Primitivas de CSS: `card`, `field-input`, `field-label`, `field-checkbox`, `table-th`, además de radios (`rounded-card`, `rounded-control`), sombras y animaciones con nombre.
+- Componentes compartidos en `components/ui/`: `Button` (con `buttonClasses()` para `<Link>` y variante `link` "Ver más →"), `PageHeader`, `StatCard`/`StatGrid`, `Tabs`/`NavTabs`, `Pagination`, `Badge` (`AssetStatusBadge`, `AssetConditionBadge`, `ActiveBadge`).
+- Colores literales para lo que no lee clases (gráficos SVG, Excel): `lib/constants/coloresGraficos.ts`, espejo de los tokens.
+
+**Presentación de estados del activo: un único punto de verdad.** `lib/constants/estadosActivo.ts` define etiqueta, color de badge y color de gráfico para cada `EstadoActivo` y `CondicionActivo`. Reemplaza nueve copias que ya se habían separado: "En Mantención" salía amarillo en Activos y naranjo en Reportes, y Reportes > Inventario mostraba el valor crudo del enum (`en_mantencion`, `danado`). Cambio visible: todos los estados usan ahora el mismo color en todas las pantallas.
+
+**Formulario único de Activo.** Nuevo y Editar Activo pasan a usar un solo componente, `components/activos/ActivoForm.tsx`, con `modo: "crear" | "editar"`. Antes eran dos copias que se habían desalineado: Editar pedía Sistema Operativo, Antivirus y Licencia Microsoft 365 como texto libre, mientras Nuevo los tomaba de los catálogos administrables. Decisión (Javier): **en ambos modos se eligen desde los catálogos (`CatalogSelect`), no como texto libre.** Un valor histórico que no esté en el catálogo se sigue mostrando como opción, así que editar un activo antiguo no pierde el dato. Diferencias que se mantienen a propósito, por modo:
+- Crear: se elige la Sede (después solo cambia vía Guía de Despacho, 2.8.3); el estado queda fijo en Disponible; el N° de serie es obligatorio.
+- Editar: el estado es editable y aparece "Nombre del Equipo" (al crear se define en la asignación, porque se arma con el nombre de quien recibe el equipo).
+
+**API `GET /api/dashboard/stats`.** El arreglo `estadosData` (gráfico de estados) incluye ahora `vendido`, igual que la página del Dashboard desde 2.16; antes lo omitía. `kpis` suma `vendidoAssets`. Los colores de `estadosData` salen de `ESTADO_ACTIVO_COLOR`.
+
+**Correcciones visuales de paso.** Los modales hechos a mano usaban `bg-opacity-50`, que Tailwind v4 eliminó, así que el fondo se veía negro opaco; los modales de confirmación pasan a `ConfirmDialog` y el resto a `bg-black/50`. Se elimina `hooks/useAssetFilters.ts`, que no se importaba en ningún lado y tenía etiquetas obsoletas (`reutilizable`, condiciones `bueno`/`regular`/`malo`).
+
 ## Changelog SPEC
+- **v2.1 (2026-09-22):**
+  - Sección 2.77 (nueva): identidad visual SCL (tokens en `globals.css` @theme, Montserrat, componentes compartidos `PageHeader`/`StatCard`/`Tabs`/`Pagination`/badges), presentación de estados del activo centralizada en `lib/constants/estadosActivo.ts` (mismo color en todas las pantallas), formulario único `ActivoForm` para Nuevo/Editar Activo con Sistema Operativo/Antivirus/Licencia M365 desde catálogos en ambos modos (decisión de Javier), y `GET /api/dashboard/stats` suma `vendido` a `estadosData` y `vendidoAssets` a `kpis`.
 - **v2.0 (2026-09-22):**
   - Sección 2.76 (nueva): el selector de equipos específicos en el formulario de Onboarding (Nueva Solicitud) traía un `limit=5` fijo al listar los disponibles de una categoría, mientras el badge mostraba el total real -- con más de 5 en stock no había forma de ver ni elegir el resto. Se sube el límite a 100 y la lista gana scroll propio. Reportado por Javier con una categoría con más de 40 disponibles.
 - **v1.99 (2026-09-22):**

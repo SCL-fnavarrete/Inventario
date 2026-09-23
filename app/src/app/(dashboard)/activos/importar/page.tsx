@@ -2,9 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import Link from "next/link";
 import {
-  ArrowLeft,
   Upload,
   FileSpreadsheet,
   AlertCircle,
@@ -19,6 +17,9 @@ import type { ImportPreviewResult, ImportBatchResult, CorrectedRow } from "@/typ
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { ESTADOS_RECONOCIDOS } from "@/lib/importacion/activos";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatCard, StatGrid } from "@/components/ui/StatCard";
 
 type Category = {
   id: number;
@@ -589,20 +590,11 @@ export default function ImportarActivosPage() {
   return (
     <div className="space-y-6 max-w-full">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          href="/activos"
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <ArrowLeft size={24} />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Importar Activos</h1>
-          <p className="text-gray-600">
-            Carga masiva de equipos desde archivo Excel
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        backHref="/activos"
+        title="Importar Activos"
+        description="Carga masiva de equipos desde archivo Excel"
+      />
 
       {/* Panel de Revision de Errores (solo corrige, no escribe nada) */}
       {showErrorReview && validation && errorRows.length > 0 && (
@@ -646,21 +638,15 @@ export default function ImportarActivosPage() {
                   : "Importacion con advertencias"}
               </h3>
 
-              <div className="grid grid-cols-2 gap-4 mt-4 mb-4">
-                <div className="bg-white rounded-lg p-3 text-center shadow-sm">
-                  <p className="text-2xl font-bold text-green-600">{batchResult.imported}</p>
-                  <p className="text-xs text-gray-600">Importados</p>
-                </div>
-                <div className="bg-white rounded-lg p-3 text-center shadow-sm">
-                  <p className="text-2xl font-bold text-red-600">{batchResult.failed}</p>
-                  <p className="text-xs text-gray-600">Con errores</p>
-                </div>
-              </div>
+              <StatGrid cols={2} className="mt-4 mb-4">
+                <StatCard variant="soft" tone="success" className="bg-white" label="Importados" value={batchResult.imported} />
+                <StatCard variant="soft" tone="danger" className="bg-white" label="Con errores" value={batchResult.failed} />
+              </StatGrid>
 
               {batchResult.failed > 0 && (
                 <div className="mt-3">
                   <p className="font-medium text-yellow-800">Errores encontrados:</p>
-                  <div className="mt-2 max-h-48 overflow-y-auto bg-white rounded-lg p-3 shadow-sm">
+                  <div className="card mt-2 max-h-48 overflow-y-auto p-3">
                     {batchResult.results
                       .filter((r) => r.status === "error")
                       .slice(0, 10)
@@ -688,7 +674,7 @@ export default function ImportarActivosPage() {
                   onClick={() => {
                     window.location.href = "/activos";
                   }}
-                  className="text-blue-600 hover:text-blue-800 font-medium"
+                  className="text-primary-700 hover:text-primary-900 font-medium"
                 >
                   Ver activos importados →
                 </button>
@@ -699,7 +685,7 @@ export default function ImportarActivosPage() {
       )}
 
       {/* Step 1: File Selection */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           Paso 1: Seleccionar Archivo
         </h2>
@@ -748,7 +734,7 @@ export default function ImportarActivosPage() {
                   <Upload className="h-10 w-10 text-gray-400 mx-auto mb-3" />
                   <p className="text-gray-600">
                     Arrastra un archivo Excel o{" "}
-                    <span className="text-blue-600 font-medium">
+                    <span className="text-primary-700 font-medium">
                       haz clic para seleccionar
                     </span>
                   </p>
@@ -763,13 +749,13 @@ export default function ImportarActivosPage() {
           {availableSheets.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="field-label">
                   Hoja del Excel *
                 </label>
                 <select
                   value={sheetName}
                   onChange={(e) => setSheetName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="field-input"
                 >
                   <option value="">Seleccionar hoja</option>
                   {availableSheets.map((sheet) => (
@@ -780,14 +766,14 @@ export default function ImportarActivosPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="field-label">
                   Categoría de Activos *
                 </label>
                 <select
                   value={categoria}
                   onChange={(e) => setCategoria(e.target.value)}
                   disabled={loadingCategories}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                  className="field-input disabled:opacity-50"
                 >
                   <option value="">
                     {loadingCategories ? "Cargando categorías..." : "Seleccionar categoría"}
@@ -800,14 +786,14 @@ export default function ImportarActivosPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="field-label">
                   Sede {esAdminSede ? "(opcional)" : "*"}
                 </label>
                 <select
                   value={sedeId}
                   onChange={(e) => setSedeId(e.target.value)}
                   disabled={!esAdminSede}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
+                  className="field-input"
                 >
                   <option value="">
                     {esAdminSede ? "Detectar automáticamente por columna Sede" : "Seleccionar sede"}
@@ -834,7 +820,7 @@ export default function ImportarActivosPage() {
               onClick={handlePreview}
               disabled={parsing || (!esAdminSede && !sedeId)}
               title={!esAdminSede && !sedeId ? "Primero elige la sede de destino" : undefined}
-              className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="w-full py-3 bg-primary-700 text-white rounded-lg hover:bg-primary-800 disabled:opacity-50 transition-colors"
             >
               {parsing ? "Procesando..." : "Detectar campos"}
             </button>
@@ -844,7 +830,7 @@ export default function ImportarActivosPage() {
 
       {/* Step 2: Column Mapping */}
       {preview && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Paso 2: Mapeo de Columnas
           </h2>
@@ -862,14 +848,14 @@ export default function ImportarActivosPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {requiredFields.map((field) => (
                   <div key={field.key}>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="field-label">
                       {field.label} {field.required && "*"}
                     </label>
                     <select
                       value={columnMapping[field.key] || ""}
                       onChange={(e) => handleMappingChange(field.key, e.target.value)}
                       className={cn(
-                        "w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
+                        "w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500",
                         field.required && !columnMapping[field.key]
                           ? "border-red-300"
                           : "border-gray-300"
@@ -901,13 +887,13 @@ export default function ImportarActivosPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {employeeFieldsFiltered.map((field) => (
                   <div key={field.key}>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="field-label">
                       {field.label}
                     </label>
                     <select
                       value={columnMapping[field.key] || ""}
                       onChange={(e) => handleMappingChange(field.key, e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="field-input"
                     >
                       <option value="">No mapear</option>
                       {preview.headers.map((header, index) => (
@@ -932,13 +918,13 @@ export default function ImportarActivosPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {optionalFields.map((field) => (
                   <div key={field.key}>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="field-label">
                       {field.label}
                     </label>
                     <select
                       value={columnMapping[field.key] || ""}
                       onChange={(e) => handleMappingChange(field.key, e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="field-input"
                     >
                       <option value="">No mapear</option>
                       {preview.headers.map((header, index) => (
@@ -960,7 +946,7 @@ export default function ImportarActivosPage() {
 
       {/* Step 3: Preview Data */}
       {preview && !validation && (
-        <div className="bg-white rounded-lg shadow p-6 max-w-full">
+        <div className="card p-6 max-w-full">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Paso 3: Vista Previa de Datos ({preview.totalRows} filas)
           </h2>
@@ -1014,7 +1000,7 @@ export default function ImportarActivosPage() {
               setPreview(null);
               setColumnMapping({});
             }}
-            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            className={buttonClasses({ variant: "outline", className: "px-6" })}
           >
             Volver
           </button>
@@ -1022,7 +1008,7 @@ export default function ImportarActivosPage() {
             onClick={handleValidate}
             disabled={validating || (!esAdminSede && !sedeId)}
             title={!esAdminSede && !sedeId ? "Primero elige la sede de destino" : undefined}
-            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className={buttonClasses({ className: "px-6" })}
           >
             <ClipboardCheck size={20} />
             <span>{validating ? "Validando..." : `Validar ${preview.totalRows} filas`}</span>
@@ -1034,20 +1020,14 @@ export default function ImportarActivosPage() {
           escribe hasta este punto: "Realizar importación" es el unico
           gesto que confirma. */}
       {validation && !showErrorReview && !batchResult && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Paso 4: Confirmar Importación
           </h2>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="bg-green-50 rounded-lg p-4 text-center">
-              <p className="text-2xl font-bold text-green-600">{validation.validCount}</p>
-              <p className="text-sm text-green-700">Válidas</p>
-            </div>
-            <div className="bg-red-50 rounded-lg p-4 text-center">
-              <p className="text-2xl font-bold text-red-600">{validation.errorCount}</p>
-              <p className="text-sm text-red-700">Con errores</p>
-            </div>
-          </div>
+          <StatGrid cols={2} className="mb-4">
+            <StatCard variant="soft" tone="success" label="Válidas" value={validation.validCount} />
+            <StatCard variant="soft" tone="danger" label="Con errores" value={validation.errorCount} />
+          </StatGrid>
 
           {validation.errorCount > 0 && (
             <button
@@ -1075,7 +1055,7 @@ export default function ImportarActivosPage() {
                 setValidation(null);
                 setCorrections({});
               }}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className={buttonClasses({ variant: "outline", className: "px-6" })}
             >
               Volver
             </button>
@@ -1092,11 +1072,11 @@ export default function ImportarActivosPage() {
       )}
 
       {/* Help */}
-      <div className="bg-blue-50 rounded-lg p-6">
-        <h3 className="font-semibold text-blue-900 mb-2">
+      <div className="bg-primary-50 rounded-lg p-6">
+        <h3 className="font-semibold text-primary-950 mb-2">
           Formato esperado del Excel
         </h3>
-        <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+        <ul className="text-sm text-primary-900 space-y-1 list-disc list-inside">
           <li>
             La primera fila (o fila de encabezados) debe contener los nombres de
             las columnas

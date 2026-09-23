@@ -4,8 +4,9 @@ import { authOptions } from "@/lib/auth";
 import type { SesionAutenticada } from "@/lib/auth/guard";
 import { sedeWhere } from "@/lib/auth/sedeScope";
 
-import Link from "next/link";
-import { ArrowLeft, FileSpreadsheet } from "lucide-react";
+import { FileSpreadsheet } from "lucide-react";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatCard, StatGrid } from "@/components/ui/StatCard";
 
 async function getStockData(session: SesionAutenticada) {
   const categorias = await prisma.assetCategory.findMany({
@@ -15,8 +16,7 @@ async function getStockData(session: SesionAutenticada) {
         select: {
           id: true,
           estado: true,
-          ubicacionFisica: true,
-        },
+          ubicacionFisica: true },
       },
     },
     orderBy: { nombre: "asc" },
@@ -66,56 +66,34 @@ export default async function ReporteStockPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/reportes"
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5 text-gray-600" />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Reporte de Stock</h1>
-            <p className="text-gray-600">
-              Disponibilidad de equipos por categoría y estado
-            </p>
-          </div>
-        </div>
-        <a
-          href="/api/reportes/stock/excel"
-          className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-        >
-          <FileSpreadsheet className="h-4 w-4" />
-          Exportar Excel
-        </a>
-      </div>
+      <PageHeader
+        backHref="/reportes"
+        title="Reporte de Stock"
+        description="Disponibilidad de equipos por categoría y estado"
+        actions={
+          <>
+            <a
+              href="/api/reportes/stock/excel"
+              className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Exportar Excel
+            </a>
+          </>
+        }
+      />
 
       {/* Resumen General */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-white rounded-lg shadow p-4 text-center">
-          <p className="text-sm text-gray-500">Total</p>
-          <p className="text-2xl font-bold text-gray-900">{totales.total}</p>
-        </div>
-        <div className="bg-green-50 rounded-lg shadow p-4 text-center">
-          <p className="text-sm text-green-600">Disponibles</p>
-          <p className="text-2xl font-bold text-green-700">{totales.disponibles}</p>
-        </div>
-        <div className="bg-blue-50 rounded-lg shadow p-4 text-center">
-          <p className="text-sm text-blue-600">Asignados</p>
-          <p className="text-2xl font-bold text-blue-700">{totales.asignados}</p>
-        </div>
-        <div className="bg-orange-50 rounded-lg shadow p-4 text-center">
-          <p className="text-sm text-orange-600">Mantención</p>
-          <p className="text-2xl font-bold text-orange-700">{totales.enMantencion}</p>
-        </div>
-        <div className="bg-red-50 rounded-lg shadow p-4 text-center">
-          <p className="text-sm text-red-600">Baja</p>
-          <p className="text-2xl font-bold text-red-700">{totales.baja}</p>
-        </div>
-      </div>
+      <StatGrid cols={5}>
+        <StatCard variant="soft" label="Total" value={totales.total} />
+        <StatCard variant="soft" tone="success" label="Disponibles" value={totales.disponibles} />
+        <StatCard variant="soft" tone="primary" label="Asignados" value={totales.asignados} />
+        <StatCard variant="soft" tone="warning" label="Mantención" value={totales.enMantencion} />
+        <StatCard variant="soft" tone="danger" label="Baja" value={totales.baja} />
+      </StatGrid>
 
       {/* Tabla por Categoría */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="px-6 py-4 border-b">
           <h2 className="text-lg font-semibold text-gray-900">
             Stock por Categoría
@@ -125,16 +103,16 @@ export default async function ReporteStockPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th">
                   Categoría
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th text-center">
                   Total
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-green-600 uppercase">
                   Disponibles
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-blue-600 uppercase">
+                <th className="px-6 py-3 text-center text-xs font-medium text-primary-700 uppercase">
                   Asignados
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-orange-600 uppercase">
@@ -160,7 +138,7 @@ export default async function ReporteStockPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-center">
-                    <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 bg-blue-100 text-blue-800 rounded-full font-medium">
+                    <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 bg-primary-100 text-primary-900 rounded-full font-medium">
                       {row.asignados}
                     </span>
                   </td>
@@ -185,7 +163,7 @@ export default async function ReporteStockPage() {
                 <td className="px-6 py-4 text-sm text-center text-green-700">
                   {totales.disponibles}
                 </td>
-                <td className="px-6 py-4 text-sm text-center text-blue-700">
+                <td className="px-6 py-4 text-sm text-center text-primary-800">
                   {totales.asignados}
                 </td>
                 <td className="px-6 py-4 text-sm text-center text-orange-700">
@@ -201,7 +179,7 @@ export default async function ReporteStockPage() {
       </div>
 
       {/* Detalle por Ubicación */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           Distribución por Ubicación
         </h2>

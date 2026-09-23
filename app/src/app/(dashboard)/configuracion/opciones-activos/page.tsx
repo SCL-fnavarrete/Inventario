@@ -5,6 +5,9 @@ import { Plus, Save, Pencil, Trash2, X, Check } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Tabs } from "@/components/ui/Tabs";
 
 /**
  * Administracion de los catalogos de opciones que alimentan los
@@ -198,62 +201,47 @@ export default function OpcionesActivosPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Opciones de Activos</h1>
-        <p className="text-gray-600 mt-1">
-          Administra las opciones que aparecen al elegir sistema operativo, antivirus y
-          licencia Microsoft 365 en los activos
-        </p>
-      </div>
+      <PageHeader
+        backHref="/configuracion"
+        title="Opciones de Activos"
+        description="Administra las opciones que aparecen al elegir sistema operativo, antivirus y licencia Microsoft 365 en los activos"
+        actions={
+          !isCreating && (
+            <Button
+              leftIcon={<Plus size={18} />}
+              onClick={() => {
+                setIsCreating(true);
+                setNombre("");
+                setError("");
+                setFieldErrors({});
+              }}
+            >
+              Nueva Opción
+            </Button>
+          )
+        }
+      />
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
-        {CATALOGOS.map((c) => (
-          <button
-            key={c.key}
-            onClick={() => setTabActiva(c.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tabActiva === c.key
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            {c.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        items={CATALOGOS.map((c) => ({ key: c.key, label: c.label }))}
+        value={tabActiva}
+        onChange={setTabActiva}
+      />
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          Editar el nombre corrige también los activos que ya lo tenían guardado. Eliminar
-          una opción no modifica los activos existentes, solo deja de ofrecerla para los
-          nuevos.
-        </p>
-        {!isCreating && (
-          <button
-            onClick={() => {
-              setIsCreating(true);
-              setNombre("");
-              setError("");
-              setFieldErrors({});
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={20} />
-            <span>Nueva Opción</span>
-          </button>
-        )}
-      </div>
+      <p className="text-sm text-gray-500">
+        Editar el nombre corrige también los activos que ya lo tenían guardado. Eliminar una
+        opción no modifica los activos existentes, solo deja de ofrecerla para los nuevos.
+      </p>
 
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* Formulario de creacion */}
       {isCreating && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Nueva Opción — {catalogo.label}</h2>
           <div className="flex items-end gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+              <label className="field-label">Nombre *</label>
               <input
                 type="text"
                 value={nombre}
@@ -264,42 +252,35 @@ export default function OpcionesActivosPage() {
                     handleCreate();
                   }
                 }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="field-input"
                 placeholder={catalogo.placeholder}
                 autoFocus
               />
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={cancelCreate}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
+              <Button variant="outline" onClick={cancelCreate}>
                 Cancelar
-              </button>
-              <button
-                onClick={handleCreate}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Save size={18} />
+              </Button>
+              <Button leftIcon={<Save size={18} />} onClick={handleCreate}>
                 Guardar
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       )}
 
       {/* Tabla de opciones */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="card overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th">
                 Nombre
               </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th text-center">
                 En uso
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="table-th text-right">
                 Acciones
               </th>
             </tr>
@@ -334,7 +315,7 @@ export default function OpcionesActivosPage() {
                           }
                           if (e.key === "Escape") cancelarEdicion();
                         }}
-                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       />
                     ) : (
                       opcion.nombre
@@ -366,7 +347,7 @@ export default function OpcionesActivosPage() {
                         <>
                           <button
                             onClick={() => iniciarEdicion(opcion)}
-                            className="p-1 rounded text-blue-600 hover:bg-blue-50"
+                            className="p-1 rounded text-primary-700 hover:bg-primary-50"
                             title="Editar nombre"
                           >
                             <Pencil size={18} />

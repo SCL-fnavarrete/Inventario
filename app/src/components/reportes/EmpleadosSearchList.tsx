@@ -84,7 +84,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
   return (
     <div className="space-y-6">
       {/* Barra de búsqueda */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="card p-4">
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-gray-400" aria-hidden="true" />
@@ -93,7 +93,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+            className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition-colors"
             placeholder="Buscar por nombre, RUT, número de serie, número telefónico o monitor..."
             aria-label="Buscar empleados y equipos"
           />
@@ -101,7 +101,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
               <button
                 onClick={() => setSearchTerm('')}
-                className="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                className="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
                 aria-label="Limpiar búsqueda"
               >
                 <svg className="h-5 w-5" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
@@ -120,8 +120,8 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
 
       {/* Resumen actualizado */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg shadow p-4 text-center">
-          <div className="h-8 w-8 text-blue-600 mx-auto mb-2">
+        <div className="card p-4 text-center">
+          <div className="h-8 w-8 text-primary-700 mx-auto mb-2">
             <svg fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
               <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
             </svg>
@@ -151,7 +151,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
 
       {/* Mensaje cuando no hay resultados */}
       {searchTerm && filteredEmpleados.length === 0 && (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
+        <div className="card p-12 text-center">
           <div className="mx-auto h-12 w-12 text-gray-400 mb-4">
             <svg fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
               <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
@@ -163,7 +163,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
           </p>
           <button
             onClick={() => setSearchTerm('')}
-            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-800 bg-primary-100 hover:bg-primary-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
           >
             Limpiar búsqueda
           </button>
@@ -172,7 +172,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
 
       {/* Lista de Empleados con Equipos */}
       {empleadosConEquipos.length > 0 && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="card overflow-hidden">
           <div className="px-6 py-4 border-b">
             <h2 className="text-lg font-semibold text-gray-900">
               Empleados con Equipos Asignados
@@ -202,7 +202,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
                     <div>
                       <Link
                         href={`/empleados/${empleado.id}`}
-                        className="text-lg font-medium text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
+                        className="text-lg font-medium text-primary-700 hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 rounded"
                       >
                         {empleado.nombres} {empleado.apellidoPaterno}{" "}
                         {empleado.apellidoMaterno}
@@ -211,7 +211,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
                         {empleado.rut || "—"} | {empleado.cargo} | {empleado.ubicacion}
                       </p>
                     </div>
-                    <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                    <span className="text-sm bg-primary-100 text-primary-900 px-2 py-1 rounded-full">
                       {empleado.assignments.length} equipo(s)
                     </span>
                   </div>
@@ -220,13 +220,13 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
                     {/* Notebook */}
                     <div
                       className={`p-3 rounded-lg ${
-                        notebook ? "bg-blue-50" : "bg-gray-50"
+                        notebook ? "bg-primary-50" : "bg-gray-50"
                       }`}
                     >
                       <div className="flex items-center gap-2 mb-2">
                         <Laptop
                           className={`h-4 w-4 ${
-                            notebook ? "text-blue-600" : "text-gray-400"
+                            notebook ? "text-primary-700" : "text-gray-400"
                           }`}
                           aria-hidden="true"
                         />
@@ -349,7 +349,7 @@ export default function EmpleadosSearchList({ empleados }: EmpleadosSearchListPr
 
       {/* Empleados sin equipos */}
       {empleadosSinEquipos.length > 0 && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="card overflow-hidden">
           <div className="px-6 py-4 border-b bg-yellow-50">
             <h2 className="text-lg font-semibold text-yellow-800">
               Empleados Sin Equipos Asignados ({empleadosSinEquipos.length})

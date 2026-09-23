@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import { DashboardTabs } from "@/components/dashboard/DashboardTabs";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 async function getReporteSummary() {
   const [
@@ -106,7 +107,7 @@ export default async function ReportesPage() {
   ];
 
   const colorClasses = {
-    blue: "bg-blue-50 text-blue-600 hover:bg-blue-100",
+    blue: "bg-primary-50 text-primary-700 hover:bg-primary-100",
     green: "bg-green-50 text-green-600 hover:bg-green-100",
     purple: "bg-purple-50 text-purple-600 hover:bg-purple-100",
     orange: "bg-orange-50 text-orange-600 hover:bg-orange-100",
@@ -119,14 +120,7 @@ export default async function ReportesPage() {
       {/* Reportes is a sub-tab of the Dashboard, not its own nav section. */}
       <DashboardTabs />
 
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Reportes</h1>
-          <p className="text-gray-600">
-            Genera y exporta reportes del inventario IT
-          </p>
-        </div>
-      </div>
+      <PageHeader title="Reportes" description="Genera y exporta reportes del inventario IT" />
 
       {/* Grid de Reportes */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -159,7 +153,7 @@ export default async function ReportesPage() {
       </div>
 
       {/* Exportación Rápida */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           Exportación Rápida
         </h2>

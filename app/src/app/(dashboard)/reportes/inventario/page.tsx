@@ -1,11 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { ArrowLeft, FileSpreadsheet } from "lucide-react";
+import { FileSpreadsheet } from "lucide-react";
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import type { SesionAutenticada } from "@/lib/auth/guard";
 import { sedeWhere } from "@/lib/auth/sedeScope";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { AssetConditionBadge, AssetStatusBadge } from "@/components/ui/Badge";
 
 
 // Server component queries Prisma directly, so sede scoping must be applied
@@ -35,21 +38,6 @@ async function getInventario(session: SesionAutenticada) {
   return activos;
 }
 
-const ESTADO_COLORS: Record<string, string> = {
-  disponible: "bg-green-100 text-green-800",
-  asignado: "bg-blue-100 text-blue-800",
-  en_mantencion: "bg-orange-100 text-orange-800",
-  no_devuelto: "bg-amber-100 text-amber-900",
-  baja: "bg-red-100 text-red-800",
-  vendido: "bg-gray-100 text-gray-800",
-};
-
-const CONDICION_COLORS: Record<string, string> = {
-  nuevo: "bg-green-100 text-green-800",
-  usado: "bg-yellow-100 text-yellow-800",
-  danado: "bg-red-100 text-red-800",
-};
-
 export default async function ReporteInventarioPage() {
   // Scoped to the session's sede.
   const session = (await getServerSession(authOptions)) as SesionAutenticada;
@@ -57,59 +45,45 @@ export default async function ReporteInventarioPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/reportes"
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5 text-gray-600" />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Inventario Completo
-            </h1>
-            <p className="text-gray-600">
-              {activos.length} activos registrados en el sistema
-            </p>
-          </div>
-        </div>
-        <a
-          href="/api/reportes/inventario/excel"
-          className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-        >
-          <FileSpreadsheet className="h-4 w-4" />
-          Exportar Excel
-        </a>
-      </div>
+      <PageHeader
+        backHref="/reportes"
+        title="Inventario Completo"
+        description={`${activos.length} activos registrados en el sistema`}
+        actions={
+          <a href="/api/reportes/inventario/excel" className={buttonClasses({ variant: "secondary" })}>
+            <FileSpreadsheet className="h-4 w-4" />
+            Exportar Excel
+          </a>
+        }
+      />
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Categoría
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Nº Serie
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Marca/Modelo
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Especificaciones
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Estado
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Condición
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Asignado a
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="table-th px-4">
                   Ubicación
                 </th>
               </tr>
@@ -123,7 +97,7 @@ export default async function ReporteInventarioPage() {
                   <td className="px-4 py-3 text-sm font-mono text-gray-900">
                     <Link
                       href={`/activos/${activo.id}`}
-                      className="text-blue-600 hover:underline"
+                      className="text-primary-700 hover:underline"
                     >
                       {activo.numeroSerie || activo.imei || "-"}
                     </Link>
@@ -142,28 +116,16 @@ export default async function ReporteInventarioPage() {
                     {activo.numeroTelefono && <div>Tel: {activo.numeroTelefono}</div>}
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        ESTADO_COLORS[activo.estado] || "bg-gray-100"
-                      }`}
-                    >
-                      {activo.estado}
-                    </span>
+                    <AssetStatusBadge status={activo.estado} size="sm" />
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        CONDICION_COLORS[activo.condicion] || "bg-gray-100"
-                      }`}
-                    >
-                      {activo.condicion}
-                    </span>
+                    <AssetConditionBadge condicion={activo.condicion} />
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900">
                     {activo.assignments[0]?.employee ? (
                       <Link
                         href={`/empleados/${activo.assignments[0].employee.rut}`}
-                        className="text-blue-600 hover:underline"
+                        className="text-primary-700 hover:underline"
                       >
                         {activo.assignments[0].employee.nombres}{" "}
                         {activo.assignments[0].employee.apellidoPaterno}

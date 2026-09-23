@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { COLOR_MARCA } from "@/lib/constants/coloresGraficos";
 
 interface AsignacionesChartProps {
   data: {
@@ -40,17 +41,17 @@ export function AsignacionesChart({ data }: AsignacionesChartProps) {
           type="monotone"
           dataKey="asignaciones"
           name="Asignaciones"
-          stroke="#3b82f6"
+          stroke={COLOR_MARCA.primario}
           strokeWidth={2}
-          dot={{ fill: "#3b82f6" }}
+          dot={{ fill: COLOR_MARCA.primario }}
         />
         <Line
           type="monotone"
           dataKey="devoluciones"
           name="Devoluciones"
-          stroke="#ef4444"
+          stroke={COLOR_MARCA.acento}
           strokeWidth={2}
-          dot={{ fill: "#ef4444" }}
+          dot={{ fill: COLOR_MARCA.acento }}
         />
       </LineChart>
     </ResponsiveContainer>

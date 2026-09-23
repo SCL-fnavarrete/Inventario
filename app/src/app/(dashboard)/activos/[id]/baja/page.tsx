@@ -1,9 +1,8 @@
 'use client';
 
 import { useRouter, useParams } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import { BajaActivoForm } from '@/components/activos/BajaActivoForm';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 export default function BajaActivoPage() {
   const router = useRouter();
@@ -12,16 +11,9 @@ export default function BajaActivoPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href={`/activos/${id}`} className="p-2 hover:bg-gray-100 rounded-lg">
-          <ArrowLeft size={24} />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dar de Baja</h1>
-        </div>
-      </div>
+      <PageHeader backHref={`/activos/${id}`} title="Dar de Baja" />
 
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="card p-6">
         <BajaActivoForm
           assetId={id}
           onSuccess={() => {

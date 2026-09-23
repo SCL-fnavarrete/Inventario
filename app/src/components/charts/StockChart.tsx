@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { ESTADO_ACTIVO_COLOR } from "@/lib/constants/estadosActivo";
 
 interface StockChartProps {
   data: {
@@ -40,10 +41,10 @@ export function StockChart({ data }: StockChartProps) {
         <YAxis />
         <Tooltip />
         <Legend />
-        <Bar dataKey="disponibles" name="Disponibles" fill="#22c55e" stackId="a" />
-        <Bar dataKey="asignados" name="Asignados" fill="#3b82f6" stackId="a" />
-        <Bar dataKey="mantencion" name="Mantención" fill="#f97316" stackId="a" />
-        <Bar dataKey="baja" name="Baja" fill="#ef4444" stackId="a" />
+        <Bar dataKey="disponibles" name="Disponibles" fill={ESTADO_ACTIVO_COLOR.disponible} stackId="a" />
+        <Bar dataKey="asignados" name="Asignados" fill={ESTADO_ACTIVO_COLOR.asignado} stackId="a" />
+        <Bar dataKey="mantencion" name="Mantención" fill={ESTADO_ACTIVO_COLOR.en_mantencion} stackId="a" />
+        <Bar dataKey="baja" name="Baja" fill={ESTADO_ACTIVO_COLOR.baja} stackId="a" />
       </BarChart>
     </ResponsiveContainer>
   );

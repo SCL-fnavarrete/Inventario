@@ -8,13 +8,9 @@ import {
   Upload,
   Download,
   Search,
-  ChevronLeft,
   ChevronRight,
   Eye,
   Edit,
-  Laptop,
-  Smartphone,
-  Monitor,
   Package,
   ChevronDown,
   ChevronUp,
@@ -38,6 +34,12 @@ import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProv
 import { BajaActivoForm } from "@/components/activos/BajaActivoForm";
 import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 import { formatearFecha } from "@/lib/utils/fechas";
+import { CategoryIcon } from "@/components/activos/CategoryIcon";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { AssetConditionBadge, AssetStatusBadge } from "@/components/ui/Badge";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Pagination } from "@/components/ui/Pagination";
+import { etiquetaEstadoActivo } from "@/lib/constants/estadosActivo";
 
 type Asset = {
   id: string;
@@ -99,59 +101,6 @@ type Pagination = {
   current: number;
   limit: number;
 };
-
-// Typed against the enum so a missing key is a compile error, not a blank cell.
-const estadoColors: Record<EstadoActivo, string> = {
-  disponible: "bg-green-100 text-green-800",
-  asignado: "bg-blue-100 text-blue-800",
-  en_mantencion: "bg-yellow-100 text-yellow-800",
-  no_devuelto: "bg-orange-100 text-orange-800",
-  baja: "bg-red-100 text-red-800",
-  vendido: "bg-gray-100 text-gray-800",
-};
-
-const estadoLabels: Record<EstadoActivo, string> = {
-  disponible: "Disponible",
-  asignado: "Asignado",
-  en_mantencion: "En Mantenci\u00f3n",
-  no_devuelto: "No devuelto",
-  baja: "Baja",
-  vendido: "Vendido",
-};
-
-// Values match the CondicionActivo enum (nuevo | usado | danado).
-/**
- * `estado` comes from the URL as free text, so it must be validated before
- * being used as a map key; an unrecognized value would silently be undefined.
- */
-function esEstadoConocido(valor: string): valor is EstadoActivo {
-  return valor in estadoLabels;
-}
-
-const condicionColors: Record<CondicionActivo, string> = {
-  nuevo: "bg-emerald-50 text-emerald-700",
-  usado: "bg-blue-50 text-blue-700",
-  danado: "bg-red-50 text-red-700",
-};
-
-const condicionLabels: Record<CondicionActivo, string> = {
-  nuevo: "Nuevo",
-  usado: "Usado",
-  danado: "Dañado",
-};
-
-function getCategoryIcon(categoryName: string) {
-  switch (categoryName.toLowerCase()) {
-    case "notebook":
-      return <Laptop className="h-5 w-5" />;
-    case "celular":
-      return <Smartphone className="h-5 w-5" />;
-    case "monitor":
-      return <Monitor className="h-5 w-5" />;
-    default:
-      return <Package className="h-5 w-5" />;
-  }
-}
 
 const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: "tipo", label: "Tipo", visible: true, required: true },
@@ -417,10 +366,9 @@ function ActivosPageContent() {
 
   //Cualquier otra combinacion no tiene un camino definido todavia
   setKanbanError(
-    `Desde el Kanban no se puede pasar un activo de "${estadoLabels[currentStatus as EstadoActivo] ?? currentStatus}" a "${estadoLabels[newStatus as EstadoActivo] ?? newStatus}". Si el cambio corresponde, hazlo desde la pantalla del módulo que lleva ese registro.`
+    `Desde el Kanban no se puede pasar un activo de "${etiquetaEstadoActivo(currentStatus)}" a "${etiquetaEstadoActivo(newStatus)}". Si el cambio corresponde, hazlo desde la pantalla del módulo que lleva ese registro.`
   );
 }
-
 
   function toggleRowExpansion(assetId: string) {
     setExpandedRows((prev) => {
@@ -449,7 +397,7 @@ function ActivosPageContent() {
       key: "estado",
       label: "Estado",
       value: estadoFilter,
-      displayValue: esEstadoConocido(estadoFilter) ? estadoLabels[estadoFilter] : estadoFilter,
+      displayValue: etiquetaEstadoActivo(estadoFilter),
     });
   }
   if (categoriaFilter && stats?.byCategory) {
@@ -467,39 +415,35 @@ function ActivosPageContent() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Activos {stats && <span className="text-gray-500">({stats.total})</span>}
-          </h1>
-          <p className="text-gray-600">Gestión de equipos y dispositivos IT</p>
-        </div>
-        <div className="flex gap-2">
-          <a
-            href={`/api/activos/exportar?estado=${estadoFilter}&categoriaId=${categoriaFilter}${sedeSeleccionada ? `&sedeId=${sedeSeleccionada}` : ""}`}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-          >
-            <Download size={20} />
-            <span className="hidden sm:inline">Exportar</span>
-          </a>
-          <Can recurso="activos">
-            <Link
-              href="/activos/importar"
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+      <PageHeader
+        title={
+          <>
+            Activos {stats && <span className="text-gray-400 font-semibold">({stats.total})</span>}
+          </>
+        }
+        description="Gestión de equipos y dispositivos IT"
+        actions={
+          <>
+            <a
+              href={`/api/activos/exportar?estado=${estadoFilter}&categoriaId=${categoriaFilter}${sedeSeleccionada ? `&sedeId=${sedeSeleccionada}` : ""}`}
+              className={buttonClasses({ variant: "secondary" })}
             >
-              <Upload size={20} />
-              <span className="hidden sm:inline">Importar</span>
-            </Link>
-            <Link
-              href="/activos/nuevo"
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus size={20} />
-              <span>Nuevo</span>
-            </Link>
-          </Can>
-        </div>
-      </div>
+              <Download size={18} />
+              <span className="hidden sm:inline">Exportar</span>
+            </a>
+            <Can recurso="activos">
+              <Link href="/activos/importar" className={buttonClasses({ variant: "secondary" })}>
+                <Upload size={18} />
+                <span className="hidden sm:inline">Importar</span>
+              </Link>
+              <Link href="/activos/nuevo" className={buttonClasses()}>
+                <Plus size={18} />
+                <span>Nuevo</span>
+              </Link>
+            </Can>
+          </>
+        }
+      />
 
       {/* Tabs del modulo: Equipos (esta pagina) / Asignaciones / Personal /
           Kit de Bienvenida / EPP (ver ActivosTabs -- compartido entre las 5) */}
@@ -537,7 +481,7 @@ function ActivosPageContent() {
       )}
 
       {/* Search, Filters and View Controls */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-4">
+      <div className="card p-4 space-y-4">
         <div className="flex flex-col md:flex-row gap-4">
           <form onSubmit={handleSearch} className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -546,7 +490,7 @@ function ActivosPageContent() {
               placeholder="Buscar por serie, marca, modelo..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input pl-10 pr-4"
             />
           </form>
         </div>
@@ -570,7 +514,7 @@ function ActivosPageContent() {
                 className={cn(
                   "p-2 rounded transition-colors",
                   viewMode === "table"
-                    ? "bg-white text-blue-600 shadow-sm"
+                    ? "bg-white text-primary-700 shadow-sm"
                     : "text-gray-600 hover:text-gray-900"
                 )}
                 title="Vista de tabla"
@@ -582,7 +526,7 @@ function ActivosPageContent() {
                 className={cn(
                   "p-2 rounded transition-colors",
                   viewMode === "cards"
-                    ? "bg-white text-blue-600 shadow-sm"
+                    ? "bg-white text-primary-700 shadow-sm"
                     : "text-gray-600 hover:text-gray-900"
                 )}
                 title="Vista de tarjetas"
@@ -594,7 +538,7 @@ function ActivosPageContent() {
                 className={cn(
                   "p-2 rounded transition-colors",
                   viewMode === "kanban"
-                    ? "bg-white text-blue-600 shadow-sm"
+                    ? "bg-white text-primary-700 shadow-sm"
                     : "text-gray-600 hover:text-gray-900"
                 )}
                 title="Vista Kanban"
@@ -636,7 +580,7 @@ function ActivosPageContent() {
         </div>
       ) : (
         /* Table View */
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
@@ -647,7 +591,7 @@ function ActivosPageContent() {
                   {visibleColumns.map((col) => (
                     <th
                       key={col.id}
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
+                      className="table-th px-4 whitespace-nowrap"
                     >
                       {col.label}
                     </th>
@@ -696,7 +640,7 @@ function ActivosPageContent() {
                         {visibleColumns.find((c) => c.id === "tipo") && (
                           <td className="px-4 py-3 whitespace-nowrap align-top">
                             <div className="flex items-center gap-2 text-gray-600">
-                              {getCategoryIcon(asset.categoria.nombre)}
+                              <CategoryIcon categoria={asset.categoria.nombre} className="h-5 w-5" />
                               <span className="text-sm font-medium">
                                 {asset.categoria.nombre}
                               </span>
@@ -733,28 +677,14 @@ function ActivosPageContent() {
                         {/* Estado */}
                         {visibleColumns.find((c) => c.id === "estado") && (
                           <td className="px-4 py-3 whitespace-nowrap align-top">
-                            <span
-                              className={cn(
-                                "px-2 py-1 text-xs font-medium rounded-full",
-                                estadoColors[asset.estado]
-                              )}
-                            >
-                              {estadoLabels[asset.estado]}
-                            </span>
+                            <AssetStatusBadge status={asset.estado} size="sm" />
                           </td>
                         )}
 
                         {/* Condicion */}
                         {visibleColumns.find((c) => c.id === "condicion") && (
                           <td className="px-4 py-3 whitespace-nowrap align-top">
-                            <span
-                              className={cn(
-                                "px-2 py-1 text-xs font-medium rounded",
-                                condicionColors[asset.condicion]
-                              )}
-                            >
-                              {condicionLabels[asset.condicion]}
-                            </span>
+                            <AssetConditionBadge condicion={asset.condicion} />
                           </td>
                         )}
 
@@ -765,7 +695,7 @@ function ActivosPageContent() {
                               <div className="max-w-xs">
                                 <Link
                                   href={`/empleados/${asset.empleadoActual.id}`}
-                                  className="text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline transition-colors truncate block"
+                                  className="text-sm font-medium text-gray-900 hover:text-primary-700 hover:underline transition-colors truncate block"
                                   title="Ver ficha del empleado"
                                 >
                                   {asset.empleadoActual.nombres}{" "}
@@ -853,7 +783,7 @@ function ActivosPageContent() {
                           <td className="px-4 py-3 whitespace-nowrap align-top">
                             <div className="flex flex-wrap gap-1">
                               {asset.microsoft365 && (
-                                <span className="px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded border border-blue-200">
+                                <span className="px-2 py-0.5 text-xs bg-primary-50 text-primary-800 rounded border border-primary-200">
                                   M365
                                 </span>
                               )}
@@ -875,7 +805,7 @@ function ActivosPageContent() {
                             <div className="flex justify-end gap-1">
                               <Link
                                 href={`/activos/${asset.id}`}
-                                className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                className="p-2 text-gray-500 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
                                 title="Ver detalle"
                               >
                                 <Eye size={16} />
@@ -913,14 +843,7 @@ function ActivosPageContent() {
                                   <div className="flex justify-between">
                                     <dt className="text-gray-500">Condición:</dt>
                                     <dd>
-                                      <span
-                                        className={cn(
-                                          "px-2 py-0.5 text-xs font-medium rounded",
-                                          condicionColors[asset.condicion]
-                                        )}
-                                      >
-                                        {condicionLabels[asset.condicion]}
-                                      </span>
+                                      <AssetConditionBadge condicion={asset.condicion} />
                                     </dd>
                                   </div>
                                   {asset.fechaGarantiaFin && (
@@ -972,7 +895,7 @@ function ActivosPageContent() {
                                   </dl>
                                   <Link
                                     href={`/empleados/${asset.empleadoActual.id}`}
-                                    className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium mt-2 transition-colors"
+                                    className="inline-flex items-center gap-1 text-sm text-primary-700 hover:text-primary-800 font-medium mt-2 transition-colors"
                                   >
                                     Ver ficha completa
                                     <ChevronRight size={14} />
@@ -1039,97 +962,15 @@ function ActivosPageContent() {
           {/* Pagination */}
           {pagination.total > 0 && (
             <div className="px-6 py-4 border-t bg-gray-50">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex flex-col sm:flex-row items-center gap-4">
-                  <p className="text-sm text-gray-700 font-medium">
-                    Mostrando {(pagination.current - 1) * pagination.limit + 1} a{" "}
-                    {Math.min(pagination.current * pagination.limit, pagination.total)} de{" "}
-                    {pagination.total} activos
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <label htmlFor="items-per-page" className="text-sm text-gray-600">
-                      Mostrar:
-                    </label>
-                    <select
-                      id="items-per-page"
-                      value={pagination.limit}
-                      onChange={(e) => {
-                        updateUrlParams({ limit: e.target.value, page: "1" });
-                      }}
-                      className="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                    >
-                      <option value="10">10</option>
-                      <option value="20">20</option>
-                      <option value="25">25</option>
-                      <option value="50">50</option>
-                      <option value="100">100</option>
-                    </select>
-                  </div>
-                </div>
-
-                {pagination.pages > 1 && (
-                  <nav
-                    className="flex items-center gap-1"
-                    aria-label="Navegación de páginas"
-                  >
-                    <button
-                      onClick={() => updateUrlParams({ page: String(pagination.current - 1) })}
-                      disabled={pagination.current === 1}
-                      className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
-                      aria-label="Página anterior"
-                    >
-                      <ChevronLeft size={20} className="text-gray-600" />
-                    </button>
-
-                    <div className="hidden sm:flex items-center gap-1">
-                      {Array.from({ length: Math.min(pagination.pages, 7) }, (_, i) => {
-                        let pageNum;
-                        if (pagination.pages <= 7) {
-                          pageNum = i + 1;
-                        } else if (pagination.current <= 4) {
-                          pageNum = i + 1;
-                        } else if (pagination.current >= pagination.pages - 3) {
-                          pageNum = pagination.pages - 6 + i;
-                        } else {
-                          pageNum = pagination.current - 3 + i;
-                        }
-
-                        const isCurrentPage = pageNum === pagination.current;
-
-                        return (
-                          <button
-                            key={pageNum}
-                            onClick={() => updateUrlParams({ page: String(pageNum) })}
-                            disabled={isCurrentPage}
-                            className={cn(
-                              "min-w-[40px] h-10 px-3 rounded-lg border font-medium text-sm transition-colors",
-                              isCurrentPage
-                                ? "bg-blue-600 text-white border-blue-600 cursor-default"
-                                : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
-                            )}
-                            aria-current={isCurrentPage ? "page" : undefined}
-                          >
-                            {pageNum}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="sm:hidden px-4 py-2 text-sm font-medium text-gray-700">
-                      Página {pagination.current} de {pagination.pages}
-                    </div>
-
-                    <button
-                      onClick={() => updateUrlParams({ page: String(pagination.current + 1) })}
-                      disabled={pagination.current === pagination.pages}
-                      className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
-                      aria-label="Página siguiente"
-                    >
-                      <ChevronRight size={20} className="text-gray-600" />
-                    </button>
-                  </nav>
-                )}
-              </div>
+              <Pagination
+                current={pagination.current}
+                pages={pagination.pages}
+                total={pagination.total}
+                limit={pagination.limit}
+                itemLabel="activos"
+                onPageChange={(page) => updateUrlParams({ page: String(page) })}
+                onLimitChange={(limit) => updateUrlParams({ limit: String(limit), page: "1" })}
+              />
             </div>
           )}
         </div>
@@ -1137,95 +978,16 @@ function ActivosPageContent() {
 
       {/* Pagination for Cards View */}
       {viewMode === "cards" && pagination.total > 0 && (
-        <div className="bg-white rounded-lg shadow px-6 py-4">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-              <p className="text-sm text-gray-700 font-medium">
-                Mostrando {(pagination.current - 1) * pagination.limit + 1} a{" "}
-                {Math.min(pagination.current * pagination.limit, pagination.total)} de{" "}
-                {pagination.total} activos
-              </p>
-              <div className="flex items-center gap-2">
-                <label htmlFor="items-per-page-cards" className="text-sm text-gray-600">
-                  Mostrar:
-                </label>
-                <select
-                  id="items-per-page-cards"
-                  value={pagination.limit}
-                  onChange={(e) => {
-                    updateUrlParams({ limit: e.target.value, page: "1" });
-                  }}
-                  className="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                >
-                  <option value="10">10</option>
-                  <option value="20">20</option>
-                  <option value="25">25</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                </select>
-              </div>
-            </div>
-
-            {pagination.pages > 1 && (
-              <nav className="flex items-center gap-1" aria-label="Navegación de páginas">
-                <button
-                  onClick={() => updateUrlParams({ page: String(pagination.current - 1) })}
-                  disabled={pagination.current === 1}
-                  className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
-                  aria-label="Página anterior"
-                >
-                  <ChevronLeft size={20} className="text-gray-600" />
-                </button>
-
-                <div className="hidden sm:flex items-center gap-1">
-                  {Array.from({ length: Math.min(pagination.pages, 7) }, (_, i) => {
-                    let pageNum;
-                    if (pagination.pages <= 7) {
-                      pageNum = i + 1;
-                    } else if (pagination.current <= 4) {
-                      pageNum = i + 1;
-                    } else if (pagination.current >= pagination.pages - 3) {
-                      pageNum = pagination.pages - 6 + i;
-                    } else {
-                      pageNum = pagination.current - 3 + i;
-                    }
-
-                    const isCurrentPage = pageNum === pagination.current;
-
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => updateUrlParams({ page: String(pageNum) })}
-                        disabled={isCurrentPage}
-                        className={cn(
-                          "min-w-[40px] h-10 px-3 rounded-lg border font-medium text-sm transition-colors",
-                          isCurrentPage
-                            ? "bg-blue-600 text-white border-blue-600 cursor-default"
-                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
-                        )}
-                        aria-current={isCurrentPage ? "page" : undefined}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="sm:hidden px-4 py-2 text-sm font-medium text-gray-700">
-                  Página {pagination.current} de {pagination.pages}
-                </div>
-
-                <button
-                  onClick={() => updateUrlParams({ page: String(pagination.current + 1) })}
-                  disabled={pagination.current === pagination.pages}
-                  className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
-                  aria-label="Página siguiente"
-                >
-                  <ChevronRight size={20} className="text-gray-600" />
-                </button>
-              </nav>
-            )}
-          </div>
+        <div className="card px-6 py-4">
+          <Pagination
+            current={pagination.current}
+            pages={pagination.pages}
+            total={pagination.total}
+            limit={pagination.limit}
+            itemLabel="activos"
+            onPageChange={(page) => updateUrlParams({ page: String(page) })}
+            onLimitChange={(limit) => updateUrlParams({ limit: String(limit), page: "1" })}
+          />
         </div>
       )}
 

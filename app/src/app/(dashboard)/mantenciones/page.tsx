@@ -12,10 +12,6 @@ import {
   Clock,
   XCircle,
   Loader2,
-  Laptop,
-  Smartphone,
-  Monitor,
-  Package,
   ChevronLeft,
   ChevronRight,
   CalendarDays,
@@ -26,6 +22,10 @@ import { MantencionesTabs } from "@/components/mantenciones";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import { formatearFecha } from "@/lib/utils/fechas";
+import { CategoryIcon } from "@/components/activos/CategoryIcon";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatCard, StatGrid } from "@/components/ui/StatCard";
 
 type TipoMantencion = {
   id: string;
@@ -90,28 +90,10 @@ function diasDePeriodo(periodo: Periodo): number {
 
 const estadoConfig: Record<string, { label: string; icon: typeof CheckCircle; color: string; bgColor: string }> = {
   pendiente: { label: "Pendiente", icon: Clock, color: "text-orange-600", bgColor: "bg-orange-100" },
-  en_proceso: { label: "En Proceso", icon: Wrench, color: "text-blue-600", bgColor: "bg-blue-100" },
+  en_proceso: { label: "En Proceso", icon: Wrench, color: "text-primary-700", bgColor: "bg-primary-100" },
   completada: { label: "Completada", icon: CheckCircle, color: "text-green-600", bgColor: "bg-green-100" },
   cancelada: { label: "Cancelada", icon: XCircle, color: "text-gray-600", bgColor: "bg-gray-100" },
 };
-
-function getCategoryIcon(categoryName: string) {
-  switch (categoryName.toLowerCase()) {
-    case "notebook":
-      return <Laptop className="h-4 w-4" />;
-    case "celular":
-      return <Smartphone className="h-4 w-4" />;
-    case "monitor":
-      return <Monitor className="h-4 w-4" />;
-    default:
-      return <Package className="h-4 w-4" />;
-  }
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return formatearFecha(dateString);
-}
 
 function isOverdue(fechaProgramada: string | null, estado: string): boolean {
   if (!fechaProgramada) return false;
@@ -216,93 +198,58 @@ export default function MantencionesPage() {
     }
   }
 
+  const periodoLabel = PERIODOS.find((p) => p.value === periodo)?.label.toLowerCase();
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Mantenciones</h1>
-          <p className="text-gray-600">Gestión de mantenciones preventivas y correctivas</p>
-        </div>
-        <div className="flex gap-2">
-          <Link
-            href="/mantenciones/calendario"
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-          >
-            <CalendarDays size={20} />
-            Calendario
-          </Link>
-          <Can recurso="mantenciones">
+      <PageHeader
+        title="Mantenciones"
+        description="Gestión de mantenciones preventivas y correctivas"
+        actions={
+          <>
             <Link
-              href="/mantenciones/programar"
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              href="/mantenciones/calendario"
+              className={buttonClasses({ variant: "outline" })}
             >
-              <Plus size={20} />
-              Programar Mantención
+              <CalendarDays size={20} />
+              Calendario
             </Link>
-          </Can>
-        </div>
-      </div>
+            <Can recurso="mantenciones">
+              <Link
+                href="/mantenciones/programar"
+                className={buttonClasses()}
+              >
+                <Plus size={20} />
+                Programar Mantención
+              </Link>
+            </Can>
+          </>
+        }
+      />
 
       <MantencionesTabs />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Vencidas</p>
-              <p className="text-2xl font-bold text-red-600">{stats?.totalVencidas || 0}</p>
-            </div>
-            <div className="p-3 bg-red-100 rounded-full">
-              <AlertTriangle className="h-6 w-6 text-red-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">
-                Próximas ({PERIODOS.find((p) => p.value === periodo)?.label.toLowerCase()})
-              </p>
-              <p className="text-2xl font-bold text-orange-600">{stats?.totalProximas || 0}</p>
-            </div>
-            <div className="p-3 bg-orange-100 rounded-full">
-              <Calendar className="h-6 w-6 text-orange-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">En Proceso</p>
-              <p className="text-2xl font-bold text-blue-600">{stats?.totalEnProceso || 0}</p>
-            </div>
-            <div className="p-3 bg-blue-100 rounded-full">
-              <Wrench className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">
-                Completadas ({PERIODOS.find((p) => p.value === periodo)?.label.toLowerCase()})
-              </p>
-              <p className="text-2xl font-bold text-green-600">{stats?.totalCompletadas || 0}</p>
-            </div>
-            <div className="p-3 bg-green-100 rounded-full">
-              <CheckCircle className="h-6 w-6 text-green-600" />
-            </div>
-          </div>
-        </div>
-      </div>
+      <StatGrid cols={4}>
+        <StatCard label="Vencidas" value={stats?.totalVencidas || 0} tone="danger" icon={AlertTriangle} />
+        <StatCard
+          label={`Próximas (${periodoLabel})`}
+          value={stats?.totalProximas || 0}
+          tone="orange"
+          icon={Calendar}
+        />
+        <StatCard label="En Proceso" value={stats?.totalEnProceso || 0} tone="primary" icon={Wrench} />
+        <StatCard
+          label={`Completadas (${periodoLabel})`}
+          value={stats?.totalCompletadas || 0}
+          tone="success"
+          icon={CheckCircle}
+        />
+      </StatGrid>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="card p-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -314,7 +261,7 @@ export default function MantencionesPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="field-input pl-10 pr-4"
             />
           </div>
 
@@ -324,7 +271,7 @@ export default function MantencionesPage() {
               setFilterTipoId(e.target.value);
               setPage(1);
             }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
           >
             <option value="">Todos los tipos</option>
             {tiposMantencion.map((tipo) => (
@@ -340,7 +287,7 @@ export default function MantencionesPage() {
               setFilterEstado(e.target.value);
               setPage(1);
             }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
           >
             <option value="">Todos los estados</option>
             <option value="pendiente">Pendiente</option>
@@ -358,7 +305,7 @@ export default function MantencionesPage() {
               setPeriodo(e.target.value as Periodo);
               setPage(1);
             }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
             title="Período: acota las tarjetas Próximas/Completadas y la tabla de abajo"
           >
             {PERIODOS.map((p) => (
@@ -387,7 +334,7 @@ export default function MantencionesPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
@@ -403,25 +350,25 @@ export default function MantencionesPage() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="table-th px-4">
                       Activo
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="table-th px-4">
                       Tipo
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="table-th px-4">
                       Descripción
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="table-th px-4">
                       Fecha Programada
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="table-th px-4">
                       Estado
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="table-th px-4">
                       Técnico
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                    <th className="table-th px-4 text-right">
                       Acciones
                     </th>
                   </tr>
@@ -437,7 +384,7 @@ export default function MantencionesPage() {
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
                             <span className="text-gray-400">
-                              {getCategoryIcon(maintenance.asset.categoria.nombre)}
+                              <CategoryIcon categoria={maintenance.asset.categoria.nombre} className="h-4 w-4" />
                             </span>
                             <div>
                               <p className="font-medium text-sm">
@@ -463,7 +410,7 @@ export default function MantencionesPage() {
                           <div className="flex items-center gap-2">
                             {overdue && <AlertTriangle className="h-4 w-4 text-red-500" />}
                             <span className={cn("text-sm", overdue && "text-red-600 font-medium")}>
-                              {formatDate(maintenance.fechaProgramada)}
+                              {formatearFecha(maintenance.fechaProgramada, {}, "-")}
                             </span>
                           </div>
                         </td>
@@ -485,7 +432,7 @@ export default function MantencionesPage() {
                         <td className="px-4 py-4 text-right">
                           <Link
                             href={`/mantenciones/${maintenance.id}`}
-                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                            className="text-primary-700 hover:text-primary-900 text-sm font-medium"
                           >
                             Ver detalle
                           </Link>

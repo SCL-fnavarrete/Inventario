@@ -143,7 +143,7 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
             fixed inset-0
             bg-black/50
             backdrop-blur-sm
-            animate-[fadeIn_150ms_ease-out]
+            animate-fade-in
             motion-reduce:animate-none
           `}
           onClick={handleOverlayClick}
@@ -165,9 +165,9 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
             w-full
             ${sizeStyles[size]}
             bg-white
-            rounded-xl
+            rounded-card
             shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)]
-            animate-[modalIn_200ms_ease-out]
+            animate-modal-in
             motion-reduce:animate-none
             overflow-hidden
             ${className}
@@ -209,7 +209,7 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
                     hover:bg-gray-100
                     focus:outline-none
                     focus-visible:ring-2
-                    focus-visible:ring-blue-500
+                    focus-visible:ring-primary-600
                     focus-visible:ring-offset-2
                     transition-colors duration-150
                     motion-reduce:transition-none

@@ -21,6 +21,7 @@ import { SeleccionarCambioEquipo } from '@/components/solicitudes/SeleccionarCam
 import { parseApiError, type FieldErrors } from '@/lib/utils/apiErrors';
 import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
 import { formatearFecha } from "@/lib/utils/fechas";
+import { buttonClasses } from "@/components/ui/buttonStyles";
 
 type WorkflowDetail = {
   id: string;
@@ -178,7 +179,7 @@ const tipoLabels: Record<string, string> = {
 
 const pendienteEstadoColors: Record<string, string> = {
   pendiente: 'text-yellow-600',
-  gestionando: 'text-blue-600',
+  gestionando: 'text-primary-700',
   entregado: 'text-green-600',
   no_aplica: 'text-gray-400',
 };
@@ -744,7 +745,7 @@ export default function SolicitudDetailPage() {
   if (loading) {
     return (
       <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700" />
       </div>
     );
   }
@@ -753,7 +754,7 @@ export default function SolicitudDetailPage() {
     return (
       <div className="text-center py-12">
         <p className="text-gray-500">Solicitud no encontrada</p>
-        <Link href="/solicitudes" className="text-blue-600 hover:underline mt-2 inline-block">
+        <Link href="/solicitudes" className="text-primary-700 hover:underline mt-2 inline-block">
           Volver a solicitudes
         </Link>
       </div>
@@ -879,7 +880,7 @@ export default function SolicitudDetailPage() {
               que indiques.
             </p>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Motivo *</label>
+              <label className="field-label">Motivo *</label>
               <textarea
                 value={motivoCancelacion}
                 onChange={(e) => setMotivoCancelacion(e.target.value)}
@@ -896,7 +897,7 @@ export default function SolicitudDetailPage() {
                   setMotivoCancelacion('');
                 }}
                 disabled={cancelling}
-                className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                className={buttonClasses({ variant: "outline" })}
               >
                 Volver
               </button>
@@ -904,7 +905,7 @@ export default function SolicitudDetailPage() {
                 type="button"
                 onClick={handleCancelar}
                 disabled={cancelling || !motivoCancelacion.trim()}
-                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                className={buttonClasses({ variant: "danger" })}
               >
                 {cancelling ? 'Cancelando...' : 'Confirmar cancelación'}
               </button>
@@ -916,7 +917,7 @@ export default function SolicitudDetailPage() {
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* State Stepper */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="card p-6">
         <h2 className="text-sm font-medium text-gray-500 mb-4">Progreso</h2>
         <div className="flex items-center">
           {stepperItems.map((item, i) => {
@@ -931,7 +932,7 @@ export default function SolicitudDetailPage() {
                       isCompleted
                         ? 'bg-green-600 text-white'
                         : isCurrent
-                          ? 'bg-blue-600 text-white'
+                          ? 'bg-primary-700 text-white'
                           : 'bg-gray-200 text-gray-500'
                     )}
                   >
@@ -946,7 +947,7 @@ export default function SolicitudDetailPage() {
                   <span
                     className={cn(
                       'text-xs mt-1 text-center',
-                      isCurrent ? 'font-semibold text-blue-700' : 'text-gray-500'
+                      isCurrent ? 'font-semibold text-primary-800' : 'text-gray-500'
                     )}
                   >
                     {item.label}
@@ -970,7 +971,7 @@ export default function SolicitudDetailPage() {
           {data.tipo === 'onboarding' && !isClosed &&
           data.estado === 'solicitud_recibida' &&
           data.categoriasRequeridas.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h3 className="font-semibold text-gray-900 mb-1">Gestión TI</h3>
               <p className="text-sm text-gray-500 mb-3">
                 Esta solicitud no marcó ningún equipo como requerido. Continúa para coordinar la
@@ -979,7 +980,7 @@ export default function SolicitudDetailPage() {
               <button
                 onClick={() => handleEntregarEquipos([])}
                 disabled={transitioning}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className={buttonClasses()}
               >
                 <ChevronRight className="h-4 w-4" />
                 {transitioning ? 'Avanzando...' : 'No requiere equipo, continuar'}
@@ -988,7 +989,7 @@ export default function SolicitudDetailPage() {
           ) : data.tipo === 'onboarding' && !isClosed &&
           (data.estado === 'solicitud_recibida' ||
             (data.estado === 'gestion_ti' && categoriasPendientes.length > 0)) ? (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h3 className="font-semibold text-gray-900 mb-1">Gestión TI</h3>
               <p className="text-sm text-gray-500 mb-1">
                 Selecciona los equipos disponibles para entregar a {data.employee.nombres} {data.employee.apellidoPaterno}.
@@ -1006,7 +1007,7 @@ export default function SolicitudDetailPage() {
               />
             </div>
           ) : data.tipo === 'onboarding' && !isClosed && data.estado === 'gestion_ti' && categoriasPendientes.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h3 className="font-semibold text-gray-900 mb-1">Coordinar Entrega</h3>
               <p className="text-sm text-green-700 mb-1">
                 Ya se cubrieron todas las categorías requeridas.
@@ -1017,7 +1018,7 @@ export default function SolicitudDetailPage() {
               </p>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     {medioEntrega === 'presencial' ? 'Fecha y hora de entrega' : 'Fecha y hora de entrega estimada'}
                   </label>
                   <input
@@ -1028,7 +1029,7 @@ export default function SolicitudDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Medio</label>
+                  <label className="field-label">Medio</label>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 text-sm">
                       <input
@@ -1052,7 +1053,7 @@ export default function SolicitudDetailPage() {
                 </div>
                 {medioEntrega === 'presencial' ? (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="field-label">
                       Lugar de entrega
                     </label>
                     <input
@@ -1066,7 +1067,7 @@ export default function SolicitudDetailPage() {
                 ) : (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="field-label">
                         N° de OT Chilexpress
                       </label>
                       <input
@@ -1078,7 +1079,7 @@ export default function SolicitudDetailPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="field-label">
                         Ubicación de destino
                       </label>
                       <input
@@ -1094,7 +1095,7 @@ export default function SolicitudDetailPage() {
                 <button
                   onClick={handleCoordinarEntrega}
                   disabled={transitioning}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className={buttonClasses()}
                 >
                   <ChevronRight className="h-4 w-4" />
                   {transitioning ? 'Guardando...' : 'Confirmar Entrega Coordinada'}
@@ -1102,7 +1103,7 @@ export default function SolicitudDetailPage() {
               </div>
             </div>
           ) : data.tipo === 'cambio_equipo' && !isClosed && data.estado === 'incidencia_detectada' ? (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h3 className="font-semibold text-gray-900 mb-1">Cambio de Equipo</h3>
               <p className="text-sm text-gray-500 mb-3">
                 Define cuándo y cómo se hará el cambio, y elige que equipo de {data.employee.nombres}{' '}
@@ -1110,7 +1111,7 @@ export default function SolicitudDetailPage() {
               </p>
               <div className="space-y-3 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     {medioCambio === 'presencial' ? 'Fecha y hora del cambio' : 'Fecha estimada de llegada'}
                   </label>
                   <input
@@ -1121,7 +1122,7 @@ export default function SolicitudDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Medio</label>
+                  <label className="field-label">Medio</label>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 text-sm">
                       <input
@@ -1145,7 +1146,7 @@ export default function SolicitudDetailPage() {
                 </div>
                 {medioCambio === 'presencial' ? (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="field-label">
                       Lugar del cambio
                     </label>
                     <input
@@ -1159,7 +1160,7 @@ export default function SolicitudDetailPage() {
                 ) : (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="field-label">
                         N° de OT Chilexpress
                       </label>
                       <input
@@ -1171,7 +1172,7 @@ export default function SolicitudDetailPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="field-label">
                         Ciudad destino
                       </label>
                       <input
@@ -1237,7 +1238,7 @@ export default function SolicitudDetailPage() {
               </div>
             </div>
           ) : data.tipo === 'offboarding' && !isClosed && data.estado === 'solicitud_emitida' ? (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h3 className="font-semibold text-gray-900 mb-1">Recibir Equipos</h3>
               <p className="text-sm text-gray-500 mb-3">
                 Define cuándo y cómo {data.employee.nombres} {data.employee.apellidoPaterno} va a
@@ -1246,7 +1247,7 @@ export default function SolicitudDetailPage() {
               </p>
               <div className="space-y-3 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="field-label">
                     {medioDevolucion === 'presencial' ? 'Fecha y hora de la devolución' : 'Fecha estimada de llegada'}
                   </label>
                   <input
@@ -1257,7 +1258,7 @@ export default function SolicitudDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Medio</label>
+                  <label className="field-label">Medio</label>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 text-sm">
                       <input
@@ -1281,7 +1282,7 @@ export default function SolicitudDetailPage() {
                 </div>
                 {medioDevolucion === 'presencial' ? (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="field-label">
                       Lugar de la devolución
                     </label>
                     <input
@@ -1295,7 +1296,7 @@ export default function SolicitudDetailPage() {
                 ) : (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="field-label">
                         N° de OT Chilexpress
                       </label>
                       <input
@@ -1307,7 +1308,7 @@ export default function SolicitudDetailPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="field-label">
                         Ciudad destino
                       </label>
                       <input
@@ -1542,7 +1543,7 @@ export default function SolicitudDetailPage() {
                     <button
                       onClick={handleRecibirEquipos}
                       disabled={transitioning || faltanPorCalificar > 0}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                      className={buttonClasses()}
                     >
                       <ChevronRight className="h-4 w-4" />
                       {transitioning ? 'Guardando...' : 'Confirmar Recepción'}
@@ -1569,15 +1570,15 @@ export default function SolicitudDetailPage() {
           ) : (
             nextState &&
             !isClosed && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="font-medium text-blue-900 mb-2">Siguiente paso</h3>
-                <p className="text-sm text-blue-700 mb-3">
+              <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
+                <h3 className="font-medium text-primary-950 mb-2">Siguiente paso</h3>
+                <p className="text-sm text-primary-800 mb-3">
                   Avanzar a: <strong>{estadoLabels[nextState]}</strong>
                 </p>
                 <button
                   onClick={() => handleTransition(nextState)}
                   disabled={transitioning}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className={buttonClasses()}
                 >
                   <ChevronRight className="h-4 w-4" />
                   {transitioning ? 'Avanzando...' : `Avanzar a ${estadoLabels[nextState]}`}
@@ -1603,14 +1604,14 @@ export default function SolicitudDetailPage() {
                     : null;
             if (!doc) return null;
             return (
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="card p-6">
                 <h3 className="font-semibold text-gray-900 mb-1">Documentos</h3>
                 <p className="text-sm text-gray-500 mb-3">
                   Descarga el comprobante con los datos ya rellenados.
                 </p>
                 <a
                   href={`/api/solicitudes/${data.id}/documento/${doc.tipo}`}
-                  className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50"
+                  className={buttonClasses({ variant: "outline" })}
                 >
                   <Download className="h-4 w-4" />
                   {doc.label}
@@ -1631,7 +1632,7 @@ export default function SolicitudDetailPage() {
               if (requeridos.length === 0) return null;
               const label = categoria === 'kit_bienvenida' ? 'Kit de Bienvenida' : 'EPP';
               return (
-                <div key={categoria} className="bg-white rounded-lg shadow p-6">
+                <div key={categoria} className="card p-6">
                   <h3 className="font-semibold text-gray-900 mb-1">Artículos Requeridos: {label}</h3>
                   <p className="text-sm text-gray-500 mb-3">
                     {label} pedido específicamente para este ticket.
@@ -1716,7 +1717,7 @@ export default function SolicitudDetailPage() {
                   }
 
                   return (
-                    <div key={categoria} className="bg-white rounded-lg shadow p-6">
+                    <div key={categoria} className="card p-6">
                       <h3 className="font-semibold text-gray-900 mb-1">{label}</h3>
                       <p className="text-sm text-gray-500 mb-3">
                         Elige los artículos y cantidades a entregar a {data.employee.nombres}{' '}
@@ -1767,7 +1768,7 @@ export default function SolicitudDetailPage() {
                               entregandoKit === categoria ||
                               items.every((it) => !(kitCantidades[it.id] > 0))
                             }
-                            className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                            className={buttonClasses({ className: "mt-2" })}
                           >
                             {entregandoKit === categoria ? 'Entregando...' : `Entregar ${label}`}
                           </button>
@@ -1781,7 +1782,7 @@ export default function SolicitudDetailPage() {
 
           {/* Pendientes Checklist */}
           {data.pendientes.length > 0 && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h2 className="font-semibold text-gray-900 mb-4">Pendientes / Checklist</h2>
               <div className="space-y-3">
                 {data.pendientes.map((p) => (
@@ -1824,7 +1825,7 @@ export default function SolicitudDetailPage() {
           )}
 
           {/* Activity Timeline */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Actividad</h2>
 
             {/* Comment Form */}
@@ -1850,7 +1851,7 @@ export default function SolicitudDetailPage() {
                   <button
                     onClick={handleAddComment}
                     disabled={submittingComment || !commentText.trim()}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+                    className={buttonClasses({ size: "sm" })}
                   >
                     <Send className="h-3.5 w-3.5" />
                     Enviar
@@ -1880,11 +1881,11 @@ export default function SolicitudDetailPage() {
                     <div
                       className={cn(
                         'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
-                        item.type === 'comment' ? 'bg-blue-100' : 'bg-green-100'
+                        item.type === 'comment' ? 'bg-primary-100' : 'bg-green-100'
                       )}
                     >
                       {item.type === 'comment' ? (
-                        <MessageSquare className="h-4 w-4 text-blue-600" />
+                        <MessageSquare className="h-4 w-4 text-primary-700" />
                       ) : (
                         <ChevronRight className="h-4 w-4 text-green-600" />
                       )}
@@ -1939,7 +1940,7 @@ export default function SolicitudDetailPage() {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Request Info */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <h3 className="font-semibold text-gray-900 mb-4">Información</h3>
             <dl className="space-y-3 text-sm">
               <div>
@@ -1988,7 +1989,7 @@ export default function SolicitudDetailPage() {
           </div>
 
           {/* Type-specific info */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <h3 className="font-semibold text-gray-900 mb-4">Detalle del Tipo</h3>
             <dl className="space-y-3 text-sm">
               {data.tipo === 'onboarding' && (
@@ -2068,7 +2069,7 @@ export default function SolicitudDetailPage() {
 
           {/* Active Assets */}
           {data.employee.assignments.length > 0 && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h3 className="font-semibold text-gray-900 mb-4">Equipos Asignados</h3>
               <div className="space-y-2">
                 {data.employee.assignments.map((a) => (
@@ -2091,7 +2092,7 @@ export default function SolicitudDetailPage() {
               que quede a la vista sin tener que ir al modulo de
               Asignaciones a buscar cada asignacion por separado. */}
           {data.tipo === 'offboarding' && data.equiposDevueltos.length > 0 && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h3 className="font-semibold text-gray-900 mb-4">Equipos Devueltos</h3>
               <div className="space-y-2">
                 {data.equiposDevueltos.map((a) => (
@@ -2141,7 +2142,7 @@ export default function SolicitudDetailPage() {
               observaciones quedan en KitAssignment.observaciones porque no
               hay un campo aparte como en Assignment. */}
           {data.tipo === 'offboarding' && data.eppDevueltos.length > 0 && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h3 className="font-semibold text-gray-900 mb-4">EPP Devuelto</h3>
               <div className="space-y-2">
                 {data.eppDevueltos.map((k) => (
@@ -2178,7 +2179,7 @@ export default function SolicitudDetailPage() {
               devolvio) y equipo nuevo entregado en este ticket de cambio de
               equipo. */}
           {data.tipo === 'cambio_equipo' && (data.equipoCambioAnterior || data.equipoCambioNuevo) && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h3 className="font-semibold text-gray-900 mb-4">Equipo Cambiado</h3>
               <div className="space-y-3">
                 {data.equipoCambioAnterior && (
@@ -2246,7 +2247,7 @@ export default function SolicitudDetailPage() {
               definidos en la etapa "Coordinando Entrega". Tarjeta aparte para
               que se vea de un vistazo, igual que Equipos Asignados. */}
           {data.tipo === 'onboarding' && data.fechaEntregaCoordinada && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h3 className="font-semibold text-gray-900 mb-4">Entrega Coordinada</h3>
               <dl className="space-y-3 text-sm">
                 <div>
@@ -2290,7 +2291,7 @@ export default function SolicitudDetailPage() {
           {/* Cambio Coordinado: mismo patron que Entrega Coordinada, para
               cambio_equipo. */}
           {data.tipo === 'cambio_equipo' && data.fechaCambioCoordinada && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h3 className="font-semibold text-gray-900 mb-4">Cambio Coordinado</h3>
               <dl className="space-y-3 text-sm">
                 <div>
@@ -2333,7 +2334,7 @@ export default function SolicitudDetailPage() {
 
           {/* Devolución Coordinada: mismo patron, para offboarding. */}
           {data.tipo === 'offboarding' && data.fechaDevolucionCoordinada && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h3 className="font-semibold text-gray-900 mb-4">Devolución Coordinada</h3>
               <dl className="space-y-3 text-sm">
                 <div>
@@ -2385,7 +2386,7 @@ export default function SolicitudDetailPage() {
             if (entregas.length === 0) return null;
             const label = categoria === 'kit_bienvenida' ? 'Kit de Bienvenida' : 'EPP';
             return (
-              <div key={categoria} className="bg-white rounded-lg shadow p-6">
+              <div key={categoria} className="card p-6">
                 <h3 className="font-semibold text-gray-900 mb-4">{label}</h3>
                 <div className="space-y-2">
                   {entregas.map((ka) => (
@@ -2404,7 +2405,7 @@ export default function SolicitudDetailPage() {
           })}
 
           {data.observaciones && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card p-6">
               <h3 className="font-semibold text-gray-900 mb-2">Observaciones</h3>
               <p className="text-sm text-gray-700">{data.observaciones}</p>
             </div>
