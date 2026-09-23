@@ -181,7 +181,7 @@ const CAMPOS_OBLIGATORIOS_ONBOARDING = [
 ] as const;
 
 // Nombre visible de cada campo validado, para el resumen de errores.
-const ETIQUETAS_ERROR_ONBOARDING: Record<string, string> = {
+const ETIQUETAS_ERROR: Record<string, string> = {
   ...Object.fromEntries(CAMPOS_OBLIGATORIOS_ONBOARDING),
   employeeId: 'Empleado',
   cargoSolicitado: 'Cargo solicitado',
@@ -193,6 +193,19 @@ const ETIQUETAS_ERROR_ONBOARDING: Record<string, string> = {
   ciudadEntrega: 'Ubicación de destino',
   kitEpp: 'Kit de Bienvenida / EPP',
   sedeId: 'Sede',
+  motivoCambio: 'Motivo del cambio',
+  cambioSeleccion: 'Equipo a cambiar',
+  fechaCambioCoordinada: 'Fecha del cambio',
+  lugarCambio: 'Lugar del cambio',
+  otCambioChilexpress: 'N° de OT Chilexpress',
+  ciudadCambio: 'Ubicación de destino',
+  fechaDesvinculacion: 'Fecha de desvinculación',
+  devoluciones: 'Equipos a devolver',
+  devolucionesEpp: 'EPP a devolver',
+  fechaDevolucionCoordinada: 'Fecha de devolución',
+  lugarDevolucion: 'Lugar de devolución',
+  otChilexpress: 'N° de OT Chilexpress',
+  ciudadDevolucion: 'Ubicación de destino',
 };
 
 const DATO_OBLIGATORIO = 'Este dato es obligatorio';
@@ -249,7 +262,7 @@ export default function NuevaSolicitudPage() {
 
   // Onboarding: nuevo empleado (paso 2), sin persistir hasta el submit final
   const [onboardingEmp, setOnboardingEmp] = useState({ ...NEW_EMPLOYEE_INITIAL });
-  const [onboardingEmpError, setOnboardingEmpError] = useState('');
+  const [resumenErrores, setResumenErrores] = useState('');
   // Onboarding tambien cubre la reincorporacion de alguien que ya trabajo
   // antes y quedo "desvinculado" -- en ese caso no se crea un Employee
   // nuevo (chocaria con el rut/correo unico del que ya existe), se busca y
@@ -710,10 +723,74 @@ export default function NuevaSolicitudPage() {
     return errores;
   };
 
+  // Coordinacion presencial (fecha + lugar) o por Chilexpress (fecha + OT +
+  // destino): mismo patron en cambio de equipo y offboarding.
+  const validarCoordinacion = (
+    errores: Record<string, string>,
+    medio: 'presencial' | 'chilexpress',
+    campos: { fecha: [string, string]; lugar: [string, string]; ot: [string, string]; destino: [string, string] }
+  ) => {
+    if (!campos.fecha[1]) errores[campos.fecha[0]] = DATO_OBLIGATORIO;
+    if (medio === 'presencial') {
+      if (!campos.lugar[1].trim()) errores[campos.lugar[0]] = DATO_OBLIGATORIO;
+    } else {
+      if (!campos.ot[1].trim()) errores[campos.ot[0]] = DATO_OBLIGATORIO;
+      if (!campos.destino[1].trim()) errores[campos.destino[0]] = DATO_OBLIGATORIO;
+    }
+  };
+
+  // Todos los obligatorios del cambio de equipo, juntos (igual que onboarding).
+  const validarCambio = (): Record<string, string> => {
+    const errores: Record<string, string> = {};
+    if (!selectedEmployee) errores.employeeId = 'Elige el empleado';
+    if (!motivoCambio.trim()) errores.motivoCambio = DATO_OBLIGATORIO;
+    if (selectedEmployee) {
+      if (!cambioSeleccion) {
+        errores.cambioSeleccion = 'Elige el equipo a cambiar, su estado y el reemplazo';
+      }
+      validarCoordinacion(errores, medioCambio, {
+        fecha: ['fechaCambioCoordinada', fechaCambioCoordinada],
+        lugar: ['lugarCambio', lugarCambio],
+        ot: ['otCambioChilexpress', otCambioChilexpress],
+        destino: ['ciudadCambio', ciudadCambio],
+      });
+    }
+    // La sede sale del empleado: sin empleado, lo que falta es elegirlo.
+    if (selectedEmployee && !sedeId) errores.sedeId = 'Debes seleccionar una sede';
+    return errores;
+  };
+
+  // Todos los obligatorios del offboarding: cada equipo y EPP calificado (el
+  // ticket se cierra al crearse, SPEC 2.82) y la coordinacion si hay algo
+  // que devolver.
+  const validarOffboarding = (): Record<string, string> => {
+    const errores: Record<string, string> = {};
+    if (!selectedEmployee) errores.employeeId = 'Elige el empleado';
+    if (!fechaDesvinculacion) errores.fechaDesvinculacion = DATO_OBLIGATORIO;
+    if (selectedEmployee) {
+      if (employeeAssignments.some((a) => !devolucionEstados[a.id])) {
+        errores.devoluciones = 'Califica cada equipo (usa "No devolvió" si no lo entregó)';
+      }
+      if (employeeEppAssignments.some((k) => !devolucionEppEstados[k.id])) {
+        errores.devolucionesEpp = 'Califica cada artículo de EPP';
+      }
+      if (employeeAssignments.length + employeeEppAssignments.length > 0) {
+        validarCoordinacion(errores, medioDevolucion, {
+          fecha: ['fechaDevolucionCoordinada', fechaDevolucionCoordinada],
+          lugar: ['lugarDevolucion', lugarDevolucion],
+          ot: ['otChilexpress', otChilexpress],
+          destino: ['ciudadDevolucion', ciudadDevolucion],
+        });
+      }
+    }
+    if (selectedEmployee && !sedeId) errores.sedeId = 'Debes seleccionar una sede';
+    return errores;
+  };
+
   const handleCancelOnboarding = () => {
     setTipo('');
     setOnboardingEmp({ ...NEW_EMPLOYEE_INITIAL });
-    setOnboardingEmpError('');
+    setResumenErrores('');
     setModoEmpleadoOnboarding('nuevo');
     setCargoSolicitadoReincorporacion('');
     setTipoContratoReincorporacion('contrato');
@@ -735,15 +812,20 @@ export default function NuevaSolicitudPage() {
   const handleSubmit = async () => {
     setError('');
     setFieldErrors({});
-    setOnboardingEmpError('');
+    setResumenErrores('');
 
-    if (tipo === 'onboarding') {
-      const errores = validarOnboarding();
+    {
+      const errores =
+        tipo === 'onboarding'
+          ? validarOnboarding()
+          : tipo === 'cambio_equipo'
+            ? validarCambio()
+            : validarOffboarding();
       if (Object.keys(errores).length > 0) {
         setFieldErrors(errores);
-        setOnboardingEmpError(
+        setResumenErrores(
           `Faltan o están incorrectos: ${Object.keys(errores)
-            .map((campo) => ETIQUETAS_ERROR_ONBOARDING[campo] ?? campo)
+            .map((campo) => ETIQUETAS_ERROR[campo] ?? campo)
             .join(', ')}.`
         );
         enfocarPrimerError();
@@ -757,38 +839,6 @@ export default function NuevaSolicitudPage() {
       setFieldErrors({ sedeId: 'Debes seleccionar una sede' });
       enfocarPrimerError();
       return;
-    }
-
-    // Elegir el equipo a cambiar (viejo + estado en que vuelve + reemplazo)
-    // es obligatorio para crear la solicitud.
-    if (tipo === 'cambio_equipo' && !cambioSeleccion) {
-      setFieldErrors({ cambioSeleccion: 'Elige el equipo a cambiar, su estado y el reemplazo' });
-      return;
-    }
-
-    // Coordinacion de cambio: siempre se pide, ya que cambioSeleccion es
-    // obligatorio.
-    if (tipo === 'cambio_equipo' && cambioSeleccion) {
-      if (!fechaCambioCoordinada) {
-        setError(
-          medioCambio === 'presencial'
-            ? 'Falta la fecha y hora del cambio'
-            : 'Falta la fecha estimada de llegada'
-        );
-        return;
-      }
-      if (medioCambio === 'presencial' && !lugarCambio.trim()) {
-        setError('Falta el lugar del cambio');
-        return;
-      }
-      if (medioCambio === 'chilexpress' && !otCambioChilexpress.trim()) {
-        setError('Falta el N° de OT Chilexpress');
-        return;
-      }
-      if (medioCambio === 'chilexpress' && !ciudadCambio.trim()) {
-        setError('Falta la ubicación de destino');
-        return;
-      }
     }
 
     setSubmitting(true);
@@ -1126,9 +1176,9 @@ export default function NuevaSolicitudPage() {
             </button>
           </div>
 
-          {onboardingEmpError && (
+          {resumenErrores && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">
-              {onboardingEmpError}
+              {resumenErrores}
             </div>
           )}
 
@@ -1869,6 +1919,12 @@ export default function NuevaSolicitudPage() {
       {/* Step 2 (Cambio de Equipo / Offboarding): formulario con búsqueda de empleado */}
       {step === 2 && tipo !== 'onboarding' && tipo !== '' && (
         <div className="card p-6 space-y-6">
+          {resumenErrores && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">
+              {resumenErrores}
+            </div>
+          )}
+
           {/* Employee Selection */}
           <div>
             <label className={cn(
@@ -1912,7 +1968,11 @@ export default function NuevaSolicitudPage() {
                     onFocus={() => {
                       if (searchResults.length > 0) setShowResults(true);
                     }}
-                    className="field-input pl-10 pr-10"
+                    aria-invalid={!!fieldErrors.employeeId}
+                    className={cn(
+                      'field-input pl-10 pr-10',
+                      fieldErrors.employeeId && 'border-red-500 bg-red-50'
+                    )}
                   />
                   {searchLoading && (
                     <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle animate-spin" />
@@ -2022,11 +2082,16 @@ export default function NuevaSolicitudPage() {
                 </label>
                 <textarea
                   value={motivoCambio}
-                  onChange={(e) => { setMotivoCambio(e.target.value); setFieldErrors((prev) => { const { motivoCambio: _, ...rest } = prev; return rest; }); }}
+                  onChange={(e) => {
+                    setMotivoCambio(e.target.value);
+                    limpiarError('motivoCambio');
+                  }}
                   placeholder="Ej: Sobrecalentamiento, pantalla danada..."
                   rows={3}
-                  className={cn('w-full px-3 py-2 border rounded-lg', fieldErrors.motivoCambio ? 'border-red-500 bg-red-50' : 'border-line-strong')}
+                  aria-invalid={!!fieldErrors.motivoCambio}
+                  className={claseInput(fieldErrors.motivoCambio)}
                 />
+                <MensajeCampo mensaje={fieldErrors.motivoCambio} />
               </div>
 
               {/* Equipo a cambiar + reemplazo: obligatorio para poder crear la
@@ -2039,6 +2104,7 @@ export default function NuevaSolicitudPage() {
                   )}>
                     Equipo a cambiar *
                   </label>
+                  <AvisoSeccion mensaje={fieldErrors.cambioSeleccion} className="mb-2" />
                   {loadingAssignments ? (
                     <div className="flex items-center gap-2 text-fg-subtle text-sm py-3">
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -2076,9 +2142,14 @@ export default function NuevaSolicitudPage() {
                       <input
                         type="datetime-local"
                         value={fechaCambioCoordinada}
-                        onChange={(e) => setFechaCambioCoordinada(e.target.value)}
-                        className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+                        onChange={(e) => {
+                          setFechaCambioCoordinada(e.target.value);
+                          limpiarError('fechaCambioCoordinada');
+                        }}
+                        aria-invalid={!!fieldErrors.fechaCambioCoordinada}
+                        className={cn(claseInput(fieldErrors.fechaCambioCoordinada), 'text-sm')}
                       />
+                      <MensajeCampo mensaje={fieldErrors.fechaCambioCoordinada} />
                     </div>
                     <div>
                       <label className="field-label">Medio</label>
@@ -2109,10 +2180,15 @@ export default function NuevaSolicitudPage() {
                         <input
                           type="text"
                           value={lugarCambio}
-                          onChange={(e) => setLugarCambio(e.target.value)}
+                          onChange={(e) => {
+                            setLugarCambio(e.target.value);
+                            limpiarError('lugarCambio');
+                          }}
                           placeholder="ej: Oficina Santiago, piso 4"
-                          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+                          aria-invalid={!!fieldErrors.lugarCambio}
+                          className={cn(claseInput(fieldErrors.lugarCambio), 'text-sm')}
                         />
+                        <MensajeCampo mensaje={fieldErrors.lugarCambio} />
                       </div>
                     ) : (
                       <>
@@ -2123,10 +2199,15 @@ export default function NuevaSolicitudPage() {
                           <input
                             type="text"
                             value={otCambioChilexpress}
-                            onChange={(e) => setOtCambioChilexpress(e.target.value)}
+                            onChange={(e) => {
+                              setOtCambioChilexpress(e.target.value);
+                              limpiarError('otCambioChilexpress');
+                            }}
                             placeholder="ej: CH-2026-004567"
-                            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+                            aria-invalid={!!fieldErrors.otCambioChilexpress}
+                            className={cn(claseInput(fieldErrors.otCambioChilexpress), 'text-sm')}
                           />
+                          <MensajeCampo mensaje={fieldErrors.otCambioChilexpress} />
                         </div>
                         <div>
                           <label className="field-label">
@@ -2135,10 +2216,15 @@ export default function NuevaSolicitudPage() {
                           <input
                             type="text"
                             value={ciudadCambio}
-                            onChange={(e) => setCiudadCambio(e.target.value)}
+                            onChange={(e) => {
+                              setCiudadCambio(e.target.value);
+                              limpiarError('ciudadCambio');
+                            }}
                             placeholder="ej: Hotel HD Express, Concepción"
-                            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+                            aria-invalid={!!fieldErrors.ciudadCambio}
+                            className={cn(claseInput(fieldErrors.ciudadCambio), 'text-sm')}
                           />
+                          <MensajeCampo mensaje={fieldErrors.ciudadCambio} />
                         </div>
                       </>
                     )}
@@ -2157,8 +2243,9 @@ export default function NuevaSolicitudPage() {
               {selectedEmployee && (
                 <div>
                   <label className="field-label mb-2">
-                    Equipos a devolver
+                    Equipos a devolver *
                   </label>
+                  <MensajeCampo mensaje={fieldErrors.devoluciones} />
                   {loadingAssignments ? (
                     <div className="flex items-center gap-2 text-fg-subtle text-sm py-3">
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -2167,8 +2254,8 @@ export default function NuevaSolicitudPage() {
                   ) : employeeAssignments.length > 0 ? (
                     <div className="space-y-3">
                       <p className="text-xs text-fg-subtle">
-                        Si ya tienes los equipos en mano, califica cada uno abajo y el ticket se
-                        cerrará solo al enviarse. Si no, déjalos sin calificar y hazlo después.
+                        Califica cada equipo: el ticket se cierra al enviarse. Si el empleado no
+                        lo entregó, marca &quot;No devolvió&quot;.
                       </p>
                       <div className="space-y-2">
                         {employeeAssignments.map((a) => {
@@ -2176,7 +2263,16 @@ export default function NuevaSolicitudPage() {
                           return (
                             <div
                               key={a.id}
-                              className="p-3 bg-orange-50 border border-orange-200 rounded-lg"
+                              // Sin calificar tras intentar enviar: en rojo y enfocable,
+                              // para que enfocarPrimerError() lleve hasta aca.
+                              tabIndex={-1}
+                              aria-invalid={!!fieldErrors.devoluciones && !devolucionEstados[a.id]}
+                              className={cn(
+                                'p-3 rounded-lg border outline-none',
+                                fieldErrors.devoluciones && !devolucionEstados[a.id]
+                                  ? 'bg-red-50 border-red-500'
+                                  : 'bg-orange-50 border-orange-200'
+                              )}
                             >
                               <div className="flex items-center gap-3">
                                 <div className="p-1.5 bg-orange-100 rounded-lg text-orange-700">
@@ -2198,9 +2294,10 @@ export default function NuevaSolicitudPage() {
                                         type="radio"
                                         name={`devolucion-${a.id}`}
                                         checked={devolucionEstados[a.id] === 'ok'}
-                                        onChange={() =>
-                                          setDevolucionEstados((prev) => ({ ...prev, [a.id]: 'ok' }))
-                                        }
+                                        onChange={() => {
+                                          limpiarError('devoluciones');
+                                          setDevolucionEstados((prev) => ({ ...prev, [a.id]: 'ok' }));
+                                        }}
                                       />
                                       Buen estado
                                     </label>
@@ -2209,9 +2306,10 @@ export default function NuevaSolicitudPage() {
                                         type="radio"
                                         name={`devolucion-${a.id}`}
                                         checked={devolucionEstados[a.id] === 'danado'}
-                                        onChange={() =>
-                                          setDevolucionEstados((prev) => ({ ...prev, [a.id]: 'danado' }))
-                                        }
+                                        onChange={() => {
+                                          limpiarError('devoluciones');
+                                          setDevolucionEstados((prev) => ({ ...prev, [a.id]: 'danado' }));
+                                        }}
                                       />
                                       Dañado
                                     </label>
@@ -2220,9 +2318,10 @@ export default function NuevaSolicitudPage() {
                                         type="radio"
                                         name={`devolucion-${a.id}`}
                                         checked={devolucionEstados[a.id] === 'no_devuelto'}
-                                        onChange={() =>
-                                          setDevolucionEstados((prev) => ({ ...prev, [a.id]: 'no_devuelto' }))
-                                        }
+                                        onChange={() => {
+                                          limpiarError('devoluciones');
+                                          setDevolucionEstados((prev) => ({ ...prev, [a.id]: 'no_devuelto' }));
+                                        }}
                                       />
                                       No devolvió
                                     </label>
@@ -2288,11 +2387,22 @@ export default function NuevaSolicitudPage() {
               {selectedEmployee && employeeEppAssignments.length > 0 && (
                 <div>
                   <label className="field-label mb-2">
-                    EPP a devolver
+                    EPP a devolver *
                   </label>
+                  <MensajeCampo mensaje={fieldErrors.devolucionesEpp} />
                   <div className="space-y-2">
                     {employeeEppAssignments.map((k) => (
-                      <div key={k.id} className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                      <div
+                        key={k.id}
+                        tabIndex={-1}
+                        aria-invalid={!!fieldErrors.devolucionesEpp && !devolucionEppEstados[k.id]}
+                        className={cn(
+                          'p-3 rounded-lg border outline-none',
+                          fieldErrors.devolucionesEpp && !devolucionEppEstados[k.id]
+                            ? 'bg-red-50 border-red-500'
+                            : 'bg-orange-50 border-orange-200'
+                        )}
+                      >
                         <p className="text-sm font-medium text-fg mb-2">{k.item.nombre}</p>
                         <div className="flex gap-4 text-sm text-fg-muted mb-2">
                           <label className="flex items-center gap-1.5">
@@ -2300,9 +2410,10 @@ export default function NuevaSolicitudPage() {
                               type="radio"
                               name={`devolucion-epp-${k.id}`}
                               checked={devolucionEppEstados[k.id] === 'ok'}
-                              onChange={() =>
-                                setDevolucionEppEstados((prev) => ({ ...prev, [k.id]: 'ok' }))
-                              }
+                              onChange={() => {
+                                limpiarError('devolucionesEpp');
+                                setDevolucionEppEstados((prev) => ({ ...prev, [k.id]: 'ok' }));
+                              }}
                             />
                             Buen estado
                           </label>
@@ -2311,9 +2422,10 @@ export default function NuevaSolicitudPage() {
                               type="radio"
                               name={`devolucion-epp-${k.id}`}
                               checked={devolucionEppEstados[k.id] === 'danado'}
-                              onChange={() =>
-                                setDevolucionEppEstados((prev) => ({ ...prev, [k.id]: 'danado' }))
-                              }
+                              onChange={() => {
+                                limpiarError('devolucionesEpp');
+                                setDevolucionEppEstados((prev) => ({ ...prev, [k.id]: 'danado' }));
+                              }}
                             />
                             Dañado
                           </label>
@@ -2322,9 +2434,10 @@ export default function NuevaSolicitudPage() {
                               type="radio"
                               name={`devolucion-epp-${k.id}`}
                               checked={devolucionEppEstados[k.id] === 'no_devuelto'}
-                              onChange={() =>
-                                setDevolucionEppEstados((prev) => ({ ...prev, [k.id]: 'no_devuelto' }))
-                              }
+                              onChange={() => {
+                                limpiarError('devolucionesEpp');
+                                setDevolucionEppEstados((prev) => ({ ...prev, [k.id]: 'no_devuelto' }));
+                              }}
                             />
                             No devolvió
                           </label>
@@ -2358,8 +2471,10 @@ export default function NuevaSolicitudPage() {
                   type="date"
                   value={fechaDesvinculacion}
                   onChange={(e) => { setFechaDesvinculacion(e.target.value); setFieldErrors((prev) => { const { fechaDesvinculacion: _, ...rest } = prev; return rest; }); }}
-                  className={cn('w-full px-3 py-2 border rounded-lg max-w-xs', fieldErrors.fechaDesvinculacion ? 'border-red-500 bg-red-50' : 'border-line-strong')}
+                  aria-invalid={!!fieldErrors.fechaDesvinculacion}
+                  className={cn(claseInput(fieldErrors.fechaDesvinculacion), 'max-w-xs')}
                 />
+                <MensajeCampo mensaje={fieldErrors.fechaDesvinculacion} />
               </div>
 
               {/* Coordinacion de devolucion en su propia tarjeta, separada de
@@ -2401,9 +2516,14 @@ export default function NuevaSolicitudPage() {
                     <input
                       type="datetime-local"
                       value={fechaDevolucionCoordinada}
-                      onChange={(e) => setFechaDevolucionCoordinada(e.target.value)}
-                      className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+                      onChange={(e) => {
+                        setFechaDevolucionCoordinada(e.target.value);
+                        limpiarError('fechaDevolucionCoordinada');
+                      }}
+                      aria-invalid={!!fieldErrors.fechaDevolucionCoordinada}
+                      className={cn(claseInput(fieldErrors.fechaDevolucionCoordinada), 'text-sm')}
                     />
+                    <MensajeCampo mensaje={fieldErrors.fechaDevolucionCoordinada} />
                   </div>
                   {medioDevolucion === 'presencial' ? (
                     <div>
@@ -2413,10 +2533,15 @@ export default function NuevaSolicitudPage() {
                       <input
                         type="text"
                         value={lugarDevolucion}
-                        onChange={(e) => setLugarDevolucion(e.target.value)}
+                        onChange={(e) => {
+                          setLugarDevolucion(e.target.value);
+                          limpiarError('lugarDevolucion');
+                        }}
                         placeholder="ej: Oficina Santiago, piso 4"
-                        className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+                        aria-invalid={!!fieldErrors.lugarDevolucion}
+                        className={cn(claseInput(fieldErrors.lugarDevolucion), 'text-sm')}
                       />
+                      <MensajeCampo mensaje={fieldErrors.lugarDevolucion} />
                     </div>
                   ) : (
                     <>
@@ -2427,10 +2552,15 @@ export default function NuevaSolicitudPage() {
                         <input
                           type="text"
                           value={otChilexpress}
-                          onChange={(e) => setOtChilexpress(e.target.value)}
+                          onChange={(e) => {
+                            setOtChilexpress(e.target.value);
+                            limpiarError('otChilexpress');
+                          }}
                           placeholder="ej: CH-2026-004567"
-                          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+                          aria-invalid={!!fieldErrors.otChilexpress}
+                          className={cn(claseInput(fieldErrors.otChilexpress), 'text-sm')}
                         />
+                        <MensajeCampo mensaje={fieldErrors.otChilexpress} />
                       </div>
                       <div>
                         <label className="field-label">
@@ -2439,10 +2569,15 @@ export default function NuevaSolicitudPage() {
                         <input
                           type="text"
                           value={ciudadDevolucion}
-                          onChange={(e) => setCiudadDevolucion(e.target.value)}
+                          onChange={(e) => {
+                            setCiudadDevolucion(e.target.value);
+                            limpiarError('ciudadDevolucion');
+                          }}
                           placeholder="ej: Hotel HD Express, Concepción"
-                          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+                          aria-invalid={!!fieldErrors.ciudadDevolucion}
+                          className={cn(claseInput(fieldErrors.ciudadDevolucion), 'text-sm')}
                         />
+                        <MensajeCampo mensaje={fieldErrors.ciudadDevolucion} />
                       </div>
                     </>
                   )}
@@ -2468,9 +2603,13 @@ export default function NuevaSolicitudPage() {
             ) : (
               <select
                 value={sedeId}
-                onChange={(e) => setSedeId(e.target.value)}
+                onChange={(e) => {
+                  setSedeId(e.target.value);
+                  limpiarError('sedeId');
+                }}
                 required
-                className="w-full px-3 py-2 border border-line-strong rounded-lg"
+                aria-invalid={!!fieldErrors.sedeId}
+                className={claseInput(fieldErrors.sedeId)}
               >
                 <option value="" disabled>
                   Selecciona una sede...
@@ -2512,7 +2651,7 @@ export default function NuevaSolicitudPage() {
             </button>
             <button
               onClick={handleSubmit}
-              disabled={submitting || !employeeId}
+              disabled={submitting}
               className={buttonClasses({ className: "px-6" })}
             >
               {submitting ? 'Creando...' : 'Crear Solicitud'}
