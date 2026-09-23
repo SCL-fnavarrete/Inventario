@@ -294,8 +294,8 @@ model Assignment {
   // notebook con tieneCargador = true; para el resto queda null. Es un
   // atributo de esta entrega/devolucion puntual, no afecta el
   // estado/condicion del Activo.
-  condicionCargadorEntrega    EstadoDevolucionTipo? @map("condicion_cargador_entrega")
-  condicionCargadorDevolucion EstadoDevolucionTipo? @map("condicion_cargador_devolucion")
+  condicionCargadorEntrega    CondicionCargador? @map("condicion_cargador_entrega")
+  condicionCargadorDevolucion CondicionCargador? @map("condicion_cargador_devolucion")
   observacionesCargador       String?               @map("observaciones_cargador")
   activo                  Boolean           @default(true)
   actaEntregaUrl          String?           @map("acta_entrega_url")
@@ -928,11 +928,13 @@ enum EstadoPendiente {
   no_aplica
 }
 
-enum EstadoDevolucionTipo {
-  ok
-  danado
-  no_aplica
-  pendiente
+// Estado del cargador de un notebook al entregarlo o devolverlo
+// (Assignment.condicionCargadorEntrega / condicionCargadorDevolucion).
+// Etiquetas visibles en src/lib/constants/condicionCargador.ts.
+enum CondicionCargador {
+  operativo
+  con_danos
+  no_incluido
 }
 
 enum EstadoGuia {

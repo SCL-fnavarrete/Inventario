@@ -10,6 +10,18 @@ import {
 import { SystemRole, EstadoSolicitud } from '@prisma/client';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
+import { ValidationError } from '@/lib/errors';
+import { condicionCargadorSchema, type CondicionCargador } from '@/lib/constants/condicionCargador';
+
+// datosAccion llega sin schema propio: la condicion del cargador se valida
+// aca para responder 400 (y no un error de Prisma) ante un valor invalido,
+// por ejemplo uno de los nombres antiguos (ok/danado/no_aplica).
+function leerCondicionCargador(valor: unknown): CondicionCargador | undefined {
+  if (valor === undefined || valor === null || valor === '') return undefined;
+  const resultado = condicionCargadorSchema.safeParse(valor);
+  if (!resultado.success) throw new ValidationError('Condición del cargador inválida');
+  return resultado.data;
+}
 
 // POST /api/solicitudes/[id]/transicion - Advance workflow state
 export async function POST(
@@ -197,10 +209,14 @@ export async function POST(
         const assets = (datosAccion?.assetIds as string[]) || [];
         const condicionCargadorPorAsset =
           (datosAccion?.condicionCargador as
-            | Record<string, { condicion: 'ok' | 'danado' | 'no_aplica'; observaciones?: string }>
+            | Record<string, { condicion: unknown; observaciones?: string }>
             | undefined) || {};
         for (const assetId of assets) {
-          const cargador = condicionCargadorPorAsset[assetId];
+          const cargadorCrudo = condicionCargadorPorAsset[assetId];
+          const cargador = cargadorCrudo && {
+            condicion: leerCondicionCargador(cargadorCrudo.condicion),
+            observaciones: cargadorCrudo.observaciones,
+          };
           const assignment = await executeAssignment(tx, {
             assetId,
             employeeId: workflowRequest.employeeId,
@@ -270,18 +286,12 @@ export async function POST(
         // Condicion del cargador: solo se guarda si el equipo es un
         // notebook con tieneCargador. "Anterior" es el del equipo que se
         // devuelve; "Nuevo" el del equipo de reemplazo.
-        const condicionCargadorAnterior = datosAccion?.condicionCargadorAnterior as
-          | 'ok'
-          | 'danado'
-          | 'no_aplica'
-          | undefined;
+        const condicionCargadorAnterior = leerCondicionCargador(
+          datosAccion?.condicionCargadorAnterior
+        );
         const observacionesCargadorAnterior =
           (datosAccion?.observacionesCargadorAnterior as string) || null;
-        const condicionCargadorNuevo = datosAccion?.condicionCargadorNuevo as
-          | 'ok'
-          | 'danado'
-          | 'no_aplica'
-          | undefined;
+        const condicionCargadorNuevo = leerCondicionCargador(datosAccion?.condicionCargadorNuevo);
         const observacionesCargadorNuevo =
           (datosAccion?.observacionesCargadorNuevo as string) || null;
 
@@ -360,8 +370,8 @@ export async function POST(
                 assignmentId: string;
                 estadoDevolucion: 'ok' | 'danado' | 'no_devuelto';
                 observaciones?: string;
-                // Condicion del cargador.
-                condicionCargador?: 'ok' | 'danado' | 'no_aplica';
+                // Condicion del cargador (se valida con leerCondicionCargador).
+                condicionCargador?: unknown;
                 observacionesCargador?: string;
               }[]
             | undefined) || [];
@@ -372,7 +382,7 @@ export async function POST(
             recibidoPor: systemUser.nombre,
             estadoDevolucion: dev.estadoDevolucion,
             observacionesDevolucion: dev.observaciones || null,
-            condicionCargadorDevolucion: dev.condicionCargador || null,
+            condicionCargadorDevolucion: leerCondicionCargador(dev.condicionCargador) || null,
             observacionesCargador: dev.observacionesCargador || null,
             expectedEmployeeId: workflowRequest.employeeId,
           });

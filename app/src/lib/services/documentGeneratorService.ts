@@ -7,6 +7,10 @@ import { ComprobanteCambioTemplate } from '@/lib/templates/ComprobanteCambioTemp
 import { ActaDevolucionTemplate } from '@/lib/templates/ActaDevolucionTemplate';
 import { prisma } from '@/lib/prisma';
 import { formatearFecha } from "@/lib/utils/fechas";
+import {
+  etiquetaCondicionCargador,
+  type ContextoCargador,
+} from "@/lib/constants/condicionCargador";
 
 // Helper to cast React.createElement result for @react-pdf/renderer
 function renderPdf(element: React.ReactElement) {
@@ -64,13 +68,18 @@ function descripcionEquipoDevuelto(
   return partes.join(' | ');
 }
 
-// Etiqueta legible de la condicion del cargador. Null si el equipo no
-// tiene cargador o si nunca se registro.
-function labelCargador(condicion: string | null | undefined): string | null {
-  if (condicion === 'ok') return 'Ok';
-  if (condicion === 'danado') return 'Dañado';
-  if (condicion === 'no_aplica') return 'No aplica';
-  return null;
+// Texto del cargador para el acta: etiqueta de la condicion y, si hay, la
+// observacion entre parentesis ("Con daños (cable pelado)"). Null si el
+// equipo no tiene cargador o nunca se registro.
+function textoCargador(
+  asignacion: { observacionesCargador: string | null },
+  condicion: string | null | undefined,
+  contexto: ContextoCargador
+): string | null {
+  const etiqueta = etiquetaCondicionCargador(condicion, contexto);
+  if (!etiqueta) return null;
+  const obs = asignacion.observacionesCargador?.trim();
+  return obs ? `${etiqueta} (${obs})` : etiqueta;
 }
 
 export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer> {
@@ -138,7 +147,7 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
   const assets = solicitud.employee.assignments.map((a) => ({
     equipo: a.asset.categoria.nombre,
     marca: a.asset.marca,
-    descripcion: descripcionAsset(a.asset, labelCargador(a.condicionCargadorEntrega)),
+    descripcion: descripcionAsset(a.asset, textoCargador(a, a.condicionCargadorEntrega, 'entrega')),
     entregado: 'OK',
   }));
 
@@ -184,8 +193,6 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
 
   const newAssignment = assignments.find((a) => a.id === newAssignmentId) || null;
   const oldAssignment = assignments.find((a) => a.id === oldAssignmentId) || null;
-  const oldAsset = oldAssignment?.asset || null;
-  const oldCondicionCargadorDevolucion = oldAssignment?.condicionCargadorDevolucion || null;
 
   const toAssetInfo = (
     asset: { categoria: { nombre: string }; marca: string; modelo: string; numeroSerie: string | null },
@@ -204,10 +211,18 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
     fecha: formatearFecha(new Date(), {}, '—'),
     motivoCambio: solicitud.motivoCambio || '—',
     equipoNuevo: newAssignment
-      ? toAssetInfo(newAssignment.asset, 'Entregado OK', labelCargador(newAssignment.condicionCargadorEntrega))
+      ? toAssetInfo(
+          newAssignment.asset,
+          'Entregado OK',
+          textoCargador(newAssignment, newAssignment.condicionCargadorEntrega, 'entrega')
+        )
       : { equipo: '—', marca: '—', descripcion: '—', estado: '—' },
-    equipoAnterior: oldAsset
-      ? toAssetInfo(oldAsset, 'Devolución OK', labelCargador(oldCondicionCargadorDevolucion))
+    equipoAnterior: oldAssignment
+      ? toAssetInfo(
+          oldAssignment.asset,
+          'Devolución OK',
+          textoCargador(oldAssignment, oldAssignment.condicionCargadorDevolucion, 'devolucion')
+        )
       : { equipo: '—', marca: '—', descripcion: '—', estado: '—' },
     // Solo el nombre, sin correo entre parentesis -- mismo criterio que
     // el Comprobante de Entrega.
@@ -242,7 +257,7 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
   const assets = returnedAssignments.map((a) => ({
     equipo: a.asset.categoria.nombre,
     marca: a.asset.marca,
-    descripcion: descripcionEquipoDevuelto(a.asset, labelCargador(a.condicionCargadorDevolucion)),
+    descripcion: descripcionEquipoDevuelto(a.asset, textoCargador(a, a.condicionCargadorDevolucion, 'devolucion')),
     estado:
       a.estadoDevolucion === 'ok'
         ? 'OK'

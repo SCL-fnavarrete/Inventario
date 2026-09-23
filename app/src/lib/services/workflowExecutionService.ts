@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import type { CondicionCargador } from '@/lib/constants/condicionCargador';
 import { ConflictError, NotFoundError } from '@/lib/errors';
 
 type PrismaTx = Prisma.TransactionClient;
@@ -19,7 +20,7 @@ export type ExecuteAssignmentParams = {
   // activo es un notebook con tieneCargador = true; para el resto se
   // ignora silenciosamente. No es un activo propio, no afecta el estado
   // del Activo.
-  condicionCargadorEntrega?: 'ok' | 'danado' | 'no_aplica' | null;
+  condicionCargadorEntrega?: CondicionCargador | null;
   observacionesCargador?: string | null;
 };
 
@@ -33,7 +34,7 @@ export type ExecuteReturnParams = {
   // que condicionCargadorEntrega en ExecuteAssignmentParams: solo se usa
   // si el activo es un notebook con tieneCargador = true, para el resto se
   // ignora en silencio.
-  condicionCargadorDevolucion?: 'ok' | 'danado' | 'no_aplica' | null;
+  condicionCargadorDevolucion?: CondicionCargador | null;
   observacionesCargador?: string | null;
   // Si se pasa, se exige que la asignacion sea de este empleado -- evita que
   // un offboarding/cambio de equipo de una persona devuelva por error (o a

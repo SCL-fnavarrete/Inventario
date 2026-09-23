@@ -20,6 +20,11 @@ import {
   especificacionesActivoTexto,
 } from "@/lib/utils/assetSpecs";
 import { buttonClasses } from "@/components/ui/buttonStyles";
+import { SelectCondicionCargador } from "./SelectCondicionCargador";
+import {
+  CONDICION_CARGADOR_POR_DEFECTO,
+  type CondicionCargador,
+} from "@/lib/constants/condicionCargador";
 
 type ActivoDisponible = {
   id: string;
@@ -39,7 +44,6 @@ type ActivoDisponible = {
   tipoLicenciaMicrosoft365: string | null;
 };
 
-type CondicionCargador = 'ok' | 'danado' | 'no_aplica';
 
 type Categoria = { id: string; nombre: string };
 
@@ -233,23 +237,20 @@ export function SeleccionarEquiposOnboarding({
                     <p className="text-xs font-medium text-fg-muted mb-2">
                       Estado del cargador
                     </p>
-                    <select
-                      value={condicionCargador[nombreCategoria]?.condicion || "ok"}
-                      onChange={(e) =>
+                    <SelectCondicionCargador
+                      contexto="entrega"
+                      value={condicionCargador[nombreCategoria]?.condicion}
+                      onChange={(condicion) =>
                         setCondicionCargador((prev) => ({
                           ...prev,
                           [nombreCategoria]: {
-                            condicion: e.target.value as CondicionCargador,
+                            condicion,
                             observaciones: prev[nombreCategoria]?.observaciones || "",
                           },
                         }))
                       }
                       className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm mb-2"
-                    >
-                      <option value="ok">Ok</option>
-                      <option value="danado">Dañado</option>
-                      <option value="no_aplica">No aplica / no venía</option>
-                    </select>
+                    />
                     <input
                       type="text"
                       placeholder="Observación (opcional)"
@@ -258,7 +259,7 @@ export function SeleccionarEquiposOnboarding({
                         setCondicionCargador((prev) => ({
                           ...prev,
                           [nombreCategoria]: {
-                            condicion: prev[nombreCategoria]?.condicion || "ok",
+                            condicion: prev[nombreCategoria]?.condicion || CONDICION_CARGADOR_POR_DEFECTO,
                             observaciones: e.target.value,
                           },
                         }))
@@ -286,14 +287,14 @@ export function SeleccionarEquiposOnboarding({
             string,
             { condicion: CondicionCargador; observaciones?: string }
           > = {};
+          // Sin tocar el select se manda el valor por defecto que se ve en
+          // pantalla; el backend lo descarta si el equipo no tiene cargador.
           for (const categoria of categoriasElegidas) {
             const cond = condicionCargador[categoria];
-            if (cond) {
-              condicionCargadorPorAsset[seleccion[categoria]] = {
-                condicion: cond.condicion,
-                observaciones: cond.observaciones || undefined,
-              };
-            }
+            condicionCargadorPorAsset[seleccion[categoria]] = {
+              condicion: cond?.condicion || CONDICION_CARGADOR_POR_DEFECTO,
+              observaciones: cond?.observaciones || undefined,
+            };
           }
           onSubmit(assetIds, condicionCargadorPorAsset);
         }}

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEmployeeSchema, TipoContratoEnum } from './employee';
+import { condicionCargadorSchema } from '@/lib/constants/condicionCargador';
 
 // Enums que coinciden con Prisma
 export const TipoSolicitudEnum = z.enum(['onboarding', 'cambio_equipo', 'offboarding']);
@@ -86,7 +87,7 @@ const onboardingFields = z.object({
     .record(
       z.string().uuid(),
       z.object({
-        condicion: z.enum(['ok', 'danado', 'no_aplica']),
+        condicion: condicionCargadorSchema,
         observaciones: z.string().optional(),
       })
     )
@@ -146,9 +147,9 @@ const cambioEquipoFields = z.object({
   // Condicion del cargador: solo aplica si el equipo es un notebook con
   // tieneCargador. "Anterior" es el del equipo devuelto, "Nuevo" el del
   // equipo de reemplazo.
-  condicionCargadorAnterior: z.enum(['ok', 'danado', 'no_aplica']).optional().nullable(),
+  condicionCargadorAnterior: condicionCargadorSchema.optional().nullable(),
   observacionesCargadorAnterior: z.string().optional().nullable(),
-  condicionCargadorNuevo: z.enum(['ok', 'danado', 'no_aplica']).optional().nullable(),
+  condicionCargadorNuevo: condicionCargadorSchema.optional().nullable(),
   observacionesCargadorNuevo: z.string().optional().nullable(),
   // Coordinacion de cambio: permite coordinar la entrega del equipo nuevo
   // en el mismo formulario de creacion.
@@ -187,7 +188,7 @@ const devolucionTerminoFields = z.object({
         observaciones: z.string().optional().nullable(),
         // Condicion del cargador: solo aplica si el activo es un notebook
         // con tieneCargador.
-        condicionCargador: z.enum(['ok', 'danado', 'no_aplica']).optional().nullable(),
+        condicionCargador: condicionCargadorSchema.optional().nullable(),
         observacionesCargador: z.string().optional().nullable(),
       })
     )

@@ -22,6 +22,11 @@ import {
 } from '@/components/solicitudes/SeleccionarCambioEquipo';
 import { buttonClasses } from '@/components/ui/buttonStyles';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { SelectCondicionCargador } from '@/components/solicitudes/SelectCondicionCargador';
+import {
+  CONDICION_CARGADOR_POR_DEFECTO,
+  type CondicionCargador,
+} from '@/lib/constants/condicionCargador';
 import {
   AvisoSeccion,
   CampoFormulario,
@@ -224,7 +229,7 @@ export default function NuevaSolicitudPage() {
   const [devolucionObservaciones, setDevolucionObservaciones] = useState<Record<string, string>>({});
   // Condicion del cargador al devolver, solo si el equipo es un notebook
   // con tieneCargador.
-  const [devolucionCargador, setDevolucionCargador] = useState<Record<string, 'ok' | 'danado' | 'no_aplica'>>({});
+  const [devolucionCargador, setDevolucionCargador] = useState<Record<string, CondicionCargador>>({});
   const [devolucionCargadorObservaciones, setDevolucionCargadorObservaciones] = useState<Record<string, string>>({});
   // EPP entregado y pendiente de devolver (offboarding)
   const [employeeEppAssignments, setEmployeeEppAssignments] = useState<EmployeeKitAssignment[]>([]);
@@ -288,7 +293,7 @@ export default function NuevaSolicitudPage() {
   // Condicion del cargador del equipo elegido, por categoria; solo se pide
   // si el equipo reservado es un notebook con tieneCargador.
   const [cargadorOnboarding, setCargadorOnboarding] = useState<
-    Record<string, { condicion: 'ok' | 'danado' | 'no_aplica'; observaciones: string }>
+    Record<string, { condicion: CondicionCargador; observaciones: string }>
   >({});
   // Coordinacion de entrega: se pide junto con la eleccion de equipos, en
   // vez de en un paso aparte despues.
@@ -805,11 +810,14 @@ export default function NuevaSolicitudPage() {
       // a assetId, que es como lo espera el backend.
       const condicionCargadorPorAsset: Record<
         string,
-        { condicion: 'ok' | 'danado' | 'no_aplica'; observaciones?: string }
+        { condicion: CondicionCargador; observaciones?: string }
       > = {};
+      // Sin tocar el select se manda el valor por defecto que se ve en
+      // pantalla; el backend lo descarta si el equipo no tiene cargador.
       for (const [catId, assetId] of Object.entries(equipoSeleccionado)) {
-        const cargador = cargadorOnboarding[catId];
-        if (cargador) condicionCargadorPorAsset[assetId] = cargador;
+        condicionCargadorPorAsset[assetId] = cargadorOnboarding[catId] ?? {
+          condicion: CONDICION_CARGADOR_POR_DEFECTO,
+        };
       }
 
       if (tipo === 'onboarding' && modoEmpleadoOnboarding === 'existente') {
@@ -946,7 +954,9 @@ export default function NuevaSolicitudPage() {
               estadoDevolucion: devolucionEstados[a.id],
               observaciones: devolucionObservaciones[a.id] || undefined,
               // Condicion del cargador, si el equipo la trae.
-              condicionCargador: a.asset.tieneCargador ? devolucionCargador[a.id] || undefined : undefined,
+              condicionCargador: a.asset.tieneCargador
+                ? devolucionCargador[a.id] || CONDICION_CARGADOR_POR_DEFECTO
+                : undefined,
               observacionesCargador: a.asset.tieneCargador
                 ? devolucionCargadorObservaciones[a.id] || undefined
                 : undefined,
@@ -1535,23 +1545,20 @@ export default function NuevaSolicitudPage() {
                             <p className="text-xs font-medium text-fg-muted mb-1">
                               Estado del cargador
                             </p>
-                            <select
-                              value={cargadorOnboarding[cat.id]?.condicion || 'ok'}
-                              onChange={(e) =>
+                            <SelectCondicionCargador
+                              contexto="entrega"
+                              value={cargadorOnboarding[cat.id]?.condicion}
+                              onChange={(condicion) =>
                                 setCargadorOnboarding((prev) => ({
                                   ...prev,
                                   [cat.id]: {
-                                    condicion: e.target.value as 'ok' | 'danado' | 'no_aplica',
+                                    condicion,
                                     observaciones: prev[cat.id]?.observaciones || '',
                                   },
                                 }))
                               }
                               className="w-full px-2 py-1.5 text-xs border border-line-strong rounded mb-1"
-                            >
-                              <option value="ok">Ok</option>
-                              <option value="danado">Dañado</option>
-                              <option value="no_aplica">No aplica / no venía</option>
-                            </select>
+                            />
                             <input
                               type="text"
                               value={cargadorOnboarding[cat.id]?.observaciones || ''}
@@ -1559,7 +1566,7 @@ export default function NuevaSolicitudPage() {
                                 setCargadorOnboarding((prev) => ({
                                   ...prev,
                                   [cat.id]: {
-                                    condicion: prev[cat.id]?.condicion || 'ok',
+                                    condicion: prev[cat.id]?.condicion || CONDICION_CARGADOR_POR_DEFECTO,
                                     observaciones: e.target.value,
                                   },
                                 }))
@@ -2239,20 +2246,14 @@ export default function NuevaSolicitudPage() {
                                       <p className="text-xs font-medium text-fg-muted mb-1">
                                         Estado del cargador
                                       </p>
-                                      <select
-                                        value={devolucionCargador[a.id] || 'ok'}
-                                        onChange={(e) =>
-                                          setDevolucionCargador((prev) => ({
-                                            ...prev,
-                                            [a.id]: e.target.value as 'ok' | 'danado' | 'no_aplica',
-                                          }))
+                                      <SelectCondicionCargador
+                                        contexto="devolucion"
+                                        value={devolucionCargador[a.id]}
+                                        onChange={(condicion) =>
+                                          setDevolucionCargador((prev) => ({ ...prev, [a.id]: condicion }))
                                         }
                                         className="w-full px-2 py-1.5 text-sm border border-line-strong rounded mb-1"
-                                      >
-                                        <option value="ok">Ok</option>
-                                        <option value="danado">Dañado</option>
-                                        <option value="no_aplica">No aplica / no lo devolvió</option>
-                                      </select>
+                                      />
                                       <input
                                         type="text"
                                         value={devolucionCargadorObservaciones[a.id] || ''}

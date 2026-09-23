@@ -22,6 +22,11 @@ import { parseApiError, type FieldErrors } from '@/lib/utils/apiErrors';
 import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
 import { formatearFecha } from "@/lib/utils/fechas";
 import { buttonClasses } from "@/components/ui/buttonStyles";
+import { SelectCondicionCargador } from "@/components/solicitudes/SelectCondicionCargador";
+import {
+  CONDICION_CARGADOR_POR_DEFECTO,
+  type CondicionCargador,
+} from "@/lib/constants/condicionCargador";
 
 type WorkflowDetail = {
   id: string;
@@ -271,7 +276,7 @@ export default function SolicitudDetailPage() {
   const [devolucionEstados, setDevolucionEstados] = useState<Record<string, 'ok' | 'danado' | 'no_devuelto'>>({});
   const [devolucionObservaciones, setDevolucionObservaciones] = useState<Record<string, string>>({});
   // Charger condition on return, only asked when the asset has tieneCargador.
-  const [devolucionCargador, setDevolucionCargador] = useState<Record<string, 'ok' | 'danado' | 'no_aplica'>>({});
+  const [devolucionCargador, setDevolucionCargador] = useState<Record<string, CondicionCargador>>({});
   const [devolucionCargadorObservaciones, setDevolucionCargadorObservaciones] = useState<Record<string, string>>({});
   // Mismo caso pero para EPP entregado y pendiente de devolver.
   const [devolucionEppEstados, setDevolucionEppEstados] = useState<Record<string, 'ok' | 'danado' | 'no_devuelto'>>({});
@@ -580,7 +585,9 @@ export default function SolicitudDetailPage() {
         estadoDevolucion: devolucionEstados[a.id],
         observaciones: devolucionObservaciones[a.id] || undefined,
         // Charger condition, if the asset has one.
-        condicionCargador: a.asset.tieneCargador ? devolucionCargador[a.id] || undefined : undefined,
+        condicionCargador: a.asset.tieneCargador
+          ? devolucionCargador[a.id] || CONDICION_CARGADOR_POR_DEFECTO
+          : undefined,
         observacionesCargador: a.asset.tieneCargador
           ? devolucionCargadorObservaciones[a.id] || undefined
           : undefined,
@@ -611,7 +618,7 @@ export default function SolicitudDetailPage() {
   // categorias requeridas, se cierra la etapa automaticamente.
   const handleEntregarEquipos = async (
     assetIds: string[],
-    condicionCargador?: Record<string, { condicion: 'ok' | 'danado' | 'no_aplica'; observaciones?: string }>
+    condicionCargador?: Record<string, { condicion: CondicionCargador; observaciones?: string }>
   ) => {
     if (!data) return;
     setTransitioning(true);
@@ -665,9 +672,9 @@ export default function SolicitudDetailPage() {
     newAssetId: string,
     estadoDevolucion: 'ok' | 'danado' | 'no_devuelto',
     observacionesDevolucion: string,
-    condicionCargadorAnterior: 'ok' | 'danado' | 'no_aplica' | '',
+    condicionCargadorAnterior: CondicionCargador | '',
     observacionesCargadorAnterior: string,
-    condicionCargadorNuevo: 'ok' | 'danado' | 'no_aplica' | '',
+    condicionCargadorNuevo: CondicionCargador | '',
     observacionesCargadorNuevo: string
   ) => {
     if (!fechaCambioCoordinada) {
@@ -1409,20 +1416,14 @@ export default function SolicitudDetailPage() {
                             <p className="text-xs font-medium text-fg-muted mb-1">
                               Estado del cargador
                             </p>
-                            <select
-                              value={devolucionCargador[a.id] || 'ok'}
-                              onChange={(e) =>
-                                setDevolucionCargador((prev) => ({
-                                  ...prev,
-                                  [a.id]: e.target.value as 'ok' | 'danado' | 'no_aplica',
-                                }))
+                            <SelectCondicionCargador
+                              contexto="devolucion"
+                              value={devolucionCargador[a.id]}
+                              onChange={(condicion) =>
+                                setDevolucionCargador((prev) => ({ ...prev, [a.id]: condicion }))
                               }
                               className="w-full px-2 py-1.5 text-sm border border-line-strong rounded mb-1"
-                            >
-                              <option value="ok">Ok</option>
-                              <option value="danado">Dañado</option>
-                              <option value="no_aplica">No aplica / no lo devolvió</option>
-                            </select>
+                            />
                             <input
                               type="text"
                               value={devolucionCargadorObservaciones[a.id] || ''}

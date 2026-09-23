@@ -18,6 +18,11 @@ import {
 } from "lucide-react";
 import { especificacionesActivoTexto } from "@/lib/utils/assetSpecs";
 import { buttonClasses } from "@/components/ui/buttonStyles";
+import { SelectCondicionCargador } from "./SelectCondicionCargador";
+import {
+  CONDICION_CARGADOR_POR_DEFECTO,
+  type CondicionCargador,
+} from "@/lib/constants/condicionCargador";
 
 type AsignacionActiva = {
   id: string;
@@ -65,9 +70,9 @@ export type SeleccionCambioEquipo = {
   // tieneCargador; para el resto queda "" (el padre lo manda como
   // null/undefined). "Anterior" es el cargador que se devuelve, "Nuevo" el
   // del reemplazo.
-  condicionCargadorAnterior: "ok" | "danado" | "no_aplica" | "";
+  condicionCargadorAnterior: CondicionCargador | "";
   observacionesCargadorAnterior: string;
-  condicionCargadorNuevo: "ok" | "danado" | "no_aplica" | "";
+  condicionCargadorNuevo: CondicionCargador | "";
   observacionesCargadorNuevo: string;
 };
 
@@ -124,9 +129,9 @@ export function SeleccionarCambioEquipo({
     newAssetId: string,
     estadoDevolucion: "ok" | "danado" | "no_devuelto",
     observaciones: string,
-    condicionCargadorAnterior: "ok" | "danado" | "no_aplica" | "",
+    condicionCargadorAnterior: CondicionCargador | "",
     observacionesCargadorAnterior: string,
-    condicionCargadorNuevo: "ok" | "danado" | "no_aplica" | "",
+    condicionCargadorNuevo: CondicionCargador | "",
     observacionesCargadorNuevo: string
   ) => void;
   showSubmitButton?: boolean;
@@ -136,9 +141,9 @@ export function SeleccionarCambioEquipo({
   const [newAssetId, setNewAssetId] = useState("");
   const [estadoDevolucion, setEstadoDevolucion] = useState<"ok" | "danado" | "no_devuelto" | "">("");
   const [observaciones, setObservaciones] = useState("");
-  const [condicionCargadorAnterior, setCondicionCargadorAnterior] = useState<"ok" | "danado" | "no_aplica" | "">("");
+  const [condicionCargadorAnterior, setCondicionCargadorAnterior] = useState<CondicionCargador | "">("");
   const [observacionesCargadorAnterior, setObservacionesCargadorAnterior] = useState("");
-  const [condicionCargadorNuevo, setCondicionCargadorNuevo] = useState<"ok" | "danado" | "no_aplica" | "">("");
+  const [condicionCargadorNuevo, setCondicionCargadorNuevo] = useState<CondicionCargador | "">("");
   const [observacionesCargadorNuevo, setObservacionesCargadorNuevo] = useState("");
   const [disponibles, setDisponibles] = useState<ActivoDisponible[]>([]);
   const [loading, setLoading] = useState(false);
@@ -146,6 +151,15 @@ export function SeleccionarCambioEquipo({
 
   const activas = asignacionesActivas.filter((a) => a.activo);
   const seleccionada = activas.find((a) => a.id === oldAssignmentId);
+  // Lo que se ve es lo que se guarda: si el equipo tiene cargador y no se
+  // toco el select, se manda el valor por defecto que muestra.
+  const cargadorAnteriorEfectivo: CondicionCargador | "" = seleccionada?.asset.tieneCargador
+    ? condicionCargadorAnterior || CONDICION_CARGADOR_POR_DEFECTO
+    : "";
+  const cargadorNuevoEfectivo: CondicionCargador | "" = disponibles.find((a) => a.id === newAssetId)
+    ?.tieneCargador
+    ? condicionCargadorNuevo || CONDICION_CARGADOR_POR_DEFECTO
+    : "";
 
   useEffect(() => {
     setNewAssetId("");
@@ -210,9 +224,9 @@ export function SeleccionarCambioEquipo({
         newAssetId,
         estadoDevolucion,
         observaciones,
-        condicionCargadorAnterior,
+        condicionCargadorAnterior: cargadorAnteriorEfectivo,
         observacionesCargadorAnterior,
-        condicionCargadorNuevo,
+        condicionCargadorNuevo: cargadorNuevoEfectivo,
         observacionesCargadorNuevo,
       });
     } else {
@@ -224,9 +238,9 @@ export function SeleccionarCambioEquipo({
     newAssetId,
     estadoDevolucion,
     observaciones,
-    condicionCargadorAnterior,
+    cargadorAnteriorEfectivo,
     observacionesCargadorAnterior,
-    condicionCargadorNuevo,
+    cargadorNuevoEfectivo,
     observacionesCargadorNuevo,
   ]);
 
@@ -323,17 +337,12 @@ export function SeleccionarCambioEquipo({
           <p className="text-xs font-medium text-fg-muted mb-2">
             Estado del cargador que devuelve
           </p>
-          <select
-            value={condicionCargadorAnterior || "ok"}
-            onChange={(e) =>
-              setCondicionCargadorAnterior(e.target.value as "ok" | "danado" | "no_aplica")
-            }
+          <SelectCondicionCargador
+            contexto="devolucion"
+            value={condicionCargadorAnterior}
+            onChange={setCondicionCargadorAnterior}
             className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm mb-2"
-          >
-            <option value="ok">Ok</option>
-            <option value="danado">Dañado</option>
-            <option value="no_aplica">No aplica / no lo devolvió</option>
-          </select>
+          />
           <input
             type="text"
             value={observacionesCargadorAnterior}
@@ -394,17 +403,12 @@ export function SeleccionarCambioEquipo({
                   <p className="text-xs font-medium text-fg-muted mb-2">
                     Estado del cargador del equipo nuevo
                   </p>
-                  <select
-                    value={condicionCargadorNuevo || "ok"}
-                    onChange={(e) =>
-                      setCondicionCargadorNuevo(e.target.value as "ok" | "danado" | "no_aplica")
-                    }
+                  <SelectCondicionCargador
+                    contexto="entrega"
+                    value={condicionCargadorNuevo}
+                    onChange={setCondicionCargadorNuevo}
                     className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm mb-2"
-                  >
-                    <option value="ok">Ok</option>
-                    <option value="danado">Dañado</option>
-                    <option value="no_aplica">No aplica / no viene con cargador</option>
-                  </select>
+                  />
                   <input
                     type="text"
                     value={observacionesCargadorNuevo}
@@ -430,9 +434,9 @@ export function SeleccionarCambioEquipo({
               newAssetId,
               estadoDevolucion,
               observaciones,
-              condicionCargadorAnterior,
+              cargadorAnteriorEfectivo,
               observacionesCargadorAnterior,
-              condicionCargadorNuevo,
+              cargadorNuevoEfectivo,
               observacionesCargadorNuevo
             )
           }

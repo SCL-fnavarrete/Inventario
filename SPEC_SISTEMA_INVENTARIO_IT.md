@@ -273,8 +273,8 @@ CREATE TABLE assignments (
     -- tiene_cargador = true; para el resto de categorías queda NULL). Ver
     -- regla 9 en 2.5.3. No es un activo propio -- es un atributo de esta
     -- entrega/devolución puntual.
-    condicion_cargador_entrega ENUM('ok', 'dañado', 'no_aplica', 'pendiente'),
-    condicion_cargador_devolucion ENUM('ok', 'dañado', 'no_aplica', 'pendiente'),
+    condicion_cargador_entrega ENUM('operativo', 'con_danos', 'no_incluido'),   -- CondicionCargador (2.81)
+    condicion_cargador_devolucion ENUM('operativo', 'con_danos', 'no_incluido'),
     observaciones_cargador TEXT,                -- Ej: "Cable pelado", "No traía cargador"
 
     -- Estado del registro
@@ -2987,7 +2987,15 @@ Pedido de Javier: los listados ya filtraban por la sede del navbar, pero los for
 
 `AsignarActivoForm` no se modificó: no lo renderiza ninguna pantalla.
 
+## 2.81 Condición del cargador con enum propio (23-sep-2026)
+
+La condición del cargador (`Assignment.condicionCargadorEntrega` y `condicionCargadorDevolucion`) deja de usar `EstadoDevolucionTipo` y pasa a un enum propio, `CondicionCargador`, con nombres más claros: `ok` → `operativo`, `danado` → `con_danos`, `no_aplica` → `no_incluido`. Se elimina `pendiente`, que ningún flujo usaba. En pantalla y en las actas, `no_incluido` se lee "No incluido" al entregar y "No devuelto" al devolver. Los valores y etiquetas viven en un único lugar, `lib/constants/condicionCargador.ts`, que usan los formularios (`SelectCondicionCargador`), la validación Zod y las actas PDF.
+
+Migración `20260923120000_condicion_cargador`: recrea el tipo convirtiendo los datos existentes con `CASE`, aborta si encuentra filas en `pendiente` (no tienen equivalente) y elimina `EstadoDevolucionTipo`, que solo usaban esas dos columnas.
+
 ## Changelog SPEC
+- **v2.5 (2026-09-23):**
+  - Sección 2.81 (nueva): la condición del cargador pasa a un enum propio `CondicionCargador` (`operativo`, `con_danos`, `no_incluido`), con migración que convierte los datos existentes.
 - **v2.4 (2026-09-23):**
   - Sección 2.80 (nueva): la sede del navbar precarga los formularios de creación (navbar > sede propia > vacío; sin pisar una elección manual) con `useCampoSede`; helpers de servidor `sedeWhereConFiltro` y `leerSedeFiltroDesdeCookie`. Corrige el modal "Crear empleado" de Nueva Solicitud (no enviaba la sede), acota la búsqueda de empleados a la sede del navbar y pasa la sede a `SeleccionarCambioEquipo`.
 - **v2.3 (2026-09-23):**
