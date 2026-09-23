@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import type { CondicionCargador } from '@/lib/constants/condicionCargador';
 import { ConflictError, NotFoundError } from '@/lib/errors';
-import { etiquetaEstadoDevolucion } from '@/lib/constants/estadosActivo';
+import { etiquetaEstadoActivo, etiquetaEstadoDevolucion } from '@/lib/constants/estadosActivo';
 
 type PrismaTx = Prisma.TransactionClient;
 
@@ -41,6 +41,9 @@ export type ExecuteReturnParams = {
   // un offboarding/cambio de equipo de una persona devuelva por error (o a
   // proposito, via API directa) el equipo de otra.
   expectedEmployeeId?: string;
+  // Donde ocurre la devolucion, para el texto del historial cuando el
+  // equipo no se devuelve. Por defecto, una desvinculacion.
+  contexto?: 'desvinculacion' | 'cambio';
 };
 
 export type ExecuteKitDeliveryParams = {
@@ -129,7 +132,7 @@ export async function executeAssignment(
   if (!asset) throw new NotFoundError('Activo no encontrado');
   // "disponible" es el unico estado asignable.
   if (asset.estado !== 'disponible') {
-    throw new ConflictError(`El activo no está disponible. Estado actual: ${asset.estado}`);
+    throw new ConflictError(`El activo no está disponible. Estado actual: ${etiquetaEstadoActivo(asset.estado)}`);
   }
 
   const employee = await tx.employee.findUnique({
@@ -250,7 +253,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       data: {
         assetId: assignment.assetId,
         tipoEvento: 'devolucion',
-        descripcion: `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno} no devolvió el equipo en su desvinculación. Queda "No devuelto", a la espera de recuperarlo.`,
+        descripcion: `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno} no devolvió el equipo ${params.contexto === 'cambio' ? 'en el cambio de equipo' : 'en su desvinculación'}. Queda "No devuelto", a la espera de recuperarlo.`,
         datosAnteriores: {
           estado: assignment.asset.estado,
           empleadoActualId: assignment.asset.empleadoActualId,

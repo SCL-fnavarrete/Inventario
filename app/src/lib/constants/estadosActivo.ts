@@ -1,5 +1,6 @@
 import type { CondicionActivo, EstadoActivo } from '@prisma/client';
 import { COLOR_MARCA } from './coloresGraficos';
+import type { MotivoBaja } from '@/lib/validations/assetTransition';
 
 /**
  * Presentacion de los estados y condiciones del activo -- unico punto de
@@ -68,6 +69,19 @@ export const ESTADO_DEVOLUCION_LABEL: Record<string, string> = {
 
 export function etiquetaEstadoDevolucion(estado: string): string {
   return ESTADO_DEVOLUCION_LABEL[estado] ?? estado;
+}
+
+/** Motivo de baja de un activo (assetBajaSchema), para el historial y la UI. */
+export const MOTIVO_BAJA_LABEL: Record<MotivoBaja, string> = {
+  obsolescencia: 'Obsolescencia',
+  falla_irreparable: 'Falla irreparable',
+  robo: 'Robo',
+  extravio: 'Extravío',
+  otro: 'Otro',
+};
+
+export function etiquetaMotivoBaja(motivo: string): string {
+  return MOTIVO_BAJA_LABEL[motivo as MotivoBaja] ?? motivo;
 }
 
 /** Etiqueta de una condicion que puede venir como texto libre. */

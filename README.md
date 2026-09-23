@@ -240,8 +240,6 @@ Todos desde el directorio `app/`:
 - `POST /api/microsoft-sync` — Ejecutar sincronizacion (solo admin)
 
 ### Dashboard
-- `GET /api/dashboard/stats` — Estadisticas principales
-- `GET /api/dashboard/alertas` — Alertas del sistema
 
 ## Licencia
 

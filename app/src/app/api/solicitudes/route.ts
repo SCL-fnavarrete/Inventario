@@ -10,14 +10,34 @@ import { normalizeRut } from '@/lib/utils/rut';
 import { ValidationError } from '@/lib/errors';
 import { removeAccents, matchNoAccent } from '@/lib/utils/text';
 
-async function generateNumero(): Promise<string> {
-  const year = new Date().getFullYear();
-  const count = await prisma.workflowRequest.count({
-    where: {
-      numero: { startsWith: `WF-${year}-` },
-    },
+/**
+ * Siguiente numero del año (WF-2026-0001...), leido dentro de la misma
+ * transaccion que crea el ticket. Antes era "cuantos hay + 1" fuera de la
+ * transaccion: dos creaciones simultaneas obtenian el mismo numero y una
+ * fallaba. Si aun asi chocan, POST reintenta (ver INTENTOS_NUMERO).
+ */
+async function generateNumero(tx: Prisma.TransactionClient): Promise<string> {
+  const prefijo = `WF-${new Date().getFullYear()}-`;
+  const ultimos = await tx.workflowRequest.findMany({
+    where: { numero: { startsWith: prefijo } },
+    select: { numero: true },
   });
-  return `WF-${year}-${String(count + 1).padStart(4, '0')}`;
+  const mayor = ultimos.reduce((max, { numero }) => {
+    const n = Number.parseInt(numero.slice(prefijo.length), 10);
+    return Number.isFinite(n) && n > max ? n : max;
+  }, 0);
+  return `${prefijo}${String(mayor + 1).padStart(4, '0')}`;
+}
+
+/** Intentos de crear el ticket si el numero choca con otra creacion simultanea. */
+const INTENTOS_NUMERO = 3;
+
+function esChoqueDeNumero(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002' &&
+    JSON.stringify(error.meta?.target ?? '').includes('numero')
+  );
 }
 
 // GET /api/solicitudes - List with filters
@@ -216,7 +236,6 @@ export async function POST(request: NextRequest) {
     const esReincorporacion =
       data.tipo === 'onboarding' && empleadoExistente?.estado === 'desvinculado';
 
-    const numero = await generateNumero();
     const estadoInicial = getInitialState(data.tipo);
 
     // La sede se hereda de quien crea la solicitud; admin debe elegirla
@@ -226,10 +245,10 @@ export async function POST(request: NextRequest) {
       requerido: true,
     });
 
-    // Campos comunes a los tres tipos. "employee" se agrega recien dentro de
-    // la transaccion, una vez resuelto el id (existente o recien creado).
-    const camposComunes: Omit<Prisma.WorkflowRequestCreateInput, 'employee'> = {
-      numero,
+    // Campos comunes a los tres tipos. "employee" y "numero" se agregan recien
+    // dentro de la transaccion (el id puede ser de un empleado recien creado;
+    // el numero se calcula junto con la creacion).
+    const camposComunes: Omit<Prisma.WorkflowRequestCreateInput, 'employee' | 'numero'> = {
       tipo: data.tipo,
       estado: estadoInicial,
       solicitante: { connect: { id: systemUser.id } },
@@ -282,7 +301,9 @@ export async function POST(request: NextRequest) {
       camposComunes.lugarDevolucion = data.medioDevolucion === 'presencial' ? data.lugarDevolucion : null;
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const crearTicket = () => prisma.$transaction(async (tx) => {
+      const numero = await generateNumero(tx);
+
       // Empleado: si es un onboarding sin employeeId, se crea aca mismo, en
       // la misma transaccion que el ticket -- si algo falla despues (un
       // activo ya no disponible, un articulo sin stock), todo se revierte
@@ -335,8 +356,13 @@ export async function POST(request: NextRequest) {
       ) {
         const asignados = await tx.asset.findMany({
           where: { id: { in: data.assetIdsSeleccionados } },
-          select: { categoria: { select: { nombre: true } } },
+          select: { sedeId: true, categoria: { select: { nombre: true } } },
         });
+        // Solo equipos de la sede de la solicitud (el formulario ya filtra;
+        // esto lo asegura tambien si llega por otra via).
+        if (asignados.some((a) => a.sedeId !== sedeId)) {
+          throw new ValidationError('Los equipos deben ser de la sede de la solicitud');
+        }
 
         for (const assetId of data.assetIdsSeleccionados) {
           const cargador = data.condicionCargadorPorAsset?.[assetId];
@@ -447,6 +473,28 @@ export async function POST(request: NextRequest) {
       // y cierra la misma persona (soporte), no hay confirmacion de RRHH.
       if (data.tipo === 'cambio_equipo') {
         for (const cambio of data.cambios) {
+          // El reemplazo es de la misma categoria que el equipo devuelto y de
+          // la sede de la solicitud (SPEC 2.84). El formulario ya lo limita;
+          // aca se asegura para cualquier via.
+          const [viejo, reemplazo] = await Promise.all([
+            tx.assignment.findUnique({
+              where: { id: cambio.oldAssignmentId },
+              select: { asset: { select: { categoriaId: true, categoria: { select: { nombre: true } } } } },
+            }),
+            tx.asset.findUnique({
+              where: { id: cambio.newAssetId },
+              select: { sedeId: true, categoriaId: true },
+            }),
+          ]);
+          if (viejo && reemplazo) {
+            if (reemplazo.categoriaId !== viejo.asset.categoriaId) {
+              const nombre = viejo.asset.categoria.nombre;
+              throw new ValidationError(`El reemplazo de un equipo "${nombre}" debe ser otro "${nombre}"`);
+            }
+            if (reemplazo.sedeId !== sedeId) {
+              throw new ValidationError('El reemplazo debe ser de la sede de la solicitud');
+            }
+          }
           await executeReturn(tx, {
             assignmentId: cambio.oldAssignmentId,
             fechaDevolucion: new Date(),
@@ -456,6 +504,7 @@ export async function POST(request: NextRequest) {
             condicionCargadorDevolucion: cambio.condicionCargadorAnterior || null,
             observacionesCargador: cambio.observacionesCargadorAnterior || null,
             expectedEmployeeId: empId,
+            contexto: 'cambio',
           });
           const nuevaAsignacion = await executeAssignment(tx, {
             assetId: cambio.newAssetId,
@@ -478,6 +527,7 @@ export async function POST(request: NextRequest) {
       const workflowRequest = await tx.workflowRequest.create({
         data: {
           ...camposComunes,
+          numero,
           employee: { connect: { id: empId } },
           estado: estadoReal,
           assignmentIds,
@@ -571,7 +621,15 @@ export async function POST(request: NextRequest) {
       return workflowRequest;
     });
 
-    return NextResponse.json(result, { status: 201 });
+    // La transaccion se revierte entera si falla, asi que reintentar es seguro.
+    for (let intento = 1; ; intento++) {
+      try {
+        const result = await crearTicket();
+        return NextResponse.json(result, { status: 201 });
+      } catch (error) {
+        if (intento >= INTENTOS_NUMERO || !esChoqueDeNumero(error)) throw error;
+      }
+    }
   } catch (error) {
     return handleApiError(error, 'Error al crear solicitud');
   }

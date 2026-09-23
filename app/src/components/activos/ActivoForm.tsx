@@ -8,7 +8,11 @@ import { CatalogSelect } from "@/components/ui/CatalogSelect";
 import { Button } from "@/components/ui/Button";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { useCampoSede } from "@/components/providers/SedeSeleccionadaProvider";
-import { ESTADO_ACTIVO_LABEL, CONDICION_ACTIVO_LABEL } from "@/lib/constants/estadosActivo";
+import {
+  ESTADO_ACTIVO_LABEL,
+  CONDICION_ACTIVO_LABEL,
+  etiquetaEstadoActivo,
+} from "@/lib/constants/estadosActivo";
 
 /**
  * Formulario de Activo, compartido por Nuevo y Editar (SPEC 2.77). Antes
@@ -17,7 +21,7 @@ import { ESTADO_ACTIVO_LABEL, CONDICION_ACTIVO_LABEL } from "@/lib/constants/est
  * es deliberado:
  *   - crear:  elige Sede (despues solo cambia via Guia de Despacho, SPEC
  *             2.8.3), estado fijo "Disponible", N° de serie obligatorio.
- *   - editar: estado editable y Nombre de Equipo (al crear se define en la
+ *   - editar: estado solo de lectura (SPEC 2.86) y Nombre de Equipo (al crear se define en la
  *             asignacion, porque se arma con el nombre de quien lo recibe).
  */
 
@@ -115,7 +119,9 @@ export function payloadActivo(v: ActivoFormValues, modo: Modo) {
     marca: v.marca,
     modelo: v.modelo,
     numeroSerie: v.numeroSerie || null,
-    estado: v.estado,
+    // El estado solo se envia al crear (siempre "disponible"): al editar no
+    // cambia, lo mueven los procesos (SPEC 2.86).
+    ...(modo === "crear" ? { estado: v.estado } : {}),
     condicion: v.condicion,
     fechaCompra: v.fechaCompra || null,
     fechaGarantiaFin: v.fechaGarantiaFin || null,
@@ -249,18 +255,15 @@ export function ActivoForm({ modo, initialValues = ACTIVO_FORM_VACIO, onSubmit, 
           <input type="text" {...bind("numeroSerie")} required={crear} />
         </Campo>
         <Campo label="Estado">
-          {crear ? (
-            <p className="rounded-control border border-line bg-surface-muted px-3 py-2 text-fg-muted">
-              {ESTADO_ACTIVO_LABEL.disponible}
+          <p className="rounded-control border border-line bg-surface-muted px-3 py-2 text-fg-muted">
+            {crear
+              ? ESTADO_ACTIVO_LABEL.disponible
+              : etiquetaEstadoActivo(values.estado)}
+          </p>
+          {!crear && (
+            <p className="mt-1 text-xs text-fg-subtle">
+              El estado cambia con su proceso: solicitudes, mantenciones, baja o venta.
             </p>
-          ) : (
-            <select {...bind("estado")}>
-              {Object.entries(ESTADO_ACTIVO_LABEL).map(([valor, label]) => (
-                <option key={valor} value={valor}>
-                  {label}
-                </option>
-              ))}
-            </select>
           )}
         </Campo>
         <Campo label="Condición">

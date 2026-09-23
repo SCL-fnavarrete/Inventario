@@ -19,18 +19,42 @@ function renderPdf(element: React.ReactElement) {
   return renderToBuffer(element as React.ReactElement<DocumentProps>);
 }
 
-const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-const MESES = [
-  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-];
+// Los PDF se generan en el servidor (UTC en Vercel) y la fecha del documento
+// es un instante real (la entrega/devolucion coordinada, o la creacion del
+// ticket): se muestra en hora de Chile, donde se firma. Antes se usaba la
+// fecha del dia en que se descargaba, que cambiaba con cada descarga.
+const ZONA_DOCUMENTOS = 'America/Santiago';
 
-// Fecha larga en español para la redaccion de la intro del comprobante.
-function formatDateLarga(date: Date | string | null): string {
-  if (!date) return '—';
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return '—';
-  return `${DIAS[d.getDay()]}, ${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`;
+/** "23-09-2026", en hora de Chile. */
+function fechaDocumento(fecha: Date): string {
+  return fecha.toLocaleDateString('es-CL', { timeZone: ZONA_DOCUMENTOS });
+}
+
+/** "Miércoles, 23 de septiembre de 2026", para la intro del comprobante. */
+function fechaDocumentoLarga(fecha: Date): string {
+  const texto = fecha.toLocaleDateString('es-CL', {
+    timeZone: ZONA_DOCUMENTOS,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+/**
+ * Asignaciones de ESTE ticket (assignmentIds), en su orden. Los tickets
+ * antiguos sin assignmentIds devuelven null y el llamador usa su criterio
+ * anterior.
+ */
+async function asignacionesDelTicket(assignmentIds: string[]) {
+  if (assignmentIds.length === 0) return null;
+  const filas = await prisma.assignment.findMany({
+    where: { id: { in: assignmentIds } },
+    include: { asset: { include: { categoria: true } } },
+  });
+  const porId = new Map(filas.map((a) => [a.id, a]));
+  return assignmentIds.flatMap((id) => porId.get(id) ?? []);
 }
 
 // Fila de la tabla de equipos de un acta (TablaEquipoActa). El N° de serie y
@@ -101,7 +125,11 @@ export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer>
     },
   });
 
-  const assets = solicitud.employee.assignments.map((a) => ({
+  // Solo los equipos entregados en este ticket: el empleado pudo cambiar de
+  // equipo o desvincularse despues.
+  const asignaciones =
+    (await asignacionesDelTicket(solicitud.assignmentIds)) ?? solicitud.employee.assignments;
+  const assets = asignaciones.map((a) => ({
     tipo: a.asset.categoria.nombre,
     marca: a.asset.marca,
     modelo: a.asset.modelo,
@@ -119,7 +147,7 @@ export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer>
     empleadoRut: solicitud.employee.rut || '—',
     cargo: solicitud.cargoSolicitado || solicitud.employee.cargo || '—',
     fechaContrato: formatearFecha(solicitud.employee.fechaIngreso, {}, '—'),
-    fechaEntrega: formatearFecha(new Date(), {}, '—'),
+    fechaEntrega: fechaDocumento(solicitud.fechaEntregaCoordinada ?? solicitud.createdAt),
     assets,
     // Solo nombre, sin correo -- mismo criterio que el resto de los
     // documentos.
@@ -146,7 +174,10 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
     },
   });
 
-  const assets = solicitud.employee.assignments.map((a) =>
+  // Solo los equipos entregados en este ticket (ver generateAnexoEntrega).
+  const asignaciones =
+    (await asignacionesDelTicket(solicitud.assignmentIds)) ?? solicitud.employee.assignments;
+  const assets = asignaciones.map((a) =>
     filaEquipo(a.asset, 'OK', textoCargador(a, a.condicionCargadorEntrega, 'entrega'))
   );
 
@@ -158,7 +189,7 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
   const element = React.createElement(ComprobanteEntregaTemplate, {
     empleadoNombre: `${solicitud.employee.nombres} ${solicitud.employee.apellidoPaterno}`,
     empleadoRut: solicitud.employee.rut || '—',
-    fecha: formatDateLarga(new Date()),
+    fecha: fechaDocumentoLarga(solicitud.fechaEntregaCoordinada ?? solicitud.createdAt),
     otNumero,
     assets,
     observacion: solicitud.observaciones || 'n/a',
@@ -222,7 +253,7 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
   const element = React.createElement(ComprobanteCambioTemplate, {
     empleadoNombre: `${solicitud.employee.nombres} ${solicitud.employee.apellidoPaterno}`,
     empleadoRut: solicitud.employee.rut || '—',
-    fecha: formatearFecha(new Date(), {}, '—'),
+    fecha: fechaDocumento(solicitud.fechaCambioCoordinada ?? solicitud.createdAt),
     motivoCambio: solicitud.motivoCambio || '—',
     otNumero,
     equiposNuevos: equiposNuevos.length > 0 ? equiposNuevos : [FILA_VACIA],
@@ -286,7 +317,7 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
     empleadoNombre: `${solicitud.employee.nombres} ${solicitud.employee.apellidoPaterno}`,
     empleadoRut: solicitud.employee.rut || '—',
     fechaTermino: formatearFecha(solicitud.fechaDesvinculacion, {}, '—'),
-    fechaDevolucion: formatearFecha(new Date(), {}, '—'),
+    fechaDevolucion: fechaDocumento(solicitud.fechaDevolucionCoordinada ?? solicitud.createdAt),
     otNumero,
     assets,
     observacion: solicitud.observaciones || 'n/a',

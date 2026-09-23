@@ -137,22 +137,24 @@ type WorkflowDetail = {
     motivoNoAplica: string | null;
     item: { id: string; nombre: string; categoria: 'kit_bienvenida' | 'epp' };
   }[];
-  // Cambio de equipo: equipo anterior (devuelto, con su condicion) y equipo
-  // nuevo (entregado) de este ticket, ya separados por el backend.
-  equipoCambioAnterior: {
-    id: string;
-    fechaDevolucion: string | null;
-    recibidoPor: string | null;
-    estadoDevolucion: string | null;
-    observacionesDevolucion: string | null;
-    asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string } };
-  } | null;
-  equipoCambioNuevo: {
-    id: string;
-    fechaEntrega: string;
-    entregadoPor: string | null;
-    asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string } };
-  } | null;
+  // Cambio de equipo: un par por cada equipo cambiado (SPEC 2.84), con el
+  // equipo devuelto y su reemplazo, ya armados por el backend.
+  paresCambio: {
+    anterior: {
+      id: string;
+      fechaDevolucion: string | null;
+      recibidoPor: string | null;
+      estadoDevolucion: string | null;
+      observacionesDevolucion: string | null;
+      asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string } };
+    } | null;
+    nuevo: {
+      id: string;
+      fechaEntrega: string;
+      entregadoPor: string | null;
+      asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string } };
+    } | null;
+  }[];
 };
 
 const estadoLabels: Record<string, string> = {
@@ -1166,70 +1168,74 @@ export default function SolicitudDetailPage() {
             </div>
           )}
 
-          {/* Equipo Cambiado: equipo anterior (con la condicion en que se
-              devolvio) y equipo nuevo entregado en este ticket de cambio de
-              equipo. */}
-          {data.tipo === 'cambio_equipo' && (data.equipoCambioAnterior || data.equipoCambioNuevo) && (
+          {/* Equipos Cambiados: un bloque por par, con el equipo devuelto (y la
+              condicion en que volvio) y su reemplazo (SPEC 2.84). */}
+          {data.tipo === 'cambio_equipo' && data.paresCambio.length > 0 && (
             <div className="card p-6">
-              <h3 className="font-semibold text-fg mb-4">Equipo Cambiado</h3>
-              <div className="space-y-3">
-                {data.equipoCambioAnterior && (
-                  <div className="text-sm p-3 bg-surface-muted rounded-lg">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-fg">
-                        Anterior: {data.equipoCambioAnterior.asset.categoria.nombre}
-                        {' — '}
-                        {data.equipoCambioAnterior.asset.marca} {data.equipoCambioAnterior.asset.modelo}
-                      </span>
-                      <span
-                        className={cn(
-                          'text-xs px-1.5 py-0.5 rounded flex-shrink-0',
-                          data.equipoCambioAnterior.estadoDevolucion === 'danado'
-                            ? 'bg-red-100 text-red-700'
-                            : data.equipoCambioAnterior.estadoDevolucion === 'no_devuelto'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-green-100 text-green-700'
+              <h3 className="font-semibold text-fg mb-4">
+                {data.paresCambio.length > 1
+                  ? `Equipos Cambiados (${data.paresCambio.length})`
+                  : 'Equipo Cambiado'}
+              </h3>
+              <div className="space-y-4">
+                {data.paresCambio.map(({ anterior, nuevo }, i) => (
+                  <div key={anterior?.id ?? nuevo?.id ?? i} className="space-y-2">
+                    {anterior && (
+                      <div className="text-sm p-3 bg-surface-muted rounded-lg">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-fg">
+                            Anterior: {anterior.asset.categoria.nombre}
+                            {' — '}
+                            {anterior.asset.marca} {anterior.asset.modelo}
+                          </span>
+                          <span
+                            className={cn(
+                              'text-xs px-1.5 py-0.5 rounded flex-shrink-0',
+                              anterior.estadoDevolucion === 'danado'
+                                ? 'bg-red-100 text-red-700'
+                                : anterior.estadoDevolucion === 'no_devuelto'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-green-100 text-green-700'
+                            )}
+                          >
+                            {anterior.estadoDevolucion === 'danado'
+                              ? 'Dañado'
+                              : anterior.estadoDevolucion === 'no_devuelto'
+                                ? 'No devolvió'
+                                : 'Buen estado'}
+                          </span>
+                        </div>
+                        <span className="block text-xs text-fg-subtle mt-0.5">
+                          {anterior.asset.numeroSerie && `S/N: ${anterior.asset.numeroSerie} · `}
+                          {anterior.estadoDevolucion === 'no_devuelto'
+                            ? 'Sigue asignado, a la espera de recuperarlo'
+                            : anterior.fechaDevolucion &&
+                              `Devuelto el ${formatearFecha(anterior.fechaDevolucion)}`}
+                          {anterior.recibidoPor && ` · Registrado por ${anterior.recibidoPor}`}
+                        </span>
+                        {anterior.observacionesDevolucion && (
+                          <p className="text-xs text-fg-muted mt-1">
+                            Observaciones: {anterior.observacionesDevolucion}
+                          </p>
                         )}
-                      >
-                        {data.equipoCambioAnterior.estadoDevolucion === 'danado'
-                          ? 'Dañado'
-                          : data.equipoCambioAnterior.estadoDevolucion === 'no_devuelto'
-                            ? 'No devolvió'
-                            : 'Buen estado'}
-                      </span>
-                    </div>
-                    <span className="block text-xs text-fg-subtle mt-0.5">
-                      {data.equipoCambioAnterior.asset.numeroSerie &&
-                        `S/N: ${data.equipoCambioAnterior.asset.numeroSerie} · `}
-                      {data.equipoCambioAnterior.estadoDevolucion === 'no_devuelto'
-                        ? 'Sigue asignado, a la espera de recuperarlo'
-                        : data.equipoCambioAnterior.fechaDevolucion &&
-                          `Devuelto el ${formatearFecha(data.equipoCambioAnterior.fechaDevolucion)}`}
-                      {data.equipoCambioAnterior.recibidoPor &&
-                        ` · Registrado por ${data.equipoCambioAnterior.recibidoPor}`}
-                    </span>
-                    {data.equipoCambioAnterior.observacionesDevolucion && (
-                      <p className="text-xs text-fg-muted mt-1">
-                        Observaciones: {data.equipoCambioAnterior.observacionesDevolucion}
-                      </p>
+                      </div>
+                    )}
+                    {nuevo && (
+                      <div className="text-sm p-3 bg-green-50 rounded-lg">
+                        <span className="font-medium text-fg">
+                          Nuevo: {nuevo.asset.categoria.nombre}
+                          {' — '}
+                          {nuevo.asset.marca} {nuevo.asset.modelo}
+                        </span>
+                        <span className="block text-xs text-fg-subtle mt-0.5">
+                          {nuevo.asset.numeroSerie && `S/N: ${nuevo.asset.numeroSerie} · `}
+                          Entregado el {formatearFecha(nuevo.fechaEntrega)}
+                          {nuevo.entregadoPor && ` · Por ${nuevo.entregadoPor}`}
+                        </span>
+                      </div>
                     )}
                   </div>
-                )}
-                {data.equipoCambioNuevo && (
-                  <div className="text-sm p-3 bg-green-50 rounded-lg">
-                    <span className="font-medium text-fg">
-                      Nuevo: {data.equipoCambioNuevo.asset.categoria.nombre}
-                      {' — '}
-                      {data.equipoCambioNuevo.asset.marca} {data.equipoCambioNuevo.asset.modelo}
-                    </span>
-                    <span className="block text-xs text-fg-subtle mt-0.5">
-                      {data.equipoCambioNuevo.asset.numeroSerie &&
-                        `S/N: ${data.equipoCambioNuevo.asset.numeroSerie} · `}
-                      Entregado el {formatearFecha(data.equipoCambioNuevo.fechaEntrega)}
-                      {data.equipoCambioNuevo.entregadoPor && ` · Por ${data.equipoCambioNuevo.entregadoPor}`}
-                    </span>
-                  </div>
-                )}
+                ))}
               </div>
             </div>
           )}

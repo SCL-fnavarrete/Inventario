@@ -306,6 +306,7 @@ export async function POST(
             fechaDevolucion: new Date(),
             recibidoPor: systemUser.nombre,
             estadoDevolucion: estadoDevolucionViejo,
+            contexto: 'cambio',
             observacionesDevolucion: observacionesViejo
               ? `Cambio de equipo - ${workflowRequest.numero}: ${observacionesViejo}`
               : `Cambio de equipo - ${workflowRequest.numero}`,

@@ -1,7 +1,6 @@
 import {
   assetBajaSchema,
   assetVentaSchema,
-  assetReassignmentSchema,
   motivoBajaEnum,
   resultadoMantencionEnum,
 } from '@/lib/validations/assetTransition';
@@ -129,71 +128,6 @@ describe('assetVentaSchema', () => {
 // ahora usa `completeMaintenanceSchema` en lib/validations/maintenance.ts,
 // que reutiliza `resultadoMantencionEnum` de este mismo archivo -- ver
 // pruebas de ese enum mas abajo).
-
-// SPEC: Sección 2.7.6 — Reasignación
-describe('assetReassignmentSchema', () => {
-  const validReassignment = {
-    assignmentId: '550e8400-e29b-41d4-a716-446655440000',
-    newEmployeeId: '550e8400-e29b-41d4-a716-446655440001',
-    estadoDevolucion: 'ok' as const,
-    motivoReasignacion: 'Cambio de área del empleado',
-    fechaReasignacion: '2026-04-07',
-  };
-
-  test('acepta reasignación válida', () => {
-    expect(assetReassignmentSchema.safeParse(validReassignment).success).toBe(true);
-  });
-
-  test('rechaza sin motivoReasignacion', () => {
-    const { motivoReasignacion, ...sin } = validReassignment;
-    expect(assetReassignmentSchema.safeParse(sin).success).toBe(false);
-  });
-
-  test('rechaza motivoReasignacion vacío', () => {
-    expect(
-      assetReassignmentSchema.safeParse({ ...validReassignment, motivoReasignacion: '' }).success
-    ).toBe(false);
-  });
-
-  test('acepta estadoDevolucion ok', () => {
-    expect(
-      assetReassignmentSchema.safeParse({ ...validReassignment, estadoDevolucion: 'ok' }).success
-    ).toBe(true);
-  });
-
-  test('acepta estadoDevolucion incompleto', () => {
-    expect(
-      assetReassignmentSchema.safeParse({ ...validReassignment, estadoDevolucion: 'incompleto' }).success
-    ).toBe(true);
-  });
-
-  test('rechaza estadoDevolucion danado (no se puede reasignar equipo dañado)', () => {
-    expect(
-      assetReassignmentSchema.safeParse({ ...validReassignment, estadoDevolucion: 'danado' }).success
-    ).toBe(false);
-  });
-
-  test('rechaza fechaReasignacion con formato inválido', () => {
-    expect(() =>
-      assetReassignmentSchema.parse({ ...validReassignment, fechaReasignacion: 'no-es-una-fecha' })
-    ).toThrow();
-  });
-
-  test('rechaza assignmentId no UUID', () => {
-    expect(
-      assetReassignmentSchema.safeParse({ ...validReassignment, assignmentId: 'no-uuid' }).success
-    ).toBe(false);
-  });
-
-  test('acepta campos opcionales', () => {
-    const result = assetReassignmentSchema.safeParse({
-      ...validReassignment,
-      lugarEntrega: 'Oficina Santiago',
-      entregadoPor: 'P. Ortega',
-    });
-    expect(result.success).toBe(true);
-  });
-});
 
 // Enums
 describe('motivoBajaEnum', () => {

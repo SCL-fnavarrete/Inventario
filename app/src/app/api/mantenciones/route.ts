@@ -6,7 +6,7 @@ import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/li
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { sedeWhere, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
-import { formatearFechaCorta } from '@/lib/utils/fechas';
+import { formatearFechaCorta, inicioDeHoy } from '@/lib/utils/fechas';
 
 // GET /api/mantenciones - Listar mantenciones con filtros
 export async function GET(request: NextRequest) {
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
         : [];
       where.AND = [
         ...condicionesAndPrevias,
-        { fechaProgramada: { lt: new Date() } },
+        { fechaProgramada: { lt: inicioDeHoy() } },
         { estado: { in: ["pendiente", "en_proceso"] } },
       ];
     }

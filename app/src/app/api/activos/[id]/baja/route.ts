@@ -5,6 +5,7 @@ import { validateTransition } from '@/lib/services/assetStateMachine';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { requirePermission, handleApiError, ConflictError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
+import { etiquetaMotivoBaja } from '@/lib/constants/estadosActivo';
 
 // Handles the asset decommission (baja) process.
 export async function POST(
@@ -82,7 +83,11 @@ export async function POST(
     }
 
     const usuario = session.user?.email || 'sistema';
-    const motivoCompleto = data.motivo === 'otro' ? `${data.motivo}: ${data.motivoDetalle}` : data.motivo;
+    // Texto legible para el historial ("Falla irreparable", "Otro: ...").
+    const motivoCompleto =
+      data.motivo === 'otro'
+        ? `${etiquetaMotivoBaja(data.motivo)}: ${data.motivoDetalle}`
+        : etiquetaMotivoBaja(data.motivo);
 
     // Ejecutar baja en transacción
     const result = await prisma.$transaction(async (tx) => {

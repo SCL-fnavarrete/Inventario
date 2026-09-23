@@ -230,8 +230,6 @@ src/
 - `GET /api/asignaciones/:id/acta` - Generar acta PDF
 
 ### Dashboard
-- `GET /api/dashboard/stats` - Estadísticas principales
-- `GET /api/dashboard/alertas` - Alertas del sistema
 
 ## Validación de RUT Chileno
 

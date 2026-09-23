@@ -92,27 +92,35 @@ export async function GET(
           })
         : [];
 
-    // Cambio de equipo: assignmentIds mezcla la asignacion vieja (devuelta,
-    // con estadoDevolucion) y la nueva (entregada, sin estadoDevolucion) --
-    // se separan aca para poder mostrar "equipo anterior" y "equipo nuevo"
-    // por separado en el detalle del ticket.
-    const equiposCambio =
+    // Cambio de equipo: assignmentIds guarda los pares en orden [viejo1,
+    // nuevo1, viejo2, nuevo2, ...] (SPEC 2.84); los tickets de un solo par
+    // son [viejo, nuevo]. Se arman por posicion y no por estadoDevolucion:
+    // el equipo nuevo tambien puede devolverse despues y sigue siendo el
+    // "nuevo" de este cambio.
+    const asignacionesCambio =
       workflowRequest.tipo === 'cambio_equipo' && workflowRequest.assignmentIds.length > 0
         ? await prisma.assignment.findMany({
             where: { id: { in: workflowRequest.assignmentIds } },
             include: { asset: { include: { categoria: true } } },
-            orderBy: { createdAt: 'asc' },
           })
         : [];
-    const equipoCambioAnterior = equiposCambio.find((a) => a.estadoDevolucion !== null) || null;
-    const equipoCambioNuevo = equiposCambio.find((a) => a.estadoDevolucion === null) || null;
+    type AsignacionCambio = (typeof asignacionesCambio)[number];
+    const porId = new Map(asignacionesCambio.map((a) => [a.id, a]));
+    const paresCambio: { anterior: AsignacionCambio | null; nuevo: AsignacionCambio | null }[] = [];
+    if (asignacionesCambio.length > 0) {
+      for (let i = 0; i < workflowRequest.assignmentIds.length; i += 2) {
+        paresCambio.push({
+          anterior: porId.get(workflowRequest.assignmentIds[i]) ?? null,
+          nuevo: porId.get(workflowRequest.assignmentIds[i + 1]) ?? null,
+        });
+      }
+    }
 
     return NextResponse.json({
       ...workflowRequest,
       equiposDevueltos,
       eppDevueltos,
-      equipoCambioAnterior,
-      equipoCambioNuevo,
+      paresCambio,
     });
   } catch (error) {
     return handleApiError(error, 'Error al obtener solicitud');

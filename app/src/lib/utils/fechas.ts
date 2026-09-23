@@ -60,6 +60,17 @@ export function formatearFechaLarga(valor: ValorFecha, siVacio = ""): string {
 }
 
 /**
+ * Medianoche UTC del dia de hoy en Chile: el punto de comparacion para las
+ * fechas de calendario, que se guardan a medianoche UTC. Comparar contra
+ * `new Date()` marcaba como vencida una mantencion programada para hoy
+ * desde la primera hora del dia.
+ */
+export function inicioDeHoy(): Date {
+  const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
+  return new Date(`${hoy}T00:00:00Z`);
+}
+
+/**
  * Marca de tiempo real (createdAt, ultimoLogin, eventos de auditoria):
  * se muestra en la hora local de quien mira, con fecha y hora.
  */

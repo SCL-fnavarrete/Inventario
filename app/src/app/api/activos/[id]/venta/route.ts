@@ -5,6 +5,7 @@ import { validateTransition } from '@/lib/services/assetStateMachine';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { requirePermission, handleApiError, ConflictError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
+import { etiquetaEstadoActivo } from '@/lib/constants/estadosActivo';
 
 // Proceso de venta de un activo.
 export async function POST(
@@ -49,7 +50,7 @@ export async function POST(
     // Solo se puede vender desde el estado baja
     if (asset.estado !== 'baja') {
       return NextResponse.json(
-        { error: `El activo debe estar en estado "baja" para vender. Estado actual: ${asset.estado}` },
+        { error: `El activo debe estar en estado "baja" para vender. Estado actual: ${etiquetaEstadoActivo(asset.estado)}` },
         { status: 400 }
       );
     }

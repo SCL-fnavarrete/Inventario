@@ -21,7 +21,7 @@ import { Can } from "@/components/auth/Can";
 import { MantencionesTabs } from "@/components/mantenciones";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
-import { formatearFecha } from "@/lib/utils/fechas";
+import { formatearFecha, inicioDeHoy } from "@/lib/utils/fechas";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -98,7 +98,7 @@ const estadoConfig: Record<string, { label: string; icon: typeof CheckCircle; co
 function isOverdue(fechaProgramada: string | null, estado: string): boolean {
   if (!fechaProgramada) return false;
   if (estado === "completada" || estado === "cancelada") return false;
-  return new Date(fechaProgramada) < new Date();
+  return new Date(fechaProgramada) < inicioDeHoy();
 }
 
 export default function MantencionesPage() {

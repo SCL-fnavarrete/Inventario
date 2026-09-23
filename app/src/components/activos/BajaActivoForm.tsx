@@ -5,15 +5,10 @@ import Link from "next/link";
 import { AlertTriangle, XCircle, CheckCircle } from "lucide-react";
 import type { AssetBajaInput } from "@/lib/validations/assetTransition";
 import { buttonClasses } from "@/components/ui/buttonStyles";
+import { MOTIVO_BAJA_LABEL } from "@/lib/constants/estadosActivo";
 
 // Derivados del schema Zod: si cambia un motivo, esto deja de compilar.
-const motivoLabels: Record<AssetBajaInput["motivo"], string> = {
-  obsolescencia: "Obsolescencia",
-  falla_irreparable: "Falla irreparable",
-  robo: "Robo",
-  extravio: "Extravío",
-  otro: "Otro",
-};
+const motivoLabels: Record<AssetBajaInput["motivo"], string> = MOTIVO_BAJA_LABEL;
 
 const condicionLabels: Record<AssetBajaInput["condicionFinal"], string> = {
   danado: "Dañado",

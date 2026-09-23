@@ -23,6 +23,7 @@ import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard, StatGrid } from "@/components/ui/StatCard";
 import { ESTADO_ACTIVO_TONO } from "@/lib/constants/tonos";
+import { inicioDeHoy } from "@/lib/utils/fechas";
 
 /**
  * Trae todos los datos del Resumen del Dashboard en un unico batch de
@@ -39,9 +40,11 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
   const sw = sedeWhereConFiltro(session, sedeIdFiltro);
   const swAsset = { asset: { ...sw, ...ACTIVOS_VIGENTES } };
 
-  const today = new Date();
-  const nextWeek = new Date();
-  nextWeek.setDate(nextWeek.getDate() + 7);
+  // Las fechas de mantencion son de calendario: se comparan contra el dia de
+  // hoy, asi una programada para hoy es "proxima" y no "vencida".
+  const today = inicioDeHoy();
+  const nextWeek = new Date(today);
+  nextWeek.setUTCDate(nextWeek.getUTCDate() + 7);
   const treintaDiasAtras = new Date();
   treintaDiasAtras.setDate(treintaDiasAtras.getDate() - 30);
   const sixMonthsAgo = new Date();
@@ -81,9 +84,11 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
         },
       },
     }),
+    // Entregas O devoluciones de los ultimos 6 meses: una devolucion cuenta
+    // en su mes aunque el equipo se haya entregado antes de ese periodo.
     prisma.assignment.findMany({
       where: {
-        fechaEntrega: { gte: sixMonthsAgo },
+        OR: [{ fechaEntrega: { gte: sixMonthsAgo } }, { fechaDevolucion: { gte: sixMonthsAgo } }],
         ...swAsset,
       },
       select: {
@@ -183,11 +188,9 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
   );
 
   // "Asig. Ultimos 30 dias" se deriva filtrando en memoria las
-  // asignaciones de los ultimos 6 meses. El where de la consulta ya
-  // excluye asignaciones sin fecha, por eso el non-null assertion es
-  // seguro aunque TypeScript no pueda inferirlo.
+  // asignaciones de los ultimos 6 meses.
   const recentAssignments = assignmentsUltimos6Meses.filter(
-    (a) => a.fechaEntrega! >= treintaDiasAtras
+    (a) => a.fechaEntrega && a.fechaEntrega >= treintaDiasAtras
   ).length;
 
   // Agrupar asignaciones por mes para el grafico de movimientos
@@ -197,13 +200,16 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
   > = {};
 
   assignmentsUltimos6Meses.forEach((a) => {
-    const mes = a.fechaEntrega!.toISOString().slice(0, 7);
-    if (!monthlyData[mes]) {
-      monthlyData[mes] = { asignaciones: 0, devoluciones: 0 };
+    // Cada movimiento cuenta en su propio mes, solo si cae en el periodo.
+    if (a.fechaEntrega && a.fechaEntrega >= sixMonthsAgo) {
+      const mes = a.fechaEntrega.toISOString().slice(0, 7);
+      if (!monthlyData[mes]) {
+        monthlyData[mes] = { asignaciones: 0, devoluciones: 0 };
+      }
+      monthlyData[mes].asignaciones++;
     }
-    monthlyData[mes].asignaciones++;
 
-    if (a.fechaDevolucion) {
+    if (a.fechaDevolucion && a.fechaDevolucion >= sixMonthsAgo) {
       const mesDev = a.fechaDevolucion.toISOString().slice(0, 7);
       if (!monthlyData[mesDev]) {
         monthlyData[mesDev] = { asignaciones: 0, devoluciones: 0 };

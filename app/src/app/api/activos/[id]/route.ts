@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { EstadoActivo, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { updateAssetSchema } from '@/lib/validations/asset';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
-import { validateTransition } from '@/lib/services/assetStateMachine';
 import {
   requirePermission,
   handleApiError,
@@ -94,31 +93,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const usuario = session.user?.email || 'sistema';
 
-    // State-machine validation only reads data, so it can run outside the
-    // transaction and return a 400 without opening one.
-    let cambioEstado: { desde: EstadoActivo; hasta: EstadoActivo } | null = null;
-
+    // El estado no se edita (SPEC 2.86): cada cambio pasa por su proceso, que
+    // deja los registros que lo respaldan (solicitud, mantencion, baja,
+    // venta). Editarlo a mano dejaba incoherencias: "asignado" sin empleado,
+    // o "disponible" con la asignacion todavia activa.
     if (validatedData.estado && validatedData.estado !== existingAsset.estado) {
-      const activeAssignment = await prisma.assignment.findFirst({
-        where: { assetId: id, activo: true },
-      });
-      const activeMaintenance = await prisma.maintenance.findFirst({
-        where: { assetId: id, estado: { in: ['pendiente', 'en_proceso'] } },
-      });
-
-      const transitionResult = validateTransition(existingAsset.estado, validatedData.estado, {
-        hasActiveAssignment: !!activeAssignment,
-        hasActiveMaintenance: !!activeMaintenance,
-      });
-
-      if (!transitionResult.valid) {
-        return NextResponse.json(
-          { error: 'Transición de estado no permitida', details: transitionResult.errors },
-          { status: 400 }
-        );
-      }
-
-      cambioEstado = { desde: existingAsset.estado, hasta: validatedData.estado };
+      throw new ConflictError(
+        'El estado no se edita: cambia con su proceso (solicitudes, mantenciones, baja o venta).'
+      );
     }
 
     // Registrar cambios en especificaciones técnicas
@@ -142,22 +124,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return isNaN(num) ? null : num;
     };
 
-    // Las tres escrituras -- historial de estado, historial de specs y el
-    // update -- corren en una sola transacción. Antes eran secuenciales: si el
-    // update fallaba, el historial ya había registrado un cambio que nunca
-    // ocurrió, y el registro de auditoría quedaba mintiendo.
+    // El historial de specs y el update corren en una sola transacción: si el
+    // update falla, el historial no registra un cambio que nunca ocurrió.
     const asset = await prisma.$transaction(async (tx) => {
-      if (cambioEstado) {
-        await assetHistoryService.registrarCambioEstado(
-          id,
-          cambioEstado.desde,
-          cambioEstado.hasta,
-          undefined,
-          usuario,
-          tx
-        );
-      }
-
       if (hasSpecChanges) {
         await assetHistoryService.registrarActualizacionSpecs(
           id,
@@ -177,7 +146,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           ...(validatedData.numeroSerie !== undefined && {
             numeroSerie: validatedData.numeroSerie || null,
           }),
-          ...(validatedData.estado && { estado: validatedData.estado }),
           ...(validatedData.condicion && { condicion: validatedData.condicion }),
           ...(validatedData.fechaCompra !== undefined && {
             fechaCompra: validatedData.fechaCompra ? new Date(validatedData.fechaCompra) : null,

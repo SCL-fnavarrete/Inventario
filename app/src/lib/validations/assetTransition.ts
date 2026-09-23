@@ -45,25 +45,9 @@ export const assetVentaSchema = z.object({
 // completeMaintenanceSchema (lib/validations/maintenance.ts).
 export const resultadoMantencionEnum = z.enum(['reparado', 'no_reparable', 'pendiente_repuestos']);
 
-// Reasignación de un activo a otro empleado
-export const assetReassignmentSchema = z.object({
-  assignmentId: z.string().uuid('ID de asignación inválido'),
-  newEmployeeId: z.string().uuid('ID de empleado inválido'),
-  estadoDevolucion: z.enum(['ok', 'incompleto']),
-  motivoReasignacion: z.string().min(1, 'El motivo de reasignación es requerido').max(500),
-  fechaReasignacion: z.string().min(1).transform((val) => {
-    const date = new Date(val);
-    if (isNaN(date.getTime())) throw new Error('Fecha inválida');
-    return date;
-  }),
-  lugarEntrega: z.string().max(100).optional().nullable(),
-  entregadoPor: z.string().max(100).optional().nullable(),
-});
-
 // Tipos inferidos
 export type AssetTransitionInput = z.infer<typeof assetTransitionSchema>;
 export type AssetBajaInput = z.infer<typeof assetBajaSchema>;
 export type AssetVentaInput = z.infer<typeof assetVentaSchema>;
-export type AssetReassignmentInput = z.infer<typeof assetReassignmentSchema>;
 export type MotivoBaja = z.infer<typeof motivoBajaEnum>;
 export type ResultadoMantencion = z.infer<typeof resultadoMantencionEnum>;

@@ -284,8 +284,6 @@ async function main() {
   // ------------------------------------------- F. agregados y estadisticas
   console.log('\nF. Endpoints agregados (los que nadie consume pero responden)');
   const agregados = [
-    ['/api/dashboard/stats', 'sin filtro de sede en el codigo'],
-    ['/api/dashboard/alertas', 'sin filtro de sede en el codigo'],
     ['/api/reportes/compras', 'sin filtro de sede en el codigo'],
     ['/api/activos/stats', ''],
     ['/api/solicitudes/stats', ''],

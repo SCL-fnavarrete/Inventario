@@ -2236,8 +2236,8 @@ GET    /api/reportes/trazabilidad/:id  // Historial completo de activo
 GET    /api/reportes/rrhh              // Reporte para RRHH
 
 // === DASHBOARD ===
-GET    /api/dashboard/stats            // KPIs principales
-GET    /api/dashboard/alertas          // Alertas (mantenciones, devoluciones pendientes)
+// Sin endpoints: la pagina del Dashboard calcula sus datos en el servidor
+// (SPEC 2.86 elimino /api/dashboard/stats y /api/dashboard/alertas, sin uso).
 ```
 
 ## 5.4 Validaciones Zod Requeridas
@@ -3035,7 +3035,36 @@ El historial del activo mostraba el valor interno del estado ("Devuelto por … 
 - Pantallas que mostraban el valor interno: venta de activo, detalle de asignación, programar mantención, detalle de mantención, aviso de "Asignar activo" y medio de devolución en el detalle de la solicitud.
 - Faltas de ortografía en textos visibles y mensajes de error de la API (tildes y ñ): alertas del dashboard, importación, formularios de solicitud, catálogos de opciones y validaciones.
 
+## 2.86 Revisión de Solicitudes, Dashboard y Activos (23-sep-2026)
+
+Pedido de Javier: revisar los tres módulos, de código y funcionalmente, en busca de errores. Cada punto se reprodujo antes de corregirlo.
+
+**Activos**
+- **El estado no se edita.** En "Editar activo" el estado pasa a ser solo informativo, y `PUT /api/activos/[id]` responde 409 si llega un estado distinto. Antes se podía elegir cualquier estado: "Asignado" dejaba el equipo asignado a nadie, y "Asignado → En Mantención → Disponible" lo dejaba disponible con la asignación todavía activa (se podía entregar a una segunda persona). Cada cambio de estado pasa por su proceso: solicitudes, mantenciones, baja o venta.
+- **Tablero (Kanban):** arrastrar a "Baja" un equipo con una mantención abierta lleva a esa mantención, con el aviso de cerrarla como "No reparable". Antes abría el formulario de baja, que el servidor siempre rechazaba.
+- **Historial de baja legible:** "Activo dado de baja: Falla irreparable" en vez de "falla_irreparable" (`MOTIVO_BAJA_LABEL` en `lib/constants/estadosActivo.ts`, compartido con el formulario de baja). La migración `20260923200000_historial_motivo_baja` corrige los registros ya guardados.
+
+**Solicitudes**
+- **Cambio de equipo, validación en el servidor:** cada reemplazo debe ser de la misma categoría que el equipo devuelto y de la sede de la solicitud; los equipos de un onboarding, de la sede de la solicitud. Antes solo lo limitaba el formulario (la API aceptó cambiar un Notebook por unos Audífonos).
+- **Detalle de un cambio:** `GET /api/solicitudes/[id]` entrega `paresCambio` (uno por equipo cambiado, armados por posición desde `assignmentIds`) en vez de `equipoCambioAnterior`/`equipoCambioNuevo`. Antes el detalle mostraba un solo par, y el equipo nuevo desaparecía si se devolvía después.
+- **Documentos con los equipos del ticket:** el Comprobante de Entrega y el Anexo listan los equipos entregados en ese onboarding (`assignmentIds`), no los que el empleado tiene hoy. La fecha de los documentos es la de la entrega, cambio o devolución coordinada (o la creación del ticket), en hora de Chile; antes era la del día en que se descargaba. Los tickets antiguos sin `assignmentIds` conservan el criterio anterior.
+- **Número de ticket:** se calcula dentro de la transacción que crea el ticket (el mayor del año + 1) y, si choca con otra creación simultánea (P2002 en `numero`), se reintenta hasta 3 veces. Antes era "cuántos hay + 1" fuera de la transacción.
+- **Texto del historial** cuando un equipo no se devuelve en un cambio de equipo: "no devolvió el equipo en el cambio de equipo" (`executeReturn` recibe `contexto`). Los mensajes de error muestran el estado legible ("Estado actual: En Mantención").
+
+**Dashboard y Mantenciones**
+- **Devoluciones del gráfico de movimientos:** se cuentan por su fecha de devolución, aunque el equipo se haya entregado antes de los 6 meses del gráfico.
+- **Mantención vencida:** solo si su fecha es anterior a hoy (`inicioDeHoy()` en `lib/utils/fechas.ts`, en hora de Chile). La programada para hoy es "próxima". Mismo criterio en el Dashboard y en el filtro y la etiqueta de "vencida" de Mantenciones.
+
+**Código eliminado (sin uso)**
+- `/api/dashboard/stats` y `/api/dashboard/alertas`: la página del Dashboard calcula sus datos en el servidor.
+- `/api/activos/[id]/reasignar` y `assetReassignmentSchema`: cierra el pendiente de 2.18. La reasignación se hace con Solicitudes.
+- `AsignarActivoForm`: ninguna pantalla lo usaba.
+
+**Pendiente (a decidir):** un equipo "No devuelto" queda a nombre de un empleado desvinculado, y hoy no se puede crear una solicitud de devolución para recuperarlo (la API responde 409 "ya está desvinculado").
+
 ## Changelog SPEC
+- **v2.10 (2026-09-23):**
+  - Sección 2.86 (nueva): revisión de Solicitudes, Dashboard y Activos. El estado del activo no se edita; validación del reemplazo en el cambio de equipo; detalle con todos los pares; documentos con los equipos y la fecha del ticket; número de ticket sin choques; devoluciones y vencidas corregidas; historial de baja legible; se elimina código sin uso.
 - **v2.9 (2026-09-23):**
   - Sección 2.85 (nueva): el historial y las pantallas muestran etiquetas legibles en vez del valor interno de los estados; migración de datos que corrige el historial existente; correcciones de ortografía en textos visibles.
 - **v2.8 (2026-09-23):**
