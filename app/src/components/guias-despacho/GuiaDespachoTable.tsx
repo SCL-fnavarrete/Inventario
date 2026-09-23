@@ -19,7 +19,7 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
   if (loading) {
     return (
       <div className="card overflow-hidden">
-        <div className="p-8 text-center text-gray-500">
+        <div className="p-8 text-center text-fg-subtle">
           <div className="animate-pulse flex flex-col items-center">
             <div className="h-8 w-8 bg-gray-200 rounded-full mb-4"></div>
             <div className="h-4 w-32 bg-gray-200 rounded"></div>
@@ -32,7 +32,7 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
   if (guides.length === 0) {
     return (
       <div className="card overflow-hidden">
-        <div className="p-8 text-center text-gray-500">
+        <div className="p-8 text-center text-fg-subtle">
           <FileText className="mx-auto h-12 w-12 text-gray-300 mb-4" />
           <p>No hay guías de despacho</p>
         </div>
@@ -43,8 +43,8 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
   return (
     <div className="card overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="min-w-full divide-y divide-line">
+          <thead className="bg-surface-muted">
             <tr>
               <th className="table-th">
                 N° Guía
@@ -75,9 +75,9 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-surface divide-y divide-line">
             {guides.map((guide) => (
-              <tr key={guide.id} className="hover:bg-gray-50">
+              <tr key={guide.id} className="hover:bg-surface-muted">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <Link
                     href={`/guias-despacho/${guide.id}`}
@@ -86,22 +86,22 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
                     {guide.numero}
                   </Link>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-fg-subtle">
                   {formatearFechaCorta(guide.fechaDespacho)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-fg font-mono">
                   {guide.otChilexpress}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-fg">
                   {guide.sede?.nombre || "-"}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-fg">
                   {guide.sedeDestino?.nombre || "-"}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-fg">
                   {guide.receptorNombre}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-fg-subtle">
                   {guide._count.items}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -118,7 +118,7 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
                   <div className="flex items-center justify-end gap-2">
                     <Link
                       href={`/guias-despacho/${guide.id}`}
-                      className="p-2 text-gray-400 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
+                      className="p-2 text-fg-subtle hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
                       title="Ver detalle"
                     >
                       <Eye size={18} />

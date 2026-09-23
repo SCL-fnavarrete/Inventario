@@ -109,8 +109,9 @@ export default function ComprasPage() {
 
       {/* Stats Cards */}
       <StatGrid cols={2} className="grid-cols-1 sm:grid-cols-2">
-        <StatCard label="Total Facturas" value={stats?.totalCompras || 0} tone="primary" icon={FileText} />
+        <StatCard tilt label="Total Facturas" value={stats?.totalCompras || 0} tone="primary" icon={FileText} />
         <StatCard
+          tilt
           label="Activos Vinculados"
           value={purchases.reduce((sum, p) => sum + p._count.purchaseAssets, 0)}
           tone="orange"
@@ -123,7 +124,7 @@ export default function ComprasPage() {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-fg-subtle" />
               <input
                 type="text"
                 placeholder="Buscar por N° factura, RUT proveedor, orden de compra..."
@@ -140,8 +141,8 @@ export default function ComprasPage() {
 
           <div className="flex flex-col md:flex-row gap-4 items-center">
             <div className="flex items-center gap-2">
-              <Calendar size={20} className="text-gray-400" />
-              <span className="text-sm text-gray-500">Desde:</span>
+              <Calendar size={20} className="text-fg-subtle" />
+              <span className="text-sm text-fg-subtle">Desde:</span>
               <input
                 type="date"
                 value={fechaDesde}
@@ -149,11 +150,11 @@ export default function ComprasPage() {
                   setFechaDesde(e.target.value);
                   setPage(1);
                 }}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                className="px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500"
               />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">Hasta:</span>
+              <span className="text-sm text-fg-subtle">Hasta:</span>
               <input
                 type="date"
                 value={fechaHasta}
@@ -161,7 +162,7 @@ export default function ComprasPage() {
                   setFechaHasta(e.target.value);
                   setPage(1);
                 }}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                className="px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500"
               />
             </div>
             {/* Siempre visible; se deshabilita cuando no hay nada que
@@ -187,10 +188,10 @@ export default function ComprasPage() {
       <div className="card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            <Loader2 className="h-8 w-8 animate-spin text-fg-subtle" />
           </div>
         ) : purchases.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+          <div className="flex flex-col items-center justify-center h-64 text-fg-subtle">
             <ShoppingCart className="h-12 w-12 mb-4 text-gray-300" />
             <p>No se encontraron compras</p>
             <Can recurso="compras">
@@ -206,7 +207,7 @@ export default function ComprasPage() {
           <>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b">
+                <thead className="bg-surface-muted border-b">
                   <tr>
                     <th className="table-th px-4">
                       N° Factura
@@ -231,24 +232,24 @@ export default function ComprasPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-line">
                   {purchases.map((purchase) => (
-                    <tr key={purchase.id} className="hover:bg-gray-50">
+                    <tr key={purchase.id} className="hover:bg-surface-muted">
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-gray-400" />
+                          <FileText className="h-4 w-4 text-fg-subtle" />
                           <span className="font-medium text-sm">{purchase.numeroFactura}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-4 text-sm text-gray-500">
+                      <td className="px-4 py-4 text-sm text-fg-subtle">
                         {purchase.rutProveedor || "-"}
                       </td>
-                      <td className="px-4 py-4 text-sm text-gray-500">
+                      <td className="px-4 py-4 text-sm text-fg-subtle">
                         {purchase.sede ? purchase.sede.nombre : (
-                          <span className="text-gray-400 italic">Transversal</span>
+                          <span className="text-fg-subtle italic">Transversal</span>
                         )}
                       </td>
-                      <td className="px-4 py-4 text-sm text-gray-500">
+                      <td className="px-4 py-4 text-sm text-fg-subtle">
                         {formatearFecha(purchase.fechaFactura)}
                       </td>
                       <td className="px-4 py-4 text-center">
@@ -256,12 +257,12 @@ export default function ComprasPage() {
                           "inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium",
                           purchase._count.purchaseAssets > 0
                             ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-500"
+                            : "bg-gray-100 text-fg-subtle"
                         )}>
                           {purchase._count.purchaseAssets}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-sm text-gray-500">
+                      <td className="px-4 py-4 text-sm text-fg-subtle">
                         {purchase.ordenCompra || "-"}
                       </td>
                       <td className="px-4 py-4 text-right">
@@ -282,21 +283,21 @@ export default function ComprasPage() {
 
             {/* Pagination */}
             <div className="px-4 py-3 border-t flex items-center justify-between">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-fg-subtle">
                 Página {page} de {totalPages}
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="p-2 border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-2 border rounded hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ChevronLeft size={20} />
                 </button>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
-                  className="p-2 border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-2 border rounded hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ChevronRight size={20} />
                 </button>

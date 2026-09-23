@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { LinkArrow } from "@/components/ui/Button";
+import { Tilt } from "@/components/ui/Tilt";
+import { TONO_ACENTO } from "@/lib/constants/tonos";
 
 // Proveedores and Microsoft Sync are hidden from this menu (their
 // routes still exist) since they're unused/uncertain. Auditoria unifies
@@ -85,36 +87,40 @@ export default function ConfiguracionPage() {
         {configSections.map((section) => {
           const Icon = section.icon;
           return (
-            <Link
-              key={section.href}
-              href={section.href}
-              className="card group flex items-start gap-4 p-6 transition-shadow hover:shadow-card-hover motion-reduce:transition-none"
-            >
-              <div
+            <Tilt key={section.href}>
+              <Link
+                href={section.href}
                 className={cn(
-                  "rounded-control p-3",
-                  section.destructiva ? "bg-red-50 text-red-600" : "bg-primary-50 text-primary-700"
+                  "card-feature group flex h-full items-start gap-4 p-6",
+                  TONO_ACENTO[section.destructiva ? "danger" : "primary"]
                 )}
               >
-                <Icon size={24} />
-              </div>
-              <div className="flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-semibold text-gray-900">{section.title}</h2>
-                  {section.adminOnly && (
-                    <Badge variant="warning" size="sm">
-                      <ShieldAlert size={12} />
-                      Admin
-                    </Badge>
+                <div
+                  className={cn(
+                    "rounded-control p-3",
+                    section.destructiva ? "bg-red-50 text-red-600" : "bg-primary-50 text-primary-700"
                   )}
+                >
+                  <Icon size={24} />
                 </div>
-                <p className="mt-1 text-sm text-gray-600">{section.description}</p>
-                <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-primary-700 group-hover:text-primary-900">
-                  Abrir
-                  <LinkArrow size="sm" />
-                </span>
-              </div>
-            </Link>
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold text-fg">{section.title}</h2>
+                    {section.adminOnly && (
+                      <Badge variant="warning" size="sm">
+                        <ShieldAlert size={12} />
+                        Admin
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm text-fg-muted">{section.description}</p>
+                  <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-primary-700 group-hover:text-primary-900">
+                    Abrir
+                    <LinkArrow size="sm" />
+                  </span>
+                </div>
+              </Link>
+            </Tilt>
           );
         })}
       </div>

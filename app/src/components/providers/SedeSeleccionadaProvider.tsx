@@ -9,7 +9,7 @@ import { useSession } from "next-auth/react";
  * acá (ver sedeScope.ts para el control de acceso real en el backend).
  * `null` significa "todas las sedes" (sin filtro).
  *
- * Un solo selector, en el Sidebar, persistido en localStorage para que se
+ * Un solo selector, en el Navbar, persistido en localStorage para que se
  * mantenga entre navegaciones y recargas. Cada pantalla de listado lee
  * `sedeSeleccionada` de este contexto y lo manda como `?sedeId=` a su API.
  */

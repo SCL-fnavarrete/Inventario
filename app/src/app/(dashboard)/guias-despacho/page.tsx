@@ -100,7 +100,7 @@ export default function GuiasDespachoPage() {
       <div className="card p-4">
         <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" size={20} />
             <input
               type="text"
               placeholder="Buscar por número, OT Chilexpress o receptor..."
@@ -116,7 +116,7 @@ export default function GuiasDespachoPage() {
                 setEstadoFilter(e.target.value);
                 setPage(1);
               }}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+              className="px-4 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500"
             >
               <option value="all">Todos los estados</option>
               {Object.entries(ESTADO_GUIA_LABELS).map(([value, label]) => (
@@ -142,7 +142,7 @@ export default function GuiasDespachoPage() {
           >
             Anterior
           </button>
-          <span className="px-4 py-2 text-gray-600">
+          <span className="px-4 py-2 text-fg-muted">
             Página {page} de {totalPages}
           </span>
           <button

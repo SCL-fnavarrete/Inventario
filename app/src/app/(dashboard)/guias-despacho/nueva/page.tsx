@@ -225,8 +225,8 @@ export default function NuevaGuiaDespachoPage() {
           <ArrowLeft size={24} />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Nueva Guía de Despacho</h1>
-          <p className="text-gray-600">Crear guía para despacho de equipos</p>
+          <h1 className="text-2xl font-bold text-fg">Nueva Guía de Despacho</h1>
+          <p className="text-fg-muted">Crear guía para despacho de equipos</p>
         </div>
       </div>
 
@@ -264,7 +264,7 @@ export default function NuevaGuiaDespachoPage() {
               </option>
             ))}
           </select>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-fg-subtle mt-1">
             {esAdminSede
               ? "Obligatorio: desde cuál sede sale este despacho, para no mezclar equipos de sedes distintas en una misma guía."
               : "Es tu sede: el despacho sale desde ella."}
@@ -366,9 +366,9 @@ export default function NuevaGuiaDespachoPage() {
               type="text"
               value={emisor}
               disabled
-              className="w-full px-4 py-2 border border-gray-200 bg-gray-50 text-gray-500 rounded-lg"
+              className="w-full px-4 py-2 border border-line bg-surface-muted text-fg-subtle rounded-lg"
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-fg-subtle mt-1">
               Se registra automáticamente con tu usuario.
             </p>
           </div>
@@ -395,7 +395,7 @@ export default function NuevaGuiaDespachoPage() {
           <User className="text-primary-700" size={20} />
           Datos del receptor
         </h2>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-fg-subtle">
           Quien firma la recepción física del paquete. No necesita estar
           registrado como empleado en el sistema.
         </p>
@@ -455,7 +455,7 @@ export default function NuevaGuiaDespachoPage() {
           <button
             onClick={handleSubmit}
             disabled={submitting || !formularioCompleto}
-            className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-success-hover disabled:opacity-50"
           >
             {submitting ? (
               <>

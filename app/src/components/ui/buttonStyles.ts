@@ -9,19 +9,21 @@ export type ButtonSize = "sm" | "md" | "lg";
 //                hover, igual que el boton "Contacto" del sitio.
 //   outline   -> neutro; para Cancelar/Volver, que no deben competir.
 //   link      -> accion terciaria "Ver mas ->": texto con flecha que avanza.
+// Los rellenos solidos usan tokens fijos (brand, danger): la escala
+// primary-*/red-* se invierte en modo oscuro y el blanco perderia contraste.
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-primary-700 text-white shadow-sm hover:bg-primary-800 active:bg-primary-900 disabled:bg-primary-300",
+    "bg-brand text-white shadow-sm hover:bg-brand-hover active:bg-navy disabled:opacity-50 disabled:hover:bg-brand",
   secondary:
-    "border-2 border-primary-700 bg-white text-primary-700 hover:bg-primary-700 hover:text-white disabled:border-primary-200 disabled:text-primary-300 disabled:hover:bg-white",
+    "border-2 border-brand bg-surface text-primary-700 hover:bg-brand hover:text-white disabled:opacity-50 disabled:hover:bg-surface disabled:hover:text-primary-700",
   outline:
-    "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 disabled:bg-gray-50 disabled:text-gray-400 disabled:border-gray-200",
+    "border border-line-strong bg-surface text-fg hover:bg-surface-muted hover:border-gray-400 active:bg-gray-100 disabled:bg-surface-muted disabled:text-fg-subtle disabled:border-line",
   ghost:
-    "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200 disabled:text-gray-400 disabled:hover:bg-transparent",
+    "bg-transparent text-fg-muted hover:bg-surface-muted hover:text-fg active:bg-gray-100 disabled:text-fg-subtle disabled:hover:bg-transparent",
   danger:
-    "bg-red-600 text-white shadow-sm hover:bg-red-700 active:bg-red-800 disabled:bg-red-300",
+    "bg-danger text-white shadow-sm hover:bg-danger-hover disabled:opacity-50 disabled:hover:bg-danger",
   // px-0 va despues del tamano en cn(), asi que twMerge descarta el px-*.
-  link: "group bg-transparent px-0 text-primary-700 hover:text-primary-900 disabled:text-gray-400",
+  link: "group bg-transparent px-0 text-primary-700 hover:text-primary-900 disabled:text-fg-subtle",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
@@ -50,7 +52,7 @@ export function buttonClasses({
   return cn(
     "inline-flex items-center justify-center rounded-control font-semibold select-none",
     "transition-colors motion-reduce:transition-none",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 focus-visible:ring-offset-surface",
     "disabled:cursor-not-allowed",
     sizeStyles[size],
     variantStyles[variant],

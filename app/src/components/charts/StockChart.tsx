@@ -27,7 +27,7 @@ interface StockChartProps {
 export function StockChart({ data }: StockChartProps) {
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-[300px] text-gray-500">
+      <div className="flex items-center justify-center h-[300px] text-fg-subtle">
         No hay datos para mostrar
       </div>
     );

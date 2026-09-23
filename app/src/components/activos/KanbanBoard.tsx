@@ -146,7 +146,7 @@ export function KanbanBoard({ assets, onStatusChange, isUpdating }: KanbanBoardP
             key={column.id}
             className={`
               flex-shrink-0 w-72 rounded-xl border-2 transition-all duration-200
-              ${isDragOver ? `${column.borderColor} ${column.bgColor}` : "border-gray-200 bg-gray-50"}
+              ${isDragOver ? `${column.borderColor} ${column.bgColor}` : "border-line bg-surface-muted"}
             `}
             onDragOver={(e) => handleDragOver(e, column.id)}
             onDragLeave={handleDragLeave}
@@ -155,13 +155,13 @@ export function KanbanBoard({ assets, onStatusChange, isUpdating }: KanbanBoardP
             {/* Column Header */}
             <div className={`
               p-3 border-b-2 rounded-t-lg
-              ${isDragOver ? column.borderColor : "border-gray-200"}
-              ${isDragOver ? column.bgColor : "bg-white"}
+              ${isDragOver ? column.borderColor : "border-line"}
+              ${isDragOver ? column.bgColor : "bg-surface"}
             `}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Icon className={`w-5 h-5 ${column.color}`} />
-                  <span className="font-semibold text-gray-900">{column.label}</span>
+                  <span className="font-semibold text-fg">{column.label}</span>
                 </div>
                 <span className={`
                   px-2.5 py-0.5 rounded-full text-sm font-medium
@@ -176,8 +176,8 @@ export function KanbanBoard({ assets, onStatusChange, isUpdating }: KanbanBoardP
             <div className="p-2 space-y-2 max-h-[600px] overflow-y-auto">
               {columnAssets.length === 0 ? (
                 <div className={`
-                  p-8 text-center text-gray-400 border-2 border-dashed rounded-lg
-                  ${isDragOver ? column.borderColor : "border-gray-200"}
+                  p-8 text-center text-fg-subtle border-2 border-dashed rounded-lg
+                  ${isDragOver ? column.borderColor : "border-line"}
                 `}>
                   <Icon className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">
@@ -199,12 +199,12 @@ export function KanbanBoard({ assets, onStatusChange, isUpdating }: KanbanBoardP
                   >
                     {onStatusChange && (
                       <div className="absolute left-1 top-1/2 -translate-y-1/2 z-10 opacity-0 hover:opacity-100 transition-opacity">
-                        <GripVertical className="w-4 h-4 text-gray-400" />
+                        <GripVertical className="w-4 h-4 text-fg-subtle" />
                       </div>
                     )}
                     <AssetCard asset={asset} compact />
                     {isUpdating && draggedAssetId === asset.id && (
-                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-lg">
+                      <div className="absolute inset-0 bg-surface/80 flex items-center justify-center rounded-lg">
                         <Loader2 className="w-5 h-5 animate-spin text-primary-700" />
                       </div>
                     )}

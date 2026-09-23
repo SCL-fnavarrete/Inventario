@@ -258,7 +258,7 @@ export default function ProgramarMantencionPage() {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary-700 mx-auto mb-4" />
-          <p className="text-gray-600">Cargando activo...</p>
+          <p className="text-fg-muted">Cargando activo...</p>
         </div>
       </div>
     );
@@ -281,8 +281,8 @@ export default function ProgramarMantencionPage() {
               className={cn(
                 "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
                 step >= s
-                  ? "bg-primary-700 text-white"
-                  : "bg-gray-200 text-gray-500"
+                  ? "bg-brand text-white"
+                  : "bg-gray-200 text-fg-subtle"
               )}
             >
               {step > s ? <CheckCircle size={16} /> : s}
@@ -291,7 +291,7 @@ export default function ProgramarMantencionPage() {
               <div
                 className={cn(
                   "w-16 h-1 mx-2",
-                  step > s ? "bg-primary-700" : "bg-gray-200"
+                  step > s ? "bg-brand" : "bg-gray-200"
                 )}
               />
             )}
@@ -312,20 +312,20 @@ export default function ProgramarMantencionPage() {
           {/* Search + category filter */}
           <div className="mb-4 flex flex-col sm:flex-row gap-3">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-fg-subtle pointer-events-none" />
               <input
                 type="text"
                 placeholder="Buscar por marca, modelo, serie o empleado asignado..."
                 value={assetSearch}
                 onChange={(e) => setAssetSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
+                className="w-full pl-10 pr-4 py-3 border-2 border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
               />
             </div>
             <div className="relative">
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="appearance-none h-full pl-4 pr-9 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white cursor-pointer"
+                className="appearance-none h-full pl-4 pr-9 py-3 border-2 border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-surface cursor-pointer"
               >
                 <option value="all">Todas las categorías</option>
                 {categories.map((cat) => (
@@ -334,7 +334,7 @@ export default function ProgramarMantencionPage() {
                   </option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-subtle pointer-events-none" size={16} />
             </div>
           </div>
 
@@ -348,12 +348,12 @@ export default function ProgramarMantencionPage() {
           {loadingAssets ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary-700" />
-              <span className="ml-3 text-gray-600">Cargando equipos...</span>
+              <span className="ml-3 text-fg-muted">Cargando equipos...</span>
             </div>
           ) : filteredAssets.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-fg-subtle">
               <Package className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-              <p className="font-medium text-gray-700">
+              <p className="font-medium text-fg-muted">
                 {assetSearch || categoryFilter !== "all"
                   ? "No se encontraron equipos"
                   : "No hay equipos registrados"}
@@ -363,21 +363,21 @@ export default function ProgramarMantencionPage() {
               )}
             </div>
           ) : (
-            <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+            <div className="max-h-96 overflow-y-auto border border-line rounded-lg divide-y divide-line">
               {filteredAssets.map((asset) => (
                 <button
                   key={asset.id}
                   onClick={() => handleSelectAsset(asset)}
                   className="w-full flex items-center gap-3 p-4 hover:bg-primary-50 transition-colors text-left"
                 >
-                  <span className="flex-shrink-0 text-gray-400">
+                  <span className="flex-shrink-0 text-fg-subtle">
                     <CategoryIcon categoria={asset.categoria.nombre} className="h-5 w-5" />
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">
+                    <p className="font-medium text-fg truncate">
                       {asset.marca} {asset.modelo}
                     </p>
-                    <p className="text-sm text-gray-500 truncate">
+                    <p className="text-sm text-fg-subtle truncate">
                       <span className="font-medium">{asset.categoria.nombre}</span>
                       {" • "}
                       <span>{asset.numeroSerie || "Sin número de serie"}</span>
@@ -412,7 +412,7 @@ export default function ProgramarMantencionPage() {
 
           {/* Count info */}
           {!loadingAssets && filteredAssets.length > 0 && (
-            <div className="mt-4 text-sm text-gray-500 text-center">
+            <div className="mt-4 text-sm text-fg-subtle text-center">
               Mostrando {filteredAssets.length} equipo
               {filteredAssets.length !== 1 ? "s" : ""}
               {assetSearch || categoryFilter !== "all" ? ` de ${assets.length}` : ""}
@@ -432,16 +432,16 @@ export default function ProgramarMantencionPage() {
           </h2>
 
           {/* Selected Asset Info */}
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+          <div className="mb-6 p-4 bg-surface-muted rounded-lg">
             <div className="flex items-center gap-3">
-              <span className="text-gray-400">
+              <span className="text-fg-subtle">
                 <CategoryIcon categoria={selectedAsset.categoria.nombre} className="h-5 w-5" />
               </span>
               <div>
                 <p className="font-medium">
                   {selectedAsset.marca} {selectedAsset.modelo}
                 </p>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-fg-subtle">
                   {selectedAsset.numeroSerie || "Sin serie"}
                   {selectedAsset.empleadoActual && (
                     <>
@@ -460,8 +460,8 @@ export default function ProgramarMantencionPage() {
               <Loader2 className="h-8 w-8 animate-spin text-primary-700" />
             </div>
           ) : tiposMantencion.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <p className="font-medium text-gray-700">No hay tipos de mantención configurados</p>
+            <div className="text-center py-8 text-fg-subtle">
+              <p className="font-medium text-fg-muted">No hay tipos de mantención configurados</p>
               <p className="text-sm mt-1">
                 Crea al menos uno en la pestaña &quot;Tipos&quot; de Mantenciones antes de
                 programar una.
@@ -480,12 +480,12 @@ export default function ProgramarMantencionPage() {
                     "p-4 rounded-lg border text-left transition-colors",
                     formData.tipoId === tipo.id
                       ? "border-primary-500 bg-primary-50"
-                      : "border-gray-200 hover:border-primary-300 hover:bg-gray-50"
+                      : "border-line hover:border-primary-300 hover:bg-surface-muted"
                   )}
                 >
                   <p className="font-medium">{tipo.nombre}</p>
                   {tipo.descripcion && (
-                    <p className="text-sm text-gray-500 mt-1">{tipo.descripcion}</p>
+                    <p className="text-sm text-fg-subtle mt-1">{tipo.descripcion}</p>
                   )}
                 </button>
               ))}
@@ -514,15 +514,15 @@ export default function ProgramarMantencionPage() {
           </h2>
 
           {/* Summary */}
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg grid grid-cols-2 gap-4">
+          <div className="mb-6 p-4 bg-surface-muted rounded-lg grid grid-cols-2 gap-4">
             <div>
-              <p className="text-sm text-gray-500">Activo</p>
+              <p className="text-sm text-fg-subtle">Activo</p>
               <p className="font-medium">
                 {selectedAsset.marca} {selectedAsset.modelo}
               </p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Tipo de Mantención</p>
+              <p className="text-sm text-fg-subtle">Tipo de Mantención</p>
               <p className="font-medium">
                 {tiposMantencion.find((t) => t.id === formData.tipoId)?.nombre}
               </p>
@@ -560,7 +560,7 @@ export default function ProgramarMantencionPage() {
                 }
                 className="field-input"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-fg-subtle mt-1">
                 Obligatoria: una mantención no puede quedar &quot;en proceso&quot; sin una fecha
                 programada.
               </p>
@@ -576,9 +576,9 @@ export default function ProgramarMantencionPage() {
                 readOnly
                 disabled
                 value={formData.realizadoPor}
-                className="w-full px-4 py-2 border border-gray-200 bg-gray-50 text-gray-600 rounded-lg cursor-not-allowed"
+                className="w-full px-4 py-2 border border-line bg-surface-muted text-fg-muted rounded-lg cursor-not-allowed"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-fg-subtle mt-1">
                 Se asigna automáticamente: quien está programando la mantención.
               </p>
             </div>

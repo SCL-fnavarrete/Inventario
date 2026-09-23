@@ -322,7 +322,7 @@ export default function UsuariosPage() {
                 {label}
               </span>
             </div>
-            <p className="text-xs text-gray-500">{roleDescriptions[key]}</p>
+            <p className="text-xs text-fg-subtle">{roleDescriptions[key]}</p>
           </div>
         ))}
       </div>
@@ -330,7 +330,7 @@ export default function UsuariosPage() {
       {/* Formulario de creación/edición */}
       {(isCreating || editingId) && (
         <div className="card p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          <h2 className="text-lg font-semibold text-fg mb-4">
             {isCreating ? "Nuevo Usuario" : "Editar Usuario"}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -384,7 +384,7 @@ export default function UsuariosPage() {
               </select>
             </div>
             {formData.rol === "admin" ? (
-              <div className="flex items-center text-sm text-gray-500">
+              <div className="flex items-center text-sm text-fg-subtle">
                 Administrador ve todas las sedes -- no se le asigna una.
               </div>
             ) : (
@@ -402,7 +402,7 @@ export default function UsuariosPage() {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-fg-subtle mt-1">
                   Sede que se propone por defecto en los formularios de este usuario. No limita lo que puede ver: desde el rediseño de visibilidad, admin y técnico ven todas las sedes.
                 </p>
               </div>
@@ -416,7 +416,7 @@ export default function UsuariosPage() {
                     onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
                     className="field-checkbox"
                   />
-                  <span className="text-sm text-gray-700">Usuario Activo</span>
+                  <span className="text-sm text-fg-muted">Usuario Activo</span>
                 </label>
               </div>
             )}
@@ -441,8 +441,8 @@ export default function UsuariosPage() {
 
       {/* Tabla de usuarios */}
       <div className="card overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="min-w-full divide-y divide-line">
+          <thead className="bg-surface-muted">
             <tr>
               <th className="table-th">
                 Usuario
@@ -464,13 +464,13 @@ export default function UsuariosPage() {
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-surface divide-y divide-line">
             {users.map((user) => (
-              <tr key={user.id} className={!user.activo ? "bg-gray-50" : ""}>
+              <tr key={user.id} className={!user.activo ? "bg-surface-muted" : ""}>
                 <td className="px-6 py-4">
                   <div>
-                    <div className="font-medium text-gray-900">{user.nombre}</div>
-                    <div className="text-sm text-gray-500">{user.email}</div>
+                    <div className="font-medium text-fg">{user.nombre}</div>
+                    <div className="text-sm text-fg-subtle">{user.email}</div>
                   </div>
                 </td>
                 <td className="px-6 py-4">
@@ -478,9 +478,9 @@ export default function UsuariosPage() {
                     {roleLabels[user.rol]}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-600">
+                <td className="px-6 py-4 text-sm text-fg-muted">
                   {user.rol === "admin" ? (
-                    <span className="text-gray-400">Todas</span>
+                    <span className="text-fg-subtle">Todas</span>
                   ) : (
                     user.sede?.nombre || <span className="text-red-500">Sin asignar</span>
                   )}
@@ -488,7 +488,7 @@ export default function UsuariosPage() {
                 <td className="px-6 py-4 text-center">
                   <ActiveBadge activo={user.activo} onToggle={() => toggleUserStatus(user)} />
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-500">
+                <td className="px-6 py-4 text-sm text-fg-subtle">
                   {formatearFechaHoraCorta(user.ultimoLogin, "Nunca")}
                 </td>
                 <td className="px-6 py-4 text-right">
@@ -513,7 +513,7 @@ export default function UsuariosPage() {
             ))}
             {users.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-6 py-8 text-center text-fg-subtle">
                   No hay usuarios registrados
                 </td>
               </tr>

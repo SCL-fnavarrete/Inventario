@@ -405,7 +405,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-fg-subtle" />
       </div>
     );
   }
@@ -420,7 +420,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
           >
             <ArrowLeft size={24} />
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900">Compra no encontrada</h1>
+          <h1 className="text-2xl font-bold text-fg">Compra no encontrada</h1>
         </div>
         <ApiErrorSummary error={error || "La compra solicitada no existe"} fieldErrors={fieldErrors} />
       </div>
@@ -439,7 +439,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             <ArrowLeft size={24} />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-2xl font-bold text-fg">
               Factura {purchase.numeroFactura}
             </h1>
           </div>
@@ -474,36 +474,36 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Datos de la Factura */}
         <div className="card p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <FileText className="h-5 w-5 text-gray-400" />
+          <h2 className="text-lg font-semibold text-fg mb-4 flex items-center gap-2">
+            <FileText className="h-5 w-5 text-fg-subtle" />
             Datos de la Factura
           </h2>
           <dl className="space-y-3">
             <div>
-              <dt className="text-sm text-gray-500">N° Factura</dt>
+              <dt className="text-sm text-fg-subtle">N° Factura</dt>
               <dd className="font-medium">{purchase.numeroFactura}</dd>
             </div>
             <div>
-              <dt className="text-sm text-gray-500">Fecha</dt>
+              <dt className="text-sm text-fg-subtle">Fecha</dt>
               <dd className="font-medium">{formatearFechaLarga(purchase.fechaFactura)}</dd>
             </div>
             <div>
-              <dt className="text-sm text-gray-500">Sede</dt>
+              <dt className="text-sm text-fg-subtle">Sede</dt>
               <dd className="font-medium">
                 {purchase.sede ? purchase.sede.nombre : (
-                  <span className="text-gray-400 italic">Transversal (sin sede)</span>
+                  <span className="text-fg-subtle italic">Transversal (sin sede)</span>
                 )}
               </dd>
             </div>
             {purchase.rutProveedor && (
               <div>
-                <dt className="text-sm text-gray-500">RUT del Proveedor</dt>
+                <dt className="text-sm text-fg-subtle">RUT del Proveedor</dt>
                 <dd className="font-medium">{purchase.rutProveedor}</dd>
               </div>
             )}
             {purchase.ordenCompra && (
               <div>
-                <dt className="text-sm text-gray-500">Orden de Compra</dt>
+                <dt className="text-sm text-fg-subtle">Orden de Compra</dt>
                 <dd className="font-medium">{purchase.ordenCompra}</dd>
               </div>
             )}
@@ -512,17 +512,17 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
         {/* Resumen de Activos */}
         <div className="card p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Package className="h-5 w-5 text-gray-400" />
+          <h2 className="text-lg font-semibold text-fg mb-4 flex items-center gap-2">
+            <Package className="h-5 w-5 text-fg-subtle" />
             Resumen de Activos
           </h2>
           <dl className="space-y-3">
             <div>
-              <dt className="text-sm text-gray-500">Cantidad de Activos</dt>
+              <dt className="text-sm text-fg-subtle">Cantidad de Activos</dt>
               <dd className="font-medium text-2xl">{purchase.stats.cantidadActivos}</dd>
             </div>
             <div>
-              <dt className="text-sm text-gray-500">Artículos de Kit/EPP</dt>
+              <dt className="text-sm text-fg-subtle">Artículos de Kit/EPP</dt>
               <dd className="font-medium text-2xl">{purchase.stats.cantidadArticulosKit}</dd>
             </div>
           </dl>
@@ -532,8 +532,8 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       {/* Activos Vinculados */}
       <div className="card">
         <div className="p-6 border-b flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <Package className="h-5 w-5 text-gray-400" />
+          <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
+            <Package className="h-5 w-5 text-fg-subtle" />
             Activos Vinculados ({purchase.purchaseAssets.length})
           </h2>
           <button
@@ -547,9 +547,9 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
         {/* Búsqueda de activos */}
         {showAssetSearch && (
-          <div className="p-4 bg-gray-50 border-b">
+          <div className="p-4 bg-surface-muted border-b">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-fg-subtle" />
               <input
                 type="text"
                 value={assetSearch}
@@ -565,7 +565,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                   setAssetSearch("");
                   setAvailableAssets([]);
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg-muted"
               >
                 <X size={20} />
               </button>
@@ -573,25 +573,25 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
             {loadingAssets && (
               <div className="mt-2 flex items-center justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                <Loader2 className="h-5 w-5 animate-spin text-fg-subtle" />
               </div>
             )}
 
             {!loadingAssets && availableAssets.length > 0 && (
-              <div className="mt-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-white">
+              <div className="mt-2 max-h-48 overflow-y-auto border border-line rounded-lg bg-surface">
                 {availableAssets.map((asset) => (
                   <button
                     key={asset.id}
                     type="button"
                     onClick={() => addAssetToPurchase(asset)}
                     disabled={addingAsset}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center justify-between border-b last:border-b-0 disabled:opacity-50"
+                    className="w-full px-4 py-2 text-left hover:bg-surface-muted flex items-center justify-between border-b last:border-b-0 disabled:opacity-50"
                   >
                     <div>
                       <p className="font-medium text-sm">
                         {asset.marca} {asset.modelo}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-fg-subtle">
                         {asset.categoria.nombre} • {asset.numeroSerie || "Sin serie"}
                       </p>
                     </div>
@@ -610,7 +610,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
         {purchase.purchaseAssets.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b">
+              <thead className="bg-surface-muted border-b">
                 <tr>
                   <th className="table-th px-4">
                     Activo
@@ -629,32 +629,32 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-line">
                 {purchase.purchaseAssets.map((pa) => {
                   return (
-                    <tr key={pa.id} className="hover:bg-gray-50">
+                    <tr key={pa.id} className="hover:bg-surface-muted">
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
-                          <span className="text-gray-400">
+                          <span className="text-fg-subtle">
                             <CategoryIcon categoria={pa.asset.categoria.nombre} className="h-4 w-4" />
                           </span>
                           <div>
                             <p className="font-medium text-sm">
                               {pa.asset.marca} {pa.asset.modelo}
                             </p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-fg-subtle">
                               {pa.asset.categoria.nombre}
                             </p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-4 text-sm text-gray-500">
+                      <td className="px-4 py-4 text-sm text-fg-subtle">
                         {pa.asset.numeroSerie || "-"}
                       </td>
                       <td className="px-4 py-4">
                         <AssetStatusBadge status={pa.asset.estado} size="sm" />
                       </td>
-                      <td className="px-4 py-4 text-sm text-gray-500">
+                      <td className="px-4 py-4 text-sm text-fg-subtle">
                         {pa.asset.empleadoActual ? (
                           <Link
                             href={`/empleados/${pa.asset.empleadoActual.id}`}
@@ -670,14 +670,14 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                         <div className="flex items-center justify-end gap-2">
                           <Link
                             href={`/activos/${pa.assetId}`}
-                            className="p-1.5 text-gray-400 hover:text-primary-700"
+                            className="p-1.5 text-fg-subtle hover:text-primary-700"
                             title="Ver activo"
                           >
                             <Eye size={18} />
                           </Link>
                           <button
                             onClick={() => pedirDesvincularActivo(pa.assetId)}
-                            className="p-1.5 text-gray-400 hover:text-red-600"
+                            className="p-1.5 text-fg-subtle hover:text-red-600"
                             title="Desvincular"
                           >
                             <X size={18} />
@@ -691,7 +691,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             </table>
           </div>
         ) : (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-fg-subtle">
             <Package className="h-12 w-12 mx-auto mb-2 text-gray-300" />
             <p>No hay activos vinculados</p>
             <button
@@ -707,8 +707,8 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       {/* Kit/EPP Vinculados */}
       <div className="card">
         <div className="p-6 border-b flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <Shirt className="h-5 w-5 text-gray-400" />
+          <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
+            <Shirt className="h-5 w-5 text-fg-subtle" />
             Kit de Bienvenida / EPP Comprado ({purchase.purchaseKitItems.length})
           </h2>
           <button
@@ -724,9 +724,9 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
         </div>
 
         {showKitItemPicker && (
-          <div className="p-4 bg-gray-50 border-b flex flex-col sm:flex-row gap-3 sm:items-end">
+          <div className="p-4 bg-surface-muted border-b flex flex-col sm:flex-row gap-3 sm:items-end">
             <div className="flex-1">
-              <label className="block text-xs font-medium text-gray-700 mb-1">Artículo</label>
+              <label className="block text-xs font-medium text-fg-muted mb-1">Artículo</label>
               <select
                 value={kitItemToAdd}
                 onChange={(e) => setKitItemToAdd(e.target.value)}
@@ -741,7 +741,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
               </select>
             </div>
             <div className="w-full sm:w-28">
-              <label className="block text-xs font-medium text-gray-700 mb-1">Cantidad</label>
+              <label className="block text-xs font-medium text-fg-muted mb-1">Cantidad</label>
               <input
                 type="number"
                 min={1}
@@ -762,7 +762,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             <button
               type="button"
               onClick={() => setShowKitItemPicker(false)}
-              className="p-1.5 text-gray-400 hover:text-gray-600"
+              className="p-1.5 text-fg-subtle hover:text-fg-muted"
             >
               <X size={20} />
             </button>
@@ -772,7 +772,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
         {purchase.purchaseKitItems.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b">
+              <thead className="bg-surface-muted border-b">
                 <tr>
                   <th className="table-th px-4">
                     Artículo
@@ -788,26 +788,26 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-line">
                 {purchase.purchaseKitItems.map((pk) => (
-                  <tr key={pk.id} className="hover:bg-gray-50">
+                  <tr key={pk.id} className="hover:bg-surface-muted">
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <Shirt className="h-4 w-4 text-gray-400" />
+                        <Shirt className="h-4 w-4 text-fg-subtle" />
                         <div>
                           <p className="font-medium text-sm">{pk.item.nombre}</p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-fg-subtle">
                             {pk.item.categoria === "epp" ? "EPP" : "Kit Bienvenida"}
                           </p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-sm text-gray-700">+{pk.cantidad}</td>
-                    <td className="px-4 py-4 text-sm text-gray-500">{pk.item.cantidad}</td>
+                    <td className="px-4 py-4 text-sm text-fg-muted">+{pk.cantidad}</td>
+                    <td className="px-4 py-4 text-sm text-fg-subtle">{pk.item.cantidad}</td>
                     <td className="px-4 py-4 text-right">
                       <button
                         onClick={() => pedirDesvincularKitItem(pk.id)}
-                        className="p-1.5 text-gray-400 hover:text-red-600"
+                        className="p-1.5 text-fg-subtle hover:text-red-600"
                         title="Desvincular"
                       >
                         <X size={18} />
@@ -819,7 +819,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             </table>
           </div>
         ) : (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-fg-subtle">
             <Shirt className="h-12 w-12 mx-auto mb-2 text-gray-300" />
             <p>No hay artículos de Kit/EPP vinculados</p>
             <button
@@ -851,7 +851,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       {/* Editar datos de la factura */}
       {showEditForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-lg w-full">
+          <div className="bg-surface rounded-lg p-6 max-w-lg w-full">
             <h3 className="text-lg font-semibold mb-4">Editar datos de la factura</h3>
             <form onSubmit={guardarEdicion} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -922,7 +922,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-fg-subtle mt-1">
                     {esAdminSede
                       ? "Cambiar la sede no mueve los equipos ya vinculados: cada uno conserva la suya."
                       : "Mover una compra de sede es solo de admin."}
@@ -956,11 +956,11 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <div className="bg-surface rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-fg mb-2">
               Eliminar Compra
             </h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-fg-muted mb-4">
               ¿Está seguro de eliminar la factura <strong>{purchase.numeroFactura}</strong>?
               {purchase.purchaseAssets.length > 0 && (
                 <span className="block mt-2 text-orange-600">

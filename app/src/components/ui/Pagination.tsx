@@ -26,7 +26,7 @@ function paginasVisibles(current: number, pages: number): number[] {
 }
 
 const navButton =
-  "p-2 rounded-control border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors";
+  "p-2 rounded-control border border-line-strong bg-surface text-fg-muted hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-surface transition-colors";
 
 /**
  * Resumen "Mostrando X a Y de Z", selector de tamano de pagina y botones
@@ -50,12 +50,12 @@ export function Pagination({
   return (
     <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
       <div className="flex flex-col items-center gap-4 sm:flex-row">
-        <p className="text-sm font-medium text-gray-700">
+        <p className="text-sm font-medium text-fg-muted">
           Mostrando {desde} a {hasta} de {total} {itemLabel}
         </p>
         {onLimitChange && (
           <div className="flex items-center gap-2">
-            <label htmlFor={selectId} className="text-sm text-gray-600">
+            <label htmlFor={selectId} className="text-sm text-fg-muted">
               Mostrar:
             </label>
             <select
@@ -96,8 +96,8 @@ export function Pagination({
                   className={cn(
                     "h-10 min-w-[40px] rounded-control border px-3 text-sm font-medium transition-colors",
                     actual
-                      ? "cursor-default border-primary-700 bg-primary-700 text-white"
-                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+                      ? "cursor-default border-primary-700 bg-brand text-white"
+                      : "border-line-strong bg-surface text-fg-muted hover:bg-gray-100"
                   )}
                   aria-current={actual ? "page" : undefined}
                 >
@@ -107,7 +107,7 @@ export function Pagination({
             })}
           </div>
 
-          <div className="px-4 py-2 text-sm font-medium text-gray-700 sm:hidden">
+          <div className="px-4 py-2 text-sm font-medium text-fg-muted sm:hidden">
             Página {current} de {pages}
           </div>
 

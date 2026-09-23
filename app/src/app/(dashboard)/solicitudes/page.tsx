@@ -152,7 +152,7 @@ export default function SolicitudesPage() {
       <div className="card p-4 space-y-4">
         <div className="flex gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle" />
             <input
               type="text"
               placeholder="Buscar por número, empleado, RUT..."
@@ -167,18 +167,18 @@ export default function SolicitudesPage() {
               'flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors',
               showFilters
                 ? 'bg-primary-50 border-primary-300 text-primary-800'
-                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                : 'border-line-strong text-fg-muted hover:bg-surface-muted'
             )}
           >
             <Filter className="h-4 w-4" />
             Filtros
           </button>
-          <div className="flex border border-gray-300 rounded-lg overflow-hidden">
+          <div className="flex border border-line-strong rounded-lg overflow-hidden">
             <button
               onClick={() => setViewMode('table')}
               className={cn(
                 'p-2 transition-colors',
-                viewMode === 'table' ? 'bg-primary-700 text-white' : 'text-gray-500 hover:bg-gray-100'
+                viewMode === 'table' ? 'bg-brand text-white' : 'text-fg-subtle hover:bg-gray-100'
               )}
             >
               <List className="h-4 w-4" />
@@ -188,8 +188,8 @@ export default function SolicitudesPage() {
               className={cn(
                 'p-2 transition-colors',
                 viewMode === 'kanban'
-                  ? 'bg-primary-700 text-white'
-                  : 'text-gray-500 hover:bg-gray-100'
+                  ? 'bg-brand text-white'
+                  : 'text-fg-subtle hover:bg-gray-100'
               )}
             >
               <LayoutGrid className="h-4 w-4" />
@@ -202,7 +202,7 @@ export default function SolicitudesPage() {
             <select
               value={filterTipo}
               onChange={(e) => setFilterTipo(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2"
+              className="border border-line-strong rounded-lg px-3 py-2"
             >
               <option value="">Todos los tipos</option>
               <option value="onboarding">Onboarding</option>
@@ -212,7 +212,7 @@ export default function SolicitudesPage() {
             <select
               value={filterEstado}
               onChange={(e) => setFilterEstado(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2"
+              className="border border-line-strong rounded-lg px-3 py-2"
             >
               <option value="">Todos los estados</option>
               <option value="abierto">Abierto</option>
@@ -224,7 +224,7 @@ export default function SolicitudesPage() {
                 setFilterEstado('');
                 setSearch('');
               }}
-              className="text-sm text-gray-500 hover:text-gray-700"
+              className="text-sm text-fg-subtle hover:text-fg-muted"
             >
               Limpiar filtros
             </button>
@@ -241,8 +241,8 @@ export default function SolicitudesPage() {
         /* Table View */
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-line">
+              <thead className="bg-surface-muted">
                 <tr>
                   <th className="table-th px-4">
                     Número
@@ -267,9 +267,9 @@ export default function SolicitudesPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-surface divide-y divide-line">
                 {requests.map((req) => (
-                  <tr key={req.id} className="hover:bg-gray-50">
+                  <tr key={req.id} className="hover:bg-surface-muted">
                     <td className="px-4 py-3 text-sm font-medium text-primary-700">
                       <Link href={`/solicitudes/${req.id}`}>{req.numero}</Link>
                     </td>
@@ -283,10 +283,10 @@ export default function SolicitudesPage() {
                         {tipoLabels[req.tipo]}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-4 py-3 text-sm text-fg">
                       {req.employee.nombres} {req.employee.apellidoPaterno}
                       {req.employee.cargo && (
-                        <span className="block text-xs text-gray-500">{req.employee.cargo}</span>
+                        <span className="block text-xs text-fg-subtle">{req.employee.cargo}</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -294,17 +294,17 @@ export default function SolicitudesPage() {
                         className={cn(
                           'inline-flex px-2 py-1 text-xs font-medium rounded-full',
                           req.fechaCierre
-                            ? 'bg-gray-100 text-gray-700'
+                            ? 'bg-gray-100 text-fg-muted'
                             : 'bg-primary-100 text-primary-900'
                         )}
                       >
                         {req.fechaCierre ? 'Cerrado' : 'Abierto'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
+                    <td className="px-4 py-3 text-sm text-fg-muted">
                       {req.responsableActual?.nombre || '—'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
+                    <td className="px-4 py-3 text-sm text-fg-subtle">
                       {new Date(req.createdAt).toLocaleDateString('es-CL')}
                     </td>
                     <td className="px-4 py-3">
@@ -334,7 +334,7 @@ export default function SolicitudesPage() {
                           return (
                             <a
                               href={`/api/solicitudes/${req.id}/documento/${docTipo}`}
-                              className="text-gray-500 hover:text-gray-700"
+                              className="text-fg-subtle hover:text-fg-muted"
                               title="Descargar comprobante"
                             >
                               <FileText className="h-4 w-4" />
@@ -347,7 +347,7 @@ export default function SolicitudesPage() {
                 ))}
                 {requests.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
+                    <td colSpan={8} className="px-4 py-12 text-center text-fg-subtle">
                       <ClipboardList className="h-12 w-12 mx-auto mb-3 text-gray-300" />
                       No hay solicitudes registradas
                     </td>
@@ -360,7 +360,7 @@ export default function SolicitudesPage() {
           {/* Pagination */}
           {pagination.totalPages > 1 && (
             <div className="px-4 py-3 border-t flex items-center justify-between">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-fg-subtle">
                 Mostrando {(pagination.page - 1) * pagination.limit + 1} a{' '}
                 {Math.min(pagination.page * pagination.limit, pagination.total)} de{' '}
                 {pagination.total}
@@ -369,14 +369,14 @@ export default function SolicitudesPage() {
                 <button
                   onClick={() => fetchRequests(pagination.page - 1)}
                   disabled={pagination.page <= 1}
-                  className="p-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  className="p-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-muted"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => fetchRequests(pagination.page + 1)}
                   disabled={pagination.page >= pagination.totalPages}
-                  className="p-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  className="p-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-muted"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
@@ -392,21 +392,21 @@ export default function SolicitudesPage() {
             return (
               <div key={tipo} className="flex-shrink-0 w-72">
                 <div className="bg-gray-100 rounded-lg p-3">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                  <h3 className="text-sm font-semibold text-fg-muted mb-3">
                     {tipoLabels[tipo] || tipo}{' '}
-                    <span className="text-gray-400">({items.length})</span>
+                    <span className="text-fg-subtle">({items.length})</span>
                   </h3>
                   <div className="space-y-2">
                     {items.map((req) => (
                       <Link
                         key={req.id}
                         href={`/solicitudes/${req.id}`}
-                        className="block bg-white rounded-lg shadow-sm p-3 hover:shadow-md transition-shadow"
+                        className="block bg-surface rounded-lg shadow-sm p-3 hover:shadow-md transition-shadow"
                       >
                         <div className="flex justify-between items-start mb-2">
                           <span className="text-xs font-medium text-primary-700">{req.numero}</span>
                         </div>
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-fg">
                           {req.employee.nombres} {req.employee.apellidoPaterno}
                         </p>
                         <span className="inline-flex mt-1 px-1.5 py-0.5 text-xs rounded bg-primary-100 text-primary-900">
@@ -415,7 +415,7 @@ export default function SolicitudesPage() {
                       </Link>
                     ))}
                     {items.length === 0 && (
-                      <p className="text-xs text-gray-400 text-center py-4">Sin solicitudes</p>
+                      <p className="text-xs text-fg-subtle text-center py-4">Sin solicitudes</p>
                     )}
                   </div>
                 </div>

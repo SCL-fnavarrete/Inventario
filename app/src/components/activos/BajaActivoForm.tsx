@@ -95,12 +95,12 @@ export function BajaActivoForm({ assetId, onSuccess, onCancel }: BajaActivoFormP
     }
   };
 
-  if (loading) return <div className="p-6 text-gray-500">Cargando...</div>;
+  if (loading) return <div className="p-6 text-fg-subtle">Cargando...</div>;
   if (!asset) return <div className="p-6 text-red-500">Activo no encontrado</div>;
 
   return (
     <div className="space-y-6">
-      <p className="text-gray-600">
+      <p className="text-fg-muted">
         {asset.marca} {asset.modelo} • {asset.numeroSerie}
       </p>
 
@@ -147,7 +147,7 @@ export function BajaActivoForm({ assetId, onSuccess, onCancel }: BajaActivoFormP
           )}
 
           {asset.estado === "baja" && (
-            <div className="bg-gray-50 border rounded-lg p-4 text-gray-600">Este activo ya está dado de baja.</div>
+            <div className="bg-surface-muted border rounded-lg p-4 text-fg-muted">Este activo ya está dado de baja.</div>
           )}
 
           {canProceed && (
@@ -159,7 +159,7 @@ export function BajaActivoForm({ assetId, onSuccess, onCancel }: BajaActivoFormP
 
           <div className="flex justify-end gap-2">
             {onCancel && (
-              <button onClick={onCancel} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+              <button onClick={onCancel} className="px-4 py-2 text-fg-muted hover:text-fg">
                 Cancelar
               </button>
             )}
@@ -187,7 +187,7 @@ export function BajaActivoForm({ assetId, onSuccess, onCancel }: BajaActivoFormP
                   key={key}
                   onClick={() => setMotivo(key)}
                   className={`p-3 rounded-lg border text-sm text-left transition-colors ${
-                    motivo === key ? "border-red-500 bg-red-50 text-red-700" : "border-gray-200 hover:border-gray-300"
+                    motivo === key ? "border-red-500 bg-red-50 text-red-700" : "border-line hover:border-line-strong"
                   }`}
                 >
                   {label}
@@ -219,7 +219,7 @@ export function BajaActivoForm({ assetId, onSuccess, onCancel }: BajaActivoFormP
                   className={`px-4 py-2 rounded-lg border text-sm transition-colors ${
                     condicionFinal === key
                       ? "border-red-500 bg-red-50 text-red-700"
-                      : "border-gray-200 hover:border-gray-300"
+                      : "border-line hover:border-line-strong"
                   }`}
                 >
                   {label}
@@ -234,7 +234,7 @@ export function BajaActivoForm({ assetId, onSuccess, onCancel }: BajaActivoFormP
           </div>
 
           <div className="flex justify-between">
-            <button onClick={() => setStep(1)} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+            <button onClick={() => setStep(1)} className="px-4 py-2 text-fg-muted hover:text-fg">
               ← Volver
             </button>
             <button

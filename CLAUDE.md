@@ -98,6 +98,7 @@ En produccion (Vercel) se aplica con `npm run db:migrate:prod`.
 - **Microsoft Sync:** Read-only integration with Microsoft Entra ID via Graph API. Sync is manual (admin-only button). Employees matched by `correo` on first sync, by `microsoftId` on subsequent syncs. Never writes to Entra ID
 - **Transiciones de estado de activos:** Toda transición de estado de un activo debe pasar por `assetStateMachine.validateTransition()`. El PUT de `/api/activos/[id]` ya lo valida. Los procesos de baja, venta y reasignación tienen API routes dedicadas: `/api/activos/[id]/baja`, `/api/activos/[id]/venta`, `/api/activos/[id]/reasignar`
 - **Workflow/Solicitudes:** El sistema de solicitudes orquesta flujos completos (onboarding, cambio equipo, devolución por término). `workflowStateMachine` valida transiciones; `workflowExecutionService` ejecuta las acciones reales (crea asignaciones, desvinculaciones, guías). Las transiciones quedan en `WorkflowTransition` para auditoría
+- **Estilos y tema:** seguir `app/docs/DESIGN_SYSTEM.md`. Nunca colores fijos para superficies o texto (`bg-white`, `text-gray-900`, hex): usar los tokens (`bg-surface`, `text-fg`, `border-line`...) para que funcione el modo oscuro. Tarjetas destacadas con `card-feature` y color derivado de un dato real (`lib/constants/tonos.ts`); `<Tilt>` solo en pocas tarjetas, nunca en listas grandes
 - **Component structure:** Feature components in named dirs (`components/activos/`, `components/dashboard/`), reusable primitives in `components/ui/`
 
 ## Environment Variables

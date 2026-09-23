@@ -159,7 +159,7 @@ export function SeleccionarEquiposOnboarding({
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-gray-500 text-sm py-6">
+      <div className="flex items-center gap-2 text-fg-subtle text-sm py-6">
         <Loader2 className="h-4 w-4 animate-spin" />
         Cargando inventario disponible...
       </div>
@@ -185,8 +185,8 @@ export function SeleccionarEquiposOnboarding({
         const disponibles = disponiblesPorCategoria[nombreCategoria] || [];
         const seleccionado = disponibles.find((a) => a.id === seleccion[nombreCategoria]);
         return (
-          <div key={nombreCategoria} className="border border-gray-200 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2 text-gray-700 font-medium">
+          <div key={nombreCategoria} className="border border-line rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2 text-fg-muted font-medium">
               {iconoDe(nombreCategoria)}
               {nombreCategoria}
             </div>
@@ -201,7 +201,7 @@ export function SeleccionarEquiposOnboarding({
                   onChange={(e) =>
                     setSeleccion((prev) => ({ ...prev, [nombreCategoria]: e.target.value }))
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
                 >
                   <option value="">Seleccionar {nombreCategoria.toLowerCase()}...</option>
                   {disponibles.map((a) => (
@@ -212,12 +212,12 @@ export function SeleccionarEquiposOnboarding({
                   ))}
                 </select>
                 {seleccionado && (
-                  <div className="mt-2 text-xs text-gray-500 bg-gray-50 rounded-lg p-2">
+                  <div className="mt-2 text-xs text-fg-subtle bg-surface-muted rounded-lg p-2">
                     {especificacionesEtiquetadas(seleccionado).length > 0 ? (
                       <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
                         {especificacionesEtiquetadas(seleccionado).map(({ etiqueta, valor }) => (
                           <div key={etiqueta} className="flex gap-1">
-                            <dt className="font-medium text-gray-600">{etiqueta}:</dt>
+                            <dt className="font-medium text-fg-muted">{etiqueta}:</dt>
                             <dd>{valor}</dd>
                           </div>
                         ))}
@@ -229,8 +229,8 @@ export function SeleccionarEquiposOnboarding({
                 )}
 
                 {seleccionado?.tieneCargador && (
-                  <div className="mt-2 border border-gray-200 rounded-lg p-3">
-                    <p className="text-xs font-medium text-gray-600 mb-2">
+                  <div className="mt-2 border border-line rounded-lg p-3">
+                    <p className="text-xs font-medium text-fg-muted mb-2">
                       Estado del cargador
                     </p>
                     <select
@@ -244,7 +244,7 @@ export function SeleccionarEquiposOnboarding({
                           },
                         }))
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-2"
+                      className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm mb-2"
                     >
                       <option value="ok">Ok</option>
                       <option value="danado">Dañado</option>
@@ -263,7 +263,7 @@ export function SeleccionarEquiposOnboarding({
                           },
                         }))
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
                     />
                   </div>
                 )}

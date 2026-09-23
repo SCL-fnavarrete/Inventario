@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* dark: sigue al tema elegido en <html data-theme>, no a prefers-color-scheme.
+   Uso excepcional: casi todo se resuelve con los tokens semanticos. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* ========================================
    SISTEMA DE DISENO -- tokens de marca SCL
    Valores tomados del CSS de sclconsultores.com (--scl-*). En Tailwind v4
@@ -33,6 +37,18 @@
      siguen siendo los gray-* de Tailwind, igual que en el sitio. */
   --color-brand-gray: #666361;
   --color-brand-gray-dark: #3d3b3a;
+
+  /* Colores fijos que NO cambian con el tema: el relleno de botones solidos
+     y la marca navy (login, fondos de marca). Usar estos, y no
+     primary-700/950, cuando el color debe verse igual en claro y oscuro:
+     en modo oscuro la escala primary-* se invierte (ver mas abajo). */
+  --color-brand: #006a93;
+  --color-brand-hover: #005a7d;
+  --color-navy: #002b4d;
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-success: #16a34a;
+  --color-success-hover: #15803d;
 
   /* Superficies: las tarjetas del sitio son rounded-2xl con borde tenue y
      sombra que crece al hover; los controles (botones, inputs) rounded-lg. */
@@ -94,7 +110,209 @@
    resuelve en tiempo de uso y no en :root. */
 @theme inline {
   --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+
+  /* Tokens semanticos: generan bg-canvas, bg-surface, text-fg, border-line,
+     etc. Apuntan a variables que cambian con [data-theme], asi un mismo
+     componente sirve en claro y oscuro sin clases dark: duplicadas. */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
 }
+
+/* ========================================
+   TEMAS: claro (por defecto) y oscuro
+   El tema lo fija un script en <head> (ver lib/tema.ts) antes de pintar,
+   segun la preferencia guardada o la del sistema operativo.
+   ======================================== */
+:root {
+  color-scheme: light;
+  --canvas: var(--color-gray-50);
+  --surface: #fff;
+  --surface-muted: var(--color-gray-50);
+  --fg: var(--color-gray-900);
+  --fg-muted: var(--color-gray-600);
+  --fg-subtle: var(--color-gray-500);
+  --line: var(--color-gray-200);
+  --line-strong: var(--color-gray-300);
+
+  /* Fondo "radiant": halo celeste de marca arriba a la derecha y un toque
+     naranjo abajo a la izquierda, sobre el canvas. Tintes bajos para que
+     el texto que queda encima no pierda contraste. */
+  --radiant-a: color-mix(in oklab, var(--color-primary-500) 13%, transparent);
+  --radiant-b: color-mix(in oklab, var(--color-accent) 6%, transparent);
+
+  /* Intensidad del halo y del circulo de card-feature. En oscuro sube:
+     el mismo tinte sobre fondo navy casi no se nota. */
+  --card-halo: 18%;
+  --card-dot: 12%;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: oklch(17% 0.035 245);
+  --surface: oklch(21.5% 0.038 245);
+  --surface-muted: oklch(24.5% 0.038 245);
+  --fg: oklch(95% 0.006 240);
+  --fg-muted: oklch(78% 0.015 240);
+  --fg-subtle: oklch(68% 0.018 240);
+  --line: oklch(31% 0.035 245);
+  --line-strong: oklch(38% 0.032 245);
+
+  --radiant-a: color-mix(in oklab, var(--color-primary-500) 22%, transparent);
+  --radiant-b: color-mix(in oklab, var(--color-accent) 7%, transparent);
+  --card-halo: 32%;
+  --card-dot: 18%;
+
+  /* Neutros invertidos con matiz navy: las clases gray-* que queden en
+     algun componente siguen siendo legibles en oscuro. */
+  --color-gray-50: oklch(24.5% 0.038 245);
+  --color-gray-100: oklch(27% 0.025 240);
+  --color-gray-200: oklch(31% 0.025 240);
+  --color-gray-300: oklch(38% 0.024 240);
+  --color-gray-400: oklch(55% 0.02 240);
+  --color-gray-500: oklch(68% 0.018 240);
+  --color-gray-600: oklch(76% 0.015 240);
+  --color-gray-700: oklch(83% 0.012 240);
+  --color-gray-800: oklch(89% 0.009 240);
+  --color-gray-900: oklch(95% 0.006 240);
+  --color-gray-950: oklch(98% 0.003 240);
+
+  --color-accent-light: color-mix(in oklab, var(--color-accent) 18%, transparent);
+  --color-accent-dark: #f0b36b;
+}
+
+/* Escalas de color en oscuro: los tonos claros (50-300, fondos de badges y
+   avisos) pasan a tintes translucidos, y los oscuros (700-950, texto) a
+   tonos claros. 400-600 no cambian: son los rellenos solidos. Se derivan
+   de 400/500, que no se redefinen, para no crear referencias circulares. */
+[data-theme="dark"] {
+  --color-primary-50: color-mix(in oklab, var(--color-primary-500) 12%, transparent);
+  --color-primary-100: color-mix(in oklab, var(--color-primary-500) 18%, transparent);
+  --color-primary-200: color-mix(in oklab, var(--color-primary-500) 28%, transparent);
+  --color-primary-300: color-mix(in oklab, var(--color-primary-500) 42%, transparent);
+  --color-primary-700: color-mix(in oklab, var(--color-primary-400), white 15%);
+  --color-primary-800: color-mix(in oklab, var(--color-primary-400), white 28%);
+  --color-primary-900: color-mix(in oklab, var(--color-primary-400), white 42%);
+  --color-primary-950: color-mix(in oklab, var(--color-primary-400), white 55%);
+  --color-red-50: color-mix(in oklab, var(--color-red-500) 12%, transparent);
+  --color-red-100: color-mix(in oklab, var(--color-red-500) 18%, transparent);
+  --color-red-200: color-mix(in oklab, var(--color-red-500) 28%, transparent);
+  --color-red-300: color-mix(in oklab, var(--color-red-500) 42%, transparent);
+  --color-red-700: color-mix(in oklab, var(--color-red-400), white 15%);
+  --color-red-800: color-mix(in oklab, var(--color-red-400), white 28%);
+  --color-red-900: color-mix(in oklab, var(--color-red-400), white 42%);
+  --color-red-950: color-mix(in oklab, var(--color-red-400), white 55%);
+  --color-green-50: color-mix(in oklab, var(--color-green-500) 12%, transparent);
+  --color-green-100: color-mix(in oklab, var(--color-green-500) 18%, transparent);
+  --color-green-200: color-mix(in oklab, var(--color-green-500) 28%, transparent);
+  --color-green-300: color-mix(in oklab, var(--color-green-500) 42%, transparent);
+  --color-green-700: color-mix(in oklab, var(--color-green-400), white 15%);
+  --color-green-800: color-mix(in oklab, var(--color-green-400), white 28%);
+  --color-green-900: color-mix(in oklab, var(--color-green-400), white 42%);
+  --color-green-950: color-mix(in oklab, var(--color-green-400), white 55%);
+  --color-emerald-50: color-mix(in oklab, var(--color-emerald-500) 12%, transparent);
+  --color-emerald-100: color-mix(in oklab, var(--color-emerald-500) 18%, transparent);
+  --color-emerald-200: color-mix(in oklab, var(--color-emerald-500) 28%, transparent);
+  --color-emerald-300: color-mix(in oklab, var(--color-emerald-500) 42%, transparent);
+  --color-emerald-700: color-mix(in oklab, var(--color-emerald-400), white 15%);
+  --color-emerald-800: color-mix(in oklab, var(--color-emerald-400), white 28%);
+  --color-emerald-900: color-mix(in oklab, var(--color-emerald-400), white 42%);
+  --color-emerald-950: color-mix(in oklab, var(--color-emerald-400), white 55%);
+  --color-amber-50: color-mix(in oklab, var(--color-amber-500) 12%, transparent);
+  --color-amber-100: color-mix(in oklab, var(--color-amber-500) 18%, transparent);
+  --color-amber-200: color-mix(in oklab, var(--color-amber-500) 28%, transparent);
+  --color-amber-300: color-mix(in oklab, var(--color-amber-500) 42%, transparent);
+  --color-amber-700: color-mix(in oklab, var(--color-amber-400), white 15%);
+  --color-amber-800: color-mix(in oklab, var(--color-amber-400), white 28%);
+  --color-amber-900: color-mix(in oklab, var(--color-amber-400), white 42%);
+  --color-amber-950: color-mix(in oklab, var(--color-amber-400), white 55%);
+  --color-yellow-50: color-mix(in oklab, var(--color-yellow-500) 12%, transparent);
+  --color-yellow-100: color-mix(in oklab, var(--color-yellow-500) 18%, transparent);
+  --color-yellow-200: color-mix(in oklab, var(--color-yellow-500) 28%, transparent);
+  --color-yellow-300: color-mix(in oklab, var(--color-yellow-500) 42%, transparent);
+  --color-yellow-700: color-mix(in oklab, var(--color-yellow-400), white 15%);
+  --color-yellow-800: color-mix(in oklab, var(--color-yellow-400), white 28%);
+  --color-yellow-900: color-mix(in oklab, var(--color-yellow-400), white 42%);
+  --color-yellow-950: color-mix(in oklab, var(--color-yellow-400), white 55%);
+  --color-orange-50: color-mix(in oklab, var(--color-orange-500) 12%, transparent);
+  --color-orange-100: color-mix(in oklab, var(--color-orange-500) 18%, transparent);
+  --color-orange-200: color-mix(in oklab, var(--color-orange-500) 28%, transparent);
+  --color-orange-300: color-mix(in oklab, var(--color-orange-500) 42%, transparent);
+  --color-orange-700: color-mix(in oklab, var(--color-orange-400), white 15%);
+  --color-orange-800: color-mix(in oklab, var(--color-orange-400), white 28%);
+  --color-orange-900: color-mix(in oklab, var(--color-orange-400), white 42%);
+  --color-orange-950: color-mix(in oklab, var(--color-orange-400), white 55%);
+  --color-purple-50: color-mix(in oklab, var(--color-purple-500) 12%, transparent);
+  --color-purple-100: color-mix(in oklab, var(--color-purple-500) 18%, transparent);
+  --color-purple-200: color-mix(in oklab, var(--color-purple-500) 28%, transparent);
+  --color-purple-300: color-mix(in oklab, var(--color-purple-500) 42%, transparent);
+  --color-purple-700: color-mix(in oklab, var(--color-purple-400), white 15%);
+  --color-purple-800: color-mix(in oklab, var(--color-purple-400), white 28%);
+  --color-purple-900: color-mix(in oklab, var(--color-purple-400), white 42%);
+  --color-purple-950: color-mix(in oklab, var(--color-purple-400), white 55%);
+  --color-sky-50: color-mix(in oklab, var(--color-sky-500) 12%, transparent);
+  --color-sky-100: color-mix(in oklab, var(--color-sky-500) 18%, transparent);
+  --color-sky-200: color-mix(in oklab, var(--color-sky-500) 28%, transparent);
+  --color-sky-300: color-mix(in oklab, var(--color-sky-500) 42%, transparent);
+  --color-sky-700: color-mix(in oklab, var(--color-sky-400), white 15%);
+  --color-sky-800: color-mix(in oklab, var(--color-sky-400), white 28%);
+  --color-sky-900: color-mix(in oklab, var(--color-sky-400), white 42%);
+  --color-sky-950: color-mix(in oklab, var(--color-sky-400), white 55%);
+  --color-teal-50: color-mix(in oklab, var(--color-teal-500) 12%, transparent);
+  --color-teal-100: color-mix(in oklab, var(--color-teal-500) 18%, transparent);
+  --color-teal-200: color-mix(in oklab, var(--color-teal-500) 28%, transparent);
+  --color-teal-300: color-mix(in oklab, var(--color-teal-500) 42%, transparent);
+  --color-teal-700: color-mix(in oklab, var(--color-teal-400), white 15%);
+  --color-teal-800: color-mix(in oklab, var(--color-teal-400), white 28%);
+  --color-teal-900: color-mix(in oklab, var(--color-teal-400), white 42%);
+  --color-teal-950: color-mix(in oklab, var(--color-teal-400), white 55%);
+  --color-slate-50: color-mix(in oklab, var(--color-slate-500) 12%, transparent);
+  --color-slate-100: color-mix(in oklab, var(--color-slate-500) 18%, transparent);
+  --color-slate-200: color-mix(in oklab, var(--color-slate-500) 28%, transparent);
+  --color-slate-300: color-mix(in oklab, var(--color-slate-500) 42%, transparent);
+  --color-slate-700: color-mix(in oklab, var(--color-slate-400), white 15%);
+  --color-slate-800: color-mix(in oklab, var(--color-slate-400), white 28%);
+  --color-slate-900: color-mix(in oklab, var(--color-slate-400), white 42%);
+  --color-slate-950: color-mix(in oklab, var(--color-slate-400), white 55%);
+  --color-rose-50: color-mix(in oklab, var(--color-rose-500) 12%, transparent);
+  --color-rose-100: color-mix(in oklab, var(--color-rose-500) 18%, transparent);
+  --color-rose-200: color-mix(in oklab, var(--color-rose-500) 28%, transparent);
+  --color-rose-300: color-mix(in oklab, var(--color-rose-500) 42%, transparent);
+  --color-rose-700: color-mix(in oklab, var(--color-rose-400), white 15%);
+  --color-rose-800: color-mix(in oklab, var(--color-rose-400), white 28%);
+  --color-rose-900: color-mix(in oklab, var(--color-rose-400), white 42%);
+  --color-rose-950: color-mix(in oklab, var(--color-rose-400), white 55%);
+  --color-lime-50: color-mix(in oklab, var(--color-lime-500) 12%, transparent);
+  --color-lime-100: color-mix(in oklab, var(--color-lime-500) 18%, transparent);
+  --color-lime-200: color-mix(in oklab, var(--color-lime-500) 28%, transparent);
+  --color-lime-300: color-mix(in oklab, var(--color-lime-500) 42%, transparent);
+  --color-lime-700: color-mix(in oklab, var(--color-lime-400), white 15%);
+  --color-lime-800: color-mix(in oklab, var(--color-lime-400), white 28%);
+  --color-lime-900: color-mix(in oklab, var(--color-lime-400), white 42%);
+  --color-lime-950: color-mix(in oklab, var(--color-lime-400), white 55%);
+  --color-cyan-50: color-mix(in oklab, var(--color-cyan-500) 12%, transparent);
+  --color-cyan-100: color-mix(in oklab, var(--color-cyan-500) 18%, transparent);
+  --color-cyan-200: color-mix(in oklab, var(--color-cyan-500) 28%, transparent);
+  --color-cyan-300: color-mix(in oklab, var(--color-cyan-500) 42%, transparent);
+  --color-cyan-700: color-mix(in oklab, var(--color-cyan-400), white 15%);
+  --color-cyan-800: color-mix(in oklab, var(--color-cyan-400), white 28%);
+  --color-cyan-900: color-mix(in oklab, var(--color-cyan-400), white 42%);
+  --color-cyan-950: color-mix(in oklab, var(--color-cyan-400), white 55%);
+  --color-blue-50: color-mix(in oklab, var(--color-blue-500) 12%, transparent);
+  --color-blue-100: color-mix(in oklab, var(--color-blue-500) 18%, transparent);
+  --color-blue-200: color-mix(in oklab, var(--color-blue-500) 28%, transparent);
+  --color-blue-300: color-mix(in oklab, var(--color-blue-500) 42%, transparent);
+  --color-blue-700: color-mix(in oklab, var(--color-blue-400), white 15%);
+  --color-blue-800: color-mix(in oklab, var(--color-blue-400), white 28%);
+  --color-blue-900: color-mix(in oklab, var(--color-blue-400), white 42%);
+  --color-blue-950: color-mix(in oklab, var(--color-blue-400), white 55%);
+}
+
 
 /* ========================================
    PRIMITIVAS DE FORMULARIO Y SUPERFICIE
@@ -106,13 +324,84 @@
    pagina sigue ganando.
    ======================================== */
 
-/* Contenedor blanco estandar (tarjetas, tablas, formularios). El padding
-   queda afuera a proposito: cada pantalla usa el que necesita. */
+/* Superficie estandar (tarjetas, tablas, formularios). El padding queda
+   afuera a proposito: cada pantalla usa el que necesita. */
 @utility card {
-  background-color: #fff;
-  border: 1px solid var(--color-gray-100);
+  background-color: var(--surface);
+  border: 1px solid var(--line);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
+}
+
+/* Tarjeta destacada (KPIs, secciones, grilla de activos). El color sale de
+   --card-accent, que fija un dato real via TONO_ACENTO (lib/constants/
+   tonos.ts): halo radial y circulo en la esquina superior derecha, y un
+   borde que se tine hacia esa esquina. El circulo crece al hover.
+   Sin overflow/isolation a proposito: ambos aplanan el 3D y el contenido
+   no podria "saltar" hacia adelante dentro de <Tilt>. */
+@property --card-circle {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 4.5rem;
+}
+
+@utility card-feature {
+  --card-accent: var(--color-primary-500);
+  position: relative;
+  transform-style: preserve-3d;
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      color-mix(in oklab, var(--card-accent) var(--card-dot), transparent) var(--card-circle),
+      transparent calc(var(--card-circle) + 1px)
+    ),
+    radial-gradient(
+      ellipse 90% 90% at 100% 0%,
+      color-mix(in oklab, var(--card-accent) var(--card-halo), transparent),
+      transparent 60%
+    ),
+    var(--surface);
+  box-shadow: var(--shadow-card);
+  transition:
+    box-shadow 300ms,
+    --card-circle 500ms ease-out;
+
+  /* Borde degradado: la mascara deja visible solo el anillo de 1px entre
+     content-box y border-box. */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(
+      225deg,
+      color-mix(in oklab, var(--card-accent) 60%, transparent),
+      var(--line) 40%
+    );
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+
+  &:hover {
+    --card-circle: 7rem;
+    box-shadow: var(--shadow-card-hover);
+  }
+}
+
+/* Profundidad dentro de <Tilt>: al inclinar, el contenido se adelanta en Z
+   sobre el fondo (efecto de la referencia). Solo aplica con data-tilt, asi
+   las grillas grandes no crean una capa por hijo. */
+[data-tilt] .card-feature > * {
+  transform: translateZ(var(--tilt-z, 0));
+  transition: transform 400ms cubic-bezier(0.03, 0.98, 0.52, 0.99);
+}
+
+[data-tilt]:hover {
+  --tilt-z: 28px;
 }
 
 @utility field-label {
@@ -130,8 +419,9 @@
   width: 100%;
   padding: var(--field-py, 0.5rem) var(--field-px, 0.75rem);
   font-size: var(--field-fs, inherit);
-  background-color: #fff;
-  border: 1px solid var(--color-gray-300);
+  color: var(--fg);
+  background-color: var(--surface);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-control);
   transition-property: border-color, box-shadow;
   transition-duration: 150ms;
@@ -143,8 +433,8 @@
   }
 
   &:disabled {
-    background-color: var(--color-gray-50);
-    color: var(--color-gray-600);
+    background-color: var(--surface-muted);
+    color: var(--fg-subtle);
     cursor: not-allowed;
   }
 }
@@ -156,8 +446,8 @@
 
 @utility field-checkbox {
   border-radius: 0.25rem;
-  border-color: var(--color-gray-300);
-  accent-color: var(--color-primary-700);
+  border-color: var(--line-strong);
+  accent-color: var(--color-brand);
 }
 
 /* Celda de cabecera de tabla. Alinea a la izquierda por defecto; las
@@ -171,32 +461,50 @@
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--color-gray-500);
+  color: var(--fg-subtle);
 }
 
-/* La app es solo modo claro: el fondo no cambia con prefers-color-scheme. */
+/* Tailwind v4 pinta los bordes sin color con currentColor; en este sistema
+   un "border" suelto siempre fue la linea gris tenue. Se fija al token para
+   que siga el tema. Mismo trato para el hueco de los anillos de foco. */
+@layer base {
+  *,
+  ::before,
+  ::after,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--line);
+    --tw-ring-offset-color: var(--surface);
+  }
+}
+
+/* Fondo radiant fijo al viewport: no se repinta al hacer scroll. */
 body {
-  background: var(--color-gray-50);
-  color: var(--color-gray-800);
+  background:
+    radial-gradient(ellipse 80% 60% at 100% 0%, var(--radiant-a), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 0% 100%, var(--radiant-b), transparent 60%),
+    var(--canvas);
+  background-attachment: fixed;
+  color: var(--fg);
   min-height: 100vh;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 html {
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
-/* Controles nativos: algunos navegadores en modo oscuro pintan select/option
-   con fondo oscuro aunque la app sea clara; se fija el esquema claro. */
+/* Controles nativos: color-scheme (ver :root) ya adapta scrollbars y
+   popups; el fondo de select/option se fija a la superficie del tema. */
 input,
 textarea,
 select {
-  color: var(--color-gray-800);
+  color: var(--fg);
 }
 
 select,
 select option {
-  background-color: #fff;
+  background-color: var(--surface);
 }
 
 select option {
@@ -204,17 +512,52 @@ select option {
 }
 
 select option:checked {
-  background-color: var(--color-primary-600);
+  background-color: var(--color-brand);
   color: #fff;
 }
 
 select option[value=""] {
-  color: var(--color-gray-500);
+  color: var(--fg-subtle);
 }
 
 input::placeholder,
 textarea::placeholder {
   color: var(--color-gray-400);
+}
+
+/* ========================================
+   GRAFICOS (Recharts)
+   Recharts pinta ejes, grilla y tooltip con grises fijos (algunos inline);
+   se llevan a los tokens para que sigan el tema. Las series usan
+   coloresGraficos.ts / ESTADO_ACTIVO_COLOR, que se leen bien en ambos.
+   ======================================== */
+.recharts-cartesian-grid line {
+  stroke: var(--line);
+}
+
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line {
+  stroke: var(--line-strong);
+}
+
+.recharts-cartesian-axis-tick-value,
+.recharts-polar-angle-axis-tick-value {
+  fill: var(--fg-subtle);
+}
+
+.recharts-default-tooltip {
+  background-color: var(--surface) !important;
+  border-color: var(--line) !important;
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.recharts-tooltip-label {
+  color: var(--fg);
+}
+
+.recharts-tooltip-cursor {
+  fill: color-mix(in oklab, var(--fg) 6%, transparent);
 }
 
 /* ========================================

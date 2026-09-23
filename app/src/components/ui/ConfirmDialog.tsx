@@ -90,10 +90,10 @@ export function ConfirmDialog({
         </div>
 
         {/* Title */}
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
+        <h3 className="text-lg font-semibold text-fg mb-2">{title}</h3>
 
         {/* Message */}
-        <div className="text-sm text-gray-600 mb-6">{message}</div>
+        <div className="text-sm text-fg-muted mb-6">{message}</div>
 
         {/* Actions */}
         <div className="flex items-center justify-center gap-3 w-full">
@@ -202,11 +202,11 @@ export function UnsavedChangesDialog({
           <AlertTriangle className="w-7 h-7 text-amber-600" />
         </div>
 
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+        <h3 className="text-lg font-semibold text-fg mb-2">
           Cambios sin guardar
         </h3>
 
-        <p className="text-sm text-gray-600 mb-6">
+        <p className="text-sm text-fg-muted mb-6">
           Tienes cambios sin guardar. ¿Qué deseas hacer?
         </p>
 

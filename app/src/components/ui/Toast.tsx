@@ -10,6 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { X, CheckCircle2, AlertCircle, AlertTriangle, Info } from "lucide-react";
+import { TONO_ACENTO, type Tono } from "@/lib/constants/tonos";
 
 // Types
 type ToastVariant = "success" | "error" | "warning" | "info";
@@ -163,30 +164,13 @@ interface ToastItemProps {
   onDismiss: () => void;
 }
 
-const variantStyles: Record<
-  ToastVariant,
-  { bg: string; icon: string; border: string }
-> = {
-  success: {
-    bg: "bg-emerald-50",
-    icon: "text-emerald-500",
-    border: "border-emerald-200",
-  },
-  error: {
-    bg: "bg-red-50",
-    icon: "text-red-500",
-    border: "border-red-200",
-  },
-  warning: {
-    bg: "bg-amber-50",
-    icon: "text-amber-500",
-    border: "border-amber-200",
-  },
-  info: {
-    bg: "bg-primary-50",
-    icon: "text-primary-500",
-    border: "border-primary-200",
-  },
+// Superficie opaca (card-feature) teñida con el tono: un fondo bg-*-50 se
+// vuelve translucido en modo oscuro y el toast dejaria ver lo de atras.
+const variantStyles: Record<ToastVariant, { tono: Tono; icon: string }> = {
+  success: { tono: "success", icon: "text-emerald-500" },
+  error: { tono: "danger", icon: "text-red-500" },
+  warning: { tono: "warning", icon: "text-amber-500" },
+  info: { tono: "primary", icon: "text-primary-500" },
 };
 
 const variantIcons: Record<ToastVariant, typeof CheckCircle2> = {
@@ -207,11 +191,9 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
         w-80 max-w-[calc(100vw-2rem)]
         flex items-start gap-3
         px-4 py-3
-        rounded-xl
-        border
-        shadow-lg
-        ${styles.bg}
-        ${styles.border}
+        card-feature
+        shadow-card-hover
+        ${TONO_ACENTO[styles.tono]}
         animate-toast-in
         motion-reduce:animate-none
       `}
@@ -220,9 +202,9 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
       <Icon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${styles.icon}`} />
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900">{toast.title}</p>
+        <p className="text-sm font-medium text-fg">{toast.title}</p>
         {toast.description && (
-          <p className="mt-1 text-sm text-gray-600">{toast.description}</p>
+          <p className="mt-1 text-sm text-fg-muted">{toast.description}</p>
         )}
       </div>
 
@@ -233,8 +215,8 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
           flex-shrink-0
           p-1
           rounded-lg
-          text-gray-400
-          hover:text-gray-600
+          text-fg-subtle
+          hover:text-fg-muted
           hover:bg-black/5
           focus:outline-none
           focus-visible:ring-2

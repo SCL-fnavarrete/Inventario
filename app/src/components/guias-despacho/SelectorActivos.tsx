@@ -143,7 +143,7 @@ export function SelectorActivos({
       {/* Filtros en línea */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" size={18} />
           <input
             type="text"
             placeholder="Buscar por marca, modelo, serie, IMEI o teléfono..."
@@ -156,7 +156,7 @@ export function SelectorActivos({
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="appearance-none pl-3 pr-8 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white cursor-pointer"
+            className="appearance-none pl-3 pr-8 py-2 text-sm border border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-surface cursor-pointer"
           >
             <option value="all">Todas las categorías</option>
             {categories.map((cat) => (
@@ -165,7 +165,7 @@ export function SelectorActivos({
               </option>
             ))}
           </select>
-          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle pointer-events-none" size={16} />
         </div>
       </div>
 
@@ -187,7 +187,7 @@ export function SelectorActivos({
             {selectedAssets.map((asset) => (
               <span
                 key={asset.id}
-                className="inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-primary-200 text-primary-900 rounded text-xs"
+                className="inline-flex items-center gap-1.5 px-2 py-1 bg-surface border border-primary-200 text-primary-900 rounded text-xs"
               >
                 <CategoryIcon categoria={asset.categoria.nombre} className="h-4 w-4" />
                 <span className="text-primary-700">{asset.categoria.nombre}</span>
@@ -211,31 +211,31 @@ export function SelectorActivos({
       {loading ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="animate-spin mr-2 text-primary-700" size={20} />
-          <span className="text-gray-600 text-sm">Cargando equipos...</span>
+          <span className="text-fg-muted text-sm">Cargando equipos...</span>
         </div>
       ) : filteredAssets.length === 0 ? (
-        <div className="text-center py-8 text-gray-500 text-sm">
+        <div className="text-center py-8 text-fg-subtle text-sm">
           No se encontraron equipos disponibles
         </div>
       ) : (
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="border border-line rounded-lg overflow-hidden">
           {/* Header de tabla */}
-          <div className="bg-gray-50 border-b border-gray-200 px-3 py-2 flex items-center gap-3 text-xs font-medium text-gray-600 uppercase tracking-wide">
+          <div className="bg-surface-muted border-b border-line px-3 py-2 flex items-center gap-3 text-xs font-medium text-fg-muted uppercase tracking-wide">
             <div className="w-6">
               <button
                 onClick={allFilteredSelected ? deselectAll : selectAll}
                 className={cn(
                   "w-4 h-4 rounded border flex items-center justify-center transition-colors",
                   allFilteredSelected
-                    ? "bg-primary-700 border-primary-700 text-white"
+                    ? "bg-brand border-primary-700 text-white"
                     : someFilteredSelected
                     ? "bg-primary-100 border-primary-400"
-                    : "border-gray-300 hover:border-primary-400"
+                    : "border-line-strong hover:border-primary-400"
                 )}
               >
                 {allFilteredSelected && <Check size={12} />}
                 {someFilteredSelected && !allFilteredSelected && (
-                  <div className="w-2 h-0.5 bg-primary-700 rounded" />
+                  <div className="w-2 h-0.5 bg-brand rounded" />
                 )}
               </button>
             </div>
@@ -247,7 +247,7 @@ export function SelectorActivos({
           </div>
 
           {/* Filas */}
-          <div className="max-h-[400px] overflow-y-auto divide-y divide-gray-100">
+          <div className="max-h-[400px] overflow-y-auto divide-y divide-line">
             {filteredAssets.map((asset) => {
               const isSelected = selectedAssets.some((a) => a.id === asset.id);
               const categoria = asset.categoria.nombre.toLowerCase();
@@ -273,7 +273,7 @@ export function SelectorActivos({
                     "px-3 py-2.5 flex items-center gap-3 cursor-pointer transition-colors text-sm",
                     isSelected
                       ? "bg-primary-50 hover:bg-primary-100"
-                      : "hover:bg-gray-50"
+                      : "hover:bg-surface-muted"
                   )}
                 >
                   {/* Checkbox */}
@@ -282,8 +282,8 @@ export function SelectorActivos({
                       className={cn(
                         "w-4 h-4 rounded border flex items-center justify-center transition-all",
                         isSelected
-                          ? "bg-primary-700 border-primary-700 text-white"
-                          : "border-gray-300"
+                          ? "bg-brand border-primary-700 text-white"
+                          : "border-line-strong"
                       )}
                     >
                       {isSelected && <Check size={12} />}
@@ -293,7 +293,7 @@ export function SelectorActivos({
                   {/* Icono categoría */}
                   <div className={cn(
                     "w-8 flex justify-center",
-                    isSelected ? "text-primary-700" : "text-gray-500"
+                    isSelected ? "text-primary-700" : "text-fg-subtle"
                   )}>
                     <CategoryIcon categoria={asset.categoria.nombre} className="h-4 w-4" />
                   </div>
@@ -302,24 +302,24 @@ export function SelectorActivos({
                   <div className="flex-1 min-w-0">
                     <span className={cn(
                       "font-medium",
-                      isSelected ? "text-primary-950" : "text-gray-900"
+                      isSelected ? "text-primary-950" : "text-fg"
                     )}>
                       {asset.marca} {asset.modelo}
                     </span>
                     {/* Nombre de categoria visible ademas del icono, en todos los
                         tamaños de pantalla. */}
-                    <span className="text-gray-500 text-xs ml-2">
+                    <span className="text-fg-subtle text-xs ml-2">
                       {asset.categoria.nombre}
                     </span>
                   </div>
 
                   {/* Serie/IMEI */}
-                  <div className="w-28 hidden sm:block text-xs text-gray-600 font-mono truncate">
+                  <div className="w-28 hidden sm:block text-xs text-fg-muted font-mono truncate">
                     {asset.numeroSerie || asset.imei || "-"}
                   </div>
 
                   {/* Info extra */}
-                  <div className="w-20 hidden md:block text-xs text-gray-500 truncate">
+                  <div className="w-20 hidden md:block text-xs text-fg-subtle truncate">
                     {extraInfo || "-"}
                   </div>
 
@@ -333,7 +333,7 @@ export function SelectorActivos({
           </div>
 
           {/* Footer con total */}
-          <div className="bg-gray-50 border-t border-gray-200 px-3 py-2 text-xs text-gray-500">
+          <div className="bg-surface-muted border-t border-line px-3 py-2 text-xs text-fg-subtle">
             Mostrando {filteredAssets.length} equipo(s) disponible(s)
           </div>
         </div>

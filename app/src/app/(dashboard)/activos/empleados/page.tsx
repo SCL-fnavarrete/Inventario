@@ -14,6 +14,8 @@ import {
   UserX,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tilt } from "@/components/ui/Tilt";
+import { TONO_ACENTO } from "@/lib/constants/tonos";
 import { ActivosTabs } from "@/components/activos";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
@@ -248,82 +250,88 @@ export default function PersonalPage() {
       {/* Stats - Interactive Cards */}
       <div className={cn("grid grid-cols-1 gap-4", esAdmin ? "md:grid-cols-4" : "md:grid-cols-3")}>
         {/* Total Empleados - Reset Filter */}
-        <button
-          onClick={() => handleStatClick("reset")}
-          disabled={!hasActiveFilters}
-          className={cn(
-            "bg-white rounded-lg shadow p-4 text-left transition-all",
-            hasActiveFilters
-              ? "hover:shadow-md hover:scale-105 cursor-pointer"
-              : "opacity-75",
-            !hasActiveFilters && "ring-2 ring-primary-500 ring-offset-2"
-          )}
-          aria-label="Ver todos los empleados - limpiar filtros"
-          title={hasActiveFilters ? "Click para limpiar filtros" : "Mostrando todos"}
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary-100 rounded-lg">
-              <Users className="h-6 w-6 text-primary-700" />
+        <Tilt>
+          <button
+            onClick={() => handleStatClick("reset")}
+            disabled={!hasActiveFilters}
+            className={cn(
+              "card-feature h-full w-full p-4 text-left",
+              TONO_ACENTO.primary,
+              !hasActiveFilters && "ring-2 ring-[var(--card-accent)] ring-offset-2 ring-offset-canvas"
+            )}
+            aria-label="Ver todos los empleados - limpiar filtros"
+            title={hasActiveFilters ? "Click para limpiar filtros" : "Mostrando todos"}
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary-100 rounded-lg">
+                <Users className="h-6 w-6 text-primary-700" />
+              </div>
+              <div>
+                <p className="text-sm text-fg-subtle">Total Empleados</p>
+                <p className="text-xl font-bold">{stats.totalEmpleados}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-gray-500">Total Empleados</p>
-              <p className="text-xl font-bold">{stats.totalEmpleados}</p>
-            </div>
-          </div>
-          {!hasActiveFilters && (
-            <p className="text-xs text-primary-700 mt-2 font-medium">Sin filtros activos</p>
-          )}
-        </button>
+            {!hasActiveFilters && (
+              <p className="text-xs text-primary-700 mt-2 font-medium">Sin filtros activos</p>
+            )}
+          </button>
+        </Tilt>
 
         {/* Activos - Filter Toggle */}
-        <button
-          onClick={() => handleStatClick("activo")}
-          className={cn(
-            "bg-white rounded-lg shadow p-4 text-left transition-all hover:shadow-md hover:scale-105 cursor-pointer",
-            estadoFilter === "activo" && "ring-2 ring-green-500 ring-offset-2"
-          )}
-          aria-label="Filtrar empleados activos"
-          aria-pressed={estadoFilter === "activo"}
-          title="Click para filtrar por empleados activos"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <User className="h-6 w-6 text-green-600" />
+        <Tilt>
+          <button
+            onClick={() => handleStatClick("activo")}
+            className={cn(
+              "card-feature h-full w-full p-4 text-left",
+              TONO_ACENTO.success,
+              estadoFilter === "activo" && "ring-2 ring-[var(--card-accent)] ring-offset-2 ring-offset-canvas"
+            )}
+            aria-label="Filtrar empleados activos"
+            aria-pressed={estadoFilter === "activo"}
+            title="Click para filtrar por empleados activos"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <User className="h-6 w-6 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-fg-subtle">Activos</p>
+                <p className="text-xl font-bold">{stats.activos}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-gray-500">Activos</p>
-              <p className="text-xl font-bold">{stats.activos}</p>
-            </div>
-          </div>
-          {estadoFilter === "activo" && (
-            <p className="text-xs text-green-600 mt-2 font-medium">Filtro activo</p>
-          )}
-        </button>
+            {estadoFilter === "activo" && (
+              <p className="text-xs text-green-600 mt-2 font-medium">Filtro activo</p>
+            )}
+          </button>
+        </Tilt>
 
         {/* Desvinculados - Filter Toggle */}
-        <button
-          onClick={() => handleStatClick("desvinculado")}
-          className={cn(
-            "bg-white rounded-lg shadow p-4 text-left transition-all hover:shadow-md hover:scale-105 cursor-pointer",
-            estadoFilter === "desvinculado" && "ring-2 ring-red-500 ring-offset-2"
-          )}
-          aria-label="Filtrar empleados desvinculados"
-          aria-pressed={estadoFilter === "desvinculado"}
-          title="Click para filtrar por empleados desvinculados"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <UserX className="h-6 w-6 text-red-600" />
+        <Tilt>
+          <button
+            onClick={() => handleStatClick("desvinculado")}
+            className={cn(
+              "card-feature h-full w-full p-4 text-left",
+              TONO_ACENTO.danger,
+              estadoFilter === "desvinculado" && "ring-2 ring-[var(--card-accent)] ring-offset-2 ring-offset-canvas"
+            )}
+            aria-label="Filtrar empleados desvinculados"
+            aria-pressed={estadoFilter === "desvinculado"}
+            title="Click para filtrar por empleados desvinculados"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <UserX className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <p className="text-sm text-fg-subtle">Desvinculados</p>
+                <p className="text-xl font-bold">{stats.desvinculados}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-gray-500">Desvinculados</p>
-              <p className="text-xl font-bold">{stats.desvinculados}</p>
-            </div>
-          </div>
-          {estadoFilter === "desvinculado" && (
-            <p className="text-xs text-red-600 mt-2 font-medium">Filtro activo</p>
-          )}
-        </button>
+            {estadoFilter === "desvinculado" && (
+              <p className="text-xs text-red-600 mt-2 font-medium">Filtro activo</p>
+            )}
+          </button>
+        </Tilt>
 
       </div>
 
@@ -331,7 +339,7 @@ export default function PersonalPage() {
       <div className="card p-4">
         <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-fg-subtle" />
             <input
               type="text"
               placeholder="Buscar por RUT, nombre, correo, cargo..."
@@ -350,7 +358,7 @@ export default function PersonalPage() {
                 setTipoContratoFilter(e.target.value);
                 setPagination((prev) => ({ ...prev, page: 1 }));
               }}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="px-4 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="">Todos los contratos</option>
               {Object.entries(tipoContratoLabels).map(([value, label]) => (
@@ -366,7 +374,7 @@ export default function PersonalPage() {
                   setSedeFilter(e.target.value);
                   setPagination((prev) => ({ ...prev, page: 1 }));
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="px-4 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               >
                 <option value="">Todas las sedes</option>
                 {sedes.map((sede) => (
@@ -384,7 +392,7 @@ export default function PersonalPage() {
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-surface-muted border-b">
               <tr>
                 <th className="table-th">
                   RUT
@@ -424,29 +432,29 @@ export default function PersonalPage() {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-line">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={11} className="px-6 py-12 text-center text-fg-subtle">
                     Cargando...
                   </td>
                 </tr>
               ) : employees.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={11} className="px-6 py-12 text-center text-fg-subtle">
                     No se encontraron empleados
                   </td>
                 </tr>
               ) : (
                 employees.map((employee) => (
-                  <tr key={employee.id} className="hover:bg-gray-50">
+                  <tr key={employee.id} className="hover:bg-surface-muted">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-mono text-gray-900">
+                      <span className="text-sm font-mono text-fg">
                         {employee.rut || "—"}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-medium text-fg">
                         {employee.nombres} {employee.apellidoPaterno}
                         {employee.origenMicrosoft && (
                           <span className="ml-1.5 inline-flex items-center text-[10px] bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded font-normal">
@@ -456,24 +464,24 @@ export default function PersonalPage() {
                       </p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-gray-600">{employee.correoPersonal ?? employee.correoEmpresa ?? ''}</p>
+                      <p className="text-sm text-fg-muted">{employee.correoPersonal ?? employee.correoEmpresa ?? ''}</p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-gray-900">
+                      <p className="text-sm text-fg">
                         {employee.cargo || "-"}
                       </p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-gray-600">{employee.jefatura || "-"}</p>
+                      <p className="text-sm text-fg-muted">{employee.jefatura || "-"}</p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-gray-600">{employee.supervisor || "-"}</p>
+                      <p className="text-sm text-fg-muted">{employee.supervisor || "-"}</p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-gray-600">{employee.ubicacion || "-"}</p>
+                      <p className="text-sm text-fg-muted">{employee.ubicacion || "-"}</p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-gray-600">{employee.sede?.nombre || "-"}</p>
+                      <p className="text-sm text-fg-muted">{employee.sede?.nombre || "-"}</p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -496,7 +504,7 @@ export default function PersonalPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-600">
+                      <span className="text-sm text-fg-muted">
                         {employee._count.assignments} equipos
                       </span>
                     </td>
@@ -504,14 +512,14 @@ export default function PersonalPage() {
                       <div className="flex justify-end gap-2">
                         <Link
                           href={`/empleados/${employee.id}`}
-                          className="p-2 text-gray-500 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
+                          className="p-2 text-fg-subtle hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
                           title="Ver ficha"
                         >
                           <Eye size={18} />
                         </Link>
                         <Link
                           href={`/empleados/${employee.id}/editar`}
-                          className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          className="p-2 text-fg-subtle hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                           title="Editar"
                         >
                           <Edit size={18} />
@@ -528,7 +536,7 @@ export default function PersonalPage() {
         {/* Pagination */}
         {pagination.totalPages > 1 && (
           <div className="px-6 py-4 border-t flex items-center justify-between">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-fg-subtle">
               Mostrando {(pagination.page - 1) * pagination.limit + 1} a{" "}
               {Math.min(pagination.page * pagination.limit, pagination.total)} de{" "}
               {pagination.total} empleados
@@ -539,7 +547,7 @@ export default function PersonalPage() {
                   setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
                 }
                 disabled={pagination.page === 1}
-                className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 rounded-lg border hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ChevronLeft size={20} />
               </button>
@@ -548,7 +556,7 @@ export default function PersonalPage() {
                   setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
                 }
                 disabled={pagination.page === pagination.totalPages}
-                className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 rounded-lg border hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ChevronRight size={20} />
               </button>

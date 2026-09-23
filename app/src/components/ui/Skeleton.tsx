@@ -169,7 +169,7 @@ export function SkeletonTable({
   ...props
 }: HTMLAttributes<HTMLDivElement> & { rows?: number; columns?: number }) {
   return (
-    <div className={`divide-y divide-gray-100 ${props.className || ""}`}>
+    <div className={`divide-y divide-line ${props.className || ""}`}>
       {Array.from({ length: rows }).map((_, i) => (
         <SkeletonTableRow
           key={i}

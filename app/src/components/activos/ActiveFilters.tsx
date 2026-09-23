@@ -19,7 +19,7 @@ const filterColors: Record<string, string> = {
   estado: "bg-primary-100 text-primary-900 border-primary-200",
   categoria: "bg-purple-100 text-purple-800 border-purple-200",
   condicion: "bg-amber-100 text-amber-800 border-amber-200",
-  search: "bg-gray-100 text-gray-800 border-gray-200",
+  search: "bg-gray-100 text-fg border-line",
 };
 
 export function ActiveFilters({ filters, onRemoveFilter, onClearAll }: ActiveFiltersProps) {
@@ -27,7 +27,7 @@ export function ActiveFilters({ filters, onRemoveFilter, onClearAll }: ActiveFil
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-sm text-gray-500 font-medium">Filtros:</span>
+      <span className="text-sm text-fg-subtle font-medium">Filtros:</span>
 
       {filters.map((filter) => (
         <span
@@ -38,7 +38,7 @@ export function ActiveFilters({ filters, onRemoveFilter, onClearAll }: ActiveFil
             ${filterColors[filter.key] || filterColors.search}
           `}
         >
-          <span className="text-xs text-gray-500">{filter.label}:</span>
+          <span className="text-xs text-fg-subtle">{filter.label}:</span>
           <span>{filter.displayValue}</span>
           <button
             onClick={() => onRemoveFilter(filter.key)}

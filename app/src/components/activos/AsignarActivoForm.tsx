@@ -162,14 +162,14 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
     }
   };
 
-  if (loading) return <div className="p-6 text-gray-500">Cargando...</div>;
+  if (loading) return <div className="p-6 text-fg-subtle">Cargando...</div>;
   if (!asset) return <div className="p-6 text-red-500">Activo no encontrado</div>;
 
   const asignable = ESTADOS_ASIGNABLES.includes(asset.estado);
 
   return (
     <div className="space-y-6">
-      <p className="text-gray-600">
+      <p className="text-fg-muted">
         {asset.marca} {asset.modelo}
         {asset.numeroSerie && ` • ${asset.numeroSerie}`}
       </p>
@@ -215,13 +215,13 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
               </div>
 
               {buscoAlgunaVez && !searching && employees.length === 0 && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-fg-subtle">
                   No se encontraron empleados activos con ese criterio.
                 </p>
               )}
 
               {employees.length > 0 && (
-                <div className="border border-gray-200 rounded-lg divide-y max-h-64 overflow-y-auto">
+                <div className="border border-line rounded-lg divide-y max-h-64 overflow-y-auto">
                   {employees.map((emp) => (
                     <button
                       key={emp.id}
@@ -235,14 +235,14 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                             : sugerirNombreEquipo(emp.nombres, emp.apellidoPaterno)
                         );
                       }}
-                      className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
+                      className={`w-full text-left px-4 py-3 hover:bg-surface-muted transition-colors ${
                         selectedEmployee?.id === emp.id ? "bg-primary-50" : ""
                       }`}
                     >
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-fg">
                         {emp.nombres} {emp.apellidoPaterno} {emp.apellidoMaterno || ""}
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-fg-subtle">
                         {emp.rut || "sin RUT"}
                         {emp.cargo && ` • ${emp.cargo}`}
                       </p>
@@ -253,14 +253,14 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
 
               <div className="flex justify-end gap-2">
                 {onCancel && (
-                  <button onClick={onCancel} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+                  <button onClick={onCancel} className="px-4 py-2 text-fg-muted hover:text-fg">
                     Cancelar
                   </button>
                 )}
                 <button
                   onClick={() => setStep(2)}
                   disabled={!selectedEmployee}
-                  className="px-6 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-800 disabled:opacity-50"
+                  className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"
                 >
                   Continuar
                 </button>
@@ -273,9 +273,9 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
             <div className="space-y-4">
               <h2 className="text-lg font-semibold">Paso 2: Datos de la entrega</h2>
 
-              <div className="bg-gray-50 rounded-lg p-4 text-sm">
-                <p className="text-gray-500 mb-1">Se entrega a:</p>
-                <p className="font-medium text-gray-900">
+              <div className="bg-surface-muted rounded-lg p-4 text-sm">
+                <p className="text-fg-subtle mb-1">Se entrega a:</p>
+                <p className="font-medium text-fg">
                   {selectedEmployee.nombres} {selectedEmployee.apellidoPaterno}
                   {selectedEmployee.rut && ` • RUT: ${selectedEmployee.rut}`}
                 </p>
@@ -293,7 +293,7 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                     onChange={(e) => setFechaEntrega(e.target.value)}
                     className="field-input"
                   />
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-fg-subtle">
                     Si el equipo se entrego antes, corrige la fecha aqui.
                   </p>
                 </div>
@@ -353,7 +353,7 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
                   placeholder="Ej: SCL-CROJAS"
                   className="field-input"
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-fg-subtle">
                   Se propone según la convención de la empresa (SCL + inicial del nombre +
                   apellido). Puedes cambiarlo si ya está tomado. Opcional: si el equipo se
                   renombra después, se puede completar desde la ficha del activo.
@@ -374,14 +374,14 @@ export function AsignarActivoForm({ assetId, onSuccess, onCancel }: AsignarActiv
               <div className="flex justify-between">
                 <button
                   onClick={() => setStep(1)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  className="px-4 py-2 text-fg-muted hover:text-fg"
                 >
                   Volver
                 </button>
                 <button
                   onClick={handleSubmit}
                   disabled={submitting || !fechaEntrega}
-                  className="px-6 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-800 disabled:opacity-50"
+                  className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"
                 >
                   {submitting ? "Asignando..." : "Confirmar entrega"}
                 </button>

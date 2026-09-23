@@ -115,7 +115,7 @@ export default function GuiaDespachoDetailPage({
             <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
           </div>
         ) : (
-          <p className="text-gray-500">Guía de despacho no encontrada</p>
+          <p className="text-fg-subtle">Guía de despacho no encontrada</p>
         )}
         <Link
           href="/guias-despacho"
@@ -148,7 +148,7 @@ export default function GuiaDespachoDetailPage({
           </Link>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">{guide.numero}</h1>
+              <h1 className="text-2xl font-bold text-fg">{guide.numero}</h1>
               <span
                 className={cn(
                   "px-3 py-1 text-sm font-medium rounded-full",
@@ -158,7 +158,7 @@ export default function GuiaDespachoDetailPage({
                 {ESTADO_GUIA_LABELS[guide.estado]}
               </span>
             </div>
-            <p className="text-gray-600">
+            <p className="text-fg-muted">
               Creada el {formatearFechaHoraCorta(guide.createdAt, "-")}
             </p>
           </div>
@@ -183,7 +183,7 @@ export default function GuiaDespachoDetailPage({
           {puedeConfirmarRecepcion ? (
             <button
               onClick={() => setShowConfirmModal(true)}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-success-hover"
             >
               Confirmar Recepción
             </button>
@@ -204,28 +204,28 @@ export default function GuiaDespachoDetailPage({
           </h2>
           <dl className="space-y-3">
             <div>
-              <dt className="text-sm text-gray-500">OT Chilexpress</dt>
+              <dt className="text-sm text-fg-subtle">OT Chilexpress</dt>
               <dd className="font-medium font-mono">{guide.otChilexpress}</dd>
             </div>
             {/* Sede origen, in addition to destino. */}
             <div>
-              <dt className="text-sm text-gray-500">Sede origen</dt>
+              <dt className="text-sm text-fg-subtle">Sede origen</dt>
               <dd className="font-medium">{guide.sede?.nombre || "—"}</dd>
             </div>
             <div>
-              <dt className="text-sm text-gray-500">Sede destino</dt>
+              <dt className="text-sm text-fg-subtle">Sede destino</dt>
               <dd className="font-medium">{guide.sedeDestino.nombre}</dd>
             </div>
             <div>
-              <dt className="text-sm text-gray-500">Emisor</dt>
+              <dt className="text-sm text-fg-subtle">Emisor</dt>
               <dd className="font-medium">{guide.despachadoPor}</dd>
             </div>
             <div>
-              <dt className="text-sm text-gray-500">Fecha de envío</dt>
+              <dt className="text-sm text-fg-subtle">Fecha de envío</dt>
               <dd className="font-medium">{formatearFechaHoraCorta(guide.fechaDespacho, "-")}</dd>
             </div>
             <div>
-              <dt className="text-sm text-gray-500">Fecha estimada de llegada</dt>
+              <dt className="text-sm text-fg-subtle">Fecha estimada de llegada</dt>
               <dd className="font-medium">{formatearFechaLarga(guide.fechaEstimadaLlegada, "-")}</dd>
             </div>
           </dl>
@@ -239,11 +239,11 @@ export default function GuiaDespachoDetailPage({
           </h2>
           <dl className="space-y-3">
             <div>
-              <dt className="text-sm text-gray-500">Nombre</dt>
+              <dt className="text-sm text-fg-subtle">Nombre</dt>
               <dd className="font-medium">{guide.receptorNombre}</dd>
             </div>
             <div>
-              <dt className="text-sm text-gray-500">RUT</dt>
+              <dt className="text-sm text-fg-subtle">RUT</dt>
               <dd className="font-medium">{guide.receptorRut}</dd>
             </div>
           </dl>
@@ -257,7 +257,7 @@ export default function GuiaDespachoDetailPage({
           </h2>
           <dl className="space-y-3">
             <div>
-              <dt className="text-sm text-gray-500">Estado Actual</dt>
+              <dt className="text-sm text-fg-subtle">Estado Actual</dt>
               <dd>
                 <span
                   className={cn(
@@ -271,13 +271,13 @@ export default function GuiaDespachoDetailPage({
             </div>
             {guide.fechaRecepcion && (
               <div>
-                <dt className="text-sm text-gray-500">Fecha de Recepción</dt>
+                <dt className="text-sm text-fg-subtle">Fecha de Recepción</dt>
                 <dd className="font-medium">{formatearFechaHoraCorta(guide.fechaRecepcion, "-")}</dd>
               </div>
             )}
             {guide.recibidoPor && (
               <div>
-                <dt className="text-sm text-gray-500">Recibido por</dt>
+                <dt className="text-sm text-fg-subtle">Recibido por</dt>
                 <dd className="font-medium">{guide.recibidoPor}</dd>
               </div>
             )}
@@ -292,7 +292,7 @@ export default function GuiaDespachoDetailPage({
             <FileText className="text-primary-700" size={20} />
             Observaciones
           </h2>
-          <p className="text-gray-700 whitespace-pre-wrap">{guide.observaciones}</p>
+          <p className="text-fg-muted whitespace-pre-wrap">{guide.observaciones}</p>
         </div>
       )}
 
@@ -303,8 +303,8 @@ export default function GuiaDespachoDetailPage({
           Equipos ({guide.items.length})
         </h2>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-line">
+            <thead className="bg-surface-muted">
               <tr>
                 <th className="table-th px-4">
                   Tipo
@@ -323,7 +323,7 @@ export default function GuiaDespachoDetailPage({
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-line">
               {guide.items.map((item) => {
                 const asset = item.asset;
 
@@ -332,7 +332,7 @@ export default function GuiaDespachoDetailPage({
                 const specs = especificacionesActivoTexto(asset) || "-";
 
                 return (
-                  <tr key={item.id} className="hover:bg-gray-50">
+                  <tr key={item.id} className="hover:bg-surface-muted">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="p-1.5 bg-gray-100 rounded">
@@ -346,13 +346,13 @@ export default function GuiaDespachoDetailPage({
                         {asset.marca} {asset.modelo}
                       </p>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
+                    <td className="px-4 py-3 text-sm text-fg-muted">
                       {asset.numeroSerie || "-"}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
+                    <td className="px-4 py-3 text-sm text-fg-muted">
                       {asset.imei || "-"}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
+                    <td className="px-4 py-3 text-sm text-fg-muted">
                       {specs}
                     </td>
                   </tr>
@@ -366,7 +366,7 @@ export default function GuiaDespachoDetailPage({
       {/* Modal de Confirmación de Recepción */}
       {showConfirmModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+          <div className="bg-surface rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">Confirmar Recepción</h3>
             {error && (
               <div className="mb-4">
@@ -385,7 +385,7 @@ export default function GuiaDespachoDetailPage({
                     setRecepcionData((prev) => ({ ...prev, recibidoPor: e.target.value }))
                   }
                   placeholder="Nombre de quien recibe"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-4 py-2 border border-line-strong rounded-lg"
                 />
               </div>
               <div>
@@ -398,7 +398,7 @@ export default function GuiaDespachoDetailPage({
                   onChange={(e) =>
                     setRecepcionData((prev) => ({ ...prev, fechaRecepcion: e.target.value }))
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-4 py-2 border border-line-strong rounded-lg"
                 />
               </div>
             </div>
@@ -412,7 +412,7 @@ export default function GuiaDespachoDetailPage({
               <button
                 onClick={handleConfirmarRecepcion}
                 disabled={updating || !recepcionData.recibidoPor}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-success-hover disabled:opacity-50"
               >
                 {updating ? <Loader2 className="animate-spin" size={20} /> : "Confirmar"}
               </button>

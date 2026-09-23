@@ -23,13 +23,13 @@ interface CategoryTabsProps {
 const pillClasses = (selected: boolean) =>
   cn(
     "flex items-center gap-2 px-4 py-2 rounded-control flex-shrink-0 font-medium text-sm transition-colors",
-    selected ? "bg-primary-700 text-white shadow-sm" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+    selected ? "bg-brand text-white shadow-sm" : "bg-gray-100 text-fg-muted hover:bg-gray-200"
   );
 
 const countClasses = (selected: boolean) =>
   cn(
     "px-2 py-0.5 rounded-full text-xs font-semibold",
-    selected ? "bg-white/20 text-white" : "bg-gray-200 text-gray-600"
+    selected ? "bg-white/20 text-white" : "bg-gray-200 text-fg-muted"
   );
 
 export function CategoryTabs({

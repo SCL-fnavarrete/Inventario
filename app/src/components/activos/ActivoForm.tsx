@@ -147,7 +147,7 @@ function Campo({ label, hint, children }: { label: ReactNode; hint?: ReactNode; 
     <div>
       <label className="field-label">{label}</label>
       {children}
-      {hint && <p className="mt-1 text-xs text-gray-500">{hint}</p>}
+      {hint && <p className="mt-1 text-xs text-fg-subtle">{hint}</p>}
     </div>
   );
 }
@@ -155,7 +155,7 @@ function Campo({ label, hint, children }: { label: ReactNode; hint?: ReactNode; 
 function Seccion({ titulo, cols = 3, children }: { titulo: string; cols?: 2 | 3; children: ReactNode }) {
   return (
     <div className="card p-6">
-      <h2 className="mb-4 text-lg font-semibold text-gray-900">{titulo}</h2>
+      <h2 className="mb-4 text-lg font-semibold text-fg">{titulo}</h2>
       <div
         className={
           cols === 3
@@ -257,7 +257,7 @@ export function ActivoForm({ modo, initialValues = ACTIVO_FORM_VACIO, onSubmit, 
         </Campo>
         <Campo label="Estado">
           {crear ? (
-            <p className="rounded-control border border-gray-200 bg-gray-50 px-3 py-2 text-gray-600">
+            <p className="rounded-control border border-line bg-surface-muted px-3 py-2 text-fg-muted">
               {ESTADO_ACTIVO_LABEL.disponible}
             </p>
           ) : (
@@ -394,7 +394,7 @@ export function ActivoForm({ modo, initialValues = ACTIVO_FORM_VACIO, onSubmit, 
       )}
 
       <div className="card p-6">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">Observaciones</h2>
+        <h2 className="mb-4 text-lg font-semibold text-fg">Observaciones</h2>
         <textarea {...bind("observaciones")} rows={4} placeholder="Notas adicionales sobre el activo..." />
         <div className="mt-4">
           <Campo label="Incidencia">

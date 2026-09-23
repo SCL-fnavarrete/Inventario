@@ -23,6 +23,7 @@ import { ESTADO_ACTIVO_COLOR } from "@/lib/constants/estadosActivo";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard, StatGrid } from "@/components/ui/StatCard";
+import { ESTADO_ACTIVO_TONO } from "@/lib/constants/tonos";
 
 /**
  * Trae todos los datos del Resumen del Dashboard en un unico batch de
@@ -327,25 +328,28 @@ export default async function DashboardPage() {
       {/* KPIs principales. "Total Activos" cuenta todos los estados, incluido
           vendido; las demas tarjetas excluyen vendido (ver "Equipos Vendidos"). */}
       <StatGrid cols={5}>
-        <StatCard label="Total Activos" value={data.totalAssets} tone="primary" icon={Package} />
-        <StatCard label="Disponibles" value={data.availableAssets} tone="success" icon={CheckCircle} />
-        <StatCard label="Asignados" value={data.assignedAssets} tone="primary" icon={Users} />
-        <StatCard label="En Mantención" value={data.maintenanceAssets} tone="warning" icon={Wrench} />
-        <StatCard label="Baja" value={data.bajaAssets} tone="danger" icon={XCircle} />
+        <StatCard tilt label="Total Activos" value={data.totalAssets} tone="primary" icon={Package} />
+        <StatCard tilt label="Disponibles" value={data.availableAssets} tone={ESTADO_ACTIVO_TONO.disponible} icon={CheckCircle} />
+        <StatCard tilt label="Asignados" value={data.assignedAssets} tone={ESTADO_ACTIVO_TONO.asignado} icon={Users} />
+        <StatCard tilt label="En Mantención" value={data.maintenanceAssets} tone={ESTADO_ACTIVO_TONO.en_mantencion} icon={Wrench} />
+        <StatCard tilt label="Baja" value={data.bajaAssets} tone={ESTADO_ACTIVO_TONO.baja} icon={XCircle} />
       </StatGrid>
 
       {/* Segunda fila. Un activo vendido sale del parque operativo y no cuenta
           en las tarjetas de arriba ni en "Stock por Categoria". */}
       <StatGrid cols={4}>
         <StatCard
+          tilt
           label="Equipos Vendidos"
           value={data.vendidoAssets}
+          tone={ESTADO_ACTIVO_TONO.vendido}
           icon={DollarSign}
           href="/activos?estado=vendido"
         />
-        <StatCard label="Mantenciones Pend." value={data.pendingMaintenance} tone="orange" icon={Clock} />
-        <StatCard label="Asig. Últimos 30d" value={data.recentAssignments} tone="primary" icon={TrendingUp} />
+        <StatCard tilt label="Mantenciones Pend." value={data.pendingMaintenance} tone="orange" icon={Clock} />
+        <StatCard tilt label="Asig. Últimos 30d" value={data.recentAssignments} tone="primary" icon={TrendingUp} />
         <StatCard
+          tilt
           label="Solicitudes Abiertas"
           value={data.solicitudesAbiertas}
           tone="primary"
@@ -365,23 +369,23 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Activos por Categoría */}
           <div className="card p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <h2 className="text-lg font-semibold text-fg mb-4">
               Activos por Categoría
             </h2>
             <div className="space-y-3">
               {data.categories.map((cat) => (
                 <div key={cat.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <CategoryIcon categoria={cat.nombre} className="h-5 w-5 text-gray-500" />
-                    <span className="text-gray-700">{cat.nombre}</span>
+                    <CategoryIcon categoria={cat.nombre} className="h-5 w-5 text-fg-subtle" />
+                    <span className="text-fg-muted">{cat.nombre}</span>
                   </div>
-                  <span className="font-semibold text-gray-900">
+                  <span className="font-semibold text-fg">
                     {cat.total}
                   </span>
                 </div>
               ))}
               {data.categories.length === 0 && (
-                <p className="text-gray-500 text-center py-4">
+                <p className="text-fg-subtle text-center py-4">
                   No hay activos registrados
                 </p>
               )}
@@ -390,20 +394,20 @@ export default async function DashboardPage() {
 
           {/* Kit de Bienvenida */}
           <div className="card p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <h2 className="text-lg font-semibold text-fg mb-4">
               Kit de Bienvenida
             </h2>
             <div className="space-y-3">
               {data.kitBienvenidaItems.map((item) => (
                 <div key={item.id} className="flex items-center justify-between">
-                  <span className="text-gray-700">{item.nombre}</span>
+                  <span className="text-fg-muted">{item.nombre}</span>
                   <span
                     className={
                       item.cantidad === 0
                         ? "font-semibold text-red-600"
                         : item.cantidad <= item.stockMinimo
                         ? "font-semibold text-orange-600"
-                        : "font-semibold text-gray-900"
+                        : "font-semibold text-fg"
                     }
                   >
                     {item.cantidad}
@@ -411,7 +415,7 @@ export default async function DashboardPage() {
                 </div>
               ))}
               {data.kitBienvenidaItems.length === 0 && (
-                <p className="text-gray-500 text-center py-4">
+                <p className="text-fg-subtle text-center py-4">
                   No hay artículos registrados
                 </p>
               )}
@@ -420,18 +424,18 @@ export default async function DashboardPage() {
 
           {/* EPP */}
           <div className="card p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">EPP</h2>
+            <h2 className="text-lg font-semibold text-fg mb-4">EPP</h2>
             <div className="space-y-3">
               {data.eppItems.map((item) => (
                 <div key={item.id} className="flex items-center justify-between">
-                  <span className="text-gray-700">{item.nombre}</span>
+                  <span className="text-fg-muted">{item.nombre}</span>
                   <span
                     className={
                       item.cantidad === 0
                         ? "font-semibold text-red-600"
                         : item.cantidad <= item.stockMinimo
                         ? "font-semibold text-orange-600"
-                        : "font-semibold text-gray-900"
+                        : "font-semibold text-fg"
                     }
                   >
                     {item.cantidad}
@@ -439,7 +443,7 @@ export default async function DashboardPage() {
                 </div>
               ))}
               {data.eppItems.length === 0 && (
-                <p className="text-gray-500 text-center py-4">
+                <p className="text-fg-subtle text-center py-4">
                   No hay artículos registrados
                 </p>
               )}

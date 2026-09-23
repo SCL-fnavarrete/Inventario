@@ -94,11 +94,11 @@ export function AsignacionesTable() {
       <div className="p-6 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Asignaciones</h2>
-            <p className="text-sm text-gray-500">Equipos entregados a empleados actualmente</p>
+            <h2 className="text-lg font-semibold text-fg">Asignaciones</h2>
+            <p className="text-sm text-fg-subtle">Equipos entregados a empleados actualmente</p>
           </div>
           <div className="relative flex-1 max-w-sm sm:ml-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle" />
             <input
               type="text"
               placeholder="Buscar por RUT, nombre o equipo..."
@@ -115,7 +115,7 @@ export function AsignacionesTable() {
 
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b">
+          <thead className="bg-surface-muted border-b">
             <tr>
               <th className="table-th">Empleado</th>
               <th className="table-th">Equipo</th>
@@ -123,47 +123,47 @@ export function AsignacionesTable() {
               <th className="table-th text-right">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-line">
             {loading ? (
               <tr>
-                <td colSpan={4} className="px-6 py-10 text-center text-gray-400">
+                <td colSpan={4} className="px-6 py-10 text-center text-fg-subtle">
                   <Loader2 className="h-5 w-5 animate-spin inline" />
                 </td>
               </tr>
             ) : assignments.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-6 py-10 text-center text-gray-500">
+                <td colSpan={4} className="px-6 py-10 text-center text-fg-subtle">
                   No hay asignaciones vigentes
                 </td>
               </tr>
             ) : (
               assignments.map((a) => (
-                <tr key={a.id} className="hover:bg-gray-50">
+                <tr key={a.id} className="hover:bg-surface-muted">
                   <td className="px-6 py-3 whitespace-nowrap">
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-sm font-medium text-fg">
                       {a.employee.nombres} {a.employee.apellidoPaterno}
                     </p>
-                    <p className="text-xs text-gray-500 font-mono">{a.employee.rut}</p>
+                    <p className="text-xs text-fg-subtle font-mono">{a.employee.rut}</p>
                   </td>
                   <td className="px-6 py-3 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <span className="text-gray-400"><CategoryIcon categoria={a.asset.categoria.nombre} className="h-4 w-4" /></span>
+                      <span className="text-fg-subtle"><CategoryIcon categoria={a.asset.categoria.nombre} className="h-4 w-4" /></span>
                       <div>
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-fg">
                           {a.asset.marca} {a.asset.modelo}
                         </p>
-                        <p className="text-xs text-gray-500 font-mono">{a.asset.numeroSerie || "-"}</p>
+                        <p className="text-xs text-fg-subtle font-mono">{a.asset.numeroSerie || "-"}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-3 whitespace-nowrap text-sm text-fg">
                     {formatearFecha(a.fechaEntrega, {}, "-")}
                   </td>
                   <td className="px-6 py-3 whitespace-nowrap text-right">
                     <div className="flex justify-end gap-1">
                       <Link
                         href={`/asignaciones/${a.id}`}
-                        className="p-2 text-gray-500 hover:text-primary-700 hover:bg-primary-50 rounded-lg"
+                        className="p-2 text-fg-subtle hover:text-primary-700 hover:bg-primary-50 rounded-lg"
                         title="Ver detalle"
                       >
                         <Eye size={16} />
@@ -179,14 +179,14 @@ export function AsignacionesTable() {
 
       {pagination.totalPages > 1 && (
         <div className="px-6 py-4 border-t flex items-center justify-between">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-fg-subtle">
             {pagination.total} asignacion{pagination.total === 1 ? "" : "es"}
           </p>
           <div className="flex items-center gap-1">
             <button
               onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
               disabled={pagination.page === 1}
-              className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="p-2 rounded-lg border border-line-strong hover:bg-surface-muted disabled:opacity-40 disabled:cursor-not-allowed"
               aria-label="Página anterior"
             >
               <ChevronLeft size={18} />
@@ -206,8 +206,8 @@ export function AsignacionesTable() {
                   className={cn(
                     "min-w-[36px] h-9 px-2 rounded-lg border text-sm font-medium",
                     isCurrent
-                      ? "bg-primary-700 text-white border-primary-700 cursor-default"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                      ? "bg-brand text-white border-primary-700 cursor-default"
+                      : "bg-surface text-fg-muted border-line-strong hover:bg-gray-100"
                   )}
                   aria-current={isCurrent ? "page" : undefined}
                 >
@@ -218,7 +218,7 @@ export function AsignacionesTable() {
             <button
               onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
               disabled={pagination.page === pagination.totalPages}
-              className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="p-2 rounded-lg border border-line-strong hover:bg-surface-muted disabled:opacity-40 disabled:cursor-not-allowed"
               aria-label="Página siguiente"
             >
               <ChevronRight size={18} />

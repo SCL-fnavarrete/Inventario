@@ -62,7 +62,7 @@ const estadoConfig: Record<string, { label: string; icon: typeof CheckCircle; co
   pendiente: { label: "Pendiente", icon: Clock, color: "text-orange-600", bgColor: "bg-orange-100" },
   en_proceso: { label: "En Proceso", icon: Wrench, color: "text-primary-700", bgColor: "bg-primary-100" },
   completada: { label: "Completada", icon: CheckCircle, color: "text-green-600", bgColor: "bg-green-100" },
-  cancelada: { label: "Cancelada", icon: XCircle, color: "text-gray-600", bgColor: "bg-gray-100" },
+  cancelada: { label: "Cancelada", icon: XCircle, color: "text-fg-muted", bgColor: "bg-gray-100" },
 };
 
 function formatCurrency(amount: number | null): string {
@@ -268,7 +268,7 @@ export default function MantencionDetallePage({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-fg-subtle" />
       </div>
     );
   }
@@ -343,11 +343,11 @@ export default function MantencionDetallePage({
           {/* fechaProgramada may be missing on older records; when absent,
               no subtitle is shown rather than an alarming placeholder. */}
           {maintenance.estado === "completada" && maintenance.fechaRealizada ? (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-fg-muted">
               {`Completada el ${formatearFecha(maintenance.fechaRealizada, {}, "-")}`}
             </p>
           ) : maintenance.fechaProgramada ? (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-fg-muted">
               {`Programada para ${formatearFecha(maintenance.fechaProgramada, {}, "-")}`}
             </p>
           ) : null}
@@ -364,38 +364,38 @@ export default function MantencionDetallePage({
             <h2 className="text-lg font-semibold mb-4">Información de la Mantención</h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-gray-500">Tipo</p>
+                <p className="text-sm text-fg-subtle">Tipo</p>
                 <p className="font-medium">{maintenance.tipo.nombre}</p>
               </div>
               {/* Falls back to createdAt for older records without a
                   fechaProgramada. */}
               <div>
-                <p className="text-sm text-gray-500">Fecha Programada</p>
+                <p className="text-sm text-fg-subtle">Fecha Programada</p>
                 <p className="font-medium">
                   {formatearFecha(maintenance.fechaProgramada ?? maintenance.createdAt, {}, "-")}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Técnico Asignado</p>
+                <p className="text-sm text-fg-subtle">Técnico Asignado</p>
                 <p className="font-medium">{maintenance.realizadoPor || "-"}</p>
               </div>
               {/* Costo/Proveedor Externo are legacy fields, no longer
                   collected; shown only if an older record has a value. */}
               {maintenance.costo != null && (
                 <div>
-                  <p className="text-sm text-gray-500">Costo</p>
+                  <p className="text-sm text-fg-subtle">Costo</p>
                   <p className="font-medium">{formatCurrency(maintenance.costo)}</p>
                 </div>
               )}
               {maintenance.proveedorExterno && (
                 <div className="col-span-2">
-                  <p className="text-sm text-gray-500">Proveedor Externo</p>
+                  <p className="text-sm text-fg-subtle">Proveedor Externo</p>
                   <p className="font-medium">{maintenance.proveedorExterno}</p>
                 </div>
               )}
               <div className="col-span-2">
-                <p className="text-sm text-gray-500">Descripción</p>
-                <p className="text-gray-900 whitespace-pre-wrap">{maintenance.descripcion}</p>
+                <p className="text-sm text-fg-subtle">Descripción</p>
+                <p className="text-fg whitespace-pre-wrap">{maintenance.descripcion}</p>
               </div>
             </div>
           </div>
@@ -431,9 +431,9 @@ export default function MantencionDetallePage({
                       readOnly
                       disabled
                       value={completeForm.realizadoPor}
-                      className="w-full px-4 py-2 border border-gray-200 bg-gray-50 text-gray-600 rounded-lg cursor-not-allowed"
+                      className="w-full px-4 py-2 border border-line bg-surface-muted text-fg-muted rounded-lg cursor-not-allowed"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-fg-subtle mt-1">
                       Se asigna automáticamente: quien está completando la mantención.
                     </p>
                   </div>
@@ -466,7 +466,7 @@ export default function MantencionDetallePage({
                       className={`px-3 py-2 rounded-lg border text-sm font-medium ${
                         completeForm.resultadoTipo === "reparado"
                           ? "bg-green-600 text-white border-green-600"
-                          : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                          : "border-line-strong text-fg-muted hover:bg-surface-muted"
                       }`}
                     >
                       Reparado
@@ -479,7 +479,7 @@ export default function MantencionDetallePage({
                       className={`px-3 py-2 rounded-lg border text-sm font-medium ${
                         completeForm.resultadoTipo === "pendiente_repuestos"
                           ? "bg-amber-500 text-white border-amber-500"
-                          : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                          : "border-line-strong text-fg-muted hover:bg-surface-muted"
                       }`}
                     >
                       Faltan repuestos
@@ -490,7 +490,7 @@ export default function MantencionDetallePage({
                       className={`px-3 py-2 rounded-lg border text-sm font-medium ${
                         completeForm.resultadoTipo === "no_reparable"
                           ? "bg-red-600 text-white border-red-600"
-                          : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                          : "border-line-strong text-fg-muted hover:bg-surface-muted"
                       }`}
                     >
                       No reparable
@@ -544,7 +544,7 @@ export default function MantencionDetallePage({
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-success-hover disabled:opacity-50"
                   >
                     <CheckCircle size={20} />
                     {submitting ? "Guardando..." : "Completar Mantención"}
@@ -560,16 +560,16 @@ export default function MantencionDetallePage({
               <h2 className="text-lg font-semibold mb-4">Resultado de la Mantención</h2>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">Fecha Realizada</p>
+                  <p className="text-sm text-fg-subtle">Fecha Realizada</p>
                   <p className="font-medium">{formatearFecha(maintenance.fechaRealizada, {}, "-")}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Próxima Mantención</p>
+                  <p className="text-sm text-fg-subtle">Próxima Mantención</p>
                   <p className="font-medium">{formatearFecha(maintenance.proximaMantencion, {}, "-")}</p>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-sm text-gray-500">Resultado</p>
-                  <p className="text-gray-900 whitespace-pre-wrap">{maintenance.resultado || "-"}</p>
+                  <p className="text-sm text-fg-subtle">Resultado</p>
+                  <p className="text-fg whitespace-pre-wrap">{maintenance.resultado || "-"}</p>
                 </div>
               </div>
             </div>
@@ -581,35 +581,35 @@ export default function MantencionDetallePage({
           <div className="card p-6">
             <h2 className="text-lg font-semibold mb-4">Activo</h2>
             <div className="flex items-center gap-3 mb-4">
-              <span className="text-gray-400">
+              <span className="text-fg-subtle">
                 <CategoryIcon categoria={maintenance.asset.categoria.nombre} className="h-5 w-5" />
               </span>
               <div>
                 <p className="font-medium">
                   {maintenance.asset.marca} {maintenance.asset.modelo}
                 </p>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-fg-subtle">
                   {maintenance.asset.categoria.nombre}
                 </p>
               </div>
             </div>
             <div className="space-y-3 text-sm">
               <div>
-                <p className="text-gray-500">N° Serie</p>
+                <p className="text-fg-subtle">N° Serie</p>
                 <p className="font-mono font-medium">{maintenance.asset.numeroSerie || "-"}</p>
               </div>
               <div>
-                <p className="text-gray-500">Estado Actual</p>
+                <p className="text-fg-subtle">Estado Actual</p>
                 <p className="font-medium capitalize">{maintenance.asset.estado}</p>
               </div>
               <div>
-                <p className="text-gray-500">Condición</p>
+                <p className="text-fg-subtle">Condición</p>
                 <p className="font-medium capitalize">{maintenance.asset.condicion}</p>
               </div>
             </div>
             <Link
               href={`/activos/${maintenance.asset.id}`}
-              className="block mt-4 text-center py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+              className="block mt-4 text-center py-2 border border-line-strong rounded-lg text-sm text-fg-muted hover:bg-surface-muted"
             >
               Ver detalle del activo
             </Link>
@@ -620,18 +620,18 @@ export default function MantencionDetallePage({
               <h2 className="text-lg font-semibold mb-4">Asignado a</h2>
               <div className="space-y-3 text-sm">
                 <div>
-                  <p className="text-gray-500">Nombre</p>
+                  <p className="text-fg-subtle">Nombre</p>
                   <p className="font-medium">
                     {maintenance.asset.empleadoActual.nombres}{" "}
                     {maintenance.asset.empleadoActual.apellidoPaterno}
                   </p>
                 </div>
                 <div>
-                  <p className="text-gray-500">RUT</p>
+                  <p className="text-fg-subtle">RUT</p>
                   <p className="font-mono">{maintenance.asset.empleadoActual.rut}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Cargo</p>
+                  <p className="text-fg-subtle">Cargo</p>
                   <p className="font-medium">{maintenance.asset.empleadoActual.cargo || "-"}</p>
                 </div>
               </div>
@@ -643,9 +643,9 @@ export default function MantencionDetallePage({
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="bg-surface rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-2">Confirmar Eliminación</h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-fg-muted mb-4">
               ¿Está seguro de eliminar esta mantención? Esta acción no se puede deshacer.
             </p>
             <div className="flex justify-end gap-4">

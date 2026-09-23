@@ -12,10 +12,10 @@ const tabClasses = (activa: boolean) =>
     "-mb-px whitespace-nowrap border-b-2 px-4 py-2 text-sm font-semibold transition-colors",
     activa
       ? "border-accent text-primary-800"
-      : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-800"
+      : "border-transparent text-fg-subtle hover:border-line-strong hover:text-fg"
   );
 
-const barra = "flex gap-1 overflow-x-auto overflow-y-hidden border-b border-gray-200";
+const barra = "flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line";
 
 /** Pestañas que navegan entre rutas; la activa sale del pathname. */
 export function NavTabs({ tabs }: { tabs: readonly { href: string; label: string }[] }) {

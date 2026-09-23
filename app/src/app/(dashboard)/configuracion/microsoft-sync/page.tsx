@@ -89,7 +89,7 @@ export default function MicrosoftSyncPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <RefreshCw className="animate-spin text-gray-400" size={32} />
+        <RefreshCw className="animate-spin text-fg-subtle" size={32} />
       </div>
     );
   }
@@ -106,7 +106,7 @@ export default function MicrosoftSyncPage() {
       {/* Estado de configuracion */}
       <div className="card p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
             <Cloud size={20} className="text-sky-500" />
             Estado de Configuración
           </h2>
@@ -153,12 +153,12 @@ export default function MicrosoftSyncPage() {
                 {status.stats.totalEmpleadosMicrosoft}
               </p>
             </div>
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="flex items-center gap-2 text-gray-700">
+            <div className="bg-surface-muted rounded-lg p-4">
+              <div className="flex items-center gap-2 text-fg-muted">
                 <Users size={16} />
                 <span className="text-sm font-medium">Empleados Manuales</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
+              <p className="text-2xl font-bold text-fg mt-1">
                 {status.stats.totalEmpleadosManuales}
               </p>
             </div>
@@ -168,8 +168,8 @@ export default function MicrosoftSyncPage() {
 
       {/* Boton de sincronizacion */}
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Sincronizar Empleados</h2>
-        <p className="text-gray-600 text-sm mb-4">
+        <h2 className="text-lg font-semibold text-fg mb-4">Sincronizar Empleados</h2>
+        <p className="text-fg-muted text-sm mb-4">
           Sincroniza los empleados desde Microsoft Entra ID. Los nuevos usuarios se crean
           automáticamente, los existentes se actualizan, y los desactivados en Microsoft se
           marcan como desvinculados.
@@ -179,7 +179,7 @@ export default function MicrosoftSyncPage() {
           <button
             onClick={() => setShowConfirm(true)}
             disabled={!status?.configured || syncing}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-600/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {syncing ? (
               <>
@@ -202,13 +202,13 @@ export default function MicrosoftSyncPage() {
             <div className="flex gap-2">
               <button
                 onClick={handleSync}
-                className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 text-sm transition-colors"
+                className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-600/90 text-sm transition-colors"
               >
                 Sí, sincronizar
               </button>
               <button
                 onClick={() => setShowConfirm(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm transition-colors"
+                className="px-4 py-2 bg-gray-200 text-fg-muted rounded-lg hover:bg-gray-300 text-sm transition-colors"
               >
                 Cancelar
               </button>
@@ -223,7 +223,7 @@ export default function MicrosoftSyncPage() {
       {/* Resultado de sincronizacion */}
       {result && (
         <div className="card p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Resultado de Sincronización</h2>
+          <h2 className="text-lg font-semibold text-fg">Resultado de Sincronización</h2>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-green-50 rounded-lg p-3 text-center">
@@ -288,15 +288,15 @@ export default function MicrosoftSyncPage() {
           onClick={() => setShowInstructions(!showInstructions)}
           className="w-full flex items-center justify-between p-6 text-left"
         >
-          <h2 className="text-lg font-semibold text-gray-900">Cómo configurar</h2>
+          <h2 className="text-lg font-semibold text-fg">Cómo configurar</h2>
           {showInstructions ? (
-            <ChevronUp size={20} className="text-gray-400" />
+            <ChevronUp size={20} className="text-fg-subtle" />
           ) : (
-            <ChevronDown size={20} className="text-gray-400" />
+            <ChevronDown size={20} className="text-fg-subtle" />
           )}
         </button>
         {showInstructions && (
-          <div className="px-6 pb-6 text-sm text-gray-700 space-y-3">
+          <div className="px-6 pb-6 text-sm text-fg-muted space-y-3">
             <ol className="list-decimal list-inside space-y-2">
               <li>
                 Ir a{' '}
@@ -321,7 +321,7 @@ export default function MicrosoftSyncPage() {
                 archivo <code>.env</code> o en el Dashboard de Vercel.
               </li>
             </ol>
-            <p className="text-gray-500 text-xs mt-2">
+            <p className="text-fg-subtle text-xs mt-2">
               Ver PLAN_MICROSOFT_SYNC.md en el repositorio para instrucciones detalladas.
             </p>
           </div>

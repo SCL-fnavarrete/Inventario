@@ -31,7 +31,7 @@ const ESTADO_LABELS: Record<string, string> = {
 export function EstadosChart({ data }: EstadosChartProps) {
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-[300px] text-gray-500">
+      <div className="flex items-center justify-center h-[300px] text-fg-subtle">
         No hay datos para mostrar
       </div>
     );

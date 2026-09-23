@@ -103,11 +103,11 @@ export function ErrorReviewPanel({
     <div className="card p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
             <AlertTriangle className="text-yellow-500" />
             Revision de Registros con Errores
           </h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <p className="text-sm text-fg-muted mt-1">
             Corrige los datos problematicos. Los cambios se guardan aqui y se incluyen
             recien al confirmar la importación.
           </p>
@@ -150,7 +150,7 @@ export function ErrorReviewPanel({
           onClick={() => setFilter("all")}
           className={cn(
             "px-3 py-1 text-sm rounded-full transition-colors",
-            filter === "all" ? "bg-primary-700 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            filter === "all" ? "bg-brand text-white" : "bg-gray-100 text-fg-muted hover:bg-gray-200"
           )}
         >
           Todos ({errorRows.length})
@@ -161,7 +161,7 @@ export function ErrorReviewPanel({
             "px-3 py-1 text-sm rounded-full transition-colors",
             filter === "errors"
               ? "bg-red-600 text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              : "bg-gray-100 text-fg-muted hover:bg-gray-200"
           )}
         >
           Con errores ({pendingCount})
@@ -172,7 +172,7 @@ export function ErrorReviewPanel({
             "px-3 py-1 text-sm rounded-full transition-colors",
             filter === "corrected"
               ? "bg-green-600 text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              : "bg-gray-100 text-fg-muted hover:bg-gray-200"
           )}
         >
           Corregidos ({correctedCount})
@@ -180,9 +180,9 @@ export function ErrorReviewPanel({
       </div>
 
       {/* Lista de filas con errores */}
-      <div className="max-h-96 overflow-y-auto mb-6 border rounded-lg p-3 bg-gray-50">
+      <div className="max-h-96 overflow-y-auto mb-6 border rounded-lg p-3 bg-surface-muted">
         {filteredRows.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-fg-subtle">
             {correctedRows.size === errorRows.length ? (
               <div className="flex flex-col items-center gap-2">
                 <CheckCircle className="h-12 w-12 text-green-500" />
@@ -190,7 +190,7 @@ export function ErrorReviewPanel({
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2">
-                <XCircle className="h-12 w-12 text-gray-400" />
+                <XCircle className="h-12 w-12 text-fg-subtle" />
                 <p>No hay registros que mostrar con el filtro seleccionado</p>
               </div>
             )}
@@ -212,7 +212,7 @@ export function ErrorReviewPanel({
           importan las validas mas las corregidas hasta ahora, sin exigir
           que todas las pendientes queden corregidas primero. */}
       <div className="pt-4 border-t flex items-center justify-between gap-4 flex-wrap">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-fg-muted">
           {correctedCount > 0
             ? `${correctedCount} registro(s) corregido(s) se incluirán en la importación junto con las ${validCount} fila(s) válida(s). ${pendingCount} fila(s) sin corregir quedarán fuera.`
             : `Corrige los registros con errores para incluirlos en la importación. Las ${validCount} fila(s) válida(s) se importarán igual.`}
@@ -220,7 +220,7 @@ export function ErrorReviewPanel({
         <button
           onClick={onConfirmImport}
           disabled={committing}
-          className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors whitespace-nowrap"
+          className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-success-hover disabled:opacity-50 transition-colors whitespace-nowrap"
         >
           <Download size={20} />
           <span>{committing ? "Importando..." : "Realizar importación"}</span>

@@ -228,7 +228,7 @@ export default function OpcionesActivosPage() {
         onChange={setTabActiva}
       />
 
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-fg-subtle">
         Editar el nombre corrige también los activos que ya lo tenían guardado. Eliminar una
         opción no modifica los activos existentes, solo deja de ofrecerla para los nuevos.
       </p>
@@ -238,7 +238,7 @@ export default function OpcionesActivosPage() {
       {/* Formulario de creacion */}
       {isCreating && (
         <div className="card p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Nueva Opción — {catalogo.label}</h2>
+          <h2 className="text-lg font-semibold text-fg mb-4">Nueva Opción — {catalogo.label}</h2>
           <div className="flex items-end gap-4">
             <div className="flex-1">
               <label className="field-label">Nombre *</label>
@@ -271,8 +271,8 @@ export default function OpcionesActivosPage() {
 
       {/* Tabla de opciones */}
       <div className="card overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="min-w-full divide-y divide-line">
+          <thead className="bg-surface-muted">
             <tr>
               <th className="table-th">
                 Nombre
@@ -285,23 +285,23 @@ export default function OpcionesActivosPage() {
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-surface divide-y divide-line">
             {loading ? (
               <tr>
-                <td colSpan={3} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={3} className="px-6 py-8 text-center text-fg-subtle">
                   Cargando...
                 </td>
               </tr>
             ) : opciones.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={3} className="px-6 py-8 text-center text-fg-subtle">
                   No hay opciones registradas en {catalogo.label.toLowerCase()}
                 </td>
               </tr>
             ) : (
               opciones.map((opcion) => (
                 <tr key={opcion.id}>
-                  <td className="px-6 py-4 font-medium text-gray-900">
+                  <td className="px-6 py-4 font-medium text-fg">
                     {editandoId === opcion.id ? (
                       <input
                         type="text"
@@ -315,13 +315,13 @@ export default function OpcionesActivosPage() {
                           }
                           if (e.key === "Escape") cancelarEdicion();
                         }}
-                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        className="w-full px-2 py-1 border border-line-strong rounded focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       />
                     ) : (
                       opcion.nombre
                     )}
                   </td>
-                  <td className="px-6 py-4 text-center text-sm text-gray-600">
+                  <td className="px-6 py-4 text-center text-sm text-fg-muted">
                     {opcion.enUso > 0 ? `${opcion.enUso} activo${opcion.enUso === 1 ? "" : "s"}` : "—"}
                   </td>
                   <td className="px-6 py-4 text-right">
@@ -337,7 +337,7 @@ export default function OpcionesActivosPage() {
                           </button>
                           <button
                             onClick={cancelarEdicion}
-                            className="p-1 rounded text-gray-500 hover:bg-gray-100"
+                            className="p-1 rounded text-fg-subtle hover:bg-gray-100"
                             title="Cancelar"
                           >
                             <X size={18} />

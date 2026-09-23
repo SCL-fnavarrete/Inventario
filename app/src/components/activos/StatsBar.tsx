@@ -8,8 +8,13 @@ import {
   XCircle,
   DollarSign,
   UserX,
-  Loader2
+  Loader2,
+  type LucideIcon,
 } from "lucide-react";
+import type { EstadoActivo } from "@prisma/client";
+import { cn } from "@/lib/utils";
+import { Tilt } from "@/components/ui/Tilt";
+import { ESTADO_ACTIVO_TONO, TONO_ACENTO, TONO_ESTILO, type Tono } from "@/lib/constants/tonos";
 
 interface StatsData {
   total: number;
@@ -30,56 +35,25 @@ interface StatsBarProps {
   onStatusClick: (status: string | null) => void;
 }
 
-const statusConfig = {
-  total: {
-    label: "Total",
-    icon: Package,
-    color: "bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200",
-    activeColor: "bg-gray-700 text-white border-gray-700",
-  },
-  disponible: {
-    label: "Disponible",
-    icon: CheckCircle,
-    color: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100",
-    activeColor: "bg-emerald-600 text-white border-emerald-600",
-  },
-  asignado: {
-    label: "Asignado",
-    icon: UserCheck,
-    color: "bg-primary-50 text-primary-800 border-primary-200 hover:bg-primary-100",
-    activeColor: "bg-primary-700 text-white border-primary-700",
-  },
-  en_mantencion: {
-    label: "Mantenci\u00f3n",
-    icon: Wrench,
-    color: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100",
-    activeColor: "bg-amber-600 text-white border-amber-600",
-  },
-  baja: {
-    label: "Baja",
-    icon: XCircle,
-    color: "bg-red-50 text-red-700 border-red-200 hover:bg-red-100",
-    activeColor: "bg-red-600 text-white border-red-600",
-  },
-  vendido: {
-    label: "Vendido",
-    icon: DollarSign,
-    color: "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200",
-    activeColor: "bg-gray-600 text-white border-gray-600",
-  },
-  no_devuelto: {
-    label: "No devuelto",
-    icon: UserX,
-    color: "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100",
-    activeColor: "bg-orange-600 text-white border-orange-600",
-  },
+// Tono de cada tarjeta: el mismo del badge del estado (ESTADO_ACTIVO_TONO).
+const statusConfig: Record<
+  "total" | EstadoActivo,
+  { label: string; icon: LucideIcon; tono: Tono }
+> = {
+  total: { label: "Total", icon: Package, tono: "neutral" },
+  disponible: { label: "Disponible", icon: CheckCircle, tono: ESTADO_ACTIVO_TONO.disponible },
+  asignado: { label: "Asignado", icon: UserCheck, tono: ESTADO_ACTIVO_TONO.asignado },
+  en_mantencion: { label: "Mantención", icon: Wrench, tono: ESTADO_ACTIVO_TONO.en_mantencion },
+  no_devuelto: { label: "No devuelto", icon: UserX, tono: ESTADO_ACTIVO_TONO.no_devuelto },
+  baja: { label: "Baja", icon: XCircle, tono: ESTADO_ACTIVO_TONO.baja },
+  vendido: { label: "Vendido", icon: DollarSign, tono: ESTADO_ACTIVO_TONO.vendido },
 };
 
 export function StatsBar({ data, isLoading, selectedStatus, onStatusClick }: StatsBarProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-6">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-fg-subtle" />
       </div>
     );
   }
@@ -94,41 +68,40 @@ export function StatsBar({ data, isLoading, selectedStatus, onStatusClick }: Sta
     { key: "no_devuelto", value: data.byStatus.no_devuelto },
     { key: "baja", value: data.byStatus.baja },
     { key: "vendido", value: data.byStatus.vendido },
-  ];
+  ] as const;
 
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
       {statItems.map(({ key, value }) => {
-        const config = statusConfig[key as keyof typeof statusConfig];
+        const config = statusConfig[key];
         const Icon = config.icon;
-        const isActive = key === "total"
-          ? selectedStatus === null
-          : selectedStatus === key;
+        const isActive = key === "total" ? selectedStatus === null : selectedStatus === key;
 
         return (
-          <button
-            key={key}
-            onClick={() => onStatusClick(key === "total" ? null : key)}
-            className={`
-              flex items-center gap-3 p-4 rounded-xl border-2 flex-1 min-w-[150px]
-              transition-all duration-200
-              ${isActive ? config.activeColor : config.color}
-              focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500
-            `}
-          >
-            <div className={`
-              shrink-0 p-2 rounded-lg
-              ${isActive ? "bg-white/20" : "bg-white"}
-            `}>
-              <Icon className="w-5 h-5" />
-            </div>
-            <div className="text-left min-w-0">
-              <p className="text-2xl font-bold leading-none">{value}</p>
-              <p className={`text-xs mt-1 whitespace-nowrap ${isActive ? "text-white/80" : "text-gray-500"}`}>
-                {config.label}
-              </p>
-            </div>
-          </button>
+          <Tilt key={key}>
+            <button
+              type="button"
+              onClick={() => onStatusClick(key === "total" ? null : key)}
+              aria-pressed={isActive}
+              className={cn(
+                "card-feature flex h-full w-full items-center gap-3 p-4 text-left",
+                TONO_ACENTO[config.tono],
+                // Seleccionada: anillo del color del estado, en vez de relleno
+                // solido (que en modo oscuro quedaba como un bloque claro).
+                isActive && "ring-2 ring-[var(--card-accent)] ring-offset-2 ring-offset-canvas"
+              )}
+            >
+              <div className={cn("shrink-0 rounded-control p-2", TONO_ESTILO[config.tono].icono)}>
+                <Icon className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className={cn("text-2xl font-bold leading-none", TONO_ESTILO[config.tono].valor)}>
+                  {value}
+                </p>
+                <p className="mt-1 whitespace-nowrap text-xs text-fg-subtle">{config.label}</p>
+              </div>
+            </button>
+          </Tilt>
         );
       })}
     </div>

@@ -61,7 +61,7 @@ export function EmptyState({
           w-20 h-20
           rounded-2xl
           bg-gradient-to-br from-gray-50 to-gray-100
-          border border-gray-100
+          border border-line
           mb-5
         `}
       >
@@ -69,11 +69,11 @@ export function EmptyState({
       </div>
 
       {/* Title */}
-      <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
+      <h3 className="text-lg font-semibold text-fg mb-2">{title}</h3>
 
       {/* Description */}
       {description && (
-        <p className="text-sm text-gray-500 max-w-sm mb-6">{description}</p>
+        <p className="text-sm text-fg-subtle max-w-sm mb-6">{description}</p>
       )}
 
       {/* Actions */}

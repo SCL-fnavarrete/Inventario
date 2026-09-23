@@ -181,7 +181,7 @@ const pendienteEstadoColors: Record<string, string> = {
   pendiente: 'text-yellow-600',
   gestionando: 'text-primary-700',
   entregado: 'text-green-600',
-  no_aplica: 'text-gray-400',
+  no_aplica: 'text-fg-subtle',
 };
 
 const pendienteLabels: Record<string, string> = {
@@ -753,7 +753,7 @@ export default function SolicitudDetailPage() {
   if (!data) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">Solicitud no encontrada</p>
+        <p className="text-fg-subtle">Solicitud no encontrada</p>
         <Link href="/solicitudes" className="text-primary-700 hover:underline mt-2 inline-block">
           Volver a solicitudes
         </Link>
@@ -834,13 +834,13 @@ export default function SolicitudDetailPage() {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <Link href="/solicitudes" className="p-2 hover:bg-gray-100 rounded-lg">
-            <ArrowLeft className="h-5 w-5 text-gray-600" />
+            <ArrowLeft className="h-5 w-5 text-fg-muted" />
           </Link>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">{data.numero}</h1>
+              <h1 className="text-2xl font-bold text-fg">{data.numero}</h1>
               {data.estado === 'cancelada' ? (
-                <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-200 text-gray-700">
+                <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-200 text-fg-muted">
                   CANCELADA
                 </span>
               ) : (
@@ -851,7 +851,7 @@ export default function SolicitudDetailPage() {
                 )
               )}
             </div>
-            <p className="text-gray-600">{tipoLabels[data.tipo]}</p>
+            <p className="text-fg-muted">{tipoLabels[data.tipo]}</p>
           </div>
         </div>
 
@@ -872,9 +872,9 @@ export default function SolicitudDetailPage() {
 
       {showCancelModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full space-y-4">
-            <h3 className="font-semibold text-gray-900">Cancelar solicitud</h3>
-            <p className="text-sm text-gray-500">
+          <div className="bg-surface rounded-lg shadow-lg p-6 max-w-md w-full space-y-4">
+            <h3 className="font-semibold text-fg">Cancelar solicitud</h3>
+            <p className="text-sm text-fg-subtle">
               Esta solicitud todavía no ejecutó ninguna acción sobre el inventario, así que se
               puede cancelar directamente. Se registrará en el historial del ticket con el motivo
               que indiques.
@@ -886,7 +886,7 @@ export default function SolicitudDetailPage() {
                 onChange={(e) => setMotivoCancelacion(e.target.value)}
                 placeholder="Ej: Ticket duplicado, ya no corresponde..."
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
               />
             </div>
             <div className="flex justify-end gap-2">
@@ -918,7 +918,7 @@ export default function SolicitudDetailPage() {
 
       {/* State Stepper */}
       <div className="card p-6">
-        <h2 className="text-sm font-medium text-gray-500 mb-4">Progreso</h2>
+        <h2 className="text-sm font-medium text-fg-subtle mb-4">Progreso</h2>
         <div className="flex items-center">
           {stepperItems.map((item, i) => {
             const isCompleted = i < stepperCurrentIndex;
@@ -932,8 +932,8 @@ export default function SolicitudDetailPage() {
                       isCompleted
                         ? 'bg-green-600 text-white'
                         : isCurrent
-                          ? 'bg-primary-700 text-white'
-                          : 'bg-gray-200 text-gray-500'
+                          ? 'bg-brand text-white'
+                          : 'bg-gray-200 text-fg-subtle'
                     )}
                   >
                     {isCompleted ? (
@@ -947,7 +947,7 @@ export default function SolicitudDetailPage() {
                   <span
                     className={cn(
                       'text-xs mt-1 text-center',
-                      isCurrent ? 'font-semibold text-primary-800' : 'text-gray-500'
+                      isCurrent ? 'font-semibold text-primary-800' : 'text-fg-subtle'
                     )}
                   >
                     {item.label}
@@ -972,8 +972,8 @@ export default function SolicitudDetailPage() {
           data.estado === 'solicitud_recibida' &&
           data.categoriasRequeridas.length === 0 ? (
             <div className="card p-6">
-              <h3 className="font-semibold text-gray-900 mb-1">Gestión TI</h3>
-              <p className="text-sm text-gray-500 mb-3">
+              <h3 className="font-semibold text-fg mb-1">Gestión TI</h3>
+              <p className="text-sm text-fg-subtle mb-3">
                 Esta solicitud no marcó ningún equipo como requerido. Continúa para coordinar la
                 entrega (del Kit de Bienvenida / EPP, si corresponde).
               </p>
@@ -990,8 +990,8 @@ export default function SolicitudDetailPage() {
           (data.estado === 'solicitud_recibida' ||
             (data.estado === 'gestion_ti' && categoriasPendientes.length > 0)) ? (
             <div className="card p-6">
-              <h3 className="font-semibold text-gray-900 mb-1">Gestión TI</h3>
-              <p className="text-sm text-gray-500 mb-1">
+              <h3 className="font-semibold text-fg mb-1">Gestión TI</h3>
+              <p className="text-sm text-fg-subtle mb-1">
                 Selecciona los equipos disponibles para entregar a {data.employee.nombres} {data.employee.apellidoPaterno}.
               </p>
               {categoriasEntregadas.length > 0 && (
@@ -1008,11 +1008,11 @@ export default function SolicitudDetailPage() {
             </div>
           ) : data.tipo === 'onboarding' && !isClosed && data.estado === 'gestion_ti' && categoriasPendientes.length === 0 ? (
             <div className="card p-6">
-              <h3 className="font-semibold text-gray-900 mb-1">Coordinar Entrega</h3>
+              <h3 className="font-semibold text-fg mb-1">Coordinar Entrega</h3>
               <p className="text-sm text-green-700 mb-1">
                 Ya se cubrieron todas las categorías requeridas.
               </p>
-              <p className="text-sm text-gray-500 mb-3">
+              <p className="text-sm text-fg-subtle mb-3">
                 Define cuándo y cómo se le hará llegar el equipo a {data.employee.nombres}{' '}
                 {data.employee.apellidoPaterno}.
               </p>
@@ -1025,7 +1025,7 @@ export default function SolicitudDetailPage() {
                     type="datetime-local"
                     value={fechaEntregaCoordinada}
                     onChange={(e) => setFechaEntregaCoordinada(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                   />
                 </div>
                 <div>
@@ -1061,7 +1061,7 @@ export default function SolicitudDetailPage() {
                       value={lugarEntrega}
                       onChange={(e) => setLugarEntrega(e.target.value)}
                       placeholder="ej: Oficina Santiago, piso 4"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                     />
                   </div>
                 ) : (
@@ -1075,7 +1075,7 @@ export default function SolicitudDetailPage() {
                         value={otChilexpressEntrega}
                         onChange={(e) => setOtChilexpressEntrega(e.target.value)}
                         placeholder="ej: CH-2026-004567"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                       />
                     </div>
                     <div>
@@ -1087,7 +1087,7 @@ export default function SolicitudDetailPage() {
                         value={ciudadEntrega}
                         onChange={(e) => setCiudadEntrega(e.target.value)}
                         placeholder="ej: Hotel HD Express, Concepción"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                       />
                     </div>
                   </>
@@ -1104,8 +1104,8 @@ export default function SolicitudDetailPage() {
             </div>
           ) : data.tipo === 'cambio_equipo' && !isClosed && data.estado === 'incidencia_detectada' ? (
             <div className="card p-6">
-              <h3 className="font-semibold text-gray-900 mb-1">Cambio de Equipo</h3>
-              <p className="text-sm text-gray-500 mb-3">
+              <h3 className="font-semibold text-fg mb-1">Cambio de Equipo</h3>
+              <p className="text-sm text-fg-subtle mb-3">
                 Define cuándo y cómo se hará el cambio, y elige que equipo de {data.employee.nombres}{' '}
                 {data.employee.apellidoPaterno} se va a cambiar y con que equipo nuevo se reemplaza.
               </p>
@@ -1118,7 +1118,7 @@ export default function SolicitudDetailPage() {
                     type="datetime-local"
                     value={fechaCambioCoordinada}
                     onChange={(e) => setFechaCambioCoordinada(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                   />
                 </div>
                 <div>
@@ -1154,7 +1154,7 @@ export default function SolicitudDetailPage() {
                       value={lugarCambio}
                       onChange={(e) => setLugarCambio(e.target.value)}
                       placeholder="ej: Oficina Santiago, piso 4"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                     />
                   </div>
                 ) : (
@@ -1168,7 +1168,7 @@ export default function SolicitudDetailPage() {
                         value={otCambioChilexpress}
                         onChange={(e) => setOtCambioChilexpress(e.target.value)}
                         placeholder="ej: CH-2026-004567"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                       />
                     </div>
                     <div>
@@ -1180,7 +1180,7 @@ export default function SolicitudDetailPage() {
                         value={ciudadCambio}
                         onChange={(e) => setCiudadCambio(e.target.value)}
                         placeholder="ej: Concepción"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                       />
                     </div>
                   </>
@@ -1230,7 +1230,7 @@ export default function SolicitudDetailPage() {
                 <button
                   onClick={() => handleTransition('registro_rrhh')}
                   disabled={transitioning || kitOEppPendiente}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-success-hover disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ChevronRight className="h-4 w-4" />
                   {transitioning ? 'Cerrando...' : 'Cerrar ticket'}
@@ -1239,8 +1239,8 @@ export default function SolicitudDetailPage() {
             </div>
           ) : data.tipo === 'offboarding' && !isClosed && data.estado === 'solicitud_emitida' ? (
             <div className="card p-6">
-              <h3 className="font-semibold text-gray-900 mb-1">Recibir Equipos</h3>
-              <p className="text-sm text-gray-500 mb-3">
+              <h3 className="font-semibold text-fg mb-1">Recibir Equipos</h3>
+              <p className="text-sm text-fg-subtle mb-3">
                 Define cuándo y cómo {data.employee.nombres} {data.employee.apellidoPaterno} va a
                 devolver sus equipos, y califica el estado de cada uno. Los dañados se dan de baja
                 automáticamente; el resto queda disponible.
@@ -1254,7 +1254,7 @@ export default function SolicitudDetailPage() {
                     type="datetime-local"
                     value={fechaDevolucionCoordinada}
                     onChange={(e) => setFechaDevolucionCoordinada(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                   />
                 </div>
                 <div>
@@ -1290,7 +1290,7 @@ export default function SolicitudDetailPage() {
                       value={lugarDevolucion}
                       onChange={(e) => setLugarDevolucion(e.target.value)}
                       placeholder="ej: Oficina Santiago, piso 4"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                     />
                   </div>
                 ) : (
@@ -1304,7 +1304,7 @@ export default function SolicitudDetailPage() {
                         value={otChilexpressDevolucion}
                         onChange={(e) => setOtChilexpressDevolucion(e.target.value)}
                         placeholder="ej: CH-2026-004567"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                       />
                     </div>
                     <div>
@@ -1316,7 +1316,7 @@ export default function SolicitudDetailPage() {
                         value={ciudadDevolucion}
                         onChange={(e) => setCiudadDevolucion(e.target.value)}
                         placeholder="ej: Concepción"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
                       />
                     </div>
                   </>
@@ -1336,24 +1336,24 @@ export default function SolicitudDetailPage() {
                 return (
                   <>
                     {pendientesDeCalificar.length === 0 && yaCalificadasNoDevueltas.length === 0 ? (
-                      <p className="text-sm text-gray-500 mb-3">
+                      <p className="text-sm text-fg-subtle mb-3">
                         Este empleado no tiene equipos asignados actualmente.
                       </p>
                     ) : pendientesDeCalificar.length === 0 ? (
-                      <p className="text-sm text-gray-500 mb-3">
+                      <p className="text-sm text-fg-subtle mb-3">
                         No queda ningún equipo por calificar.
                       </p>
                     ) : (
                 <div className="space-y-3 mb-3">
                   {pendientesDeCalificar
                     .map((a) => (
-                      <div key={a.id} className="border border-gray-200 rounded-lg p-3">
+                      <div key={a.id} className="border border-line rounded-lg p-3">
                         <div className="flex items-center justify-between mb-2">
                           <div>
-                            <span className="text-sm font-medium text-gray-900">
+                            <span className="text-sm font-medium text-fg">
                               {a.asset.marca} {a.asset.modelo}
                             </span>
-                            <span className="block text-xs text-gray-500">
+                            <span className="block text-xs text-fg-subtle">
                               {a.asset.categoria.nombre}
                               {a.asset.numeroSerie && ` · S/N: ${a.asset.numeroSerie}`}
                             </span>
@@ -1401,12 +1401,12 @@ export default function SolicitudDetailPage() {
                             setDevolucionObservaciones((prev) => ({ ...prev, [a.id]: e.target.value }))
                           }
                           placeholder="Observaciones (opcional)"
-                          className="w-full text-sm border border-gray-300 rounded px-2 py-1"
+                          className="w-full text-sm border border-line-strong rounded px-2 py-1"
                         />
                         {/* Charger condition, only for assets that have one. */}
                         {a.asset.tieneCargador && (
-                          <div className="mt-2 border border-gray-200 rounded-lg p-2 bg-gray-50">
-                            <p className="text-xs font-medium text-gray-600 mb-1">
+                          <div className="mt-2 border border-line rounded-lg p-2 bg-surface-muted">
+                            <p className="text-xs font-medium text-fg-muted mb-1">
                               Estado del cargador
                             </p>
                             <select
@@ -1417,7 +1417,7 @@ export default function SolicitudDetailPage() {
                                   [a.id]: e.target.value as 'ok' | 'danado' | 'no_aplica',
                                 }))
                               }
-                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded mb-1"
+                              className="w-full px-2 py-1.5 text-sm border border-line-strong rounded mb-1"
                             >
                               <option value="ok">Ok</option>
                               <option value="danado">Dañado</option>
@@ -1433,7 +1433,7 @@ export default function SolicitudDetailPage() {
                                 }))
                               }
                               placeholder="Observación del cargador (opcional)"
-                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                              className="w-full px-2 py-1.5 text-sm border border-line-strong rounded"
                             />
                           </div>
                         )}
@@ -1449,14 +1449,14 @@ export default function SolicitudDetailPage() {
                             className="border border-amber-200 bg-amber-50 rounded-lg p-3 text-sm"
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-medium text-gray-900">
+                              <span className="font-medium text-fg">
                                 {a.asset.marca} {a.asset.modelo}
                               </span>
                               <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 flex-shrink-0">
                                 No devolvió
                               </span>
                             </div>
-                            <span className="block text-xs text-gray-500 mt-0.5">
+                            <span className="block text-xs text-fg-subtle mt-0.5">
                               {a.asset.categoria.nombre}
                               {a.asset.numeroSerie && ` · S/N: ${a.asset.numeroSerie}`} · Sigue
                               asignado a {data.employee.nombres}, a la espera de recuperarlo.
@@ -1470,11 +1470,11 @@ export default function SolicitudDetailPage() {
               })()}
               {eppPendienteDevolver.length > 0 && (
                 <div className="space-y-3 mb-3">
-                  <h4 className="text-sm font-medium text-gray-700">EPP a devolver</h4>
+                  <h4 className="text-sm font-medium text-fg-muted">EPP a devolver</h4>
                   {eppPendienteDevolver.map((k) => (
-                    <div key={k.id} className="border border-gray-200 rounded-lg p-3">
+                    <div key={k.id} className="border border-line rounded-lg p-3">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-900">{k.item.nombre}</span>
+                        <span className="text-sm font-medium text-fg">{k.item.nombre}</span>
                         <div className="flex gap-3">
                           <label className="flex items-center gap-1 text-sm">
                             <input
@@ -1518,7 +1518,7 @@ export default function SolicitudDetailPage() {
                           setDevolucionEppObservaciones((prev) => ({ ...prev, [k.id]: e.target.value }))
                         }
                         placeholder="Observaciones (opcional)"
-                        className="w-full text-sm border border-gray-300 rounded px-2 py-1"
+                        className="w-full text-sm border border-line-strong rounded px-2 py-1"
                       />
                     </div>
                   ))}
@@ -1561,7 +1561,7 @@ export default function SolicitudDetailPage() {
               <button
                 onClick={() => handleTransition('consolidacion_cierre')}
                 disabled={transitioning}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-success-hover disabled:opacity-50"
               >
                 <ChevronRight className="h-4 w-4" />
                 {transitioning ? 'Cerrando...' : 'Cerrar ticket'}
@@ -1605,8 +1605,8 @@ export default function SolicitudDetailPage() {
             if (!doc) return null;
             return (
               <div className="card p-6">
-                <h3 className="font-semibold text-gray-900 mb-1">Documentos</h3>
-                <p className="text-sm text-gray-500 mb-3">
+                <h3 className="font-semibold text-fg mb-1">Documentos</h3>
+                <p className="text-sm text-fg-subtle mb-3">
                   Descarga el comprobante con los datos ya rellenados.
                 </p>
                 <a
@@ -1633,21 +1633,21 @@ export default function SolicitudDetailPage() {
               const label = categoria === 'kit_bienvenida' ? 'Kit de Bienvenida' : 'EPP';
               return (
                 <div key={categoria} className="card p-6">
-                  <h3 className="font-semibold text-gray-900 mb-1">Artículos Requeridos: {label}</h3>
-                  <p className="text-sm text-gray-500 mb-3">
+                  <h3 className="font-semibold text-fg mb-1">Artículos Requeridos: {label}</h3>
+                  <p className="text-sm text-fg-subtle mb-3">
                     {label} pedido específicamente para este ticket.
                   </p>
                   <div className="space-y-2">
                     {requeridos.map((r) => (
                       <div
                         key={r.id}
-                        className="flex items-center justify-between gap-3 py-2 border-b border-gray-100 last:border-0"
+                        className="flex items-center justify-between gap-3 py-2 border-b border-line last:border-0"
                       >
                         <div>
-                          <span className="text-sm text-gray-900">
+                          <span className="text-sm text-fg">
                             {r.item.nombre} × {r.cantidad}
                           </span>
-                          <span className="block text-xs text-gray-500">
+                          <span className="block text-xs text-fg-subtle">
                             {r.estado === 'no_aplica' && r.motivoNoAplica ? r.motivoNoAplica : ''}
                           </span>
                         </div>
@@ -1655,7 +1655,7 @@ export default function SolicitudDetailPage() {
                           <button
                             onClick={() => handleMarcarNoAplica(r.id)}
                             disabled={marcandoNoAplica === r.id}
-                            className="text-xs px-2 py-1 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap"
+                            className="text-xs px-2 py-1 border border-line-strong rounded-lg text-fg-muted hover:bg-surface-muted disabled:opacity-50 whitespace-nowrap"
                           >
                             {marcandoNoAplica === r.id ? 'Marcando...' : 'No aplica'}
                           </button>
@@ -1666,7 +1666,7 @@ export default function SolicitudDetailPage() {
                               r.estado === 'entregado'
                                 ? 'bg-green-100 text-green-800'
                                 : r.estado === 'no_aplica'
-                                  ? 'bg-gray-100 text-gray-600'
+                                  ? 'bg-gray-100 text-fg-muted'
                                   : 'bg-amber-100 text-amber-800'
                             )}
                           >
@@ -1718,13 +1718,13 @@ export default function SolicitudDetailPage() {
 
                   return (
                     <div key={categoria} className="card p-6">
-                      <h3 className="font-semibold text-gray-900 mb-1">{label}</h3>
-                      <p className="text-sm text-gray-500 mb-3">
+                      <h3 className="font-semibold text-fg mb-1">{label}</h3>
+                      <p className="text-sm text-fg-subtle mb-3">
                         Elige los artículos y cantidades a entregar a {data.employee.nombres}{' '}
                         {data.employee.apellidoPaterno}.
                       </p>
                       {items.length === 0 ? (
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-fg-subtle">
                           No hay artículos cargados en el catálogo de {label}. Puedes crearlos en
                           Configuración → Kit de Bienvenida y EPP.
                         </p>
@@ -1733,7 +1733,7 @@ export default function SolicitudDetailPage() {
                           {items.map((it) => (
                             <div key={it.id} className="flex items-center justify-between gap-3 py-1">
                               <div className="flex items-center gap-2">
-                                <span className="text-sm text-gray-900">{it.nombre}</span>
+                                <span className="text-sm text-fg">{it.nombre}</span>
                                 <span
                                   className={cn(
                                     'text-xs px-2 py-0.5 rounded-full border',
@@ -1758,7 +1758,7 @@ export default function SolicitudDetailPage() {
                                 }
                                 disabled={it.cantidad === 0}
                                 placeholder="0"
-                                className="w-20 text-sm border border-gray-300 rounded px-2 py-1 disabled:bg-gray-100"
+                                className="w-20 text-sm border border-line-strong rounded px-2 py-1 disabled:bg-gray-100"
                               />
                             </div>
                           ))}
@@ -1783,7 +1783,7 @@ export default function SolicitudDetailPage() {
           {/* Pendientes Checklist */}
           {data.pendientes.length > 0 && (
             <div className="card p-6">
-              <h2 className="font-semibold text-gray-900 mb-4">Pendientes / Checklist</h2>
+              <h2 className="font-semibold text-fg mb-4">Pendientes / Checklist</h2>
               <div className="space-y-3">
                 {data.pendientes.map((p) => (
                   <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-b-0">
@@ -1798,11 +1798,11 @@ export default function SolicitudDetailPage() {
                         )}
                       </span>
                       <div>
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className="text-sm font-medium text-fg">
                           {pendienteLabels[p.tipo] || p.tipo}
                         </span>
                         {p.descripcion && (
-                          <span className="block text-xs text-gray-500">{p.descripcion}</span>
+                          <span className="block text-xs text-fg-subtle">{p.descripcion}</span>
                         )}
                       </div>
                     </div>
@@ -1810,7 +1810,7 @@ export default function SolicitudDetailPage() {
                       <select
                         value={p.estado}
                         onChange={(e) => handleUpdatePendiente(p.id, e.target.value)}
-                        className="text-sm border border-gray-300 rounded px-2 py-1"
+                        className="text-sm border border-line-strong rounded px-2 py-1"
                       >
                         <option value="pendiente">Pendiente</option>
                         <option value="gestionando">Gestionando</option>
@@ -1826,7 +1826,7 @@ export default function SolicitudDetailPage() {
 
           {/* Activity Timeline */}
           <div className="card p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Actividad</h2>
+            <h2 className="font-semibold text-fg mb-4">Actividad</h2>
 
             {/* Comment Form */}
             {!isClosed && (
@@ -1836,15 +1836,15 @@ export default function SolicitudDetailPage() {
                   onChange={(e) => setCommentText(e.target.value)}
                   placeholder="Agregar comentario..."
                   rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
                 />
                 <div className="flex justify-between items-center mt-2">
-                  <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <label className="flex items-center gap-2 text-sm text-fg-muted">
                     <input
                       type="checkbox"
                       checked={commentInternal}
                       onChange={(e) => setCommentInternal(e.target.checked)}
-                      className="rounded border-gray-300"
+                      className="rounded border-line-strong"
                     />
                     Nota interna
                   </label>
@@ -1894,7 +1894,7 @@ export default function SolicitudDetailPage() {
                       {item.type === 'comment' ? (
                         <>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-gray-900">
+                            <span className="text-sm font-medium text-fg">
                               {item.data.autor.nombre}
                             </span>
                             {item.data.esInterno && (
@@ -1902,29 +1902,29 @@ export default function SolicitudDetailPage() {
                                 Interna
                               </span>
                             )}
-                            <span className="text-xs text-gray-400">
+                            <span className="text-xs text-fg-subtle">
                               {new Date(item.data.createdAt).toLocaleString('es-CL')}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-700 mt-1">{item.data.mensaje}</p>
+                          <p className="text-sm text-fg-muted mt-1">{item.data.mensaje}</p>
                         </>
                       ) : (
                         <>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-gray-900">
+                            <span className="text-sm font-medium text-fg">
                               {item.data.ejecutadoPor.nombre}
                             </span>
-                            <span className="text-xs text-gray-400">
+                            <span className="text-xs text-fg-subtle">
                               {new Date(item.data.createdAt).toLocaleString('es-CL')}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-600 mt-1">
+                          <p className="text-sm text-fg-muted mt-1">
                             {item.data.estadoAnterior === item.data.estadoNuevo
                               ? 'Solicitud creada'
                               : `${estadoLabels[item.data.estadoAnterior]} → ${estadoLabels[item.data.estadoNuevo]}`}
                           </p>
                           {item.data.comentario && (
-                            <p className="text-sm text-gray-500 mt-1 italic">
+                            <p className="text-sm text-fg-subtle mt-1 italic">
                               {item.data.comentario}
                             </p>
                           )}
@@ -1941,46 +1941,46 @@ export default function SolicitudDetailPage() {
         <div className="space-y-6">
           {/* Request Info */}
           <div className="card p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">Información</h3>
+            <h3 className="font-semibold text-fg mb-4">Información</h3>
             <dl className="space-y-3 text-sm">
               <div>
-                <dt className="text-gray-500">Empleado</dt>
-                <dd className="font-medium text-gray-900">
+                <dt className="text-fg-subtle">Empleado</dt>
+                <dd className="font-medium text-fg">
                   {data.employee.nombres} {data.employee.apellidoPaterno}
                 </dd>
-                <dd className="text-xs text-gray-500">
+                <dd className="text-xs text-fg-subtle">
                   {data.employee.rut || '—'} · {data.employee.correoPersonal}
                 </dd>
               </div>
               {data.employee.cargo && (
                 <div>
-                  <dt className="text-gray-500">Cargo</dt>
-                  <dd className="text-gray-900">{data.employee.cargo}</dd>
+                  <dt className="text-fg-subtle">Cargo</dt>
+                  <dd className="text-fg">{data.employee.cargo}</dd>
                 </div>
               )}
               <div>
-                <dt className="text-gray-500">Solicitante</dt>
-                <dd className="flex items-center gap-1 text-gray-900">
-                  <User className="h-3.5 w-3.5 text-gray-400" />
+                <dt className="text-fg-subtle">Solicitante</dt>
+                <dd className="flex items-center gap-1 text-fg">
+                  <User className="h-3.5 w-3.5 text-fg-subtle" />
                   {data.solicitante.nombre}
                 </dd>
               </div>
               <div>
-                <dt className="text-gray-500">Responsable Actual</dt>
-                <dd className="text-gray-900">
+                <dt className="text-fg-subtle">Responsable Actual</dt>
+                <dd className="text-fg">
                   {data.responsableActual?.nombre || 'Sin asignar'}
                 </dd>
               </div>
               <div>
-                <dt className="text-gray-500">Fecha Creación</dt>
-                <dd className="text-gray-900">
+                <dt className="text-fg-subtle">Fecha Creación</dt>
+                <dd className="text-fg">
                   {new Date(data.createdAt).toLocaleDateString('es-CL')}
                 </dd>
               </div>
               {data.fechaCierre && (
                 <div>
-                  <dt className="text-gray-500">Fecha Cierre</dt>
-                  <dd className="text-gray-900">
+                  <dt className="text-fg-subtle">Fecha Cierre</dt>
+                  <dd className="text-fg">
                     {new Date(data.fechaCierre).toLocaleDateString('es-CL')}
                   </dd>
                 </div>
@@ -1990,33 +1990,33 @@ export default function SolicitudDetailPage() {
 
           {/* Type-specific info */}
           <div className="card p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">Detalle del Tipo</h3>
+            <h3 className="font-semibold text-fg mb-4">Detalle del Tipo</h3>
             <dl className="space-y-3 text-sm">
               {data.tipo === 'onboarding' && (
                 <>
                   {data.fechaIngreso && (
                     <div>
-                      <dt className="text-gray-500">Fecha Ingreso</dt>
-                      <dd className="text-gray-900">
+                      <dt className="text-fg-subtle">Fecha Ingreso</dt>
+                      <dd className="text-fg">
                         {formatearFecha(data.fechaIngreso)}
                       </dd>
                     </div>
                   )}
                   {data.cargoSolicitado && (
                     <div>
-                      <dt className="text-gray-500">Cargo</dt>
-                      <dd className="text-gray-900">{data.cargoSolicitado}</dd>
+                      <dt className="text-fg-subtle">Cargo</dt>
+                      <dd className="text-fg">{data.cargoSolicitado}</dd>
                     </div>
                   )}
                   {data.ubicacionDestino && (
                     <div>
-                      <dt className="text-gray-500">Ubicación</dt>
-                      <dd className="text-gray-900">{data.ubicacionDestino}</dd>
+                      <dt className="text-fg-subtle">Ubicación</dt>
+                      <dd className="text-fg">{data.ubicacionDestino}</dd>
                     </div>
                   )}
                   <div>
-                    <dt className="text-gray-500">Equipos Solicitados</dt>
-                    <dd className="text-gray-900">
+                    <dt className="text-fg-subtle">Equipos Solicitados</dt>
+                    <dd className="text-fg">
                       {data.categoriasRequeridas.length > 0
                         ? data.categoriasRequeridas.join(', ')
                         : 'Ninguno'}
@@ -2028,8 +2028,8 @@ export default function SolicitudDetailPage() {
                 <>
                   {data.motivoCambio && (
                     <div>
-                      <dt className="text-gray-500">Motivo</dt>
-                      <dd className="text-gray-900">{data.motivoCambio}</dd>
+                      <dt className="text-fg-subtle">Motivo</dt>
+                      <dd className="text-fg">{data.motivoCambio}</dd>
                     </div>
                   )}
                 </>
@@ -2038,28 +2038,28 @@ export default function SolicitudDetailPage() {
                 <>
                   {data.fechaDesvinculacion && (
                     <div>
-                      <dt className="text-gray-500">Fecha Desvinculación</dt>
-                      <dd className="text-gray-900">
+                      <dt className="text-fg-subtle">Fecha Desvinculación</dt>
+                      <dd className="text-fg">
                         {formatearFecha(data.fechaDesvinculacion)}
                       </dd>
                     </div>
                   )}
                   {data.medioDevolucion && (
                     <div>
-                      <dt className="text-gray-500">Medio</dt>
-                      <dd className="text-gray-900">{data.medioDevolucion}</dd>
+                      <dt className="text-fg-subtle">Medio</dt>
+                      <dd className="text-fg">{data.medioDevolucion}</dd>
                     </div>
                   )}
                   {data.otChilexpress && (
                     <div>
-                      <dt className="text-gray-500">OT Chilexpress</dt>
-                      <dd className="text-gray-900">{data.otChilexpress}</dd>
+                      <dt className="text-fg-subtle">OT Chilexpress</dt>
+                      <dd className="text-fg">{data.otChilexpress}</dd>
                     </div>
                   )}
                   {data.ciudadDevolucion && (
                     <div>
-                      <dt className="text-gray-500">Ubicación</dt>
-                      <dd className="text-gray-900">{data.ciudadDevolucion}</dd>
+                      <dt className="text-fg-subtle">Ubicación</dt>
+                      <dd className="text-fg">{data.ciudadDevolucion}</dd>
                     </div>
                   )}
                 </>
@@ -2070,14 +2070,14 @@ export default function SolicitudDetailPage() {
           {/* Active Assets */}
           {data.employee.assignments.length > 0 && (
             <div className="card p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Equipos Asignados</h3>
+              <h3 className="font-semibold text-fg mb-4">Equipos Asignados</h3>
               <div className="space-y-2">
                 {data.employee.assignments.map((a) => (
-                  <div key={a.id} className="text-sm p-2 bg-gray-50 rounded">
+                  <div key={a.id} className="text-sm p-2 bg-surface-muted rounded">
                     <span className="font-medium">
                       {a.asset.marca} {a.asset.modelo}
                     </span>
-                    <span className="block text-xs text-gray-500">
+                    <span className="block text-xs text-fg-subtle">
                       {a.asset.categoria.nombre}
                       {a.asset.numeroSerie && ` · S/N: ${a.asset.numeroSerie}`}
                     </span>
@@ -2093,12 +2093,12 @@ export default function SolicitudDetailPage() {
               Asignaciones a buscar cada asignacion por separado. */}
           {data.tipo === 'offboarding' && data.equiposDevueltos.length > 0 && (
             <div className="card p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Equipos Devueltos</h3>
+              <h3 className="font-semibold text-fg mb-4">Equipos Devueltos</h3>
               <div className="space-y-2">
                 {data.equiposDevueltos.map((a) => (
-                  <div key={a.id} className="text-sm p-3 bg-gray-50 rounded-lg">
+                  <div key={a.id} className="text-sm p-3 bg-surface-muted rounded-lg">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-gray-900">
+                      <span className="font-medium text-fg">
                         {a.asset.categoria.nombre}: {a.asset.marca} {a.asset.modelo}
                       </span>
                       <span
@@ -2118,7 +2118,7 @@ export default function SolicitudDetailPage() {
                             : 'Buen estado'}
                       </span>
                     </div>
-                    <span className="block text-xs text-gray-500 mt-0.5">
+                    <span className="block text-xs text-fg-subtle mt-0.5">
                       {a.asset.numeroSerie && `S/N: ${a.asset.numeroSerie} · `}
                       {a.estadoDevolucion === 'no_devuelto'
                         ? 'Sigue asignado, a la espera de recuperarlo'
@@ -2127,7 +2127,7 @@ export default function SolicitudDetailPage() {
                       {a.recibidoPor && ` · Registrado por ${a.recibidoPor}`}
                     </span>
                     {a.observacionesDevolucion && (
-                      <p className="text-xs text-gray-600 mt-1">
+                      <p className="text-xs text-fg-muted mt-1">
                         Observaciones: {a.observacionesDevolucion}
                       </p>
                     )}
@@ -2143,12 +2143,12 @@ export default function SolicitudDetailPage() {
               hay un campo aparte como en Assignment. */}
           {data.tipo === 'offboarding' && data.eppDevueltos.length > 0 && (
             <div className="card p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">EPP Devuelto</h3>
+              <h3 className="font-semibold text-fg mb-4">EPP Devuelto</h3>
               <div className="space-y-2">
                 {data.eppDevueltos.map((k) => (
-                  <div key={k.id} className="text-sm p-3 bg-gray-50 rounded-lg">
+                  <div key={k.id} className="text-sm p-3 bg-surface-muted rounded-lg">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-gray-900">{k.item.nombre}</span>
+                      <span className="font-medium text-fg">{k.item.nombre}</span>
                       <span
                         className={cn(
                           'text-xs px-1.5 py-0.5 rounded flex-shrink-0',
@@ -2167,7 +2167,7 @@ export default function SolicitudDetailPage() {
                       </span>
                     </div>
                     {k.observaciones && (
-                      <p className="text-xs text-gray-600 mt-1">{k.observaciones}</p>
+                      <p className="text-xs text-fg-muted mt-1">{k.observaciones}</p>
                     )}
                   </div>
                 ))}
@@ -2180,12 +2180,12 @@ export default function SolicitudDetailPage() {
               equipo. */}
           {data.tipo === 'cambio_equipo' && (data.equipoCambioAnterior || data.equipoCambioNuevo) && (
             <div className="card p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Equipo Cambiado</h3>
+              <h3 className="font-semibold text-fg mb-4">Equipo Cambiado</h3>
               <div className="space-y-3">
                 {data.equipoCambioAnterior && (
-                  <div className="text-sm p-3 bg-gray-50 rounded-lg">
+                  <div className="text-sm p-3 bg-surface-muted rounded-lg">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-gray-900">
+                      <span className="font-medium text-fg">
                         Anterior: {data.equipoCambioAnterior.asset.categoria.nombre}
                         {' — '}
                         {data.equipoCambioAnterior.asset.marca} {data.equipoCambioAnterior.asset.modelo}
@@ -2207,7 +2207,7 @@ export default function SolicitudDetailPage() {
                             : 'Buen estado'}
                       </span>
                     </div>
-                    <span className="block text-xs text-gray-500 mt-0.5">
+                    <span className="block text-xs text-fg-subtle mt-0.5">
                       {data.equipoCambioAnterior.asset.numeroSerie &&
                         `S/N: ${data.equipoCambioAnterior.asset.numeroSerie} · `}
                       {data.equipoCambioAnterior.estadoDevolucion === 'no_devuelto'
@@ -2218,7 +2218,7 @@ export default function SolicitudDetailPage() {
                         ` · Registrado por ${data.equipoCambioAnterior.recibidoPor}`}
                     </span>
                     {data.equipoCambioAnterior.observacionesDevolucion && (
-                      <p className="text-xs text-gray-600 mt-1">
+                      <p className="text-xs text-fg-muted mt-1">
                         Observaciones: {data.equipoCambioAnterior.observacionesDevolucion}
                       </p>
                     )}
@@ -2226,12 +2226,12 @@ export default function SolicitudDetailPage() {
                 )}
                 {data.equipoCambioNuevo && (
                   <div className="text-sm p-3 bg-green-50 rounded-lg">
-                    <span className="font-medium text-gray-900">
+                    <span className="font-medium text-fg">
                       Nuevo: {data.equipoCambioNuevo.asset.categoria.nombre}
                       {' — '}
                       {data.equipoCambioNuevo.asset.marca} {data.equipoCambioNuevo.asset.modelo}
                     </span>
-                    <span className="block text-xs text-gray-500 mt-0.5">
+                    <span className="block text-xs text-fg-subtle mt-0.5">
                       {data.equipoCambioNuevo.asset.numeroSerie &&
                         `S/N: ${data.equipoCambioNuevo.asset.numeroSerie} · `}
                       Entregado el {formatearFecha(data.equipoCambioNuevo.fechaEntrega)}
@@ -2248,40 +2248,40 @@ export default function SolicitudDetailPage() {
               que se vea de un vistazo, igual que Equipos Asignados. */}
           {data.tipo === 'onboarding' && data.fechaEntregaCoordinada && (
             <div className="card p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Entrega Coordinada</h3>
+              <h3 className="font-semibold text-fg mb-4">Entrega Coordinada</h3>
               <dl className="space-y-3 text-sm">
                 <div>
-                  <dt className="text-gray-500">
+                  <dt className="text-fg-subtle">
                     {data.medioEntrega === 'presencial' ? 'Fecha y Hora' : 'Fecha y Hora Estimada'}
                   </dt>
-                  <dd className="text-gray-900">
+                  <dd className="text-fg">
                     {new Date(data.fechaEntregaCoordinada).toLocaleString('es-CL')}
                   </dd>
                 </div>
                 {data.medioEntrega && (
                   <div>
-                    <dt className="text-gray-500">Medio</dt>
-                    <dd className="text-gray-900">
+                    <dt className="text-fg-subtle">Medio</dt>
+                    <dd className="text-fg">
                       {data.medioEntrega === 'presencial' ? 'Presencial' : 'Despacho (Chilexpress)'}
                     </dd>
                   </div>
                 )}
                 {data.lugarEntrega && (
                   <div>
-                    <dt className="text-gray-500">Lugar</dt>
-                    <dd className="text-gray-900">{data.lugarEntrega}</dd>
+                    <dt className="text-fg-subtle">Lugar</dt>
+                    <dd className="text-fg">{data.lugarEntrega}</dd>
                   </div>
                 )}
                 {data.otChilexpressEntrega && (
                   <div>
-                    <dt className="text-gray-500">OT Chilexpress</dt>
-                    <dd className="text-gray-900">{data.otChilexpressEntrega}</dd>
+                    <dt className="text-fg-subtle">OT Chilexpress</dt>
+                    <dd className="text-fg">{data.otChilexpressEntrega}</dd>
                   </div>
                 )}
                 {data.ciudadEntrega && (
                   <div>
-                    <dt className="text-gray-500">Ubicación de destino</dt>
-                    <dd className="text-gray-900">{data.ciudadEntrega}</dd>
+                    <dt className="text-fg-subtle">Ubicación de destino</dt>
+                    <dd className="text-fg">{data.ciudadEntrega}</dd>
                   </div>
                 )}
               </dl>
@@ -2292,40 +2292,40 @@ export default function SolicitudDetailPage() {
               cambio_equipo. */}
           {data.tipo === 'cambio_equipo' && data.fechaCambioCoordinada && (
             <div className="card p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Cambio Coordinado</h3>
+              <h3 className="font-semibold text-fg mb-4">Cambio Coordinado</h3>
               <dl className="space-y-3 text-sm">
                 <div>
-                  <dt className="text-gray-500">
+                  <dt className="text-fg-subtle">
                     {data.medioCambio === 'presencial' ? 'Fecha y Hora' : 'Fecha Estimada de Llegada'}
                   </dt>
-                  <dd className="text-gray-900">
+                  <dd className="text-fg">
                     {new Date(data.fechaCambioCoordinada).toLocaleString('es-CL')}
                   </dd>
                 </div>
                 {data.medioCambio && (
                   <div>
-                    <dt className="text-gray-500">Medio</dt>
-                    <dd className="text-gray-900">
+                    <dt className="text-fg-subtle">Medio</dt>
+                    <dd className="text-fg">
                       {data.medioCambio === 'presencial' ? 'Presencial' : 'Despacho (Chilexpress)'}
                     </dd>
                   </div>
                 )}
                 {data.lugarCambio && (
                   <div>
-                    <dt className="text-gray-500">Lugar</dt>
-                    <dd className="text-gray-900">{data.lugarCambio}</dd>
+                    <dt className="text-fg-subtle">Lugar</dt>
+                    <dd className="text-fg">{data.lugarCambio}</dd>
                   </div>
                 )}
                 {data.otCambioChilexpress && (
                   <div>
-                    <dt className="text-gray-500">OT Chilexpress</dt>
-                    <dd className="text-gray-900">{data.otCambioChilexpress}</dd>
+                    <dt className="text-fg-subtle">OT Chilexpress</dt>
+                    <dd className="text-fg">{data.otCambioChilexpress}</dd>
                   </div>
                 )}
                 {data.ciudadCambio && (
                   <div>
-                    <dt className="text-gray-500">Ciudad destino</dt>
-                    <dd className="text-gray-900">{data.ciudadCambio}</dd>
+                    <dt className="text-fg-subtle">Ciudad destino</dt>
+                    <dd className="text-fg">{data.ciudadCambio}</dd>
                   </div>
                 )}
               </dl>
@@ -2335,40 +2335,40 @@ export default function SolicitudDetailPage() {
           {/* Devolución Coordinada: mismo patron, para offboarding. */}
           {data.tipo === 'offboarding' && data.fechaDevolucionCoordinada && (
             <div className="card p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Devolución Coordinada</h3>
+              <h3 className="font-semibold text-fg mb-4">Devolución Coordinada</h3>
               <dl className="space-y-3 text-sm">
                 <div>
-                  <dt className="text-gray-500">
+                  <dt className="text-fg-subtle">
                     {data.medioDevolucion === 'presencial' ? 'Fecha y Hora' : 'Fecha Estimada de Llegada'}
                   </dt>
-                  <dd className="text-gray-900">
+                  <dd className="text-fg">
                     {new Date(data.fechaDevolucionCoordinada).toLocaleString('es-CL')}
                   </dd>
                 </div>
                 {data.medioDevolucion && (
                   <div>
-                    <dt className="text-gray-500">Medio</dt>
-                    <dd className="text-gray-900">
+                    <dt className="text-fg-subtle">Medio</dt>
+                    <dd className="text-fg">
                       {data.medioDevolucion === 'presencial' ? 'Presencial' : 'Despacho (Chilexpress)'}
                     </dd>
                   </div>
                 )}
                 {data.lugarDevolucion && (
                   <div>
-                    <dt className="text-gray-500">Lugar</dt>
-                    <dd className="text-gray-900">{data.lugarDevolucion}</dd>
+                    <dt className="text-fg-subtle">Lugar</dt>
+                    <dd className="text-fg">{data.lugarDevolucion}</dd>
                   </div>
                 )}
                 {data.otChilexpress && (
                   <div>
-                    <dt className="text-gray-500">OT Chilexpress</dt>
-                    <dd className="text-gray-900">{data.otChilexpress}</dd>
+                    <dt className="text-fg-subtle">OT Chilexpress</dt>
+                    <dd className="text-fg">{data.otChilexpress}</dd>
                   </div>
                 )}
                 {data.ciudadDevolucion && (
                   <div>
-                    <dt className="text-gray-500">Ciudad destino</dt>
-                    <dd className="text-gray-900">{data.ciudadDevolucion}</dd>
+                    <dt className="text-fg-subtle">Ciudad destino</dt>
+                    <dd className="text-fg">{data.ciudadDevolucion}</dd>
                   </div>
                 )}
               </dl>
@@ -2387,14 +2387,14 @@ export default function SolicitudDetailPage() {
             const label = categoria === 'kit_bienvenida' ? 'Kit de Bienvenida' : 'EPP';
             return (
               <div key={categoria} className="card p-6">
-                <h3 className="font-semibold text-gray-900 mb-4">{label}</h3>
+                <h3 className="font-semibold text-fg mb-4">{label}</h3>
                 <div className="space-y-2">
                   {entregas.map((ka) => (
-                    <div key={ka.id} className="text-sm p-2 bg-gray-50 rounded">
+                    <div key={ka.id} className="text-sm p-2 bg-surface-muted rounded">
                       <span className="font-medium">
                         {ka.item.nombre} × {ka.cantidad}
                       </span>
-                      <span className="block text-xs text-gray-500">
+                      <span className="block text-xs text-fg-subtle">
                         {new Date(ka.createdAt).toLocaleDateString('es-CL')}
                       </span>
                     </div>
@@ -2406,8 +2406,8 @@ export default function SolicitudDetailPage() {
 
           {data.observaciones && (
             <div className="card p-6">
-              <h3 className="font-semibold text-gray-900 mb-2">Observaciones</h3>
-              <p className="text-sm text-gray-700">{data.observaciones}</p>
+              <h3 className="font-semibold text-fg mb-2">Observaciones</h3>
+              <p className="text-sm text-fg-muted">{data.observaciones}</p>
             </div>
           )}
         </div>

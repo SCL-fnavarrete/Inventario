@@ -2935,7 +2935,31 @@ Pedido de Javier: alinear el aspecto del sistema con la marca de sclconsultores.
 
 **Correcciones visuales de paso.** Los modales hechos a mano usaban `bg-opacity-50`, que Tailwind v4 eliminó, así que el fondo se veía negro opaco; los modales de confirmación pasan a `ConfirmDialog` y el resto a `bg-black/50`. Se elimina `hooks/useAssetFilters.ts`, que no se importaba en ningún lado y tenía etiquetas obsoletas (`reutilizable`, condiciones `bueno`/`regular`/`malo`).
 
+## 2.78 Rediseño visual: navbar superior, modo oscuro, tarjetas destacadas y logo oficial (23-sep-2026)
+
+Pedido de Javier: rediseño exclusivamente visual (sin tocar lógica, API, validaciones ni modelos), con la paleta y el logo de sclconsultores.com, el patrón de navbar de velt.dev y tarjetas con inclinación 3D y gradiente radial inspiradas en un CodePen de referencia. La guía de uso para pantallas nuevas está en `app/docs/DESIGN_SYSTEM.md`.
+
+**Logo oficial.** `public/logo-scl.png` era un banner promocional oscuro, no el logo. Se reemplaza por el logo oficial (`sclconsultores.com/logo.png`) y el favicon pasa a `app/icon.png` (ícono oficial). El componente `Logo` lo pone sobre una pastilla clara en modo oscuro, porque el "CONSULTORES" gris del logo no se lee sobre fondo oscuro. Los PDFs no cambian: `pdfSclBrand.tsx` ya dibuja la marca.
+
+**Navbar superior en vez de Sidebar.** `components/layout/Navbar.tsx` reemplaza a `Sidebar.tsx` (eliminado): sticky, transparente arriba y con fondo translúcido + blur al hacer scroll; logo a la izquierda, módulos al centro (desde 1280px; bajo eso, menú desplegable), selector de sede, cambio de tema y menú de usuario a la derecha. Los ítems siguen saliendo de la matriz de permisos (SPEC 1.3.1) y el selector de sede conserva el comportamiento de 2.30 (fijo para quien no es admin). El contenido queda centrado con ancho máximo de 1536px. Se corrige de paso `overflow-x: hidden` en `html`/`body`, que rompía `position: sticky` (pasa a `clip`).
+
+**Modo oscuro (nuevo).** La app era solo clara. El tema vive en `<html data-theme>`; un script en `<head>` (`lib/tema.ts`) lo aplica antes de pintar, según la preferencia guardada o la del sistema operativo, y `ThemeToggle` lo cambia. Estrategia:
+- Tokens semánticos en `globals.css` (`canvas`, `surface`, `surface-muted`, `fg`, `fg-muted`, `fg-subtle`, `line`, `line-strong`) con valores por tema.
+- Migración de los colores fijos de todas las pantallas a esos tokens con `app/scripts/migrar-tokens-tema.mjs` (1.513 reemplazos en 84 archivos; idempotente).
+- En oscuro, las escalas de Tailwind se ajustan solas: 50–300 pasan a tintes translúcidos y 700–950 a tonos claros; así badges y avisos siguen legibles sin `dark:` por componente.
+- Tokens fijos para rellenos sólidos con texto blanco (`brand`, `navy`, `danger`, `success`), que no se invierten.
+- Borde por defecto al token `line` (Tailwind v4 usa `currentColor`, que dejaba líneas oscuras); ejes, grilla y tooltip de Recharts siguen el tema desde `globals.css`.
+
+**Tarjetas destacadas (`card-feature`) con inclinación 3D.** Utilidad `card-feature`: halo radial y círculo del color de acento en la esquina superior derecha, borde teñido hacia esa esquina y círculo que crece al hover. **El color sale de un dato real** (`lib/constants/tonos.ts`: `ESTADO_ACTIVO_TONO`, `TONO_ACENTO`, `TONO_ESTILO`), p. ej. disponible verde, asignado azul, baja rojo. `<Tilt>` agrega la inclinación con `vanilla-tilt` (nueva dependencia, cargada con `import()` dinámico solo donde se usa; se desactiva con `prefers-reduced-motion` y en pantallas táctiles). Dónde se aplica:
+- Con inclinación: KPIs de Dashboard, Mantenciones y Compras; tarjetas de estado de Activos (`StatsBar`) y de filtro de Personal; accesos de Reportes y resúmenes de Stock y Obsoletos; secciones de Configuración.
+- Solo acento, sin inclinación: vista de tarjetas de Activos (`AssetCard`), porque puede tener cientos.
+- Paneles de contenido (formularios, tablas, detalles): superficie normal, sin inclinación, para no mover lo que se está editando.
+
+Cambios visibles de paso: las tarjetas de estado de Activos marcan la seleccionada con un anillo de su color en vez de relleno sólido; el `Toast` pasa a superficie opaca teñida (un fondo `bg-*-50` quedaba translúcido en oscuro); el `Modal` gana borde; "Guías de Despacho" y "Configuración" llevan tilde en el menú.
+
 ## Changelog SPEC
+- **v2.2 (2026-09-23):**
+  - Sección 2.78 (nueva): rediseño visual. Logo oficial de SCL y favicon; `Navbar` superior sticky con blur en reemplazo del `Sidebar`; modo oscuro con tokens semánticos, script de migración de colores fijos (`scripts/migrar-tokens-tema.mjs`) y escalas de color ajustadas por tema; tarjetas `card-feature` con color derivado del estado real e inclinación 3D (`<Tilt>`, `vanilla-tilt` con import dinámico) en KPIs y accesos, nunca en listas grandes. Guía en `app/docs/DESIGN_SYSTEM.md`.
 - **v2.1 (2026-09-22):**
   - Sección 2.77 (nueva): identidad visual SCL (tokens en `globals.css` @theme, Montserrat, componentes compartidos `PageHeader`/`StatCard`/`Tabs`/`Pagination`/badges), presentación de estados del activo centralizada en `lib/constants/estadosActivo.ts` (mismo color en todas las pantallas), formulario único `ActivoForm` para Nuevo/Editar Activo con Sistema Operativo/Antivirus/Licencia M365 desde catálogos en ambos modos (decisión de Javier), y `GET /api/dashboard/stats` suma `vendido` a `estadosData` y `vendidoAssets` a `kpis`.
 - **v2.0 (2026-09-22):**

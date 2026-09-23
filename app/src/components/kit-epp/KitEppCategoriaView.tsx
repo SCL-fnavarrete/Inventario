@@ -281,7 +281,7 @@ export function KitEppCategoriaView({
         <>
           {isCreating && (
             <div className="card p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Nuevo Artículo</h2>
+              <h2 className="text-lg font-semibold text-fg mb-4">Nuevo Artículo</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="field-label">Nombre *</label>
@@ -312,7 +312,7 @@ export function KitEppCategoriaView({
                     onChange={(e) => setFormData({ ...formData, stockMinimo: parseInt(e.target.value, 10) || 0 })}
                     className="field-input"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-fg-subtle mt-1">
                     El Dashboard avisa cuando el stock llega a este número o menos.
                   </p>
                 </div>
@@ -333,7 +333,7 @@ export function KitEppCategoriaView({
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-fg-subtle mt-1">
                     {isAdmin
                       ? "Sede a la que pertenece este stock. Si lo dejas sin sede, no aparecerá cuando filtres por una sede en el menú."
                       : "Es tu sede: el stock que crees queda registrado en ella."}
@@ -359,8 +359,8 @@ export function KitEppCategoriaView({
           )}
 
           <div className="card overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-line">
+              <thead className="bg-surface-muted">
                 <tr>
                   <th className="table-th">
                     Nombre
@@ -381,7 +381,7 @@ export function KitEppCategoriaView({
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-surface divide-y divide-line">
                 {items.map((item) => (
                   <tr key={item.id}>
                     {editingId === item.id ? (
@@ -391,10 +391,10 @@ export function KitEppCategoriaView({
                             type="text"
                             value={formData.nombre}
                             onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                            className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
+                            className="w-full px-2 py-1 border border-line-strong rounded focus:ring-2 focus:ring-primary-500"
                           />
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-500">
+                        <td className="px-6 py-4 text-sm text-fg-subtle">
                           {item.sede?.nombre ?? "Sin sede"}
                         </td>
                         <td className="px-6 py-4 text-center">
@@ -403,7 +403,7 @@ export function KitEppCategoriaView({
                             min={0}
                             value={formData.cantidad}
                             onChange={(e) => setFormData({ ...formData, cantidad: parseInt(e.target.value, 10) || 0 })}
-                            className="w-24 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 text-center"
+                            className="w-24 px-2 py-1 border border-line-strong rounded focus:ring-2 focus:ring-primary-500 text-center"
                           />
                         </td>
                         <td className="px-6 py-4 text-center">
@@ -412,7 +412,7 @@ export function KitEppCategoriaView({
                             min={0}
                             value={formData.stockMinimo}
                             onChange={(e) => setFormData({ ...formData, stockMinimo: parseInt(e.target.value, 10) || 0 })}
-                            className="w-24 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 text-center"
+                            className="w-24 px-2 py-1 border border-line-strong rounded focus:ring-2 focus:ring-primary-500 text-center"
                           />
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -426,7 +426,7 @@ export function KitEppCategoriaView({
                             </button>
                             <button
                               onClick={cancelEdit}
-                              className="p-1 text-gray-600 hover:bg-gray-100 rounded"
+                              className="p-1 text-fg-muted hover:bg-gray-100 rounded"
                               title="Cancelar"
                             >
                               <X size={18} />
@@ -436,10 +436,10 @@ export function KitEppCategoriaView({
                       </>
                     ) : (
                       <>
-                        <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap font-medium text-fg">
                           {item.nombre}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-500">
+                        <td className="px-6 py-4 text-sm text-fg-subtle">
                           {item.sede?.nombre ?? "Sin sede"}
                         </td>
                         <td className="px-6 py-4 text-center">
@@ -455,7 +455,7 @@ export function KitEppCategoriaView({
                             {item.cantidad}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-center text-gray-500">
+                        <td className="px-6 py-4 text-center text-fg-subtle">
                           {item.stockMinimo}
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -488,7 +488,7 @@ export function KitEppCategoriaView({
                 ))}
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={5} className="px-6 py-8 text-center text-fg-subtle">
                       No hay artículos registrados en {titulo.toLowerCase()}
                     </td>
                   </tr>

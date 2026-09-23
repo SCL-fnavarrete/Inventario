@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { Navbar } from "@/components/layout/Navbar";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 import { SedeSeleccionadaProvider } from "@/components/providers/SedeSeleccionadaProvider";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -24,14 +24,14 @@ export default async function DashboardLayout({
           {/* Skip to content link for accessibility */}
           <a
             href="#main-content"
-            className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary-700 focus:text-white focus:rounded-lg focus:shadow-lg"
+            className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-brand focus:text-white focus:rounded-lg focus:shadow-lg"
           >
             Ir al contenido principal
           </a>
-          <div className="flex min-h-screen bg-gray-50">
-            <Sidebar />
-            <main id="main-content" className="flex-1 lg:ml-0 min-w-0">
-              <div className="p-6 lg:p-8 w-full">{children}</div>
+          <div className="min-h-screen">
+            <Navbar />
+            <main id="main-content" className="mx-auto w-full max-w-screen-2xl px-4 pt-4 pb-8 lg:px-8">
+              {children}
             </main>
           </div>
         </ToastProvider>

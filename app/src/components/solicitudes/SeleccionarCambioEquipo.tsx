@@ -255,7 +255,7 @@ export function SeleccionarCambioEquipo({
         <select
           value={oldAssignmentId}
           onChange={(e) => setOldAssignmentId(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
         >
           <option value="">Seleccionar equipo actual...</option>
           {activas.map((a) => (
@@ -276,7 +276,7 @@ export function SeleccionarCambioEquipo({
           <label className="field-label mb-2">
             ¿En qué estado devuelve el equipo actual?
           </label>
-          <div className="flex gap-4 text-sm text-gray-700 mb-2">
+          <div className="flex gap-4 text-sm text-fg-muted mb-2">
             <label className="flex items-center gap-1.5">
               <input
                 type="radio"
@@ -310,7 +310,7 @@ export function SeleccionarCambioEquipo({
             value={observaciones}
             onChange={(e) => setObservaciones(e.target.value)}
             placeholder="Observaciones (opcional)"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
           />
         </div>
       )}
@@ -319,8 +319,8 @@ export function SeleccionarCambioEquipo({
           notebook con cargador. Es puramente informativo para el acta,
           no afecta el estado del equipo ni gatilla baja. */}
       {seleccionada && seleccionada.asset.tieneCargador && (
-        <div className="border border-gray-200 rounded-lg p-3">
-          <p className="text-xs font-medium text-gray-600 mb-2">
+        <div className="border border-line rounded-lg p-3">
+          <p className="text-xs font-medium text-fg-muted mb-2">
             Estado del cargador que devuelve
           </p>
           <select
@@ -328,7 +328,7 @@ export function SeleccionarCambioEquipo({
             onChange={(e) =>
               setCondicionCargadorAnterior(e.target.value as "ok" | "danado" | "no_aplica")
             }
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-2"
+            className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm mb-2"
           >
             <option value="ok">Ok</option>
             <option value="danado">Dañado</option>
@@ -339,22 +339,22 @@ export function SeleccionarCambioEquipo({
             value={observacionesCargadorAnterior}
             onChange={(e) => setObservacionesCargadorAnterior(e.target.value)}
             placeholder="Observación del cargador (opcional)"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
           />
         </div>
       )}
 
       {/* Paso 2: elegir el reemplazo, solo aparece una vez elegido el paso 1 */}
       {seleccionada && (
-        <div className="border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2 text-gray-700 font-medium">
+        <div className="border border-line rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2 text-fg-muted font-medium">
             {iconoDe(seleccionada.asset.categoria.nombre)}
             2. Nuevo {seleccionada.asset.categoria.nombre}
-            <ArrowRight className="h-4 w-4 text-gray-400" />
+            <ArrowRight className="h-4 w-4 text-fg-subtle" />
           </div>
 
           {loading ? (
-            <div className="flex items-center gap-2 text-gray-500 text-sm py-4">
+            <div className="flex items-center gap-2 text-fg-subtle text-sm py-4">
               <Loader2 className="h-4 w-4 animate-spin" />
               Cargando inventario disponible...
             </div>
@@ -371,7 +371,7 @@ export function SeleccionarCambioEquipo({
               <select
                 value={newAssetId}
                 onChange={(e) => setNewAssetId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
               >
                 <option value="">Seleccionar equipo nuevo...</option>
                 {disponibles.map((a) => (
@@ -382,7 +382,7 @@ export function SeleccionarCambioEquipo({
                 ))}
               </select>
               {disponibles.find((a) => a.id === newAssetId) && (
-                <div className="mt-2 text-xs text-gray-500 bg-gray-50 rounded-lg p-2">
+                <div className="mt-2 text-xs text-fg-subtle bg-surface-muted rounded-lg p-2">
                   {especificaciones(disponibles.find((a) => a.id === newAssetId)!) ||
                     "Sin especificaciones registradas"}
                 </div>
@@ -390,8 +390,8 @@ export function SeleccionarCambioEquipo({
               {/* Estado del cargador del equipo nuevo, mismo criterio que en
                   la entrega de Onboarding. */}
               {disponibles.find((a) => a.id === newAssetId)?.tieneCargador && (
-                <div className="mt-2 border border-gray-200 rounded-lg p-3">
-                  <p className="text-xs font-medium text-gray-600 mb-2">
+                <div className="mt-2 border border-line rounded-lg p-3">
+                  <p className="text-xs font-medium text-fg-muted mb-2">
                     Estado del cargador del equipo nuevo
                   </p>
                   <select
@@ -399,7 +399,7 @@ export function SeleccionarCambioEquipo({
                     onChange={(e) =>
                       setCondicionCargadorNuevo(e.target.value as "ok" | "danado" | "no_aplica")
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-2"
+                    className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm mb-2"
                   >
                     <option value="ok">Ok</option>
                     <option value="danado">Dañado</option>
@@ -410,7 +410,7 @@ export function SeleccionarCambioEquipo({
                     value={observacionesCargadorNuevo}
                     onChange={(e) => setObservacionesCargadorNuevo(e.target.value)}
                     placeholder="Observación del cargador (opcional)"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
                   />
                 </div>
               )}

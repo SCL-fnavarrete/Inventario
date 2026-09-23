@@ -81,7 +81,7 @@ export default function VentaActivoPage() {
     }
   };
 
-  if (loading) return <div className="p-6 text-gray-500">Cargando...</div>;
+  if (loading) return <div className="p-6 text-fg-subtle">Cargando...</div>;
   if (!asset) return <div className="p-6 text-red-500">Activo no encontrado</div>;
 
   return (
@@ -105,12 +105,12 @@ export default function VentaActivoPage() {
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* Info activo */}
-      <div className="bg-gray-50 rounded-lg p-4">
+      <div className="bg-surface-muted rounded-lg p-4">
         <div className="grid grid-cols-2 gap-4 text-sm">
-          <div><span className="text-gray-500">Categoría:</span> <span className="font-medium">{asset.categoria.nombre}</span></div>
-          <div><span className="text-gray-500">Estado:</span> <span className="font-medium">{asset.estado}</span></div>
-          <div><span className="text-gray-500">Marca/Modelo:</span> <span className="font-medium">{asset.marca} {asset.modelo}</span></div>
-          <div><span className="text-gray-500">Serie:</span> <span className="font-medium">{asset.numeroSerie || '-'}</span></div>
+          <div><span className="text-fg-subtle">Categoría:</span> <span className="font-medium">{asset.categoria.nombre}</span></div>
+          <div><span className="text-fg-subtle">Estado:</span> <span className="font-medium">{asset.estado}</span></div>
+          <div><span className="text-fg-subtle">Marca/Modelo:</span> <span className="font-medium">{asset.marca} {asset.modelo}</span></div>
+          <div><span className="text-fg-subtle">Serie:</span> <span className="font-medium">{asset.numeroSerie || '-'}</span></div>
         </div>
       </div>
 
@@ -171,13 +171,13 @@ export default function VentaActivoPage() {
           </div>
 
           <div className="flex justify-between pt-4">
-            <Link href={`/activos/${id}`} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+            <Link href={`/activos/${id}`} className="px-4 py-2 text-fg-muted hover:text-fg">
               Cancelar
             </Link>
             <button
               type="submit"
               disabled={!comprador || !monto || !fechaVenta || submitting}
-              className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-success-hover disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? 'Procesando...' : 'Confirmar Venta'}
             </button>

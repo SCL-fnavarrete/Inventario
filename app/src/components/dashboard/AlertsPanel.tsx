@@ -66,7 +66,7 @@ const categoriaKitLabels: Record<KitItemSinStock["categoria"], string> = {
  */
 function EtiquetaSede({ nombre }: { nombre: string | null }) {
   return (
-    <span className="inline-block mt-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">
+    <span className="inline-block mt-0.5 text-[10px] font-medium uppercase tracking-wide text-fg-muted bg-gray-100 rounded px-1.5 py-0.5">
       {nombre ?? "Sin sede"}
     </span>
   );
@@ -97,7 +97,7 @@ export function AlertsPanel({
   return (
     <div className="card p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-900">
+        <h2 className="text-lg font-semibold text-fg">
           Alertas y Notificaciones
         </h2>
         {totalAlertas > 0 && (
@@ -108,7 +108,7 @@ export function AlertsPanel({
       </div>
 
       {totalAlertas === 0 ? (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-fg-subtle">
           <AlertCircle className="h-12 w-12 mx-auto mb-2 text-gray-300" />
           <p>No hay alertas pendientes</p>
         </div>
@@ -131,7 +131,7 @@ export function AlertsPanel({
                 <p className="text-xs text-red-700 break-words">
                   {m.asset.marca} {m.asset.modelo} ({m.asset.numeroSerie})
                 </p>
-                <p className="text-xs text-red-600">{m.descripcion}</p>
+                <p className="text-xs text-red-700">{m.descripcion}</p>
                 <EtiquetaSede nombre={m.asset.sede?.nombre ?? null} />
               </div>
               <ChevronRight className="h-4 w-4 text-red-400 shrink-0" />
@@ -155,7 +155,7 @@ export function AlertsPanel({
                 <p className="text-xs text-yellow-700 break-words">
                   {m.asset.marca} {m.asset.modelo} ({m.asset.numeroSerie})
                 </p>
-                <p className="text-xs text-yellow-600">
+                <p className="text-xs text-yellow-800">
                   {m.fechaProgramada
                     ? formatearFecha(m.fechaProgramada)
                     : "Sin fecha"}
@@ -202,7 +202,7 @@ export function AlertsPanel({
                 <p className="text-xs text-yellow-700 break-words">
                   {item.nombre} ({categoriaKitLabels[item.categoria]})
                 </p>
-                <p className="text-xs text-yellow-600">
+                <p className="text-xs text-yellow-800">
                   Quedan {item.cantidad} (mínimo configurado: {item.stockMinimo})
                 </p>
                 <EtiquetaSede nombre={item.sedeNombre} />
@@ -249,7 +249,7 @@ export function AlertsPanel({
                 <p className="text-xs text-yellow-700 break-words">
                   {cat.nombre}
                 </p>
-                <p className="text-xs text-yellow-600">
+                <p className="text-xs text-yellow-800">
                   Quedan {cat.disponibles} (mínimo configurado: {cat.stockMinimo})
                 </p>
                 <EtiquetaSede nombre="Todas las sedes" />

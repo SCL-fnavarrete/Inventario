@@ -168,7 +168,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Cargando ficha...</div>
+        <div className="text-fg-subtle">Cargando ficha...</div>
       </div>
     );
   }
@@ -183,7 +183,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
           >
             <ArrowLeft size={24} />
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900">Error</h1>
+          <h1 className="text-2xl font-bold text-fg">Error</h1>
         </div>
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-red-700">
           {error || "No se pudo cargar la ficha del empleado"}
@@ -204,10 +204,10 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
             <ArrowLeft size={24} />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-2xl font-bold text-fg">
               Ficha de Empleado
             </h1>
-            <p className="text-gray-600">
+            <p className="text-fg-muted">
               {ficha.empleado.nombreCompleto}
             </p>
           </div>
@@ -222,7 +222,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Ficha Azul - Datos del Empleado */}
-      <div className="bg-primary-700 rounded-lg shadow-lg text-white p-6">
+      <div className="bg-brand rounded-lg shadow-lg text-white p-6">
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center">
@@ -296,52 +296,52 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
       {/* Resumen de equipos */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className={cn(
-          "bg-white rounded-lg shadow p-4 flex items-center gap-3",
-          ficha.resumen.tieneNotebook ? "border-l-4 border-green-500" : "border-l-4 border-gray-300"
+          "bg-surface rounded-lg shadow p-4 flex items-center gap-3",
+          ficha.resumen.tieneNotebook ? "border-l-4 border-green-500" : "border-l-4 border-line-strong"
         )}>
-          <Laptop className={ficha.resumen.tieneNotebook ? "text-green-500" : "text-gray-400"} />
+          <Laptop className={ficha.resumen.tieneNotebook ? "text-green-500" : "text-fg-subtle"} />
           <div>
-            <p className="text-sm text-gray-500">Notebook</p>
+            <p className="text-sm text-fg-subtle">Notebook</p>
             <p className="font-semibold">{ficha.resumen.tieneNotebook ? "Asignado" : "Sin asignar"}</p>
           </div>
         </div>
         <div className={cn(
-          "bg-white rounded-lg shadow p-4 flex items-center gap-3",
-          ficha.resumen.tieneCelular ? "border-l-4 border-green-500" : "border-l-4 border-gray-300"
+          "bg-surface rounded-lg shadow p-4 flex items-center gap-3",
+          ficha.resumen.tieneCelular ? "border-l-4 border-green-500" : "border-l-4 border-line-strong"
         )}>
-          <Smartphone className={ficha.resumen.tieneCelular ? "text-green-500" : "text-gray-400"} />
+          <Smartphone className={ficha.resumen.tieneCelular ? "text-green-500" : "text-fg-subtle"} />
           <div>
-            <p className="text-sm text-gray-500">Celular</p>
+            <p className="text-sm text-fg-subtle">Celular</p>
             <p className="font-semibold">{ficha.resumen.tieneCelular ? "Asignado" : "Sin asignar"}</p>
           </div>
         </div>
         <div className={cn(
-          "bg-white rounded-lg shadow p-4 flex items-center gap-3",
-          ficha.resumen.tieneMonitor ? "border-l-4 border-green-500" : "border-l-4 border-gray-300"
+          "bg-surface rounded-lg shadow p-4 flex items-center gap-3",
+          ficha.resumen.tieneMonitor ? "border-l-4 border-green-500" : "border-l-4 border-line-strong"
         )}>
-          <Monitor className={ficha.resumen.tieneMonitor ? "text-green-500" : "text-gray-400"} />
+          <Monitor className={ficha.resumen.tieneMonitor ? "text-green-500" : "text-fg-subtle"} />
           <div>
-            <p className="text-sm text-gray-500">Monitor</p>
+            <p className="text-sm text-fg-subtle">Monitor</p>
             <p className="font-semibold">{ficha.resumen.tieneMonitor ? "Asignado" : "Sin asignar"}</p>
           </div>
         </div>
         <div className={cn(
-          "bg-white rounded-lg shadow p-4 flex items-center gap-3",
-          ficha.resumen.kitBienvenidaEntregado ? "border-l-4 border-green-500" : "border-l-4 border-gray-300"
+          "bg-surface rounded-lg shadow p-4 flex items-center gap-3",
+          ficha.resumen.kitBienvenidaEntregado ? "border-l-4 border-green-500" : "border-l-4 border-line-strong"
         )}>
-          <Gift className={ficha.resumen.kitBienvenidaEntregado ? "text-green-500" : "text-gray-400"} />
+          <Gift className={ficha.resumen.kitBienvenidaEntregado ? "text-green-500" : "text-fg-subtle"} />
           <div>
-            <p className="text-sm text-gray-500">Kit Bienvenida</p>
+            <p className="text-sm text-fg-subtle">Kit Bienvenida</p>
             <p className="font-semibold">{ficha.resumen.kitBienvenidaEntregado ? "Entregado" : "Pendiente"}</p>
           </div>
         </div>
         <div className={cn(
-          "bg-white rounded-lg shadow p-4 flex items-center gap-3",
-          ficha.resumen.eppEntregado ? "border-l-4 border-green-500" : "border-l-4 border-gray-300"
+          "bg-surface rounded-lg shadow p-4 flex items-center gap-3",
+          ficha.resumen.eppEntregado ? "border-l-4 border-green-500" : "border-l-4 border-line-strong"
         )}>
-          <HardHat className={ficha.resumen.eppEntregado ? "text-green-500" : "text-gray-400"} />
+          <HardHat className={ficha.resumen.eppEntregado ? "text-green-500" : "text-fg-subtle"} />
           <div>
-            <p className="text-sm text-gray-500">EPP</p>
+            <p className="text-sm text-fg-subtle">EPP</p>
             <p className="font-semibold">{ficha.resumen.eppEntregado ? "Entregado" : "Pendiente"}</p>
           </div>
         </div>
@@ -350,7 +350,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
       {/* Notebooks */}
       {ficha.notebooks.length > 0 && (
         <div className="card">
-          <div className="px-6 py-4 border-b flex items-center justify-between bg-gray-50">
+          <div className="px-6 py-4 border-b flex items-center justify-between bg-surface-muted">
             <div className="flex items-center gap-3">
               <Laptop className="text-primary-700" />
               <h3 className="text-lg font-semibold">
@@ -362,37 +362,37 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
             {ficha.notebooks.map((notebook, index) => (
               <div key={notebook.asignacionId} className="p-6">
                 {ficha.notebooks.length > 1 && (
-                  <h4 className="text-sm font-semibold text-gray-700 mb-4">
+                  <h4 className="text-sm font-semibold text-fg-muted mb-4">
                     Notebook {index + 1}
                   </h4>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
-                    <p className="text-sm text-gray-500">Marca / Modelo</p>
+                    <p className="text-sm text-fg-subtle">Marca / Modelo</p>
                     <p className="font-medium">{notebook.marca} {notebook.modelo}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">N° Serie</p>
+                    <p className="text-sm text-fg-subtle">N° Serie</p>
                     <p className="font-medium font-mono">{notebook.numeroSerie || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Procesador</p>
+                    <p className="text-sm text-fg-subtle">Procesador</p>
                     <p className="font-medium">{notebook.procesador || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">RAM</p>
+                    <p className="text-sm text-fg-subtle">RAM</p>
                     <p className="font-medium">{notebook.ram || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Disco Duro</p>
+                    <p className="text-sm text-fg-subtle">Disco Duro</p>
                     <p className="font-medium">{notebook.discoDuro || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Sistema Operativo</p>
+                    <p className="text-sm text-fg-subtle">Sistema Operativo</p>
                     <p className="font-medium">{notebook.sistemaOperativo || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Licencia Microsoft 365</p>
+                    <p className="text-sm text-fg-subtle">Licencia Microsoft 365</p>
                     {/* Muestra el plan de Microsoft 365 cuando esta registrado;
                         el Si/No solo se usa cuando no hay plan. */}
                     <p className="font-medium flex items-center gap-1">
@@ -406,7 +406,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Fecha Entrega</p>
+                    <p className="text-sm text-fg-subtle">Fecha Entrega</p>
                     <p className="font-medium">{formatearFecha(notebook.fechaEntrega, {}, "-")}</p>
                   </div>
                 </div>
@@ -419,7 +419,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
       {/* Celulares */}
       {ficha.celulares.length > 0 && (
         <div className="card">
-          <div className="px-6 py-4 border-b flex items-center justify-between bg-gray-50">
+          <div className="px-6 py-4 border-b flex items-center justify-between bg-surface-muted">
             <div className="flex items-center gap-3">
               <Smartphone className="text-green-600" />
               <h3 className="text-lg font-semibold">
@@ -431,33 +431,33 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
             {ficha.celulares.map((celular, index) => (
               <div key={celular.asignacionId} className="p-6">
                 {ficha.celulares.length > 1 && (
-                  <h4 className="text-sm font-semibold text-gray-700 mb-4">
+                  <h4 className="text-sm font-semibold text-fg-muted mb-4">
                     Celular {index + 1}
                   </h4>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
-                    <p className="text-sm text-gray-500">Marca / Modelo</p>
+                    <p className="text-sm text-fg-subtle">Marca / Modelo</p>
                     <p className="font-medium">{celular.marca} {celular.modelo}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">N° Serie</p>
+                    <p className="text-sm text-fg-subtle">N° Serie</p>
                     <p className="font-medium font-mono">{celular.numeroSerie || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">IMEI</p>
+                    <p className="text-sm text-fg-subtle">IMEI</p>
                     <p className="font-medium font-mono">{celular.imei || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">N° Teléfono</p>
+                    <p className="text-sm text-fg-subtle">N° Teléfono</p>
                     <p className="font-medium">{celular.numeroTelefono || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Tipo Plan</p>
+                    <p className="text-sm text-fg-subtle">Tipo Plan</p>
                     <p className="font-medium">{celular.tipoPlan || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Cargador</p>
+                    <p className="text-sm text-fg-subtle">Cargador</p>
                     <p className="font-medium flex items-center gap-1">
                       {celular.tieneCargador ? (
                         <><CheckCircle size={16} className="text-green-500" /> Sí</>
@@ -467,11 +467,11 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Fecha Entrega</p>
+                    <p className="text-sm text-fg-subtle">Fecha Entrega</p>
                     <p className="font-medium">{formatearFecha(celular.fechaEntrega, {}, "-")}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Lugar Entrega</p>
+                    <p className="text-sm text-fg-subtle">Lugar Entrega</p>
                     <p className="font-medium">{celular.lugarEntrega || "-"}</p>
                   </div>
                 </div>
@@ -484,7 +484,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
       {/* Monitores */}
       {ficha.monitores.length > 0 && (
         <div className="card">
-          <div className="px-6 py-4 border-b flex items-center justify-between bg-gray-50">
+          <div className="px-6 py-4 border-b flex items-center justify-between bg-surface-muted">
             <div className="flex items-center gap-3">
               <Monitor className="text-purple-600" />
               <h3 className="text-lg font-semibold">
@@ -496,25 +496,25 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
             {ficha.monitores.map((monitor, index) => (
               <div key={monitor.asignacionId} className="p-6">
                 {ficha.monitores.length > 1 && (
-                  <h4 className="text-sm font-semibold text-gray-700 mb-4">
+                  <h4 className="text-sm font-semibold text-fg-muted mb-4">
                     Monitor {index + 1}
                   </h4>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
-                    <p className="text-sm text-gray-500">Marca / Modelo</p>
+                    <p className="text-sm text-fg-subtle">Marca / Modelo</p>
                     <p className="font-medium">{monitor.marca} {monitor.modelo}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">N° Serie</p>
+                    <p className="text-sm text-fg-subtle">N° Serie</p>
                     <p className="font-medium font-mono">{monitor.numeroSerie || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Pulgadas</p>
+                    <p className="text-sm text-fg-subtle">Pulgadas</p>
                     <p className="font-medium">{monitor.pulgadas || "-"}&quot;</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Fecha Entrega</p>
+                    <p className="text-sm text-fg-subtle">Fecha Entrega</p>
                     <p className="font-medium">{formatearFecha(monitor.fechaEntrega, {}, "-")}</p>
                   </div>
                 </div>
@@ -527,19 +527,19 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
       {/* Otros Equipos */}
       {ficha.otrosEquipos.length > 0 && (
         <div className="card">
-          <div className="px-6 py-4 border-b flex items-center gap-3 bg-gray-50">
+          <div className="px-6 py-4 border-b flex items-center gap-3 bg-surface-muted">
             <Package className="text-orange-600" />
             <h3 className="text-lg font-semibold">Otros Equipos</h3>
           </div>
           <div className="p-6">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-surface-muted">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Marca/Modelo</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">N° Serie</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha Entrega</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-fg-subtle uppercase">Tipo</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-fg-subtle uppercase">Marca/Modelo</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-fg-subtle uppercase">N° Serie</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-fg-subtle uppercase">Fecha Entrega</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -562,19 +562,19 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Kit Bienvenida */}
         <div className="card">
-          <div className="px-6 py-4 border-b flex items-center gap-3 bg-gray-50">
+          <div className="px-6 py-4 border-b flex items-center gap-3 bg-surface-muted">
             <Gift className="text-pink-600" />
             <h3 className="text-lg font-semibold">Kit de Bienvenida</h3>
           </div>
           <div className="p-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Estado</span>
+                <span className="text-sm text-fg-subtle">Estado</span>
                 <span className={cn(
                   "px-3 py-1 text-sm font-medium rounded-full flex items-center gap-1",
                   ficha.kitBienvenida.entregado
                     ? "bg-green-100 text-green-800"
-                    : "bg-gray-100 text-gray-800"
+                    : "bg-gray-100 text-fg"
                 )}>
                   {ficha.kitBienvenida.entregado ? (
                     <><CheckCircle size={16} /> Entregado</>
@@ -589,19 +589,19 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
 
         {/* EPP */}
         <div className="card">
-          <div className="px-6 py-4 border-b flex items-center gap-3 bg-gray-50">
+          <div className="px-6 py-4 border-b flex items-center gap-3 bg-surface-muted">
             <HardHat className="text-yellow-600" />
             <h3 className="text-lg font-semibold">EPP</h3>
           </div>
           <div className="p-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Estado</span>
+                <span className="text-sm text-fg-subtle">Estado</span>
                 <span className={cn(
                   "px-3 py-1 text-sm font-medium rounded-full flex items-center gap-1",
                   ficha.epp.entregado
                     ? "bg-green-100 text-green-800"
-                    : "bg-gray-100 text-gray-800"
+                    : "bg-gray-100 text-fg"
                 )}>
                   {ficha.epp.entregado ? (
                     <><CheckCircle size={16} /> Entregado</>

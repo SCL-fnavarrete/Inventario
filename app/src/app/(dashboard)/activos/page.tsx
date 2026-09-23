@@ -418,7 +418,7 @@ function ActivosPageContent() {
       <PageHeader
         title={
           <>
-            Activos {stats && <span className="text-gray-400 font-semibold">({stats.total})</span>}
+            Activos {stats && <span className="text-fg-subtle font-semibold">({stats.total})</span>}
           </>
         }
         description="Gestión de equipos y dispositivos IT"
@@ -484,7 +484,7 @@ function ActivosPageContent() {
       <div className="card p-4 space-y-4">
         <div className="flex flex-col md:flex-row gap-4">
           <form onSubmit={handleSearch} className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-fg-subtle" />
             <input
               type="text"
               placeholder="Buscar por serie, marca, modelo..."
@@ -507,15 +507,15 @@ function ActivosPageContent() {
         {/* View Mode and Column Selector */}
         <div className="flex items-center justify-between pt-2 border-t">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Vista:</span>
+            <span className="text-sm text-fg-muted">Vista:</span>
             <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
               <button
                 onClick={() => setViewMode("table")}
                 className={cn(
                   "p-2 rounded transition-colors",
                   viewMode === "table"
-                    ? "bg-white text-primary-700 shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
+                    ? "bg-surface text-primary-700 shadow-sm"
+                    : "text-fg-muted hover:text-fg"
                 )}
                 title="Vista de tabla"
               >
@@ -526,8 +526,8 @@ function ActivosPageContent() {
                 className={cn(
                   "p-2 rounded transition-colors",
                   viewMode === "cards"
-                    ? "bg-white text-primary-700 shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
+                    ? "bg-surface text-primary-700 shadow-sm"
+                    : "text-fg-muted hover:text-fg"
                 )}
                 title="Vista de tarjetas"
               >
@@ -538,8 +538,8 @@ function ActivosPageContent() {
                 className={cn(
                   "p-2 rounded transition-colors",
                   viewMode === "kanban"
-                    ? "bg-white text-primary-700 shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
+                    ? "bg-surface text-primary-700 shadow-sm"
+                    : "text-fg-muted hover:text-fg"
                 )}
                 title="Vista Kanban"
               >
@@ -559,17 +559,15 @@ function ActivosPageContent() {
           isUpdating={isUpdatingStatus}
         />
       ) : viewMode === "cards" ? (
-        /* Cards View. The 2->3 column breakpoint is set to xl (1280px)
-           rather than lg, since lg coincides with the Sidebar switching
-           from overlay to a fixed 256px width, which would leave cards
-           too narrow. */
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        /* Vista de tarjetas: sin tilt (pueden ser cientos), solo acento
+           por estado y hover simple (ver AssetCard). */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
           {loading ? (
             <div className="col-span-full flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+              <Loader2 className="w-8 h-8 animate-spin text-fg-subtle" />
             </div>
           ) : assets.length === 0 ? (
-            <div className="col-span-full text-center py-12 text-gray-500">
+            <div className="col-span-full text-center py-12 text-fg-subtle">
               No se encontraron activos
             </div>
           ) : (
@@ -583,7 +581,7 @@ function ActivosPageContent() {
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b">
+              <thead className="bg-surface-muted border-b">
                 <tr>
                   <th className="px-4 py-3 text-left w-12">
                     <span className="sr-only">Expandir</span>
@@ -598,21 +596,21 @@ function ActivosPageContent() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-line">
                 {loading ? (
                   <tr>
                     <td
                       colSpan={visibleColumns.length + 1}
                       className="px-6 py-12 text-center"
                     >
-                      <Loader2 className="w-8 h-8 animate-spin text-gray-400 mx-auto" />
+                      <Loader2 className="w-8 h-8 animate-spin text-fg-subtle mx-auto" />
                     </td>
                   </tr>
                 ) : assets.length === 0 ? (
                   <tr>
                     <td
                       colSpan={visibleColumns.length + 1}
-                      className="px-6 py-12 text-center text-gray-500"
+                      className="px-6 py-12 text-center text-fg-subtle"
                     >
                       No se encontraron activos
                     </td>
@@ -621,7 +619,7 @@ function ActivosPageContent() {
                   assets.map((asset) => {
                     const isExpanded = expandedRows.has(asset.id);
                     return [
-                      <tr key={asset.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={asset.id} className="hover:bg-surface-muted transition-colors">
                         <td className="px-4 py-3 align-top">
                           <button
                             onClick={() => toggleRowExpansion(asset.id)}
@@ -629,9 +627,9 @@ function ActivosPageContent() {
                             aria-label={isExpanded ? "Contraer" : "Expandir"}
                           >
                             {isExpanded ? (
-                              <ChevronUp size={16} className="text-gray-500" />
+                              <ChevronUp size={16} className="text-fg-subtle" />
                             ) : (
-                              <ChevronDown size={16} className="text-gray-500" />
+                              <ChevronDown size={16} className="text-fg-subtle" />
                             )}
                           </button>
                         </td>
@@ -639,7 +637,7 @@ function ActivosPageContent() {
                         {/* Tipo */}
                         {visibleColumns.find((c) => c.id === "tipo") && (
                           <td className="px-4 py-3 whitespace-nowrap align-top">
-                            <div className="flex items-center gap-2 text-gray-600">
+                            <div className="flex items-center gap-2 text-fg-muted">
                               <CategoryIcon categoria={asset.categoria.nombre} className="h-5 w-5" />
                               <span className="text-sm font-medium">
                                 {asset.categoria.nombre}
@@ -652,11 +650,11 @@ function ActivosPageContent() {
                         {visibleColumns.find((c) => c.id === "identificacion") && (
                           <td className="px-4 py-3 whitespace-nowrap align-top">
                             <div>
-                              <p className="text-sm font-medium text-gray-900">
+                              <p className="text-sm font-medium text-fg">
                                 {asset.numeroSerie || "-"}
                               </p>
                               {asset.imei && (
-                                <p className="text-xs text-gray-400">IMEI: {asset.imei}</p>
+                                <p className="text-xs text-fg-subtle">IMEI: {asset.imei}</p>
                               )}
                             </div>
                           </td>
@@ -666,10 +664,10 @@ function ActivosPageContent() {
                         {visibleColumns.find((c) => c.id === "marca") && (
                           <td className="px-4 py-3 whitespace-nowrap align-top">
                             <div>
-                              <p className="text-sm font-medium text-gray-900">
+                              <p className="text-sm font-medium text-fg">
                                 {asset.marca}
                               </p>
-                              <p className="text-xs text-gray-500">{asset.modelo}</p>
+                              <p className="text-xs text-fg-subtle">{asset.modelo}</p>
                             </div>
                           </td>
                         )}
@@ -695,20 +693,20 @@ function ActivosPageContent() {
                               <div className="max-w-xs">
                                 <Link
                                   href={`/empleados/${asset.empleadoActual.id}`}
-                                  className="text-sm font-medium text-gray-900 hover:text-primary-700 hover:underline transition-colors truncate block"
+                                  className="text-sm font-medium text-fg hover:text-primary-700 hover:underline transition-colors truncate block"
                                   title="Ver ficha del empleado"
                                 >
                                   {asset.empleadoActual.nombres}{" "}
                                   {asset.empleadoActual.apellidoPaterno}
                                 </Link>
                                 {asset.empleadoActual.cargo && (
-                                  <p className="text-xs text-gray-500 truncate">
+                                  <p className="text-xs text-fg-subtle truncate">
                                     {asset.empleadoActual.cargo}
                                   </p>
                                 )}
                               </div>
                             ) : (
-                              <p className="text-sm text-gray-400">Sin asignar</p>
+                              <p className="text-sm text-fg-subtle">Sin asignar</p>
                             )}
                           </td>
                         )}
@@ -718,13 +716,13 @@ function ActivosPageContent() {
                           <td className="px-4 py-3 align-top">
                             <div className="space-y-1 max-w-xs">
                               {asset.procesador && (
-                                <div className="flex items-center gap-1 text-xs text-gray-600">
+                                <div className="flex items-center gap-1 text-xs text-fg-muted">
                                   <Cpu size={12} className="flex-shrink-0" />
                                   <span className="truncate">{asset.procesador}</span>
                                 </div>
                               )}
                               {(asset.ram || asset.discoDuro) && (
-                                <div className="flex items-center gap-1 text-xs text-gray-600">
+                                <div className="flex items-center gap-1 text-xs text-fg-muted">
                                   <HardDrive size={12} className="flex-shrink-0" />
                                   <span className="truncate">
                                     {asset.ram && `${asset.ram}`}
@@ -734,7 +732,7 @@ function ActivosPageContent() {
                                 </div>
                               )}
                               {asset.sistemaOperativo && (
-                                <p className="text-xs text-gray-500 truncate">
+                                <p className="text-xs text-fg-subtle truncate">
                                   {asset.sistemaOperativo}
                                 </p>
                               )}
@@ -742,7 +740,7 @@ function ActivosPageContent() {
                                 !asset.ram &&
                                 !asset.discoDuro &&
                                 !asset.sistemaOperativo && (
-                                  <p className="text-xs text-gray-400">-</p>
+                                  <p className="text-xs text-fg-subtle">-</p>
                                 )}
                             </div>
                           </td>
@@ -752,14 +750,14 @@ function ActivosPageContent() {
                         {visibleColumns.find((c) => c.id === "fechaCompra") && (
                           <td className="px-4 py-3 whitespace-nowrap align-top">
                             {asset.fechaCompra ? (
-                              <div className="flex items-center gap-1 text-sm text-gray-600">
-                                <Calendar size={14} className="text-gray-400" />
+                              <div className="flex items-center gap-1 text-sm text-fg-muted">
+                                <Calendar size={14} className="text-fg-subtle" />
                                 <span>
                                   {formatearFecha(asset.fechaCompra)}
                                 </span>
                               </div>
                             ) : (
-                              <p className="text-sm text-gray-400">-</p>
+                              <p className="text-sm text-fg-subtle">-</p>
                             )}
                           </td>
                         )}
@@ -768,12 +766,12 @@ function ActivosPageContent() {
                         {visibleColumns.find((c) => c.id === "sede") && (
                           <td className="px-4 py-3 whitespace-nowrap align-top">
                             {asset.sede?.nombre ? (
-                              <div className="flex items-center gap-1 text-sm text-gray-600">
-                                <MapPin size={14} className="text-gray-400" />
+                              <div className="flex items-center gap-1 text-sm text-fg-muted">
+                                <MapPin size={14} className="text-fg-subtle" />
                                 <span>{asset.sede.nombre}</span>
                               </div>
                             ) : (
-                              <p className="text-sm text-gray-400">-</p>
+                              <p className="text-sm text-fg-subtle">-</p>
                             )}
                           </td>
                         )}
@@ -793,7 +791,7 @@ function ActivosPageContent() {
                                 </span>
                               )}
                               {!asset.microsoft365 && !asset.intuneEnrolled && (
-                                <p className="text-sm text-gray-400">-</p>
+                                <p className="text-sm text-fg-subtle">-</p>
                               )}
                             </div>
                           </td>
@@ -805,14 +803,14 @@ function ActivosPageContent() {
                             <div className="flex justify-end gap-1">
                               <Link
                                 href={`/activos/${asset.id}`}
-                                className="p-2 text-gray-500 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
+                                className="p-2 text-fg-subtle hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
                                 title="Ver detalle"
                               >
                                 <Eye size={16} />
                               </Link>
                               <Link
                                 href={`/activos/${asset.id}/editar`}
-                                className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                className="p-2 text-fg-subtle hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                                 title="Editar"
                               >
                                 <Edit size={16} />
@@ -824,40 +822,40 @@ function ActivosPageContent() {
 
                       /* Expanded Row Details */
                       isExpanded && (
-                        <tr key={`${asset.id}-expanded`} className="bg-gray-50">
+                        <tr key={`${asset.id}-expanded`} className="bg-surface-muted">
                           <td colSpan={visibleColumns.length + 1} className="px-4 py-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
                               {/* Columna 1: Informacion General */}
                               <div className="space-y-2">
-                                <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+                                <h4 className="font-semibold text-fg-muted flex items-center gap-2">
                                   <Package size={16} />
                                   Información General
                                 </h4>
                                 <dl className="space-y-1">
                                   <div className="flex justify-between">
-                                    <dt className="text-gray-500">Categoría:</dt>
-                                    <dd className="font-medium text-gray-900">
+                                    <dt className="text-fg-subtle">Categoría:</dt>
+                                    <dd className="font-medium text-fg">
                                       {asset.categoria.nombre}
                                     </dd>
                                   </div>
                                   <div className="flex justify-between">
-                                    <dt className="text-gray-500">Condición:</dt>
+                                    <dt className="text-fg-subtle">Condición:</dt>
                                     <dd>
                                       <AssetConditionBadge condicion={asset.condicion} />
                                     </dd>
                                   </div>
                                   {asset.fechaGarantiaFin && (
                                     <div className="flex justify-between">
-                                      <dt className="text-gray-500">Garantía hasta:</dt>
-                                      <dd className="text-gray-900">
+                                      <dt className="text-fg-subtle">Garantía hasta:</dt>
+                                      <dd className="text-fg">
                                         {formatearFecha(asset.fechaGarantiaFin)}
                                       </dd>
                                     </div>
                                   )}
                                   {asset.numeroTelefono && (
                                     <div className="flex justify-between">
-                                      <dt className="text-gray-500">Teléfono:</dt>
-                                      <dd className="text-gray-900">{asset.numeroTelefono}</dd>
+                                      <dt className="text-fg-subtle">Teléfono:</dt>
+                                      <dd className="text-fg">{asset.numeroTelefono}</dd>
                                     </div>
                                   )}
                                 </dl>
@@ -866,29 +864,29 @@ function ActivosPageContent() {
                               {/* Columna 2: Asignacion */}
                               {asset.empleadoActual && (
                                 <div className="space-y-2">
-                                  <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+                                  <h4 className="font-semibold text-fg-muted flex items-center gap-2">
                                     <User size={16} />
                                     Usuario Asignado
                                   </h4>
                                   <dl className="space-y-1">
                                     <div className="flex justify-between">
-                                      <dt className="text-gray-500">Nombre:</dt>
-                                      <dd className="font-medium text-gray-900">
+                                      <dt className="text-fg-subtle">Nombre:</dt>
+                                      <dd className="font-medium text-fg">
                                         {asset.empleadoActual.nombres}{" "}
                                         {asset.empleadoActual.apellidoPaterno}
                                       </dd>
                                     </div>
                                     {asset.empleadoActual.cargo && (
                                       <div className="flex justify-between">
-                                        <dt className="text-gray-500">Cargo:</dt>
-                                        <dd className="text-gray-900">
+                                        <dt className="text-fg-subtle">Cargo:</dt>
+                                        <dd className="text-fg">
                                           {asset.empleadoActual.cargo}
                                         </dd>
                                       </div>
                                     )}
                                     <div className="flex justify-between">
-                                      <dt className="text-gray-500">Email:</dt>
-                                      <dd className="text-gray-900 truncate max-w-[200px]">
+                                      <dt className="text-fg-subtle">Email:</dt>
+                                      <dd className="text-fg truncate max-w-[200px]">
                                         {asset.empleadoActual.correoEmpresa ?? asset.empleadoActual.correoPersonal ?? ''}
                                       </dd>
                                     </div>
@@ -905,20 +903,20 @@ function ActivosPageContent() {
 
                               {/* Columna 3: Software y Licencias */}
                               <div className="space-y-2">
-                                <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+                                <h4 className="font-semibold text-fg-muted flex items-center gap-2">
                                   <Shield size={16} />
                                   Software y Gestión
                                 </h4>
                                 <dl className="space-y-1">
                                   <div className="flex justify-between">
-                                    <dt className="text-gray-500">Microsoft 365:</dt>
+                                    <dt className="text-fg-subtle">Microsoft 365:</dt>
                                     <dd>
                                       <span
                                         className={cn(
                                           "px-2 py-0.5 text-xs font-medium rounded",
                                           asset.microsoft365
                                             ? "bg-green-50 text-green-700"
-                                            : "bg-gray-50 text-gray-600"
+                                            : "bg-surface-muted text-fg-muted"
                                         )}
                                       >
                                         {asset.microsoft365 ? "S\u00ed" : "No"}
@@ -926,14 +924,14 @@ function ActivosPageContent() {
                                     </dd>
                                   </div>
                                   <div className="flex justify-between">
-                                    <dt className="text-gray-500">Intune:</dt>
+                                    <dt className="text-fg-subtle">Intune:</dt>
                                     <dd>
                                       <span
                                         className={cn(
                                           "px-2 py-0.5 text-xs font-medium rounded",
                                           asset.intuneEnrolled
                                             ? "bg-green-50 text-green-700"
-                                            : "bg-gray-50 text-gray-600"
+                                            : "bg-surface-muted text-fg-muted"
                                         )}
                                       >
                                         {asset.intuneEnrolled ? "S\u00ed" : "No"}
@@ -942,8 +940,8 @@ function ActivosPageContent() {
                                   </div>
                                   {asset.sede?.nombre && (
                                     <div className="flex justify-between">
-                                      <dt className="text-gray-500">Sede:</dt>
-                                      <dd className="text-gray-900">{asset.sede.nombre}</dd>
+                                      <dt className="text-fg-subtle">Sede:</dt>
+                                      <dd className="text-fg">{asset.sede.nombre}</dd>
                                     </div>
                                   )}
                                 </dl>
@@ -961,7 +959,7 @@ function ActivosPageContent() {
 
           {/* Pagination */}
           {pagination.total > 0 && (
-            <div className="px-6 py-4 border-t bg-gray-50">
+            <div className="px-6 py-4 border-t bg-surface-muted">
               <Pagination
                 current={pagination.current}
                 pages={pagination.pages}
@@ -1021,7 +1019,7 @@ export default function ActivosPage() {
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+        <Loader2 className="w-8 h-8 animate-spin text-fg-subtle" />
       </div>
     }>
       <ActivosPageContent />

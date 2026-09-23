@@ -134,14 +134,14 @@ export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEdit
           <div className="flex gap-2">
             <button
               onClick={handleSave}
-              className="flex items-center gap-1 px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+              className="flex items-center gap-1 px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-success-hover transition-colors"
             >
               <Save size={14} />
               Guardar
             </button>
             <button
               onClick={handleCancel}
-              className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+              className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-200 text-fg-muted rounded hover:bg-gray-300 transition-colors"
             >
               <X size={14} />
               Cancelar
@@ -170,7 +170,7 @@ export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEdit
 
           return (
             <div key={fieldKey}>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
+              <label className="block text-xs font-medium text-fg-muted mb-1">
                 {label}
                 {hasError && <span className="text-red-500 ml-1">*</span>}
               </label>
@@ -180,7 +180,7 @@ export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEdit
                 <div
                   className={cn(
                     "px-2 py-1 text-sm rounded truncate",
-                    hasError ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-800"
+                    hasError ? "bg-red-100 text-red-800" : "bg-gray-100 text-fg"
                   )}
                   title={editedData[fieldKey] || "-"}
                 >
@@ -198,7 +198,7 @@ export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEdit
 const inputClassName = (hasError: boolean) =>
   cn(
     "w-full px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-primary-500 focus:outline-none",
-    hasError ? "border-red-400 bg-red-50" : "border-gray-300"
+    hasError ? "border-red-400 bg-red-50" : "border-line-strong"
   );
 
 /**

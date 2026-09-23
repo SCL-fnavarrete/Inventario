@@ -125,18 +125,18 @@ export default function AuditoriaPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-fg flex items-center gap-2">
           <History size={24} />
           Auditoría
         </h1>
-        <p className="text-gray-600 mt-1">
+        <p className="text-fg-muted mt-1">
           Historial completo del sistema: quién hizo qué y cuándo, en todos los módulos.
         </p>
       </div>
 
       <div className="card p-4 flex flex-wrap gap-3 items-end">
         <div className="flex-1 min-w-[180px]">
-          <label className="block text-xs font-medium text-gray-500 mb-1">Módulo</label>
+          <label className="block text-xs font-medium text-fg-subtle mb-1">Módulo</label>
           <select
             value={modulo}
             onChange={(e) => {
@@ -153,9 +153,9 @@ export default function AuditoriaPage() {
           </select>
         </div>
         <div className="flex-1 min-w-[180px]">
-          <label className="block text-xs font-medium text-gray-500 mb-1">Usuario</label>
+          <label className="block text-xs font-medium text-fg-subtle mb-1">Usuario</label>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle" />
             <input
               type="text"
               placeholder="Email o nombre..."
@@ -169,9 +169,9 @@ export default function AuditoriaPage() {
           </div>
         </div>
         <div className="flex-1 min-w-[180px]">
-          <label className="block text-xs font-medium text-gray-500 mb-1">Buscar en descripción</label>
+          <label className="block text-xs font-medium text-fg-subtle mb-1">Buscar en descripción</label>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle" />
             <input
               type="text"
               placeholder="Buscar..."
@@ -185,7 +185,7 @@ export default function AuditoriaPage() {
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Desde</label>
+          <label className="block text-xs font-medium text-fg-subtle mb-1">Desde</label>
           <input
             type="date"
             value={fechaDesde}
@@ -193,11 +193,11 @@ export default function AuditoriaPage() {
               setFechaDesde(e.target.value);
               resetPagina();
             }}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            className="px-3 py-2 border border-line-strong rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Hasta</label>
+          <label className="block text-xs font-medium text-fg-subtle mb-1">Hasta</label>
           <input
             type="date"
             value={fechaHasta}
@@ -205,7 +205,7 @@ export default function AuditoriaPage() {
               setFechaHasta(e.target.value);
               resetPagina();
             }}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            className="px-3 py-2 border border-line-strong rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
       </div>
@@ -221,7 +221,7 @@ export default function AuditoriaPage() {
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-surface-muted border-b">
               <tr>
                 <th className="table-th px-4">Fecha</th>
                 <th className="table-th px-4">Módulo</th>
@@ -231,16 +231,16 @@ export default function AuditoriaPage() {
                 <th className="table-th px-4 text-right">Detalle</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-line">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-gray-400">
+                  <td colSpan={6} className="px-4 py-10 text-center text-fg-subtle">
                     <Loader2 className="h-5 w-5 animate-spin inline" />
                   </td>
                 </tr>
               ) : eventos.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-10 text-center text-fg-subtle">
                     No hay eventos para estos filtros
                   </td>
                 </tr>
@@ -250,33 +250,33 @@ export default function AuditoriaPage() {
                   const tieneDetalle = Boolean(ev.datosAnteriores || ev.datosNuevos);
                   return (
                     <Fragment key={ev.id}>
-                      <tr className="hover:bg-gray-50">
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                      <tr className="hover:bg-surface-muted">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-fg-subtle">
                           {formatFecha(ev.createdAt)}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <span
                             className={cn(
                               "px-2 py-1 text-xs font-medium rounded-full",
-                              moduloColor[ev.moduloValor] || "bg-gray-100 text-gray-800"
+                              moduloColor[ev.moduloValor] || "bg-gray-100 text-fg"
                             )}
                           >
                             {ev.moduloLabel}
                           </span>
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{ev.accion}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-fg-muted">{ev.accion}</td>
+                        <td className="px-4 py-3 text-sm text-fg">
                           <p>{ev.descripcion}</p>
-                          {ev.contexto && <p className="text-xs text-gray-500">{ev.contexto}</p>}
+                          {ev.contexto && <p className="text-xs text-fg-subtle">{ev.contexto}</p>}
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-fg-subtle">
                           {ev.usuario || "-"}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-right">
                           {tieneDetalle && (
                             <button
                               onClick={() => setExpandido(abierto ? null : ev.id)}
-                              className="p-2 text-gray-500 hover:text-primary-700 hover:bg-primary-50 rounded-lg"
+                              className="p-2 text-fg-subtle hover:text-primary-700 hover:bg-primary-50 rounded-lg"
                               title="Ver datos anteriores/nuevos"
                             >
                               {abierto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -286,20 +286,20 @@ export default function AuditoriaPage() {
                       </tr>
                       {abierto && tieneDetalle && (
                         <tr>
-                          <td colSpan={6} className="px-4 py-3 bg-gray-50">
+                          <td colSpan={6} className="px-4 py-3 bg-surface-muted">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                               {ev.datosAnteriores != null && (
                                 <div>
-                                  <p className="font-medium text-gray-600 mb-1">Datos anteriores</p>
-                                  <pre className="bg-white border border-gray-200 rounded-lg p-2 overflow-x-auto text-gray-700">
+                                  <p className="font-medium text-fg-muted mb-1">Datos anteriores</p>
+                                  <pre className="bg-surface border border-line rounded-lg p-2 overflow-x-auto text-fg-muted">
                                     {JSON.stringify(ev.datosAnteriores, null, 2)}
                                   </pre>
                                 </div>
                               )}
                               {ev.datosNuevos != null && (
                                 <div>
-                                  <p className="font-medium text-gray-600 mb-1">Datos nuevos</p>
-                                  <pre className="bg-white border border-gray-200 rounded-lg p-2 overflow-x-auto text-gray-700">
+                                  <p className="font-medium text-fg-muted mb-1">Datos nuevos</p>
+                                  <pre className="bg-surface border border-line rounded-lg p-2 overflow-x-auto text-fg-muted">
                                     {JSON.stringify(ev.datosNuevos, null, 2)}
                                   </pre>
                                 </div>
@@ -318,23 +318,23 @@ export default function AuditoriaPage() {
 
         {pagination.totalPages > 1 && (
           <div className="px-4 py-4 border-t flex items-center justify-between">
-            <p className="text-sm text-gray-500">{pagination.total} eventos</p>
+            <p className="text-sm text-fg-subtle">{pagination.total} eventos</p>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
                 disabled={pagination.page === 1}
-                className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="p-2 rounded-lg border border-line-strong hover:bg-surface-muted disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Página anterior"
               >
                 <ChevronLeft size={18} />
               </button>
-              <span className="text-sm text-gray-600 px-2">
+              <span className="text-sm text-fg-muted px-2">
                 Página {pagination.page} de {pagination.totalPages}
               </span>
               <button
                 onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
                 disabled={pagination.page === pagination.totalPages}
-                className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="p-2 rounded-lg border border-line-strong hover:bg-surface-muted disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Página siguiente"
               >
                 <ChevronRight size={18} />

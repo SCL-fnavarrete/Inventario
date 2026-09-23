@@ -92,7 +92,7 @@ const estadoConfig: Record<string, { label: string; icon: typeof CheckCircle; co
   pendiente: { label: "Pendiente", icon: Clock, color: "text-orange-600", bgColor: "bg-orange-100" },
   en_proceso: { label: "En Proceso", icon: Wrench, color: "text-primary-700", bgColor: "bg-primary-100" },
   completada: { label: "Completada", icon: CheckCircle, color: "text-green-600", bgColor: "bg-green-100" },
-  cancelada: { label: "Cancelada", icon: XCircle, color: "text-gray-600", bgColor: "bg-gray-100" },
+  cancelada: { label: "Cancelada", icon: XCircle, color: "text-fg-muted", bgColor: "bg-gray-100" },
 };
 
 function isOverdue(fechaProgramada: string | null, estado: string): boolean {
@@ -232,15 +232,17 @@ export default function MantencionesPage() {
 
       {/* Stats Cards */}
       <StatGrid cols={4}>
-        <StatCard label="Vencidas" value={stats?.totalVencidas || 0} tone="danger" icon={AlertTriangle} />
+        <StatCard tilt label="Vencidas" value={stats?.totalVencidas || 0} tone="danger" icon={AlertTriangle} />
         <StatCard
+          tilt
           label={`Próximas (${periodoLabel})`}
           value={stats?.totalProximas || 0}
           tone="orange"
           icon={Calendar}
         />
-        <StatCard label="En Proceso" value={stats?.totalEnProceso || 0} tone="primary" icon={Wrench} />
+        <StatCard tilt label="En Proceso" value={stats?.totalEnProceso || 0} tone="primary" icon={Wrench} />
         <StatCard
+          tilt
           label={`Completadas (${periodoLabel})`}
           value={stats?.totalCompletadas || 0}
           tone="success"
@@ -252,7 +254,7 @@ export default function MantencionesPage() {
       <div className="card p-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-fg-subtle" />
             <input
               type="text"
               placeholder="Buscar por activo (marca, modelo, serie...) o empleado asignado..."
@@ -271,7 +273,7 @@ export default function MantencionesPage() {
               setFilterTipoId(e.target.value);
               setPage(1);
             }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+            className="px-4 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500"
           >
             <option value="">Todos los tipos</option>
             {tiposMantencion.map((tipo) => (
@@ -287,7 +289,7 @@ export default function MantencionesPage() {
               setFilterEstado(e.target.value);
               setPage(1);
             }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+            className="px-4 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500"
           >
             <option value="">Todos los estados</option>
             <option value="pendiente">Pendiente</option>
@@ -305,7 +307,7 @@ export default function MantencionesPage() {
               setPeriodo(e.target.value as Periodo);
               setPage(1);
             }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+            className="px-4 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500"
             title="Período: acota las tarjetas Próximas/Completadas y la tabla de abajo"
           >
             {PERIODOS.map((p) => (
@@ -324,7 +326,7 @@ export default function MantencionesPage() {
               "flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors",
               showVencidas
                 ? "bg-red-50 border-red-300 text-red-700"
-                : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                : "border-line-strong text-fg-muted hover:bg-surface-muted"
             )}
           >
             <AlertTriangle size={20} />
@@ -337,10 +339,10 @@ export default function MantencionesPage() {
       <div className="card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            <Loader2 className="h-8 w-8 animate-spin text-fg-subtle" />
           </div>
         ) : maintenances.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+          <div className="flex flex-col items-center justify-center h-64 text-fg-subtle">
             <Wrench className="h-12 w-12 mb-4 text-gray-300" />
             <p>No se encontraron mantenciones</p>
           </div>
@@ -348,7 +350,7 @@ export default function MantencionesPage() {
           <>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b">
+                <thead className="bg-surface-muted border-b">
                   <tr>
                     <th className="table-th px-4">
                       Activo
@@ -373,36 +375,36 @@ export default function MantencionesPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-line">
                   {maintenances.map((maintenance) => {
                     const config = estadoConfig[maintenance.estado] || estadoConfig.pendiente;
                     const overdue = isOverdue(maintenance.fechaProgramada, maintenance.estado);
                     const StatusIcon = config.icon;
 
                     return (
-                      <tr key={maintenance.id} className={cn("hover:bg-gray-50", overdue && "bg-red-50")}>
+                      <tr key={maintenance.id} className={cn("hover:bg-surface-muted", overdue && "bg-red-50")}>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
-                            <span className="text-gray-400">
+                            <span className="text-fg-subtle">
                               <CategoryIcon categoria={maintenance.asset.categoria.nombre} className="h-4 w-4" />
                             </span>
                             <div>
                               <p className="font-medium text-sm">
                                 {maintenance.asset.marca} {maintenance.asset.modelo}
                               </p>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-xs text-fg-subtle">
                                 {maintenance.asset.numeroSerie || "Sin serie"}
                               </p>
                             </div>
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded">
+                          <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-fg-muted rounded">
                             {maintenance.tipo.nombre}
                           </span>
                         </td>
                         <td className="px-4 py-4">
-                          <p className="text-sm text-gray-900 line-clamp-2 max-w-xs">
+                          <p className="text-sm text-fg line-clamp-2 max-w-xs">
                             {maintenance.descripcion}
                           </p>
                         </td>
@@ -426,7 +428,7 @@ export default function MantencionesPage() {
                             {config.label}
                           </span>
                         </td>
-                        <td className="px-4 py-4 text-sm text-gray-500">
+                        <td className="px-4 py-4 text-sm text-fg-subtle">
                           {maintenance.realizadoPor || "-"}
                         </td>
                         <td className="px-4 py-4 text-right">
@@ -446,21 +448,21 @@ export default function MantencionesPage() {
 
             {/* Pagination */}
             <div className="px-4 py-3 border-t flex items-center justify-between">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-fg-subtle">
                 Página {page} de {totalPages}
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="p-2 border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-2 border rounded hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ChevronLeft size={20} />
                 </button>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
-                  className="p-2 border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-2 border rounded hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ChevronRight size={20} />
                 </button>

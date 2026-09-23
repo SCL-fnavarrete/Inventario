@@ -426,8 +426,8 @@ export default function NuevaCompraPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Datos de la factura */}
         <div className="card p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <FileText className="h-5 w-5 text-gray-400" />
+          <h2 className="text-lg font-semibold text-fg mb-4 flex items-center gap-2">
+            <FileText className="h-5 w-5 text-fg-subtle" />
             Datos de la Factura
           </h2>
 
@@ -461,7 +461,7 @@ export default function NuevaCompraPage() {
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-fg-subtle mt-1">
                 {esAdminSede
                   ? "Obligatorio: sede a la que se atribuye esta compra. Define qué catálogo de Kit/EPP se ofrece más abajo."
                   : "Es tu sede: la compra queda registrada en ella, y define qué catálogo de Kit/EPP se ofrece más abajo."}
@@ -530,8 +530,8 @@ export default function NuevaCompraPage() {
         {/* Vincular Activos */}
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <Package className="h-5 w-5 text-gray-400" />
+            <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
+              <Package className="h-5 w-5 text-fg-subtle" />
               Activos Vinculados
             </h2>
             <div className="flex gap-2">
@@ -578,7 +578,7 @@ export default function NuevaCompraPage() {
               <ApiErrorSummary error={newAssetError} fieldErrors={newAssetFieldErrors} />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-fg-muted mb-1">
                     Categoría <span className="text-red-500">*</span>
                   </label>
                   <select
@@ -600,7 +600,7 @@ export default function NuevaCompraPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-fg-muted mb-1">
                     N° Serie
                   </label>
                   <input
@@ -614,7 +614,7 @@ export default function NuevaCompraPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-fg-muted mb-1">
                     Marca <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -626,7 +626,7 @@ export default function NuevaCompraPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-fg-muted mb-1">
                     Modelo <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -641,11 +641,11 @@ export default function NuevaCompraPage() {
 
               {/* Category-specific spec fields, matching /activos/nuevo. */}
               {isNewAssetNotebook && (
-                <div className="p-3 bg-white border border-gray-200 rounded-lg space-y-3">
-                  <p className="text-xs font-medium text-gray-600">Especificaciones - Notebook</p>
+                <div className="p-3 bg-surface border border-line rounded-lg space-y-3">
+                  <p className="text-xs font-medium text-fg-muted">Especificaciones - Notebook</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Procesador</label>
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Procesador</label>
                       <input
                         type="text"
                         name="procesador"
@@ -656,7 +656,7 @@ export default function NuevaCompraPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">RAM</label>
+                      <label className="block text-xs font-medium text-fg-muted mb-1">RAM</label>
                       <input
                         type="text"
                         name="ram"
@@ -667,7 +667,7 @@ export default function NuevaCompraPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Almacenamiento</label>
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Almacenamiento</label>
                       <input
                         type="text"
                         name="almacenamiento"
@@ -678,7 +678,7 @@ export default function NuevaCompraPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Sistema Operativo</label>
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Sistema Operativo</label>
                       <input
                         type="text"
                         name="sistemaOperativo"
@@ -689,7 +689,7 @@ export default function NuevaCompraPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Antivirus</label>
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Antivirus</label>
                       <input
                         type="text"
                         name="antivirus"
@@ -700,7 +700,7 @@ export default function NuevaCompraPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Licencia Microsoft 365</label>
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Licencia Microsoft 365</label>
                       <input
                         type="text"
                         name="tipoLicenciaMicrosoft365"
@@ -715,11 +715,11 @@ export default function NuevaCompraPage() {
               )}
 
               {isNewAssetCelular && (
-                <div className="p-3 bg-white border border-gray-200 rounded-lg space-y-3">
-                  <p className="text-xs font-medium text-gray-600">Especificaciones - Celular</p>
+                <div className="p-3 bg-surface border border-line rounded-lg space-y-3">
+                  <p className="text-xs font-medium text-fg-muted">Especificaciones - Celular</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">IMEI</label>
+                      <label className="block text-xs font-medium text-fg-muted mb-1">IMEI</label>
                       <input
                         type="text"
                         name="imei"
@@ -729,7 +729,7 @@ export default function NuevaCompraPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Número de Teléfono</label>
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Número de Teléfono</label>
                       <input
                         type="text"
                         name="numeroTelefono"
@@ -739,7 +739,7 @@ export default function NuevaCompraPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Almacenamiento</label>
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Almacenamiento</label>
                       <input
                         type="text"
                         name="almacenamiento"
@@ -754,11 +754,11 @@ export default function NuevaCompraPage() {
               )}
 
               {isNewAssetMonitor && (
-                <div className="p-3 bg-white border border-gray-200 rounded-lg space-y-3">
-                  <p className="text-xs font-medium text-gray-600">Especificaciones - Monitor</p>
+                <div className="p-3 bg-surface border border-line rounded-lg space-y-3">
+                  <p className="text-xs font-medium text-fg-muted">Especificaciones - Monitor</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Pulgadas</label>
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Pulgadas</label>
                       <input
                         type="text"
                         name="pulgadas"
@@ -773,13 +773,13 @@ export default function NuevaCompraPage() {
               )}
 
               {isNewAssetPerifericoSimple && (
-                <div className="p-3 bg-white border border-gray-200 rounded-lg space-y-3">
-                  <p className="text-xs font-medium text-gray-600">
+                <div className="p-3 bg-surface border border-line rounded-lg space-y-3">
+                  <p className="text-xs font-medium text-fg-muted">
                     Especificaciones - {selectedNewAssetCategory?.nombre}
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Conectividad</label>
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Conectividad</label>
                       <select
                         name="conectividad"
                         value={newAssetForm.conectividad}
@@ -796,7 +796,7 @@ export default function NuevaCompraPage() {
                 </div>
               )}
 
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-fg-subtle">
                 El equipo queda dado de alta en Activos (disponible, sede de esta compra) y vinculado a esta factura.
               </p>
               <div className="flex justify-end gap-2">
@@ -814,7 +814,7 @@ export default function NuevaCompraPage() {
                   type="button"
                   onClick={createNewAsset}
                   disabled={creatingAsset}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-success-hover disabled:opacity-50"
                 >
                   {creatingAsset ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -829,9 +829,9 @@ export default function NuevaCompraPage() {
 
           {/* Búsqueda de activos */}
           {showAssetSearch && (
-            <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+            <div className="mb-4 p-4 bg-surface-muted rounded-lg">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-fg-subtle" />
                 <input
                   type="text"
                   value={assetSearch}
@@ -847,7 +847,7 @@ export default function NuevaCompraPage() {
                     setAssetSearch("");
                     setAvailableAssets([]);
                   }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg-muted"
                 >
                   <X size={20} />
                 </button>
@@ -855,24 +855,24 @@ export default function NuevaCompraPage() {
 
               {loadingAssets && (
                 <div className="mt-2 flex items-center justify-center py-4">
-                  <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                  <Loader2 className="h-5 w-5 animate-spin text-fg-subtle" />
                 </div>
               )}
 
               {!loadingAssets && availableAssets.length > 0 && (
-                <div className="mt-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-white">
+                <div className="mt-2 max-h-48 overflow-y-auto border border-line rounded-lg bg-surface">
                   {availableAssets.map((asset) => (
                     <button
                       key={asset.id}
                       type="button"
                       onClick={() => addAsset(asset)}
-                      className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center justify-between border-b last:border-b-0"
+                      className="w-full px-4 py-2 text-left hover:bg-surface-muted flex items-center justify-between border-b last:border-b-0"
                     >
                       <div>
                         <p className="font-medium text-sm">
                           {asset.marca} {asset.modelo}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-fg-subtle">
                           {asset.categoria.nombre} • {asset.numeroSerie || "Sin serie"}
                         </p>
                       </div>
@@ -883,7 +883,7 @@ export default function NuevaCompraPage() {
               )}
 
               {!loadingAssets && assetSearch.length >= 2 && availableAssets.length === 0 && (
-                <p className="mt-2 text-sm text-gray-500 text-center py-4">
+                <p className="mt-2 text-sm text-fg-subtle text-center py-4">
                   No se encontraron activos
                 </p>
               )}
@@ -896,13 +896,13 @@ export default function NuevaCompraPage() {
               {selectedAssets.map((item) => (
                 <div
                   key={item.assetId}
-                  className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg"
+                  className="flex items-center gap-4 p-3 bg-surface-muted rounded-lg"
                 >
                   <div className="flex-1">
                     <p className="font-medium text-sm">
                       {item.asset.marca} {item.asset.modelo}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-fg-subtle">
                       {item.asset.categoria.nombre} • {item.asset.numeroSerie || "Sin serie"}
                     </p>
                   </div>
@@ -917,16 +917,16 @@ export default function NuevaCompraPage() {
               ))}
 
               <div className="flex justify-between items-center pt-4 border-t mt-4">
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-fg-subtle">
                   {selectedAssets.length} activo(s) seleccionado(s)
                 </span>
               </div>
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-fg-subtle">
               <Package className="h-12 w-12 mx-auto mb-2 text-gray-300" />
               <p className="text-sm">No hay activos vinculados</p>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-fg-subtle mt-1">
                 Puedes vincular activos ahora o después
               </p>
             </div>
@@ -937,8 +937,8 @@ export default function NuevaCompraPage() {
             sede's stock when the purchase is saved. */}
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <Shirt className="h-5 w-5 text-gray-400" />
+            <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
+              <Shirt className="h-5 w-5 text-fg-subtle" />
               Kit de Bienvenida / EPP Comprado
             </h2>
             <button
@@ -961,9 +961,9 @@ export default function NuevaCompraPage() {
           )}
 
           {showKitItemPicker && (
-            <div className="mb-4 p-4 bg-gray-50 rounded-lg flex flex-col sm:flex-row gap-3 sm:items-end">
+            <div className="mb-4 p-4 bg-surface-muted rounded-lg flex flex-col sm:flex-row gap-3 sm:items-end">
               <div className="flex-1">
-                <label className="block text-xs font-medium text-gray-700 mb-1">Artículo</label>
+                <label className="block text-xs font-medium text-fg-muted mb-1">Artículo</label>
                 <select
                   value={kitItemToAdd}
                   onChange={(e) => setKitItemToAdd(e.target.value)}
@@ -977,13 +977,13 @@ export default function NuevaCompraPage() {
                   ))}
                 </select>
                 {kitItemsCatalogo.length === 0 && (
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-fg-subtle mt-1">
                     No hay artículos en el catálogo de esta sede. Se crean desde Activos &gt; Kit de Bienvenida.
                   </p>
                 )}
               </div>
               <div className="w-full sm:w-28">
-                <label className="block text-xs font-medium text-gray-700 mb-1">Cantidad</label>
+                <label className="block text-xs font-medium text-fg-muted mb-1">Cantidad</label>
                 <input
                   type="number"
                   min={1}
@@ -1009,11 +1009,11 @@ export default function NuevaCompraPage() {
               {selectedKitItems.map((k) => (
                 <div
                   key={k.itemId}
-                  className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg"
+                  className="flex items-center gap-4 p-3 bg-surface-muted rounded-lg"
                 >
                   <div className="flex-1">
                     <p className="font-medium text-sm">{k.item.nombre}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-fg-subtle">
                       {k.item.categoria === "epp" ? "EPP" : "Kit Bienvenida"} • stock actual: {k.item.cantidad}
                     </p>
                   </div>
@@ -1022,7 +1022,7 @@ export default function NuevaCompraPage() {
                     min={1}
                     value={k.cantidad}
                     onChange={(e) => updateKitItemCantidad(k.itemId, parseInt(e.target.value, 10) || 1)}
-                    className="w-20 px-2 py-1 text-sm border border-gray-300 rounded-lg text-center"
+                    className="w-20 px-2 py-1 text-sm border border-line-strong rounded-lg text-center"
                   />
                   <button
                     type="button"
@@ -1035,10 +1035,10 @@ export default function NuevaCompraPage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-fg-subtle">
               <Shirt className="h-12 w-12 mx-auto mb-2 text-gray-300" />
               <p className="text-sm">No hay artículos de Kit/EPP en esta compra</p>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-fg-subtle mt-1">
                 Si la factura trajo cascos, chalecos, notebooks de bienvenida, etc., agrégalos acá para sumarlos al stock
               </p>
             </div>

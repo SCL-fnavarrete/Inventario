@@ -215,7 +215,7 @@ export default function CategoriasPage() {
       {/* Formulario de creación */}
       {isCreating && (
         <div className="card p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Nueva Categoría</h2>
+          <h2 className="text-lg font-semibold text-fg mb-4">Nueva Categoría</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="field-label">
@@ -249,7 +249,7 @@ export default function CategoriasPage() {
                   onChange={(e) => setFormData({ ...formData, requiereSerie: e.target.checked })}
                   className="field-checkbox"
                 />
-                <span className="text-sm text-gray-700">Requiere N° Serie</span>
+                <span className="text-sm text-fg-muted">Requiere N° Serie</span>
               </label>
               <label className="flex items-center gap-2">
                 <input
@@ -258,7 +258,7 @@ export default function CategoriasPage() {
                   onChange={(e) => setFormData({ ...formData, requiereImei: e.target.checked })}
                   className="field-checkbox"
                 />
-                <span className="text-sm text-gray-700">Requiere IMEI</span>
+                <span className="text-sm text-fg-muted">Requiere IMEI</span>
               </label>
             </div>
             <div>
@@ -272,7 +272,7 @@ export default function CategoriasPage() {
                 onChange={(e) => setFormData({ ...formData, stockMinimo: parseInt(e.target.value, 10) || 0 })}
                 className="field-input"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-fg-subtle mt-1">
                 El Dashboard avisa cuando los activos disponibles de esta categoría llegan a
                 este número o menos.
               </p>
@@ -298,8 +298,8 @@ export default function CategoriasPage() {
 
       {/* Tabla de categorías */}
       <div className="card overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="min-w-full divide-y divide-line">
+          <thead className="bg-surface-muted">
             <tr>
               <th className="table-th">
                 Nombre
@@ -324,7 +324,7 @@ export default function CategoriasPage() {
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-surface divide-y divide-line">
             {categories.map((category) => (
               <tr key={category.id}>
                 {editingId === category.id ? (
@@ -334,7 +334,7 @@ export default function CategoriasPage() {
                         type="text"
                         value={formData.nombre}
                         onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
+                        className="w-full px-2 py-1 border border-line-strong rounded focus:ring-2 focus:ring-primary-500"
                       />
                     </td>
                     <td className="px-6 py-4">
@@ -342,7 +342,7 @@ export default function CategoriasPage() {
                         type="text"
                         value={formData.descripcion}
                         onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                        className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
+                        className="w-full px-2 py-1 border border-line-strong rounded focus:ring-2 focus:ring-primary-500"
                       />
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -367,10 +367,10 @@ export default function CategoriasPage() {
                         min={0}
                         value={formData.stockMinimo}
                         onChange={(e) => setFormData({ ...formData, stockMinimo: parseInt(e.target.value, 10) || 0 })}
-                        className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 text-center"
+                        className="w-20 px-2 py-1 border border-line-strong rounded focus:ring-2 focus:ring-primary-500 text-center"
                       />
                     </td>
-                    <td className="px-6 py-4 text-center text-gray-500">
+                    <td className="px-6 py-4 text-center text-fg-subtle">
                       {category._count?.assets || 0}
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -384,7 +384,7 @@ export default function CategoriasPage() {
                         </button>
                         <button
                           onClick={cancelEdit}
-                          className="p-1 text-gray-600 hover:bg-gray-100 rounded"
+                          className="p-1 text-fg-muted hover:bg-gray-100 rounded"
                           title="Cancelar"
                         >
                           <X size={18} />
@@ -394,17 +394,17 @@ export default function CategoriasPage() {
                   </>
                 ) : (
                   <>
-                    <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap font-medium text-fg">
                       {category.nombre}
                     </td>
-                    <td className="px-6 py-4 text-gray-500">
+                    <td className="px-6 py-4 text-fg-subtle">
                       {category.descripcion || "-"}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
                         category.requiereSerie
                           ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-600"
+                          : "bg-gray-100 text-fg-muted"
                       }`}>
                         {category.requiereSerie ? "Sí" : "No"}
                       </span>
@@ -413,15 +413,15 @@ export default function CategoriasPage() {
                       <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
                         category.requiereImei
                           ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-600"
+                          : "bg-gray-100 text-fg-muted"
                       }`}>
                         {category.requiereImei ? "Sí" : "No"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center text-gray-500">
+                    <td className="px-6 py-4 text-center text-fg-subtle">
                       {category.stockMinimo}
                     </td>
-                    <td className="px-6 py-4 text-center text-gray-500">
+                    <td className="px-6 py-4 text-center text-fg-subtle">
                       {category._count?.assets || 0}
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -449,7 +449,7 @@ export default function CategoriasPage() {
             ))}
             {categories.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={7} className="px-6 py-8 text-center text-fg-subtle">
                   No hay categorías registradas
                 </td>
               </tr>

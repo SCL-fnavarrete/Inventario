@@ -138,7 +138,7 @@ export default function ParametrosPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-fg-subtle" />
       </div>
     );
   }
@@ -163,7 +163,7 @@ export default function ParametrosPage() {
                   key={section.id}
                   onClick={() => setActiveSection(section.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                    active ? "bg-primary-50 text-primary-800" : "text-gray-600 hover:bg-gray-50"
+                    active ? "bg-primary-50 text-primary-800" : "text-fg-muted hover:bg-surface-muted"
                   }`}
                 >
                   <div className={`p-2 rounded-lg ${section.color}`}>
@@ -180,10 +180,10 @@ export default function ParametrosPage() {
 
         <div className="card md:col-span-3 p-6">
           <div className="mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-fg">
               {sections.find((s) => s.id === activeSection)?.title}
             </h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-fg-subtle">
               {sections.find((s) => s.id === activeSection)?.description}
             </p>
           </div>
@@ -258,7 +258,7 @@ export default function ParametrosPage() {
                   />
                 </div>
               </div>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-fg-subtle">
                 Estos datos se guardan como referencia. No aparecen automáticamente en actas ni
                 reportes -- las actas de entrega/devolución usan un logo fijo y no imprimen estos
                 campos.
@@ -283,7 +283,7 @@ export default function ParametrosPage() {
                     }
                     className="field-input"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-fg-subtle mt-1">
                     Solo afecta sesiones nuevas (al iniciar sesión) y aplica después de reiniciar el
                     servidor -- no corta sesiones ya abiertas.
                   </p>
@@ -317,7 +317,7 @@ export default function ParametrosPage() {
                     }
                     className="field-input"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-fg-subtle mt-1">
                     Estos dos aplican de inmediato al siguiente intento de login.
                   </p>
                 </div>
@@ -327,7 +327,7 @@ export default function ParametrosPage() {
 
           <div className="mt-6 pt-4 border-t flex items-center justify-between">
             {form.updatedAt ? (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-fg-subtle">
                 Última actualización: {new Date(form.updatedAt).toLocaleString("es-CL")}
                 {form.updatedPor ? ` por ${form.updatedPor}` : ""}
               </p>

@@ -26,7 +26,7 @@ export function PageHeader({ title, description, actions, backHref, leading }: P
         {backHref && (
           <Link
             href={backHref}
-            className="rounded-control p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+            className="rounded-control p-2 text-fg-subtle transition-colors hover:bg-gray-100 hover:text-fg"
             aria-label="Volver"
           >
             <ArrowLeft size={22} />
@@ -34,8 +34,8 @@ export function PageHeader({ title, description, actions, backHref, leading }: P
         )}
         {leading}
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">{title}</h1>
-          {description && <p className="mt-1 text-sm text-gray-600">{description}</p>}
+          <h1 className="text-2xl font-bold tracking-tight text-fg">{title}</h1>
+          {description && <p className="mt-1 text-sm text-fg-muted">{description}</p>}
         </div>
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

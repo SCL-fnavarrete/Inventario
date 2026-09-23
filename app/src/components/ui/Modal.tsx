@@ -164,7 +164,8 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
             relative
             w-full
             ${sizeStyles[size]}
-            bg-white
+            bg-surface
+            border border-line
             rounded-card
             shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)]
             animate-modal-in
@@ -181,7 +182,7 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
                 {title && (
                   <h2
                     id="modal-title"
-                    className="text-lg font-semibold text-gray-900 leading-tight"
+                    className="text-lg font-semibold text-fg leading-tight"
                   >
                     {title}
                   </h2>
@@ -189,7 +190,7 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
                 {description && (
                   <p
                     id="modal-description"
-                    className="mt-1 text-sm text-gray-500"
+                    className="mt-1 text-sm text-fg-subtle"
                   >
                     {description}
                   </p>
@@ -204,8 +205,8 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
                     flex-shrink-0
                     p-1.5
                     rounded-lg
-                    text-gray-400
-                    hover:text-gray-600
+                    text-fg-subtle
+                    hover:text-fg-muted
                     hover:bg-gray-100
                     focus:outline-none
                     focus-visible:ring-2
@@ -227,7 +228,7 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
 
           {/* Footer */}
           {footer && (
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100">
+            <div className="px-6 py-4 bg-surface-muted border-t border-line">
               {footer}
             </div>
           )}

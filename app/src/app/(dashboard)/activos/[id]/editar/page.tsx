@@ -70,7 +70,7 @@ export default function EditarActivoPage({ params }: { params: Promise<{ id: str
   if (loadingData) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
-        <p className="text-gray-500">Cargando...</p>
+        <p className="text-fg-subtle">Cargando...</p>
       </div>
     );
   }

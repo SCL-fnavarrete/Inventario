@@ -25,7 +25,7 @@ export const ESTADO_ACTIVO_BADGE: Record<EstadoActivo, string> = {
   en_mantencion: 'bg-amber-50 text-amber-800 border-amber-200',
   no_devuelto: 'bg-orange-50 text-orange-800 border-orange-200',
   baja: 'bg-red-50 text-red-800 border-red-200',
-  vendido: 'bg-gray-100 text-gray-700 border-gray-200',
+  vendido: 'bg-gray-100 text-fg-muted border-line',
 };
 
 /**

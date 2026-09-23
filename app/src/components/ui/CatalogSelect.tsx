@@ -106,7 +106,7 @@ export function CatalogSelect({ endpoint, value, onChange, placeholder, classNam
             type="button"
             onClick={handleAgregar}
             disabled={guardando || !nuevoNombre.trim()}
-            className="px-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+            className="px-2 rounded-lg bg-green-600 text-white hover:bg-success-hover disabled:opacity-50"
             title="Guardar opción"
           >
             <Check size={16} />
@@ -117,7 +117,7 @@ export function CatalogSelect({ endpoint, value, onChange, placeholder, classNam
               setAgregando(false);
               setNuevoNombre("");
             }}
-            className="px-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
+            className="px-2 rounded-lg border border-line-strong text-fg-muted hover:bg-surface-muted"
             title="Cancelar"
           >
             <X size={16} />
@@ -154,7 +154,7 @@ export function CatalogSelect({ endpoint, value, onChange, placeholder, classNam
             setNuevoNombre((prev) => prev || value);
             setAgregando(true);
           }}
-          className="px-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
+          className="px-2 rounded-lg border border-line-strong text-fg-muted hover:bg-surface-muted"
           title="Agregar opción nueva"
         >
           <Plus size={16} />

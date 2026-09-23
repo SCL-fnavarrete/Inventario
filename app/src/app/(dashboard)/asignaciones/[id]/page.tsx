@@ -143,7 +143,7 @@ export default function AsignacionDetailPage({
           <Link href="/activos/asignaciones" className="p-2 hover:bg-gray-100 rounded-lg">
             <ArrowLeft size={20} />
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900">Detalle de Asignación</h1>
+          <h1 className="text-2xl font-bold text-fg">Detalle de Asignación</h1>
         </div>
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
           <AlertCircle className="h-5 w-5 text-red-500" />
@@ -162,8 +162,8 @@ export default function AsignacionDetailPage({
             <ArrowLeft size={20} />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Detalle de Asignación</h1>
-            <p className="text-gray-600">
+            <h1 className="text-2xl font-bold text-fg">Detalle de Asignación</h1>
+            <p className="text-fg-muted">
               {assignment.asset.marca} {assignment.asset.modelo} → {assignment.employee.nombres}{" "}
               {assignment.employee.apellidoPaterno}
             </p>
@@ -175,20 +175,20 @@ export default function AsignacionDetailPage({
       <div
         className={cn(
           "rounded-lg p-4 flex items-center justify-between",
-          assignment.activo ? "bg-green-50 border border-green-200" : "bg-gray-50 border border-gray-200"
+          assignment.activo ? "bg-green-50 border border-green-200" : "bg-surface-muted border border-line"
         )}
       >
         <div className="flex items-center gap-3">
           {assignment.activo ? (
             <Clock className="h-6 w-6 text-green-600" />
           ) : (
-            <CheckCircle className="h-6 w-6 text-gray-600" />
+            <CheckCircle className="h-6 w-6 text-fg-muted" />
           )}
           <div>
-            <p className={cn("font-semibold", assignment.activo ? "text-green-800" : "text-gray-800")}>
+            <p className={cn("font-semibold", assignment.activo ? "text-green-800" : "text-fg")}>
               {assignment.activo ? "Asignación Activa" : "Equipo Devuelto"}
             </p>
-            <p className={cn("text-sm", assignment.activo ? "text-green-600" : "text-gray-600")}>
+            <p className={cn("text-sm", assignment.activo ? "text-green-600" : "text-fg-muted")}>
               {assignment.activo
                 ? `Desde ${formatearFechaLarga(assignment.fechaEntrega, "-")}`
                 : `Devuelto el ${formatearFechaLarga(assignment.fechaDevolucion, "-")}`}
@@ -218,38 +218,38 @@ export default function AsignacionDetailPage({
           <div className="space-y-4">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
-                <User className="h-6 w-6 text-gray-400" />
+                <User className="h-6 w-6 text-fg-subtle" />
               </div>
               <div>
                 <p className="font-semibold text-lg">
                   {assignment.employee.nombres} {assignment.employee.apellidoPaterno}{" "}
                   {assignment.employee.apellidoMaterno}
                 </p>
-                <p className="text-gray-500 font-mono">{assignment.employee.rut}</p>
+                <p className="text-fg-subtle font-mono">{assignment.employee.rut}</p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 pt-4 border-t">
               <div className="flex items-center gap-2 text-sm">
-                <Mail className="h-4 w-4 text-gray-400" />
-                <span className="text-gray-600">{assignment.employee.correoEmpresa ?? assignment.employee.correoPersonal ?? ''}</span>
+                <Mail className="h-4 w-4 text-fg-subtle" />
+                <span className="text-fg-muted">{assignment.employee.correoEmpresa ?? assignment.employee.correoPersonal ?? ''}</span>
               </div>
               {assignment.employee.cargo && (
                 <div className="flex items-center gap-2 text-sm">
-                  <Building className="h-4 w-4 text-gray-400" />
-                  <span className="text-gray-600">{assignment.employee.cargo}</span>
+                  <Building className="h-4 w-4 text-fg-subtle" />
+                  <span className="text-fg-muted">{assignment.employee.cargo}</span>
                 </div>
               )}
               {assignment.employee.jefatura && (
                 <div className="flex items-center gap-2 text-sm">
-                  <User className="h-4 w-4 text-gray-400" />
-                  <span className="text-gray-600">Jefatura: {assignment.employee.jefatura}</span>
+                  <User className="h-4 w-4 text-fg-subtle" />
+                  <span className="text-fg-muted">Jefatura: {assignment.employee.jefatura}</span>
                 </div>
               )}
               {assignment.employee.ubicacion && (
                 <div className="flex items-center gap-2 text-sm">
-                  <MapPin className="h-4 w-4 text-gray-400" />
-                  <span className="text-gray-600">{assignment.employee.ubicacion}</span>
+                  <MapPin className="h-4 w-4 text-fg-subtle" />
+                  <span className="text-fg-muted">{assignment.employee.ubicacion}</span>
                 </div>
               )}
             </div>
@@ -277,16 +277,16 @@ export default function AsignacionDetailPage({
               <p className="font-semibold text-lg">
                 {assignment.asset.marca} {assignment.asset.modelo}
               </p>
-              <p className="text-gray-500">{assignment.asset.categoria.nombre}</p>
+              <p className="text-fg-subtle">{assignment.asset.categoria.nombre}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4 pt-4 border-t">
               <div>
-                <p className="text-xs text-gray-500 uppercase">N° Serie</p>
+                <p className="text-xs text-fg-subtle uppercase">N° Serie</p>
                 <p className="font-mono">{assignment.asset.numeroSerie || "-"}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 uppercase">Estado Actual</p>
+                <p className="text-xs text-fg-subtle uppercase">Estado Actual</p>
                 <span
                   className={cn(
                     "inline-block px-2 py-1 text-xs font-medium rounded-full mt-1",
@@ -294,7 +294,7 @@ export default function AsignacionDetailPage({
                       ? "bg-primary-100 text-primary-900"
                       : assignment.asset.estado === "disponible"
                       ? "bg-green-100 text-green-800"
-                      : "bg-gray-100 text-gray-800"
+                      : "bg-gray-100 text-fg"
                   )}
                 >
                   {assignment.asset.estado}
@@ -306,25 +306,25 @@ export default function AsignacionDetailPage({
                 <>
                   {assignment.asset.procesador && (
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">Procesador</p>
+                      <p className="text-xs text-fg-subtle uppercase">Procesador</p>
                       <p>{assignment.asset.procesador}</p>
                     </div>
                   )}
                   {assignment.asset.ram && (
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">RAM</p>
+                      <p className="text-xs text-fg-subtle uppercase">RAM</p>
                       <p>{assignment.asset.ram}</p>
                     </div>
                   )}
                   {assignment.asset.discoDuro && (
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">Disco</p>
+                      <p className="text-xs text-fg-subtle uppercase">Disco</p>
                       <p>{assignment.asset.discoDuro}</p>
                     </div>
                   )}
                   {assignment.asset.sistemaOperativo && (
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">S.O.</p>
+                      <p className="text-xs text-fg-subtle uppercase">S.O.</p>
                       <p>{assignment.asset.sistemaOperativo}</p>
                     </div>
                   )}
@@ -335,19 +335,19 @@ export default function AsignacionDetailPage({
                 <>
                   {assignment.asset.imei && (
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">IMEI</p>
+                      <p className="text-xs text-fg-subtle uppercase">IMEI</p>
                       <p className="font-mono">{assignment.asset.imei}</p>
                     </div>
                   )}
                   {assignment.asset.numeroTelefono && (
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">N° Teléfono</p>
+                      <p className="text-xs text-fg-subtle uppercase">N° Teléfono</p>
                       <p>{assignment.asset.numeroTelefono}</p>
                     </div>
                   )}
                   {assignment.asset.tipoPlan && (
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">Plan</p>
+                      <p className="text-xs text-fg-subtle uppercase">Plan</p>
                       <p>{assignment.asset.tipoPlan}</p>
                     </div>
                   )}
@@ -375,19 +375,19 @@ export default function AsignacionDetailPage({
 
           <div className="space-y-3">
             <div className="flex justify-between py-2 border-b">
-              <span className="text-gray-500">Fecha de entrega</span>
+              <span className="text-fg-subtle">Fecha de entrega</span>
               <span className="font-medium">{formatearFechaLarga(assignment.fechaEntrega, "-")}</span>
             </div>
             <div className="flex justify-between py-2 border-b">
-              <span className="text-gray-500">Lugar de entrega</span>
+              <span className="text-fg-subtle">Lugar de entrega</span>
               <span className="font-medium">{assignment.lugarEntrega || "-"}</span>
             </div>
             <div className="flex justify-between py-2 border-b">
-              <span className="text-gray-500">Entregado por</span>
+              <span className="text-fg-subtle">Entregado por</span>
               <span className="font-medium">{assignment.entregadoPor || "-"}</span>
             </div>
             <div className="flex justify-between py-2 border-b">
-              <span className="text-gray-500">Tipo de movimiento</span>
+              <span className="text-fg-subtle">Tipo de movimiento</span>
               <span
                 className={cn(
                   "px-2 py-1 text-xs font-medium rounded-full",
@@ -399,7 +399,7 @@ export default function AsignacionDetailPage({
             </div>
             {assignment.motivo && (
               <div className="py-2">
-                <span className="text-gray-500 block mb-1">Motivo</span>
+                <span className="text-fg-subtle block mb-1">Motivo</span>
                 <p className="text-sm">{assignment.motivo}</p>
               </div>
             )}
@@ -418,20 +418,20 @@ export default function AsignacionDetailPage({
 
             <div className="space-y-3">
               <div className="flex justify-between py-2 border-b">
-                <span className="text-gray-500">Fecha de devolución</span>
+                <span className="text-fg-subtle">Fecha de devolución</span>
                 <span className="font-medium">{formatearFechaLarga(assignment.fechaDevolucion, "-")}</span>
               </div>
               <div className="flex justify-between py-2 border-b">
-                <span className="text-gray-500">Recibido por</span>
+                <span className="text-fg-subtle">Recibido por</span>
                 <span className="font-medium">{assignment.recibidoPor || "-"}</span>
               </div>
               <div className="flex justify-between py-2 border-b">
-                <span className="text-gray-500">Estado al devolver</span>
+                <span className="text-fg-subtle">Estado al devolver</span>
                 <span
                   className={cn(
                     "px-2 py-1 text-xs font-medium rounded-full",
                     (assignment.estadoDevolucion && estadoDevolucionInfo[assignment.estadoDevolucion]?.className) ||
-                      "bg-gray-100 text-gray-800"
+                      "bg-gray-100 text-fg"
                   )}
                 >
                   {(assignment.estadoDevolucion && estadoDevolucionInfo[assignment.estadoDevolucion]?.label) || "-"}
@@ -439,8 +439,8 @@ export default function AsignacionDetailPage({
               </div>
               {assignment.observacionesDevolucion && (
                 <div className="py-2">
-                  <span className="text-gray-500 block mb-1">Observaciones</span>
-                  <p className="text-sm bg-gray-50 p-3 rounded-lg">
+                  <span className="text-fg-subtle block mb-1">Observaciones</span>
+                  <p className="text-sm bg-surface-muted p-3 rounded-lg">
                     {assignment.observacionesDevolucion}
                   </p>
                 </div>
@@ -455,7 +455,7 @@ export default function AsignacionDetailPage({
         <div className="card p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-gray-100 rounded-lg">
-              <History className="h-5 w-5 text-gray-600" />
+              <History className="h-5 w-5 text-fg-muted" />
             </div>
             <h2 className="text-lg font-semibold">Historial del Equipo</h2>
           </div>
@@ -480,7 +480,7 @@ export default function AsignacionDetailPage({
                 </div>
                 <div className="flex-1 pb-4">
                   <p className="text-sm font-medium">{event.descripcion}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-fg-subtle">
                     {formatearFechaHoraCorta(event.createdAt, "-")}
                     {event.usuarioSistema && ` • ${event.usuarioSistema}`}
                   </p>
@@ -492,7 +492,7 @@ export default function AsignacionDetailPage({
       )}
 
       {/* Timestamps */}
-      <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-500">
+      <div className="bg-surface-muted rounded-lg p-4 text-sm text-fg-subtle">
         <p>Registro creado: {formatearFechaHoraCorta(assignment.createdAt, "-")}</p>
         <p>Última actualización: {formatearFechaHoraCorta(assignment.updatedAt, "-")}</p>
       </div>

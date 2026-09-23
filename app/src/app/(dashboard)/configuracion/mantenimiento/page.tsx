@@ -206,7 +206,7 @@ export default function MantenimientoPage() {
 
       {/* Opciones de eliminación */}
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        <h2 className="text-lg font-semibold text-fg mb-4">
           Seleccione qué datos desea eliminar
         </h2>
 
@@ -229,8 +229,8 @@ export default function MantenimientoPage() {
                   isSelected
                     ? "border-red-500 bg-red-50"
                     : count === 0
-                    ? "border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed"
-                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    ? "border-line bg-surface-muted opacity-50 cursor-not-allowed"
+                    : "border-line hover:border-line-strong hover:bg-surface-muted"
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -239,12 +239,12 @@ export default function MantenimientoPage() {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <span className="font-medium text-gray-900">{option.label}</span>
-                      <span className={`text-sm font-bold ${count > 0 ? "text-red-600" : "text-gray-400"}`}>
+                      <span className="font-medium text-fg">{option.label}</span>
+                      <span className={`text-sm font-bold ${count > 0 ? "text-red-600" : "text-fg-subtle"}`}>
                         {count}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600 mt-1">{option.description}</p>
+                    <p className="text-sm text-fg-muted mt-1">{option.description}</p>
                   </div>
                 </div>
               </button>
@@ -284,7 +284,7 @@ export default function MantenimientoPage() {
                 value={confirmText}
                 onChange={(e) => setConfirmText(e.target.value.toUpperCase())}
                 placeholder="Escriba ELIMINAR para confirmar"
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-center font-mono text-lg tracking-widest"
+                className="w-full px-4 py-3 border-2 border-line-strong rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-center font-mono text-lg tracking-widest"
                 disabled={deleting}
               />
               {confirmText && confirmText !== "ELIMINAR" && (
@@ -300,7 +300,7 @@ export default function MantenimientoPage() {
                   setConfirmText("");
                 }}
                 disabled={deleting}
-                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
+                className="px-6 py-3 bg-gray-200 text-fg-muted rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -327,8 +327,8 @@ export default function MantenimientoPage() {
       )}
 
       {/* Información adicional */}
-      <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
-        <p className="font-medium text-gray-700 mb-2">Notas importantes:</p>
+      <div className="bg-surface-muted rounded-lg p-4 text-sm text-fg-muted">
+        <p className="font-medium text-fg-muted mb-2">Notas importantes:</p>
         <ul className="list-disc list-inside space-y-1">
           <li>Las eliminaciones son permanentes y no se pueden deshacer.</li>
           <li>Se recomienda realizar un respaldo de la base de datos antes de eliminar datos.</li>

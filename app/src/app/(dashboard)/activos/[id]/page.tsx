@@ -169,19 +169,19 @@ export default async function DetalleActivoPage({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="card p-4">
           <div className="flex items-center gap-3">
-            <Tag className="h-5 w-5 text-gray-400" />
+            <Tag className="h-5 w-5 text-fg-subtle" />
             <div>
-              <p className="text-sm text-gray-500">Estado</p>
+              <p className="text-sm text-fg-subtle">Estado</p>
               <AssetStatusBadge status={asset.estado} />
             </div>
           </div>
         </div>
         <div className="card p-4">
           <div className="flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 text-gray-400" />
+            <AlertCircle className="h-5 w-5 text-fg-subtle" />
             <div>
-              <p className="text-sm text-gray-500">Condición</p>
-              <p className="font-medium text-gray-900">
+              <p className="text-sm text-fg-subtle">Condición</p>
+              <p className="font-medium text-fg">
                 {CONDICION_ACTIVO_LABEL[asset.condicion]}
               </p>
             </div>
@@ -189,10 +189,10 @@ export default async function DetalleActivoPage({
         </div>
         <div className="card p-4">
           <div className="flex items-center gap-3">
-            <MapPin className="h-5 w-5 text-gray-400" />
+            <MapPin className="h-5 w-5 text-fg-subtle" />
             <div>
-              <p className="text-sm text-gray-500">Sede</p>
-              <p className="font-medium text-gray-900">
+              <p className="text-sm text-fg-subtle">Sede</p>
+              <p className="font-medium text-fg">
                 {asset.sede?.nombre || "Sin sede"}
               </p>
             </div>
@@ -200,10 +200,10 @@ export default async function DetalleActivoPage({
         </div>
         <div className="card p-4">
           <div className="flex items-center gap-3">
-            <User className="h-5 w-5 text-gray-400" />
+            <User className="h-5 w-5 text-fg-subtle" />
             <div>
-              <p className="text-sm text-gray-500">Asignado a</p>
-              <p className="font-medium text-gray-900">
+              <p className="text-sm text-fg-subtle">Asignado a</p>
+              <p className="font-medium text-fg">
                 {asset.empleadoActual
                   ? `${asset.empleadoActual.nombres} ${asset.empleadoActual.apellidoPaterno}`
                   : "Sin asignar"}
@@ -213,10 +213,10 @@ export default async function DetalleActivoPage({
         </div>
         <div className="card p-4">
           <div className="flex items-center gap-3">
-            <Calendar className="h-5 w-5 text-gray-400" />
+            <Calendar className="h-5 w-5 text-fg-subtle" />
             <div>
-              <p className="text-sm text-gray-500">Fecha Compra</p>
-              <p className="font-medium text-gray-900">
+              <p className="text-sm text-fg-subtle">Fecha Compra</p>
+              <p className="font-medium text-fg">
                 {asset.fechaCompra
                   ? formatearFecha(asset.fechaCompra)
                   : "No registrada"}
@@ -231,31 +231,31 @@ export default async function DetalleActivoPage({
         <div className="lg:col-span-2 space-y-6">
           {/* Información General */}
           <div className="card p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <h2 className="text-lg font-semibold text-fg mb-4">
               Información General
             </h2>
             <dl className="grid grid-cols-2 gap-4">
               <div>
-                <dt className="text-sm text-gray-500">Número de Serie</dt>
-                <dd className="font-medium text-gray-900">{asset.numeroSerie}</dd>
+                <dt className="text-sm text-fg-subtle">Número de Serie</dt>
+                <dd className="font-medium text-fg">{asset.numeroSerie}</dd>
               </div>
               <div>
-                <dt className="text-sm text-gray-500">Marca</dt>
-                <dd className="font-medium text-gray-900">{asset.marca}</dd>
+                <dt className="text-sm text-fg-subtle">Marca</dt>
+                <dd className="font-medium text-fg">{asset.marca}</dd>
               </div>
               <div>
-                <dt className="text-sm text-gray-500">Modelo</dt>
-                <dd className="font-medium text-gray-900">{asset.modelo}</dd>
+                <dt className="text-sm text-fg-subtle">Modelo</dt>
+                <dd className="font-medium text-fg">{asset.modelo}</dd>
               </div>
               <div>
-                <dt className="text-sm text-gray-500">Categoría</dt>
-                <dd className="font-medium text-gray-900">
+                <dt className="text-sm text-fg-subtle">Categoría</dt>
+                <dd className="font-medium text-fg">
                   {asset.categoria.nombre}
                 </dd>
               </div>
               <div>
-                <dt className="text-sm text-gray-500">Ubicación Física</dt>
-                <dd className="font-medium text-gray-900">
+                <dt className="text-sm text-fg-subtle">Ubicación Física</dt>
+                <dd className="font-medium text-fg">
                   {asset.ubicacionFisica || "-"}
                 </dd>
               </div>
@@ -265,14 +265,14 @@ export default async function DetalleActivoPage({
           {/* Especificaciones Técnicas */}
           {especificaciones && Object.keys(especificaciones).length > 0 && (
             <div className="card p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              <h2 className="text-lg font-semibold text-fg mb-4">
                 Especificaciones Técnicas
               </h2>
               <dl className="grid grid-cols-2 gap-4">
                 {Object.entries(especificaciones).map(([key, value]) => (
                   <div key={key}>
-                    <dt className="text-sm text-gray-500 capitalize">{key}</dt>
-                    <dd className="font-medium text-gray-900">{value || "-"}</dd>
+                    <dt className="text-sm text-fg-subtle capitalize">{key}</dt>
+                    <dd className="font-medium text-fg">{value || "-"}</dd>
                   </div>
                 ))}
               </dl>
@@ -282,10 +282,10 @@ export default async function DetalleActivoPage({
           {/* Observaciones */}
           {asset.observaciones && (
             <div className="card p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              <h2 className="text-lg font-semibold text-fg mb-4">
                 Observaciones
               </h2>
-              <p className="text-gray-700 whitespace-pre-wrap">
+              <p className="text-fg-muted whitespace-pre-wrap">
                 {asset.observaciones}
               </p>
             </div>
@@ -297,25 +297,25 @@ export default async function DetalleActivoPage({
               fabricated employee. */}
           {(asset.assignments.length > 0 || asset.historialAsignacionesSinPersona.length > 0) && (
             <div className="card p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              <h2 className="text-lg font-semibold text-fg mb-4">
                 Historial de Asignaciones
               </h2>
               <div className="space-y-3">
                 {asset.assignments.map((asig) => (
                   <div
                     key={asig.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    className="flex items-center justify-between p-3 bg-surface-muted rounded-lg"
                   >
                     <div>
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-fg">
                         {asig.employee.nombres} {asig.employee.apellidoPaterno}
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-fg-subtle">
                         RUT: {asig.employee.rut}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-gray-900">
+                      <p className="text-sm text-fg">
                         {formatearFecha(asig.fechaEntrega)}
                       </p>
                       <span
@@ -323,7 +323,7 @@ export default async function DetalleActivoPage({
                           "px-2 py-0.5 text-xs font-medium rounded-full",
                           asig.activo
                             ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-800"
+                            : "bg-gray-100 text-fg"
                         )}
                       >
                         {asig.activo ? "Activa" : "Finalizada"}
@@ -336,22 +336,22 @@ export default async function DetalleActivoPage({
                   return (
                     <div
                       key={evento.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300"
+                      className="flex items-center justify-between p-3 bg-surface-muted rounded-lg border border-dashed border-line-strong"
                     >
                       <div>
-                        <p className="font-medium text-gray-500 italic">
+                        <p className="font-medium text-fg-subtle italic">
                           Persona no registrada
                           {datos?.indice && datos?.total && datos.total > 1 ? ` (${datos.indice} de ${datos.total})` : ""}
                         </p>
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm text-fg-subtle">
                           RUT: No registrado
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-fg-subtle">
                           Fecha no registrada
                         </p>
-                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500">
+                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-fg-subtle">
                           Histórica (sin datos)
                         </span>
                       </div>
@@ -369,14 +369,14 @@ export default async function DetalleActivoPage({
               manually created or imported assets may have none. */}
           {asset.purchaseAssets.length > 0 && (
             <div className="card p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              <h2 className="text-lg font-semibold text-fg mb-4">
                 {asset.purchaseAssets.length === 1 ? "Compra asociada" : "Compras asociadas"}
               </h2>
               <div className="space-y-4">
                 {asset.purchaseAssets.map((pa) => (
-                  <div key={pa.id} className="border border-gray-200 rounded-lg p-4">
+                  <div key={pa.id} className="border border-line rounded-lg p-4">
                     <div className="flex items-center justify-between gap-2 mb-2">
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-fg">
                         Factura {pa.purchase.numeroFactura || "s/n"}
                       </p>
                       <Link
@@ -386,7 +386,7 @@ export default async function DetalleActivoPage({
                         Ver compra
                       </Link>
                     </div>
-                    <div className="space-y-1 text-sm text-gray-600">
+                    <div className="space-y-1 text-sm text-fg-muted">
                       <p>Fecha: {formatearFecha(pa.purchase.fechaFactura)}</p>
                       {pa.purchase.ordenCompra && <p>Orden de compra: {pa.purchase.ordenCompra}</p>}
                       {pa.purchase.rutProveedor && <p>Proveedor: {pa.purchase.rutProveedor}</p>}
@@ -399,11 +399,11 @@ export default async function DetalleActivoPage({
           )}
 
           <div className="card p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <h2 className="text-lg font-semibold text-fg mb-4">
               Historial de Eventos
             </h2>
             {asset.history.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">
+              <p className="text-fg-subtle text-center py-4">
                 No hay eventos registrados
               </p>
             ) : (
@@ -411,15 +411,15 @@ export default async function DetalleActivoPage({
                 {asset.history.map((evento) => (
                   <div
                     key={evento.id}
-                    className="relative pl-6 pb-4 border-l-2 border-gray-200 last:pb-0"
+                    className="relative pl-6 pb-4 border-l-2 border-line last:pb-0"
                   >
                     <div className="absolute -left-2 top-0 w-4 h-4 bg-primary-500 rounded-full" />
                     <div>
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-fg">
                         {tipoEventoLabels[evento.tipoEvento] || evento.tipoEvento}
                       </p>
-                      <p className="text-sm text-gray-600">{evento.descripcion}</p>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                      <p className="text-sm text-fg-muted">{evento.descripcion}</p>
+                      <div className="flex items-center gap-2 mt-1 text-xs text-fg-subtle">
                         <Clock className="h-3 w-3" />
                         <span>
                           {new Date(evento.createdAt).toLocaleString("es-CL")}

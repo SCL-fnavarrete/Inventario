@@ -181,7 +181,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Cargando...</div>
+        <div className="text-fg-subtle">Cargando...</div>
       </div>
     );
   }
@@ -206,7 +206,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Datos Personales */}
           <div className="md:col-span-2">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
+            <h2 className="text-lg font-semibold text-fg mb-4 pb-2 border-b">
               Datos Personales
             </h2>
           </div>
@@ -307,7 +307,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
 
           {/* Datos Laborales */}
           <div className="md:col-span-2 mt-4">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
+            <h2 className="text-lg font-semibold text-fg mb-4 pb-2 border-b">
               Datos Laborales
             </h2>
           </div>
@@ -328,9 +328,9 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
                   type="text"
                   value="Desvinculado"
                   disabled
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600"
+                  className="w-full px-4 py-2 border border-line rounded-lg bg-surface-muted text-fg-muted"
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-fg-subtle">
                   Para reincorporarlo, crea una Solicitud de onboarding eligiéndolo como
                   empleado existente.
                 </p>
@@ -468,7 +468,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-fg-subtle">
                 Reasigna a qué sede pertenece este empleado (ej. si se traslada
                 de Concepción a Santiago). Solo administradores pueden
                 cambiarlo, y siempre debe quedar asignada a alguna.
