@@ -24,6 +24,7 @@ import type { ResultadoMantencion } from "@/lib/validations/assetTransition";
 import { parseApiError } from "@/lib/utils/apiErrors";
 import { formatearFecha, formatearFechaConHora, aValorInputDate, hoyISO } from "@/lib/utils/fechas";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import { avisoFechaPasada } from "@/lib/utils/mantenciones";
 import {
   RESULTADO_MANTENCION_LABEL,
   etiquetaResultadoMantencion,
@@ -441,6 +442,7 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
                   value={edicion.fechaProgramada}
                   onChange={(v) => cambiarEdicion("fechaProgramada", v)}
                   error={erroresEdicion.errores.fechaProgramada}
+                  ayuda={avisoFechaPasada(edicion.fechaProgramada)}
                   className="sm:col-span-2"
                 />
                 <CampoTexto

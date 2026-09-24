@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   ChevronLeft,
@@ -148,6 +148,16 @@ export default function CalendarioMantencionesPage() {
       .sort((a, b) => (a.horaProgramada ?? "99").localeCompare(b.horaProgramada ?? "99"));
   }
 
+  // En pantallas angostas el detalle queda bajo el calendario: al elegir un
+  // dia se lleva la vista hasta el.
+  const detalleDia = useRef<HTMLDivElement>(null);
+  function elegirDia(dia: number) {
+    setSelectedDay(dia);
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      requestAnimationFrame(() => detalleDia.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  }
+
   function prevMonth() {
     setCurrentDate(new Date(year, month - 1, 1));
     setSelectedDay(null);
@@ -249,7 +259,7 @@ export default function CalendarioMantencionesPage() {
                   return (
                     <button
                       key={index}
-                      onClick={() => day.currentMonth && setSelectedDay(day.day)}
+                      onClick={() => day.currentMonth && elegirDia(day.day)}
                       className={cn(
                         "min-h-24 p-2 border rounded-lg transition-colors text-left",
                         day.currentMonth
@@ -308,7 +318,7 @@ export default function CalendarioMantencionesPage() {
         </div>
 
         {/* Sidebar - Selected Day Details */}
-        <div className="card p-6">
+        <div ref={detalleDia} className="card p-6 scroll-mt-4">
           <h3 className="font-semibold mb-4">
             {selectedDay ? (
               <>

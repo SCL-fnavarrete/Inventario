@@ -9,12 +9,13 @@ import {
   Package,
   ChevronRight,
 } from "lucide-react";
-import { formatearFecha } from "@/lib/utils/fechas";
+import { formatearFechaConHora } from "@/lib/utils/fechas";
 
 interface Maintenance {
   id: string;
   descripcion: string;
   fechaProgramada: Date | null;
+  horaProgramada: string | null;
   asset: {
     numeroSerie: string | null;
     marca: string;
@@ -157,7 +158,7 @@ export function AlertsPanel({
                 </p>
                 <p className="text-xs text-yellow-800">
                   {m.fechaProgramada
-                    ? formatearFecha(m.fechaProgramada)
+                    ? formatearFechaConHora(m.fechaProgramada, m.horaProgramada)
                     : "Sin fecha"}
                 </p>
                 <EtiquetaSede nombre={m.asset.sede?.nombre ?? null} />

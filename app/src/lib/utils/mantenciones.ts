@@ -16,6 +16,14 @@ export function estaVencida(m: { fechaProgramada: string | Date | null; estado: 
 }
 
 /**
+ * Aviso para una fecha programada que ya paso (SPEC 2.101): se puede
+ * guardar, pero quedara vencida desde el primer momento. Recibe "YYYY-MM-DD".
+ */
+export function avisoFechaPasada(fechaISO: string): string | undefined {
+  return fechaISO && fechaISO < hoyISO() ? 'Esa fecha ya pasó: quedará como vencida.' : undefined;
+}
+
+/**
  * La mantencion que se cierra como "Sin reparación" al dar de baja un equipo
  * (SPEC 2.88, 2.96): la que esta en proceso o, si no hay, la pendiente mas
  * antigua (la lista viene ordenada por creacion). Las demas se cancelan.

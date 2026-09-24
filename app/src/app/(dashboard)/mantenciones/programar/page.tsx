@@ -7,6 +7,7 @@ import { Search, Wrench, User, Package, Loader2, ChevronDown, X } from "lucide-r
 import { motivoSinMantencion } from "@/lib/constants/estadosActivo";
 import { cn } from "@/lib/utils";
 import { hoyISO } from "@/lib/utils/fechas";
+import { avisoFechaPasada } from "@/lib/utils/mantenciones";
 import { parseApiError } from "@/lib/utils/apiErrors";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
@@ -79,6 +80,10 @@ export default function ProgramarMantencionPage() {
     descripcion: "",
   });
   const [enviando, setEnviando] = useState(false);
+  // Programar e iniciar de una vez (SPEC 2.101): para una reparacion que se
+  // hace ahora. Viene marcada al arrastrar un equipo a "En Mantención" en
+  // el tablero de Activos.
+  const [iniciarAhora, setIniciarAhora] = useState(searchParams.get("iniciar") === "1");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -192,6 +197,15 @@ export default function ProgramarMantencionPage() {
         return;
       }
       const data = await res.json();
+      // Si no se puede iniciar, la mantencion queda programada y el detalle
+      // lo muestra (con su boton Iniciar y el motivo al pulsarlo).
+      if (iniciarAhora) {
+        await fetch(`/api/mantenciones/${data.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ estado: "en_proceso" }),
+        });
+      }
       router.push(`/mantenciones/${data.id}`);
     } catch {
       setError("Error al programar mantención");
@@ -383,6 +397,7 @@ export default function ProgramarMantencionPage() {
               value={form.fechaProgramada}
               onChange={(v) => cambiar("fechaProgramada", v)}
               error={errores.fechaProgramada}
+              ayuda={iniciarAhora ? undefined : avisoFechaPasada(form.fechaProgramada)}
               className="sm:col-span-2"
             />
             <CampoTexto
@@ -420,6 +435,22 @@ export default function ProgramarMantencionPage() {
           </div>
         </section>
 
+        <label className="card p-4 flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={iniciarAhora}
+            onChange={(e) => setIniciarAhora(e.target.checked)}
+            className="mt-1 h-4 w-4"
+          />
+          <span>
+            <span className="block font-medium text-fg">Iniciar ahora</span>
+            <span className="block text-sm text-fg-subtle">
+              Para una reparación que empieza hoy: el equipo pasa de inmediato a En Mantención.
+              Si no la marcas, queda programada y el equipo sigue en uso hasta pulsar Iniciar.
+            </span>
+          </span>
+        </label>
+
         <div className="flex justify-end gap-3">
           <button
             type="button"
@@ -430,7 +461,7 @@ export default function ProgramarMantencionPage() {
           </button>
           <button type="submit" disabled={enviando} className={buttonClasses({ className: "px-6" })}>
             {enviando ? <Loader2 className="animate-spin" size={18} /> : <Wrench size={18} />}
-            Programar Mantención
+            {iniciarAhora ? "Programar e iniciar" : "Programar Mantención"}
           </button>
         </div>
       </form>

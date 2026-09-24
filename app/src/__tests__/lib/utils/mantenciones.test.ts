@@ -1,5 +1,5 @@
 // Reglas compartidas de mantenciones (SPEC 2.96, 2.98, 2.100).
-import { estaVencida, mantencionACerrar } from '@/lib/utils/mantenciones';
+import { avisoFechaPasada, estaVencida, mantencionACerrar } from '@/lib/utils/mantenciones';
 
 afterEach(() => {
   jest.useRealTimers();
@@ -35,5 +35,14 @@ describe('mantencionACerrar', () => {
   test('sin una en proceso, la pendiente mas antigua; sin abiertas, ninguna', () => {
     expect(mantencionACerrar([{ id: 'a', estado: 'pendiente' }, { id: 'b', estado: 'pendiente' }])?.id).toBe('a');
     expect(mantencionACerrar([])).toBeUndefined();
+  });
+});
+
+describe('avisoFechaPasada (SPEC 2.101)', () => {
+  test('avisa solo si la fecha es anterior a hoy en Chile', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-09-25T02:30:00Z'));
+    expect(avisoFechaPasada('2026-09-23')).toMatch(/quedará como vencida/);
+    expect(avisoFechaPasada('2026-09-24')).toBeUndefined();
+    expect(avisoFechaPasada('')).toBeUndefined();
   });
 });

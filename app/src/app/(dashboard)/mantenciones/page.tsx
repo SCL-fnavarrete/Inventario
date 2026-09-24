@@ -12,7 +12,6 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
-  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Can } from "@/components/auth/Can";
@@ -224,7 +223,9 @@ export default function MantencionesPage() {
     }
   }
 
-  const periodoLabel = PERIODOS.find((p) => p.value === periodo)?.label.toLowerCase();
+  // "Historial completo" no calza en "Próximas (…)": ahi se dice "todas".
+  const periodoLabel =
+    periodo === "todas" ? "todas" : PERIODOS.find((p) => p.value === periodo)?.label.toLowerCase();
 
   return (
     <div className="space-y-6">
@@ -234,13 +235,6 @@ export default function MantencionesPage() {
         description="Gestión de mantenciones preventivas y correctivas"
         actions={
           <>
-            <Link
-              href="/mantenciones/calendario"
-              className={buttonClasses({ variant: "outline" })}
-            >
-              <CalendarDays size={20} />
-              Calendario
-            </Link>
             <Can recurso="mantenciones">
               <Link
                 href="/mantenciones/programar"

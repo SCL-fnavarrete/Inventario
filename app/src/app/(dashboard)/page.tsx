@@ -75,7 +75,7 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
       where: { estado: "pendiente", ...swAsset },
       // Orden ascendente por fecha programada: la vencida mas antigua y
       // la proxima mas cercana aparecen primero.
-      orderBy: { fechaProgramada: "asc" },
+      orderBy: [{ fechaProgramada: "asc" }, { horaProgramada: "asc" }],
       include: {
         asset: {
           select: {

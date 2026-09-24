@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils";
 export function claseInput(error?: string) {
   return cn(
     "w-full px-3 py-2 border rounded-lg",
+    // Un campo que no se puede cambiar se ve en gris, como field-input.
+    "disabled:bg-surface-muted disabled:text-fg-subtle disabled:cursor-not-allowed",
     error ? "border-red-500 bg-red-50" : "border-line-strong"
   );
 }

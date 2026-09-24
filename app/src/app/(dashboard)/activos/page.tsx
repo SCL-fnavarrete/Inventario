@@ -336,9 +336,9 @@ function ActivosPageContent() {
     return;
   }
 
-  //enviar a mantencion: necesita tipo:motivo/fecha
+  // Enviar a mantencion: se programa con "Iniciar ahora" marcada (SPEC 2.101).
   if ((currentStatus === "disponible" || currentStatus === "asignado") &&newStatus === "en_mantencion"){
-    router.push(`/mantenciones/programar?activoId=${assetId}`);
+    router.push(`/mantenciones/programar?activoId=${assetId}&iniciar=1`);
     return;
   }
 

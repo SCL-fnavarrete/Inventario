@@ -3244,7 +3244,20 @@ Revisión de código, diseño y funcionamiento del módulo después de 2.96–2.
 - La página Dar de baja usa `useErroresFormulario`, con el resumen "Faltan o están incorrectos: …", como el resto de los formularios (2.95).
 - `/api/mantenciones/pendientes` deja de calcular dos conteos que ninguna pantalla usaba (por estado y por tipo).
 
+## 2.101 Revisión de Mantenciones, parte 2: diseño e "Iniciar ahora" (24-sep-2026)
+
+- **Iniciar ahora:** Programar tiene una casilla para una reparación que empieza hoy. Programa la mantención y la inicia de una vez, así que el equipo pasa de inmediato a En Mantención; el botón dice "Programar e iniciar". Al arrastrar un equipo a "En Mantención" en el tablero de Activos, la casilla viene marcada (`?iniciar=1`). Si no se puede iniciar, la mantención queda programada y el detalle lo muestra.
+- **Fecha pasada:** al programar o editar con una fecha anterior a hoy aparece el aviso "Esa fecha ya pasó: quedará como vencida." (`avisoFechaPasada`). Se puede guardar igual.
+- **Lista:**
+  - con "Historial completo", las tarjetas dicen "Próximas (todas)" y "Completadas (todas)";
+  - se quita el botón "Calendario", que repetía la pestaña.
+- **Campos bloqueados en gris:** `claseInput` (`CampoTexto`) muestra en gris un campo que no se puede cambiar, como ya lo hacía `field-input`. Aplica a todos los formularios, por ejemplo "Técnico" y "Realizado por".
+- **Dashboard:** las alertas de mantenciones muestran la hora y se ordenan por ella dentro del día.
+- **Calendario en celular:** al tocar un día, la pantalla baja hasta el detalle, que queda bajo el calendario.
+
 ## Changelog SPEC
+- **v2.25 (2026-09-24):**
+  - Sección 2.101 (nueva): revisión de Mantenciones, parte 2. "Iniciar ahora" al programar (marcada desde el Kanban), aviso de fecha pasada, "Próximas (todas)", sin botón Calendario repetido, campos bloqueados en gris, hora en el Dashboard y calendario en celular.
 - **v2.24 (2026-09-24):**
   - Sección 2.100 (nueva): revisión de Mantenciones, parte 1. Baja y servidor cierran la misma mantención, "vencida" igual en calendario y lista, nombre de tipo repetido marca el campo, fecha vacía al completar, texto e historial de la próxima mantención, reglas de fecha y estados sin repetir.
 - **v2.23 (2026-09-24):**
