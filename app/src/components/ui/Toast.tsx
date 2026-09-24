@@ -119,11 +119,12 @@ export function ToastProvider({
   );
 
   const positionStyles: Record<ToastPosition, string> = {
-    "top-right": "top-4 right-4",
-    "top-left": "top-4 left-4",
+    // top-20: bajo la barra de navegacion (h-16), que queda fija arriba.
+    "top-right": "top-20 right-4",
+    "top-left": "top-20 left-4",
     "bottom-right": "bottom-4 right-4",
     "bottom-left": "bottom-4 left-4",
-    "top-center": "top-4 left-1/2 -translate-x-1/2",
+    "top-center": "top-20 left-1/2 -translate-x-1/2",
     "bottom-center": "bottom-4 left-1/2 -translate-x-1/2",
   };
 

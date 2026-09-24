@@ -3125,7 +3125,19 @@ Segunda revisión de Solicitudes, Activos y Dashboard, pedida por Javier. Parte 
 - **Movimientos:** muestra siempre los 6 meses (el actual incluido), con 0 en los meses sin movimientos.
 - **Distribución por Estado:** el gráfico circular muestra solo el porcentaje; el nombre está en la leyenda (con nombre, la etiqueta se cortaba).
 
+## 2.92 Revisión 2, parte 3: celular, detalles visuales y código (23-sep-2026)
+
+- **Activos en celular:** mientras la persona no elija una vista, en pantallas chicas se abre la de tarjetas (la tabla no cabía). Hook compartido `useMediaQuery` (`hooks/useMediaQuery.ts`), sin efectos.
+- **Tabla de Activos en escritorio:** cabe en pantalla (1440px) y la columna fija de Acciones ya no tapa a Especificaciones ni a Sede. Fecha de compra y Software pasan a la fila expandible; "Asignado a" y los márgenes de celda se ajustan.
+- **Solicitudes en celular:** el número va en una sola línea con el tipo debajo; Estado, Responsable, Fecha y Acciones se ocultan (el número abre el detalle, donde están la descarga y el resto).
+- **Tablero de Activos:** la tarjeta muestra el nombre completo a todo el ancho y el estado con los íconos en una segunda fila; antes el nombre se cortaba a mitad de palabra.
+- **Avisos** (toast): aparecen bajo la barra de navegación, no encima.
+- **Estado inválido en la URL de Activos:** se ignora (antes error 500).
+- **Documento de la solicitud:** una sola regla (`documentoDeSolicitud` en `lib/constants/documentosSolicitud.ts`) para la lista y el detalle, que tenían cada uno su copia. La lista ya no ofrece el Acta de Devolución de una desvinculación sin nada devuelto: el servidor entrega `tieneActa` (`desvinculacionesConActa` / `devueltaEnTicket` en `lib/queries/asignacionesTicket.ts`, la misma regla que usa el generador del acta).
+
 ## Changelog SPEC
+- **v2.16 (2026-09-23):**
+  - Sección 2.92 (nueva): Activos y Solicitudes usables en celular; tabla de Activos que cabe en escritorio; tarjetas del tablero legibles; avisos bajo la barra; estado inválido ignorado; documento de la solicitud con una sola regla y sin acta vacía en la lista.
 - **v2.15 (2026-09-23):**
   - Sección 2.91 (nueva): detalle de solicitud con los equipos en la columna ancha; tarjeta No devuelto y tarjetas que filtran en el panel; alertas, stock, movimientos y distribución corregidos.
 - **v2.14 (2026-09-23):**

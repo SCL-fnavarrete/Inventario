@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createAssetSchema } from "@/lib/validations/asset";
+import { createAssetSchema, estadoActivoEnum } from "@/lib/validations/asset";
 import { assetHistoryService } from "@/lib/services/assetHistoryService";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { sedeWhere, sedeIdParaCrear, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
@@ -44,7 +44,8 @@ export async function GET(request: NextRequest) {
       where.AND = palabrasDeBusqueda(search).map(busquedaActivo);
     }
 
-    if (estado) {
+    // Un estado desconocido (URL editada a mano) se ignora en vez de romper.
+    if (estado && estadoActivoEnum.safeParse(estado).success) {
       where.estado = estado;
     }
 

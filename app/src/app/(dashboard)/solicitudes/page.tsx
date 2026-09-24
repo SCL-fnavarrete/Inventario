@@ -20,12 +20,15 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { documentoDeSolicitud } from '@/lib/constants/documentosSolicitud';
 
 type WorkflowRequest = {
   id: string;
   numero: string;
   tipo: string;
   estado: string;
+  // Si la desvinculacion tiene Acta de Devolucion (lo calcula el servidor).
+  tieneActa?: boolean;
   observaciones: string | null;
   createdAt: string;
   fechaCierre: string | null;
@@ -247,22 +250,23 @@ export default function SolicitudesPage() {
                   <th className="table-th px-4">
                     Número
                   </th>
-                  <th className="table-th px-4">
+                  <th className="table-th px-4 hidden md:table-cell">
                     Tipo
                   </th>
                   <th className="table-th px-4">
                     Empleado
                   </th>
-                  <th className="table-th px-4">
+                  <th className="table-th px-4 hidden md:table-cell">
                     Estado
                   </th>
-                  <th className="table-th px-4">
+                  <th className="table-th px-4 hidden md:table-cell">
                     Responsable
                   </th>
-                  <th className="table-th px-4">
+                  <th className="table-th px-4 hidden md:table-cell">
                     Fecha
                   </th>
-                  <th className="table-th px-4">
+                  {/* En celular el numero ya abre el detalle, donde esta la descarga. */}
+                  <th className="table-th px-4 hidden md:table-cell">
                     Acciones
                   </th>
                 </tr>
@@ -270,10 +274,19 @@ export default function SolicitudesPage() {
               <tbody className="bg-surface divide-y divide-line">
                 {requests.map((req) => (
                   <tr key={req.id} className="hover:bg-surface-muted">
-                    <td className="px-4 py-3 text-sm font-medium text-primary-700">
+                    <td className="px-4 py-3 text-sm font-medium text-primary-700 whitespace-nowrap">
                       <Link href={`/solicitudes/${req.id}`}>{req.numero}</Link>
+                      {/* En celular el tipo va bajo el numero: una columna menos. */}
+                      <span
+                        className={cn(
+                          'md:hidden mt-1 flex w-fit px-2 py-0.5 text-xs font-medium rounded-full',
+                          tipoColors[req.tipo]
+                        )}
+                      >
+                        {tipoLabels[req.tipo]}
+                      </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden md:table-cell">
                       <span
                         className={cn(
                           'inline-flex px-2 py-1 text-xs font-medium rounded-full',
@@ -283,13 +296,13 @@ export default function SolicitudesPage() {
                         {tipoLabels[req.tipo]}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-fg">
+                    <td className="px-4 py-3 text-sm text-fg wrap-anywhere">
                       {req.employee.nombres} {req.employee.apellidoPaterno}
                       {req.employee.cargo && (
                         <span className="block text-xs text-fg-subtle">{req.employee.cargo}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden md:table-cell">
                       <span
                         className={cn(
                           'inline-flex px-2 py-1 text-xs font-medium rounded-full',
@@ -301,13 +314,13 @@ export default function SolicitudesPage() {
                         {req.fechaCierre ? 'Cerrado' : 'Abierto'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-fg-muted">
+                    <td className="px-4 py-3 text-sm text-fg-muted hidden md:table-cell">
                       {req.responsableActual?.nombre || '—'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-fg-subtle">
+                    <td className="px-4 py-3 text-sm text-fg-subtle hidden md:table-cell">
                       {new Date(req.createdAt).toLocaleDateString('es-CL')}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden md:table-cell">
                       <div className="flex items-center gap-3">
                         <Link
                           href={`/solicitudes/${req.id}`}
@@ -319,23 +332,13 @@ export default function SolicitudesPage() {
                         {/* Direct download of the comprobante without opening
                             the detail view, available for all request types. */}
                         {(() => {
-                          const docTipo =
-                            req.tipo === 'onboarding' &&
-                            (req.estado === 'equipos_entregados' || req.estado === 'registro_rrhh')
-                              ? 'comprobante-entrega'
-                              : req.tipo === 'offboarding' &&
-                                  (req.estado === 'equipo_recibido' || req.estado === 'consolidacion_cierre')
-                                ? 'acta-devolucion'
-                                : req.tipo === 'cambio_equipo' &&
-                                    (req.estado === 'cambio_ejecutado' || req.estado === 'confirmacion_rrhh')
-                                  ? 'comprobante-cambio'
-                                  : null;
-                          if (!docTipo) return null;
+                          const doc = documentoDeSolicitud(req);
+                          if (!doc) return null;
                           return (
                             <a
-                              href={`/api/solicitudes/${req.id}/documento/${docTipo}`}
+                              href={`/api/solicitudes/${req.id}/documento/${doc.tipo}`}
                               className="text-fg-subtle hover:text-fg-muted"
-                              title="Descargar comprobante"
+                              title={`Descargar ${doc.label}`}
                             >
                               <FileText className="h-4 w-4" />
                             </a>

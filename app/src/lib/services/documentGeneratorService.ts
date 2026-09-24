@@ -9,6 +9,7 @@ import type { FilaEquipoActa } from '@/lib/templates/TablaEquipoActa';
 import { prisma } from '@/lib/prisma';
 import {
   asignacionesDelTicket,
+  devueltaEnTicket,
   devueltasDespues,
   paresDeCambio,
 } from '@/lib/queries/asignacionesTicket';
@@ -277,9 +278,8 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
   const recuperadas = await devueltasDespues(solicitud);
   const returnedAssignments =
     solicitud.assignmentIds.length > 0
-      ? (await asignacionesDelTicket(solicitud.assignmentIds)).filter(
-          (a) =>
-            !!a.estadoDevolucion && a.estadoDevolucion !== 'no_devuelto' && !recuperadas.has(a.id)
+      ? (await asignacionesDelTicket(solicitud.assignmentIds)).filter((a) =>
+          devueltaEnTicket(a, recuperadas)
         )
       : solicitud.employee.assignments.filter((a) => !a.activo && a.fechaDevolucion);
 

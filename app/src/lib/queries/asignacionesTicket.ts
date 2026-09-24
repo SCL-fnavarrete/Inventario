@@ -67,3 +67,48 @@ export async function devueltasDespues(ticket: {
   }
   return mapa;
 }
+
+/**
+ * Si la asignacion se devolvio EN este ticket: calificada (buen estado o
+ * danada, no "No devuelto") y no recuperada despues en otro. Es lo que va en
+ * el Acta de Devolucion (SPEC 2.87).
+ */
+export function devueltaEnTicket(
+  a: { id: string; estadoDevolucion: string | null },
+  recuperadas: Map<string, unknown>
+): boolean {
+  return !!a.estadoDevolucion && a.estadoDevolucion !== 'no_devuelto' && !recuperadas.has(a.id);
+}
+
+/**
+ * Desvinculaciones de la lista que tienen Acta de Devolucion (algo devuelto
+ * en el ticket). Una consulta para las asignaciones de todas y una por ticket
+ * para las recuperaciones posteriores; la lista pagina de a pocos.
+ */
+export async function desvinculacionesConActa(
+  tickets: { id: string; tipo: string; createdAt: Date; assignmentIds: string[] }[]
+): Promise<Set<string>> {
+  const desvinculaciones = tickets.filter((t) => t.tipo === 'offboarding');
+  const ids = [...new Set(desvinculaciones.flatMap((t) => t.assignmentIds))];
+  const porId = new Map(
+    (
+      await prisma.assignment.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, estadoDevolucion: true },
+      })
+    ).map((a) => [a.id, a])
+  );
+  const conActa = new Set<string>();
+  for (const t of desvinculaciones) {
+    // Ticket antiguo sin assignmentIds: el acta usa su criterio anterior.
+    if (t.assignmentIds.length === 0) {
+      conActa.add(t.id);
+      continue;
+    }
+    const recuperadas = await devueltasDespues(t);
+    if (t.assignmentIds.some((id) => { const a = porId.get(id); return !!a && devueltaEnTicket(a, recuperadas); })) {
+      conActa.add(t.id);
+    }
+  }
+  return conActa;
+}

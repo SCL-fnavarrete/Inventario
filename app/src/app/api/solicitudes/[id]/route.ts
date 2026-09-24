@@ -5,6 +5,7 @@ import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/li
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import {
   asignacionesDelTicket,
+  devueltaEnTicket,
   devueltasDespues,
   paresDeCambio,
 } from '@/lib/queries/asignacionesTicket';
@@ -89,6 +90,12 @@ export async function GET(
     }));
     const equiposEntregados = workflowRequest.tipo === 'onboarding' ? asignacionesTicket : [];
     const equiposDevueltos = workflowRequest.tipo === 'offboarding' ? asignacionesTicket : [];
+    // Acta de Devolucion solo si en este ticket se devolvio algo (SPEC 2.87);
+    // un ticket antiguo sin assignmentIds conserva su criterio anterior.
+    const tieneActa =
+      workflowRequest.tipo === 'offboarding' &&
+      (workflowRequest.assignmentIds.length === 0 ||
+        asignaciones.some((a) => devueltaEnTicket(a, recuperadas)));
     const paresCambio =
       workflowRequest.tipo === 'cambio_equipo'
         ? paresDeCambio(workflowRequest.assignmentIds, asignacionesTicket)
@@ -110,6 +117,7 @@ export async function GET(
       equiposDevueltos,
       eppDevueltos,
       paresCambio,
+      tieneActa,
     });
   } catch (error) {
     return handleApiError(error, 'Error al obtener solicitud');

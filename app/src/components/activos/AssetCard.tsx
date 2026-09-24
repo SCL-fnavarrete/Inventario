@@ -58,15 +58,17 @@ export function AssetCard({ asset, compact = false }: AssetCardProps) {
             <CategoryIcon categoria={asset.categoria.nombre} className="w-5 h-5 text-fg-muted" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-sm text-fg break-words">
+            <p className="font-medium text-sm text-fg">
               {asset.marca} {asset.modelo}
             </p>
-            <p className="text-xs text-fg-subtle break-words">{displayCode}</p>
+            {/* El n° de serie no tiene espacios: se corta donde haga falta. */}
+            <p className="text-xs text-fg-subtle break-all">{displayCode}</p>
           </div>
-          <div className="shrink-0 flex flex-col items-end gap-1">
-            <AssetStatusBadge status={asset.estado} size="sm" />
-            {/* No se arrastran ni abren la tarjeta: cada uno va a lo suyo. */}
-            <div className="flex gap-0.5">
+        </div>
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <AssetStatusBadge status={asset.estado} size="sm" />
+          {/* No se arrastran ni abren la tarjeta: cada uno va a lo suyo. */}
+          <div className="flex gap-0.5">
               <Link
                 href={`/activos/${asset.id}`}
                 draggable={false}
@@ -85,7 +87,6 @@ export function AssetCard({ asset, compact = false }: AssetCardProps) {
               >
                 <Edit2 className="w-3.5 h-3.5" />
               </Link>
-            </div>
           </div>
         </div>
       </div>

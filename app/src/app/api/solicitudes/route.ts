@@ -8,6 +8,7 @@ import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/li
 import { sedeWhere, sedeIdParaCrear, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { ValidationError } from '@/lib/errors';
 import { coincideBusqueda } from '@/lib/utils/text';
+import { desvinculacionesConActa } from '@/lib/queries/asignacionesTicket';
 
 /**
  * Siguiente numero del año (WF-2026-0001...), leido dentro de la misma
@@ -153,8 +154,12 @@ export async function GET(request: NextRequest) {
       ]);
     }
 
+    // Que desvinculaciones tienen Acta de Devolucion, para no ofrecer una
+    // descarga vacia en la lista (SPEC 2.87).
+    const conActa = await desvinculacionesConActa(data);
+
     return NextResponse.json({
-      data,
+      data: data.map((s) => ({ ...s, tieneActa: conActa.has(s.id) })),
       pagination: {
         page: filters.page,
         limit: filters.limit,

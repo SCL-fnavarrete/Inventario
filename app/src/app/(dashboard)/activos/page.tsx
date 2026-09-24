@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard, ActivosTabs } from "@/components/activos";
 import { Can } from "@/components/auth/Can";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { CONSULTA_CELULAR, useMediaQuery } from "@/hooks/useMediaQuery";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 import { formatearFecha } from "@/lib/utils/fechas";
@@ -108,9 +109,9 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: "condicion", label: "Condici\u00f3n", visible: true },
   { id: "asignado", label: "Asignado a", visible: true },
   { id: "specs", label: "Especificaciones", visible: true },
-  { id: "fechaCompra", label: "Fecha Compra", visible: true },
+  { id: "fechaCompra", label: "Fecha Compra", visible: false },
   { id: "sede", label: "Sede", visible: true },
-  { id: "software", label: "Software", visible: true },
+  { id: "software", label: "Software", visible: false },
   { id: "acciones", label: "Acciones", visible: true, required: true },
 ];
 
@@ -155,7 +156,11 @@ function ActivosPageContent() {
   // Debounced so the URL-driven search fires automatically as the user types.
   const debouncedSearchInput = useDebouncedValue(searchInput, 350);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<"table" | "cards" | "kanban">("table");
+  // Vista elegida por la persona; mientras no elija, en celular se abren las
+  // tarjetas (la tabla no cabe) y en pantallas grandes la tabla.
+  const [vistaElegida, setViewMode] = useState<"table" | "cards" | "kanban" | null>(null);
+  const esCelular = useMediaQuery(CONSULTA_CELULAR);
+  const viewMode = vistaElegida ?? (esCelular ? "cards" : "table");
   // El setter solo lo usaba handleStatusChange, que esta comentado mas
   // abajo (drag-and-drop de Kanban deshabilitado); isUpdatingStatus queda
   // en false, que es el comportamiento actual real.
@@ -581,14 +586,14 @@ function ActivosPageContent() {
             <table className="w-full">
               <thead className="bg-surface-muted border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left w-12">
+                  <th className="px-3 py-3 text-left w-12">
                     <span className="sr-only">Expandir</span>
                   </th>
                   {visibleColumns.map((col) => (
                     <th
                       key={col.id}
                       className={cn(
-                        "table-th px-4 whitespace-nowrap",
+                        "table-th px-3 whitespace-nowrap",
                         // Acciones fija a la derecha: la tabla es mas ancha que
                         // la pantalla y los botones quedaban fuera de vista.
                         col.id === "acciones" && "sticky right-0 z-10 bg-surface-muted shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]"
@@ -623,7 +628,7 @@ function ActivosPageContent() {
                     const isExpanded = expandedRows.has(asset.id);
                     return [
                       <tr key={asset.id} className="group hover:bg-surface-muted transition-colors">
-                        <td className="px-4 py-3 align-top">
+                        <td className="px-3 py-3 align-top">
                           <button
                             onClick={() => toggleRowExpansion(asset.id)}
                             className="p-1 hover:bg-gray-200 rounded transition-colors"
@@ -639,7 +644,7 @@ function ActivosPageContent() {
 
                         {/* Tipo */}
                         {visibleColumns.find((c) => c.id === "tipo") && (
-                          <td className="px-4 py-3 whitespace-nowrap align-top">
+                          <td className="px-3 py-3 whitespace-nowrap align-top">
                             <div className="flex items-center gap-2 text-fg-muted">
                               <CategoryIcon categoria={asset.categoria.nombre} className="h-5 w-5" />
                               <span className="text-sm font-medium">
@@ -651,7 +656,7 @@ function ActivosPageContent() {
 
                         {/* Identificacion */}
                         {visibleColumns.find((c) => c.id === "identificacion") && (
-                          <td className="px-4 py-3 whitespace-nowrap align-top">
+                          <td className="px-3 py-3 whitespace-nowrap align-top">
                             <div>
                               <Link
                                 href={`/activos/${asset.id}`}
@@ -666,9 +671,9 @@ function ActivosPageContent() {
                           </td>
                         )}
 
-                        {/* Marca/Modelo */}
+                        {/* Marca/Modelo: puede ir en dos lineas para que la tabla quepa. */}
                         {visibleColumns.find((c) => c.id === "marca") && (
-                          <td className="px-4 py-3 whitespace-nowrap align-top">
+                          <td className="px-3 py-3 align-top min-w-[9rem]">
                             <div>
                               <Link
                                 href={`/activos/${asset.id}`}
@@ -683,23 +688,25 @@ function ActivosPageContent() {
 
                         {/* Estado */}
                         {visibleColumns.find((c) => c.id === "estado") && (
-                          <td className="px-4 py-3 whitespace-nowrap align-top">
+                          <td className="px-3 py-3 whitespace-nowrap align-top">
                             <AssetStatusBadge status={asset.estado} size="sm" />
                           </td>
                         )}
 
                         {/* Condicion */}
                         {visibleColumns.find((c) => c.id === "condicion") && (
-                          <td className="px-4 py-3 whitespace-nowrap align-top">
+                          <td className="px-3 py-3 whitespace-nowrap align-top">
                             <AssetConditionBadge condicion={asset.condicion} />
                           </td>
                         )}
 
                         {/* Asignado */}
                         {visibleColumns.find((c) => c.id === "asignado") && (
-                          <td className="px-4 py-3 align-top">
+                          <td className="px-3 py-3 align-top">
                             {asset.empleadoActual ? (
-                              <div className="max-w-xs">
+                              // 13rem: con max-w-xs la columna reservaba 320px y la
+                              // tabla no cabia; un nombre largo se corta con "...".
+                              <div className="max-w-[13rem]">
                                 <Link
                                   href={`/empleados/${asset.empleadoActual.id}`}
                                   className="text-sm font-medium text-fg hover:text-primary-700 hover:underline transition-colors truncate block"
@@ -722,7 +729,7 @@ function ActivosPageContent() {
 
                         {/* Especificaciones */}
                         {visibleColumns.find((c) => c.id === "specs") && (
-                          <td className="px-4 py-3 align-top">
+                          <td className="px-3 py-3 align-top">
                             <div className="space-y-1 max-w-xs">
                               {asset.procesador && (
                                 <div className="flex items-center gap-1 text-xs text-fg-muted">
@@ -757,7 +764,7 @@ function ActivosPageContent() {
 
                         {/* Fecha Compra */}
                         {visibleColumns.find((c) => c.id === "fechaCompra") && (
-                          <td className="px-4 py-3 whitespace-nowrap align-top">
+                          <td className="px-3 py-3 whitespace-nowrap align-top">
                             {asset.fechaCompra ? (
                               <div className="flex items-center gap-1 text-sm text-fg-muted">
                                 <Calendar size={14} className="text-fg-subtle" />
@@ -773,7 +780,7 @@ function ActivosPageContent() {
 
                         {/* Sede */}
                         {visibleColumns.find((c) => c.id === "sede") && (
-                          <td className="px-4 py-3 whitespace-nowrap align-top">
+                          <td className="px-3 py-3 whitespace-nowrap align-top">
                             {asset.sede?.nombre ? (
                               <div className="flex items-center gap-1 text-sm text-fg-muted">
                                 <MapPin size={14} className="text-fg-subtle" />
@@ -787,7 +794,7 @@ function ActivosPageContent() {
 
                         {/* Software */}
                         {visibleColumns.find((c) => c.id === "software") && (
-                          <td className="px-4 py-3 whitespace-nowrap align-top">
+                          <td className="px-3 py-3 whitespace-nowrap align-top">
                             <div className="flex flex-wrap gap-1">
                               {asset.microsoft365 && (
                                 <span className="px-2 py-0.5 text-xs bg-primary-50 text-primary-800 rounded border border-primary-200">
@@ -808,7 +815,7 @@ function ActivosPageContent() {
 
                         {/* Acciones */}
                         {visibleColumns.find((c) => c.id === "acciones") && (
-                          <td className="sticky right-0 z-10 bg-surface group-hover:bg-surface-muted px-4 py-3 whitespace-nowrap text-right align-top shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)] transition-colors">
+                          <td className="sticky right-0 z-10 bg-surface group-hover:bg-surface-muted px-3 py-3 whitespace-nowrap text-right align-top shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)] transition-colors">
                             <div className="flex justify-end gap-1">
                               <Link
                                 href={`/activos/${asset.id}`}
@@ -853,6 +860,12 @@ function ActivosPageContent() {
                                       <AssetConditionBadge condicion={asset.condicion} />
                                     </dd>
                                   </div>
+                                  {asset.fechaCompra && (
+                                    <div className="flex justify-between">
+                                      <dt className="text-fg-subtle">Fecha de compra:</dt>
+                                      <dd className="text-fg">{formatearFecha(asset.fechaCompra)}</dd>
+                                    </div>
+                                  )}
                                   {asset.fechaGarantiaFin && (
                                     <div className="flex justify-between">
                                       <dt className="text-fg-subtle">Garantía hasta:</dt>

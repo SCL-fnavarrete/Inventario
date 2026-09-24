@@ -20,6 +20,7 @@ import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
 import { formatearFecha } from "@/lib/utils/fechas";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { FilaEquipoTicket, type AsignacionFila } from '@/components/solicitudes/FilaEquipoTicket';
+import { documentoDeSolicitud } from '@/lib/constants/documentosSolicitud';
 
 type WorkflowDetail = {
   id: string;
@@ -134,6 +135,8 @@ type WorkflowDetail = {
   // Cambio de equipo: un par por cada equipo cambiado (SPEC 2.84), con el
   // equipo devuelto y su reemplazo, ya armados por el backend.
   paresCambio: { anterior: AsignacionFila | null; nuevo: AsignacionFila | null }[];
+  // Si la desvinculacion tiene Acta de Devolucion (algo devuelto en el ticket).
+  tieneActa: boolean;
 };
 
 const estadoLabels: Record<string, string> = {
@@ -561,22 +564,7 @@ export default function SolicitudDetailPage() {
               equipment has been delivered/returned/changed, and it stays
               available after the ticket is closed. */}
           {(() => {
-            const doc =
-              data.tipo === 'onboarding' &&
-              (data.estado === 'equipos_entregados' || data.estado === 'registro_rrhh')
-                ? { tipo: 'comprobante-entrega', label: 'Comprobante de Entrega' }
-                : data.tipo === 'offboarding' &&
-                    (data.estado === 'equipo_recibido' || data.estado === 'consolidacion_cierre') &&
-                    // Sin equipos devueltos no hay acta (SPEC 2.87).
-                    data.equiposDevueltos.some(
-                      (a) =>
-                        !!a.estadoDevolucion && a.estadoDevolucion !== 'no_devuelto' && !a.recuperadoEn
-                    )
-                  ? { tipo: 'acta-devolucion', label: 'Acta de Devolución' }
-                  : data.tipo === 'cambio_equipo' &&
-                      (data.estado === 'cambio_ejecutado' || data.estado === 'confirmacion_rrhh')
-                    ? { tipo: 'comprobante-cambio', label: 'Comprobante de Cambio' }
-                    : null;
+            const doc = documentoDeSolicitud(data);
             if (!doc) return null;
             return (
               <div className="card p-6">
