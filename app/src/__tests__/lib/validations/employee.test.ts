@@ -10,11 +10,10 @@ import {
 // NOTA: TipoContratoEnum se redujo a ['contrato', 'boleta'] (migracion
 // replace_tipo_contrato_enum) y el campo "correo" se dividio en
 // "correoPersonal" y "correoEmpresa" (migracion split_employee_correo).
-// Desde el 15-sep-2026 (SPEC 2.39) el obligatorio es "correoEmpresa" --
-// es la cuenta corporativa que si traen las planillas de TI y con la que
-// se identifica a cada persona en soporte; el correo particular quedo
-// opcional porque muchas veces nadie lo registro. "tipoContrato" tambien
-// paso a ser opcional en el mismo cambio.
+// El 15-sep-2026 (SPEC 2.39) el obligatorio paso a ser "correoEmpresa", y el
+// 22-sep-2026 se invirtio de nuevo (SPEC 2.93): hoy el obligatorio es
+// "correoPersonal" y el de empresa es opcional. "tipoContrato" es opcional
+// desde 2.39.
 
 describe('Employee Validation - TipoContratoEnum', () => {
   test('should accept valid tipos de contrato', () => {
@@ -54,7 +53,7 @@ describe('Employee Validation - createEmployeeSchema', () => {
     rut: '21.523.308-1',
     nombres: 'Juan Carlos',
     apellidoPaterno: 'Perez',
-    correoEmpresa: 'jperez@sclconsultores.com',
+    correoPersonal: 'jperez@gmail.com',
     tipoContrato: 'contrato' as const,
   }
 
@@ -67,7 +66,7 @@ describe('Employee Validation - createEmployeeSchema', () => {
     const fullEmployee = {
       ...validEmployee,
       apellidoMaterno: 'Garcia',
-      correoPersonal: 'jperez@gmail.com',
+      correoEmpresa: 'jperez@sclconsultores.com',
       cargo: 'Desarrollador Senior',
       jefatura: 'Gerencia TI',
       supervisor: 'Maria Rodriguez',
@@ -143,8 +142,8 @@ describe('Employee Validation - createEmployeeSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  test('should reject missing correoEmpresa (obligatorio, a diferencia de correoPersonal)', () => {
-    const { correoEmpresa, ...employeeWithoutCorreo } = validEmployee
+  test('should reject missing correoPersonal (obligatorio, a diferencia de correoEmpresa)', () => {
+    const { correoPersonal, ...employeeWithoutCorreo } = validEmployee
     const result = createEmployeeSchema.safeParse(employeeWithoutCorreo)
     expect(result.success).toBe(false)
   })
@@ -157,7 +156,7 @@ describe('Employee Validation - createEmployeeSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  test('should accept missing correoPersonal (opcional)', () => {
+  test('should accept missing correoEmpresa (opcional)', () => {
     const result = createEmployeeSchema.safeParse(validEmployee)
     expect(result.success).toBe(true)
   })
@@ -210,7 +209,7 @@ describe('Employee Validation - createEmployeeSchema', () => {
     const result = createEmployeeSchema.safeParse({
       ...validEmployee,
       apellidoMaterno: null,
-      correoPersonal: null,
+      correoEmpresa: null,
       cargo: null,
       telefonoContacto: null,
     })
@@ -360,8 +359,8 @@ describe('Employee Validation - importEmployeeSchema', () => {
     rut: '21.523.308-1',
     nombres: 'Juan Carlos',
     apellidoPaterno: 'Perez',
-    // En la importacion el correo obligatorio es el de empresa (SPEC 2.39)
-    correoEmpresa: 'jperez@sclconsultores.com',
+    // En la importacion el correo obligatorio es el personal (SPEC 2.93)
+    correoPersonal: 'jperez@gmail.com',
     tipoContrato: 'contrato',
   }
 

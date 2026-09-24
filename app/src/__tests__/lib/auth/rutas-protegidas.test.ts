@@ -127,7 +127,10 @@ describe('rutas de API — cobertura de autorización', () => {
     });
 
     test('los permisos que declara existen en la matriz', () => {
-      const usos = [...contenido.matchAll(/requirePermission\(\s*'([^']+)'\s*,\s*'([^']+)'\s*\)/g)];
+      // Comillas simples o dobles: las rutas de catalogos (antivirus,
+      // licencias, sistemas operativos) usan dobles y la prueba las daba por
+      // rutas sin permiso.
+      const usos = [...contenido.matchAll(/requirePermission\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\)/g)];
       expect(usos.length).toBeGreaterThan(0);
       for (const [, recurso, accion] of usos) {
         expect(RECURSOS).toContain(recurso);

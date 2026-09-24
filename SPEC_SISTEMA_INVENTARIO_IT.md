@@ -1635,6 +1635,8 @@ Pedido explícito de Javier: *"antes de importar datos quiero que hagas pruebas 
 
 ## 2.39 El correo de empresa pasa a ser el obligatorio; tipo de contrato opcional (15-sep-2026)
 
+> **Reemplazado en parte por 2.93 (22-sep-2026):** el correo obligatorio volvió a ser el personal y el de empresa es opcional. Lo del tipo de contrato opcional sigue vigente.
+
 Pedido explícito de Javier, al revisar el modelo antes de importar el inventario real: *"el del correo tendría que ser al revés. El del correo personal, opcional, y el del correo de la empresa, obligatorio"*, y sobre el tipo de contrato: *"como no está en el Excel, lo que podríamos hacer es dejarlo opcional... si lo dejamos opcional, inserta de manera correcta los datos ahora y más adelante los técnicos tendrán que ingresarla"*.
 
 **El problema:** el modelo pedía como obligatorio el `correoPersonal` y dejaba opcional el `correoEmpresa`, justo al revés de como son los datos reales. El consolidado de inventario de la empresa (y cualquier planilla de soporte) trae la cuenta corporativa, que es la que siempre existe y con la que TI identifica a cada persona; el correo particular no lo registró nadie. Lo mismo con `tipoContrato`, que era obligatorio y la planilla no lo trae: cumplirlo obligaba a inventar un valor para ~110 personas.
@@ -3135,7 +3137,21 @@ Segunda revisión de Solicitudes, Activos y Dashboard, pedida por Javier. Parte 
 - **Estado inválido en la URL de Activos:** se ignora (antes error 500).
 - **Documento de la solicitud:** una sola regla (`documentoDeSolicitud` en `lib/constants/documentosSolicitud.ts`) para la lista y el detalle, que tenían cada uno su copia. La lista ya no ofrece el Acta de Devolución de una desvinculación sin nada devuelto: el servidor entrega `tieneActa` (`desvinculacionesConActa` / `devueltaEnTicket` en `lib/queries/asignacionesTicket.ts`, la misma regla que usa el generador del acta).
 
+## 2.93 Cambios del 22-sep sin documentar: correo obligatorio y catálogos de activos (23-sep-2026)
+
+El commit del 22-sep-2026 ("Agregar campos seleccionables y catalogos de activos, ajustes de correo…", migración `20260922135420_correo_opcional_y_catalogos_activos`) cambió reglas sin actualizar el SPEC ni las pruebas. Se documenta aquí; lo detectaron 20 pruebas automáticas que fallaban.
+
+**Correo del empleado (reemplaza lo dicho en 2.39).** El obligatorio vuelve a ser el **correo personal**; el de empresa queda opcional. En la base, `correoEmpresa` pasa a `NULL` permitido; `correoPersonal` sigue siendo único y se exige en la aplicación (`createEmployeeSchema`, `importEmployeeSchema`), no en la columna, porque hay filas antiguas sin ese dato. Los empleados que llegan por la sincronización con Microsoft Entra ID traen solo el correo de empresa (`microsoftSyncEmployeeSchema`).
+
+**Catálogos de opciones del activo.** Sistema operativo, antivirus y licencia Microsoft 365 dejan de ser texto libre al elegirlos: se eligen de catálogos (`SistemaOperativo`, `AntivirusOpcion`, `LicenciaMicrosoft365`) administrables en Configuración > Opciones de Activos. El activo sigue guardando el valor como texto; el catálogo solo alimenta el selector.
+- `GET`/`POST /api/sistemas-operativos`, `/api/antivirus`, `/api/licencias-m365`: leer (`activos/read`) y agregar (`activos/write`, admin y técnico).
+- `PATCH`/`DELETE` de `[id]`: renombrar (propaga el nombre nuevo a los activos que tenían el anterior) o eliminar (los activos conservan su valor). Solo admin (`activos/delete`).
+
+**Pruebas.** Se actualizan las de validación de empleados a la regla vigente del correo, y la auditoría de rutas (`rutas-protegidas.test.ts`) acepta `requirePermission` con comillas simples o dobles: las rutas de catálogos usan dobles y la prueba las contaba como rutas sin permiso, aunque sí lo piden. Suite completa: 908 de 908.
+
 ## Changelog SPEC
+- **v2.17 (2026-09-23):**
+  - Sección 2.93 (nueva): se documentan los cambios del 22-sep (correo personal obligatorio, reemplaza 2.39; catálogos de sistema operativo, antivirus y licencia M365) y se ponen al día las pruebas. Suite completa sin fallas.
 - **v2.16 (2026-09-23):**
   - Sección 2.92 (nueva): Activos y Solicitudes usables en celular; tabla de Activos que cabe en escritorio; tarjetas del tablero legibles; avisos bajo la barra; estado inválido ignorado; documento de la solicitud con una sola regla y sin acta vacía en la lista.
 - **v2.15 (2026-09-23):**
