@@ -16,6 +16,7 @@ import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { formatearFechaCorta } from '@/lib/utils/fechas';
+import { etiquetaResultadoMantencion } from '@/lib/constants/resultadosMantencion';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -172,7 +173,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         await registrarSalidaDeMantencion(tx, {
           asset: maintenance.asset,
           maintenanceId: id,
-          descripcion: `Mantención ${maintenance.tipo.nombre} realizada el ${formatearFechaCorta(data.fechaRealizada)}. Resultado: ${data.resultado}`,
+          descripcion: `Mantención ${maintenance.tipo.nombre} realizada el ${formatearFechaCorta(data.fechaRealizada)}: ${etiquetaResultadoMantencion(data.resultadoTipo)}. ${data.resultado}`,
           usuario,
           devolverEquipo: true,
           extra: {
@@ -202,7 +203,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       await auditLogService.registrarActualizacion(
         'mantencion',
         id,
-        `Mantención completada: ${updatedMaintenance.tipo.nombre} (resultado: ${data.resultadoTipo})`,
+        `Mantención completada: ${updatedMaintenance.tipo.nombre} (${etiquetaResultadoMantencion(data.resultadoTipo)})`,
         { estado: maintenance.estado },
         { estado: 'completada', resultadoTipo: data.resultadoTipo, resultado: data.resultado },
         usuario,

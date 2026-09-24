@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
         await auditLogService.registrarActualizacion(
           'mantencion',
           m.id,
-          `Mantención ${tipo.nombre} cerrada como No reparable: ${asset.marca} ${asset.modelo} dado de baja`,
+          `Mantención ${tipo.nombre} cerrada como Sin reparación: ${asset.marca} ${asset.modelo} dado de baja`,
           { estado: abierta.estado },
           { estado: 'completada', resultadoTipo: 'no_reparable', motivoBaja: motivoTexto },
           usuario,

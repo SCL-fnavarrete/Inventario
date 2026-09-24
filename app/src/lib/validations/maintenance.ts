@@ -104,7 +104,7 @@ export const completeMaintenanceSchema = z
   .refine(
     (data) => data.resultadoTipo !== "no_reparable" || (data.motivoBaja && data.motivoBaja.length > 0),
     {
-      message: 'Motivo de baja requerido cuando el resultado es "No reparable"',
+      message: 'Escribe el motivo de la baja cuando el resultado es "Sin reparación"',
       path: ["motivoBaja"],
     }
   );

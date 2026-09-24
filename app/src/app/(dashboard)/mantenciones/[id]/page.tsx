@@ -12,6 +12,7 @@ import {
   Trash2,
   Play,
   Pencil,
+  Hourglass,
 } from "lucide-react";
 import {
   estadoTrasMantencion,
@@ -19,9 +20,14 @@ import {
   etiquetaEstadoActivo,
 } from "@/lib/constants/estadosActivo";
 import { cn } from "@/lib/utils";
+import type { ResultadoMantencion } from "@/lib/validations/assetTransition";
 import { parseApiError } from "@/lib/utils/apiErrors";
 import { formatearFecha, formatearFechaConHora, aValorInputDate, hoyISO } from "@/lib/utils/fechas";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import {
+  RESULTADO_MANTENCION_LABEL,
+  etiquetaResultadoMantencion,
+} from "@/lib/constants/resultadosMantencion";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { configEstadoMantencion } from "@/components/mantenciones";
 import { Can } from "@/components/auth/Can";
@@ -36,7 +42,7 @@ import {
   claseCampo,
 } from "@/components/ui/CampoFormulario";
 
-type ResultadoTipo = "reparado" | "no_reparable" | "pendiente_repuestos";
+type ResultadoTipo = ResultadoMantencion;
 
 type Maintenance = {
   id: string;
@@ -85,10 +91,39 @@ const ETIQUETAS_COMPLETAR = {
   motivoBaja: "Motivo de la baja",
 };
 
-const OPCIONES_RESULTADO: { valor: ResultadoTipo; label: string; activo: string }[] = [
-  { valor: "reparado", label: "Reparado", activo: "bg-green-600 text-white border-green-600" },
-  { valor: "pendiente_repuestos", label: "Faltan repuestos", activo: "bg-amber-500 text-white border-amber-500" },
-  { valor: "no_reparable", label: "No reparable", activo: "bg-red-600 text-white border-red-600" },
+// Cada resultado dice como queda el equipo y que hace el sistema (SPEC 2.99).
+const OPCIONES_RESULTADO: {
+  valor: ResultadoTipo;
+  icono: typeof CheckCircle;
+  detalle: (vuelveA: string) => string;
+  boton: string;
+  seleccionado: string;
+  claseBoton: string;
+}[] = [
+  {
+    valor: "reparado",
+    icono: CheckCircle,
+    detalle: (vuelveA) => `Queda funcionando y vuelve a ${vuelveA}.`,
+    boton: "Cerrar como reparado",
+    seleccionado: "border-green-600 bg-green-50 text-green-800",
+    claseBoton: buttonClasses({ className: "bg-success hover:bg-success-hover disabled:hover:bg-success" }),
+  },
+  {
+    valor: "pendiente_repuestos",
+    icono: Hourglass,
+    detalle: () => "Sigue en mantención hasta que lleguen.",
+    boton: "Guardar y esperar repuestos",
+    seleccionado: "border-amber-500 bg-amber-50 text-amber-800",
+    claseBoton: buttonClasses({ className: "bg-amber-500 hover:bg-amber-600 disabled:hover:bg-amber-500" }),
+  },
+  {
+    valor: "no_reparable",
+    icono: XCircle,
+    detalle: () => "No tiene arreglo: el equipo se da de baja.",
+    boton: "Cerrar y dar de baja",
+    seleccionado: "border-red-600 bg-red-50 text-red-800",
+    claseBoton: buttonClasses({ variant: "danger" }),
+  },
 ];
 
 function formatCurrency(amount: number | null): string {
@@ -308,6 +343,8 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
     maintenance.estado === "en_proceso" && maintenance.resultadoTipo === "pendiente_repuestos";
   const fechaTexto = formatearFechaConHora(maintenance.fechaProgramada, maintenance.horaProgramada, "-");
   const vuelveA = etiquetaEstadoActivo(estadoTrasMantencion(maintenance.asset));
+  const opcionElegida =
+    OPCIONES_RESULTADO.find((o) => o.valor === completeForm.resultadoTipo) ?? OPCIONES_RESULTADO[0];
 
   return (
     <div className="space-y-6">
@@ -354,7 +391,7 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
         <StatusIcon className={cn("h-6 w-6", config.color)} />
         <div>
           <p className={cn("font-semibold", config.color)}>
-            {esperandoRepuestos ? "En Proceso · Esperando repuestos" : config.label}
+            {esperandoRepuestos ? `En Proceso · ${config.label}` : config.label}
           </p>
           {esperandoRepuestos ? (
             <p className="text-sm text-fg-muted">{maintenance.resultado}</p>
@@ -467,35 +504,35 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
                 <ResumenErrores mensaje={erroresCompletar.resumen} />
 
                 <div>
-                  <p className="field-label mb-2">¿Qué pasa con el equipo? *</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {OPCIONES_RESULTADO.map((o) => (
-                      <button
-                        key={o.valor}
-                        type="button"
-                        onClick={() => {
-                          cambiarCompletar("resultadoTipo", o.valor);
-                          erroresCompletar.limpiar("motivoBaja");
-                        }}
-                        className={cn(
-                          "px-3 py-2 rounded-lg border text-sm font-medium",
-                          completeForm.resultadoTipo === o.valor
-                            ? o.activo
-                            : "border-line-strong text-fg-muted hover:bg-surface-muted"
-                        )}
-                      >
-                        {o.label}
-                      </button>
-                    ))}
+                  <p className="field-label mb-2">Resultado de la mantención *</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" role="radiogroup">
+                    {OPCIONES_RESULTADO.map((o) => {
+                      const elegido = completeForm.resultadoTipo === o.valor;
+                      const Icono = o.icono;
+                      return (
+                        <button
+                          key={o.valor}
+                          type="button"
+                          role="radio"
+                          aria-checked={elegido}
+                          onClick={() => {
+                            cambiarCompletar("resultadoTipo", o.valor);
+                            erroresCompletar.limpiar("motivoBaja");
+                          }}
+                          className={cn(
+                            "p-3 rounded-lg border-2 text-left transition-colors",
+                            elegido ? o.seleccionado : "border-line text-fg-muted hover:bg-surface-muted"
+                          )}
+                        >
+                          <span className="flex items-center gap-2 font-semibold text-sm">
+                            <Icono size={16} className="shrink-0" />
+                            {RESULTADO_MANTENCION_LABEL[o.valor]}
+                          </span>
+                          <span className="block text-xs mt-1 opacity-90">{o.detalle(vuelveA)}</span>
+                        </button>
+                      );
+                    })}
                   </div>
-                  <p className="text-xs text-fg-subtle mt-2">
-                    {completeForm.resultadoTipo === "reparado" &&
-                      `La mantención se cierra y el equipo vuelve a ${vuelveA}.`}
-                    {completeForm.resultadoTipo === "pendiente_repuestos" &&
-                      "La mantención sigue en proceso con esta nota y el equipo sigue En Mantención. Cuando lleguen los repuestos, complétala como Reparado o No reparable."}
-                    {completeForm.resultadoTipo === "no_reparable" &&
-                      "La mantención se cierra y el equipo se da de baja."}
-                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -563,20 +600,10 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
                   <button
                     type="submit"
                     disabled={submitting}
-                    className={
-                      completeForm.resultadoTipo === "pendiente_repuestos"
-                        ? buttonClasses({ className: "bg-amber-500 hover:bg-amber-600 disabled:hover:bg-amber-500" })
-                        : completeForm.resultadoTipo === "no_reparable"
-                          ? buttonClasses({ variant: "danger" })
-                          : buttonClasses({ className: "bg-success hover:bg-success-hover disabled:hover:bg-success" })
-                    }
+                    className={opcionElegida.claseBoton}
                   >
-                    {submitting ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle size={18} />}
-                    {completeForm.resultadoTipo === "pendiente_repuestos"
-                      ? "Guardar nota"
-                      : completeForm.resultadoTipo === "no_reparable"
-                        ? "Completar y dar de baja"
-                        : "Completar mantención"}
+                    {submitting ? <Loader2 className="animate-spin" size={18} /> : <opcionElegida.icono size={18} />}
+                    {opcionElegida.boton}
                   </button>
                 </div>
               </form>
@@ -592,11 +619,16 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {maintenance.estado === "completada" && (
                   <>
+                    {maintenance.resultadoTipo && (
+                      <Dato label="Resultado" className="sm:col-span-2">
+                        {etiquetaResultadoMantencion(maintenance.resultadoTipo)}
+                      </Dato>
+                    )}
                     <Dato label="Fecha realizada">{formatearFecha(maintenance.fechaRealizada, {}, "-")}</Dato>
                     <Dato label="Próxima mantención">{formatearFecha(maintenance.proximaMantencion, {}, "-")}</Dato>
                   </>
                 )}
-                <Dato label={maintenance.estado === "completada" ? "Resultado" : "Motivo"} className="sm:col-span-2">
+                <Dato label={maintenance.estado === "completada" ? "Detalle" : "Motivo"} className="sm:col-span-2">
                   <p className="font-normal whitespace-pre-wrap">{maintenance.resultado}</p>
                 </Dato>
               </div>

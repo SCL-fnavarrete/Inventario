@@ -156,7 +156,7 @@ function DarDeBajaContenido() {
       <PageHeader
         backHref={`/activos/${activo.id}`}
         title="Dar de baja equipo"
-        description="Queda registrado como una mantención cerrada como No reparable."
+        description="Queda registrado como una mantención cerrada como Sin reparación."
       />
 
       {/* Equipo */}
@@ -197,7 +197,7 @@ function DarDeBajaContenido() {
               <Wrench className="h-4 w-4 mt-0.5 shrink-0" />
               <p>
                 El equipo tiene una mantención abierta ({abierta.tipo.nombre}: {abierta.descripcion}).
-                Se cerrará esa misma como <strong>No reparable</strong>.
+                Se cerrará esa misma como <strong>Sin reparación</strong>.
               </p>
             </div>
           ) : (

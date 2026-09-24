@@ -1,5 +1,6 @@
 import { CheckCircle, Clock, PackageSearch, Wrench, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RESULTADO_MANTENCION_LABEL } from "@/lib/constants/resultadosMantencion";
 
 type ConfigEstado = {
   label: string;
@@ -15,9 +16,9 @@ const ESTADO_MANTENCION: Record<string, ConfigEstado> = {
   cancelada: { label: "Cancelada", icon: XCircle, color: "text-fg-muted", bgColor: "bg-gray-100" },
 };
 
-// En proceso con "Faltan repuestos" (SPEC 2.96): sigue abierta, a la espera.
+// En proceso, en espera de repuestos (SPEC 2.96): sigue abierta.
 const ESPERANDO_REPUESTOS: ConfigEstado = {
-  label: "Esperando repuestos",
+  label: RESULTADO_MANTENCION_LABEL.pendiente_repuestos,
   icon: PackageSearch,
   color: "text-amber-800",
   bgColor: "bg-amber-100",

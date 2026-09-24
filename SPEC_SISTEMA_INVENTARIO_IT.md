@@ -3213,7 +3213,23 @@ Pedido de Javier: *"agrega un nuevo campo con hora al querer programar fechas de
 - **Tipos de mantención:** el nombre vacío o repetido marca el campo, como el resto de los formularios.
 - **Piezas compartidas:** `EstadoMantencionBadge` y `configEstadoMantencion` (`components/mantenciones`), que reemplazan la configuración de estados copiada en la lista y el detalle. `estadoTrasMantencion` pasa a `lib/constants/estadosActivo.ts`, porque la usan la API y la pantalla.
 
+## 2.99 Nombres de los resultados de una mantención (24-sep-2026)
+
+Pedido de Javier: *"reparable, faltan repuestos y no reparable son mensajes muy pobres, propongo buscar mejores palabras más significativas"*. Cada resultado se muestra con un título que dice cómo queda el equipo y, debajo, qué hace el sistema:
+
+| Valor interno (sin cambios) | Nombre | Consecuencia | Botón |
+|---|---|---|---|
+| `reparado` | Reparado, vuelve a uso | Queda funcionando y vuelve a Asignado o Disponible. | Cerrar como reparado |
+| `pendiente_repuestos` | En espera de repuestos | Sigue en mantención hasta que lleguen. | Guardar y esperar repuestos |
+| `no_reparable` | Sin reparación | No tiene arreglo: el equipo se da de baja. | Cerrar y dar de baja |
+
+- Los nombres viven en `lib/constants/resultadosMantencion.ts` (`RESULTADO_MANTENCION_LABEL`, `etiquetaResultadoMantencion`). Los usan el detalle, la etiqueta de estado ("En espera de repuestos"), la página de baja, el historial del equipo, la auditoría (que antes guardaba el valor interno) y los mensajes de error.
+- El detalle de una mantención cerrada muestra su resultado con el nombre.
+- La pregunta del formulario pasa de "¿Qué pasa con el equipo?" a "Resultado de la mantención".
+
 ## Changelog SPEC
+- **v2.23 (2026-09-24):**
+  - Sección 2.99 (nueva): nombres de los resultados de una mantención con su consecuencia (Reparado, vuelve a uso · En espera de repuestos · Sin reparación), en un solo lugar compartido.
 - **v2.22 (2026-09-24):**
   - Sección 2.98 (nueva): hora programada de las mantenciones (campo nuevo), Programar en una pantalla, Editar pendientes, aviso de repuestos, orden de agenda en la lista, vencida = pendiente atrasada, calendario sin correr el día y validación por campo en Tipos.
 - **v2.21 (2026-09-24):**
