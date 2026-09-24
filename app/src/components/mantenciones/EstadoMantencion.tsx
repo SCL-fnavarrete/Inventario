@@ -24,7 +24,16 @@ const ESPERANDO_REPUESTOS: ConfigEstado = {
   bgColor: "bg-amber-100",
 };
 
-/** Como se muestra el estado de una mantencion (listado, detalle). */
+/** Estados en el orden de la leyenda del calendario. */
+export const LEYENDA_ESTADOS_MANTENCION: ConfigEstado[] = [
+  ESTADO_MANTENCION.pendiente,
+  ESTADO_MANTENCION.en_proceso,
+  ESPERANDO_REPUESTOS,
+  ESTADO_MANTENCION.completada,
+  ESTADO_MANTENCION.cancelada,
+];
+
+/** Como se muestra el estado de una mantencion (listado, detalle, calendario). */
 export function configEstadoMantencion(m: { estado: string; resultadoTipo?: string | null }): ConfigEstado {
   if (m.estado === "en_proceso" && m.resultadoTipo === "pendiente_repuestos") return ESPERANDO_REPUESTOS;
   return ESTADO_MANTENCION[m.estado] ?? ESTADO_MANTENCION.pendiente;

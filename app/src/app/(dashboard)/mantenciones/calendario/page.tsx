@@ -9,7 +9,12 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MantencionesTabs } from "@/components/mantenciones";
+import {
+  LEYENDA_ESTADOS_MANTENCION,
+  MantencionesTabs,
+  configEstadoMantencion,
+} from "@/components/mantenciones";
+import { estaVencida } from "@/lib/utils/mantenciones";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { buttonClasses } from "@/components/ui/buttonStyles";
@@ -23,6 +28,7 @@ type Maintenance = {
   fechaProgramada: string | null;
   horaProgramada: string | null;
   estado: string;
+  resultadoTipo: string | null;
   asset: {
     id: string;
     numeroSerie: string | null;
@@ -32,13 +38,6 @@ type Maintenance = {
       nombre: string;
     };
   };
-};
-
-const estadoColors: Record<string, string> = {
-  pendiente: "bg-orange-100 border-orange-300 text-orange-800",
-  en_proceso: "bg-primary-100 border-primary-300 text-primary-900",
-  completada: "bg-green-100 border-green-300 text-green-800",
-  cancelada: "bg-gray-100 border-line-strong text-fg-subtle",
 };
 
 /**
@@ -167,7 +166,6 @@ export default function CalendarioMantencionesPage() {
 
   const days = getDaysInMonth();
   const today = hoyLocal();
-  const hoy = hoyISO();
   const isCurrentMonth = today.getMonth() === month && today.getFullYear() === year;
 
   const selectedMaintenances = selectedDay
@@ -246,12 +244,7 @@ export default function CalendarioMantencionesPage() {
                     day.currentMonth &&
                     day.day === today.getDate();
                   const isSelected = day.currentMonth && day.day === selectedDay;
-                  const hasOverdue = dayMaintenances.some(
-                    (m) =>
-                      m.estado !== "completada" &&
-                      m.estado !== "cancelada" &&
-                      aValorInputDate(m.fechaProgramada) < hoy
-                  );
+                  const hasOverdue = dayMaintenances.some(estaVencida);
 
                   return (
                     <button
@@ -288,8 +281,9 @@ export default function CalendarioMantencionesPage() {
                           <div
                             key={m.id}
                             className={cn(
-                              "text-xs px-1.5 py-0.5 rounded border truncate",
-                              estadoColors[m.estado]
+                              "text-xs px-1.5 py-0.5 rounded truncate",
+                              configEstadoMantencion(m).bgColor,
+                              configEstadoMantencion(m).color
                             )}
                           >
                             <span className="inline-flex items-center gap-1">
@@ -333,8 +327,9 @@ export default function CalendarioMantencionesPage() {
                     key={m.id}
                     href={`/mantenciones/${m.id}`}
                     className={cn(
-                      "block p-3 rounded-lg border transition-colors hover:shadow",
-                      estadoColors[m.estado]
+                      "block p-3 rounded-lg transition-colors hover:shadow",
+                      configEstadoMantencion(m).bgColor,
+                      configEstadoMantencion(m).color
                     )}
                   >
                     <div className="flex items-center gap-2 mb-1">
@@ -370,21 +365,15 @@ export default function CalendarioMantencionesPage() {
           <div className="mt-6 pt-4 border-t">
             <p className="text-xs font-medium text-fg-subtle mb-2">Leyenda:</p>
             <div className="space-y-1">
+              {LEYENDA_ESTADOS_MANTENCION.map((e) => (
+                <div key={e.label} className="flex items-center gap-2 text-xs">
+                  <e.icon className={cn("h-3.5 w-3.5 p-0.5 rounded", e.bgColor, e.color)} />
+                  <span>{e.label}</span>
+                </div>
+              ))}
               <div className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-3 rounded bg-orange-100 border border-orange-300"></div>
-                <span>Pendiente</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-3 rounded bg-primary-100 border border-primary-300"></div>
-                <span>En Proceso</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-3 rounded bg-green-100 border border-green-300"></div>
-                <span>Completada</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-3 rounded bg-gray-100 border border-line-strong"></div>
-                <span>Cancelada</span>
+                <div className="w-3.5 h-3.5 rounded bg-red-50 border border-red-200"></div>
+                <span>Día con mantenciones vencidas</span>
               </div>
             </div>
           </div>

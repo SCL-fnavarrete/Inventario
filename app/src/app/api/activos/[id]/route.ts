@@ -36,8 +36,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             },
           },
         },
-        // Mantenciones abiertas: la pagina de baja (SPEC 2.88) cierra la
-        // mas antigua en vez de crear otra.
+        // Mantenciones abiertas: la pagina de baja (SPEC 2.88) cierra una
+        // de ellas (mantencionACerrar) en vez de crear otra.
         maintenances: {
           where: { estado: { in: ['pendiente', 'en_proceso'] } },
           select: { id: true, estado: true, descripcion: true, tipo: { select: { nombre: true } } },

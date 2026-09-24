@@ -340,6 +340,16 @@ describe('Maintenance Validation - completeMaintenanceSchema', () => {
   })
 })
 
+describe('Fechas obligatorias (SPEC 2.100)', () => {
+  test('completar con la fecha vacia o mal escrita da error del campo, no una fecha invalida', () => {
+    const base = { realizadoPor: 'QA', resultado: 'ok', resultadoTipo: 'reparado' }
+    const vacia = completeMaintenanceSchema.safeParse({ ...base, fechaRealizada: '' })
+    expect(vacia.success).toBe(false)
+    if (!vacia.success) expect(vacia.error.issues[0].path).toEqual(['fechaRealizada'])
+    expect(completeMaintenanceSchema.safeParse({ ...base, fechaRealizada: 'xx' }).success).toBe(false)
+  })
+})
+
 describe('Maintenance Validation - maintenanceFiltersSchema', () => {
   test('should accept empty filters with defaults', () => {
     const result = maintenanceFiltersSchema.safeParse({})

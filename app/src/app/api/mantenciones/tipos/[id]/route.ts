@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { updateMaintenanceTypeSchema } from '@/lib/validations/maintenanceType';
 import { auditLogService } from '@/lib/services/auditLogService';
+import { assertNombreTipoLibre } from '@/lib/queries/mantenciones';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -28,17 +29,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Tipo de mantención no encontrado' }, { status: 404 });
     }
 
-    if (data.nombre) {
-      const duplicate = await prisma.maintenanceType.findFirst({
-        where: { nombre: { equals: data.nombre.trim(), mode: 'insensitive' }, NOT: { id } },
-      });
-      if (duplicate) {
-        return NextResponse.json(
-          { error: 'Ya existe un tipo de mantención con ese nombre' },
-          { status: 400 }
-        );
-      }
-    }
+    if (data.nombre) await assertNombreTipoLibre(data.nombre, id);
 
     const tipo = await prisma.maintenanceType.update({
       where: { id },

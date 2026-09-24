@@ -3227,7 +3227,26 @@ Pedido de Javier: *"reparable, faltan repuestos y no reparable son mensajes muy 
 - El detalle de una mantención cerrada muestra su resultado con el nombre.
 - La pregunta del formulario pasa de "¿Qué pasa con el equipo?" a "Resultado de la mantención".
 
+## 2.100 Revisión de Mantenciones, parte 1: errores y código repetido (24-sep-2026)
+
+Revisión de código, diseño y funcionamiento del módulo después de 2.96–2.99. Esta parte corrige los errores y junta el código repetido.
+
+**Errores**
+- **Dar de baja nombraba la mantención equivocada.** La página nombraba la abierta más antigua, pero el servidor cerraba la que está en proceso. Ahora ambos usan `mantencionACerrar` (`lib/utils/mantenciones.ts`): la en proceso o, si no hay, la pendiente más antigua. El aviso dice además cuántas de las otras mantenciones programadas se cancelan.
+- **El Calendario pintaba "vencida" una mantención en proceso.** Ahora usa la misma regla que la lista: `estaVencida`, que marca solo una pendiente con la fecha pasada, en hora de Chile.
+- **Un tipo de mantención con nombre repetido no marcaba el campo.** El servidor responde 409 indicando el campo `nombre` (`assertNombreTipoLibre` en `lib/queries/mantenciones.ts`, que usan crear y editar).
+- **Completar con la fecha vacía daba un error genérico.** Ahora responde 400 con el campo: "La fecha es requerida".
+- **La próxima mantención que se crea al completar** quedaba con el texto "Mantención programada (siguiente de #67b3b681)" y sin historial. Ahora dice "Siguiente a la mantención Preventiva del 24-09-2026" y deja una línea en el historial del equipo.
+
+**Código repetido**
+- Las fechas de `validations/maintenance.ts` (5 copias) pasan a dos reglas: `fechaRequerida(mensaje)` y `fechaOpcional`.
+- El Calendario usa los colores y nombres compartidos de los estados (`configEstadoMantencion`, `LEYENDA_ESTADOS_MANTENCION`). La leyenda suma "En espera de repuestos" y el color de "día con mantenciones vencidas".
+- La página Dar de baja usa `useErroresFormulario`, con el resumen "Faltan o están incorrectos: …", como el resto de los formularios (2.95).
+- `/api/mantenciones/pendientes` deja de calcular dos conteos que ninguna pantalla usaba (por estado y por tipo).
+
 ## Changelog SPEC
+- **v2.24 (2026-09-24):**
+  - Sección 2.100 (nueva): revisión de Mantenciones, parte 1. Baja y servidor cierran la misma mantención, "vencida" igual en calendario y lista, nombre de tipo repetido marca el campo, fecha vacía al completar, texto e historial de la próxima mantención, reglas de fecha y estados sin repetir.
 - **v2.23 (2026-09-24):**
   - Sección 2.99 (nueva): nombres de los resultados de una mantención con su consecuencia (Reparado, vuelve a uso · En espera de repuestos · Sin reparación), en un solo lugar compartido.
 - **v2.22 (2026-09-24):**

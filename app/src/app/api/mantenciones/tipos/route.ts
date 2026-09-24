@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { createMaintenanceTypeSchema } from '@/lib/validations/maintenanceType';
 import { auditLogService } from '@/lib/services/auditLogService';
+import { assertNombreTipoLibre } from '@/lib/queries/mantenciones';
 
 // GET /api/mantenciones/tipos - Listar tipos de mantencion
 // Catalogo global (sin sedeId, igual que AssetCategory) -- ver nota en
@@ -49,16 +50,7 @@ export async function POST(request: NextRequest) {
 
     const { nombre, descripcion } = validationResult.data;
 
-    const existing = await prisma.maintenanceType.findFirst({
-      where: { nombre: { equals: nombre.trim(), mode: 'insensitive' } },
-    });
-
-    if (existing) {
-      return NextResponse.json(
-        { error: 'Ya existe un tipo de mantención con ese nombre' },
-        { status: 400 }
-      );
-    }
+    await assertNombreTipoLibre(nombre);
 
     const tipo = await prisma.maintenanceType.create({
       data: {

@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       swAsset.asset = { ...swAsset.asset, sedeId: sedeIdFiltro };
     }
 
-    const [totalVencidas, totalProximas, totalEnProceso, totalCompletadas, stats, statsByTipo] =
+    const [totalVencidas, totalProximas, totalEnProceso, totalCompletadas] =
       await Promise.all([
         prisma.maintenance.count({
           // Vencidas: pendientes con la fecha pasada (una en proceso ya se
@@ -64,28 +64,10 @@ export async function GET(request: NextRequest) {
             ...swAsset,
           },
         }),
-        prisma.maintenance.groupBy({
-          by: ["estado"],
-          where: swAsset,
-          _count: { estado: true },
-        }),
-        prisma.maintenance.groupBy({
-          by: ["tipoId"],
-          where: { estado: { in: ["pendiente", "en_proceso"] }, ...swAsset },
-          _count: { tipoId: true },
-        }),
       ]);
 
     return NextResponse.json({
       stats: {
-        porEstado: stats.map((s) => ({
-          estado: s.estado,
-          count: s._count.estado,
-        })),
-        porTipo: statsByTipo.map((s) => ({
-          tipoId: s.tipoId,
-          count: s._count.tipoId,
-        })),
         totalVencidas,
         totalProximas,
         totalEnProceso,

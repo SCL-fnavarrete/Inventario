@@ -184,17 +184,26 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         });
       }
 
-      // Si hay próxima mantención programada, crear registro (aplica igual
-      // sin importar el resultado, salvo no_reparable: un activo de baja no
-      // vuelve a programarse).
+      // Proxima mantencion: queda programada, pendiente, con el mismo tipo
+      // (salvo Sin reparacion: un equipo de baja no vuelve a programarse).
       if (data.proximaMantencion && data.resultadoTipo !== "no_reparable") {
-        await tx.maintenance.create({
+        const descripcion = `Siguiente a la mantención ${maintenance.tipo.nombre} del ${formatearFechaCorta(data.fechaRealizada)}`;
+        const siguiente = await tx.maintenance.create({
           data: {
             assetId: maintenance.assetId,
             tipoId: maintenance.tipoId,
-            descripcion: `Mantención programada (siguiente de #${id.slice(0, 8)})`,
+            descripcion,
             fechaProgramada: data.proximaMantencion,
             estado: "pendiente",
+          },
+        });
+        await tx.assetHistory.create({
+          data: {
+            assetId: maintenance.assetId,
+            tipoEvento: "mantencion",
+            descripcion: `Mantención ${maintenance.tipo.nombre} programada para el ${formatearFechaCorta(data.proximaMantencion)}: ${descripcion}`,
+            datosNuevos: { maintenanceId: siguiente.id },
+            usuarioSistema: usuario,
           },
         });
       }

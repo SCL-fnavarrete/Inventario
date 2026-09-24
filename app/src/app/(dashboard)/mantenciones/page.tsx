@@ -19,7 +19,8 @@ import { Can } from "@/components/auth/Can";
 import { EstadoMantencionBadge, MantencionesTabs } from "@/components/mantenciones";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
-import { formatearFechaConHora, inicioDeHoy } from "@/lib/utils/fechas";
+import { formatearFechaConHora } from "@/lib/utils/fechas";
+import { estaVencida } from "@/lib/utils/mantenciones";
 import { motivoSinBaja } from "@/lib/constants/estadosActivo";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { buttonClasses } from "@/components/ui/buttonStyles";
@@ -65,8 +66,6 @@ type Maintenance = {
 };
 
 type Stats = {
-  porEstado: { estado: string; count: number }[];
-  porTipo: { tipoId: string; count: number }[];
   totalVencidas: number;
   totalProximas: number;
   totalEnProceso: number;
@@ -90,15 +89,9 @@ function diasDePeriodo(periodo: Periodo): number {
   return PERIODOS.find((p) => p.value === periodo)?.dias ?? 30;
 }
 
-// Vencida: pendiente con la fecha pasada (una en proceso ya se esta haciendo).
-function isOverdue(fechaProgramada: string | null, estado: string): boolean {
-  if (!fechaProgramada || estado !== "pendiente") return false;
-  return new Date(fechaProgramada) < inicioDeHoy();
-}
-
 /** Fecha y hora programadas, en rojo si esta vencida. */
 function FechaProgramada({ m }: { m: Maintenance }) {
-  const vencida = isOverdue(m.fechaProgramada, m.estado);
+  const vencida = estaVencida(m);
   return (
     <span className={cn("inline-flex items-center gap-1.5 text-sm", vencida && "text-red-600 font-medium")}>
       {vencida && <AlertTriangle className="h-4 w-4 text-red-500" />}
@@ -384,7 +377,7 @@ export default function MantencionesPage() {
             {/* Celular: una tarjeta por mantencion, con todo a la vista. */}
             <ul className="md:hidden divide-y divide-line">
               {maintenances.map((m) => (
-                <li key={m.id} className={cn("p-4 space-y-2", isOverdue(m.fechaProgramada, m.estado) && "bg-red-50")}>
+                <li key={m.id} className={cn("p-4 space-y-2", estaVencida(m) && "bg-red-50")}>
                   <div className="flex items-start justify-between gap-3">
                     <Link href={`/mantenciones/${m.id}`} className="flex items-center gap-2 min-w-0">
                       <span className="text-fg-subtle flex-shrink-0">
@@ -441,7 +434,7 @@ export default function MantencionesPage() {
                 </thead>
                 <tbody className="divide-y divide-line">
                   {maintenances.map((maintenance) => {
-                    const overdue = isOverdue(maintenance.fechaProgramada, maintenance.estado);
+                    const overdue = estaVencida(maintenance);
 
                     return (
                       <tr key={maintenance.id} className={cn("hover:bg-surface-muted", overdue && "bg-red-50")}>

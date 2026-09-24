@@ -1,2 +1,6 @@
 export { MantencionesTabs } from "./MantencionesTabs";
-export { EstadoMantencionBadge, configEstadoMantencion } from "./EstadoMantencion";
+export {
+  EstadoMantencionBadge,
+  LEYENDA_ESTADOS_MANTENCION,
+  configEstadoMantencion,
+} from "./EstadoMantencion";

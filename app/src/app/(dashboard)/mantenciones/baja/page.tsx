@@ -11,13 +11,14 @@ import {
   motivoSinBaja,
 } from "@/lib/constants/estadosActivo";
 import { hoyISO } from "@/lib/utils/fechas";
-import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { parseApiError } from "@/lib/utils/apiErrors";
+import { mantencionACerrar } from "@/lib/utils/mantenciones";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 import {
   CampoFormulario,
   CampoTexto,
+  ResumenErrores,
   claseInput,
-  enfocarPrimerError,
 } from "@/components/ui/CampoFormulario";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { buttonClasses } from "@/components/ui/buttonStyles";
@@ -34,6 +35,14 @@ type Activo = {
 };
 
 type TipoMantencion = { id: string; nombre: string };
+
+const ETIQUETAS = {
+  tipoId: "Tipo de mantención",
+  motivo: "Motivo de la baja",
+  motivoDetalle: "Detalle del motivo",
+  fechaRealizada: "Fecha",
+  realizadoPor: "Realizado por",
+};
 
 /**
  * Dar de baja un equipo (SPEC 2.88). Toda baja pasa por Mantenciones: se
@@ -53,7 +62,8 @@ function DarDeBajaContenido() {
   const [cargando, setCargando] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  // Validacion por campo, igual que el resto de los formularios (SPEC 2.95).
+  const { errores, resumen, reportar, limpiar } = useErroresFormulario(ETIQUETAS);
 
   const [tipoId, setTipoId] = useState("");
   const [motivo, setMotivo] = useState("");
@@ -97,28 +107,20 @@ function DarDeBajaContenido() {
   }
 
   const bloqueo = motivoSinBaja(activo.estado);
-  const abierta = activo.maintenances[0] ?? null;
-
-  const limpiar = (campo: string) =>
-    setFieldErrors((prev) => {
-      const { [campo]: _omitido, ...resto } = prev;
-      return resto;
-    });
+  // La misma que cierra el servidor; las demas abiertas se cancelan.
+  const abierta = mantencionACerrar(activo.maintenances) ?? null;
+  const otrasAbiertas = activo.maintenances.length - (abierta ? 1 : 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    const errores: FieldErrors = {};
-    if (!abierta && !tipoId) errores.tipoId = "Elige el tipo de mantención";
-    if (!motivo) errores.motivo = "Elige el motivo de la baja";
-    if (motivo === "otro" && !motivoDetalle.trim()) errores.motivoDetalle = "Describe el motivo";
-    if (!fechaRealizada) errores.fechaRealizada = "Fecha requerida";
-    if (!realizadoPor.trim()) errores.realizadoPor = "Indica quién la realiza";
-    setFieldErrors(errores);
-    if (Object.keys(errores).length > 0) {
-      enfocarPrimerError();
-      return;
-    }
+    const faltan: Record<string, string> = {};
+    if (!abierta && !tipoId) faltan.tipoId = "Elige el tipo de mantención";
+    if (!motivo) faltan.motivo = "Elige el motivo de la baja";
+    if (motivo === "otro" && !motivoDetalle.trim()) faltan.motivoDetalle = "Describe el motivo";
+    if (!fechaRealizada) faltan.fechaRealizada = "Elige la fecha";
+    if (!realizadoPor.trim()) faltan.realizadoPor = "Indica quién la realiza";
+    if (reportar(faltan)) return;
 
     setEnviando(true);
     try {
@@ -137,8 +139,8 @@ function DarDeBajaContenido() {
       });
       if (!res.ok) {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al dar de baja el equipo");
-        setError(message);
-        setFieldErrors(fe);
+        if (Object.keys(fe).length > 0) reportar(fe);
+        else setError(message);
         return;
       }
       toast.success("Equipo dado de baja", `${activo.marca} ${activo.modelo} quedó en Baja.`);
@@ -190,26 +192,28 @@ function DarDeBajaContenido() {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="card p-6 space-y-4" noValidate>
-          <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
+          <ResumenErrores mensaje={resumen || error} />
 
           {abierta ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 flex gap-2">
               <Wrench className="h-4 w-4 mt-0.5 shrink-0" />
               <p>
-                El equipo tiene una mantención abierta ({abierta.tipo.nombre}: {abierta.descripcion}).
-                Se cerrará esa misma como <strong>Sin reparación</strong>.
+                Se cerrará la mantención {abierta.estado === "en_proceso" ? "en proceso" : "programada"}{" "}
+                ({abierta.tipo.nombre}: {abierta.descripcion}) como <strong>Sin reparación</strong>.
+                {otrasAbiertas === 1 && " La otra mantención programada se cancela."}
+                {otrasAbiertas > 1 && ` Las otras ${otrasAbiertas} mantenciones programadas se cancelan.`}
               </p>
             </div>
           ) : (
-            <CampoFormulario label="Tipo de mantención" obligatorio error={fieldErrors.tipoId}>
+            <CampoFormulario label="Tipo de mantención" obligatorio error={errores.tipoId}>
               <select
                 value={tipoId}
                 onChange={(e) => {
                   setTipoId(e.target.value);
                   limpiar("tipoId");
                 }}
-                aria-invalid={!!fieldErrors.tipoId}
-                className={claseInput(fieldErrors.tipoId)}
+                aria-invalid={!!errores.tipoId}
+                className={claseInput(errores.tipoId)}
               >
                 <option value="">Selecciona un tipo</option>
                 {tipos.map((t) => (
@@ -221,15 +225,15 @@ function DarDeBajaContenido() {
             </CampoFormulario>
           )}
 
-          <CampoFormulario label="Motivo de la baja" obligatorio error={fieldErrors.motivo}>
+          <CampoFormulario label="Motivo de la baja" obligatorio error={errores.motivo}>
             <select
               value={motivo}
               onChange={(e) => {
                 setMotivo(e.target.value);
                 limpiar("motivo");
               }}
-              aria-invalid={!!fieldErrors.motivo}
-              className={claseInput(fieldErrors.motivo)}
+              aria-invalid={!!errores.motivo}
+              className={claseInput(errores.motivo)}
             >
               <option value="">Selecciona un motivo</option>
               {Object.entries(MOTIVO_BAJA_LABEL).map(([valor, etiqueta]) => (
@@ -249,7 +253,7 @@ function DarDeBajaContenido() {
                 setMotivoDetalle(v);
                 limpiar("motivoDetalle");
               }}
-              error={fieldErrors.motivoDetalle}
+              error={errores.motivoDetalle}
               placeholder="Describe por qué se da de baja"
             />
           )}
@@ -264,7 +268,7 @@ function DarDeBajaContenido() {
                 setFechaRealizada(v);
                 limpiar("fechaRealizada");
               }}
-              error={fieldErrors.fechaRealizada}
+              error={errores.fechaRealizada}
             />
             <CampoTexto
               label="Realizado por"
@@ -274,7 +278,7 @@ function DarDeBajaContenido() {
                 setRealizadoPor(v);
                 limpiar("realizadoPor");
               }}
-              error={fieldErrors.realizadoPor}
+              error={errores.realizadoPor}
             />
           </div>
 

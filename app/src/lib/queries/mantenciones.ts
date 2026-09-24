@@ -1,5 +1,25 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { ConflictError } from '@/lib/errors';
+
+/**
+ * Un tipo de mantencion no puede repetir nombre (sin importar mayusculas).
+ * El error marca el campo "nombre" del formulario. exceptoId: el tipo que se
+ * esta editando.
+ */
+export async function assertNombreTipoLibre(nombre: string, exceptoId?: string) {
+  const repetido = await prisma.maintenanceType.findFirst({
+    where: {
+      nombre: { equals: nombre.trim(), mode: 'insensitive' },
+      ...(exceptoId ? { NOT: { id: exceptoId } } : {}),
+    },
+    select: { id: true },
+  });
+  if (repetido) {
+    const mensaje = 'Ya existe un tipo de mantención con ese nombre';
+    throw new ConflictError(mensaje, [{ field: 'nombre', message: mensaje }]);
+  }
+}
 
 /** Lo que el listado y el calendario muestran de cada mantencion. */
 export const INCLUDE_LISTADO_MANTENCION = {

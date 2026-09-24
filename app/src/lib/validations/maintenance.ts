@@ -19,18 +19,38 @@ const costoSchema = z.number().nonnegative("El costo debe ser 0 o positivo").opt
 
 
 
-// Fecha programada obligatoria, compartida por programar y editar.
-const fechaProgramadaSchema = z
+/**
+ * Fecha obligatoria: vacia o mal escrita da un error del campo, en vez de
+ * guardar una fecha invalida (antes completar con la fecha vacia daba un
+ * error generico del servidor).
+ */
+function fechaRequerida(mensaje: string) {
+  return z
+    .string()
+    .min(1, mensaje)
+    .transform((val, ctx) => {
+      const date = new Date(val);
+      if (isNaN(date.getTime())) {
+        ctx.addIssue({ code: "custom", message: "Fecha inválida" });
+        return z.NEVER;
+      }
+      return date;
+    });
+}
+
+/** Fecha opcional: vacia o mal escrita queda en null. */
+const fechaOpcional = z
   .string()
-  .min(1, "La fecha programada es requerida")
-  .transform((val, ctx) => {
+  .optional()
+  .nullable()
+  .transform((val) => {
+    if (!val) return null;
     const date = new Date(val);
-    if (isNaN(date.getTime())) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Fecha programada inválida" });
-      return z.NEVER;
-    }
-    return date;
+    return isNaN(date.getTime()) ? null : date;
   });
+
+// Fecha programada obligatoria, compartida por programar y editar.
+const fechaProgramadaSchema = fechaRequerida("La fecha programada es requerida");
 
 // Hora en Chile "HH:MM" (SPEC 2.98), opcional. Vacia se guarda como null;
 // si no viene queda undefined, y al editar no se toca la guardada.
@@ -55,11 +75,7 @@ export const createMaintenanceSchema = z.object({
   // Obligatoria: una mantención no puede iniciarse sin fecha programada.
   fechaProgramada: fechaProgramadaSchema,
   horaProgramada: horaProgramadaSchema,
-  proximaMantencion: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
+  proximaMantencion: fechaOpcional,
   realizadoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   costo: costoSchema,
   proveedorExterno: z.string().max(200, "Máximo 200 caracteres").optional().nullable(),
@@ -89,17 +105,13 @@ export const updateMaintenanceSchema = z.object({
 // pendiente_repuestos) que determina si el activo se da de baja.
 export const completeMaintenanceSchema = z
   .object({
-    fechaRealizada: z.string().transform((val) => new Date(val)),
+    fechaRealizada: fechaRequerida("La fecha es requerida"),
     realizadoPor: z.string().min(1, "Requerido").max(100, "Máximo 100 caracteres"),
     resultado: z.string().min(1, "El resultado es requerido").max(1000, "Máximo 1000 caracteres"),
     resultadoTipo: resultadoMantencionEnum,
     motivoBaja: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
     costo: costoSchema,
-    proximaMantencion: z.string().optional().nullable().transform((val) => {
-      if (!val) return null;
-      const date = new Date(val);
-      return isNaN(date.getTime()) ? null : date;
-    }),
+    proximaMantencion: fechaOpcional,
   })
   .refine(
     (data) => data.resultadoTipo !== "no_reparable" || (data.motivoBaja && data.motivoBaja.length > 0),
@@ -110,7 +122,7 @@ export const completeMaintenanceSchema = z
   );
 
 // Dar de baja un equipo por mantencion (SPEC 2.88): cierra su mantencion
-// abierta, o registra una ya cerrada, como "No reparable".
+// abierta, o registra una ya cerrada, como "Sin reparación".
 export const bajaPorMantencionSchema = z
   .object({
     assetId: z.string().uuid("Equipo inválido"),
@@ -119,17 +131,7 @@ export const bajaPorMantencionSchema = z
     motivo: motivoBajaEnum,
     motivoDetalle: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
     observaciones: z.string().max(1000, "Máximo 1000 caracteres").optional().nullable(),
-    fechaRealizada: z
-      .string()
-      .min(1, "Fecha requerida")
-      .transform((val, ctx) => {
-        const fecha = new Date(val);
-        if (isNaN(fecha.getTime())) {
-          ctx.addIssue({ code: "custom", message: "Fecha inválida" });
-          return z.NEVER;
-        }
-        return fecha;
-      }),
+    fechaRealizada: fechaRequerida("Fecha requerida"),
     realizadoPor: z.string().min(1, "Requerido").max(100, "Máximo 100 caracteres"),
   })
   .refine((d) => d.motivo !== "otro" || !!d.motivoDetalle?.trim(), {
