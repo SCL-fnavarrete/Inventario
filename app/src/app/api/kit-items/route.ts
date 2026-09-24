@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, errorRepetido } from '@/lib/auth/guard';
 import { sedeWhere, sedeIdParaCrear, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { createKitItemSchema } from '@/lib/validations/kitItem';
 import { auditLogService } from '@/lib/services/auditLogService';
@@ -55,10 +55,7 @@ export async function POST(request: NextRequest) {
       },
     });
     if (existing) {
-      return NextResponse.json(
-        { error: 'Ya existe un artículo con ese nombre en esta categoría para esta sede' },
-        { status: 400 }
-      );
+      throw errorRepetido('nombre', 'Ya existe un artículo con ese nombre en esta categoría para esta sede');
     }
 
     const item = await prisma.welcomeKitItem.create({

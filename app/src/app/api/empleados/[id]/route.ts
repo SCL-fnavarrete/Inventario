@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updateEmployeeSchema } from "@/lib/validations/employee";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
+import {
+  requirePermission,
+  handleApiError,
+  respuestaDatosInvalidos,
+  errorRepetido,
+} from '@/lib/auth/guard';
 import { assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
 
@@ -123,10 +128,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       });
 
       if (existingByRut) {
-        return NextResponse.json(
-          { error: "Ya existe otro empleado con este RUT" },
-          { status: 409 }
-        );
+        throw errorRepetido("rut", "Ya existe otro empleado con este RUT");
       }
     }
 
@@ -138,10 +140,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       });
 
       if (existingByCorreoEmpresa) {
-        return NextResponse.json(
-          { error: "Ya existe otro empleado con este correo de empresa" },
-          { status: 409 }
-        );
+        throw errorRepetido("correoEmpresa", "Ya existe otro empleado con este correo de empresa");
       }
     }
 
@@ -153,10 +152,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       });
 
       if (existingByEmail) {
-        return NextResponse.json(
-          { error: "Ya existe otro empleado con este correo personal" },
-          { status: 409 }
-        );
+        throw errorRepetido("correoPersonal", "Ya existe otro empleado con este correo personal");
       }
     }
 

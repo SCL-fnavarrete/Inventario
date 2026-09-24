@@ -53,20 +53,10 @@ export default function TiposMantencionPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
   // Validacion por campo, igual que el resto de los formularios (SPEC 2.95).
-  const { errores, resumen, reportar, limpiar } = useErroresFormulario(ETIQUETAS);
+  const { errores, resumen, reportar, reportarServidor, limpiar } = useErroresFormulario(ETIQUETAS);
 
   /** Nombre vacio: lo marca y no envia. */
   const faltaNombre = () => reportar(formData.nombre.trim() ? {} : { nombre: "Escribe el nombre" });
-
-  /** Error del servidor: un nombre repetido marca el campo. */
-  const mostrarErrorServidor = (message: string, fe: FieldErrors) => {
-    if (fe.nombre) {
-      reportar({ nombre: fe.nombre });
-    } else {
-      setError(message);
-      setFieldErrors(fe);
-    }
-  };
 
   const cambiarNombre = (nombre: string) => {
     setFormData((prev) => ({ ...prev, nombre }));
@@ -109,7 +99,7 @@ export default function TiposMantencionPage() {
         setFieldErrors({});
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear tipo de mantención");
-        mostrarErrorServidor(message, fe);
+        if (!reportarServidor(fe)) setError(message);
       }
     } catch (err) {
       setError("Error al crear tipo de mantención");
@@ -135,7 +125,7 @@ export default function TiposMantencionPage() {
         setFieldErrors({});
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar tipo de mantención");
-        mostrarErrorServidor(message, fe);
+        if (!reportarServidor(fe)) setError(message);
       }
     } catch (err) {
       setError("Error al actualizar tipo de mantención");

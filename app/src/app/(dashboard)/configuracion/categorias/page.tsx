@@ -7,6 +7,8 @@ import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 
 /**
  * Confirmacion con el componente compartido ConfirmDialog, en vez de
@@ -37,6 +39,8 @@ const FORM_INICIAL = {
   stockMinimo: 3,
 };
 
+const ETIQUETAS = { nombre: "Nombre", stockMinimo: "Stock mínimo" };
+
 export default function CategoriasPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +50,13 @@ export default function CategoriasPage() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
+  // Validacion por campo, igual que el resto de los formularios (SPEC 2.95).
+  const { errores, resumen, reportar, reportarServidor, limpiar } = useErroresFormulario(ETIQUETAS);
+
+  const cambiarNombre = (nombre: string) => {
+    setFormData((prev) => ({ ...prev, nombre }));
+    limpiar("nombre");
+  };
 
   useEffect(() => {
     fetchCategories();
@@ -66,10 +77,7 @@ export default function CategoriasPage() {
   };
 
   const handleCreate = async () => {
-    if (!formData.nombre.trim()) {
-      setError("El nombre es requerido");
-      return;
-    }
+    if (reportar(formData.nombre.trim() ? {} : { nombre: "Escribe el nombre" })) return;
 
     try {
       const res = await fetch("/api/categorias", {
@@ -86,8 +94,7 @@ export default function CategoriasPage() {
         setFieldErrors({});
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear categoría");
-        setError(message);
-        setFieldErrors(fe);
+        if (!reportarServidor(fe)) setError(message);
       }
     } catch (err) {
       setError("Error al crear categoría");
@@ -96,10 +103,7 @@ export default function CategoriasPage() {
   };
 
   const handleUpdate = async (id: string) => {
-    if (!formData.nombre.trim()) {
-      setError("El nombre es requerido");
-      return;
-    }
+    if (reportar(formData.nombre.trim() ? {} : { nombre: "Escribe el nombre" })) return;
 
     try {
       const res = await fetch(`/api/categorias/${id}`, {
@@ -116,8 +120,7 @@ export default function CategoriasPage() {
         setFieldErrors({});
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar categoría");
-        setError(message);
-        setFieldErrors(fe);
+        if (!reportarServidor(fe)) setError(message);
       }
     } catch (err) {
       setError("Error al actualizar categoría");
@@ -167,6 +170,7 @@ export default function CategoriasPage() {
     setIsCreating(false);
     setError("");
     setFieldErrors({});
+    reportar({});
   };
 
   const cancelEdit = () => {
@@ -175,6 +179,7 @@ export default function CategoriasPage() {
     setFormData(FORM_INICIAL);
     setError("");
     setFieldErrors({});
+    reportar({});
   };
 
   if (loading) {
@@ -210,6 +215,7 @@ export default function CategoriasPage() {
         }
       />
 
+      <ResumenErrores mensaje={resumen} />
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* Formulario de creación */}
@@ -224,10 +230,12 @@ export default function CategoriasPage() {
               <input
                 type="text"
                 value={formData.nombre}
-                onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="field-input"
+                onChange={(e) => cambiarNombre(e.target.value)}
+                aria-invalid={!!errores.nombre}
+                className={claseCampo(errores.nombre)}
                 placeholder="Ej: Notebook, Celular, Monitor"
               />
+              <MensajeCampo mensaje={errores.nombre} />
             </div>
             <div>
               <label className="field-label">
@@ -333,9 +341,11 @@ export default function CategoriasPage() {
                       <input
                         type="text"
                         value={formData.nombre}
-                        onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                        className="w-full px-2 py-1 border border-line-strong rounded focus:ring-2 focus:ring-primary-500"
+                        onChange={(e) => cambiarNombre(e.target.value)}
+                        aria-invalid={!!errores.nombre}
+                        className={claseCampo(errores.nombre)}
                       />
+                      <MensajeCampo mensaje={errores.nombre} />
                     </td>
                     <td className="px-6 py-4">
                       <input

@@ -53,3 +53,11 @@ export function coincideBusqueda(
   }
   return coincidePorPalabras(termino, datos.campos);
 }
+
+/**
+ * Un correo con forma valida ("algo@dominio.cl"). La misma regla en todos los
+ * formularios: antes estaba copiada en Onboarding y Editar empleado.
+ */
+export function esCorreoValido(correo: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo.trim());
+}

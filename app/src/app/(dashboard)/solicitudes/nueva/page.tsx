@@ -39,6 +39,7 @@ import {
   sinErrores,
   textoResumenErrores,
 } from '@/components/ui/CampoFormulario';
+import { esCorreoValido } from '@/lib/utils/text';
 import { useCampoSede, useSedeSeleccionada } from '@/components/providers/SedeSeleccionadaProvider';
 
 type Employee = {
@@ -593,7 +594,7 @@ export default function NuevaSolicitudPage() {
       }
       if (
         !errores.correoPersonal &&
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(onboardingEmp.correoPersonal.trim())
+        !esCorreoValido(onboardingEmp.correoPersonal)
       ) {
         errores.correoPersonal = 'Correo inválido';
       }

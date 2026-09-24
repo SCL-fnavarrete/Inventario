@@ -10,6 +10,15 @@ import { formatearFechaHoraCorta } from "@/lib/utils/fechas";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { ActiveBadge } from "@/components/ui/Badge";
 import { PageHeader } from "@/components/ui/PageHeader";
+import {
+  CampoFormulario,
+  CampoTexto,
+  ResumenErrores,
+  claseCampo,
+} from "@/components/ui/CampoFormulario";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import { validarPasswordFuerte } from "@/lib/validations/password";
+import { esCorreoValido } from "@/lib/utils/text";
 
 const usuarioFieldLabels: Record<string, string> = {
   email: "Email",
@@ -83,6 +92,31 @@ export default function UsuariosPage() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
+  // Validacion por campo, igual que el resto de los formularios (SPEC 2.95).
+  const { errores, resumen, reportar, reportarServidor, limpiar } =
+    useErroresFormulario(usuarioFieldLabels);
+
+  const cambiar = (campo: keyof typeof formData, valor: string | boolean) => {
+    setFormData((prev) => ({ ...prev, [campo]: valor }));
+    limpiar(campo);
+  };
+
+  /**
+   * Lo que falta o esta mal. La contraseña usa la misma regla que el
+   * servidor: al crear es obligatoria; al editar, solo si se escribe una.
+   */
+  const validar = (creando: boolean) => {
+    const e: Record<string, string> = {};
+    if (!formData.nombre.trim()) e.nombre = "Escribe el nombre";
+    if (!formData.email.trim()) e.email = "Escribe el email";
+    else if (!esCorreoValido(formData.email)) e.email = "El email no es válido";
+    if (creando || formData.password) {
+      const errorPassword = validarPasswordFuerte(formData.password);
+      if (errorPassword) e.password = errorPassword;
+    }
+    if (formData.rol !== "admin" && !formData.sedeId) e.sedeId = "Elige la sede de este usuario";
+    return e;
+  };
 
   useEffect(() => {
     fetchUsers();
@@ -115,14 +149,7 @@ export default function UsuariosPage() {
   };
 
   const handleCreate = async () => {
-    if (!formData.email.trim() || !formData.nombre.trim() || !formData.password.trim()) {
-      setError("Email, nombre y contraseña son requeridos");
-      return;
-    }
-    if (formData.rol !== "admin" && !formData.sedeId) {
-      setError("Este rol necesita una sede asignada");
-      return;
-    }
+    if (reportar(validar(true))) return;
 
     try {
       const res = await fetch("/api/usuarios", {
@@ -140,8 +167,7 @@ export default function UsuariosPage() {
         toast.success("Usuario creado exitosamente");
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear usuario");
-        setError(message);
-        setFieldErrors(fe);
+        if (!reportarServidor(fe)) setError(message);
       }
     } catch (err) {
       setError("Error al crear usuario");
@@ -150,14 +176,7 @@ export default function UsuariosPage() {
   };
 
   const handleUpdate = async (id: string) => {
-    if (!formData.email.trim() || !formData.nombre.trim()) {
-      setError("Email y nombre son requeridos");
-      return;
-    }
-    if (formData.rol !== "admin" && !formData.sedeId) {
-      setError("Este rol necesita una sede asignada");
-      return;
-    }
+    if (reportar(validar(false))) return;
 
     try {
       const updateData: Record<string, unknown> = {
@@ -187,8 +206,7 @@ export default function UsuariosPage() {
         toast.success("Usuario actualizado exitosamente");
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar usuario");
-        setError(message);
-        setFieldErrors(fe);
+        if (!reportarServidor(fe)) setError(message);
       }
     } catch (err) {
       setError("Error al actualizar usuario");
@@ -262,6 +280,7 @@ export default function UsuariosPage() {
     setIsCreating(false);
     setError("");
     setFieldErrors({});
+    reportar({});
   };
 
   const cancelEdit = () => {
@@ -270,6 +289,7 @@ export default function UsuariosPage() {
     setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
     setError("");
     setFieldErrors({});
+    reportar({});
   };
 
   
@@ -306,6 +326,7 @@ export default function UsuariosPage() {
         }
       />
 
+      <ResumenErrores mensaje={resumen} />
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} fieldLabels={usuarioFieldLabels} />
 
       {/* Roles info cards */}
@@ -334,66 +355,59 @@ export default function UsuariosPage() {
             {isCreating ? "Nuevo Usuario" : "Editar Usuario"}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="field-label">
-                Nombre Completo *
-              </label>
-              <input
-                type="text"
-                value={formData.nombre}
-                onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="field-input"
-                placeholder="Nombre del usuario"
-              />
-            </div>
-            <div>
-              <label className="field-label">
-                Email *
-              </label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="field-input"
-                placeholder="correo@ejemplo.com"
-              />
-            </div>
-            <div>
-              <label className="field-label">
-                Contraseña {isCreating ? "*" : "(dejar vacío para mantener)"}
-              </label>
-              <input
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="field-input"
-                placeholder={isCreating ? "Contraseña" : "Nueva contraseña (opcional)"}
-              />
-            </div>
-            <div>
-              <label className="field-label">
-                Rol *
-              </label>
+            <CampoTexto
+              label="Nombre completo"
+              obligatorio
+              value={formData.nombre}
+              onChange={(v) => cambiar("nombre", v)}
+              error={errores.nombre}
+              placeholder="Nombre del usuario"
+            />
+            <CampoTexto
+              label="Email"
+              obligatorio
+              type="email"
+              value={formData.email}
+              onChange={(v) => cambiar("email", v)}
+              error={errores.email}
+              placeholder="correo@ejemplo.com"
+            />
+            <CampoTexto
+              label={isCreating ? "Contraseña" : "Contraseña (déjala vacía para mantenerla)"}
+              obligatorio={isCreating}
+              type="password"
+              value={formData.password}
+              onChange={(v) => cambiar("password", v)}
+              error={errores.password}
+              placeholder={isCreating ? "Contraseña" : "Nueva contraseña (opcional)"}
+              ayuda="Al menos 12 caracteres, con mayúscula, minúscula, número y símbolo."
+            />
+            <CampoFormulario label="Rol" obligatorio>
               <select
                 value={formData.rol}
-                onChange={(e) => setFormData({ ...formData, rol: e.target.value as SystemUser["rol"] })}
+                onChange={(e) => cambiar("rol", e.target.value)}
                 className="field-input"
               >
                 <option value="admin">Administrador</option>
                 <option value="tecnico">Técnico IT</option>
               </select>
-            </div>
+            </CampoFormulario>
             {formData.rol === "admin" ? (
               <div className="flex items-center text-sm text-fg-subtle">
                 Administrador ve todas las sedes -- no se le asigna una.
               </div>
             ) : (
-              <div>
-                <label className="field-label">Sede *</label>
+              <CampoFormulario
+                label="Sede"
+                obligatorio
+                error={errores.sedeId}
+                ayuda="Sede que se propone por defecto en sus formularios. No limita lo que puede ver: admin y técnico ven todas las sedes."
+              >
                 <select
                   value={formData.sedeId}
-                  onChange={(e) => setFormData({ ...formData, sedeId: e.target.value })}
-                  className="field-input"
+                  onChange={(e) => cambiar("sedeId", e.target.value)}
+                  aria-invalid={!!errores.sedeId}
+                  className={claseCampo(errores.sedeId)}
                 >
                   <option value="">Seleccionar sede...</option>
                   {sedes.map((sede) => (
@@ -402,10 +416,7 @@ export default function UsuariosPage() {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-fg-subtle mt-1">
-                  Sede que se propone por defecto en los formularios de este usuario. No limita lo que puede ver: desde el rediseño de visibilidad, admin y técnico ven todas las sedes.
-                </p>
-              </div>
+              </CampoFormulario>
             )}
             {editingId && (
               <div className="flex items-center">
@@ -413,7 +424,7 @@ export default function UsuariosPage() {
                   <input
                     type="checkbox"
                     checked={formData.activo}
-                    onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
+                    onChange={(e) => cambiar("activo", e.target.checked)}
                     className="field-checkbox"
                   />
                   <span className="text-sm text-fg-muted">Usuario Activo</span>

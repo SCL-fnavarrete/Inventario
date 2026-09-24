@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, errorRepetido } from '@/lib/auth/guard';
 import { validarPasswordFuerte } from '@/lib/validations/password';
 import { auditLogService } from '@/lib/services/auditLogService';
 
@@ -75,10 +75,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (existing) {
-      return NextResponse.json(
-        { error: "Ya existe un usuario con ese email" },
-        { status: 400 }
-      );
+      throw errorRepetido("email", "Ya existe un usuario con ese email");
     }
 
     // Admin no tiene sede (ve todo); cualquier otro rol necesita una para

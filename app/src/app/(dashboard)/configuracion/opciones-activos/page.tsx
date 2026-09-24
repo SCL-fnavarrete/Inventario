@@ -8,6 +8,8 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Tabs } from "@/components/ui/Tabs";
+import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 
 /**
  * Administracion de los catalogos de opciones que alimentan los
@@ -49,6 +51,8 @@ const CATALOGOS: { key: CatalogoKey; label: string; endpoint: string; placeholde
   },
 ];
 
+const ETIQUETAS = { nombre: "Nombre" };
+
 export default function OpcionesActivosPage() {
   const [tabActiva, setTabActiva] = useState<CatalogoKey>(CATALOGOS[0].key);
   const [opciones, setOpciones] = useState<Opcion[]>([]);
@@ -57,6 +61,10 @@ export default function OpcionesActivosPage() {
   const [nombre, setNombre] = useState("");
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  // Validacion por campo, igual que el resto de los formularios (SPEC 2.95).
+  // Crear y renombrar usan el mismo campo "nombre": nunca estan abiertos a
+  // la vez.
+  const { errores, resumen, reportar, reportarServidor, limpiar } = useErroresFormulario(ETIQUETAS);
 
   // Edicion de nombre en linea, en vez de un modal aparte.
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -91,13 +99,11 @@ export default function OpcionesActivosPage() {
     setError("");
     setFieldErrors({});
     setEditandoId(null);
-  }, [catalogo.endpoint, fetchOpciones]);
+    reportar({});
+  }, [catalogo.endpoint, fetchOpciones, reportar]);
 
   const handleCreate = async () => {
-    if (!nombre.trim()) {
-      setError("El nombre es requerido");
-      return;
-    }
+    if (reportar(nombre.trim() ? {} : { nombre: "Escribe el nombre" })) return;
 
     try {
       const res = await fetch(catalogo.endpoint, {
@@ -114,8 +120,7 @@ export default function OpcionesActivosPage() {
         setFieldErrors({});
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear opción");
-        setError(message);
-        setFieldErrors(fe);
+        if (!reportarServidor(fe)) setError(message);
       }
     } catch (err) {
       setError("Error al crear opción");
@@ -128,16 +133,20 @@ export default function OpcionesActivosPage() {
     setNombreEditado(opcion.nombre);
     setError("");
     setFieldErrors({});
+    reportar({});
   };
 
   const cancelarEdicion = () => {
     setEditandoId(null);
     setNombreEditado("");
+    reportar({});
   };
 
   const guardarEdicion = async (opcion: Opcion) => {
     const nuevoNombre = nombreEditado.trim();
-    if (!nuevoNombre || nuevoNombre === opcion.nombre) {
+    // Vacio: se marca, en vez de cerrar la edicion sin decir nada.
+    if (reportar(nuevoNombre ? {} : { nombre: "Escribe el nombre" })) return;
+    if (nuevoNombre === opcion.nombre) {
       cancelarEdicion();
       return;
     }
@@ -154,8 +163,7 @@ export default function OpcionesActivosPage() {
         cancelarEdicion();
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al renombrar opción");
-        setError(message);
-        setFieldErrors(fe);
+        if (!reportarServidor(fe)) setError(message);
       }
     } catch (err) {
       setError("Error al renombrar opción");
@@ -233,6 +241,7 @@ export default function OpcionesActivosPage() {
         opción no modifica los activos existentes, solo deja de ofrecerla para los nuevos.
       </p>
 
+      <ResumenErrores mensaje={resumen} />
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* Formulario de creacion */}
@@ -245,17 +254,22 @@ export default function OpcionesActivosPage() {
               <input
                 type="text"
                 value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
+                onChange={(e) => {
+                  setNombre(e.target.value);
+                  limpiar("nombre");
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
                     handleCreate();
                   }
                 }}
-                className="field-input"
+                aria-invalid={!!errores.nombre}
+                className={claseCampo(errores.nombre)}
                 placeholder={catalogo.placeholder}
                 autoFocus
               />
+              <MensajeCampo mensaje={errores.nombre} />
             </div>
             <div className="flex gap-3">
               <Button variant="outline" onClick={cancelCreate}>
@@ -303,11 +317,15 @@ export default function OpcionesActivosPage() {
                 <tr key={opcion.id}>
                   <td className="px-6 py-4 font-medium text-fg">
                     {editandoId === opcion.id ? (
+                      <>
                       <input
                         type="text"
                         autoFocus
                         value={nombreEditado}
-                        onChange={(e) => setNombreEditado(e.target.value)}
+                        onChange={(e) => {
+                          setNombreEditado(e.target.value);
+                          limpiar("nombre");
+                        }}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
@@ -315,8 +333,11 @@ export default function OpcionesActivosPage() {
                           }
                           if (e.key === "Escape") cancelarEdicion();
                         }}
-                        className="w-full px-2 py-1 border border-line-strong rounded focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        aria-invalid={!!errores.nombre}
+                        className={claseCampo(errores.nombre)}
                       />
+                      <MensajeCampo mensaje={errores.nombre} />
+                      </>
                     ) : (
                       opcion.nombre
                     )}

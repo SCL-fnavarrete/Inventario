@@ -10,6 +10,7 @@ import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
+import { esCorreoValido } from "@/lib/utils/text";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 
 // Nombre de cada campo en el resumen de errores.
@@ -158,9 +159,9 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
     if (!formData.nombres.trim()) faltan.nombres = "Escribe los nombres";
     if (!formData.apellidoPaterno.trim()) faltan.apellidoPaterno = "Escribe el apellido paterno";
     if (!formData.correoPersonal.trim()) faltan.correoPersonal = "Escribe el correo personal";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.correoPersonal.trim()))
+    else if (!esCorreoValido(formData.correoPersonal))
       faltan.correoPersonal = "El correo personal no es válido";
-    if (formData.correoEmpresa && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.correoEmpresa.trim()))
+    if (formData.correoEmpresa && !esCorreoValido(formData.correoEmpresa))
       faltan.correoEmpresa = "El correo de empresa no es válido";
     if (esAdmin && !formData.sedeId) faltan.sedeId = "Elige la sede";
     if (reportar(faltan)) return;

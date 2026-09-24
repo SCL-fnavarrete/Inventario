@@ -25,6 +25,19 @@ export function useErroresFormulario(etiquetas: Record<string, string>) {
     return hay;
   }, []);
 
+  /**
+   * Errores por campo que devolvio el servidor (parseApiError): los marca
+   * igual que los de la pantalla. false si no traia ninguno; entonces el
+   * mensaje general se muestra aparte.
+   *
+   *   if (!reportarServidor(fieldErrors)) setError(message);
+   */
+  const reportarServidor = useCallback(
+    (fieldErrors: Record<string, string>) =>
+      Object.keys(fieldErrors).length > 0 && reportar(fieldErrors),
+    [reportar]
+  );
+
   /** Quita el error de estos campos (al corregirlos). */
   const limpiar = useCallback((...campos: string[]) => {
     setErrores((prev) => sinErrores(prev, ...campos));
@@ -32,5 +45,5 @@ export function useErroresFormulario(etiquetas: Record<string, string>) {
 
   const resumen = Object.keys(errores).length > 0 ? textoResumenErrores(errores, etiquetas) : "";
 
-  return { errores, resumen, reportar, limpiar };
+  return { errores, resumen, reportar, reportarServidor, limpiar };
 }

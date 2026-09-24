@@ -3255,7 +3255,32 @@ Revisión de código, diseño y funcionamiento del módulo después de 2.96–2.
 - **Dashboard:** las alertas de mantenciones muestran la hora y se ordenan por ella dentro del día.
 - **Calendario en celular:** al tocar un día, la pantalla baja hasta el detalle, que queda bajo el calendario.
 
+## 2.102 Validación por campo en todos los formularios, parte 1: Configuración (24-sep-2026)
+
+Pedido de Javier: *"esa validación de que rellenen los campos me gusta, quiero que agregues ese tipo de validación a todos los formularios del software de todos los módulos"*. Se hace por módulo. Esta parte cubre Configuración. La lógica es la misma de Onboarding (2.95): cada campo que falta o está mal queda en rojo con su mensaje, arriba aparece el resumen "Faltan o están incorrectos: …" y la vista lleva al primer error.
+
+- **Sedes:** código y nombre, al crear y al editar en la tabla. "Slug corto" pasa a "Código corto".
+- **Categorías y Opciones de activos:** nombre, al crear y al renombrar. En Opciones, renombrar con el nombre vacío antes se cerraba sin decir nada; ahora lo marca.
+- **Usuarios:**
+  - nombre, email (con formato) y sede cuando el rol la necesita;
+  - la contraseña usa la misma regla que el servidor (`validarPasswordFuerte`: al menos 12 caracteres, con mayúscula, minúscula, número y símbolo). Al crear es obligatoria; al editar, solo si se escribe una. La regla se muestra bajo el campo.
+- **Parámetros:**
+  - RUT de la empresa (dígito verificador), email de contacto y los tres parámetros de seguridad dentro de sus límites: sesión de 1 a 720 horas, de 1 a 20 intentos, de 1 a 1440 minutos de bloqueo;
+  - si el error está en la otra sección, la pantalla la abre;
+  - pantalla y servidor usan las mismas reglas (`lib/validations/parametros.ts`). Antes el servidor respondía con el nombre interno del campo ("duracionSesionHoras debe ser…") y no revisaba el RUT ni el correo;
+  - "login" pasa a "inicio de sesión".
+- **Valor repetido marca su campo:**
+  - `errorRepetido(campo, mensaje)` (`lib/errors.ts`) responde 409 con el campo, así el formulario lo marca en rojo;
+  - se usa en sedes (código), categorías (nombre, al crear y al editar), usuarios (email), empleados (RUT y los dos correos), artículos de Kit/EPP (nombre) y tipos de mantención (nombre). Antes solo mostraban un mensaje general.
+- **Piezas compartidas:**
+  - `useErroresFormulario` suma `reportarServidor`: marca los campos que devuelve el servidor, y si no trae ninguno se muestra el mensaje general;
+  - `esCorreoValido` (`lib/utils/text.ts`) reemplaza la regla del correo, que estaba copiada en Onboarding y en Editar empleado;
+  - Tipos de mantención deja su función propia y usa las compartidas.
+- Se quitan importaciones sin uso de `api/empleados/route.ts`, que sobraron de 2.94.
+
 ## Changelog SPEC
+- **v2.26 (2026-09-24):**
+  - Sección 2.102 (nueva): validación por campo en Configuración (sedes, categorías, opciones de activos, usuarios, parámetros), el valor repetido marca su campo en toda la API y las reglas de correo, contraseña y parámetros quedan compartidas.
 - **v2.25 (2026-09-24):**
   - Sección 2.101 (nueva): revisión de Mantenciones, parte 2. "Iniciar ahora" al programar (marcada desde el Kanban), aviso de fecha pasada, "Próximas (todas)", sin botón Calendario repetido, campos bloqueados en gris, hora en el Dashboard y calendario en celular.
 - **v2.24 (2026-09-24):**

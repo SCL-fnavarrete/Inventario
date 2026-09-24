@@ -8,6 +8,8 @@ import { useToast } from "@/components/ui/Toast";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { ActiveBadge } from "@/components/ui/Badge";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 
 type Sede = {
   id: string;
@@ -15,6 +17,8 @@ type Sede = {
   nombre: string;
   activa: boolean;
 };
+
+const ETIQUETAS = { codigo: "Código", nombre: "Nombre" };
 
 export default function SedesPage() {
   const toast = useToast();
@@ -25,6 +29,13 @@ export default function SedesPage() {
   const [formData, setFormData] = useState({ codigo: "", nombre: "", activa: true });
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  // Validacion por campo, igual que el resto de los formularios (SPEC 2.95).
+  const { errores, resumen, reportar, reportarServidor, limpiar } = useErroresFormulario(ETIQUETAS);
+
+  const cambiar = (campo: "codigo" | "nombre", valor: string) => {
+    setFormData((prev) => ({ ...prev, [campo]: valor }));
+    limpiar(campo);
+  };
 
   useEffect(() => {
     fetchSedes();
@@ -44,10 +55,13 @@ export default function SedesPage() {
   };
 
   const handleCreate = async () => {
-    if (!formData.codigo.trim() || !formData.nombre.trim()) {
-      setError("El código y el nombre son requeridos");
+    if (
+      reportar({
+        ...(!formData.codigo.trim() && { codigo: "Escribe el código" }),
+        ...(!formData.nombre.trim() && { nombre: "Escribe el nombre" }),
+      })
+    )
       return;
-    }
 
     try {
       const res = await fetch("/api/sedes", {
@@ -65,8 +79,7 @@ export default function SedesPage() {
         toast.success("Sede creada exitosamente");
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear sede");
-        setError(message);
-        setFieldErrors(fe);
+        if (!reportarServidor(fe)) setError(message);
       }
     } catch (err) {
       setError("Error al crear sede");
@@ -75,10 +88,7 @@ export default function SedesPage() {
   };
 
   const handleUpdate = async (id: string) => {
-    if (!formData.nombre.trim()) {
-      setError("El nombre es requerido");
-      return;
-    }
+    if (reportar(formData.nombre.trim() ? {} : { nombre: "Escribe el nombre" })) return;
 
     try {
       const res = await fetch(`/api/sedes/${id}`, {
@@ -96,8 +106,7 @@ export default function SedesPage() {
         toast.success("Sede actualizada exitosamente");
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar sede");
-        setError(message);
-        setFieldErrors(fe);
+        if (!reportarServidor(fe)) setError(message);
       }
     } catch (err) {
       setError("Error al actualizar sede");
@@ -132,6 +141,7 @@ export default function SedesPage() {
     setIsCreating(false);
     setError("");
     setFieldErrors({});
+    reportar({});
   };
 
   const cancelEdit = () => {
@@ -140,6 +150,7 @@ export default function SedesPage() {
     setFormData({ codigo: "", nombre: "", activa: true });
     setError("");
     setFieldErrors({});
+    reportar({});
   };
 
   if (loading) {
@@ -175,6 +186,7 @@ export default function SedesPage() {
         }
       />
 
+      <ResumenErrores mensaje={resumen} />
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* Formulario de creación */}
@@ -187,24 +199,31 @@ export default function SedesPage() {
               <input
                 type="text"
                 value={formData.codigo}
-                onChange={(e) => setFormData({ ...formData, codigo: e.target.value.toUpperCase() })}
-                className="field-input"
+                onChange={(e) => cambiar("codigo", e.target.value.toUpperCase())}
+                aria-invalid={!!errores.codigo}
+                className={claseCampo(errores.codigo)}
                 placeholder="Ej: STGO, CCP"
                 maxLength={10}
               />
-              <p className="text-xs text-fg-subtle mt-1">
-                Slug corto y estable. No se puede editar después de creada.
-              </p>
+              {errores.codigo ? (
+                <MensajeCampo mensaje={errores.codigo} />
+              ) : (
+                <p className="text-xs text-fg-subtle mt-1">
+                  Código corto y estable. No se puede editar después de creada.
+                </p>
+              )}
             </div>
             <div>
               <label className="field-label">Nombre *</label>
               <input
                 type="text"
                 value={formData.nombre}
-                onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="field-input"
+                onChange={(e) => cambiar("nombre", e.target.value)}
+                aria-invalid={!!errores.nombre}
+                className={claseCampo(errores.nombre)}
                 placeholder="Ej: Santiago, Concepción"
               />
+              <MensajeCampo mensaje={errores.nombre} />
             </div>
           </div>
           <div className="flex justify-end gap-3 mt-4">
@@ -254,9 +273,11 @@ export default function SedesPage() {
                       <input
                         type="text"
                         value={formData.nombre}
-                        onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                        className="w-full px-2 py-1 border border-line-strong rounded focus:ring-2 focus:ring-primary-500"
+                        onChange={(e) => cambiar("nombre", e.target.value)}
+                        aria-invalid={!!errores.nombre}
+                        className={claseCampo(errores.nombre)}
                       />
+                      <MensajeCampo mensaje={errores.nombre} />
                     </td>
                     <td className="px-6 py-4 text-center">
                       <label className="inline-flex items-center gap-2">

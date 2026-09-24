@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, errorRepetido } from '@/lib/auth/guard';
 import { auditLogService } from '@/lib/services/auditLogService';
 
 /**
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     const existente = await prisma.sede.findUnique({ where: { codigo: codigoNormalizado } });
     if (existente) {
-      return NextResponse.json({ error: 'Ya existe una sede con ese código' }, { status: 409 });
+      throw errorRepetido('codigo', 'Ya existe una sede con ese código');
     }
 
     const sede = await prisma.sede.create({

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, errorRepetido } from '@/lib/auth/guard';
 import { auditLogService } from '@/lib/services/auditLogService';
 
 export async function GET(
@@ -73,10 +73,7 @@ export async function PUT(
     });
 
     if (duplicate) {
-      return NextResponse.json(
-        { error: "Ya existe una categoría con ese nombre" },
-        { status: 400 }
-      );
+      throw errorRepetido("nombre", "Ya existe una categoría con ese nombre");
     }
 
     const category = await prisma.assetCategory.update({

@@ -15,6 +15,13 @@ import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { useToast } from "@/components/ui/Toast";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import {
+  ETIQUETAS_PARAMETROS,
+  LIMITES_SEGURIDAD,
+  validarParametros,
+} from "@/lib/validations/parametros";
 
 // Reads/writes real settings via /api/configuracion/parametros (SystemConfig
 // table). Only two sections are kept: Datos de la Empresa (reference data,
@@ -61,6 +68,9 @@ export default function ParametrosPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  // Validacion por campo, con las mismas reglas que el servidor (SPEC 2.102).
+  const { errores, resumen, reportar, limpiar } =
+    useErroresFormulario(ETIQUETAS_PARAMETROS);
 
   const [form, setForm] = useState<Parametros>({
     empresaNombre: "",
@@ -108,7 +118,20 @@ export default function ParametrosPage() {
     }
   }
 
+  function cambiar<K extends keyof Parametros>(campo: K, valor: Parametros[K]) {
+    setForm((prev) => ({ ...prev, [campo]: valor }));
+    limpiar(campo);
+  }
+
+  /** Marca los errores y abre la seccion donde esta el primero. */
+  function mostrarErrores(e: Record<string, string>) {
+    const [primero] = Object.keys(e);
+    if (primero) setActiveSection(primero in LIMITES_SEGURIDAD ? "seguridad" : "empresa");
+    return reportar(e);
+  }
+
   async function handleSave() {
+    if (mostrarErrores(validarParametros(form))) return;
     setSaving(true);
     setError("");
     setFieldErrors({});
@@ -120,8 +143,8 @@ export default function ParametrosPage() {
       });
       if (!res.ok) {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al guardar la configuración");
-        setError(message);
-        setFieldErrors(fe);
+        if (Object.keys(fe).length > 0) mostrarErrores(fe);
+        else setError(message);
         return;
       }
       const data = await res.json();
@@ -150,6 +173,7 @@ export default function ParametrosPage() {
         description="Datos de la empresa y seguridad de acceso"
       />
 
+      <ResumenErrores mensaje={resumen} />
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -208,9 +232,11 @@ export default function ParametrosPage() {
                   <input
                     type="text"
                     value={form.empresaRut ?? ""}
-                    onChange={(e) => setForm({ ...form, empresaRut: e.target.value })}
-                    className="field-input"
+                    onChange={(e) => cambiar("empresaRut", e.target.value)}
+                    aria-invalid={!!errores.empresaRut}
+                    className={claseCampo(errores.empresaRut)}
                   />
+                  <MensajeCampo mensaje={errores.empresaRut} />
                 </div>
                 <div>
                   <label className="field-label">
@@ -244,9 +270,11 @@ export default function ParametrosPage() {
                   <input
                     type="email"
                     value={form.empresaEmail ?? ""}
-                    onChange={(e) => setForm({ ...form, empresaEmail: e.target.value })}
-                    className="field-input"
+                    onChange={(e) => cambiar("empresaEmail", e.target.value)}
+                    aria-invalid={!!errores.empresaEmail}
+                    className={claseCampo(errores.empresaEmail)}
                   />
+                  <MensajeCampo mensaje={errores.empresaEmail} />
                 </div>
                 <div>
                   <label className="field-label">Sitio Web</label>
@@ -275,14 +303,14 @@ export default function ParametrosPage() {
                   </label>
                   <input
                     type="number"
-                    min={1}
-                    max={720}
+                    min={LIMITES_SEGURIDAD.duracionSesionHoras.min}
+                    max={LIMITES_SEGURIDAD.duracionSesionHoras.max}
                     value={form.duracionSesionHoras}
-                    onChange={(e) =>
-                      setForm({ ...form, duracionSesionHoras: parseInt(e.target.value) || 1 })
-                    }
-                    className="field-input"
+                    onChange={(e) => cambiar("duracionSesionHoras", parseInt(e.target.value) || 1)}
+                    aria-invalid={!!errores.duracionSesionHoras}
+                    className={claseCampo(errores.duracionSesionHoras)}
                   />
+                  <MensajeCampo mensaje={errores.duracionSesionHoras} />
                   <p className="text-xs text-fg-subtle mt-1">
                     Solo afecta sesiones nuevas (al iniciar sesión) y aplica después de reiniciar el
                     servidor -- no corta sesiones ya abiertas.
@@ -290,18 +318,18 @@ export default function ParametrosPage() {
                 </div>
                 <div>
                   <label className="field-label">
-                    Intentos máximos de login
+                    Intentos máximos de inicio de sesión
                   </label>
                   <input
                     type="number"
-                    min={1}
-                    max={20}
+                    min={LIMITES_SEGURIDAD.maxIntentosLogin.min}
+                    max={LIMITES_SEGURIDAD.maxIntentosLogin.max}
                     value={form.maxIntentosLogin}
-                    onChange={(e) =>
-                      setForm({ ...form, maxIntentosLogin: parseInt(e.target.value) || 1 })
-                    }
-                    className="field-input"
+                    onChange={(e) => cambiar("maxIntentosLogin", parseInt(e.target.value) || 1)}
+                    aria-invalid={!!errores.maxIntentosLogin}
+                    className={claseCampo(errores.maxIntentosLogin)}
                   />
+                  <MensajeCampo mensaje={errores.maxIntentosLogin} />
                 </div>
                 <div>
                   <label className="field-label">
@@ -309,16 +337,16 @@ export default function ParametrosPage() {
                   </label>
                   <input
                     type="number"
-                    min={1}
-                    max={1440}
+                    min={LIMITES_SEGURIDAD.minutosBloqueoLogin.min}
+                    max={LIMITES_SEGURIDAD.minutosBloqueoLogin.max}
                     value={form.minutosBloqueoLogin}
-                    onChange={(e) =>
-                      setForm({ ...form, minutosBloqueoLogin: parseInt(e.target.value) || 1 })
-                    }
-                    className="field-input"
+                    onChange={(e) => cambiar("minutosBloqueoLogin", parseInt(e.target.value) || 1)}
+                    aria-invalid={!!errores.minutosBloqueoLogin}
+                    className={claseCampo(errores.minutosBloqueoLogin)}
                   />
+                  <MensajeCampo mensaje={errores.minutosBloqueoLogin} />
                   <p className="text-xs text-fg-subtle mt-1">
-                    Estos dos aplican de inmediato al siguiente intento de login.
+                    Estos dos aplican de inmediato al siguiente intento de inicio de sesión.
                   </p>
                 </div>
               </div>

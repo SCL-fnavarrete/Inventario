@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from "@/lib/auth/guard";
 import { auditLogService } from "@/lib/services/auditLogService";
+import { ETIQUETAS_PARAMETROS, validarParametros } from "@/lib/validations/parametros";
 
 // Configuracion general del sistema, guardada como fila unica ("singleton").
 // GET siempre la devuelve (con defaults si aun no se guardo nada) y PUT
@@ -56,26 +57,17 @@ export async function PUT(request: NextRequest) {
       minutosBloqueoLogin,
     } = body;
 
-    // Validar los campos de seguridad para evitar valores sin sentido
-    // (ej. sesiones de 0 horas, todos bloqueados siempre).
-    const camposNumericos: Array<[string, unknown]> = [
-      ["duracionSesionHoras", duracionSesionHoras],
-      ["maxIntentosLogin", maxIntentosLogin],
-      ["minutosBloqueoLogin", minutosBloqueoLogin],
-    ];
-    for (const [campo, valor] of camposNumericos) {
-      if (valor !== undefined && (!Number.isInteger(valor) || (valor as number) < 1)) {
-        return NextResponse.json(
-          { error: `${campo} debe ser un número entero mayor a 0` },
-          { status: 400 }
-        );
-      }
-    }
-    // Tope razonable para no dejar, por error de tipeo, una sesion de "24"
-    // interpretada como 24 dias o un bloqueo de horas en vez de minutos.
-    if (duracionSesionHoras !== undefined && duracionSesionHoras > 720) {
+    // Mismas reglas que la pantalla (SPEC 2.102): RUT y email de la empresa
+    // bien escritos y parametros de seguridad dentro de sus limites. Cada
+    // error va con su campo y un mensaje legible.
+    const errores = validarParametros(body);
+    if (Object.keys(errores).length > 0) {
+      const [primero] = Object.keys(errores);
       return NextResponse.json(
-        { error: "duracionSesionHoras no puede superar 720 (30 días)" },
+        {
+          error: `${ETIQUETAS_PARAMETROS[primero]}: ${errores[primero]}`,
+          details: Object.entries(errores).map(([field, message]) => ({ field, message })),
+        },
         { status: 400 }
       );
     }

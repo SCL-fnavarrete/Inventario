@@ -46,4 +46,18 @@ describe('useErroresFormulario', () => {
     expect(hay).toBe(false);
     expect(result.current.resumen).toBe('');
   });
+
+  test('reportarServidor marca los campos que devolvio el servidor; sin campos devuelve false', () => {
+    const { result } = renderHook(() => useErroresFormulario(ETIQUETAS));
+    let marco = true;
+    act(() => {
+      marco = result.current.reportarServidor({});
+    });
+    expect(marco).toBe(false);
+    act(() => {
+      marco = result.current.reportarServidor({ marca: 'Ya existe' });
+    });
+    expect(marco).toBe(true);
+    expect(result.current.errores.marca).toBe('Ya existe');
+  });
 });
