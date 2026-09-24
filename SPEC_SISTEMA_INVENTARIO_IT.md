@@ -2203,10 +2203,9 @@ GET    /api/activos/exportar           // Exportar a Excel
 GET    /api/empleados                  // Listar con filtros
 GET    /api/empleados/:rut             // Buscar por RUT
 GET    /api/empleados/:rut/ficha       // Ficha completa (la azul)
-POST   /api/empleados                  // Crear nuevo
+// Crear empleado: solo con una solicitud de Onboarding (SPEC 2.94)
 PUT    /api/empleados/:id              // Actualizar
 GET    /api/empleados/:id/activos      // Activos asignados al empleado
-POST   /api/empleados/importar         // Importar desde Excel
 
 // === ASIGNACIONES ===
 GET    /api/asignaciones               // Listar todas
@@ -3149,7 +3148,17 @@ El commit del 22-sep-2026 ("Agregar campos seleccionables y catalogos de activos
 
 **Pruebas.** Se actualizan las de validación de empleados a la regla vigente del correo, y la auditoría de rutas (`rutas-protegidas.test.ts`) acepta `requirePermission` con comillas simples o dobles: las rutas de catálogos usan dobles y la prueba las contaba como rutas sin permiso, aunque sí lo piden. Suite completa: 908 de 908.
 
+## 2.94 Revisión 2, resto de Activos: crear personas solo en Onboarding, Personal y fechas (23-sep-2026)
+
+- **Crear personas solo en Onboarding** (decisión de Javier: *"crear personas solo quedan en onboarding"*). Se quita el modal "Crear nuevo empleado" de Nueva Solicitud en cambio de equipo y desvinculación (una persona recién creada no tiene equipos que cambiar ni devolver; además repetía el formulario de Onboarding). Se eliminan `POST /api/empleados`, que solo usaba ese modal, y la importación de empleados desde Excel (`/api/empleados/importar`, `/preview`, `/sheets`, `lib/importacion/empleados.ts`, `importEmployeeSchema`), que no tenía pantalla. Siguen cargando personas, como herramientas de datos del administrador: la importación de activos (crea a la persona de un equipo importado como asignado) y la sincronización con Microsoft Entra ID.
+- **Personal:** la columna Acciones queda fija a la derecha (la tabla mide unos 2.200px y "Ver ficha"/"Editar" quedaban fuera de la pantalla) y el nombre abre la ficha. La columna fija usa las mismas clases que Activos (`components/ui/tablaStyles.ts`).
+- **Fecha de "hoy" en hora de Chile** (`hoyISO()` en `lib/utils/fechas.ts`): venta de activo, factura de compra y "fecha realizada" al completar una mantención proponían por defecto la fecha UTC, que desde las 21:00 en Chile ya es la de mañana; lo mismo el nombre del Excel exportado. La página de baja usa la misma función.
+- **Ficha del empleado:** sin correo personal muestra "Sin correo personal" (antes un ícono solo).
+- **Dato repetido:** el mensaje genérico de valor único (P2002) nombra el campo en palabras ("N° de serie", "correo personal"); el nombre interno sigue en `details` para marcar el campo en el formulario.
+
 ## Changelog SPEC
+- **v2.18 (2026-09-23):**
+  - Sección 2.94 (nueva): crear personas solo con Onboarding (se quitan el modal de Nueva Solicitud, POST /api/empleados y la importación de empleados sin pantalla); Personal con acciones a la vista; fecha de hoy en hora de Chile; ficha sin correo personal; mensaje de dato repetido legible.
 - **v2.17 (2026-09-23):**
   - Sección 2.93 (nueva): se documentan los cambios del 22-sep (correo personal obligatorio, reemplaza 2.39; catálogos de sistema operativo, antivirus y licencia M365) y se ponen al día las pruebas. Suite completa sin fallas.
 - **v2.16 (2026-09-23):**

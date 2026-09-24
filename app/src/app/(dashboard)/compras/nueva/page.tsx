@@ -21,6 +21,7 @@ import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useCampoSede } from "@/components/providers/SedeSeleccionadaProvider";
+import { hoyISO } from "@/lib/utils/fechas";
 
 type Sede = {
   id: string;
@@ -134,7 +135,7 @@ export default function NuevaCompraPage() {
   // Form data
   const [formData, setFormData] = useState({
     numeroFactura: "",
-    fechaFactura: new Date().toISOString().split("T")[0],
+    fechaFactura: hoyISO(),
     rutProveedor: "",
     ordenCompra: "",
   });

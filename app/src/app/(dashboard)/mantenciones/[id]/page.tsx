@@ -18,7 +18,7 @@ import { etiquetaCondicionActivo, etiquetaEstadoActivo } from "@/lib/constants/e
 import { cn } from "@/lib/utils";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
-import { formatearFecha } from "@/lib/utils/fechas";
+import { formatearFecha, hoyISO } from "@/lib/utils/fechas";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -90,7 +90,7 @@ export default function MantencionDetallePage({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const [completeForm, setCompleteForm] = useState({
-    fechaRealizada: new Date().toISOString().split("T")[0],
+    fechaRealizada: hoyISO(),
     realizadoPor: "",
     resultado: "",
     resultadoTipo: "reparado" as "reparado" | "no_reparable" | "pendiente_repuestos",
@@ -117,7 +117,7 @@ export default function MantencionDetallePage({
       // realizadoPor is filled separately by the useEffect above, from
       // the session user.
       setCompleteForm((prev) => ({
-        fechaRealizada: new Date().toISOString().split("T")[0],
+        fechaRealizada: hoyISO(),
         realizadoPor: prev.realizadoPor,
         resultado: "",
         resultadoTipo: "reparado",

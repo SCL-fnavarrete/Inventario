@@ -213,7 +213,6 @@ Todos desde el directorio `app/`:
 
 ### Empleados
 - `GET /api/empleados` — Listar con filtros
-- `POST /api/empleados` — Crear nuevo
 - `GET /api/empleados/:id` — Detalle
 - `GET /api/empleados/:id/ficha` — Ficha completa con equipos
 - `GET /api/empleados/buscar?rut=XX.XXX.XXX-X` — Buscar por RUT

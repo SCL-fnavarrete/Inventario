@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
-import { formatearFecha } from "@/lib/utils/fechas";
+import { formatearFecha, hoyISO } from "@/lib/utils/fechas";
 import { CONDICION_ACTIVO_LABEL, ESTADO_ACTIVO_LABEL } from "@/lib/constants/estadosActivo";
 
 // Grupos de columnas y su color de encabezado. Se usa exceljs en vez de
@@ -335,7 +335,7 @@ export async function GET(request: NextRequest) {
 
     const buffer = await workbook.xlsx.writeBuffer();
 
-    const fecha = new Date().toISOString().split("T")[0];
+    const fecha = hoyISO();
     const filename = `inventario_activos_${fecha}.xlsx`;
 
     return new NextResponse(buffer, {

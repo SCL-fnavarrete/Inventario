@@ -10,7 +10,7 @@ import {
   etiquetaEstadoActivo,
   motivoSinBaja,
 } from "@/lib/constants/estadosActivo";
-import { inicioDeHoy } from "@/lib/utils/fechas";
+import { hoyISO } from "@/lib/utils/fechas";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import {
@@ -59,9 +59,7 @@ function DarDeBajaContenido() {
   const [motivo, setMotivo] = useState("");
   const [motivoDetalle, setMotivoDetalle] = useState("");
   const [observaciones, setObservaciones] = useState("");
-  const [fechaRealizada, setFechaRealizada] = useState(() =>
-    inicioDeHoy().toISOString().slice(0, 10)
-  );
+  const [fechaRealizada, setFechaRealizada] = useState(hoyISO);
   const [realizadoPor, setRealizadoPor] = useState("");
 
   useEffect(() => {

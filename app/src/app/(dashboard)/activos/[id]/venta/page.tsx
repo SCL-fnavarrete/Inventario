@@ -8,6 +8,7 @@ import { etiquetaEstadoActivo } from '@/lib/constants/estadosActivo';
 import { parseApiError, type FieldErrors } from '@/lib/utils/apiErrors';
 import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { hoyISO } from '@/lib/utils/fechas';
 
 type Asset = {
   id: string;
@@ -32,7 +33,7 @@ export default function VentaActivoPage() {
   const [comprador, setComprador] = useState('');
   const [monto, setMonto] = useState('');
   const [moneda, setMoneda] = useState('CLP');
-  const [fechaVenta, setFechaVenta] = useState(new Date().toISOString().split('T')[0]);
+  const [fechaVenta, setFechaVenta] = useState(hoyISO);
 
   useEffect(() => {
     fetch(`/api/activos/${id}`)

@@ -39,6 +39,7 @@ import { AssetConditionBadge, AssetStatusBadge } from "@/components/ui/Badge";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
 import { etiquetaEstadoActivo } from "@/lib/constants/estadosActivo";
+import { COLUMNA_FIJA_CELDA, COLUMNA_FIJA_ENCABEZADO } from "@/components/ui/tablaStyles";
 
 type Asset = {
   id: string;
@@ -596,7 +597,7 @@ function ActivosPageContent() {
                         "table-th px-3 whitespace-nowrap",
                         // Acciones fija a la derecha: la tabla es mas ancha que
                         // la pantalla y los botones quedaban fuera de vista.
-                        col.id === "acciones" && "sticky right-0 z-10 bg-surface-muted shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]"
+                        col.id === "acciones" && COLUMNA_FIJA_ENCABEZADO
                       )}
                     >
                       {col.label}
@@ -815,7 +816,7 @@ function ActivosPageContent() {
 
                         {/* Acciones */}
                         {visibleColumns.find((c) => c.id === "acciones") && (
-                          <td className="sticky right-0 z-10 bg-surface group-hover:bg-surface-muted px-3 py-3 whitespace-nowrap text-right align-top shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)] transition-colors">
+                          <td className={cn("px-3 py-3 whitespace-nowrap text-right align-top", COLUMNA_FIJA_CELDA)}>
                             <div className="flex justify-end gap-1">
                               <Link
                                 href={`/activos/${asset.id}`}

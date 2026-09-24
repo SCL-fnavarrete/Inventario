@@ -99,6 +99,23 @@ export function respuestaDatosInvalidos(error: ZodError): NextResponse<CuerpoErr
   );
 }
 
+/** Nombre legible de los campos unicos, para el mensaje de dato repetido (P2002). */
+const ETIQUETA_CAMPO_UNICO: Record<string, string> = {
+  correo_personal: 'correo personal',
+  correoPersonal: 'correo personal',
+  correo_empresa: 'correo de empresa',
+  correoEmpresa: 'correo de empresa',
+  rut: 'RUT',
+  numero_serie: 'N° de serie',
+  numeroSerie: 'N° de serie',
+  numero: 'número',
+  nombre: 'nombre',
+  email: 'correo',
+  codigo: 'código',
+  microsoft_id: 'cuenta de Microsoft',
+  microsoftId: 'cuenta de Microsoft',
+};
+
 /**
  * Traduce cualquier error a una respuesta con el formato unificado.
  *
@@ -129,7 +146,8 @@ export function handleApiError(
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === 'P2002') {
       const camposArr = (error.meta?.target as string[] | undefined) ?? [];
-      const campos = camposArr.join(', ');
+      // Nombre legible del campo; el de Prisma es el interno ("correo_personal").
+      const campos = camposArr.map((c) => ETIQUETA_CAMPO_UNICO[c] ?? c).join(', ');
       return NextResponse.json(
         {
           error: campos

@@ -251,7 +251,8 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="flex items-center gap-2">
             <Mail size={18} className="text-primary-300" />
-            <span>{ficha.empleado.correoPersonal}</span>
+            {/* Puede faltar: los que llegan de Microsoft traen solo el de empresa. */}
+            <span>{ficha.empleado.correoPersonal || "Sin correo personal"}</span>
           </div>
           {ficha.empleado.correoEmpresa && (
             <div className="flex items-center gap-2">

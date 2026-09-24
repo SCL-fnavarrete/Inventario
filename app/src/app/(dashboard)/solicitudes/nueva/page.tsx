@@ -258,15 +258,6 @@ export default function NuevaSolicitudPage() {
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
-  // Create employee modal (cambio_equipo / offboarding)
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newEmp, setNewEmp] = useState({ ...NEW_EMPLOYEE_INITIAL });
-  const [creatingEmployee, setCreatingEmployee] = useState(false);
-  const [createError, setCreateError] = useState('');
-  // Sede del empleado que se crea desde el modal: parte de la sede de la
-  // solicitud. POST /api/empleados la exige para admin (sedeIdParaCrear).
-  const [sedeEmpleadoNuevo, setSedeEmpleadoNuevo] = useState('');
-
   // Onboarding: nuevo empleado (paso 2), sin persistir hasta el submit final
   const [onboardingEmp, setOnboardingEmp] = useState({ ...NEW_EMPLOYEE_INITIAL });
   const [resumenErrores, setResumenErrores] = useState('');
@@ -473,75 +464,6 @@ export default function NuevaSolicitudPage() {
     setDevolucionEppEstados({});
     setDevolucionEppObservaciones({});
     setCambios([]);
-  };
-
-  // Create new employee (usado por cambio_equipo / offboarding, vía modal)
-  const handleCreateEmployee = async () => {
-    setCreateError('');
-    if (esAdminSede && !sedeEmpleadoNuevo) {
-      setCreateError('Debes seleccionar la sede del empleado');
-      return;
-    }
-    setCreatingEmployee(true);
-    try {
-      const res = await fetch('/api/empleados', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nombres: newEmp.nombres,
-          apellidoPaterno: newEmp.apellidoPaterno,
-          apellidoMaterno: newEmp.apellidoMaterno || null,
-          correoEmpresa: newEmp.correoEmpresa || null,
-          correoPersonal: newEmp.correoPersonal || null,
-          rut: newEmp.rut || null,
-          cargo: newEmp.cargo || null,
-          ubicacion: newEmp.ubicacion || null,
-          tipoContrato: newEmp.tipoContrato,
-          estado: 'activo',
-          sedeId: sedeEmpleadoNuevo || undefined,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Error al crear empleado');
-      }
-
-      const created = await res.json();
-      // Auto-select the new employee
-      selectEmployee({
-        id: created.id,
-        rut: created.rut,
-        nombres: created.nombres,
-        apellidoPaterno: created.apellidoPaterno,
-        apellidoMaterno: created.apellidoMaterno,
-        cargo: created.cargo,
-        correoPersonal: created.correoPersonal,
-        correoEmpresa: created.correoEmpresa,
-      });
-      setShowCreateModal(false);
-      setNewEmp({ ...NEW_EMPLOYEE_INITIAL });
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Error al crear empleado');
-    } finally {
-      setCreatingEmployee(false);
-    }
-  };
-
-  const openCreateModal = () => {
-    setSedeEmpleadoNuevo(sedeId);
-    // Pre-fill name from search if available
-    if (searchEmployee.trim()) {
-      const parts = searchEmployee.trim().split(' ');
-      setNewEmp((prev) => ({
-        ...prev,
-        nombres: parts[0] || '',
-        apellidoPaterno: parts[1] || '',
-        apellidoMaterno: parts.slice(2).join(' ') || '',
-      }));
-    }
-    setShowCreateModal(true);
-    setShowResults(false);
   };
 
   useEffect(() => {
@@ -2027,43 +1949,20 @@ export default function NuevaSolicitudPage() {
                         <p className="text-sm text-fg-subtle mb-3">
                           No se encontraron empleados para &quot;{searchEmployee}&quot;
                         </p>
-                        <button
-                          onClick={openCreateModal}
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-success-hover transition-colors"
-                        >
-                          <UserPlus className="h-4 w-4" />
-                          Crear nuevo empleado
-                        </button>
+                        <p className="text-xs text-fg-subtle">
+                          Si es una persona nueva, se registra con una solicitud de Onboarding.
+                        </p>
                       </div>
                     )}
 
-                    {/* Always show create option at the bottom if there are results */}
-                    {searchResults.length > 0 && (
-                      <button
-                        onClick={openCreateModal}
-                        className="w-full text-left px-4 py-3 hover:bg-green-50 border-t border-line transition-colors flex items-center gap-2"
-                      >
-                        <UserPlus className="h-4 w-4 text-green-600" />
-                        <span className="text-sm text-green-700 font-medium">
-                          Crear nuevo empleado
-                        </span>
-                      </button>
-                    )}
                   </div>
                 )}
 
                 {/* Hint text */}
                 {!showResults && searchEmployee.length === 0 && (
                   <p className="text-xs text-fg-subtle mt-1">
-                    Escribe al menos 2 caracteres para buscar. Si no existe,{' '}
-                    <button
-                      type="button"
-                      onClick={openCreateModal}
-                      className="text-primary-700 hover:underline"
-                    >
-                      crea uno nuevo
-                    </button>
-                    .
+                    Escribe al menos 2 caracteres para buscar. Una persona nueva se
+                    registra con una solicitud de Onboarding.
                   </p>
                 )}
               </div>
@@ -2695,185 +2594,6 @@ export default function NuevaSolicitudPage() {
         </div>
       )}
 
-      {/* Step 3 (Onboarding): detalles de la solicitud */}
-      {/* Create Employee Modal (cambio_equipo / offboarding) */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setShowCreateModal(false)} />
-          <div className="relative bg-surface rounded-xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-fg">Crear Nuevo Empleado</h2>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-fg-subtle hover:text-fg-muted"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {createError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm mb-4">
-                {createError}
-              </div>
-            )}
-
-            <div className="space-y-4">
-              {esAdminSede && (
-                <div>
-                  <label className="field-label">
-                    Sede *
-                  </label>
-                  <select
-                    value={sedeEmpleadoNuevo}
-                    onChange={(e) => setSedeEmpleadoNuevo(e.target.value)}
-                    required
-                    className="field-input"
-                  >
-                    <option value="" disabled>
-                      Selecciona una sede...
-                    </option>
-                    {sedes.map((sede) => (
-                      <option key={sede.id} value={sede.id}>
-                        {sede.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="field-label">
-                    Nombres *
-                  </label>
-                  <input
-                    type="text"
-                    value={newEmp.nombres}
-                    onChange={(e) => setNewEmp({ ...newEmp, nombres: e.target.value })}
-                    className="w-full px-3 py-2 border border-line-strong rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="field-label">
-                    Apellido Paterno *
-                  </label>
-                  <input
-                    type="text"
-                    value={newEmp.apellidoPaterno}
-                    onChange={(e) => setNewEmp({ ...newEmp, apellidoPaterno: e.target.value })}
-                    className="w-full px-3 py-2 border border-line-strong rounded-lg"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="field-label">
-                    Apellido Materno
-                  </label>
-                  <input
-                    type="text"
-                    value={newEmp.apellidoMaterno}
-                    onChange={(e) => setNewEmp({ ...newEmp, apellidoMaterno: e.target.value })}
-                    className="w-full px-3 py-2 border border-line-strong rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="field-label">RUT</label>
-                  <input
-                    type="text"
-                    value={newEmp.rut}
-                    onChange={(e) => setNewEmp({ ...newEmp, rut: e.target.value })}
-                    placeholder="12.345.678-9"
-                    className="w-full px-3 py-2 border border-line-strong rounded-lg"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="field-label">
-                  Correo Personal *
-                </label>
-                <input
-                  type="email"
-                  value={newEmp.correoPersonal ?? ''}
-                  onChange={(e) => setNewEmp({ ...newEmp, correoPersonal: e.target.value })}
-                  placeholder="nombre.personal@gmail.com"
-                  className="w-full px-3 py-2 border border-line-strong rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="field-label">
-                  Correo Empresa
-                </label>
-                <input
-                  type="email"
-                  value={newEmp.correoEmpresa ?? ''}
-                  onChange={(e) => setNewEmp({ ...newEmp, correoEmpresa: e.target.value })}
-                  placeholder="nombre@sclconsultores.com (opcional)"
-                  className="w-full px-3 py-2 border border-line-strong rounded-lg"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="field-label">Cargo</label>
-                  <input
-                    type="text"
-                    value={newEmp.cargo}
-                    onChange={(e) => setNewEmp({ ...newEmp, cargo: e.target.value })}
-                    className="w-full px-3 py-2 border border-line-strong rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="field-label">
-                    Tipo Contrato *
-                  </label>
-                  <select
-                    value={newEmp.tipoContrato}
-                    onChange={(e) => setNewEmp({ ...newEmp, tipoContrato: e.target.value })}
-                    className="w-full px-3 py-2 border border-line-strong rounded-lg"
-                  >
-                    <option value="contrato">Contrato</option>
-                    <option value="boleta">Boleta</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="field-label">Ubicación</label>
-                <input
-                  type="text"
-                  value={newEmp.ubicacion}
-                  onChange={(e) => setNewEmp({ ...newEmp, ubicacion: e.target.value })}
-                  className="w-full px-3 py-2 border border-line-strong rounded-lg"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 text-fg-muted hover:text-fg"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleCreateEmployee}
-                disabled={
-                  creatingEmployee ||
-                  !newEmp.nombres ||
-                  !newEmp.apellidoPaterno ||
-                  !newEmp.correoPersonal
-                }
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-success-hover disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {creatingEmployee ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <UserPlus className="h-4 w-4" />
-                )}
-                {creatingEmployee ? 'Creando...' : 'Crear y Seleccionar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -105,43 +105,6 @@ export const employeeFiltersSchema = z.object({
   sortOrder: z.enum(["asc", "desc"]).default("asc"),
 });
 
-// Schema para importación desde Excel
-export const importEmployeeSchema = z.object({
-  rut: rutSchema,
-  nombres: z.string().min(1, "El nombre es requerido"),
-  apellidoPaterno: z.string().min(1, "El apellido paterno es requerido"),
-  apellidoMaterno: z.string().optional().nullable(),
-  // El correo obligatorio de la importacion es el personal, igual que en
-  // el resto del sistema; el de empresa queda opcional.
-  correoPersonal: z.string().email("Email inválido"),
-  correoEmpresa: z.string().email("Email inválido").optional().nullable(),
-  cargo: z.string().optional().nullable(),
-  jefatura: z.string().optional().nullable(),
-  supervisor: z.string().optional().nullable(),
-  ubicacion: z.string().optional().nullable(),
-  // Si la planilla no trae el tipo de contrato, se deja sin dato en vez
-  // de asumir "contrato".
-  tipoContrato: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const lower = val.toLowerCase();
-    if (lower === "contrato" || lower === "boleta") {
-      return lower as "contrato" | "boleta";
-    }
-    // Compatibilidad con valores antiguos (planta/proyecto -> contrato,
-    // externo/honorarios -> boleta) y con texto libre de planillas.
-    if (lower.includes("boleta") || lower.includes("externo") || lower.includes("honorario")) {
-      return "boleta" as const;
-    }
-    return "contrato" as const; // planta, proyecto, indefinido, etc.
-  }),
-  fechaIngreso: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
-  telefonoContacto: z.string().optional().nullable(),
-});
-
 // Schema para sincronizacion desde Microsoft Entra ID
 export const microsoftSyncEmployeeSchema = z.object({
   microsoftId: z.string().min(1),
@@ -160,5 +123,4 @@ export const microsoftSyncEmployeeSchema = z.object({
 export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>;
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>;
 export type EmployeeFilters = z.infer<typeof employeeFiltersSchema>;
-export type ImportEmployeeInput = z.infer<typeof importEmployeeSchema>;
 export type MicrosoftSyncEmployeeInput = z.infer<typeof microsoftSyncEmployeeSchema>;

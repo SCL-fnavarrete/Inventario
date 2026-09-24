@@ -21,6 +21,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { COLUMNA_FIJA_CELDA, COLUMNA_FIJA_ENCABEZADO } from "@/components/ui/tablaStyles";
 
 // Read-only employee listing within Activos. Employees are created via the
 // onboarding flow; detail/edit lives in /empleados/[id].
@@ -427,7 +428,7 @@ export default function PersonalPage() {
                 <th className="table-th">
                   Equipos
                 </th>
-                <th className="table-th text-right">
+                <th className={cn("table-th text-right", COLUMNA_FIJA_ENCABEZADO)}>
                   Acciones
                 </th>
               </tr>
@@ -447,7 +448,7 @@ export default function PersonalPage() {
                 </tr>
               ) : (
                 employees.map((employee) => (
-                  <tr key={employee.id} className="hover:bg-surface-muted">
+                  <tr key={employee.id} className="group hover:bg-surface-muted">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-mono text-fg">
                         {employee.rut || "—"}
@@ -455,7 +456,12 @@ export default function PersonalPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <p className="text-sm font-medium text-fg">
-                        {employee.nombres} {employee.apellidoPaterno}
+                        <Link
+                          href={`/empleados/${employee.id}`}
+                          className="hover:text-primary-700 hover:underline"
+                        >
+                          {employee.nombres} {employee.apellidoPaterno}
+                        </Link>
                         {employee.origenMicrosoft && (
                           <span className="ml-1.5 inline-flex items-center text-[10px] bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded font-normal">
                             Microsoft
@@ -508,7 +514,7 @@ export default function PersonalPage() {
                         {employee._count.assignments} equipos
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                    <td className={cn("px-6 py-4 whitespace-nowrap text-right", COLUMNA_FIJA_CELDA)}>
                       <div className="flex justify-end gap-2">
                         <Link
                           href={`/empleados/${employee.id}`}

@@ -71,6 +71,15 @@ export function inicioDeHoy(): Date {
 }
 
 /**
+ * Fecha de hoy en Chile como "YYYY-MM-DD", para el valor por defecto de un
+ * campo de fecha o el nombre de un archivo. `new Date().toISOString()` da la
+ * fecha en UTC: desde las 21:00 en Chile ya es la de manana.
+ */
+export function hoyISO(): string {
+  return inicioDeHoy().toISOString().slice(0, 10);
+}
+
+/**
  * Marca de tiempo real (createdAt, ultimoLogin, eventos de auditoria):
  * se muestra en la hora local de quien mira, con fecha y hora.
  */

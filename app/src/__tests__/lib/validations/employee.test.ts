@@ -2,7 +2,6 @@ import {
   createEmployeeSchema,
   updateEmployeeSchema,
   employeeFiltersSchema,
-  importEmployeeSchema,
   TipoContratoEnum,
   EstadoEmpleadoEnum,
 } from '@/lib/validations/employee'
@@ -354,66 +353,3 @@ describe('Employee Validation - employeeFiltersSchema', () => {
   })
 })
 
-describe('Employee Validation - importEmployeeSchema', () => {
-  const validImportData = {
-    rut: '21.523.308-1',
-    nombres: 'Juan Carlos',
-    apellidoPaterno: 'Perez',
-    // En la importacion el correo obligatorio es el personal (SPEC 2.93)
-    correoPersonal: 'jperez@gmail.com',
-    tipoContrato: 'contrato',
-  }
-
-  test('should accept valid import data', () => {
-    const result = importEmployeeSchema.safeParse(validImportData)
-    expect(result.success).toBe(true)
-  })
-
-  test('should transform tipoContrato to lowercase (match exacto)', () => {
-    const result = importEmployeeSchema.safeParse({
-      ...validImportData,
-      tipoContrato: 'BOLETA',
-    })
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.tipoContrato).toBe('boleta')
-    }
-  })
-
-  test('should map valores antiguos equivalentes a boleta (externo/honorarios)', () => {
-    ;['Externo', 'Honorarios', 'boleta de honorarios'].forEach((valor) => {
-      const result = importEmployeeSchema.safeParse({
-        ...validImportData,
-        tipoContrato: valor,
-      })
-      expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.tipoContrato).toBe('boleta')
-      }
-    })
-  })
-
-  test('should default anything unrecognized (incluye valores antiguos como planta/proyecto) a contrato', () => {
-    ;['planta', 'proyecto', 'temporal', 'indefinido'].forEach((valor) => {
-      const result = importEmployeeSchema.safeParse({
-        ...validImportData,
-        tipoContrato: valor,
-      })
-      expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.tipoContrato).toBe('contrato')
-      }
-    })
-  })
-
-  test('should transform fechaIngreso string to Date', () => {
-    const result = importEmployeeSchema.safeParse({
-      ...validImportData,
-      fechaIngreso: '2024-01-15',
-    })
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.fechaIngreso).toBeInstanceOf(Date)
-    }
-  })
-})

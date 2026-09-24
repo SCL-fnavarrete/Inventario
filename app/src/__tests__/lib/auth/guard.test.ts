@@ -98,11 +98,15 @@ describe('handleApiError — errores de Prisma', () => {
     });
   }
 
-  test('P2002 (unico duplicado) responde 409 nombrando el campo', async () => {
+  test('P2002 (unico duplicado) responde 409 nombrando el campo en palabras', async () => {
     const res = handleApiError(errorPrisma('P2002', { target: ['numero_serie'] }));
     expect(res.status).toBe(409);
     const cuerpo = await cuerpoDe(res);
-    expect(cuerpo.error).toContain('numero_serie');
+    // Texto legible para la persona; el nombre interno queda en details
+    // para que el formulario marque el campo.
+    expect(cuerpo.error).toContain('N° de serie');
+    expect(cuerpo.error).not.toContain('numero_serie');
+    expect(JSON.stringify(cuerpo.details)).toContain('numero_serie');
   });
 
   test('P2025 (no encontrado) responde 404', async () => {
