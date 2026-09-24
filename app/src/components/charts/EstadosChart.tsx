@@ -50,12 +50,13 @@ export function EstadosChart({ data }: EstadosChartProps) {
           cx="50%"
           cy="50%"
           labelLine={false}
+          // Solo el porcentaje: el nombre ya esta en la leyenda, y con el
+          // nombre la etiqueta no cabia y se cortaba en el borde de la tarjeta.
           label={(props: PieLabelRenderProps) => {
             const percent = props.percent ?? 0;
-            const name = props.name ?? "";
-            return percent > 0.05 ? `${name} ${(percent * 100).toFixed(0)}%` : "";
+            return percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : "";
           }}
-          outerRadius={100}
+          outerRadius={95}
           fill={COLOR_MARCA.primario}
           dataKey="cantidad"
         >

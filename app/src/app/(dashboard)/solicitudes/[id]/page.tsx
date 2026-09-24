@@ -595,6 +595,263 @@ export default function SolicitudDetailPage() {
             );
           })()}
 
+          {/* Lo central del ticket en la columna ancha: sus equipos (entregados,
+              devueltos o cambiados), el Kit/EPP y la coordinacion. La columna
+              lateral queda para los datos cortos. */}
+          {/* Equipos Entregados: lo que se entrego en ESTE onboarding. Queda a
+              la vista aunque despues el empleado cambie de equipo o se
+              desvincule (a diferencia de "Equipos actuales"). */}
+          {data.tipo === 'onboarding' && data.equiposEntregados.length > 0 && (
+            <div className="card p-6">
+              <h3 className="font-semibold text-fg mb-4">
+                Equipos Entregados ({data.equiposEntregados.length})
+              </h3>
+              <div className="space-y-2">
+                {data.equiposEntregados.map((a) => (
+                  <FilaEquipoTicket key={a.id} asignacion={a} modo="entrega" />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Equipos Devueltos: lo que ya se recibio y califico en este
+              ticket de offboarding, con su estado y observaciones -- para
+              que quede a la vista sin tener que ir al modulo de
+              Asignaciones a buscar cada asignacion por separado. */}
+          {data.tipo === 'offboarding' && data.equiposDevueltos.length > 0 && (
+            <div className="card p-6">
+              <h3 className="font-semibold text-fg mb-4">Equipos Devueltos</h3>
+              <div className="space-y-2">
+                {data.equiposDevueltos.map((a) => (
+                  <FilaEquipoTicket key={a.id} asignacion={a} modo="devolucion" />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* EPP Devuelto: mismo criterio que Equipos Devueltos, pero para
+              el EPP (el Kit de Bienvenida no se devuelve). El estado y las
+              observaciones quedan en KitAssignment.observaciones porque no
+              hay un campo aparte como en Assignment. */}
+          {data.tipo === 'offboarding' && data.eppDevueltos.length > 0 && (
+            <div className="card p-6">
+              <h3 className="font-semibold text-fg mb-4">EPP Devuelto</h3>
+              <div className="space-y-2">
+                {data.eppDevueltos.map((k) => (
+                  <div key={k.id} className="text-sm p-3 bg-surface-muted rounded-lg">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-fg">{k.item.nombre}</span>
+                      <span
+                        className={cn(
+                          'text-xs px-1.5 py-0.5 rounded flex-shrink-0',
+                          k.estado === 'perdido'
+                            ? 'bg-red-100 text-red-700'
+                            : k.estado === 'no_devuelto'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-green-100 text-green-700'
+                        )}
+                      >
+                        {k.estado === 'perdido'
+                          ? 'Dañado'
+                          : k.estado === 'no_devuelto'
+                            ? 'No devolvió'
+                            : 'Buen estado'}
+                      </span>
+                    </div>
+                    {k.observaciones && (
+                      <p className="text-xs text-fg-muted mt-1">{k.observaciones}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Equipos Cambiados: un bloque por par, con el equipo devuelto (y la
+              condicion en que volvio) y su reemplazo (SPEC 2.84). */}
+          {data.tipo === 'cambio_equipo' && data.paresCambio.length > 0 && (
+            <div className="card p-6">
+              <h3 className="font-semibold text-fg mb-4">
+                {data.paresCambio.length > 1
+                  ? `Equipos Cambiados (${data.paresCambio.length})`
+                  : 'Equipo Cambiado'}
+              </h3>
+              <div className="space-y-4">
+                {data.paresCambio.map(({ anterior, nuevo }, i) => (
+                  <div key={anterior?.id ?? nuevo?.id ?? i} className="space-y-2">
+                    {anterior && (
+                      <FilaEquipoTicket asignacion={anterior} modo="devolucion" prefijo="Anterior" />
+                    )}
+                    {nuevo && (
+                      <FilaEquipoTicket asignacion={nuevo} modo="entrega" prefijo="Nuevo" destacado />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Entrega Coordinada: fecha/hora y medio (presencial/despacho)
+              definidos en la etapa "Coordinando Entrega". Tarjeta aparte para
+              que se vea de un vistazo, igual que Equipos Asignados. */}
+          {data.tipo === 'onboarding' && data.fechaEntregaCoordinada && (
+            <div className="card p-6">
+              <h3 className="font-semibold text-fg mb-4">Entrega Coordinada</h3>
+              <dl className="space-y-3 text-sm">
+                <div>
+                  <dt className="text-fg-subtle">
+                    {data.medioEntrega === 'presencial' ? 'Fecha y Hora' : 'Fecha y Hora Estimada'}
+                  </dt>
+                  <dd className="text-fg">
+                    {new Date(data.fechaEntregaCoordinada).toLocaleString('es-CL')}
+                  </dd>
+                </div>
+                {data.medioEntrega && (
+                  <div>
+                    <dt className="text-fg-subtle">Medio</dt>
+                    <dd className="text-fg">
+                      {data.medioEntrega === 'presencial' ? 'Presencial' : 'Despacho (Chilexpress)'}
+                    </dd>
+                  </div>
+                )}
+                {data.lugarEntrega && (
+                  <div>
+                    <dt className="text-fg-subtle">Lugar</dt>
+                    <dd className="text-fg">{data.lugarEntrega}</dd>
+                  </div>
+                )}
+                {data.otChilexpressEntrega && (
+                  <div>
+                    <dt className="text-fg-subtle">OT Chilexpress</dt>
+                    <dd className="text-fg">{data.otChilexpressEntrega}</dd>
+                  </div>
+                )}
+                {data.ciudadEntrega && (
+                  <div>
+                    <dt className="text-fg-subtle">Ubicación de destino</dt>
+                    <dd className="text-fg">{data.ciudadEntrega}</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          )}
+
+          {/* Cambio Coordinado: mismo patron que Entrega Coordinada, para
+              cambio_equipo. */}
+          {data.tipo === 'cambio_equipo' && data.fechaCambioCoordinada && (
+            <div className="card p-6">
+              <h3 className="font-semibold text-fg mb-4">Cambio Coordinado</h3>
+              <dl className="space-y-3 text-sm">
+                <div>
+                  <dt className="text-fg-subtle">
+                    {data.medioCambio === 'presencial' ? 'Fecha y Hora' : 'Fecha Estimada de Llegada'}
+                  </dt>
+                  <dd className="text-fg">
+                    {new Date(data.fechaCambioCoordinada).toLocaleString('es-CL')}
+                  </dd>
+                </div>
+                {data.medioCambio && (
+                  <div>
+                    <dt className="text-fg-subtle">Medio</dt>
+                    <dd className="text-fg">
+                      {data.medioCambio === 'presencial' ? 'Presencial' : 'Despacho (Chilexpress)'}
+                    </dd>
+                  </div>
+                )}
+                {data.lugarCambio && (
+                  <div>
+                    <dt className="text-fg-subtle">Lugar</dt>
+                    <dd className="text-fg">{data.lugarCambio}</dd>
+                  </div>
+                )}
+                {data.otCambioChilexpress && (
+                  <div>
+                    <dt className="text-fg-subtle">OT Chilexpress</dt>
+                    <dd className="text-fg">{data.otCambioChilexpress}</dd>
+                  </div>
+                )}
+                {data.ciudadCambio && (
+                  <div>
+                    <dt className="text-fg-subtle">Ciudad destino</dt>
+                    <dd className="text-fg">{data.ciudadCambio}</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          )}
+
+          {/* Devolución Coordinada: mismo patron, para offboarding. */}
+          {data.tipo === 'offboarding' && data.fechaDevolucionCoordinada && (
+            <div className="card p-6">
+              <h3 className="font-semibold text-fg mb-4">Devolución Coordinada</h3>
+              <dl className="space-y-3 text-sm">
+                <div>
+                  <dt className="text-fg-subtle">
+                    {data.medioDevolucion === 'presencial' ? 'Fecha y Hora' : 'Fecha Estimada de Llegada'}
+                  </dt>
+                  <dd className="text-fg">
+                    {new Date(data.fechaDevolucionCoordinada).toLocaleString('es-CL')}
+                  </dd>
+                </div>
+                {data.medioDevolucion && (
+                  <div>
+                    <dt className="text-fg-subtle">Medio</dt>
+                    <dd className="text-fg">
+                      {data.medioDevolucion === 'presencial' ? 'Presencial' : 'Despacho (Chilexpress)'}
+                    </dd>
+                  </div>
+                )}
+                {data.lugarDevolucion && (
+                  <div>
+                    <dt className="text-fg-subtle">Lugar</dt>
+                    <dd className="text-fg">{data.lugarDevolucion}</dd>
+                  </div>
+                )}
+                {data.otChilexpress && (
+                  <div>
+                    <dt className="text-fg-subtle">OT Chilexpress</dt>
+                    <dd className="text-fg">{data.otChilexpress}</dd>
+                  </div>
+                )}
+                {data.ciudadDevolucion && (
+                  <div>
+                    <dt className="text-fg-subtle">Ciudad destino</dt>
+                    <dd className="text-fg">{data.ciudadDevolucion}</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          )}
+
+          {/* Kit de Bienvenida y EPP entregados con esta solicitud -- son
+              insumos, no Activos, por eso van en su propia tarjeta separada
+              de "Equipos Asignados". Se muestran en tarjetas separadas (no
+              mezcladas en una lista) porque son cosas distintas: el Kit es
+              consumible y no se devuelve, el EPP si se pide de vuelta al
+              desvincularse. */}
+          {(['kit_bienvenida', 'epp'] as const).map((categoria) => {
+            const entregas = data.kitAssignments.filter((ka) => ka.item.categoria === categoria);
+            if (entregas.length === 0) return null;
+            const label = categoria === 'kit_bienvenida' ? 'Kit de Bienvenida' : 'EPP';
+            return (
+              <div key={categoria} className="card p-6">
+                <h3 className="font-semibold text-fg mb-4">{label}</h3>
+                <div className="space-y-2">
+                  {entregas.map((ka) => (
+                    <div key={ka.id} className="text-sm p-2 bg-surface-muted rounded">
+                      <span className="font-medium">
+                        {ka.item.nombre} × {ka.cantidad}
+                      </span>
+                      <span className="block text-xs text-fg-subtle">
+                        {new Date(ka.createdAt).toLocaleDateString('es-CL')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
           {/* Detalle articulo-por-articulo de lo requerido (RequestKitItem):
               solo aparece si el ticket se creo con esa lista. Cada articulo
               se resuelve solo (entregado) al entregarse desde el panel de
@@ -912,8 +1169,8 @@ export default function SolicitudDetailPage() {
           </div>
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
+        {/* Sidebar: en celular va primero, para ver de quien es el ticket. */}
+        <div className="space-y-6 order-first lg:order-none">
           {/* Request Info */}
           <div className="card p-6">
             <h3 className="font-semibold text-fg mb-4">Información</h3>
@@ -1044,22 +1301,6 @@ export default function SolicitudDetailPage() {
             </dl>
           </div>
 
-          {/* Equipos Entregados: lo que se entrego en ESTE onboarding. Queda a
-              la vista aunque despues el empleado cambie de equipo o se
-              desvincule (a diferencia de "Equipos actuales"). */}
-          {data.tipo === 'onboarding' && data.equiposEntregados.length > 0 && (
-            <div className="card p-6">
-              <h3 className="font-semibold text-fg mb-4">
-                Equipos Entregados ({data.equiposEntregados.length})
-              </h3>
-              <div className="space-y-2">
-                {data.equiposEntregados.map((a) => (
-                  <FilaEquipoTicket key={a.id} asignacion={a} modo="entrega" />
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Lo que el empleado tiene hoy, no necesariamente de este ticket. */}
           {data.employee.assignments.length > 0 && (
             <div className="card p-6">
@@ -1079,244 +1320,6 @@ export default function SolicitudDetailPage() {
               </div>
             </div>
           )}
-
-          {/* Equipos Devueltos: lo que ya se recibio y califico en este
-              ticket de offboarding, con su estado y observaciones -- para
-              que quede a la vista sin tener que ir al modulo de
-              Asignaciones a buscar cada asignacion por separado. */}
-          {data.tipo === 'offboarding' && data.equiposDevueltos.length > 0 && (
-            <div className="card p-6">
-              <h3 className="font-semibold text-fg mb-4">Equipos Devueltos</h3>
-              <div className="space-y-2">
-                {data.equiposDevueltos.map((a) => (
-                  <FilaEquipoTicket key={a.id} asignacion={a} modo="devolucion" />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* EPP Devuelto: mismo criterio que Equipos Devueltos, pero para
-              el EPP (el Kit de Bienvenida no se devuelve). El estado y las
-              observaciones quedan en KitAssignment.observaciones porque no
-              hay un campo aparte como en Assignment. */}
-          {data.tipo === 'offboarding' && data.eppDevueltos.length > 0 && (
-            <div className="card p-6">
-              <h3 className="font-semibold text-fg mb-4">EPP Devuelto</h3>
-              <div className="space-y-2">
-                {data.eppDevueltos.map((k) => (
-                  <div key={k.id} className="text-sm p-3 bg-surface-muted rounded-lg">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-fg">{k.item.nombre}</span>
-                      <span
-                        className={cn(
-                          'text-xs px-1.5 py-0.5 rounded flex-shrink-0',
-                          k.estado === 'perdido'
-                            ? 'bg-red-100 text-red-700'
-                            : k.estado === 'no_devuelto'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-green-100 text-green-700'
-                        )}
-                      >
-                        {k.estado === 'perdido'
-                          ? 'Dañado'
-                          : k.estado === 'no_devuelto'
-                            ? 'No devolvió'
-                            : 'Buen estado'}
-                      </span>
-                    </div>
-                    {k.observaciones && (
-                      <p className="text-xs text-fg-muted mt-1">{k.observaciones}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Equipos Cambiados: un bloque por par, con el equipo devuelto (y la
-              condicion en que volvio) y su reemplazo (SPEC 2.84). */}
-          {data.tipo === 'cambio_equipo' && data.paresCambio.length > 0 && (
-            <div className="card p-6">
-              <h3 className="font-semibold text-fg mb-4">
-                {data.paresCambio.length > 1
-                  ? `Equipos Cambiados (${data.paresCambio.length})`
-                  : 'Equipo Cambiado'}
-              </h3>
-              <div className="space-y-4">
-                {data.paresCambio.map(({ anterior, nuevo }, i) => (
-                  <div key={anterior?.id ?? nuevo?.id ?? i} className="space-y-2">
-                    {anterior && (
-                      <FilaEquipoTicket asignacion={anterior} modo="devolucion" prefijo="Anterior" />
-                    )}
-                    {nuevo && (
-                      <FilaEquipoTicket asignacion={nuevo} modo="entrega" prefijo="Nuevo" destacado />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Entrega Coordinada: fecha/hora y medio (presencial/despacho)
-              definidos en la etapa "Coordinando Entrega". Tarjeta aparte para
-              que se vea de un vistazo, igual que Equipos Asignados. */}
-          {data.tipo === 'onboarding' && data.fechaEntregaCoordinada && (
-            <div className="card p-6">
-              <h3 className="font-semibold text-fg mb-4">Entrega Coordinada</h3>
-              <dl className="space-y-3 text-sm">
-                <div>
-                  <dt className="text-fg-subtle">
-                    {data.medioEntrega === 'presencial' ? 'Fecha y Hora' : 'Fecha y Hora Estimada'}
-                  </dt>
-                  <dd className="text-fg">
-                    {new Date(data.fechaEntregaCoordinada).toLocaleString('es-CL')}
-                  </dd>
-                </div>
-                {data.medioEntrega && (
-                  <div>
-                    <dt className="text-fg-subtle">Medio</dt>
-                    <dd className="text-fg">
-                      {data.medioEntrega === 'presencial' ? 'Presencial' : 'Despacho (Chilexpress)'}
-                    </dd>
-                  </div>
-                )}
-                {data.lugarEntrega && (
-                  <div>
-                    <dt className="text-fg-subtle">Lugar</dt>
-                    <dd className="text-fg">{data.lugarEntrega}</dd>
-                  </div>
-                )}
-                {data.otChilexpressEntrega && (
-                  <div>
-                    <dt className="text-fg-subtle">OT Chilexpress</dt>
-                    <dd className="text-fg">{data.otChilexpressEntrega}</dd>
-                  </div>
-                )}
-                {data.ciudadEntrega && (
-                  <div>
-                    <dt className="text-fg-subtle">Ubicación de destino</dt>
-                    <dd className="text-fg">{data.ciudadEntrega}</dd>
-                  </div>
-                )}
-              </dl>
-            </div>
-          )}
-
-          {/* Cambio Coordinado: mismo patron que Entrega Coordinada, para
-              cambio_equipo. */}
-          {data.tipo === 'cambio_equipo' && data.fechaCambioCoordinada && (
-            <div className="card p-6">
-              <h3 className="font-semibold text-fg mb-4">Cambio Coordinado</h3>
-              <dl className="space-y-3 text-sm">
-                <div>
-                  <dt className="text-fg-subtle">
-                    {data.medioCambio === 'presencial' ? 'Fecha y Hora' : 'Fecha Estimada de Llegada'}
-                  </dt>
-                  <dd className="text-fg">
-                    {new Date(data.fechaCambioCoordinada).toLocaleString('es-CL')}
-                  </dd>
-                </div>
-                {data.medioCambio && (
-                  <div>
-                    <dt className="text-fg-subtle">Medio</dt>
-                    <dd className="text-fg">
-                      {data.medioCambio === 'presencial' ? 'Presencial' : 'Despacho (Chilexpress)'}
-                    </dd>
-                  </div>
-                )}
-                {data.lugarCambio && (
-                  <div>
-                    <dt className="text-fg-subtle">Lugar</dt>
-                    <dd className="text-fg">{data.lugarCambio}</dd>
-                  </div>
-                )}
-                {data.otCambioChilexpress && (
-                  <div>
-                    <dt className="text-fg-subtle">OT Chilexpress</dt>
-                    <dd className="text-fg">{data.otCambioChilexpress}</dd>
-                  </div>
-                )}
-                {data.ciudadCambio && (
-                  <div>
-                    <dt className="text-fg-subtle">Ciudad destino</dt>
-                    <dd className="text-fg">{data.ciudadCambio}</dd>
-                  </div>
-                )}
-              </dl>
-            </div>
-          )}
-
-          {/* Devolución Coordinada: mismo patron, para offboarding. */}
-          {data.tipo === 'offboarding' && data.fechaDevolucionCoordinada && (
-            <div className="card p-6">
-              <h3 className="font-semibold text-fg mb-4">Devolución Coordinada</h3>
-              <dl className="space-y-3 text-sm">
-                <div>
-                  <dt className="text-fg-subtle">
-                    {data.medioDevolucion === 'presencial' ? 'Fecha y Hora' : 'Fecha Estimada de Llegada'}
-                  </dt>
-                  <dd className="text-fg">
-                    {new Date(data.fechaDevolucionCoordinada).toLocaleString('es-CL')}
-                  </dd>
-                </div>
-                {data.medioDevolucion && (
-                  <div>
-                    <dt className="text-fg-subtle">Medio</dt>
-                    <dd className="text-fg">
-                      {data.medioDevolucion === 'presencial' ? 'Presencial' : 'Despacho (Chilexpress)'}
-                    </dd>
-                  </div>
-                )}
-                {data.lugarDevolucion && (
-                  <div>
-                    <dt className="text-fg-subtle">Lugar</dt>
-                    <dd className="text-fg">{data.lugarDevolucion}</dd>
-                  </div>
-                )}
-                {data.otChilexpress && (
-                  <div>
-                    <dt className="text-fg-subtle">OT Chilexpress</dt>
-                    <dd className="text-fg">{data.otChilexpress}</dd>
-                  </div>
-                )}
-                {data.ciudadDevolucion && (
-                  <div>
-                    <dt className="text-fg-subtle">Ciudad destino</dt>
-                    <dd className="text-fg">{data.ciudadDevolucion}</dd>
-                  </div>
-                )}
-              </dl>
-            </div>
-          )}
-
-          {/* Kit de Bienvenida y EPP entregados con esta solicitud -- son
-              insumos, no Activos, por eso van en su propia tarjeta separada
-              de "Equipos Asignados". Se muestran en tarjetas separadas (no
-              mezcladas en una lista) porque son cosas distintas: el Kit es
-              consumible y no se devuelve, el EPP si se pide de vuelta al
-              desvincularse. */}
-          {(['kit_bienvenida', 'epp'] as const).map((categoria) => {
-            const entregas = data.kitAssignments.filter((ka) => ka.item.categoria === categoria);
-            if (entregas.length === 0) return null;
-            const label = categoria === 'kit_bienvenida' ? 'Kit de Bienvenida' : 'EPP';
-            return (
-              <div key={categoria} className="card p-6">
-                <h3 className="font-semibold text-fg mb-4">{label}</h3>
-                <div className="space-y-2">
-                  {entregas.map((ka) => (
-                    <div key={ka.id} className="text-sm p-2 bg-surface-muted rounded">
-                      <span className="font-medium">
-                        {ka.item.nombre} × {ka.cantidad}
-                      </span>
-                      <span className="block text-xs text-fg-subtle">
-                        {new Date(ka.createdAt).toLocaleDateString('es-CL')}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
 
           {data.observaciones && (
             <div className="card p-6">

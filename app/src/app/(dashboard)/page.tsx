@@ -14,6 +14,7 @@ import {
   Package,
   ClipboardList,
   DollarSign,
+  UserX,
 } from "lucide-react";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
@@ -47,8 +48,10 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
   nextWeek.setUTCDate(nextWeek.getUTCDate() + 7);
   const treintaDiasAtras = new Date();
   treintaDiasAtras.setDate(treintaDiasAtras.getDate() - 30);
-  const sixMonthsAgo = new Date();
-  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  // Inicio del periodo del grafico de movimientos: el primer dia del mes de
+  // hace 5 meses, asi el grafico cubre 6 meses completos (este incluido).
+  const ahora = new Date();
+  const sixMonthsAgo = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth() - 5, 1));
 
   const [
     totalAssets,
@@ -152,7 +155,6 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
       disponibles: conteos["disponible"] ?? 0,
       asignados: conteos["asignado"] ?? 0,
       mantencion: conteos["en_mantencion"] ?? 0,
-      baja: conteos["baja"] ?? 0,
     };
   });
 
@@ -194,10 +196,16 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
   ).length;
 
   // Agrupar asignaciones por mes para el grafico de movimientos
+  // Los 6 meses parten en 0: un mes sin movimientos tambien se muestra (antes
+  // se omitia y la linea saltaba de un mes a otro).
   const monthlyData: Record<
     string,
     { asignaciones: number; devoluciones: number }
   > = {};
+  for (let i = 0; i < 6; i++) {
+    const mes = new Date(Date.UTC(sixMonthsAgo.getUTCFullYear(), sixMonthsAgo.getUTCMonth() + i, 1));
+    monthlyData[mes.toISOString().slice(0, 7)] = { asignaciones: 0, devoluciones: 0 };
+  }
 
   assignmentsUltimos6Meses.forEach((a) => {
     // Cada movimiento cuenta en su propio mes, solo si cae en el periodo.
@@ -321,12 +329,15 @@ export default async function DashboardPage() {
 
       {/* KPIs principales. "Total Activos" cuenta todos los estados, incluido
           vendido; las demas tarjetas excluyen vendido (ver "Equipos Vendidos"). */}
-      <StatGrid cols={5}>
-        <StatCard tilt label="Total Activos" value={data.totalAssets} tone="primary" icon={Package} />
-        <StatCard tilt label="Disponibles" value={data.availableAssets} tone={ESTADO_ACTIVO_TONO.disponible} icon={CheckCircle} />
-        <StatCard tilt label="Asignados" value={data.assignedAssets} tone={ESTADO_ACTIVO_TONO.asignado} icon={Users} />
-        <StatCard tilt label="En Mantención" value={data.maintenanceAssets} tone={ESTADO_ACTIVO_TONO.en_mantencion} icon={Wrench} />
-        <StatCard tilt label="Baja" value={data.bajaAssets} tone={ESTADO_ACTIVO_TONO.baja} icon={XCircle} />
+      <StatGrid cols={6}>
+        <StatCard tilt label="Total Activos" value={data.totalAssets} tone="primary" icon={Package} href="/activos" />
+        <StatCard tilt label="Disponibles" value={data.availableAssets} tone={ESTADO_ACTIVO_TONO.disponible} icon={CheckCircle} href="/activos?estado=disponible" />
+        <StatCard tilt label="Asignados" value={data.assignedAssets} tone={ESTADO_ACTIVO_TONO.asignado} icon={Users} href="/activos?estado=asignado" />
+        <StatCard tilt label="En Mantención" value={data.maintenanceAssets} tone={ESTADO_ACTIVO_TONO.en_mantencion} icon={Wrench} href="/activos?estado=en_mantencion" />
+        {/* Equipos en manos de alguien desvinculado: sin esta tarjeta las de
+            arriba no sumaban el total. */}
+        <StatCard tilt label="No devuelto" value={data.noDevueltoAssets} tone={ESTADO_ACTIVO_TONO.no_devuelto} icon={UserX} href="/activos?estado=no_devuelto" />
+        <StatCard tilt label="Baja" value={data.bajaAssets} tone={ESTADO_ACTIVO_TONO.baja} icon={XCircle} href="/activos?estado=baja" />
       </StatGrid>
 
       {/* Segunda fila. Un activo vendido sale del parque operativo y no cuenta

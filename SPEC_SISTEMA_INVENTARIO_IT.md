@@ -3116,7 +3116,18 @@ Segunda revisión de Solicitudes, Activos y Dashboard, pedida por Javier. Parte 
 - **Búsqueda por palabras** (`coincideBusqueda` en `lib/utils/text.ts`): Solicitudes, Personal (también el buscador de empleados de Nueva Solicitud), Asignaciones y Guías de Despacho encuentran el nombre completo ("juan perez" encuentra a Juan Pérez, sin distinguir acentos). Antes comparaban el término entero contra cada campo por separado. El RUT se compara sin puntos ni guion y solo si el término tiene dígitos.
 - **Activos busca también por la persona que tiene el equipo** (nombre, apellidos, RUT, correo) y por categoría, teléfono y ubicación. La condición (`busquedaActivo` en `lib/queries/activos.ts`) la comparte Mantenciones, que tenía su propia copia.
 
+## 2.91 Revisión 2, parte 2: diseño en escritorio (23-sep-2026)
+
+- **Detalle de solicitud:** los equipos del ticket (entregados, devueltos, EPP devuelto, cambiados), el Kit/EPP entregado y la coordinación pasan a la columna ancha, bajo Documentos. La columna lateral queda para lo corto (Información, Detalle del Tipo, Equipos actuales del empleado, Observaciones) y en celular va primero.
+- **Panel principal:** nueva tarjeta **No devuelto** (sin ella las tarjetas de estado no sumaban el total). Cada tarjeta de estado lleva a Activos filtrado por ese estado.
+- **Alertas:** el contador dice "N alertas" (antes "N pendientes", que se confundía con "Mantenciones Pend."; cuenta mantenciones vencidas y próximas y alertas de stock).
+- **Stock por Categoría:** ya no suma los equipos de Baja (no son stock), muestra solo categorías con equipos y siempre el nombre de cada una.
+- **Movimientos:** muestra siempre los 6 meses (el actual incluido), con 0 en los meses sin movimientos.
+- **Distribución por Estado:** el gráfico circular muestra solo el porcentaje; el nombre está en la leyenda (con nombre, la etiqueta se cortaba).
+
 ## Changelog SPEC
+- **v2.15 (2026-09-23):**
+  - Sección 2.91 (nueva): detalle de solicitud con los equipos en la columna ancha; tarjeta No devuelto y tarjetas que filtran en el panel; alertas, stock, movimientos y distribución corregidos.
 - **v2.14 (2026-09-23):**
   - Sección 2.90 (nueva): equipos entregados en el detalle de un onboarding; equipos del ticket desde una sola función; un equipo recuperado en otro ticket sigue como "No devolvió" en el original; búsquedas por palabras en Solicitudes, Personal, Asignaciones, Guías y Activos (también por persona).
 - **v2.13 (2026-09-23):**

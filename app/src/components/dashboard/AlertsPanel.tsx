@@ -102,7 +102,7 @@ export function AlertsPanel({
         </h2>
         {totalAlertas > 0 && (
           <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-            {totalAlertas} pendientes
+            {totalAlertas} {totalAlertas === 1 ? "alerta" : "alertas"}
           </span>
         )}
       </div>
