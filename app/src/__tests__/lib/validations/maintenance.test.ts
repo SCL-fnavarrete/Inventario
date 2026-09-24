@@ -4,6 +4,7 @@ import {
   completeMaintenanceSchema,
   maintenanceFiltersSchema,
   EstadoMantencionEnum,
+  bajaPorMantencionSchema,
 } from '@/lib/validations/maintenance'
 
 // El tipo de mantencion dejo de ser un enum fijo (9-sep-2026): ahora es una
@@ -396,5 +397,34 @@ describe('Maintenance Validation - maintenanceFiltersSchema', () => {
       const result = maintenanceFiltersSchema.safeParse({ sortBy })
       expect(result.success).toBe(true)
     })
+  })
+})
+
+// Baja por mantencion (SPEC 2.88)
+describe('bajaPorMantencionSchema', () => {
+  const valida = {
+    assetId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
+    tipoId: '3f2504e0-4f89-41d3-9a0c-0305e82c3302',
+    motivo: 'falla_irreparable',
+    fechaRealizada: '2026-09-23',
+    realizadoPor: 'Técnico',
+  }
+
+  test('acepta una baja completa y convierte la fecha', () => {
+    const r = bajaPorMantencionSchema.safeParse(valida)
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.fechaRealizada).toBeInstanceOf(Date)
+  })
+
+  test('"Otro" exige describir el motivo', () => {
+    expect(bajaPorMantencionSchema.safeParse({ ...valida, motivo: 'otro' }).success).toBe(false)
+    expect(
+      bajaPorMantencionSchema.safeParse({ ...valida, motivo: 'otro', motivoDetalle: 'Se mojó' }).success
+    ).toBe(true)
+  })
+
+  test('rechaza un motivo que no existe y una fecha invalida', () => {
+    expect(bajaPorMantencionSchema.safeParse({ ...valida, motivo: 'aburrimiento' }).success).toBe(false)
+    expect(bajaPorMantencionSchema.safeParse({ ...valida, fechaRealizada: 'ayer' }).success).toBe(false)
   })
 })
