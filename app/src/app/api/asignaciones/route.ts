@@ -5,8 +5,7 @@ import { executeAssignment } from "@/lib/services/workflowExecutionService";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { sedeWhere, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
-import { normalizeRut } from '@/lib/utils/rut';
-import { removeAccents, matchNoAccent } from '@/lib/utils/text';
+import { coincideBusqueda } from '@/lib/utils/text';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,9 +85,6 @@ export async function GET(request: NextRequest) {
     let total;
 
     if (terminoBusqueda) {
-      const normalizedSearch = normalizeRut(terminoBusqueda);
-      const searchSinAcentos = removeAccents(terminoBusqueda.toLowerCase());
-
       const todas = await prisma.assignment.findMany({
         where,
         orderBy: { [filters.sortBy]: filters.sortOrder },
@@ -102,18 +98,21 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      const filtradas = todas.filter((a) => {
-        const rutNormalizado = a.employee.rut ? normalizeRut(a.employee.rut) : "";
-        if (normalizedSearch && rutNormalizado.includes(normalizedSearch)) return true;
-
-        if (matchNoAccent(a.employee.nombres, searchSinAcentos)) return true;
-        if (matchNoAccent(a.employee.apellidoPaterno, searchSinAcentos)) return true;
-        if (matchNoAccent(a.asset.numeroSerie, searchSinAcentos)) return true;
-        if (matchNoAccent(a.asset.marca, searchSinAcentos)) return true;
-        if (matchNoAccent(a.asset.modelo, searchSinAcentos)) return true;
-
-        return false;
-      });
+      // RUT sin formato, o palabra por palabra (coincideBusqueda): "juan
+      // lenovo" encuentra el Lenovo de Juan.
+      const filtradas = todas.filter((a) =>
+        coincideBusqueda(terminoBusqueda, {
+          rut: a.employee.rut,
+          campos: [
+            a.employee.nombres,
+            a.employee.apellidoPaterno,
+            a.employee.apellidoMaterno,
+            a.asset.numeroSerie,
+            a.asset.marca,
+            a.asset.modelo,
+          ],
+        })
+      );
 
       total = filtradas.length;
       assignments = filtradas.slice(skip, skip + filters.limit);

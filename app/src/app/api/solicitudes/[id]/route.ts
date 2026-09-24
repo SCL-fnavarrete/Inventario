@@ -3,6 +3,11 @@ import { prisma } from '@/lib/prisma';
 import { updateWorkflowRequestSchema } from '@/lib/validations/workflow';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
+import {
+  asignacionesDelTicket,
+  devueltasDespues,
+  paresDeCambio,
+} from '@/lib/queries/asignacionesTicket';
 
 // GET /api/solicitudes/[id] - Get full detail
 export async function GET(
@@ -69,17 +74,24 @@ export async function GET(
 
     assertSedeAccess(session, workflowRequest.sedeId, 'Solicitud no encontrada');
 
-    // Equipos devueltos en este ticket de offboarding: assignmentIds guarda
-    // las asignaciones que se fueron devolviendo (calificadas ok/danado),
-    // pero como ya quedaron con activo:false, "employee.assignments" (que
-    // solo trae las activas) no las incluye -- hay que buscarlas aparte.
-    const equiposDevueltos =
-      workflowRequest.tipo === 'offboarding' && workflowRequest.assignmentIds.length > 0
-        ? await prisma.assignment.findMany({
-            where: { id: { in: workflowRequest.assignmentIds } },
-            include: { asset: { include: { categoria: true } } },
-            orderBy: { fechaDevolucion: 'desc' },
-          })
+    // Equipos de ESTE ticket (assignmentIds), no los que el empleado tiene
+    // hoy: lo entregado en un onboarding, lo devuelto en una desvinculacion
+    // y los pares de un cambio (SPEC 2.84).
+    // recuperadoEn: el equipo no se devolvio en este ticket, sino en uno
+    // posterior (SPEC 2.87); la asignacion solo guarda su ultimo estado.
+    const [asignaciones, recuperadas] = await Promise.all([
+      asignacionesDelTicket(workflowRequest.assignmentIds),
+      devueltasDespues(workflowRequest),
+    ]);
+    const asignacionesTicket = asignaciones.map((a) => ({
+      ...a,
+      recuperadoEn: recuperadas.get(a.id) ?? null,
+    }));
+    const equiposEntregados = workflowRequest.tipo === 'onboarding' ? asignacionesTicket : [];
+    const equiposDevueltos = workflowRequest.tipo === 'offboarding' ? asignacionesTicket : [];
+    const paresCambio =
+      workflowRequest.tipo === 'cambio_equipo'
+        ? paresDeCambio(workflowRequest.assignmentIds, asignacionesTicket)
         : [];
 
     // Mismo criterio para el EPP devuelto en este ticket (kitReturnIds).
@@ -92,32 +104,9 @@ export async function GET(
           })
         : [];
 
-    // Cambio de equipo: assignmentIds guarda los pares en orden [viejo1,
-    // nuevo1, viejo2, nuevo2, ...] (SPEC 2.84); los tickets de un solo par
-    // son [viejo, nuevo]. Se arman por posicion y no por estadoDevolucion:
-    // el equipo nuevo tambien puede devolverse despues y sigue siendo el
-    // "nuevo" de este cambio.
-    const asignacionesCambio =
-      workflowRequest.tipo === 'cambio_equipo' && workflowRequest.assignmentIds.length > 0
-        ? await prisma.assignment.findMany({
-            where: { id: { in: workflowRequest.assignmentIds } },
-            include: { asset: { include: { categoria: true } } },
-          })
-        : [];
-    type AsignacionCambio = (typeof asignacionesCambio)[number];
-    const porId = new Map(asignacionesCambio.map((a) => [a.id, a]));
-    const paresCambio: { anterior: AsignacionCambio | null; nuevo: AsignacionCambio | null }[] = [];
-    if (asignacionesCambio.length > 0) {
-      for (let i = 0; i < workflowRequest.assignmentIds.length; i += 2) {
-        paresCambio.push({
-          anterior: porId.get(workflowRequest.assignmentIds[i]) ?? null,
-          nuevo: porId.get(workflowRequest.assignmentIds[i + 1]) ?? null,
-        });
-      }
-    }
-
     return NextResponse.json({
       ...workflowRequest,
+      equiposEntregados,
       equiposDevueltos,
       eppDevueltos,
       paresCambio,

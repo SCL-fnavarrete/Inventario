@@ -7,6 +7,11 @@ import { ComprobanteCambioTemplate } from '@/lib/templates/ComprobanteCambioTemp
 import { ActaDevolucionTemplate } from '@/lib/templates/ActaDevolucionTemplate';
 import type { FilaEquipoActa } from '@/lib/templates/TablaEquipoActa';
 import { prisma } from '@/lib/prisma';
+import {
+  asignacionesDelTicket,
+  devueltasDespues,
+  paresDeCambio,
+} from '@/lib/queries/asignacionesTicket';
 import { ValidationError } from '@/lib/errors';
 import { especificacionesActivo, type ActivoParaSpecs } from '@/lib/utils/assetSpecs';
 import { formatearFecha } from "@/lib/utils/fechas";
@@ -41,21 +46,6 @@ function fechaDocumentoLarga(fecha: Date): string {
     year: 'numeric',
   });
   return texto.charAt(0).toUpperCase() + texto.slice(1);
-}
-
-/**
- * Asignaciones de ESTE ticket (assignmentIds), en su orden. Los tickets
- * antiguos sin assignmentIds devuelven null y el llamador usa su criterio
- * anterior.
- */
-async function asignacionesDelTicket(assignmentIds: string[]) {
-  if (assignmentIds.length === 0) return null;
-  const filas = await prisma.assignment.findMany({
-    where: { id: { in: assignmentIds } },
-    include: { asset: { include: { categoria: true } } },
-  });
-  const porId = new Map(filas.map((a) => [a.id, a]));
-  return assignmentIds.flatMap((id) => porId.get(id) ?? []);
 }
 
 // Fila de la tabla de equipos de un acta (TablaEquipoActa). El N° de serie y
@@ -129,7 +119,9 @@ export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer>
   // Solo los equipos entregados en este ticket: el empleado pudo cambiar de
   // equipo o desvincularse despues.
   const asignaciones =
-    (await asignacionesDelTicket(solicitud.assignmentIds)) ?? solicitud.employee.assignments;
+    solicitud.assignmentIds.length > 0
+      ? await asignacionesDelTicket(solicitud.assignmentIds)
+      : solicitud.employee.assignments;
   const assets = asignaciones.map((a) => ({
     tipo: a.asset.categoria.nombre,
     marca: a.asset.marca,
@@ -177,7 +169,9 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
 
   // Solo los equipos entregados en este ticket (ver generateAnexoEntrega).
   const asignaciones =
-    (await asignacionesDelTicket(solicitud.assignmentIds)) ?? solicitud.employee.assignments;
+    solicitud.assignmentIds.length > 0
+      ? await asignacionesDelTicket(solicitud.assignmentIds)
+      : solicitud.employee.assignments;
   const assets = asignaciones.map((a) =>
     filaEquipo(a.asset, 'OK', textoCargador(a, a.condicionCargadorEntrega, 'entrega'))
   );
@@ -211,31 +205,20 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
     },
   });
 
-  // WorkflowRequest.assignmentIds guarda los pares en orden [viejo1, nuevo1,
-  // viejo2, nuevo2, ...] (SPEC 2.84); un ticket de un solo par es [viejo, nuevo].
-  const ids = solicitud.assignmentIds;
-  const pares: [string, string | undefined][] = [];
-  for (let i = 0; i < ids.length; i += 2) pares.push([ids[i], ids[i + 1]]);
-
-  const porId = new Map(
-    (
-      await prisma.assignment.findMany({
-        where: { id: { in: ids } },
-        include: { asset: { include: { categoria: true } } },
-      })
-    ).map((a) => [a.id, a])
+  // Un par por equipo cambiado (SPEC 2.84), en el orden del ticket.
+  const pares = paresDeCambio(
+    solicitud.assignmentIds,
+    await asignacionesDelTicket(solicitud.assignmentIds)
   );
 
-  const equiposNuevos = pares.map(([, nuevoId]) => {
-    const a = nuevoId ? porId.get(nuevoId) : undefined;
-    return a
+  const equiposNuevos = pares.map(({ nuevo: a }) =>
+    a
       ? filaEquipo(a.asset, 'Entregado OK', textoCargador(a, a.condicionCargadorEntrega, 'entrega'))
-      : FILA_VACIA;
-  });
+      : FILA_VACIA
+  );
   // El estado es el real de la devolucion (antes decia siempre "Devolución OK").
-  const equiposAnteriores = pares.map(([viejoId]) => {
-    const a = porId.get(viejoId);
-    return a
+  const equiposAnteriores = pares.map(({ anterior: a }) =>
+    a
       ? filaEquipo(
           a.asset,
           a.estadoDevolucion === 'danado'
@@ -245,8 +228,8 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
               : 'Devolución OK',
           textoCargador(a, a.condicionCargadorDevolucion, 'devolucion')
         )
-      : FILA_VACIA;
-  });
+      : FILA_VACIA
+  );
 
   // Coordinacion "por OT": clausula de OT en la intro, igual que la entrega.
   const otNumero = solicitud.medioCambio === 'chilexpress' ? solicitud.otCambioChilexpress : null;
@@ -289,13 +272,14 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
   // se listaba con estado "No devuelto" y con espacio para la firma del
   // colaborador. Tickets antiguos sin assignmentIds conservan el criterio
   // anterior (asignaciones cerradas con fecha de devolucion).
+  // Un equipo entregado despues en otro ticket (recuperacion) va en el acta
+  // de ESE ticket, no en esta.
+  const recuperadas = await devueltasDespues(solicitud);
   const returnedAssignments =
     solicitud.assignmentIds.length > 0
-      ? solicitud.employee.assignments.filter(
+      ? (await asignacionesDelTicket(solicitud.assignmentIds)).filter(
           (a) =>
-            solicitud.assignmentIds.includes(a.id) &&
-            !!a.estadoDevolucion &&
-            a.estadoDevolucion !== 'no_devuelto'
+            !!a.estadoDevolucion && a.estadoDevolucion !== 'no_devuelto' && !recuperadas.has(a.id)
         )
       : solicitud.employee.assignments.filter((a) => !a.activo && a.fechaDevolucion);
 

@@ -7,6 +7,7 @@ import { validateTransition } from '@/lib/services/assetStateMachine';
 import { sedeWhere, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { formatearFechaCorta, inicioDeHoy } from '@/lib/utils/fechas';
+import { busquedaActivo, palabrasDeBusqueda } from "@/lib/queries/activos";
 
 // GET /api/mantenciones - Listar mantenciones con filtros
 export async function GET(request: NextRequest) {
@@ -71,23 +72,9 @@ export async function GET(request: NextRequest) {
       // Alcance acotado al activo y al empleado asignado -- los datos
       // involucrados en una mantencion -- en vez de a campos de texto libre
       // propios de la mantencion (descripcion, realizadoPor, etc.).
-      const palabras = filters.search.trim().split(/\s+/).filter(Boolean);
-      const condicionesBusqueda: Prisma.MaintenanceWhereInput[] = palabras.map((palabra) => ({
-        OR: [
-          { asset: { numeroSerie: { contains: palabra, mode: "insensitive" } } },
-          { asset: { marca: { contains: palabra, mode: "insensitive" } } },
-          { asset: { modelo: { contains: palabra, mode: "insensitive" } } },
-          { asset: { nombreEquipo: { contains: palabra, mode: "insensitive" } } },
-          { asset: { numeroTelefono: { contains: palabra, mode: "insensitive" } } },
-          { asset: { ubicacionFisica: { contains: palabra, mode: "insensitive" } } },
-          { asset: { categoria: { nombre: { contains: palabra, mode: "insensitive" } } } },
-          { asset: { empleadoActual: { nombres: { contains: palabra, mode: "insensitive" } } } },
-          { asset: { empleadoActual: { apellidoPaterno: { contains: palabra, mode: "insensitive" } } } },
-          { asset: { empleadoActual: { apellidoMaterno: { contains: palabra, mode: "insensitive" } } } },
-          { asset: { empleadoActual: { rut: { contains: palabra, mode: "insensitive" } } } },
-          { asset: { empleadoActual: { correoEmpresa: { contains: palabra, mode: "insensitive" } } } },
-        ],
-      }));
+      const condicionesBusqueda: Prisma.MaintenanceWhereInput[] = palabrasDeBusqueda(
+        filters.search
+      ).map((palabra) => ({ asset: busquedaActivo(palabra) }));
 
       const condicionesAndPrevias = Array.isArray(where.AND)
         ? where.AND

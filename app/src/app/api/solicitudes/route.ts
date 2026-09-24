@@ -6,9 +6,8 @@ import { executeAssignment, executeKitDelivery, executeReturn, executeKitReturn 
 import { Prisma, Employee } from '@prisma/client';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { sedeWhere, sedeIdParaCrear, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
-import { normalizeRut } from '@/lib/utils/rut';
 import { ValidationError } from '@/lib/errors';
-import { removeAccents, matchNoAccent } from '@/lib/utils/text';
+import { coincideBusqueda } from '@/lib/utils/text';
 
 /**
  * Siguiente numero del año (WF-2026-0001...), leido dentro de la misma
@@ -111,36 +110,33 @@ export async function GET(request: NextRequest) {
 
     // El termino de busqueda se filtra en memoria en vez de mandarlo a
     // Prisma como `contains`: `employee.rut` se guarda formateado
-    // ("12.345.678-9") y el usuario casi siempre lo escribe sin puntos, asi
-    // que un `contains` directo nunca hacia match. `normalizeRut` saca
-    // puntos/guion de ambos lados antes de comparar; numero/nombre/
-    // apellido/observaciones quedan sin distinguir acentos (`matchNoAccent`).
+    // ("12.345.678-9") y el usuario casi siempre lo escribe sin puntos. El
+    // criterio (RUT, o palabra por palabra sin acentos) es el comun de
+    // `coincideBusqueda`: "juan perez" encuentra a Juan Pérez.
     const terminoBusqueda = filters.search?.trim() ?? "";
 
     let data;
     let total;
 
     if (terminoBusqueda) {
-      const normalizedSearch = normalizeRut(terminoBusqueda);
-      const searchSinAcentos = removeAccents(terminoBusqueda.toLowerCase());
-
       const todas = await prisma.workflowRequest.findMany({
         where,
         orderBy: { [filters.sortBy]: filters.sortOrder },
         include: includeSolicitud,
       });
 
-      const filtradas = todas.filter((s) => {
-        if (matchNoAccent(s.numero, searchSinAcentos)) return true;
-        if (matchNoAccent(s.observaciones, searchSinAcentos)) return true;
-        if (matchNoAccent(s.employee.nombres, searchSinAcentos)) return true;
-        if (matchNoAccent(s.employee.apellidoPaterno, searchSinAcentos)) return true;
-
-        const rutNormalizado = s.employee.rut ? normalizeRut(s.employee.rut) : "";
-        if (normalizedSearch && rutNormalizado.includes(normalizedSearch)) return true;
-
-        return false;
-      });
+      const filtradas = todas.filter((s) =>
+        coincideBusqueda(terminoBusqueda, {
+          rut: s.employee.rut,
+          campos: [
+            s.numero,
+            s.observaciones,
+            s.employee.nombres,
+            s.employee.apellidoPaterno,
+            s.employee.apellidoMaterno,
+          ],
+        })
+      );
 
       total = filtradas.length;
       data = filtradas.slice(skip, skip + filters.limit);

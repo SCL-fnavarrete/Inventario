@@ -19,6 +19,7 @@ import { parseApiError, type FieldErrors } from '@/lib/utils/apiErrors';
 import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
 import { formatearFecha } from "@/lib/utils/fechas";
 import { buttonClasses } from "@/components/ui/buttonStyles";
+import { FilaEquipoTicket, type AsignacionFila } from '@/components/solicitudes/FilaEquipoTicket';
 
 type WorkflowDetail = {
   id: string;
@@ -109,17 +110,10 @@ type WorkflowDetail = {
     createdAt: string;
     item: { id: string; nombre: string; categoria: 'kit_bienvenida' | 'epp' };
   }[];
-  // Offboarding: equipos ya devueltos y calificados en este ticket (ver
-  // assignmentIds -- quedan con activo:false asi que no vienen en
-  // employee.assignments).
-  equiposDevueltos: {
-    id: string;
-    fechaDevolucion: string | null;
-    recibidoPor: string | null;
-    estadoDevolucion: string | null;
-    observacionesDevolucion: string | null;
-    asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string } };
-  }[];
+  // Equipos de ESTE ticket (assignmentIds), no los que el empleado tiene hoy:
+  // lo entregado en un onboarding y lo devuelto en una desvinculacion.
+  equiposEntregados: AsignacionFila[];
+  equiposDevueltos: AsignacionFila[];
   // Mismo caso para el EPP devuelto en este ticket (ver kitReturnIds).
   eppDevueltos: {
     id: string;
@@ -139,22 +133,7 @@ type WorkflowDetail = {
   }[];
   // Cambio de equipo: un par por cada equipo cambiado (SPEC 2.84), con el
   // equipo devuelto y su reemplazo, ya armados por el backend.
-  paresCambio: {
-    anterior: {
-      id: string;
-      fechaDevolucion: string | null;
-      recibidoPor: string | null;
-      estadoDevolucion: string | null;
-      observacionesDevolucion: string | null;
-      asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string } };
-    } | null;
-    nuevo: {
-      id: string;
-      fechaEntrega: string;
-      entregadoPor: string | null;
-      asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string } };
-    } | null;
-  }[];
+  paresCambio: { anterior: AsignacionFila | null; nuevo: AsignacionFila | null }[];
 };
 
 const estadoLabels: Record<string, string> = {
@@ -590,7 +569,8 @@ export default function SolicitudDetailPage() {
                     (data.estado === 'equipo_recibido' || data.estado === 'consolidacion_cierre') &&
                     // Sin equipos devueltos no hay acta (SPEC 2.87).
                     data.equiposDevueltos.some(
-                      (a) => !!a.estadoDevolucion && a.estadoDevolucion !== 'no_devuelto'
+                      (a) =>
+                        !!a.estadoDevolucion && a.estadoDevolucion !== 'no_devuelto' && !a.recuperadoEn
                     )
                   ? { tipo: 'acta-devolucion', label: 'Acta de Devolución' }
                   : data.tipo === 'cambio_equipo' &&
@@ -1064,10 +1044,26 @@ export default function SolicitudDetailPage() {
             </dl>
           </div>
 
-          {/* Active Assets */}
+          {/* Equipos Entregados: lo que se entrego en ESTE onboarding. Queda a
+              la vista aunque despues el empleado cambie de equipo o se
+              desvincule (a diferencia de "Equipos actuales"). */}
+          {data.tipo === 'onboarding' && data.equiposEntregados.length > 0 && (
+            <div className="card p-6">
+              <h3 className="font-semibold text-fg mb-4">
+                Equipos Entregados ({data.equiposEntregados.length})
+              </h3>
+              <div className="space-y-2">
+                {data.equiposEntregados.map((a) => (
+                  <FilaEquipoTicket key={a.id} asignacion={a} modo="entrega" />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Lo que el empleado tiene hoy, no necesariamente de este ticket. */}
           {data.employee.assignments.length > 0 && (
             <div className="card p-6">
-              <h3 className="font-semibold text-fg mb-4">Equipos Asignados</h3>
+              <h3 className="font-semibold text-fg mb-4">Equipos actuales del empleado</h3>
               <div className="space-y-2">
                 {data.employee.assignments.map((a) => (
                   <div key={a.id} className="text-sm p-2 bg-surface-muted rounded">
@@ -1093,42 +1089,7 @@ export default function SolicitudDetailPage() {
               <h3 className="font-semibold text-fg mb-4">Equipos Devueltos</h3>
               <div className="space-y-2">
                 {data.equiposDevueltos.map((a) => (
-                  <div key={a.id} className="text-sm p-3 bg-surface-muted rounded-lg">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-fg">
-                        {a.asset.categoria.nombre}: {a.asset.marca} {a.asset.modelo}
-                      </span>
-                      <span
-                        className={cn(
-                          'text-xs px-1.5 py-0.5 rounded flex-shrink-0',
-                          a.estadoDevolucion === 'danado'
-                            ? 'bg-red-100 text-red-700'
-                            : a.estadoDevolucion === 'no_devuelto'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-green-100 text-green-700'
-                        )}
-                      >
-                        {a.estadoDevolucion === 'danado'
-                          ? 'Dañado'
-                          : a.estadoDevolucion === 'no_devuelto'
-                            ? 'No devolvió'
-                            : 'Buen estado'}
-                      </span>
-                    </div>
-                    <span className="block text-xs text-fg-subtle mt-0.5">
-                      {a.asset.numeroSerie && `S/N: ${a.asset.numeroSerie} · `}
-                      {a.estadoDevolucion === 'no_devuelto'
-                        ? 'Sigue asignado, a la espera de recuperarlo'
-                        : a.fechaDevolucion &&
-                          `Devuelto el ${formatearFecha(a.fechaDevolucion)}`}
-                      {a.recibidoPor && ` · Registrado por ${a.recibidoPor}`}
-                    </span>
-                    {a.observacionesDevolucion && (
-                      <p className="text-xs text-fg-muted mt-1">
-                        Observaciones: {a.observacionesDevolucion}
-                      </p>
-                    )}
-                  </div>
+                  <FilaEquipoTicket key={a.id} asignacion={a} modo="devolucion" />
                 ))}
               </div>
             </div>
@@ -1185,58 +1146,10 @@ export default function SolicitudDetailPage() {
                 {data.paresCambio.map(({ anterior, nuevo }, i) => (
                   <div key={anterior?.id ?? nuevo?.id ?? i} className="space-y-2">
                     {anterior && (
-                      <div className="text-sm p-3 bg-surface-muted rounded-lg">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-fg">
-                            Anterior: {anterior.asset.categoria.nombre}
-                            {' — '}
-                            {anterior.asset.marca} {anterior.asset.modelo}
-                          </span>
-                          <span
-                            className={cn(
-                              'text-xs px-1.5 py-0.5 rounded flex-shrink-0',
-                              anterior.estadoDevolucion === 'danado'
-                                ? 'bg-red-100 text-red-700'
-                                : anterior.estadoDevolucion === 'no_devuelto'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-green-100 text-green-700'
-                            )}
-                          >
-                            {anterior.estadoDevolucion === 'danado'
-                              ? 'Dañado'
-                              : anterior.estadoDevolucion === 'no_devuelto'
-                                ? 'No devolvió'
-                                : 'Buen estado'}
-                          </span>
-                        </div>
-                        <span className="block text-xs text-fg-subtle mt-0.5">
-                          {anterior.asset.numeroSerie && `S/N: ${anterior.asset.numeroSerie} · `}
-                          {anterior.estadoDevolucion === 'no_devuelto'
-                            ? 'Sigue asignado, a la espera de recuperarlo'
-                            : anterior.fechaDevolucion &&
-                              `Devuelto el ${formatearFecha(anterior.fechaDevolucion)}`}
-                          {anterior.recibidoPor && ` · Registrado por ${anterior.recibidoPor}`}
-                        </span>
-                        {anterior.observacionesDevolucion && (
-                          <p className="text-xs text-fg-muted mt-1">
-                            Observaciones: {anterior.observacionesDevolucion}
-                          </p>
-                        )}
-                      </div>
+                      <FilaEquipoTicket asignacion={anterior} modo="devolucion" prefijo="Anterior" />
                     )}
                     {nuevo && (
-                      <div className="text-sm p-3 bg-green-50 rounded-lg">
-                        <span className="font-medium text-fg">
-                          Nuevo: {nuevo.asset.categoria.nombre}
-                          {' — '}
-                          {nuevo.asset.marca} {nuevo.asset.modelo}
-                        </span>
-                        <span className="block text-xs text-fg-subtle mt-0.5">
-                          {nuevo.asset.numeroSerie && `S/N: ${nuevo.asset.numeroSerie} · `}
-                          Entregado el {formatearFecha(nuevo.fechaEntrega)}
-                          {nuevo.entregadoPor && ` · Por ${nuevo.entregadoPor}`}
-                        </span>
-                      </div>
+                      <FilaEquipoTicket asignacion={nuevo} modo="entrega" prefijo="Nuevo" destacado />
                     )}
                   </div>
                 ))}

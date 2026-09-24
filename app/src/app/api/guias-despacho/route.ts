@@ -9,8 +9,7 @@ import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { generarNumeroGuia } from '@/lib/services/guiaDespachoService';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { formatearRut, validarDigitoVerificador } from '@/lib/validations/rut';
-import { normalizeRut } from '@/lib/utils/rut';
-import { removeAccents, matchNoAccent } from '@/lib/utils/text';
+import { coincideBusqueda } from '@/lib/utils/text';
 
 /**
  * Visibilidad de una guia de despacho: a diferencia del resto de modulos,
@@ -66,25 +65,19 @@ export async function GET(request: NextRequest) {
     let total;
 
     if (terminoBusqueda) {
-      const normalizedSearch = normalizeRut(terminoBusqueda);
-      const searchSinAcentos = removeAccents(terminoBusqueda.toLowerCase());
-
       const todas = await prisma.dispatchGuide.findMany({
         where,
         orderBy: { createdAt: "desc" },
         include: includeGuia,
       });
 
-      const filtradas = todas.filter((g) => {
-        if (matchNoAccent(g.numero, searchSinAcentos)) return true;
-        if (matchNoAccent(g.otChilexpress, searchSinAcentos)) return true;
-        if (matchNoAccent(g.receptorNombre, searchSinAcentos)) return true;
-
-        const rutNormalizado = g.receptorRut ? normalizeRut(g.receptorRut) : "";
-        if (normalizedSearch && rutNormalizado.includes(normalizedSearch)) return true;
-
-        return false;
-      });
+      // RUT del receptor sin formato, o palabra por palabra (coincideBusqueda).
+      const filtradas = todas.filter((g) =>
+        coincideBusqueda(terminoBusqueda, {
+          rut: g.receptorRut,
+          campos: [g.numero, g.otChilexpress, g.receptorNombre],
+        })
+      );
 
       total = filtradas.length;
       guides = filtradas.slice((page - 1) * limit, (page - 1) * limit + limit);

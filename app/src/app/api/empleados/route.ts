@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createEmployeeSchema, employeeFiltersSchema } from "@/lib/validations/employee";
 import { Prisma } from "@prisma/client";
-import { normalizeRut } from "@/lib/utils/rut";
-import { removeAccents, matchNoAccent } from "@/lib/utils/text";
+import { coincideBusqueda } from "@/lib/utils/text";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { sedeWhere, sedeIdParaCrear, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
@@ -47,9 +46,6 @@ export async function GET(request: NextRequest) {
     // Un termino de solo espacios no es una busqueda: se ignora en vez de
     // filtrar por vacio, que no devolveria nada util.
     const terminoBusqueda = filters.search?.trim() ?? "";
-
-    // Normalizar búsqueda: quitar puntos/guiones (RUT) y acentos
-    const normalizedSearch = terminoBusqueda ? normalizeRut(terminoBusqueda) : "";
 
     if (filters.estado) {
       where.estado = filters.estado;
@@ -100,25 +96,21 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      const searchTerms = removeAccents(terminoBusqueda.toLowerCase());
-
-      const filtered = allEmployees.filter((emp) => {
-        // 1. Buscar por RUT normalizado (sin puntos ni guiones)
-        const empRutNormalized = emp.rut ? normalizeRut(emp.rut) : "";
-        if (normalizedSearch && empRutNormalized.includes(normalizedSearch)) {
-          return true;
-        }
-
-        // 2. Buscar en campos de texto sin acentos
-        if (matchNoAccent(emp.nombres, searchTerms)) return true;
-        if (matchNoAccent(emp.apellidoPaterno, searchTerms)) return true;
-        if (matchNoAccent(emp.apellidoMaterno, searchTerms)) return true;
-        if (matchNoAccent(emp.correoPersonal, searchTerms)) return true;
-        if (matchNoAccent(emp.correoEmpresa, searchTerms)) return true;
-        if (matchNoAccent(emp.cargo, searchTerms)) return true;
-
-        return false;
-      });
+      // RUT sin formato, o palabra por palabra sin acentos (coincideBusqueda):
+      // "juan perez" encuentra a Juan Pérez.
+      const filtered = allEmployees.filter((emp) =>
+        coincideBusqueda(terminoBusqueda, {
+          rut: emp.rut,
+          campos: [
+            emp.nombres,
+            emp.apellidoPaterno,
+            emp.apellidoMaterno,
+            emp.correoPersonal,
+            emp.correoEmpresa,
+            emp.cargo,
+          ],
+        })
+      );
 
       total = filtered.length;
       employees = filtered.slice(skip, skip + filters.limit);

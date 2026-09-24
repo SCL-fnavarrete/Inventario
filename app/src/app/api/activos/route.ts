@@ -4,7 +4,7 @@ import { createAssetSchema } from "@/lib/validations/asset";
 import { assetHistoryService } from "@/lib/services/assetHistoryService";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { sedeWhere, sedeIdParaCrear, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
-import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { ACTIVOS_VIGENTES, busquedaActivo, palabrasDeBusqueda } from '@/lib/queries/activos';
 
 /**
  * Tope de filas por pagina. Protege la base de un ?limit arbitrario;
@@ -39,19 +39,9 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = { ...ACTIVOS_VIGENTES, ...sedeWhere(session) };
 
     if (search) {
-      // Buscar por palabras, no por el texto completo: cada palabra debe
-      // aparecer en alguno de los campos (no necesariamente el mismo), asi
-      // que "Hp Probook 640 G2" matchea con marca="Hp" + modelo="ProBook 640
-      // G2" aunque esten en columnas distintas.
-      const palabras = search.trim().split(/\s+/).filter(Boolean);
-      where.AND = palabras.map((palabra) => ({
-        OR: [
-          { numeroSerie: { contains: palabra, mode: "insensitive" } },
-          { marca: { contains: palabra, mode: "insensitive" } },
-          { modelo: { contains: palabra, mode: "insensitive" } },
-          { nombreEquipo: { contains: palabra, mode: "insensitive" } },
-        ],
-      }));
+      // Por palabras: cada una debe aparecer en algun dato del activo o de
+      // quien lo tiene ("Hp Probook 640 G2", "lenovo perez").
+      where.AND = palabrasDeBusqueda(search).map(busquedaActivo);
     }
 
     if (estado) {

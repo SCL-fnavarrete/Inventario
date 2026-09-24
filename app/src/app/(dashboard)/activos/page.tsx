@@ -485,7 +485,7 @@ function ActivosPageContent() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-fg-subtle" />
             <input
               type="text"
-              placeholder="Buscar por serie, marca, modelo..."
+              placeholder="Buscar por serie, marca, modelo o persona..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="field-input pl-10 pr-4"

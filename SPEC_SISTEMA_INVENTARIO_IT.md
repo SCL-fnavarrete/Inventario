@@ -3106,7 +3106,19 @@ Pedido de Javier: en Activos, solo la vista de tarjetas permitía entrar al deta
 - **Tablero:** un clic en la tarjeta abre el detalle (arrastrar sigue cambiando de columna) y cada tarjeta muestra los íconos Ver detalle y Editar. Se agregan las columnas **No devuelto** y **Vendido**, solo para ver: no aceptan equipos, porque se llega a esos estados por su proceso.
 - Solo cambia la interfaz; no hay cambios de datos ni de reglas.
 
+## 2.90 Revisión 2, parte 1: equipos del ticket y búsquedas (23-sep-2026)
+
+Segunda revisión de Solicitudes, Activos y Dashboard, pedida por Javier. Parte 1: errores.
+
+- **Detalle de un onboarding:** nueva sección **"Equipos Entregados"** con los equipos de ese ticket (fecha, quién entregó, cargador y, si ya volvió, cuándo). Antes solo decía la categoría pedida ("Notebook"); el recuadro de equipos del empleado muestra lo que tiene hoy y pasa a llamarse "Equipos actuales del empleado".
+- **Equipos de un ticket desde un solo lugar:** `lib/queries/asignacionesTicket.ts` (`asignacionesDelTicket`, `paresDeCambio`) lo usan el detalle de la solicitud y los documentos, que antes tenían cada uno su versión. En la interfaz, `FilaEquipoTicket` muestra un equipo en Entregados, Devueltos y Cambiados (con enlace a su ficha).
+- **Equipo recuperado en otro ticket:** si un equipo "No devuelto" se entregó después en otra solicitud (SPEC 2.87), el ticket original lo sigue mostrando como "No devolvió", con "Lo entregó después en WF-…", y su acta no lo incluye (`devueltasDespues`). Antes, como la asignación guarda solo su último estado, el ticket original lo mostraba devuelto en buen estado y volvía a ofrecer acta.
+- **Búsqueda por palabras** (`coincideBusqueda` en `lib/utils/text.ts`): Solicitudes, Personal (también el buscador de empleados de Nueva Solicitud), Asignaciones y Guías de Despacho encuentran el nombre completo ("juan perez" encuentra a Juan Pérez, sin distinguir acentos). Antes comparaban el término entero contra cada campo por separado. El RUT se compara sin puntos ni guion y solo si el término tiene dígitos.
+- **Activos busca también por la persona que tiene el equipo** (nombre, apellidos, RUT, correo) y por categoría, teléfono y ubicación. La condición (`busquedaActivo` en `lib/queries/activos.ts`) la comparte Mantenciones, que tenía su propia copia.
+
 ## Changelog SPEC
+- **v2.14 (2026-09-23):**
+  - Sección 2.90 (nueva): equipos entregados en el detalle de un onboarding; equipos del ticket desde una sola función; un equipo recuperado en otro ticket sigue como "No devolvió" en el original; búsquedas por palabras en Solicitudes, Personal, Asignaciones, Guías y Activos (también por persona).
 - **v2.13 (2026-09-23):**
   - Sección 2.89 (nueva): en Activos se entra al detalle y a editar desde la tabla, el tablero y las tarjetas; el tablero muestra las columnas No devuelto y Vendido (solo lectura).
 - **v2.12 (2026-09-23):**
