@@ -14,6 +14,7 @@ import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProv
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { aValorInputDate, hoyISO } from "@/lib/utils/fechas";
 
 type Maintenance = {
   id: string;
@@ -39,6 +40,22 @@ const estadoColors: Record<string, string> = {
   cancelada: "bg-gray-100 border-line-strong text-fg-subtle",
 };
 
+/**
+ * Dia del calendario como "YYYY-MM-DD" (month parte en 0, como Date). Las
+ * fechas programadas son fechas de calendario guardadas a medianoche UTC: se
+ * comparan por este texto, no por la hora local, que en Chile las corria al
+ * dia anterior.
+ */
+function claveDia(year: number, month: number, day: number): string {
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** Hoy en Chile como fecha local del navegador (para el mes que se muestra). */
+function hoyLocal(): Date {
+  const [y, m, d] = hoyISO().split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 const DAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const MONTHS = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -46,7 +63,7 @@ const MONTHS = [
 ];
 
 export default function CalendarioMantencionesPage() {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(hoyLocal);
   const [maintenances, setMaintenances] = useState<Maintenance[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -64,8 +81,8 @@ export default function CalendarioMantencionesPage() {
   async function fetchMaintenances() {
     setLoading(true);
     try {
-      const fechaDesde = new Date(year, month, 1).toISOString().split("T")[0];
-      const fechaHasta = new Date(year, month + 1, 0).toISOString().split("T")[0];
+      const fechaDesde = claveDia(year, month, 1);
+      const fechaHasta = claveDia(year, month, new Date(year, month + 1, 0).getDate());
 
       const params = new URLSearchParams({
         fechaDesde,
@@ -124,15 +141,8 @@ export default function CalendarioMantencionesPage() {
   }
 
   function getMaintenancesForDate(date: Date) {
-    return maintenances.filter((m) => {
-      if (!m.fechaProgramada) return false;
-      const mDate = new Date(m.fechaProgramada);
-      return (
-        mDate.getDate() === date.getDate() &&
-        mDate.getMonth() === date.getMonth() &&
-        mDate.getFullYear() === date.getFullYear()
-      );
-    });
+    const clave = claveDia(date.getFullYear(), date.getMonth(), date.getDate());
+    return maintenances.filter((m) => aValorInputDate(m.fechaProgramada) === clave);
   }
 
   function prevMonth() {
@@ -146,12 +156,14 @@ export default function CalendarioMantencionesPage() {
   }
 
   function goToToday() {
-    setCurrentDate(new Date());
-    setSelectedDay(new Date().getDate());
+    const hoy = hoyLocal();
+    setCurrentDate(hoy);
+    setSelectedDay(hoy.getDate());
   }
 
   const days = getDaysInMonth();
-  const today = new Date();
+  const today = hoyLocal();
+  const hoy = hoyISO();
   const isCurrentMonth = today.getMonth() === month && today.getFullYear() === year;
 
   const selectedMaintenances = selectedDay
@@ -234,7 +246,7 @@ export default function CalendarioMantencionesPage() {
                     (m) =>
                       m.estado !== "completada" &&
                       m.estado !== "cancelada" &&
-                      new Date(m.fechaProgramada!) < today
+                      aValorInputDate(m.fechaProgramada) < hoy
                   );
 
                   return (
