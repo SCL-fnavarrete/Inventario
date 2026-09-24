@@ -3187,7 +3187,13 @@ Pedido de Javier: *"revisa ese módulo bien a fondo… la idea es que funcione, 
 - **Piezas compartidas:** `lib/services/mantencionActivoService.ts`, con `estadoTrasMantencion`, `registrarSalidaDeMantencion` y `cancelarAbiertasPorBaja`. Es el único lugar que decide a qué estado vuelve el equipo.
 - **Datos existentes:** la migración `20260924120000_mantencion_en_proceso` pasa a "En proceso" la pendiente más antigua de cada equipo que está en mantención, porque con la regla anterior esas mantenciones ya habían movido el equipo. Las demás pendientes siguen programadas.
 
+## 2.97 Onboarding sin "Equipos actuales del empleado" (24-sep-2026)
+
+Pedido de Javier: *"quítalo mejor, confunde"*. El detalle de una solicitud de Onboarding ya no muestra el recuadro "Equipos actuales del empleado" (2.90): repetía "Equipos Entregados" y, si después el empleado cambiaba de equipo, mostraba equipos que no se entregaron en esa solicitud. En las demás solicitudes (cambio de equipo, desvinculación) se mantiene, porque ahí sí sirve saber qué tiene la persona hoy.
+
 ## Changelog SPEC
+- **v2.21 (2026-09-24):**
+  - Sección 2.97 (nueva): el detalle de un Onboarding ya no muestra "Equipos actuales del empleado".
 - **v2.20 (2026-09-24):**
   - Sección 2.96 (nueva): el equipo entra a mantención al iniciarla, no al programarla; una sola mantención en proceso por equipo; "Faltan repuestos" la deja abierta; completar solo por /completar; editar las pendientes; migración de datos.
 - **v2.19 (2026-09-23):**

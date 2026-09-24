@@ -1289,8 +1289,11 @@ export default function SolicitudDetailPage() {
             </dl>
           </div>
 
-          {/* Lo que el empleado tiene hoy, no necesariamente de este ticket. */}
-          {data.employee.assignments.length > 0 && (
+          {/* Lo que el empleado tiene hoy, no necesariamente de este ticket.
+              En Onboarding no se muestra: repetia "Equipos Entregados" y,
+              tras un cambio de equipo, mostraba equipos que no se
+              entregaron en esa solicitud. */}
+          {data.tipo !== 'onboarding' && data.employee.assignments.length > 0 && (
             <div className="card p-6">
               <h3 className="font-semibold text-fg mb-4">Equipos actuales del empleado</h3>
               <div className="space-y-2">
