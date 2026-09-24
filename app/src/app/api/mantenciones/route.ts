@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createMaintenanceSchema, maintenanceFiltersSchema } from "@/lib/validations/maintenance";
 import { Prisma } from "@prisma/client";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { validateTransition } from '@/lib/services/assetStateMachine';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, ConflictError } from '@/lib/auth/guard';
+import { motivoSinMantencion } from '@/lib/constants/estadosActivo';
 import { sedeWhere, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { formatearFechaCorta, inicioDeHoy } from '@/lib/utils/fechas';
@@ -127,9 +127,11 @@ export async function GET(request: NextRequest) {
     if (filters.dias || filters.diasCompletadas) {
       const dias = filters.dias ?? filters.diasCompletadas ?? 30;
       const diasCompletadas = filters.diasCompletadas ?? dias;
-      const hoy = new Date();
-      const fechaLimite = new Date();
-      fechaLimite.setDate(fechaLimite.getDate() + dias);
+      // "Hoy" en hora de Chile, igual que el filtro de vencidas: con
+      // new Date() una mantencion de hoy salia vencida despues de las 21:00.
+      const hoy = inicioDeHoy();
+      const fechaLimite = new Date(hoy);
+      fechaLimite.setUTCDate(fechaLimite.getUTCDate() + dias);
       const fechaInicioCompletadas = new Date();
       fechaInicioCompletadas.setDate(fechaInicioCompletadas.getDate() - diasCompletadas);
 
@@ -236,29 +238,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validar transicion de estado con la maquina de estados, igual que
-    // PUT /api/activos/[id]. Solo aplica cuando esta mantencion va a
-    // cambiar el estado del activo (fechaProgramada presente) y el activo
-    // no esta ya en mantencion.
-    if (data.fechaProgramada && asset.estado !== "en_mantencion") {
-      const activeAssignment = await prisma.assignment.findFirst({
-        where: { assetId: data.assetId, activo: true },
-      });
-      const activeMaintenance = await prisma.maintenance.findFirst({
-        where: { assetId: data.assetId, estado: { in: ["pendiente", "en_proceso"] } },
-      });
-
-      const transitionResult = validateTransition(asset.estado, "en_mantencion", {
-        hasActiveAssignment: !!activeAssignment,
-        hasActiveMaintenance: !!activeMaintenance,
-      });
-
-      if (!transitionResult.valid) {
-        return NextResponse.json(
-          { error: "Transición de estado no permitida", details: transitionResult.errors },
-          { status: 400 }
-        );
-      }
+    // Programar no cambia el estado del equipo (SPEC 2.96): pasa a "En
+    // Mantención" recien al pulsar Iniciar. Aca solo se rechaza el equipo
+    // que no admite mantenciones, con el motivo en palabras.
+    if (asset.deletedAt) {
+      throw new ConflictError("Este activo está descartado y no admite movimientos");
+    }
+    const bloqueo = motivoSinMantencion(asset.estado);
+    if (bloqueo) {
+      return NextResponse.json({ error: bloqueo, details: [{ field: "assetId", message: bloqueo }] }, { status: 409 });
     }
 
     // Crear la mantención en transacción
@@ -295,25 +283,16 @@ export async function POST(request: NextRequest) {
         tx
       );
 
-      // Actualizar estado del activo si se programa mantención
-      if (data.fechaProgramada && asset.estado !== "en_mantencion") {
-        await tx.asset.update({
-          where: { id: data.assetId },
-          data: { estado: "en_mantencion" },
-        });
-
-        // Registrar en historial
-        await tx.assetHistory.create({
-          data: {
-            assetId: data.assetId,
-            tipoEvento: "mantencion",
-            descripcion: `Mantención ${maintenance.tipo.nombre} programada para el ${formatearFechaCorta(data.fechaProgramada)}: ${data.descripcion}`,
-            datosAnteriores: { estado: asset.estado },
-            datosNuevos: { estado: "en_mantencion", maintenanceId: maintenance.id },
-            usuarioSistema: data.realizadoPor || "Sistema",
-          },
-        });
-      }
+      // Historial del equipo, sin cambio de estado.
+      await tx.assetHistory.create({
+        data: {
+          assetId: data.assetId,
+          tipoEvento: "mantencion",
+          descripcion: `Mantención ${maintenance.tipo.nombre} programada para el ${formatearFechaCorta(data.fechaProgramada)}: ${data.descripcion}`,
+          datosNuevos: { maintenanceId: maintenance.id },
+          usuarioSistema: session.user?.email || data.realizadoPor || "Sistema",
+        },
+      });
 
       return maintenance;
     });

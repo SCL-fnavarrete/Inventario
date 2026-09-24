@@ -1,9 +1,10 @@
-// Etiquetas legibles (SPEC 2.85, 2.86) y regla de baja (SPEC 2.88).
+// Etiquetas legibles (SPEC 2.85, 2.86), regla de baja (SPEC 2.88) y de mantencion (SPEC 2.96).
 import {
   etiquetaEstadoActivo,
   etiquetaEstadoDevolucion,
   etiquetaMotivoBaja,
   motivoSinBaja,
+  motivoSinMantencion,
 } from '@/lib/constants/estadosActivo';
 
 describe('etiquetas legibles', () => {
@@ -38,5 +39,19 @@ describe('motivoSinBaja', () => {
   test('baja y vendido ya no admiten baja', () => {
     expect(motivoSinBaja('baja')).toMatch(/Ya está dado de baja/);
     expect(motivoSinBaja('vendido')).toMatch(/Ya fue vendido/);
+  });
+});
+
+describe('motivoSinMantencion', () => {
+  test('disponible, asignado y en mantencion admiten mantenciones', () => {
+    expect(motivoSinMantencion('disponible')).toBeNull();
+    expect(motivoSinMantencion('asignado')).toBeNull();
+    expect(motivoSinMantencion('en_mantencion')).toBeNull();
+  });
+
+  test('no devuelto, baja y vendido no, con el motivo en palabras', () => {
+    expect(motivoSinMantencion('no_devuelto')).toMatch(/recupéralo con una solicitud/);
+    expect(motivoSinMantencion('baja')).toMatch(/dado de baja/);
+    expect(motivoSinMantencion('vendido')).toMatch(/vendido/);
   });
 });

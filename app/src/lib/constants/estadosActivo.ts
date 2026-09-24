@@ -108,6 +108,29 @@ export function motivoSinBaja(estado: string): string | null {
   }
 }
 
+/**
+ * Por que un equipo no puede recibir una mantencion, o null si puede (SPEC
+ * 2.96). Sirve para programarla y para iniciarla: un equipo que no esta en
+ * poder de la empresa (no devuelto) o que ya salio del inventario (baja,
+ * vendido) no se mantiene. La usan la API y la pantalla Programar.
+ */
+export function motivoSinMantencion(estado: string): string | null {
+  switch (estado) {
+    case 'disponible':
+    case 'asignado':
+    case 'en_mantencion':
+      return null;
+    case 'no_devuelto':
+      return 'No fue devuelto: primero recupéralo con una solicitud de desvinculación.';
+    case 'baja':
+      return 'Está dado de baja.';
+    case 'vendido':
+      return 'Fue vendido.';
+    default:
+      return `No admite mantenciones en estado "${etiquetaEstadoActivo(estado)}".`;
+  }
+}
+
 /** Etiqueta de una condicion que puede venir como texto libre. */
 export function etiquetaCondicionActivo(condicion: string): string {
   return CONDICION_ACTIVO_LABEL[condicion as CondicionActivo] ?? condicion;

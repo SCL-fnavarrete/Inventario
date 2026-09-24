@@ -12,6 +12,7 @@ import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { validateTransition } from '@/lib/services/assetStateMachine';
+import { cancelarAbiertasPorBaja } from '@/lib/services/mantencionActivoService';
 import { etiquetaMotivoBaja, motivoSinBaja } from '@/lib/constants/estadosActivo';
 
 // POST /api/mantenciones/baja - Dar de baja un equipo por mantencion (SPEC 2.88).
@@ -63,8 +64,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // La mantencion abierta mas antigua es la que se cierra; su tipo manda.
-    const [abierta, ...otrasAbiertas] = asset.maintenances;
+    // Se cierra la mantencion en proceso, o si no hay, la pendiente mas
+    // antigua; su tipo manda. Las demas abiertas se cancelan.
+    const abierta =
+      asset.maintenances.find((m) => m.estado === 'en_proceso') ?? asset.maintenances[0];
     const tipo = abierta
       ? abierta.tipo
       : await prisma.maintenanceType.findUnique({ where: { id: data.tipoId } });
@@ -93,12 +96,7 @@ export async function POST(request: NextRequest) {
           });
 
       // Un equipo de baja no queda con otras mantenciones pendientes.
-      if (otrasAbiertas.length > 0) {
-        await tx.maintenance.updateMany({
-          where: { id: { in: otrasAbiertas.map((o) => o.id) } },
-          data: { estado: 'cancelada', resultado: 'Cancelada: el equipo se dio de baja' },
-        });
-      }
+      await cancelarAbiertasPorBaja(tx, asset.id, m.id);
 
       await tx.asset.update({
         where: { id: asset.id },

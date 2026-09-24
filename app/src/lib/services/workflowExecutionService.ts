@@ -341,8 +341,10 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
 }
 
 /**
- * Un equipo devuelto danado queda con una mantencion pendiente para hoy, del
- * tipo "Correctiva" (o el primer tipo activo si ese no existe). Desde
+ * Un equipo devuelto danado queda en mantencion con una mantencion en proceso
+ * desde hoy, del tipo "Correctiva" (o el primer tipo activo si ese no
+ * existe): un equipo en mantencion siempre tiene la suya en proceso (SPEC
+ * 2.96). Desde
  * Mantenciones el tecnico la cierra como "Reparado" (vuelve a disponible) o
  * "No reparable" (pasa a baja). SPEC 2.87.
  */
@@ -368,7 +370,7 @@ async function enviarAMantencionPorDano(
       tipoId: tipo.id,
       descripcion,
       fechaProgramada: inicioDeHoy(),
-      estado: 'pendiente',
+      estado: 'en_proceso',
     },
   });
 
@@ -386,7 +388,7 @@ async function enviarAMantencionPorDano(
     'mantencion',
     mantencion.id,
     `Mantención creada: ${tipo.nombre} por devolución de equipo dañado`,
-    { assetId: datos.assetId, tipoId: tipo.id, descripcion, estado: 'pendiente' },
+    { assetId: datos.assetId, tipoId: tipo.id, descripcion, estado: 'en_proceso' },
     datos.usuario,
     tx
   );

@@ -3,8 +3,11 @@ import { Prisma } from '@prisma/client';
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { inicioDeHoy } from '@/lib/utils/fechas';
 
-// GET /api/mantenciones/pendientes - Obtener mantenciones pendientes y próximas
+// GET /api/mantenciones/pendientes - Contadores de las tarjetas de resumen
+// de Mantenciones (vencidas, proximas, en proceso, completadas). Solo cuenta:
+// los listados salen de /api/mantenciones con sus filtros.
 export async function GET(request: NextRequest) {
   try {
     const session = await requirePermission('mantenciones', 'read');
@@ -18,11 +21,13 @@ export async function GET(request: NextRequest) {
     const sinLimiteProximas = dias === 0;
     const sinLimiteCompletadas = diasCompletadas === 0;
 
-    const hoy = new Date();
-    const fechaLimite = new Date();
-    fechaLimite.setDate(fechaLimite.getDate() + dias);
-    const fechaInicioCompletadas = new Date();
-    fechaInicioCompletadas.setDate(fechaInicioCompletadas.getDate() - diasCompletadas);
+    // "Hoy" en hora de Chile, igual que el filtro de vencidas del listado:
+    // las fechas programadas se guardan a medianoche UTC.
+    const hoy = inicioDeHoy();
+    const fechaLimite = new Date(hoy);
+    fechaLimite.setUTCDate(fechaLimite.getUTCDate() + dias);
+    const fechaInicioCompletadas = new Date(hoy);
+    fechaInicioCompletadas.setUTCDate(fechaInicioCompletadas.getUTCDate() - diasCompletadas);
 
     // Maintenance no tiene sedeId propio -- se filtra via su relacion al
     // activo (mismo criterio que el listado y el Dashboard).
@@ -34,111 +39,41 @@ export async function GET(request: NextRequest) {
       swAsset.asset = { ...swAsset.asset, sedeId: sedeIdFiltro };
     }
 
-    // Obtener mantenciones vencidas (fecha pasada y pendiente/en_proceso)
-    const vencidas = await prisma.maintenance.findMany({
-      where: {
-        fechaProgramada: { lt: hoy },
-        estado: { in: ["pendiente", "en_proceso"] },
-        ...swAsset,
-      },
-      include: {
-        asset: {
-          include: {
-            categoria: true,
-            empleadoActual: {
-              select: {
-                id: true,
-                rut: true,
-                nombres: true,
-                apellidoPaterno: true,
-              },
-            },
+    const [totalVencidas, totalProximas, totalEnProceso, totalCompletadas, stats, statsByTipo] =
+      await Promise.all([
+        prisma.maintenance.count({
+          where: { fechaProgramada: { lt: hoy }, estado: { in: ["pendiente", "en_proceso"] }, ...swAsset },
+        }),
+        prisma.maintenance.count({
+          where: {
+            fechaProgramada: sinLimiteProximas ? { gte: hoy } : { gte: hoy, lte: fechaLimite },
+            estado: { in: ["pendiente", "en_proceso"] },
+            ...swAsset,
           },
-        },
-      },
-      orderBy: { fechaProgramada: "asc" },
-    });
-
-    // Obtener mantenciones próximas (en los próximos X días, o todas las
-    // futuras si se pidió "sin límite").
-    const proximas = await prisma.maintenance.findMany({
-      where: {
-        fechaProgramada: sinLimiteProximas ? { gte: hoy } : { gte: hoy, lte: fechaLimite },
-        estado: { in: ["pendiente", "en_proceso"] },
-        ...swAsset,
-      },
-      include: {
-        asset: {
-          include: {
-            categoria: true,
-            empleadoActual: {
-              select: {
-                id: true,
-                rut: true,
-                nombres: true,
-                apellidoPaterno: true,
-              },
-            },
+        }),
+        prisma.maintenance.count({ where: { estado: "en_proceso", ...swAsset } }),
+        // Cuenta por fechaRealizada (no fechaProgramada), dentro de la
+        // ventana elegida.
+        prisma.maintenance.count({
+          where: {
+            estado: "completada",
+            ...(sinLimiteCompletadas ? {} : { fechaRealizada: { gte: fechaInicioCompletadas } }),
+            ...swAsset,
           },
-        },
-      },
-      orderBy: { fechaProgramada: "asc" },
-    });
-
-    // Obtener mantenciones en proceso
-    const enProceso = await prisma.maintenance.findMany({
-      where: {
-        estado: "en_proceso",
-        ...swAsset,
-      },
-      include: {
-        asset: {
-          include: {
-            categoria: true,
-            empleadoActual: {
-              select: {
-                id: true,
-                rut: true,
-                nombres: true,
-                apellidoPaterno: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { fechaProgramada: "asc" },
-    });
-
-    // Estadísticas
-    const stats = await prisma.maintenance.groupBy({
-      by: ["estado"],
-      where: swAsset,
-      _count: { estado: true },
-    });
-
-    const statsByTipo = await prisma.maintenance.groupBy({
-      by: ["tipoId"],
-      where: {
-        estado: { in: ["pendiente", "en_proceso"] },
-        ...swAsset,
-      },
-      _count: { tipoId: true },
-    });
-
-    // Cuenta por fechaRealizada (no fechaProgramada), dentro de la ventana
-    // elegida.
-    const totalCompletadas = await prisma.maintenance.count({
-      where: {
-        estado: "completada",
-        ...(sinLimiteCompletadas ? {} : { fechaRealizada: { gte: fechaInicioCompletadas } }),
-        ...swAsset,
-      },
-    });
+        }),
+        prisma.maintenance.groupBy({
+          by: ["estado"],
+          where: swAsset,
+          _count: { estado: true },
+        }),
+        prisma.maintenance.groupBy({
+          by: ["tipoId"],
+          where: { estado: { in: ["pendiente", "en_proceso"] }, ...swAsset },
+          _count: { tipoId: true },
+        }),
+      ]);
 
     return NextResponse.json({
-      vencidas,
-      proximas,
-      enProceso,
       stats: {
         porEstado: stats.map((s) => ({
           estado: s.estado,
@@ -148,9 +83,9 @@ export async function GET(request: NextRequest) {
           tipoId: s.tipoId,
           count: s._count.tipoId,
         })),
-        totalVencidas: vencidas.length,
-        totalProximas: proximas.length,
-        totalEnProceso: enProceso.length,
+        totalVencidas,
+        totalProximas,
+        totalEnProceso,
         totalCompletadas,
       },
     });

@@ -1,6 +1,6 @@
 import { logger } from "@/lib/logger";
 import { parseDDMMYYYYToDate } from "@/lib/excel-utils";
-import { formatearFechaCorta } from "@/lib/utils/fechas";
+import { formatearFechaCorta, inicioDeHoy } from "@/lib/utils/fechas";
 import {
   ESTADOS_RECONOCIDOS,
   interpretarEstado,
@@ -530,31 +530,30 @@ export async function procesarFila(
           await crearRegistroMantencion(fechaPrincipal, esFutura ? "pendiente" : "completada");
         }
       }
-    } else if (estado === "en_mantencion") {
-      // La columna Estado del Excel y las columnas de fecha de Mantencion/
-      // Proxima Mantencion son independientes entre si -- una fila puede
-      // traer Estado="Mantencion" sin ninguna de esas dos fechas. Sin un
-      // ticket asociado el equipo queda varado: no aparece en la cola de
-      // pendientes y no hay forma de completarlo desde el flujo normal
-      // (boton "Completar Mantencion" vive dentro de un ticket), asi que se
-      // crea un ticket pendiente automatico usando la fecha de hoy como
-      // referencia y el mismo tipo "Preventiva" que usa el resto del import
-      // cuando no hay mas informacion.
-      const ahoraSinFecha = new Date();
+    }
+
+    if (estado === "en_mantencion") {
+      // Un equipo en mantencion siempre tiene su mantencion en proceso (SPEC
+      // 2.96): sin ella queda varado, porque el boton Completar vive dentro
+      // de la mantencion. La columna Estado del Excel es independiente de
+      // las fechas de Mantencion/Proxima Mantencion (esas crean registros
+      // realizados o programados), asi que se crea siempre, con la fecha de
+      // hoy y el mismo tipo "Preventiva" que usa el resto del import.
+      const hoy = inicioDeHoy();
       await tx.maintenance.create({
         data: {
           assetId: asset.id,
           tipoId: ctx.tipoMantencionId,
-          descripcion: "Mantención pendiente (Estado importado como \"Mantención\" sin fecha específica en el Excel)",
-          fechaProgramada: ahoraSinFecha,
-          estado: "pendiente",
+          descripcion: "Mantención en proceso (Estado importado como \"Mantención\" en el Excel)",
+          fechaProgramada: hoy,
+          estado: "en_proceso",
         },
       });
       await tx.assetHistory.create({
         data: {
           assetId: asset.id,
           tipoEvento: "mantencion",
-          descripcion: `Mantención pendiente creada automáticamente el ${formatearFechaCorta(ahoraSinFecha)} (Estado="Mantención" importado sin fecha, importada desde Excel)`,
+          descripcion: `Mantención en proceso desde el ${formatearFechaCorta(hoy)} (Estado="Mantención" importado desde Excel)`,
           usuarioSistema: ctx.session.user?.email || "sistema",
         },
       });

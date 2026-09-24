@@ -180,21 +180,24 @@ describe('Maintenance Validation - updateMaintenanceSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  test('should accept estado change', () => {
-    const result = updateMaintenanceSchema.safeParse({
-      estado: 'completada',
-    })
-    expect(result.success).toBe(true)
+  test('acepta iniciar y cancelar', () => {
+    expect(updateMaintenanceSchema.safeParse({ estado: 'en_proceso' }).success).toBe(true)
+    expect(updateMaintenanceSchema.safeParse({ estado: 'cancelada' }).success).toBe(true)
   })
 
-  test('should accept fechaRealizada', () => {
-    const result = updateMaintenanceSchema.safeParse({
-      fechaRealizada: '2024-03-20',
-    })
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.fechaRealizada).toBeInstanceOf(Date)
-    }
+  test('rechaza completar por aca: tiene su propia ruta (SPEC 2.96)', () => {
+    expect(updateMaintenanceSchema.safeParse({ estado: 'completada' }).success).toBe(false)
+  })
+
+  test('un campo que no viene no se toca (antes Iniciar borraba la fecha)', () => {
+    const result = updateMaintenanceSchema.safeParse({ estado: 'en_proceso' })
+    expect(result.success && 'fechaProgramada' in result.data && result.data.fechaProgramada !== undefined).toBe(false)
+  })
+
+  test('al editar, la fecha programada no puede quedar vacia', () => {
+    expect(updateMaintenanceSchema.safeParse({ fechaProgramada: '' }).success).toBe(false)
+    const result = updateMaintenanceSchema.safeParse({ fechaProgramada: '2026-10-01' })
+    expect(result.success && result.data.fechaProgramada).toBeInstanceOf(Date)
   })
 
   test('should still validate descripcion constraints', () => {

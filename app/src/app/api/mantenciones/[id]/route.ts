@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updateMaintenanceSchema } from "@/lib/validations/maintenance";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
+import {
+  requirePermission,
+  handleApiError,
+  respuestaDatosInvalidos,
+  ConflictError,
+  NotFoundError,
+} from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
+import { validateTransition } from '@/lib/services/assetStateMachine';
+import { registrarSalidaDeMantencion } from '@/lib/services/mantencionActivoService';
+import { motivoSinMantencion } from '@/lib/constants/estadosActivo';
 import { formatearFechaCorta } from '@/lib/utils/fechas';
 
 interface RouteParams {
@@ -57,7 +66,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// PUT /api/mantenciones/[id] - Actualizar mantención
+// PUT /api/mantenciones/[id] - Iniciar, cancelar o editar una mantención
+// (SPEC 2.96). Completar tiene su propia ruta: /completar.
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('mantenciones', 'write');
@@ -72,115 +82,190 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const data = validationResult.data;
 
-    // Verificar que existe la mantención
-    const existingMaintenance = await prisma.maintenance.findUnique({
+    const existente = await prisma.maintenance.findUnique({
       where: { id },
-      include: {
-        asset: true,
-      },
+      include: { asset: true, tipo: true },
     });
 
-    if (!existingMaintenance) {
-      return NextResponse.json(
-        { error: "Mantención no encontrada" },
-        { status: 404 }
-      );
+    if (!existente) throw new NotFoundError("Mantención no encontrada");
+
+    assertSedeAccess(session, existente.asset.sedeId, 'Mantención no encontrada');
+
+    if (existente.estado === "completada" || existente.estado === "cancelada") {
+      throw new ConflictError("No se puede modificar una mantención completada o cancelada");
     }
 
-    assertSedeAccess(session, existingMaintenance.asset.sedeId, 'Mantención no encontrada');
+    const usuario = session.user?.email || "Sistema";
+    const { asset } = existente;
 
-    // No permitir modificar mantenciones completadas o canceladas
-    if (existingMaintenance.estado === "completada" || existingMaintenance.estado === "cancelada") {
-      return NextResponse.json(
-        { error: "No se puede modificar una mantención completada o cancelada" },
-        { status: 400 }
-      );
-    }
+    // Iniciar: el equipo pasa a "En Mantención" recien ahora, y solo puede
+    // haber una mantencion en proceso por equipo.
+    if (data.estado === "en_proceso") {
+      if (existente.estado !== "pendiente") {
+        throw new ConflictError("La mantención ya está en proceso");
+      }
+      if (asset.deletedAt) {
+        throw new ConflictError("Este activo está descartado y no admite movimientos");
+      }
+      const bloqueo = motivoSinMantencion(asset.estado);
+      if (bloqueo) throw new ConflictError(bloqueo);
 
-    // Actualizar en transacción
-    const result = await prisma.$transaction(async (tx) => {
-      const updatedMaintenance = await tx.maintenance.update({
-        where: { id },
-        data: {
-          tipoId: data.tipoId,
-          descripcion: data.descripcion,
-          fechaProgramada: data.fechaProgramada,
-          fechaRealizada: data.fechaRealizada,
-          proximaMantencion: data.proximaMantencion,
-          realizadoPor: data.realizadoPor,
-          costo: data.costo,
-          proveedorExterno: data.proveedorExterno,
-          estado: data.estado,
-          resultado: data.resultado,
-        },
-        include: {
-          tipo: true,
-          asset: {
-            include: { categoria: true },
+      const otraEnProceso = await prisma.maintenance.findFirst({
+        where: { assetId: asset.id, estado: "en_proceso", id: { not: id } },
+        select: { tipo: { select: { nombre: true } } },
+      });
+      if (otraEnProceso) {
+        throw new ConflictError(
+          `Este equipo ya tiene una mantención ${otraEnProceso.tipo.nombre} en proceso. Complétala o cancélala antes de iniciar otra.`
+        );
+      }
+
+      const cambiaEstado = asset.estado !== "en_mantencion";
+      if (cambiaEstado) {
+        const transicion = validateTransition(asset.estado, "en_mantencion", {
+          hasActiveAssignment: !!asset.empleadoActualId,
+          hasActiveMaintenance: true,
+        });
+        if (!transicion.valid) {
+          return NextResponse.json(
+            { error: "Transición de estado no permitida", details: transicion.errors },
+            { status: 400 }
+          );
+        }
+      }
+
+      const result = await prisma.$transaction(async (tx) => {
+        const actualizada = await tx.maintenance.update({
+          where: { id },
+          data: { estado: "en_proceso" },
+          include: { tipo: true, asset: { include: { categoria: true } } },
+        });
+
+        if (cambiaEstado) {
+          await tx.asset.update({ where: { id: asset.id }, data: { estado: "en_mantencion" } });
+        }
+        await tx.assetHistory.create({
+          data: {
+            assetId: asset.id,
+            tipoEvento: "mantencion",
+            descripcion: `Mantención ${existente.tipo.nombre} iniciada: ${existente.descripcion}`,
+            datosAnteriores: cambiaEstado ? { estado: asset.estado } : undefined,
+            datosNuevos: { ...(cambiaEstado ? { estado: "en_mantencion" } : {}), maintenanceId: id },
+            usuarioSistema: usuario,
           },
-        },
+        });
+
+        await auditLogService.registrarActualizacion(
+          'mantencion',
+          id,
+          `Mantención iniciada: ${existente.tipo.nombre} para ${asset.marca} ${asset.modelo}`,
+          { estado: existente.estado },
+          { estado: "en_proceso" },
+          usuario,
+          tx
+        );
+        return actualizada;
+      });
+      return NextResponse.json(result);
+    }
+
+    // Cancelar: si era la que estaba en proceso, el equipo vuelve a su
+    // estado de uso; una pendiente nunca lo habia movido.
+    if (data.estado === "cancelada") {
+      const motivo = data.resultado?.trim();
+      const result = await prisma.$transaction(async (tx) => {
+        const actualizada = await tx.maintenance.update({
+          where: { id },
+          data: { estado: "cancelada", ...(motivo ? { resultado: motivo } : {}) },
+          include: { tipo: true, asset: { include: { categoria: true } } },
+        });
+
+        await registrarSalidaDeMantencion(tx, {
+          asset,
+          maintenanceId: id,
+          descripcion: `Mantención ${existente.tipo.nombre} cancelada${motivo ? `: ${motivo}` : ""}`,
+          usuario,
+          devolverEquipo: existente.estado === "en_proceso",
+        });
+
+        await auditLogService.registrarActualizacion(
+          'mantencion',
+          id,
+          `Mantención cancelada: ${existente.tipo.nombre} para ${asset.marca} ${asset.modelo}`,
+          { estado: existente.estado },
+          { estado: "cancelada", resultado: motivo ?? null },
+          usuario,
+          tx
+        );
+        return actualizada;
+      });
+      return NextResponse.json(result);
+    }
+
+    // Editar: solo una mantencion pendiente (tipo, fecha, descripcion,
+    // tecnico, costo estimado, proveedor).
+    if (existente.estado !== "pendiente") {
+      throw new ConflictError("Solo se puede editar una mantención pendiente");
+    }
+
+    let tipoNombre = existente.tipo.nombre;
+    if (data.tipoId && data.tipoId !== existente.tipoId) {
+      const tipo = await prisma.maintenanceType.findUnique({ where: { id: data.tipoId } });
+      if (!tipo) throw new NotFoundError("Tipo de mantención no encontrado");
+      tipoNombre = tipo.nombre;
+    }
+
+    const cambios = {
+      tipoId: data.tipoId,
+      descripcion: data.descripcion,
+      fechaProgramada: data.fechaProgramada,
+      realizadoPor: data.realizadoPor,
+      costo: data.costo,
+      proveedorExterno: data.proveedorExterno,
+    };
+
+    const result = await prisma.$transaction(async (tx) => {
+      const actualizada = await tx.maintenance.update({
+        where: { id },
+        data: cambios,
+        include: { tipo: true, asset: { include: { categoria: true } } },
       });
 
-      // Si se completa la mantención, actualizar estado del activo
-      if (data.estado === "completada" && existingMaintenance.estado !== "completada") {
-        // El activo vuelve a "disponible" sin mirar la condicion, que es
-        // independiente del estado.
-        const nuevoEstado = "disponible";
-
-        await tx.asset.update({
-          where: { id: existingMaintenance.assetId },
-          data: { estado: nuevoEstado },
-        });
-
-        // Registrar en historial
+      // Cambiar la fecha queda en el historial del equipo: es lo que se
+      // mira para saber cuando le toca.
+      const fechaAntes = existente.fechaProgramada?.getTime();
+      if (data.fechaProgramada && data.fechaProgramada.getTime() !== fechaAntes) {
         await tx.assetHistory.create({
           data: {
-            assetId: existingMaintenance.assetId,
+            assetId: asset.id,
             tipoEvento: "mantencion",
-            descripcion: `Mantención ${updatedMaintenance.tipo.nombre} realizada el ${formatearFechaCorta(updatedMaintenance.fechaRealizada)}: ${data.resultado || "Sin observaciones"}`,
-            datosAnteriores: { estado: "en_mantencion" },
-            datosNuevos: { estado: nuevoEstado, maintenanceId: id },
-            usuarioSistema: data.realizadoPor || "Sistema",
+            descripcion: `Mantención ${tipoNombre} reprogramada del ${formatearFechaCorta(existente.fechaProgramada)} al ${formatearFechaCorta(data.fechaProgramada)}`,
+            datosNuevos: { maintenanceId: id },
+            usuarioSistema: usuario,
           },
         });
       }
 
-      // Si se cancela, restaurar estado del activo
-      if (data.estado === "cancelada" && existingMaintenance.estado !== "cancelada") {
-        const estadoAnterior = existingMaintenance.asset.empleadoActualId
-          ? "asignado"
-          : "disponible";
-
-        await tx.asset.update({
-          where: { id: existingMaintenance.assetId },
-          data: { estado: estadoAnterior },
-        });
-
-        // Registrar en historial
-        await tx.assetHistory.create({
-          data: {
-            assetId: existingMaintenance.assetId,
-            tipoEvento: "mantencion",
-            descripcion: `Mantención ${updatedMaintenance.tipo.nombre} cancelada`,
-            datosAnteriores: { estado: "en_mantencion" },
-            datosNuevos: { estado: estadoAnterior, maintenanceId: id },
-            usuarioSistema: data.realizadoPor || "Sistema",
-          },
-        });
-      }
-
-      // Registra quien actualizo el ticket, dentro de la misma transaccion.
       await auditLogService.registrarActualizacion(
         'mantencion',
         id,
-        `Mantención actualizada: ${updatedMaintenance.tipo.nombre} (estado: ${updatedMaintenance.estado})`,
-        { estado: existingMaintenance.estado, resultado: existingMaintenance.resultado },
-        { estado: updatedMaintenance.estado, resultado: updatedMaintenance.resultado },
-        session.user?.email,
+        `Mantención editada: ${tipoNombre} para ${asset.marca} ${asset.modelo}`,
+        {
+          tipoId: existente.tipoId,
+          descripcion: existente.descripcion,
+          fechaProgramada: existente.fechaProgramada,
+          realizadoPor: existente.realizadoPor,
+        },
+        {
+          tipoId: actualizada.tipoId,
+          descripcion: actualizada.descripcion,
+          fechaProgramada: actualizada.fechaProgramada,
+          realizadoPor: actualizada.realizadoPor,
+        },
+        usuario,
         tx
       );
-
-      return updatedMaintenance;
+      return actualizada;
     });
 
     return NextResponse.json(result);
@@ -189,7 +274,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/mantenciones/[id] - Eliminar mantención
+// DELETE /api/mantenciones/[id] - Eliminar una mantención pendiente. Una
+// pendiente no cambio el estado del equipo, asi que borrarla no lo toca.
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('mantenciones', 'delete');
@@ -197,52 +283,40 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     const maintenance = await prisma.maintenance.findUnique({
       where: { id },
-      include: { asset: true },
+      include: { asset: true, tipo: true },
     });
 
-    if (!maintenance) {
-      return NextResponse.json(
-        { error: "Mantención no encontrada" },
-        { status: 404 }
-      );
-    }
+    if (!maintenance) throw new NotFoundError("Mantención no encontrada");
 
     assertSedeAccess(session, maintenance.asset.sedeId, 'Mantención no encontrada');
 
-    // Solo permitir eliminar mantenciones pendientes
     if (maintenance.estado !== "pendiente") {
-      return NextResponse.json(
-        { error: "Solo se pueden eliminar mantenciones pendientes" },
-        { status: 400 }
-      );
+      throw new ConflictError("Solo se pueden eliminar mantenciones pendientes");
     }
 
-    // Eliminar en transacción
+    const usuario = session.user?.email || "Sistema";
+
     await prisma.$transaction(async (tx) => {
       // Registro de auditoria antes del delete fisico.
       await auditLogService.registrarEliminacion(
         'mantencion',
         maintenance.id,
-        `Mantención eliminada (assetId: ${maintenance.assetId})`,
+        `Mantención eliminada: ${maintenance.tipo.nombre} para ${maintenance.asset.marca} ${maintenance.asset.modelo}`,
         { assetId: maintenance.assetId, estado: maintenance.estado },
-        session.user?.email,
+        usuario,
         tx
       );
 
-      // Eliminar mantención
       await tx.maintenance.delete({ where: { id } });
 
-      // Restaurar estado del activo si estaba en mantención
-      if (maintenance.asset.estado === "en_mantencion") {
-        const estadoAnterior = maintenance.asset.empleadoActualId
-          ? "asignado"
-          : "disponible";
-
-        await tx.asset.update({
-          where: { id: maintenance.assetId },
-          data: { estado: estadoAnterior },
-        });
-      }
+      await tx.assetHistory.create({
+        data: {
+          assetId: maintenance.assetId,
+          tipoEvento: "mantencion",
+          descripcion: `Mantención ${maintenance.tipo.nombre} programada para el ${formatearFechaCorta(maintenance.fechaProgramada)} eliminada`,
+          usuarioSistema: usuario,
+        },
+      });
     });
 
     return NextResponse.json({ success: true });

@@ -19,20 +19,32 @@ const costoSchema = z.number().nonnegative("El costo debe ser 0 o positivo").opt
 
 
 
-// Schema para crear una mantención
-export const createMaintenanceSchema = z.object({
-  assetId: z.string().uuid("ID de activo inválido"),
-  tipoId: tipoIdSchema,
-  descripcion: z.string().min(1, "La descripción es requerida").max(1000, "Máximo 1000 caracteres"),
-  // Obligatoria: una mantención no puede iniciarse sin fecha programada.
-  fechaProgramada: z.string().min(1, "La fecha programada es requerida").transform((val, ctx) => {
+// Fecha programada obligatoria, compartida por programar y editar.
+const fechaProgramadaSchema = z
+  .string()
+  .min(1, "La fecha programada es requerida")
+  .transform((val, ctx) => {
     const date = new Date(val);
     if (isNaN(date.getTime())) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Fecha programada inválida" });
       return z.NEVER;
     }
     return date;
-  }),
+  });
+
+const descripcionSchema = z
+  .string()
+  .trim()
+  .min(1, "La descripción es requerida")
+  .max(1000, "Máximo 1000 caracteres");
+
+// Schema para crear una mantención
+export const createMaintenanceSchema = z.object({
+  assetId: z.string().uuid("ID de activo inválido"),
+  tipoId: tipoIdSchema,
+  descripcion: descripcionSchema,
+  // Obligatoria: una mantención no puede iniciarse sin fecha programada.
+  fechaProgramada: fechaProgramadaSchema,
   proximaMantencion: z.string().optional().nullable().transform((val) => {
     if (!val) return null;
     const date = new Date(val);
@@ -43,29 +55,21 @@ export const createMaintenanceSchema = z.object({
   proveedorExterno: z.string().max(200, "Máximo 200 caracteres").optional().nullable(),
 });
 
-// Schema para actualizar una mantención
+// Schema para actualizar una mantención (SPEC 2.96). Dos usos, no a la vez:
+//  - cambiar el estado: "en_proceso" (Iniciar) o "cancelada". Completar
+//    tiene su propia ruta (/completar), por eso "completada" no se acepta.
+//  - editar una mantención pendiente: tipo, fecha, descripción, técnico...
+// Los campos que no vienen no se tocan (antes un campo ausente se guardaba
+// como null, y al pulsar Iniciar se borraba la fecha programada).
 export const updateMaintenanceSchema = z.object({
   tipoId: tipoIdSchema.optional(),
-  descripcion: z.string().min(1, "La descripción es requerida").max(1000, "Máximo 1000 caracteres").optional(),
-  fechaProgramada: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
-  fechaRealizada: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
-  proximaMantencion: z.string().optional().nullable().transform((val) => {
-    if (!val) return null;
-    const date = new Date(val);
-    return isNaN(date.getTime()) ? null : date;
-  }),
+  descripcion: descripcionSchema.optional(),
+  fechaProgramada: fechaProgramadaSchema.optional(),
   realizadoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   costo: costoSchema,
   proveedorExterno: z.string().max(200, "Máximo 200 caracteres").optional().nullable(),
-  estado: EstadoMantencionEnum.optional(),
+  estado: z.enum(["en_proceso", "cancelada"]).optional(),
+  // Motivo al cancelar (opcional).
   resultado: z.string().max(1000, "Máximo 1000 caracteres").optional().nullable(),
 });
 

@@ -3167,7 +3167,29 @@ Al enviar con datos faltantes o inválidos: cada campo con error queda en rojo c
 - `POST`/`PUT /api/activos` con N° de serie repetido responden 409 con `details` del campo `numeroSerie`.
 - Dashboard y Asignaciones no tienen formularios de ingreso de datos (solo filtros y búsqueda).
 
+## 2.96 Mantenciones: cuándo entra el equipo a mantención (24-sep-2026)
+
+Pedido de Javier: *"revisa ese módulo bien a fondo… la idea es que funcione, es sencillo su flujo de trabajo"*. Reglas decididas por Javier:
+
+- **Programar no cambia el equipo.** Queda la mantención "Pendiente" con su fecha y una línea en el historial del equipo. Antes, programar una preventiva para dentro de dos meses dejaba el equipo "En Mantención" desde ese mismo día.
+- **Iniciar lo pasa a "En Mantención".** Pulsar Iniciar (`PUT /api/mantenciones/[id]` con `estado: en_proceso`) valida el estado del equipo y deja el cambio en el historial. Un equipo puede tener varias mantenciones programadas, pero **solo una en proceso**: iniciar otra responde 409 con el nombre de la que está en curso.
+- **Qué equipos admiten mantención:** disponible, asignado o en mantención. No devuelto, baja y vendido no (`motivoSinMantencion` en `lib/constants/estadosActivo.ts`, junto a `motivoSinBaja`). Programar o iniciar con uno de esos responde 409 con el motivo en palabras (antes fallaba al final con "Transición de estado no permitida").
+- **Completar solo la que está en proceso** (`POST /completar`). Resultados:
+  - *Reparado*: el equipo vuelve a asignado si tiene dueño; si no, a disponible.
+  - *Faltan repuestos*: la mantención **sigue abierta, en proceso**, con la nota. El equipo sigue en mantención. Antes se cerraba y el equipo quedaba en mantención sin ninguna mantención abierta.
+  - *No reparable*: baja del equipo, y se cancelan sus otras mantenciones abiertas.
+- **`PUT` ya no acepta "completada".** Completar por ese camino se saltaba el resultado y devolvía el equipo a disponible sin mirar si tenía dueño. Los campos que no vienen en el `PUT` no se tocan: antes, al pulsar Iniciar, se borraba la fecha programada.
+- **Cancelar:** si era la mantención en proceso, el equipo vuelve a su estado de uso. Una pendiente nunca movió el equipo, así que cancelarla o eliminarla no lo toca (antes lo sacaba de mantención aunque otra siguiera en curso).
+- **Editar:** solo una mantención pendiente (tipo, fecha, descripción, técnico, costo, proveedor), con el mismo `PUT`. Si cambia la fecha, queda "reprogramada del … al …" en el historial.
+- **Baja por Mantenciones (2.88):** cierra la mantención en proceso; si no hay, la pendiente más antigua.
+- **Devolución dañada (2.87) e importación con Estado "Mantención":** crean la mantención directamente "En proceso", porque el equipo ya queda en mantención. La importación la crea siempre, venga o no con fechas de mantención.
+- **Tarjetas de resumen:** `/api/mantenciones/pendientes` solo cuenta (antes cargaba las listas completas para contarlas) y usa "hoy" en hora de Chile, igual que el filtro de periodo del listado.
+- **Piezas compartidas:** `lib/services/mantencionActivoService.ts`, con `estadoTrasMantencion`, `registrarSalidaDeMantencion` y `cancelarAbiertasPorBaja`. Es el único lugar que decide a qué estado vuelve el equipo.
+- **Datos existentes:** la migración `20260924120000_mantencion_en_proceso` pasa a "En proceso" la pendiente más antigua de cada equipo que está en mantención, porque con la regla anterior esas mantenciones ya habían movido el equipo. Las demás pendientes siguen programadas.
+
 ## Changelog SPEC
+- **v2.20 (2026-09-24):**
+  - Sección 2.96 (nueva): el equipo entra a mantención al iniciarla, no al programarla; una sola mantención en proceso por equipo; "Faltan repuestos" la deja abierta; completar solo por /completar; editar las pendientes; migración de datos.
 - **v2.19 (2026-09-23):**
   - Sección 2.95 (nueva): validación por campo, igual que Onboarding, en los formularios de Activos (activo, venta, empleado, Kit/EPP, importación), con piezas compartidas.
 - **v2.18 (2026-09-23):**

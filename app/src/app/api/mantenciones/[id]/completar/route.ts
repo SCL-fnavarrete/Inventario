@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { completeMaintenanceSchema } from "@/lib/validations/maintenance";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
+import {
+  requirePermission,
+  handleApiError,
+  respuestaDatosInvalidos,
+  ConflictError,
+} from '@/lib/auth/guard';
+import {
+  cancelarAbiertasPorBaja,
+  registrarSalidaDeMantencion,
+} from '@/lib/services/mantencionActivoService';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { auditLogService } from '@/lib/services/auditLogService';
@@ -45,22 +54,59 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     assertSedeAccess(session, maintenance.asset.sedeId, 'Mantención no encontrada');
 
-    // Verificar que no está ya completada o cancelada
+    // Solo se completa la mantencion en proceso (SPEC 2.96): una pendiente
+    // primero se inicia, que es cuando el equipo entra a mantencion.
     if (maintenance.estado === "completada") {
-      return NextResponse.json(
-        { error: "La mantención ya está completada" },
-        { status: 400 }
-      );
+      throw new ConflictError("La mantención ya está completada");
     }
-
     if (maintenance.estado === "cancelada") {
-      return NextResponse.json(
-        { error: "No se puede completar una mantención cancelada" },
-        { status: 400 }
+      throw new ConflictError("No se puede completar una mantención cancelada");
+    }
+    if (maintenance.estado !== "en_proceso") {
+      throw new ConflictError(
+        "Primero inicia la mantención: el equipo entra a mantención al iniciarla"
       );
     }
 
     const usuario = session.user?.email || data.realizadoPor;
+
+    // Faltan repuestos: la mantencion sigue abierta, en proceso, con la nota;
+    // el equipo sigue en mantencion hasta completarla como Reparado o No
+    // reparable.
+    if (data.resultadoTipo === "pendiente_repuestos") {
+      const enEspera = await prisma.$transaction(async (tx) => {
+        const actualizada = await tx.maintenance.update({
+          where: { id },
+          data: {
+            realizadoPor: data.realizadoPor,
+            resultado: data.resultado,
+            resultadoTipo: data.resultadoTipo,
+            costo: data.costo,
+          },
+          include: { tipo: true, asset: { include: { categoria: true } } },
+        });
+        await tx.assetHistory.create({
+          data: {
+            assetId: maintenance.assetId,
+            tipoEvento: "mantencion",
+            descripcion: `Mantención ${maintenance.tipo.nombre} en espera de repuestos: ${data.resultado}`,
+            datosNuevos: { maintenanceId: id, resultadoTipo: data.resultadoTipo },
+            usuarioSistema: usuario,
+          },
+        });
+        await auditLogService.registrarActualizacion(
+          'mantencion',
+          id,
+          `Mantención en espera de repuestos: ${maintenance.tipo.nombre}`,
+          { resultadoTipo: maintenance.resultadoTipo, resultado: maintenance.resultado },
+          { resultadoTipo: data.resultadoTipo, resultado: data.resultado },
+          usuario,
+          tx
+        );
+        return actualizada;
+      });
+      return NextResponse.json(enEspera);
+    }
 
     // Valida la transicion a "baja" con la misma logica que
     // POST /api/mantenciones/baja, en vez de escribir el estado directo.
@@ -117,39 +163,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           usuario,
           tx
         );
+
+        // Un equipo de baja no queda con mantenciones programadas.
+        await cancelarAbiertasPorBaja(tx, maintenance.assetId, id);
       } else {
-        // Reparado: vuelve a servicio. Pendiente de repuestos: se completa
-        // esta mantencion pero el activo se queda en "en_mantencion" hasta
-        // una proxima mantencion que lo repare. Un equipo sin dueño vuelve
-        // a "disponible" independiente de su condicion.
-        let nuevoEstado: "disponible" | "asignado" | "en_mantencion" = "disponible";
-
-        if (data.resultadoTipo === "pendiente_repuestos") {
-          nuevoEstado = "en_mantencion";
-        } else if (maintenance.asset.empleadoActualId) {
-          nuevoEstado = "asignado";
-        }
-
-        await tx.asset.update({
-          where: { id: maintenance.assetId },
-          data: { estado: nuevoEstado },
-        });
-
-        // Registrar en historial
-        await tx.assetHistory.create({
-          data: {
-            assetId: maintenance.assetId,
-            tipoEvento: "mantencion",
-            descripcion: `Mantención ${maintenance.tipo.nombre} realizada el ${formatearFechaCorta(data.fechaRealizada)}. Resultado: ${data.resultado}`,
-            datosAnteriores: { estado: "en_mantencion" },
-            datosNuevos: {
-              estado: nuevoEstado,
-              maintenanceId: id,
-              resultado: data.resultado,
-              resultadoTipo: data.resultadoTipo,
-              costo: data.costo,
-            },
-            usuarioSistema: data.realizadoPor,
+        // Reparado: vuelve a servicio (asignado si tiene dueño, si no
+        // disponible, independiente de su condicion).
+        await registrarSalidaDeMantencion(tx, {
+          asset: maintenance.asset,
+          maintenanceId: id,
+          descripcion: `Mantención ${maintenance.tipo.nombre} realizada el ${formatearFechaCorta(data.fechaRealizada)}. Resultado: ${data.resultado}`,
+          usuario,
+          devolverEquipo: true,
+          extra: {
+            resultado: data.resultado,
+            resultadoTipo: data.resultadoTipo,
+            costo: data.costo ?? null,
           },
         });
       }
