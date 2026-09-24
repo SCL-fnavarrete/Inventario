@@ -137,3 +137,31 @@ export function sinErrores(
   for (const c of campos) delete next[c];
   return next;
 }
+
+/**
+ * Texto del resumen de errores de un formulario, el mismo de Onboarding:
+ * "Faltan o están incorrectos: Marca, Modelo."
+ */
+export function textoResumenErrores(
+  errores: Record<string, string>,
+  etiquetas: Record<string, string>
+): string {
+  return `Faltan o están incorrectos: ${Object.keys(errores)
+    .map((campo) => etiquetas[campo] ?? campo)
+    .join(", ")}.`;
+}
+
+/** Recuadro rojo con el resumen de errores, sobre el formulario. */
+export function ResumenErrores({ mensaje }: { mensaje?: string }) {
+  if (!mensaje) return null;
+  return (
+    <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">
+      {mensaje}
+    </div>
+  );
+}
+
+/** Clase de un control con la utilidad field-input, en rojo si tiene error. */
+export function claseCampo(error?: string) {
+  return cn("field-input", error && "border-red-500 bg-red-50");
+}

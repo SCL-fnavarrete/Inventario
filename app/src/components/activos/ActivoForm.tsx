@@ -13,6 +13,9 @@ import {
   CONDICION_ACTIVO_LABEL,
   etiquetaEstadoActivo,
 } from "@/lib/constants/estadosActivo";
+import { cn } from "@/lib/utils";
+import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 
 /**
  * Formulario de Activo, compartido por Nuevo y Editar (SPEC 2.77). Antes
@@ -148,15 +151,34 @@ type Opcion = { id: string; nombre: string };
 // Perifericos simples: solo piden conectividad, no una seccion propia.
 const PERIFERICOS_SIMPLES = ["mouse", "teclado", "webcam", "audífonos"];
 
-function Campo({ label, hint, children }: { label: ReactNode; hint?: ReactNode; children: ReactNode }) {
+function Campo({
+  label,
+  hint,
+  error,
+  children,
+}: {
+  label: ReactNode;
+  hint?: ReactNode;
+  error?: string;
+  children: ReactNode;
+}) {
   return (
     <div>
-      <label className="field-label">{label}</label>
+      <label className={cn("field-label", error && "text-red-600")}>{label}</label>
       {children}
-      {hint && <p className="mt-1 text-xs text-fg-subtle">{hint}</p>}
+      {error ? <MensajeCampo mensaje={error} /> : hint && <p className="mt-1 text-xs text-fg-subtle">{hint}</p>}
     </div>
   );
 }
+
+// Nombre de cada campo obligatorio en el resumen de errores.
+const ETIQUETAS_ACTIVO: Record<string, string> = {
+  categoriaId: "Categoría",
+  marca: "Marca",
+  modelo: "Modelo",
+  numeroSerie: "Número de serie",
+  sedeId: "Sede",
+};
 
 function Seccion({ titulo, cols = 3, children }: { titulo: string; cols?: 2 | 3; children: ReactNode }) {
   return (
@@ -181,9 +203,17 @@ interface ActivoFormProps {
   /** Guarda en el backend; si lanza o no redirige, el formulario se rehabilita. */
   onSubmit: (values: ActivoFormValues) => Promise<void>;
   cancelHref: string;
+  /** Errores por campo que devolvio el servidor (ej. N° de serie repetido). */
+  erroresServidor?: Record<string, string>;
 }
 
-export function ActivoForm({ modo, initialValues = ACTIVO_FORM_VACIO, onSubmit, cancelHref }: ActivoFormProps) {
+export function ActivoForm({
+  modo,
+  initialValues = ACTIVO_FORM_VACIO,
+  onSubmit,
+  cancelHref,
+  erroresServidor = {},
+}: ActivoFormProps) {
   const crear = modo === "crear";
   const { data: session } = useSession();
   // Sede al crear: precargada con la del navbar o la propia (useCampoSede,
@@ -195,6 +225,9 @@ export function ActivoForm({ modo, initialValues = ACTIVO_FORM_VACIO, onSubmit, 
   const [categories, setCategories] = useState<Opcion[]>([]);
   const [sedes, setSedes] = useState<Opcion[]>([]);
   const [guardando, setGuardando] = useState(false);
+  // Validacion por campo, igual que en Onboarding.
+  const { errores, resumen, reportar, limpiar } = useErroresFormulario(ETIQUETAS_ACTIVO);
+  const error = (campo: string): string | undefined => errores[campo] ?? erroresServidor[campo];
 
   useEffect(() => {
     fetch("/api/categorias")
@@ -214,13 +247,27 @@ export function ActivoForm({ modo, initialValues = ACTIVO_FORM_VACIO, onSubmit, 
   const bind = (name: keyof ActivoFormValues) => ({
     name,
     value: values[name],
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-      set(name)(e.target.value),
-    className: "field-input",
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+      set(name)(e.target.value);
+      limpiar(name);
+    },
+    className: claseCampo(error(name)),
+    "aria-invalid": !!error(name),
   });
+
+  function validar(): Record<string, string> {
+    const e: Record<string, string> = {};
+    if (!values.categoriaId) e.categoriaId = "Elige la categoría";
+    if (!values.marca.trim()) e.marca = "Escribe la marca";
+    if (!values.modelo.trim()) e.modelo = "Escribe el modelo";
+    if (crear && !values.numeroSerie.trim()) e.numeroSerie = "Escribe el número de serie";
+    if (crear && !sedeId) e.sedeId = "Elige la sede";
+    return e;
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (reportar(validar())) return;
     setGuardando(true);
     try {
       await onSubmit(crear ? { ...values, sedeId } : values);
@@ -233,9 +280,10 @@ export function ActivoForm({ modo, initialValues = ACTIVO_FORM_VACIO, onSubmit, 
   const esPerifericoSimple = categoria ? PERIFERICOS_SIMPLES.includes(categoria) : false;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+      <ResumenErrores mensaje={resumen} />
       <Seccion titulo="Información General">
-        <Campo label="Categoría *">
+        <Campo label="Categoría *" error={error("categoriaId")}>
           <select {...bind("categoriaId")} required>
             <option value="">Seleccionar categoría</option>
             {categories.map((cat) => (
@@ -245,13 +293,13 @@ export function ActivoForm({ modo, initialValues = ACTIVO_FORM_VACIO, onSubmit, 
             ))}
           </select>
         </Campo>
-        <Campo label="Marca *">
+        <Campo label="Marca *" error={error("marca")}>
           <input type="text" {...bind("marca")} required />
         </Campo>
-        <Campo label="Modelo *">
+        <Campo label="Modelo *" error={error("modelo")}>
           <input type="text" {...bind("modelo")} required />
         </Campo>
-        <Campo label={crear ? "Número de Serie *" : "Número de Serie"}>
+        <Campo label={crear ? "Número de Serie *" : "Número de Serie"} error={error("numeroSerie")}>
           <input type="text" {...bind("numeroSerie")} required={crear} />
         </Campo>
         <Campo label="Estado">
@@ -296,12 +344,17 @@ export function ActivoForm({ modo, initialValues = ACTIVO_FORM_VACIO, onSubmit, 
                 ? "Obligatorio: a qué sede pertenece este equipo."
                 : "Es tu sede: los equipos que crees quedan registrados en ella."
             }
+            error={error("sedeId")}
           >
             <select
               name="sedeId"
               value={sedeId}
-              onChange={(e) => setSedeId(e.target.value)}
-              className="field-input"
+              onChange={(e) => {
+                setSedeId(e.target.value);
+                limpiar("sedeId");
+              }}
+              className={claseCampo(error("sedeId"))}
+              aria-invalid={!!error("sedeId")}
               required
               disabled={!esAdminSede}
             >

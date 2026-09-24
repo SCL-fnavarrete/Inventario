@@ -8,6 +8,21 @@ import { etiquetaEstadoActivo } from '@/lib/constants/estadosActivo';
 import { parseApiError, type FieldErrors } from '@/lib/utils/apiErrors';
 import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
 import { PageHeader } from '@/components/ui/PageHeader';
+import {
+  CampoFormulario,
+  CampoTexto,
+  ResumenErrores,
+  claseInput,
+} from '@/components/ui/CampoFormulario';
+import { buttonClasses } from '@/components/ui/buttonStyles';
+import { useErroresFormulario } from '@/hooks/useErroresFormulario';
+
+// Nombre de cada campo en el resumen de errores.
+const ETIQUETAS_VENTA: Record<string, string> = {
+  comprador: 'Comprador',
+  monto: 'Monto',
+  fechaVenta: 'Fecha de venta',
+};
 import { hoyISO } from '@/lib/utils/fechas';
 
 type Asset = {
@@ -34,6 +49,10 @@ export default function VentaActivoPage() {
   const [monto, setMonto] = useState('');
   const [moneda, setMoneda] = useState('CLP');
   const [fechaVenta, setFechaVenta] = useState(hoyISO);
+  // Validacion por campo, igual que en Onboarding; tambien marca los errores
+  // por campo que devuelve el servidor.
+  const { errores, resumen, reportar, limpiar } = useErroresFormulario(ETIQUETAS_VENTA);
+  const errorDe = (campo: string) => errores[campo] ?? fieldErrors[campo];
 
   useEffect(() => {
     fetch(`/api/activos/${id}`)
@@ -52,6 +71,11 @@ export default function VentaActivoPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const faltan: Record<string, string> = {};
+    if (!comprador.trim()) faltan.comprador = 'Escribe el comprador';
+    if (!monto || Number(monto) <= 0) faltan.monto = 'Escribe un monto mayor que 0';
+    if (!fechaVenta) faltan.fechaVenta = 'Elige la fecha de venta';
+    if (reportar(faltan)) return;
     setSubmitting(true);
     setError('');
     setFieldErrors({});
@@ -117,69 +141,68 @@ export default function VentaActivoPage() {
       </div>
 
       {canSell && (
-        <form onSubmit={handleSubmit} className="card p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="card p-6 space-y-4" noValidate>
           <div className="flex items-center gap-2 mb-2">
             <DollarSign className="text-emerald-600" size={24} />
             <h2 className="text-lg font-semibold">Datos de la Venta</h2>
           </div>
 
-          <div>
-            <label className="field-label">Comprador *</label>
-            <input
-              type="text"
-              value={comprador}
-              onChange={(e) => setComprador(e.target.value)}
-              className="w-full border rounded-lg p-3 text-sm"
-              placeholder="Nombre o razón social del comprador"
-              required
-            />
-          </div>
+          <ResumenErrores mensaje={resumen} />
+
+          <CampoTexto
+            label="Comprador"
+            obligatorio
+            value={comprador}
+            onChange={(v) => {
+              setComprador(v);
+              limpiar('comprador');
+            }}
+            error={errorDe('comprador')}
+            placeholder="Nombre o razón social del comprador"
+          />
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="field-label">Monto *</label>
-              <input
-                type="number"
-                value={monto}
-                onChange={(e) => setMonto(e.target.value)}
-                className="w-full border rounded-lg p-3 text-sm"
-                placeholder="150000"
-                min="1"
-                required
-              />
-            </div>
-            <div>
-              <label className="field-label">Moneda</label>
-              <select
-                value={moneda}
-                onChange={(e) => setMoneda(e.target.value)}
-                className="w-full border rounded-lg p-3 text-sm"
-              >
+            <CampoTexto
+              label="Monto"
+              obligatorio
+              type="number"
+              min="1"
+              value={monto}
+              onChange={(v) => {
+                setMonto(v);
+                limpiar('monto');
+              }}
+              error={errorDe('monto')}
+              placeholder="150000"
+            />
+            <CampoFormulario label="Moneda">
+              <select value={moneda} onChange={(e) => setMoneda(e.target.value)} className={claseInput()}>
                 <option value="CLP">CLP (Pesos chilenos)</option>
                 <option value="USD">USD (Dólares)</option>
               </select>
-            </div>
+            </CampoFormulario>
           </div>
 
-          <div>
-            <label className="field-label">Fecha de venta *</label>
-            <input
-              type="date"
-              value={fechaVenta}
-              onChange={(e) => setFechaVenta(e.target.value)}
-              className="w-full border rounded-lg p-3 text-sm"
-              required
-            />
-          </div>
+          <CampoTexto
+            label="Fecha de venta"
+            obligatorio
+            type="date"
+            value={fechaVenta}
+            onChange={(v) => {
+              setFechaVenta(v);
+              limpiar('fechaVenta');
+            }}
+            error={errorDe('fechaVenta')}
+          />
 
           <div className="flex justify-between pt-4">
-            <Link href={`/activos/${id}`} className="px-4 py-2 text-fg-muted hover:text-fg">
+            <Link href={`/activos/${id}`} className={buttonClasses({ variant: 'outline' })}>
               Cancelar
             </Link>
             <button
               type="submit"
-              disabled={!comprador || !monto || !fechaVenta || submitting}
-              className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-success-hover disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={submitting}
+              className={buttonClasses({ className: 'bg-success hover:bg-success-hover disabled:hover:bg-success' })}
             >
               {submitting ? 'Procesando...' : 'Confirmar Venta'}
             </button>

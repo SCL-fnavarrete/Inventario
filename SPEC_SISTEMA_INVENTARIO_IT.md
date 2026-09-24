@@ -3156,7 +3156,20 @@ El commit del 22-sep-2026 ("Agregar campos seleccionables y catalogos de activos
 - **Ficha del empleado:** sin correo personal muestra "Sin correo personal" (antes un ícono solo).
 - **Dato repetido:** el mensaje genérico de valor único (P2002) nombra el campo en palabras ("N° de serie", "correo personal"); el nombre interno sigue en `details` para marcar el campo en el formulario.
 
+## 2.95 Validación por campo en los formularios de Activos (23-sep-2026)
+
+Pedido de Javier: *"aplica mensajes de datos faltantes en todos los formularios de los módulos dashboard, activos y asignaciones, la misma lógica que se hizo en onboarding"*.
+
+Al enviar con datos faltantes o inválidos: cada campo con error queda en rojo con su mensaje debajo, arriba aparece el resumen ("Faltan o están incorrectos: …") y la vista lleva al primer campo con error. El resumen se acorta a medida que se corrige cada campo. Los errores por campo que devuelve el servidor (un N° de serie, RUT o correo repetido) también marcan su campo.
+
+- **Piezas compartidas:** `useErroresFormulario` (`hooks/useErroresFormulario.ts`), `ResumenErrores`, `textoResumenErrores` y `claseCampo` (`components/ui/CampoFormulario.tsx`). Onboarding usa las mismas (tenía el recuadro del resumen copiado dos veces).
+- **Formularios:** Nuevo y Editar activo (categoría, marca, modelo, N° de serie y sede al crear); Registrar venta (comprador, monto, fecha; antes el botón quedaba desactivado sin decir qué faltaba); Editar empleado (nombres, apellido paterno, correo personal, formato de los correos, sede para admin); artículo de Kit de Bienvenida / EPP (nombre y sede al crear, nombre al editar en la fila; un nombre repetido marca el campo); Importar activos (hoja, categoría y sede en el paso 1 — el botón "Detectar campos" ya no se esconde mientras falte algo — y las columnas obligatorias del paso 2, en rojo solo tras intentar seguir).
+- `POST`/`PUT /api/activos` con N° de serie repetido responden 409 con `details` del campo `numeroSerie`.
+- Dashboard y Asignaciones no tienen formularios de ingreso de datos (solo filtros y búsqueda).
+
 ## Changelog SPEC
+- **v2.19 (2026-09-23):**
+  - Sección 2.95 (nueva): validación por campo, igual que Onboarding, en los formularios de Activos (activo, venta, empleado, Kit/EPP, importación), con piezas compartidas.
 - **v2.18 (2026-09-23):**
   - Sección 2.94 (nueva): crear personas solo con Onboarding (se quitan el modal de Nueva Solicitud, POST /api/empleados y la importación de empleados sin pantalla); Personal con acciones a la vista; fecha de hoy en hora de Chile; ficha sin correo personal; mensaje de dato repetido legible.
 - **v2.17 (2026-09-23):**

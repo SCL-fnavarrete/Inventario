@@ -42,7 +42,7 @@ export default function NuevoActivoPage() {
         description="Registrar un nuevo equipo o dispositivo"
       />
       <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
-      <ActivoForm modo="crear" onSubmit={crear} cancelHref="/activos" />
+      <ActivoForm modo="crear" onSubmit={crear} cancelHref="/activos" erroresServidor={fieldErrors} />
     </div>
   );
 }

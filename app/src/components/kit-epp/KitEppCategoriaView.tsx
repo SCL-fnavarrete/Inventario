@@ -8,6 +8,12 @@ import { useCampoSede, useSedeSeleccionada } from "@/components/providers/SedeSe
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { cn } from "@/lib/utils";
+import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+
+// Nombre de cada campo en el resumen de errores.
+const ETIQUETAS_KIT: Record<string, string> = { nombre: "Nombre", sedeId: "Sede" };
 
 type CategoriaKit = "kit_bienvenida" | "epp";
 
@@ -74,6 +80,8 @@ export function KitEppCategoriaView({
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState(formInicial);
   const [error, setError] = useState("");
+  // Validacion por campo, igual que en Onboarding.
+  const { errores, resumen, reportar, limpiar } = useErroresFormulario(ETIQUETAS_KIT);
   const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
   // Mensaje informativo (no es un error): hoy solo se usa para avisar que un
   // articulo se guardo en una sede distinta a la que filtra el menu.
@@ -115,15 +123,12 @@ export function KitEppCategoriaView({
   };
 
   const handleCreate = async () => {
-    if (!formData.nombre.trim()) {
-      setError("El nombre es requerido");
-      return;
-    }
+    setError("");
+    const faltan: Record<string, string> = {};
+    if (!formData.nombre.trim()) faltan.nombre = "Escribe el nombre del artículo";
     // Todo articulo debe quedar en una sede; sin ella no se guarda.
-    if (!sedeNueva) {
-      setError("Debes seleccionar una sede");
-      return;
-    }
+    if (!sedeNueva) faltan.sedeId = "Elige la sede";
+    if (reportar(faltan)) return;
     try {
       const res = await fetch("/api/kit-items", {
         method: "POST",
@@ -149,7 +154,12 @@ export function KitEppCategoriaView({
         setError("");
       } else {
         const data = await res.json();
-        setError(data.error || "Error al crear artículo");
+        // Nombre repetido en la misma sede y categoria: se marca el campo.
+        if (res.status === 400 && /ya existe/i.test(data.error || "")) {
+          reportar({ nombre: data.error });
+        } else {
+          setError(data.error || "Error al crear artículo");
+        }
       }
     } catch (err) {
       setError("Error al crear artículo");
@@ -158,10 +168,8 @@ export function KitEppCategoriaView({
   };
 
   const handleUpdate = async (id: string) => {
-    if (!formData.nombre.trim()) {
-      setError("El nombre es requerido");
-      return;
-    }
+    setError("");
+    if (reportar(formData.nombre.trim() ? {} : { nombre: "Escribe el nombre del artículo" })) return;
     try {
       const res = await fetch(`/api/kit-items/${id}`, {
         method: "PUT",
@@ -175,7 +183,11 @@ export function KitEppCategoriaView({
         setError("");
       } else {
         const data = await res.json();
-        setError(data.error || "Error al actualizar artículo");
+        if (res.status === 400 && /ya existe/i.test(data.error || "")) {
+          reportar({ nombre: data.error });
+        } else {
+          setError(data.error || "Error al actualizar artículo");
+        }
       }
     } catch (err) {
       setError("Error al actualizar artículo");
@@ -221,9 +233,11 @@ export function KitEppCategoriaView({
     });
     setIsCreating(false);
     setError("");
+    reportar({});
   };
 
   const cancelEdit = () => {
+    reportar({});
     setEditingId(null);
     setIsCreating(false);
     setFormData(formInicial);
@@ -243,6 +257,7 @@ export function KitEppCategoriaView({
             {!isCreating && !editingId && (
               <button
                 onClick={() => {
+                  reportar({});
                   setIsCreating(true);
                   setFormData(formInicial);
                   // Cada articulo nuevo vuelve a partir de la sede del navbar.
@@ -286,16 +301,24 @@ export function KitEppCategoriaView({
           {isCreating && (
             <div className="card p-6">
               <h2 className="text-lg font-semibold text-fg mb-4">Nuevo Artículo</h2>
+              <div className="mb-4 empty:hidden">
+                <ResumenErrores mensaje={resumen} />
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="field-label">Nombre *</label>
                   <input
                     type="text"
                     value={formData.nombre}
-                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                    className="field-input"
+                    onChange={(e) => {
+                      setFormData({ ...formData, nombre: e.target.value });
+                      limpiar("nombre");
+                    }}
+                    className={claseCampo(errores.nombre)}
+                    aria-invalid={!!errores.nombre}
                     placeholder="Ej: Libreta corporativa, Chaleco reflectante talla M"
                   />
+                  <MensajeCampo mensaje={errores.nombre} />
                 </div>
                 <div>
                   <label className="field-label">Cantidad (stock) *</label>
@@ -328,10 +351,14 @@ export function KitEppCategoriaView({
                   </label>
                   <select
                     value={sedeNueva}
-                    onChange={(e) => setSedeNueva(e.target.value)}
+                    onChange={(e) => {
+                      setSedeNueva(e.target.value);
+                      limpiar("sedeId");
+                    }}
                     disabled={!isAdmin}
                     required
-                    className="field-input"
+                    className={claseCampo(errores.sedeId)}
+                    aria-invalid={!!errores.sedeId}
                   >
                     <option value="" disabled>
                       Selecciona una sede...
@@ -342,6 +369,7 @@ export function KitEppCategoriaView({
                       </option>
                     ))}
                   </select>
+                  <MensajeCampo mensaje={errores.sedeId} />
                   <p className="text-xs text-fg-subtle mt-1">
                     {isAdmin
                       ? "Obligatorio: sede a la que pertenece este stock."
@@ -399,9 +427,17 @@ export function KitEppCategoriaView({
                           <input
                             type="text"
                             value={formData.nombre}
-                            onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                            className="w-full px-2 py-1 border border-line-strong rounded focus:ring-2 focus:ring-primary-500"
+                            onChange={(e) => {
+                              setFormData({ ...formData, nombre: e.target.value });
+                              limpiar("nombre");
+                            }}
+                            aria-invalid={!!errores.nombre}
+                            className={cn(
+                              "w-full px-2 py-1 border rounded focus:ring-2 focus:ring-primary-500",
+                              errores.nombre ? "border-red-500 bg-red-50" : "border-line-strong"
+                            )}
                           />
+                          <MensajeCampo mensaje={errores.nombre} />
                         </td>
                         <td className="px-6 py-4 text-sm text-fg-subtle">
                           {item.sede?.nombre ?? "Sin sede"}

@@ -88,8 +88,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       if (duplicateSerie) {
         return NextResponse.json(
-          { error: 'Ya existe un activo con este número de serie' },
-          { status: 400 }
+          {
+            error: 'Ya existe un activo con este número de serie',
+            // Para marcar el campo en el formulario.
+            details: [{ field: 'numeroSerie', message: 'Ya existe un activo con este número de serie' }],
+          },
+          { status: 409 }
         );
       }
     }

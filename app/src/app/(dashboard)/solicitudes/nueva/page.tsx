@@ -33,9 +33,11 @@ import {
   CampoFormulario,
   CampoTexto,
   MensajeCampo,
+  ResumenErrores,
   claseInput,
   enfocarPrimerError,
   sinErrores,
+  textoResumenErrores,
 } from '@/components/ui/CampoFormulario';
 import { useCampoSede, useSedeSeleccionada } from '@/components/providers/SedeSeleccionadaProvider';
 
@@ -766,11 +768,7 @@ export default function NuevaSolicitudPage() {
             : validarOffboarding();
       if (Object.keys(errores).length > 0) {
         setFieldErrors(errores);
-        setResumenErrores(
-          `Faltan o están incorrectos: ${Object.keys(errores)
-            .map((campo) => ETIQUETAS_ERROR[campo] ?? campo)
-            .join(', ')}.`
-        );
+        setResumenErrores(textoResumenErrores(errores, ETIQUETAS_ERROR));
         enfocarPrimerError();
         return;
       }
@@ -1114,11 +1112,7 @@ export default function NuevaSolicitudPage() {
             </button>
           </div>
 
-          {resumenErrores && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">
-              {resumenErrores}
-            </div>
-          )}
+          <ResumenErrores mensaje={resumenErrores} />
 
           {modoEmpleadoOnboarding === 'existente' && (
             <div className="space-y-4">
@@ -1857,11 +1851,7 @@ export default function NuevaSolicitudPage() {
       {/* Step 2 (Cambio de Equipo / Offboarding): formulario con búsqueda de empleado */}
       {step === 2 && tipo !== 'onboarding' && tipo !== '' && (
         <div className="card p-6 space-y-6">
-          {resumenErrores && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">
-              {resumenErrores}
-            </div>
-          )}
+          <ResumenErrores mensaje={resumenErrores} />
 
           {/* Employee Selection */}
           <div>

@@ -9,6 +9,18 @@ import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+
+// Nombre de cada campo en el resumen de errores.
+const ETIQUETAS_EMPLEADO: Record<string, string> = {
+  nombres: "Nombres",
+  apellidoPaterno: "Apellido paterno",
+  correoPersonal: "Correo personal",
+  correoEmpresa: "Correo de empresa",
+  rut: "RUT",
+  sedeId: "Sede",
+};
 
 const empleadoFieldLabels: Record<string, string> = {
   rut: "RUT",
@@ -58,6 +70,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  // Validacion por campo, igual que en Onboarding; errorDe tambien marca los
+  // errores por campo que devuelve el servidor (RUT o correo repetido, etc.).
+  const { errores, resumen, reportar, limpiar } = useErroresFormulario(ETIQUETAS_EMPLEADO);
+  const errorDe = (campo: string) => errores[campo] ?? fieldErrors[campo];
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [formData, setFormData] = useState<FormData>({
     rut: "",
@@ -131,12 +147,23 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) {
+    limpiar(e.target.name);
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const faltan: Record<string, string> = {};
+    if (!formData.nombres.trim()) faltan.nombres = "Escribe los nombres";
+    if (!formData.apellidoPaterno.trim()) faltan.apellidoPaterno = "Escribe el apellido paterno";
+    if (!formData.correoPersonal.trim()) faltan.correoPersonal = "Escribe el correo personal";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.correoPersonal.trim()))
+      faltan.correoPersonal = "El correo personal no es válido";
+    if (formData.correoEmpresa && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.correoEmpresa.trim()))
+      faltan.correoEmpresa = "El correo de empresa no es válido";
+    if (esAdmin && !formData.sedeId) faltan.sedeId = "Elige la sede";
+    if (reportar(faltan)) return;
     setSaving(true);
     setError(null);
     setFieldErrors({});
@@ -196,7 +223,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
       />
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="card p-6">
+      <form onSubmit={handleSubmit} className="card p-6" noValidate>
+        <div className="mb-6 empty:hidden">
+          <ResumenErrores mensaje={resumen} />
+        </div>
         {error && (
           <div className="mb-6">
             <ApiErrorSummary error={error} fieldErrors={fieldErrors} fieldLabels={empleadoFieldLabels} />
@@ -220,8 +250,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="rut"
               value={formData.rut}
               onChange={handleChange}
-              className="field-input"
+              className={claseCampo(errorDe("rut"))}
+              aria-invalid={!!errorDe("rut")}
             />
+            <MensajeCampo mensaje={errorDe("rut")} />
           </div>
 
           <div>
@@ -234,8 +266,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               value={formData.correoPersonal}
               onChange={handleChange}
               required
-              className="field-input"
+              className={claseCampo(errorDe("correoPersonal"))}
+              aria-invalid={!!errorDe("correoPersonal")}
             />
+            <MensajeCampo mensaje={errorDe("correoPersonal")} />
           </div>
 
           <div>
@@ -247,8 +281,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="correoEmpresa"
               value={formData.correoEmpresa}
               onChange={handleChange}
-              className="field-input"
+              className={claseCampo(errorDe("correoEmpresa"))}
+              aria-invalid={!!errorDe("correoEmpresa")}
             />
+            <MensajeCampo mensaje={errorDe("correoEmpresa")} />
           </div>
 
           <div>
@@ -261,8 +297,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               value={formData.nombres}
               onChange={handleChange}
               required
-              className="field-input"
+              className={claseCampo(errorDe("nombres"))}
+              aria-invalid={!!errorDe("nombres")}
             />
+            <MensajeCampo mensaje={errorDe("nombres")} />
           </div>
 
           <div>
@@ -275,8 +313,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               value={formData.apellidoPaterno}
               onChange={handleChange}
               required
-              className="field-input"
+              className={claseCampo(errorDe("apellidoPaterno"))}
+              aria-invalid={!!errorDe("apellidoPaterno")}
             />
+            <MensajeCampo mensaje={errorDe("apellidoPaterno")} />
           </div>
 
           <div>
@@ -288,8 +328,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="apellidoMaterno"
               value={formData.apellidoMaterno}
               onChange={handleChange}
-              className="field-input"
+              className={claseCampo(errorDe("apellidoMaterno"))}
+              aria-invalid={!!errorDe("apellidoMaterno")}
             />
+            <MensajeCampo mensaje={errorDe("apellidoMaterno")} />
           </div>
 
           <div>
@@ -301,8 +343,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="telefonoContacto"
               value={formData.telefonoContacto}
               onChange={handleChange}
-              className="field-input"
+              className={claseCampo(errorDe("telefonoContacto"))}
+              aria-invalid={!!errorDe("telefonoContacto")}
             />
+            <MensajeCampo mensaje={errorDe("telefonoContacto")} />
           </div>
 
           {/* Datos Laborales */}
@@ -358,11 +402,13 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               value={formData.tipoContrato}
               onChange={handleChange}
               required
-              className="field-input"
+              className={claseCampo(errorDe("tipoContrato"))}
+              aria-invalid={!!errorDe("tipoContrato")}
             >
               <option value="contrato">Contrato</option>
               <option value="boleta">Boleta</option>
             </select>
+            <MensajeCampo mensaje={errorDe("tipoContrato")} />
           </div>
 
           <div>
@@ -374,8 +420,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="cargo"
               value={formData.cargo}
               onChange={handleChange}
-              className="field-input"
+              className={claseCampo(errorDe("cargo"))}
+              aria-invalid={!!errorDe("cargo")}
             />
+            <MensajeCampo mensaje={errorDe("cargo")} />
           </div>
 
           <div>
@@ -387,8 +435,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="jefatura"
               value={formData.jefatura}
               onChange={handleChange}
-              className="field-input"
+              className={claseCampo(errorDe("jefatura"))}
+              aria-invalid={!!errorDe("jefatura")}
             />
+            <MensajeCampo mensaje={errorDe("jefatura")} />
           </div>
 
           <div>
@@ -400,8 +450,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="supervisor"
               value={formData.supervisor}
               onChange={handleChange}
-              className="field-input"
+              className={claseCampo(errorDe("supervisor"))}
+              aria-invalid={!!errorDe("supervisor")}
             />
+            <MensajeCampo mensaje={errorDe("supervisor")} />
           </div>
 
           <div>
@@ -413,8 +465,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="ubicacion"
               value={formData.ubicacion}
               onChange={handleChange}
-              className="field-input"
+              className={claseCampo(errorDe("ubicacion"))}
+              aria-invalid={!!errorDe("ubicacion")}
             />
+            <MensajeCampo mensaje={errorDe("ubicacion")} />
           </div>
 
           <div>
@@ -426,8 +480,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="fechaIngreso"
               value={formData.fechaIngreso}
               onChange={handleChange}
-              className="field-input"
+              className={claseCampo(errorDe("fechaIngreso"))}
+              aria-invalid={!!errorDe("fechaIngreso")}
             />
+            <MensajeCampo mensaje={errorDe("fechaIngreso")} />
           </div>
 
           <div>
@@ -439,8 +495,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               name="fechaTermino"
               value={formData.fechaTermino}
               onChange={handleChange}
-              className="field-input"
+              className={claseCampo(errorDe("fechaTermino"))}
+              aria-invalid={!!errorDe("fechaTermino")}
             />
+            <MensajeCampo mensaje={errorDe("fechaTermino")} />
           </div>
 
           {esAdmin && (
@@ -457,7 +515,8 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
                    ignora el sedeId que mande un tecnico, esto evita que
                    parezca editable. */
                 disabled={!esAdmin}
-                className="field-input"
+                className={claseCampo(errorDe("sedeId"))}
+              aria-invalid={!!errorDe("sedeId")}
               >
                 <option value="" disabled>
                   Selecciona una sede...
@@ -468,6 +527,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
                   </option>
                 ))}
               </select>
+            <MensajeCampo mensaje={errorDe("sedeId")} />
               <p className="mt-1 text-xs text-fg-subtle">
                 Reasigna a qué sede pertenece este empleado (ej. si se traslada
                 de Concepción a Santiago). Solo administradores pueden

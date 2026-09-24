@@ -93,6 +93,7 @@ export default function EditarActivoPage({ params }: { params: Promise<{ id: str
           initialValues={initialValues}
           onSubmit={guardar}
           cancelHref={`/activos/${id}`}
+          erroresServidor={fieldErrors}
         />
       )}
     </div>

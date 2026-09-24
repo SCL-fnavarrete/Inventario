@@ -21,6 +21,8 @@ import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useCampoSede } from "@/components/providers/SedeSeleccionadaProvider";
 import { StatCard, StatGrid } from "@/components/ui/StatCard";
+import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 
 type Category = {
   id: number;
@@ -193,6 +195,24 @@ export default function ImportarActivosPage() {
     (field) => fieldMatchesCategory(field.categories, categoria)
   );
 
+  // Validacion por campo, igual que en Onboarding. Las columnas del paso 2 se
+  // identifican como "map.<campo>".
+  const { errores, resumen, reportar, limpiar } = useErroresFormulario({
+    sheetName: "Hoja del Excel",
+    categoria: "Categoría",
+    sedeId: "Sede",
+    ...Object.fromEntries(allRequiredFields.map((f) => [`map.${f.key}`, `Columna ${f.label}`])),
+  });
+
+  // Datos del paso 1 que faltan (hoja, categoria y, para un tecnico, sede).
+  function faltanPaso1(): Record<string, string> {
+    const e: Record<string, string> = {};
+    if (!sheetName) e.sheetName = "Elige la hoja del Excel";
+    if (!categoria) e.categoria = "Elige la categoría";
+    if (!esAdminSede && !sedeId) e.sedeId = "Elige la sede de destino";
+    return e;
+  }
+
   const employeeFieldsFiltered = employeeFields.filter(
     (field) => fieldMatchesCategory(field.categories, categoria)
   );
@@ -287,14 +307,7 @@ export default function ImportarActivosPage() {
   );
 
   async function handlePreview() {
-    if (!file || !sheetName || !categoria) {
-      setError("Selecciona un archivo, hoja y categoría");
-      return;
-    }
-    if (!esAdminSede && !sedeId) {
-      setError("Selecciona la sede a la que se importarán estos equipos");
-      return;
-    }
+    if (!file || reportar(faltanPaso1())) return;
 
     setParsing(true);
     setError("");
@@ -399,24 +412,15 @@ export default function ImportarActivosPage() {
   // vista previa. null significa que ya se seteo error/fieldErrors y quien
   // llamo no debe hacer nada mas.
   async function ejecutarValidacion(): Promise<ImportPreviewResult | null> {
-    if (!file || !sheetName || !categoria) {
-      setError("Datos incompletos");
+    if (!file) {
+      setError("Selecciona el archivo Excel");
       return null;
     }
-    if (!esAdminSede && !sedeId) {
-      setError("Selecciona la sede a la que se importarán estos equipos");
-      return null;
+    const faltan = faltanPaso1();
+    for (const f of requiredFields) {
+      if (f.required && !columnMapping[f.key]) faltan[`map.${f.key}`] = "Elige la columna del Excel";
     }
-
-    const missingRequired = requiredFields.filter(
-      (f) => f.required && !columnMapping[f.key]
-    );
-    if (missingRequired.length > 0) {
-      setError(
-        `Faltan campos requeridos: ${missingRequired.map((f) => f.label).join(", ")}`
-      );
-      return null;
-    }
+    if (reportar(faltan)) return null;
 
     const formData = new FormData();
     formData.append("file", file);
@@ -504,6 +508,7 @@ export default function ImportarActivosPage() {
   }
 
   function handleMappingChange(field: string, value: string) {
+    limpiar(`map.${field}`);
     setColumnMapping((prev) => ({
       ...prev,
       [field]: value,
@@ -750,8 +755,12 @@ export default function ImportarActivosPage() {
                 </label>
                 <select
                   value={sheetName}
-                  onChange={(e) => setSheetName(e.target.value)}
-                  className="field-input"
+                  onChange={(e) => {
+                    setSheetName(e.target.value);
+                    limpiar("sheetName");
+                  }}
+                  className={claseCampo(errores.sheetName)}
+                  aria-invalid={!!errores.sheetName}
                 >
                   <option value="">Seleccionar hoja</option>
                   {availableSheets.map((sheet) => (
@@ -760,6 +769,7 @@ export default function ImportarActivosPage() {
                     </option>
                   ))}
                 </select>
+                <MensajeCampo mensaje={errores.sheetName} />
               </div>
               <div>
                 <label className="field-label">
@@ -767,9 +777,13 @@ export default function ImportarActivosPage() {
                 </label>
                 <select
                   value={categoria}
-                  onChange={(e) => setCategoria(e.target.value)}
+                  onChange={(e) => {
+                    setCategoria(e.target.value);
+                    limpiar("categoria");
+                  }}
                   disabled={loadingCategories}
-                  className="field-input disabled:opacity-50"
+                  className={cn(claseCampo(errores.categoria), "disabled:opacity-50")}
+                  aria-invalid={!!errores.categoria}
                 >
                   <option value="">
                     {loadingCategories ? "Cargando categorías..." : "Seleccionar categoría"}
@@ -780,6 +794,7 @@ export default function ImportarActivosPage() {
                     </option>
                   ))}
                 </select>
+                <MensajeCampo mensaje={errores.categoria} />
               </div>
               <div>
                 <label className="field-label">
@@ -787,9 +802,13 @@ export default function ImportarActivosPage() {
                 </label>
                 <select
                   value={sedeId}
-                  onChange={(e) => setSedeId(e.target.value)}
+                  onChange={(e) => {
+                    setSedeId(e.target.value);
+                    limpiar("sedeId");
+                  }}
                   disabled={!esAdminSede}
-                  className="field-input"
+                  className={claseCampo(errores.sedeId)}
+                  aria-invalid={!!errores.sedeId}
                 >
                   <option value="">
                     {esAdminSede ? "Detectar automáticamente por columna Sede" : "Seleccionar sede"}
@@ -800,6 +819,7 @@ export default function ImportarActivosPage() {
                     </option>
                   ))}
                 </select>
+                <MensajeCampo mensaje={errores.sedeId} />
                 <p className="mt-1 text-xs text-fg-subtle">
                   {esAdminSede
                     ? sedeId
@@ -811,11 +831,11 @@ export default function ImportarActivosPage() {
             </div>
           )}
 
-          {file && sheetName && categoria && !preview && (
+          {/* Visible apenas se lee el archivo: al pulsarlo marca lo que falta. */}
+          {file && availableSheets.length > 0 && !preview && (
             <button
               onClick={handlePreview}
-              disabled={parsing || (!esAdminSede && !sedeId)}
-              title={!esAdminSede && !sedeId ? "Primero elige la sede de destino" : undefined}
+              disabled={parsing}
               className="w-full py-3 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50 transition-colors"
             >
               {parsing ? "Procesando..." : "Detectar campos"}
@@ -852,10 +872,9 @@ export default function ImportarActivosPage() {
                       onChange={(e) => handleMappingChange(field.key, e.target.value)}
                       className={cn(
                         "w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500",
-                        field.required && !columnMapping[field.key]
-                          ? "border-red-300"
-                          : "border-line-strong"
+                        errores[`map.${field.key}`] ? "border-red-500 bg-red-50" : "border-line-strong"
                       )}
+                      aria-invalid={!!errores[`map.${field.key}`]}
                     >
                       <option value="">No mapear</option>
                       {preview.headers.map((header, index) => (
@@ -864,6 +883,7 @@ export default function ImportarActivosPage() {
                         </option>
                       ))}
                     </select>
+                    <MensajeCampo mensaje={errores[`map.${field.key}`]} />
                     {fieldDescriptions[field.key] && (
                       <p className="mt-1 text-xs text-fg-subtle">{fieldDescriptions[field.key]}</p>
                     )}
@@ -986,6 +1006,7 @@ export default function ImportarActivosPage() {
       )}
 
       {/* Error */}
+      <ResumenErrores mensaje={resumen} />
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* Actions: Paso 3 -> Validar (nada se escribe todavia) */}
