@@ -1,4 +1,5 @@
 import type { EstadoActivo, Prisma } from '@prisma/client';
+import { estadoTrasMantencion } from '@/lib/constants/estadosActivo';
 import type { PrismaTx } from '@/lib/services/assetHistoryService';
 
 /**
@@ -13,11 +14,6 @@ type ActivoEnMantencion = {
   estado: EstadoActivo;
   empleadoActualId: string | null;
 };
-
-/** Estado al que vuelve un equipo que sale de mantencion. */
-export function estadoTrasMantencion(asset: { empleadoActualId: string | null }): EstadoActivo {
-  return asset.empleadoActualId ? 'asignado' : 'disponible';
-}
 
 /**
  * Deja en el historial el cierre de una mantencion y, si era la que estaba

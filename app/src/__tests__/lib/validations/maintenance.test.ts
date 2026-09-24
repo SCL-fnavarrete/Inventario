@@ -200,6 +200,20 @@ describe('Maintenance Validation - updateMaintenanceSchema', () => {
     expect(result.success && result.data.fechaProgramada).toBeInstanceOf(Date)
   })
 
+  test('hora opcional HH:MM; vacia queda en null; mal escrita se rechaza (SPEC 2.98)', () => {
+    const ok = updateMaintenanceSchema.safeParse({ horaProgramada: '09:05' })
+    expect(ok.success && ok.data.horaProgramada).toBe('09:05')
+    const vacia = updateMaintenanceSchema.safeParse({ horaProgramada: '' })
+    expect(vacia.success && vacia.data.horaProgramada).toBeNull()
+    expect(updateMaintenanceSchema.safeParse({ horaProgramada: '25:00' }).success).toBe(false)
+    expect(updateMaintenanceSchema.safeParse({ horaProgramada: '9:5' }).success).toBe(false)
+  })
+
+  test('si la hora no viene, no se toca', () => {
+    const r = updateMaintenanceSchema.safeParse({ estado: 'en_proceso' })
+    expect(r.success && r.data.horaProgramada).toBeUndefined()
+  })
+
   test('should still validate descripcion constraints', () => {
     const result = updateMaintenanceSchema.safeParse({
       descripcion: '',
@@ -333,7 +347,8 @@ describe('Maintenance Validation - maintenanceFiltersSchema', () => {
     if (result.success) {
       expect(result.data.page).toBe(1)
       expect(result.data.limit).toBe(10)
-      expect(result.data.sortBy).toBe('fechaProgramada')
+      // Sin sortBy: orden de agenda (SPEC 2.98)
+      expect(result.data.sortBy).toBeUndefined()
       expect(result.data.sortOrder).toBe('asc')
     }
   })

@@ -13,7 +13,7 @@ import { auditLogService } from '@/lib/services/auditLogService';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { registrarSalidaDeMantencion } from '@/lib/services/mantencionActivoService';
 import { motivoSinMantencion } from '@/lib/constants/estadosActivo';
-import { formatearFechaCorta } from '@/lib/utils/fechas';
+import { formatearFechaConHora } from '@/lib/utils/fechas';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -219,6 +219,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       tipoId: data.tipoId,
       descripcion: data.descripcion,
       fechaProgramada: data.fechaProgramada,
+      horaProgramada: data.horaProgramada,
       realizadoPor: data.realizadoPor,
       costo: data.costo,
       proveedorExterno: data.proveedorExterno,
@@ -233,13 +234,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
       // Cambiar la fecha queda en el historial del equipo: es lo que se
       // mira para saber cuando le toca.
-      const fechaAntes = existente.fechaProgramada?.getTime();
-      if (data.fechaProgramada && data.fechaProgramada.getTime() !== fechaAntes) {
+      const cambiaFecha =
+        (data.fechaProgramada !== undefined &&
+          data.fechaProgramada.getTime() !== existente.fechaProgramada?.getTime()) ||
+        (data.horaProgramada !== undefined && data.horaProgramada !== existente.horaProgramada);
+      if (cambiaFecha) {
         await tx.assetHistory.create({
           data: {
             assetId: asset.id,
             tipoEvento: "mantencion",
-            descripcion: `Mantención ${tipoNombre} reprogramada del ${formatearFechaCorta(existente.fechaProgramada)} al ${formatearFechaCorta(data.fechaProgramada)}`,
+            descripcion: `Mantención ${tipoNombre} reprogramada del ${formatearFechaConHora(existente.fechaProgramada, existente.horaProgramada)} al ${formatearFechaConHora(actualizada.fechaProgramada, actualizada.horaProgramada)}`,
             datosNuevos: { maintenanceId: id },
             usuarioSistema: usuario,
           },
@@ -254,12 +258,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           tipoId: existente.tipoId,
           descripcion: existente.descripcion,
           fechaProgramada: existente.fechaProgramada,
+          horaProgramada: existente.horaProgramada,
           realizadoPor: existente.realizadoPor,
         },
         {
           tipoId: actualizada.tipoId,
           descripcion: actualizada.descripcion,
           fechaProgramada: actualizada.fechaProgramada,
+          horaProgramada: actualizada.horaProgramada,
           realizadoPor: actualizada.realizadoPor,
         },
         usuario,
@@ -313,7 +319,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         data: {
           assetId: maintenance.assetId,
           tipoEvento: "mantencion",
-          descripcion: `Mantención ${maintenance.tipo.nombre} programada para el ${formatearFechaCorta(maintenance.fechaProgramada)} eliminada`,
+          descripcion: `Mantención ${maintenance.tipo.nombre} programada para el ${formatearFechaConHora(maintenance.fechaProgramada, maintenance.horaProgramada)} eliminada`,
           usuarioSistema: usuario,
         },
       });

@@ -42,12 +42,15 @@ export async function GET(request: NextRequest) {
     const [totalVencidas, totalProximas, totalEnProceso, totalCompletadas, stats, statsByTipo] =
       await Promise.all([
         prisma.maintenance.count({
-          where: { fechaProgramada: { lt: hoy }, estado: { in: ["pendiente", "en_proceso"] }, ...swAsset },
+          // Vencidas: pendientes con la fecha pasada (una en proceso ya se
+          // esta haciendo).
+          where: { fechaProgramada: { lt: hoy }, estado: "pendiente", ...swAsset },
         }),
         prisma.maintenance.count({
           where: {
+            // Proximas: pendientes por venir (las en proceso tienen su tarjeta).
             fechaProgramada: sinLimiteProximas ? { gte: hoy } : { gte: hoy, lte: fechaLimite },
-            estado: { in: ["pendiente", "en_proceso"] },
+            estado: "pendiente",
             ...swAsset,
           },
         }),

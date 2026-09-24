@@ -3191,7 +3191,31 @@ Pedido de Javier: *"revisa ese módulo bien a fondo… la idea es que funcione, 
 
 Pedido de Javier: *"quítalo mejor, confunde"*. El detalle de una solicitud de Onboarding ya no muestra el recuadro "Equipos actuales del empleado" (2.90): repetía "Equipos Entregados" y, si después el empleado cambiaba de equipo, mostraba equipos que no se entregaron en esa solicitud. En las demás solicitudes (cambio de equipo, desvinculación) se mantiene, porque ahí sí sirve saber qué tiene la persona hoy.
 
+## 2.98 Mantenciones: pantallas, hora programada y orden de agenda (24-sep-2026)
+
+Pedido de Javier: *"agrega un nuevo campo con hora al querer programar fechas de mantención"*, más la parte de pantallas de la revisión de 2.96.
+
+- **Hora programada:** nuevo campo `Maintenance.horaProgramada` (texto "HH:MM", hora de Chile, opcional; migración `mantencion_hora_programada`). Va aparte de `fechaProgramada`, que sigue siendo fecha de calendario (medianoche UTC): así la hora no corre el día ni cambia qué mantención está vencida. Se valida en `POST` y `PUT /api/mantenciones`; al editar, si no viene, no se toca. Se muestra como "26-09-2026 a las 14:30" (`formatearFechaConHora`) en la lista, el detalle, el calendario (ordenado por hora dentro del día) y el historial del equipo.
+- **Programar en una sola pantalla** (antes eran tres pasos): buscar el equipo en el servidor (mismas reglas que Activos, 20 resultados), y llenar tipo (Preventiva por defecto), fecha (hoy por defecto), hora y descripción. Los equipos que no admiten mantención salen desactivados y dicen por qué (`motivoSinMantencion`). Si se entra con `?activoId=` de uno de ellos, lo avisa. La validación es por campo, como Onboarding (2.95).
+- **Detalle:**
+  - una mantención pendiente tiene **Editar** (tipo, fecha, hora, descripción) además de Iniciar y Eliminar;
+  - Cancelar y Eliminar piden confirmación y dicen qué pasa con el equipo;
+  - "Faltan repuestos" muestra el aviso **"Esperando repuestos"** con la nota, y su botón es "Guardar nota";
+  - Completar valida por campo;
+  - la próxima mantención solo se ofrece con Reparado.
+- **Lista:**
+  - **orden de agenda** por defecto: en proceso, próximas, vencidas (la más reciente primero) y al final las cerradas. Antes iba por fecha, de la más antigua a la más nueva, y una mantención programada quedaba varias páginas atrás. Pedir `sortBy` sigue ordenando por ese campo. Está en `lib/queries/mantenciones.ts` (`gruposAgenda`, `paginarPorGrupos`);
+  - en celular es una tarjeta por mantención, con fecha, estado y acciones a la vista;
+  - "Dar de baja" aparece solo si el equipo se puede dar de baja (`motivoSinBaja`).
+- **Vencida** = pendiente con la fecha pasada. Una en proceso ya se está haciendo: no cuenta como vencida ni como próxima (tiene su propia tarjeta).
+- **Calendario:** cada mantención en su día. Leía la fecha en hora local y en Chile la corría al día anterior.
+- **Detalle del activo:** botón "Programar mantención" cuando el equipo admite mantenciones.
+- **Tipos de mantención:** el nombre vacío o repetido marca el campo, como el resto de los formularios.
+- **Piezas compartidas:** `EstadoMantencionBadge` y `configEstadoMantencion` (`components/mantenciones`), que reemplazan la configuración de estados copiada en la lista y el detalle. `estadoTrasMantencion` pasa a `lib/constants/estadosActivo.ts`, porque la usan la API y la pantalla.
+
 ## Changelog SPEC
+- **v2.22 (2026-09-24):**
+  - Sección 2.98 (nueva): hora programada de las mantenciones (campo nuevo), Programar en una pantalla, Editar pendientes, aviso de repuestos, orden de agenda en la lista, vencida = pendiente atrasada, calendario sin correr el día y validación por campo en Tipos.
 - **v2.21 (2026-09-24):**
   - Sección 2.97 (nueva): el detalle de un Onboarding ya no muestra "Equipos actuales del empleado".
 - **v2.20 (2026-09-24):**

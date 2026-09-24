@@ -126,3 +126,17 @@ export function aValorInputDate(valor: ValorFecha, siVacio = ""): string {
   if (!fecha) return siVacio;
   return fecha.toISOString().slice(0, 10);
 }
+
+/**
+ * Fecha de calendario con su hora opcional (hora de Chile, "HH:MM"), como
+ * "26-09-2026 a las 14:30". Para las mantenciones programadas (SPEC 2.98):
+ * la hora va aparte de la fecha para no correr el dia.
+ */
+export function formatearFechaConHora(
+  fecha: ValorFecha,
+  hora?: string | null,
+  siVacio = ""
+): string {
+  const texto = formatearFechaCorta(fecha, siVacio);
+  return fecha && hora ? `${texto} a las ${hora}` : texto;
+}

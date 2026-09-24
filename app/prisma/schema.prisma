@@ -414,6 +414,10 @@ model Maintenance {
   tipoId            String           @map("tipo_id")
   descripcion       String
   fechaProgramada   DateTime?        @map("fecha_programada")
+  // Hora de la mantencion en Chile, "HH:MM" (SPEC 2.98). Opcional y aparte
+  // de fechaProgramada, que es fecha de calendario (medianoche UTC): asi la
+  // hora no corre el dia ni cambia que mantencion esta vencida.
+  horaProgramada    String?          @map("hora_programada")
   fechaRealizada    DateTime?        @map("fecha_realizada")
   proximaMantencion DateTime?        @map("proxima_mantencion")
   realizadoPor      String?          @map("realizado_por")

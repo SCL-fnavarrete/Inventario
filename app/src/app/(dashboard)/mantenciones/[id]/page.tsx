@@ -5,29 +5,45 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
-  Wrench,
   AlertCircle,
   CheckCircle,
   XCircle,
-  Clock,
   Loader2,
   Trash2,
   Play,
+  Pencil,
 } from "lucide-react";
-import { etiquetaCondicionActivo, etiquetaEstadoActivo } from "@/lib/constants/estadosActivo";
+import {
+  estadoTrasMantencion,
+  etiquetaCondicionActivo,
+  etiquetaEstadoActivo,
+} from "@/lib/constants/estadosActivo";
 import { cn } from "@/lib/utils";
-import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
-import { formatearFecha, hoyISO } from "@/lib/utils/fechas";
+import { parseApiError } from "@/lib/utils/apiErrors";
+import { formatearFecha, formatearFechaConHora, aValorInputDate, hoyISO } from "@/lib/utils/fechas";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
+import { configEstadoMantencion } from "@/components/mantenciones";
+import { Can } from "@/components/auth/Can";
+import { AssetStatusBadge } from "@/components/ui/Badge";
 import { buttonClasses } from "@/components/ui/buttonStyles";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
+import {
+  CampoFormulario,
+  CampoTexto,
+  ResumenErrores,
+  claseCampo,
+} from "@/components/ui/CampoFormulario";
+
+type ResultadoTipo = "reparado" | "no_reparable" | "pendiente_repuestos";
 
 type Maintenance = {
   id: string;
   tipo: { id: string; nombre: string };
   descripcion: string;
   fechaProgramada: string | null;
+  horaProgramada: string | null;
   fechaRealizada: string | null;
   proximaMantencion: string | null;
   realizadoPor: string | null;
@@ -35,6 +51,7 @@ type Maintenance = {
   proveedorExterno: string | null;
   estado: string;
   resultado: string | null;
+  resultadoTipo: string | null;
   createdAt: string;
   asset: {
     id: string;
@@ -43,42 +60,52 @@ type Maintenance = {
     modelo: string;
     estado: string;
     condicion: string;
-    categoria: {
-      nombre: string;
-    };
+    empleadoActualId: string | null;
+    categoria: { nombre: string };
     empleadoActual: {
       id: string;
-      rut: string;
+      rut: string | null;
       nombres: string;
       apellidoPaterno: string;
-      apellidoMaterno: string | null;
-      correoEmpresa: string; // required field
-      correoPersonal?: string | null;
       cargo: string | null;
     } | null;
   };
 };
 
-const estadoConfig: Record<string, { label: string; icon: typeof CheckCircle; color: string; bgColor: string }> = {
-  pendiente: { label: "Pendiente", icon: Clock, color: "text-orange-600", bgColor: "bg-orange-100" },
-  en_proceso: { label: "En Proceso", icon: Wrench, color: "text-primary-700", bgColor: "bg-primary-100" },
-  completada: { label: "Completada", icon: CheckCircle, color: "text-green-600", bgColor: "bg-green-100" },
-  cancelada: { label: "Cancelada", icon: XCircle, color: "text-fg-muted", bgColor: "bg-gray-100" },
+const ETIQUETAS_EDITAR = {
+  tipoId: "Tipo",
+  fechaProgramada: "Fecha",
+  horaProgramada: "Hora",
+  descripcion: "Descripción",
 };
+
+const ETIQUETAS_COMPLETAR = {
+  fechaRealizada: "Fecha realizada",
+  resultado: "Resultado",
+  motivoBaja: "Motivo de la baja",
+};
+
+const OPCIONES_RESULTADO: { valor: ResultadoTipo; label: string; activo: string }[] = [
+  { valor: "reparado", label: "Reparado", activo: "bg-green-600 text-white border-green-600" },
+  { valor: "pendiente_repuestos", label: "Faltan repuestos", activo: "bg-amber-500 text-white border-amber-500" },
+  { valor: "no_reparable", label: "No reparable", activo: "bg-red-600 text-white border-red-600" },
+];
 
 function formatCurrency(amount: number | null): string {
   if (!amount) return "-";
-  return new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: "CLP",
-  }).format(amount);
+  return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(amount);
 }
 
-export default function MantencionDetallePage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+function Dato({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <p className="text-sm text-fg-subtle">{label}</p>
+      <div className="font-medium text-fg">{children}</div>
+    </div>
+  );
+}
+
+export default function MantencionDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const { data: session } = useSession();
@@ -86,44 +113,36 @@ export default function MantencionDetallePage({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [confirmar, setConfirmar] = useState<"cancelar" | "eliminar" | null>(null);
 
+  // Editar (solo pendientes).
+  const [editando, setEditando] = useState(false);
+  const [tipos, setTipos] = useState<{ id: string; nombre: string }[]>([]);
+  const [edicion, setEdicion] = useState({ tipoId: "", fechaProgramada: "", horaProgramada: "", descripcion: "" });
+  const erroresEdicion = useErroresFormulario(ETIQUETAS_EDITAR);
+
+  // Completar (solo en proceso).
   const [completeForm, setCompleteForm] = useState({
     fechaRealizada: hoyISO(),
-    realizadoPor: "",
     resultado: "",
-    resultadoTipo: "reparado" as "reparado" | "no_reparable" | "pendiente_repuestos",
+    resultadoTipo: "reparado" as ResultadoTipo,
     motivoBaja: "",
     proximaMantencion: "",
   });
-
-  // "Realizado por" auto-fills with the current session user.
-  useEffect(() => {
-    if (session?.user?.name) {
-      setCompleteForm((prev) => ({ ...prev, realizadoPor: session.user.name as string }));
-    }
-  }, [session]);
+  const erroresCompletar = useErroresFormulario(ETIQUETAS_COMPLETAR);
 
   const fetchMaintenance = useCallback(async () => {
     try {
       const res = await fetch(`/api/mantenciones/${id}`);
-      if (!res.ok) {
-        throw new Error("Mantención no encontrada");
-      }
-      const data = await res.json();
-      setMaintenance(data);
-
-      // realizadoPor is filled separately by the useEffect above, from
-      // the session user.
-      setCompleteForm((prev) => ({
+      if (!res.ok) throw new Error("Mantención no encontrada");
+      setMaintenance(await res.json());
+      setCompleteForm({
         fechaRealizada: hoyISO(),
-        realizadoPor: prev.realizadoPor,
         resultado: "",
         resultadoTipo: "reparado",
         motivoBaja: "",
         proximaMantencion: "",
-      }));
+      });
     } catch (err) {
       console.error("Error fetching maintenance:", err);
       setError("Error al cargar mantención");
@@ -136,134 +155,131 @@ export default function MantencionDetallePage({
     fetchMaintenance();
   }, [fetchMaintenance]);
 
-  async function handleStartMaintenance() {
-    if (!maintenance) return;
-
+  /** PUT/POST/DELETE a la mantencion: { ok } o el mensaje y los errores por campo. */
+  async function enviar(url: string, method: string, body: unknown, fallback: string) {
     setSubmitting(true);
     setError("");
-    setFieldErrors({});
-
     try {
-      const res = await fetch(`/api/mantenciones/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          estado: "en_proceso",
-        }),
+      const res = await fetch(url, {
+        method,
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
       });
-
       if (!res.ok) {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al iniciar mantención");
-        setError(message);
-        setFieldErrors(fe);
-        return;
+        const { message, fieldErrors } = await parseApiError(res, fallback);
+        return { ok: false as const, message, fieldErrors };
       }
-
-      fetchMaintenance();
-    } catch (err) {
-      console.error("Error starting maintenance:", err);
-      setError("Error al iniciar mantención");
+      return { ok: true as const };
+    } catch {
+      return { ok: false as const, message: fallback, fieldErrors: {} };
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleCompleteMaintenance(e: React.FormEvent) {
-    e.preventDefault();
+  async function iniciar() {
+    const r = await enviar(`/api/mantenciones/${id}`, "PUT", { estado: "en_proceso" }, "Error al iniciar mantención");
+    if (!r.ok) return setError(r.message);
+    fetchMaintenance();
+  }
+
+  async function cancelar() {
+    const r = await enviar(`/api/mantenciones/${id}`, "PUT", { estado: "cancelada" }, "Error al cancelar mantención");
+    setConfirmar(null);
+    if (!r.ok) return setError(r.message);
+    fetchMaintenance();
+  }
+
+  async function eliminar() {
+    const r = await enviar(`/api/mantenciones/${id}`, "DELETE", null, "Error al eliminar mantención");
+    setConfirmar(null);
+    if (!r.ok) return setError(r.message);
+    router.push("/mantenciones");
+  }
+
+  function abrirEdicion() {
     if (!maintenance) return;
-
-    setSubmitting(true);
-    setError("");
-    setFieldErrors({});
-
-    try {
-      const res = await fetch(`/api/mantenciones/${id}/completar`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fechaRealizada: completeForm.fechaRealizada,
-          realizadoPor: completeForm.realizadoPor,
-          resultado: completeForm.resultado,
-          resultadoTipo: completeForm.resultadoTipo,
-          motivoBaja: completeForm.resultadoTipo === "no_reparable" ? completeForm.motivoBaja : null,
-          proximaMantencion: completeForm.proximaMantencion || null,
-        }),
-      });
-
-      if (!res.ok) {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al completar mantención");
-        setError(message);
-        setFieldErrors(fe);
-        return;
-      }
-
-      fetchMaintenance();
-    } catch (err) {
-      console.error("Error completing maintenance:", err);
-      setError("Error al completar mantención");
-    } finally {
-      setSubmitting(false);
+    setEdicion({
+      tipoId: maintenance.tipo.id,
+      fechaProgramada: aValorInputDate(maintenance.fechaProgramada),
+      horaProgramada: maintenance.horaProgramada ?? "",
+      descripcion: maintenance.descripcion,
+    });
+    erroresEdicion.reportar({});
+    setEditando(true);
+    if (tipos.length === 0) {
+      fetch("/api/mantenciones/tipos?activo=true")
+        .then((r) => (r.ok ? r.json() : []))
+        .then(setTipos)
+        .catch(() => setTipos([]));
     }
   }
 
-  async function handleCancelMaintenance() {
-    if (!maintenance) return;
-
-    setSubmitting(true);
-    setError("");
-    setFieldErrors({});
-
-    try {
-      const res = await fetch(`/api/mantenciones/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          estado: "cancelada",
-        }),
-      });
-
-      if (!res.ok) {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al cancelar mantención");
-        setError(message);
-        setFieldErrors(fe);
-        return;
-      }
-
-      fetchMaintenance();
-    } catch (err) {
-      console.error("Error cancelling maintenance:", err);
-      setError("Error al cancelar mantención");
-    } finally {
-      setSubmitting(false);
-    }
+  function cambiarEdicion<K extends keyof typeof edicion>(campo: K, valor: string) {
+    setEdicion((prev) => ({ ...prev, [campo]: valor }));
+    erroresEdicion.limpiar(campo);
   }
 
-  async function handleDelete() {
-    if (!maintenance) return;
-
-    setSubmitting(true);
-    setError("");
-    setFieldErrors({});
-    try {
-      const res = await fetch(`/api/mantenciones/${id}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al eliminar");
-        setError(message);
-        setFieldErrors(fe);
-        return;
-      }
-
-      router.push("/mantenciones");
-    } catch (err) {
-      console.error("Error deleting:", err);
-      setError("Error al eliminar mantención");
-    } finally {
-      setSubmitting(false);
-      setShowDeleteConfirm(false);
+  async function guardarEdicion(ev: React.FormEvent) {
+    ev.preventDefault();
+    const faltan: Record<string, string> = {};
+    if (!edicion.tipoId) faltan.tipoId = "Elige el tipo";
+    if (!edicion.fechaProgramada) faltan.fechaProgramada = "Elige la fecha";
+    if (!edicion.descripcion.trim()) faltan.descripcion = "Describe qué se va a hacer";
+    if (erroresEdicion.reportar(faltan)) return;
+    const r = await enviar(
+      `/api/mantenciones/${id}`,
+      "PUT",
+      { ...edicion, horaProgramada: edicion.horaProgramada || null },
+      "Error al guardar la mantención"
+    );
+    if (!r.ok) {
+      if (Object.keys(r.fieldErrors).length > 0) erroresEdicion.reportar(r.fieldErrors);
+      else setError(r.message);
+      return;
     }
+    setEditando(false);
+    fetchMaintenance();
+  }
+
+  function cambiarCompletar<K extends keyof typeof completeForm>(campo: K, valor: (typeof completeForm)[K]) {
+    setCompleteForm((prev) => ({ ...prev, [campo]: valor }));
+    erroresCompletar.limpiar(campo);
+  }
+
+  async function completar(ev: React.FormEvent) {
+    ev.preventDefault();
+    const faltan: Record<string, string> = {};
+    if (!completeForm.fechaRealizada) faltan.fechaRealizada = "Elige la fecha";
+    if (!completeForm.resultado.trim())
+      faltan.resultado =
+        completeForm.resultadoTipo === "pendiente_repuestos"
+          ? "Anota qué repuesto falta"
+          : "Describe qué se hizo";
+    if (completeForm.resultadoTipo === "no_reparable" && !completeForm.motivoBaja.trim())
+      faltan.motivoBaja = "Escribe por qué no se puede reparar";
+    if (erroresCompletar.reportar(faltan)) return;
+
+    const r = await enviar(
+      `/api/mantenciones/${id}/completar`,
+      "POST",
+      {
+        fechaRealizada: completeForm.fechaRealizada,
+        realizadoPor: session?.user?.name || session?.user?.email || "",
+        resultado: completeForm.resultado,
+        resultadoTipo: completeForm.resultadoTipo,
+        motivoBaja: completeForm.resultadoTipo === "no_reparable" ? completeForm.motivoBaja : null,
+        proximaMantencion:
+          completeForm.resultadoTipo === "reparado" ? completeForm.proximaMantencion || null : null,
+      },
+      "Error al completar mantención"
+    );
+    if (!r.ok) {
+      if (Object.keys(r.fieldErrors).length > 0) erroresCompletar.reportar(r.fieldErrors);
+      else setError(r.message);
+      return;
+    }
+    fetchMaintenance();
   }
 
   if (loading) {
@@ -286,300 +302,311 @@ export default function MantencionDetallePage({
     );
   }
 
-  const config = estadoConfig[maintenance.estado] || estadoConfig.pendiente;
+  const config = configEstadoMantencion(maintenance);
   const StatusIcon = config.icon;
+  const esperandoRepuestos =
+    maintenance.estado === "en_proceso" && maintenance.resultadoTipo === "pendiente_repuestos";
+  const fechaTexto = formatearFechaConHora(maintenance.fechaProgramada, maintenance.horaProgramada, "-");
+  const vuelveA = etiquetaEstadoActivo(estadoTrasMantencion(maintenance.asset));
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <PageHeader
         backHref="/mantenciones"
         title="Detalle de Mantención"
         description={<>{maintenance.asset.marca} {maintenance.asset.modelo}</>}
         actions={
           <>
-            {maintenance.estado === "pendiente" && (
+            {maintenance.estado === "pendiente" && !editando && (
               <>
-                <button
-                  onClick={handleStartMaintenance}
-                  disabled={submitting}
-                  className={buttonClasses()}
-                >
-                  <Play size={20} />
-                  Iniciar
-                </button>
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className={buttonClasses({ variant: "danger" })}
-                >
-                  <Trash2 size={20} />
-                  Eliminar
-                </button>
+                <Can recurso="mantenciones">
+                  <button onClick={iniciar} disabled={submitting} className={buttonClasses()}>
+                    <Play size={18} /> Iniciar
+                  </button>
+                  <button onClick={abrirEdicion} className={buttonClasses({ variant: "outline" })}>
+                    <Pencil size={18} /> Editar
+                  </button>
+                </Can>
+                <Can recurso="mantenciones" accion="delete">
+                  <button onClick={() => setConfirmar("eliminar")} className={buttonClasses({ variant: "danger" })}>
+                    <Trash2 size={18} /> Eliminar
+                  </button>
+                </Can>
               </>
             )}
             {maintenance.estado === "en_proceso" && (
-              <button
-                onClick={handleCancelMaintenance}
-                disabled={submitting}
-                className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
-              >
-                <XCircle size={20} />
-                Cancelar
-              </button>
+              <Can recurso="mantenciones">
+                <button
+                  onClick={() => setConfirmar("cancelar")}
+                  disabled={submitting}
+                  className={buttonClasses({ variant: "outline", className: "text-red-600 border-red-300" })}
+                >
+                  <XCircle size={18} /> Cancelar mantención
+                </button>
+              </Can>
             )}
           </>
         }
       />
 
-      {/* Status Banner */}
-      <div
-        className={cn(
-          "rounded-lg p-4 flex items-center gap-3",
-          config.bgColor
-        )}
-      >
+      {/* Estado */}
+      <div className={cn("rounded-lg p-4 flex items-center gap-3", config.bgColor)}>
         <StatusIcon className={cn("h-6 w-6", config.color)} />
         <div>
-          <p className={cn("font-semibold", config.color)}>{config.label}</p>
-          {/* fechaProgramada may be missing on older records; when absent,
-              no subtitle is shown rather than an alarming placeholder. */}
-          {maintenance.estado === "completada" && maintenance.fechaRealizada ? (
-            <p className="text-sm text-fg-muted">
-              {`Completada el ${formatearFecha(maintenance.fechaRealizada, {}, "-")}`}
-            </p>
+          <p className={cn("font-semibold", config.color)}>
+            {esperandoRepuestos ? "En Proceso · Esperando repuestos" : config.label}
+          </p>
+          {esperandoRepuestos ? (
+            <p className="text-sm text-fg-muted">{maintenance.resultado}</p>
+          ) : maintenance.estado === "completada" && maintenance.fechaRealizada ? (
+            <p className="text-sm text-fg-muted">Completada el {formatearFecha(maintenance.fechaRealizada, {}, "-")}</p>
           ) : maintenance.fechaProgramada ? (
-            <p className="text-sm text-fg-muted">
-              {`Programada para ${formatearFecha(maintenance.fechaProgramada, {}, "-")}`}
-            </p>
+            <p className="text-sm text-fg-muted">Programada para el {fechaTexto}</p>
           ) : null}
+          {maintenance.estado === "pendiente" && (
+            <p className="text-xs text-fg-subtle mt-0.5">El equipo pasa a En Mantención al pulsar Iniciar.</p>
+          )}
         </div>
       </div>
 
-      <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
+      <ResumenErrores mensaje={error} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - Maintenance Info */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Maintenance Details */}
-          <div className="card p-6">
-            <h2 className="text-lg font-semibold mb-4">Información de la Mantención</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-fg-subtle">Tipo</p>
-                <p className="font-medium">{maintenance.tipo.nombre}</p>
+          {/* Informacion / edicion */}
+          {editando ? (
+            <form onSubmit={guardarEdicion} className="card p-4 sm:p-6 space-y-4" noValidate>
+              <h2 className="text-lg font-semibold">Editar Mantención</h2>
+              <ResumenErrores mensaje={erroresEdicion.resumen} />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <CampoFormulario label="Tipo" obligatorio error={erroresEdicion.errores.tipoId} className="sm:col-span-3">
+                  <select
+                    value={edicion.tipoId}
+                    onChange={(e) => cambiarEdicion("tipoId", e.target.value)}
+                    aria-invalid={!!erroresEdicion.errores.tipoId}
+                    className={claseCampo(erroresEdicion.errores.tipoId)}
+                  >
+                    {/* El tipo actual aunque ya no este activo. */}
+                    {!tipos.some((t) => t.id === maintenance.tipo.id) && (
+                      <option value={maintenance.tipo.id}>{maintenance.tipo.nombre}</option>
+                    )}
+                    {tipos.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </CampoFormulario>
+                <CampoTexto
+                  label="Fecha"
+                  obligatorio
+                  type="date"
+                  value={edicion.fechaProgramada}
+                  onChange={(v) => cambiarEdicion("fechaProgramada", v)}
+                  error={erroresEdicion.errores.fechaProgramada}
+                  className="sm:col-span-2"
+                />
+                <CampoTexto
+                  label="Hora (Chile)"
+                  type="time"
+                  value={edicion.horaProgramada}
+                  onChange={(v) => cambiarEdicion("horaProgramada", v)}
+                  error={erroresEdicion.errores.horaProgramada}
+                  ayuda="Opcional"
+                />
+                <CampoFormulario
+                  label="Descripción"
+                  obligatorio
+                  error={erroresEdicion.errores.descripcion}
+                  className="sm:col-span-3"
+                >
+                  <textarea
+                    rows={3}
+                    value={edicion.descripcion}
+                    onChange={(e) => cambiarEdicion("descripcion", e.target.value)}
+                    aria-invalid={!!erroresEdicion.errores.descripcion}
+                    className={claseCampo(erroresEdicion.errores.descripcion)}
+                  />
+                </CampoFormulario>
               </div>
-              {/* Falls back to createdAt for older records without a
-                  fechaProgramada. */}
-              <div>
-                <p className="text-sm text-fg-subtle">Fecha Programada</p>
-                <p className="font-medium">
-                  {formatearFecha(maintenance.fechaProgramada ?? maintenance.createdAt, {}, "-")}
-                </p>
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => setEditando(false)} className={buttonClasses({ variant: "outline" })}>
+                  Descartar
+                </button>
+                <button type="submit" disabled={submitting} className={buttonClasses()}>
+                  {submitting && <Loader2 className="animate-spin" size={16} />} Guardar cambios
+                </button>
               </div>
-              <div>
-                <p className="text-sm text-fg-subtle">Técnico Asignado</p>
-                <p className="font-medium">{maintenance.realizadoPor || "-"}</p>
-              </div>
-              {/* Costo/Proveedor Externo are legacy fields, no longer
-                  collected; shown only if an older record has a value. */}
-              {maintenance.costo != null && (
-                <div>
-                  <p className="text-sm text-fg-subtle">Costo</p>
-                  <p className="font-medium">{formatCurrency(maintenance.costo)}</p>
-                </div>
-              )}
-              {maintenance.proveedorExterno && (
-                <div className="col-span-2">
-                  <p className="text-sm text-fg-subtle">Proveedor Externo</p>
-                  <p className="font-medium">{maintenance.proveedorExterno}</p>
-                </div>
-              )}
-              <div className="col-span-2">
-                <p className="text-sm text-fg-subtle">Descripción</p>
-                <p className="text-fg whitespace-pre-wrap">{maintenance.descripcion}</p>
+            </form>
+          ) : (
+            <div className="card p-4 sm:p-6">
+              <h2 className="text-lg font-semibold mb-4">Información de la Mantención</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Dato label="Tipo">{maintenance.tipo.nombre}</Dato>
+                <Dato label="Fecha programada">{fechaTexto}</Dato>
+                <Dato label="Técnico">{maintenance.realizadoPor || "-"}</Dato>
+                {/* Costo y proveedor son datos antiguos: solo si vienen. */}
+                {maintenance.costo != null && <Dato label="Costo">{formatCurrency(maintenance.costo)}</Dato>}
+                {maintenance.proveedorExterno && (
+                  <Dato label="Proveedor externo" className="sm:col-span-2">
+                    {maintenance.proveedorExterno}
+                  </Dato>
+                )}
+                <Dato label="Descripción" className="sm:col-span-2">
+                  <p className="font-normal whitespace-pre-wrap">{maintenance.descripcion}</p>
+                </Dato>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Completion form is shown inline on the detail page (not a
-              modal) once the maintenance is en_proceso. */}
+          {/* Completar */}
           {maintenance.estado === "en_proceso" && (
-            <div className="card p-6">
-              <h2 className="text-lg font-semibold mb-4">Completar Mantención</h2>
-              <form onSubmit={handleCompleteMaintenance} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="field-label">
-                      Fecha Realizada *
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={completeForm.fechaRealizada}
-                      onChange={(e) =>
-                        setCompleteForm((prev) => ({ ...prev, fechaRealizada: e.target.value }))
-                      }
-                      className="field-input"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="field-label">
-                      Realizado por
-                    </label>
-                    <input
-                      type="text"
-                      readOnly
-                      disabled
-                      value={completeForm.realizadoPor}
-                      className="w-full px-4 py-2 border border-line bg-surface-muted text-fg-muted rounded-lg cursor-not-allowed"
-                    />
-                    <p className="text-xs text-fg-subtle mt-1">
-                      Se asigna automáticamente: quien está completando la mantención.
-                    </p>
-                  </div>
-                </div>
+            <Can recurso="mantenciones">
+              <form onSubmit={completar} className="card p-4 sm:p-6 space-y-4" noValidate>
+                <h2 className="text-lg font-semibold">Completar Mantención</h2>
+                <ResumenErrores mensaje={erroresCompletar.resumen} />
 
                 <div>
-                  <label className="field-label">
-                    Resultado *
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    placeholder="Describe el resultado de la mantención..."
-                    value={completeForm.resultado}
-                    onChange={(e) =>
-                      setCompleteForm((prev) => ({ ...prev, resultado: e.target.value }))
-                    }
-                    className="field-input"
+                  <p className="field-label mb-2">¿Qué pasa con el equipo? *</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {OPCIONES_RESULTADO.map((o) => (
+                      <button
+                        key={o.valor}
+                        type="button"
+                        onClick={() => {
+                          cambiarCompletar("resultadoTipo", o.valor);
+                          erroresCompletar.limpiar("motivoBaja");
+                        }}
+                        className={cn(
+                          "px-3 py-2 rounded-lg border text-sm font-medium",
+                          completeForm.resultadoTipo === o.valor
+                            ? o.activo
+                            : "border-line-strong text-fg-muted hover:bg-surface-muted"
+                        )}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-fg-subtle mt-2">
+                    {completeForm.resultadoTipo === "reparado" &&
+                      `La mantención se cierra y el equipo vuelve a ${vuelveA}.`}
+                    {completeForm.resultadoTipo === "pendiente_repuestos" &&
+                      "La mantención sigue en proceso con esta nota y el equipo sigue En Mantención. Cuando lleguen los repuestos, complétala como Reparado o No reparable."}
+                    {completeForm.resultadoTipo === "no_reparable" &&
+                      "La mantención se cierra y el equipo se da de baja."}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <CampoTexto
+                    label={completeForm.resultadoTipo === "pendiente_repuestos" ? "Fecha" : "Fecha realizada"}
+                    obligatorio
+                    type="date"
+                    value={completeForm.fechaRealizada}
+                    onChange={(v) => cambiarCompletar("fechaRealizada", v)}
+                    error={erroresCompletar.errores.fechaRealizada}
+                  />
+                  <CampoTexto
+                    label="Realizado por"
+                    value={session?.user?.name || ""}
+                    onChange={() => {}}
+                    readOnly
+                    disabled
+                    ayuda="Quien completa la mantención."
                   />
                 </div>
 
-                <div>
-                  <label className="field-label mb-2">
-                    ¿Qué pasa con el equipo? *
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCompleteForm((prev) => ({ ...prev, resultadoTipo: "reparado" }))}
-                      className={`px-3 py-2 rounded-lg border text-sm font-medium ${
-                        completeForm.resultadoTipo === "reparado"
-                          ? "bg-green-600 text-white border-green-600"
-                          : "border-line-strong text-fg-muted hover:bg-surface-muted"
-                      }`}
-                    >
-                      Reparado
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setCompleteForm((prev) => ({ ...prev, resultadoTipo: "pendiente_repuestos" }))
-                      }
-                      className={`px-3 py-2 rounded-lg border text-sm font-medium ${
-                        completeForm.resultadoTipo === "pendiente_repuestos"
-                          ? "bg-amber-500 text-white border-amber-500"
-                          : "border-line-strong text-fg-muted hover:bg-surface-muted"
-                      }`}
-                    >
-                      Faltan repuestos
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCompleteForm((prev) => ({ ...prev, resultadoTipo: "no_reparable" }))}
-                      className={`px-3 py-2 rounded-lg border text-sm font-medium ${
-                        completeForm.resultadoTipo === "no_reparable"
-                          ? "bg-red-600 text-white border-red-600"
-                          : "border-line-strong text-fg-muted hover:bg-surface-muted"
-                      }`}
-                    >
-                      No reparable
-                    </button>
-                  </div>
-                  {completeForm.resultadoTipo === "pendiente_repuestos" && (
-                    <p className="text-xs text-amber-700 mt-2">
-                      El equipo queda en &quot;En Mantención&quot; (no vuelve a servicio) hasta que se complete una próxima mantención.
-                    </p>
-                  )}
-                  {completeForm.resultadoTipo === "no_reparable" && (
-                    <p className="text-xs text-red-700 mt-2">
-                      El equipo se dará de baja automáticamente al completar esta mantención.
-                    </p>
-                  )}
-                </div>
+                <CampoFormulario
+                  label={completeForm.resultadoTipo === "pendiente_repuestos" ? "Repuestos que faltan" : "Resultado"}
+                  obligatorio
+                  error={erroresCompletar.errores.resultado}
+                >
+                  <textarea
+                    rows={3}
+                    placeholder={
+                      completeForm.resultadoTipo === "pendiente_repuestos"
+                        ? "Qué repuesto falta y a quién se pidió..."
+                        : "Qué se hizo..."
+                    }
+                    value={completeForm.resultado}
+                    onChange={(e) => cambiarCompletar("resultado", e.target.value)}
+                    aria-invalid={!!erroresCompletar.errores.resultado}
+                    className={claseCampo(erroresCompletar.errores.resultado)}
+                  />
+                </CampoFormulario>
 
                 {completeForm.resultadoTipo === "no_reparable" && (
-                  <div>
-                    <label className="field-label">
-                      Motivo de la baja *
-                    </label>
+                  <CampoFormulario label="Motivo de la baja" obligatorio error={erroresCompletar.errores.motivoBaja}>
                     <textarea
-                      required
                       rows={2}
                       placeholder="Por qué no se puede reparar..."
                       value={completeForm.motivoBaja}
-                      onChange={(e) =>
-                        setCompleteForm((prev) => ({ ...prev, motivoBaja: e.target.value }))
-                      }
-                      className="field-input"
+                      onChange={(e) => cambiarCompletar("motivoBaja", e.target.value)}
+                      aria-invalid={!!erroresCompletar.errores.motivoBaja}
+                      className={claseCampo(erroresCompletar.errores.motivoBaja)}
                     />
-                  </div>
+                  </CampoFormulario>
                 )}
 
-                <div>
-                  <label className="field-label">
-                    Próxima Mantención
-                  </label>
-                  <input
+                {completeForm.resultadoTipo === "reparado" && (
+                  <CampoTexto
+                    label="Próxima mantención"
                     type="date"
                     value={completeForm.proximaMantencion}
-                    onChange={(e) =>
-                      setCompleteForm((prev) => ({ ...prev, proximaMantencion: e.target.value }))
-                    }
-                    className="field-input"
+                    onChange={(v) => cambiarCompletar("proximaMantencion", v)}
+                    ayuda="Opcional: queda programada como pendiente."
                   />
-                </div>
+                )}
 
                 <div className="flex justify-end pt-2">
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-success-hover disabled:opacity-50"
+                    className={
+                      completeForm.resultadoTipo === "pendiente_repuestos"
+                        ? buttonClasses({ className: "bg-amber-500 hover:bg-amber-600 disabled:hover:bg-amber-500" })
+                        : completeForm.resultadoTipo === "no_reparable"
+                          ? buttonClasses({ variant: "danger" })
+                          : buttonClasses({ className: "bg-success hover:bg-success-hover disabled:hover:bg-success" })
+                    }
                   >
-                    <CheckCircle size={20} />
-                    {submitting ? "Guardando..." : "Completar Mantención"}
+                    {submitting ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle size={18} />}
+                    {completeForm.resultadoTipo === "pendiente_repuestos"
+                      ? "Guardar nota"
+                      : completeForm.resultadoTipo === "no_reparable"
+                        ? "Completar y dar de baja"
+                        : "Completar mantención"}
                   </button>
                 </div>
               </form>
-            </div>
+            </Can>
           )}
 
-          {/* Result (if completed) */}
-          {maintenance.estado === "completada" && (
-            <div className="card p-6">
-              <h2 className="text-lg font-semibold mb-4">Resultado de la Mantención</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-fg-subtle">Fecha Realizada</p>
-                  <p className="font-medium">{formatearFecha(maintenance.fechaRealizada, {}, "-")}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-fg-subtle">Próxima Mantención</p>
-                  <p className="font-medium">{formatearFecha(maintenance.proximaMantencion, {}, "-")}</p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-sm text-fg-subtle">Resultado</p>
-                  <p className="text-fg whitespace-pre-wrap">{maintenance.resultado || "-"}</p>
-                </div>
+          {/* Resultado (cerrada) */}
+          {(maintenance.estado === "completada" || maintenance.estado === "cancelada") && maintenance.resultado && (
+            <div className="card p-4 sm:p-6">
+              <h2 className="text-lg font-semibold mb-4">
+                {maintenance.estado === "completada" ? "Resultado de la Mantención" : "Motivo de la cancelación"}
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {maintenance.estado === "completada" && (
+                  <>
+                    <Dato label="Fecha realizada">{formatearFecha(maintenance.fechaRealizada, {}, "-")}</Dato>
+                    <Dato label="Próxima mantención">{formatearFecha(maintenance.proximaMantencion, {}, "-")}</Dato>
+                  </>
+                )}
+                <Dato label={maintenance.estado === "completada" ? "Resultado" : "Motivo"} className="sm:col-span-2">
+                  <p className="font-normal whitespace-pre-wrap">{maintenance.resultado}</p>
+                </Dato>
               </div>
             </div>
           )}
         </div>
 
-        {/* Right Column - Asset Info */}
+        {/* Activo */}
         <div className="space-y-6">
-          <div className="card p-6">
+          <div className="card p-4 sm:p-6">
             <h2 className="text-lg font-semibold mb-4">Activo</h2>
             <div className="flex items-center gap-3 mb-4">
               <span className="text-fg-subtle">
@@ -589,84 +616,64 @@ export default function MantencionDetallePage({
                 <p className="font-medium">
                   {maintenance.asset.marca} {maintenance.asset.modelo}
                 </p>
-                <p className="text-sm text-fg-subtle">
-                  {maintenance.asset.categoria.nombre}
-                </p>
+                <p className="text-sm text-fg-subtle">{maintenance.asset.categoria.nombre}</p>
               </div>
             </div>
             <div className="space-y-3 text-sm">
-              <div>
-                <p className="text-fg-subtle">N° Serie</p>
-                <p className="font-mono font-medium">{maintenance.asset.numeroSerie || "-"}</p>
-              </div>
-              <div>
-                <p className="text-fg-subtle">Estado Actual</p>
-                <p className="font-medium">{etiquetaEstadoActivo(maintenance.asset.estado)}</p>
-              </div>
-              <div>
-                <p className="text-fg-subtle">Condición</p>
-                <p className="font-medium">{etiquetaCondicionActivo(maintenance.asset.condicion)}</p>
-              </div>
+              <Dato label="N° Serie">
+                <span className="font-mono">{maintenance.asset.numeroSerie || "-"}</span>
+              </Dato>
+              <Dato label="Estado actual">
+                <AssetStatusBadge status={maintenance.asset.estado} />
+              </Dato>
+              <Dato label="Condición">{etiquetaCondicionActivo(maintenance.asset.condicion)}</Dato>
             </div>
             <Link
               href={`/activos/${maintenance.asset.id}`}
-              className="block mt-4 text-center py-2 border border-line-strong rounded-lg text-sm text-fg-muted hover:bg-surface-muted"
+              className={buttonClasses({ variant: "outline", className: "w-full mt-4" })}
             >
               Ver detalle del activo
             </Link>
           </div>
 
           {maintenance.asset.empleadoActual && (
-            <div className="card p-6">
+            <div className="card p-4 sm:p-6">
               <h2 className="text-lg font-semibold mb-4">Asignado a</h2>
               <div className="space-y-3 text-sm">
-                <div>
-                  <p className="text-fg-subtle">Nombre</p>
-                  <p className="font-medium">
-                    {maintenance.asset.empleadoActual.nombres}{" "}
-                    {maintenance.asset.empleadoActual.apellidoPaterno}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-fg-subtle">RUT</p>
-                  <p className="font-mono">{maintenance.asset.empleadoActual.rut}</p>
-                </div>
-                <div>
-                  <p className="text-fg-subtle">Cargo</p>
-                  <p className="font-medium">{maintenance.asset.empleadoActual.cargo || "-"}</p>
-                </div>
+                <Dato label="Nombre">
+                  {maintenance.asset.empleadoActual.nombres} {maintenance.asset.empleadoActual.apellidoPaterno}
+                </Dato>
+                <Dato label="RUT">
+                  <span className="font-mono">{maintenance.asset.empleadoActual.rut || "—"}</span>
+                </Dato>
+                <Dato label="Cargo">{maintenance.asset.empleadoActual.cargo || "-"}</Dato>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-surface rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-2">Confirmar Eliminación</h3>
-            <p className="text-fg-muted mb-4">
-              ¿Está seguro de eliminar esta mantención? Esta acción no se puede deshacer.
-            </p>
-            <div className="flex justify-end gap-4">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className={buttonClasses({ variant: "outline" })}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={submitting}
-                className={buttonClasses({ variant: "danger" })}
-              >
-                {submitting ? "Eliminando..." : "Eliminar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={confirmar === "cancelar"}
+        onClose={() => setConfirmar(null)}
+        onConfirm={cancelar}
+        variant="warning"
+        title="Cancelar mantención"
+        message={`La mantención queda cancelada y el equipo vuelve a ${vuelveA}.`}
+        confirmLabel="Cancelar mantención"
+        cancelLabel="Volver"
+        loading={submitting}
+      />
+      <ConfirmDialog
+        isOpen={confirmar === "eliminar"}
+        onClose={() => setConfirmar(null)}
+        onConfirm={eliminar}
+        variant="danger"
+        title="Eliminar mantención"
+        message="La mantención programada se elimina. El equipo no cambia. Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        loading={submitting}
+      />
     </div>
   );
 }

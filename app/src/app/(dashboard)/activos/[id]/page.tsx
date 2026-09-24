@@ -15,6 +15,7 @@ import {
   MapPin,
   Trash2,
   DollarSign,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TipoEvento } from "@prisma/client";
@@ -25,7 +26,7 @@ import { AssetStatusBadge } from "@/components/ui/Badge";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { CONDICION_ACTIVO_LABEL } from "@/lib/constants/estadosActivo";
 import { Can } from "@/components/auth/Can";
-import { motivoSinBaja } from "@/lib/constants/estadosActivo";
+import { motivoSinBaja, motivoSinMantencion } from "@/lib/constants/estadosActivo";
 
 // Covers the full TipoEvento enum so no event type renders as raw text
 // in the audit history.
@@ -170,6 +171,18 @@ export default async function DetalleActivoPage({
               <Edit size={18} />
               <span>Editar</span>
             </Link>
+            {/* Programar con el equipo ya elegido (SPEC 2.98), solo si admite mantenciones. */}
+            {!motivoSinMantencion(asset.estado) && (
+              <Can recurso="mantenciones">
+                <Link
+                  href={`/mantenciones/programar?activoId=${asset.id}`}
+                  className={buttonClasses({ variant: "outline" })}
+                >
+                  <Wrench size={18} />
+                  <span>Programar mantención</span>
+                </Link>
+              </Can>
+            )}
             {/* La baja pasa siempre por Mantenciones (SPEC 2.88). Si no se
                 puede, el boton queda desactivado y dice por que. */}
             {asset.estado === "baja" ? (

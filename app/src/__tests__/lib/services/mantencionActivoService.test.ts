@@ -1,9 +1,9 @@
 // Lo que una mantencion le hace al estado del equipo (SPEC 2.96).
 import {
   cancelarAbiertasPorBaja,
-  estadoTrasMantencion,
   registrarSalidaDeMantencion,
 } from '@/lib/services/mantencionActivoService';
+import { estadoTrasMantencion } from '@/lib/constants/estadosActivo';
 import type { PrismaTx } from '@/lib/services/assetHistoryService';
 
 function txFalso() {

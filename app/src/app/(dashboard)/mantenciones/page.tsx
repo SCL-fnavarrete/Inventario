@@ -9,8 +9,6 @@ import {
   Calendar,
   AlertTriangle,
   CheckCircle,
-  Clock,
-  XCircle,
   Loader2,
   ChevronLeft,
   ChevronRight,
@@ -18,10 +16,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Can } from "@/components/auth/Can";
-import { MantencionesTabs } from "@/components/mantenciones";
+import { EstadoMantencionBadge, MantencionesTabs } from "@/components/mantenciones";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
-import { formatearFecha, inicioDeHoy } from "@/lib/utils/fechas";
+import { formatearFechaConHora, inicioDeHoy } from "@/lib/utils/fechas";
+import { motivoSinBaja } from "@/lib/constants/estadosActivo";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -38,6 +37,7 @@ type Maintenance = {
   tipo: { id: string; nombre: string };
   descripcion: string;
   fechaProgramada: string | null;
+  horaProgramada: string | null;
   fechaRealizada: string | null;
   proximaMantencion: string | null;
   realizadoPor: string | null;
@@ -45,11 +45,13 @@ type Maintenance = {
   proveedorExterno: string | null;
   estado: string;
   resultado: string | null;
+  resultadoTipo: string | null;
   asset: {
     id: string;
     numeroSerie: string | null;
     marca: string;
     modelo: string;
+    estado: string;
     categoria: {
       nombre: string;
     };
@@ -88,17 +90,48 @@ function diasDePeriodo(periodo: Periodo): number {
   return PERIODOS.find((p) => p.value === periodo)?.dias ?? 30;
 }
 
-const estadoConfig: Record<string, { label: string; icon: typeof CheckCircle; color: string; bgColor: string }> = {
-  pendiente: { label: "Pendiente", icon: Clock, color: "text-orange-600", bgColor: "bg-orange-100" },
-  en_proceso: { label: "En Proceso", icon: Wrench, color: "text-primary-700", bgColor: "bg-primary-100" },
-  completada: { label: "Completada", icon: CheckCircle, color: "text-green-600", bgColor: "bg-green-100" },
-  cancelada: { label: "Cancelada", icon: XCircle, color: "text-fg-muted", bgColor: "bg-gray-100" },
-};
-
+// Vencida: pendiente con la fecha pasada (una en proceso ya se esta haciendo).
 function isOverdue(fechaProgramada: string | null, estado: string): boolean {
-  if (!fechaProgramada) return false;
-  if (estado === "completada" || estado === "cancelada") return false;
+  if (!fechaProgramada || estado !== "pendiente") return false;
   return new Date(fechaProgramada) < inicioDeHoy();
+}
+
+/** Fecha y hora programadas, en rojo si esta vencida. */
+function FechaProgramada({ m }: { m: Maintenance }) {
+  const vencida = isOverdue(m.fechaProgramada, m.estado);
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 text-sm", vencida && "text-red-600 font-medium")}>
+      {vencida && <AlertTriangle className="h-4 w-4 text-red-500" />}
+      {formatearFechaConHora(m.fechaProgramada, m.horaProgramada, "-")}
+    </span>
+  );
+}
+
+/** Ver detalle y, si el equipo se puede dar de baja, el atajo a la baja. */
+function AccionesMantencion({ m }: { m: Maintenance }) {
+  const abierta = m.estado === "pendiente" || m.estado === "en_proceso";
+  return (
+    <>
+      <Link
+        href={`/mantenciones/${m.id}`}
+        className="text-primary-700 hover:text-primary-900 text-sm font-medium"
+      >
+        Ver detalle
+      </Link>
+      {/* Baja por mantencion (SPEC 2.88): cierra esta misma. Solo si el
+          equipo se puede dar de baja (no asignado ni no devuelto). */}
+      {abierta && !motivoSinBaja(m.asset.estado) && (
+        <Can recurso="mantenciones">
+          <Link
+            href={`/mantenciones/baja?activoId=${m.asset.id}`}
+            className="ml-3 text-red-600 hover:text-red-800 text-sm font-medium"
+          >
+            Dar de baja
+          </Link>
+        </Can>
+      )}
+    </>
+  );
 }
 
 export default function MantencionesPage() {
@@ -348,7 +381,38 @@ export default function MantencionesPage() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Celular: una tarjeta por mantencion, con todo a la vista. */}
+            <ul className="md:hidden divide-y divide-line">
+              {maintenances.map((m) => (
+                <li key={m.id} className={cn("p-4 space-y-2", isOverdue(m.fechaProgramada, m.estado) && "bg-red-50")}>
+                  <div className="flex items-start justify-between gap-3">
+                    <Link href={`/mantenciones/${m.id}`} className="flex items-center gap-2 min-w-0">
+                      <span className="text-fg-subtle flex-shrink-0">
+                        <CategoryIcon categoria={m.asset.categoria.nombre} className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block font-medium text-sm text-fg truncate">
+                          {m.asset.marca} {m.asset.modelo}
+                        </span>
+                        <span className="block text-xs text-fg-subtle truncate">
+                          {m.tipo.nombre} · {m.asset.numeroSerie || "Sin serie"}
+                        </span>
+                      </span>
+                    </Link>
+                    <EstadoMantencionBadge mantencion={m} />
+                  </div>
+                  <p className="text-sm text-fg-muted line-clamp-2">{m.descripcion}</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <FechaProgramada m={m} />
+                    <span className="text-right">
+                      <AccionesMantencion m={m} />
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-surface-muted border-b">
                   <tr>
@@ -377,26 +441,24 @@ export default function MantencionesPage() {
                 </thead>
                 <tbody className="divide-y divide-line">
                   {maintenances.map((maintenance) => {
-                    const config = estadoConfig[maintenance.estado] || estadoConfig.pendiente;
                     const overdue = isOverdue(maintenance.fechaProgramada, maintenance.estado);
-                    const StatusIcon = config.icon;
 
                     return (
                       <tr key={maintenance.id} className={cn("hover:bg-surface-muted", overdue && "bg-red-50")}>
                         <td className="px-4 py-4">
-                          <div className="flex items-center gap-3">
+                          <Link href={`/mantenciones/${maintenance.id}`} className="flex items-center gap-3 group">
                             <span className="text-fg-subtle">
                               <CategoryIcon categoria={maintenance.asset.categoria.nombre} className="h-4 w-4" />
                             </span>
                             <div>
-                              <p className="font-medium text-sm">
+                              <p className="font-medium text-sm group-hover:text-primary-700">
                                 {maintenance.asset.marca} {maintenance.asset.modelo}
                               </p>
                               <p className="text-xs text-fg-subtle">
                                 {maintenance.asset.numeroSerie || "Sin serie"}
                               </p>
                             </div>
-                          </div>
+                          </Link>
                         </td>
                         <td className="px-4 py-4">
                           <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-fg-muted rounded">
@@ -408,47 +470,17 @@ export default function MantencionesPage() {
                             {maintenance.descripcion}
                           </p>
                         </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            {overdue && <AlertTriangle className="h-4 w-4 text-red-500" />}
-                            <span className={cn("text-sm", overdue && "text-red-600 font-medium")}>
-                              {formatearFecha(maintenance.fechaProgramada, {}, "-")}
-                            </span>
-                          </div>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <FechaProgramada m={maintenance} />
                         </td>
                         <td className="px-4 py-4">
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full",
-                              config.bgColor,
-                              config.color
-                            )}
-                          >
-                            <StatusIcon className="h-3 w-3" />
-                            {config.label}
-                          </span>
+                          <EstadoMantencionBadge mantencion={maintenance} />
                         </td>
                         <td className="px-4 py-4 text-sm text-fg-subtle">
                           {maintenance.realizadoPor || "-"}
                         </td>
-                        <td className="px-4 py-4 text-right">
-                          <Link
-                            href={`/mantenciones/${maintenance.id}`}
-                            className="text-primary-700 hover:text-primary-900 text-sm font-medium"
-                          >
-                            Ver detalle
-                          </Link>
-                          {/* Baja por mantencion (SPEC 2.88): cierra esta misma. */}
-                          {(maintenance.estado === "pendiente" || maintenance.estado === "en_proceso") && (
-                            <Can recurso="mantenciones">
-                              <Link
-                                href={`/mantenciones/baja?activoId=${maintenance.asset.id}`}
-                                className="ml-3 text-red-600 hover:text-red-800 text-sm font-medium"
-                              >
-                                Dar de baja
-                              </Link>
-                            </Can>
-                          )}
+                        <td className="px-4 py-4 text-right whitespace-nowrap">
+                          <AccionesMantencion m={maintenance} />
                         </td>
                       </tr>
                     );

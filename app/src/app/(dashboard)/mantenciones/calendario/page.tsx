@@ -21,6 +21,7 @@ type Maintenance = {
   tipo: { id: string; nombre: string };
   descripcion: string;
   fechaProgramada: string | null;
+  horaProgramada: string | null;
   estado: string;
   asset: {
     id: string;
@@ -142,7 +143,10 @@ export default function CalendarioMantencionesPage() {
 
   function getMaintenancesForDate(date: Date) {
     const clave = claveDia(date.getFullYear(), date.getMonth(), date.getDate());
-    return maintenances.filter((m) => aValorInputDate(m.fechaProgramada) === clave);
+    // Dentro del dia, por hora; las sin hora al final.
+    return maintenances
+      .filter((m) => aValorInputDate(m.fechaProgramada) === clave)
+      .sort((a, b) => (a.horaProgramada ?? "99").localeCompare(b.horaProgramada ?? "99"));
   }
 
   function prevMonth() {
@@ -290,6 +294,7 @@ export default function CalendarioMantencionesPage() {
                           >
                             <span className="inline-flex items-center gap-1">
                               <CategoryIcon categoria={m.asset.categoria.nombre} className="h-3 w-3" />
+                              {m.horaProgramada && <span className="font-semibold">{m.horaProgramada}</span>}
                               {m.tipo.nombre}
                             </span>
                           </div>
@@ -335,6 +340,7 @@ export default function CalendarioMantencionesPage() {
                     <div className="flex items-center gap-2 mb-1">
                       <CategoryIcon categoria={m.asset.categoria.nombre} className="h-3 w-3" />
                       <span className="font-medium text-sm">
+                        {m.horaProgramada && `${m.horaProgramada} · `}
                         {m.tipo.nombre}
                       </span>
                     </div>

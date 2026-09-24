@@ -1,6 +1,6 @@
 // "Hoy" en hora de Chile (SPEC 2.86 y 2.94): de noche en Chile ya es manana
 // en UTC, y los campos de fecha no deben proponer el dia siguiente.
-import { hoyISO, inicioDeHoy } from '@/lib/utils/fechas';
+import { formatearFechaConHora, hoyISO, inicioDeHoy } from '@/lib/utils/fechas';
 
 afterEach(() => {
   jest.useRealTimers();
@@ -16,5 +16,16 @@ describe('hoyISO / inicioDeHoy', () => {
   test('a mediodia no hay diferencia', () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-09-23T15:00:00Z'));
     expect(hoyISO()).toBe('2026-09-23');
+  });
+});
+
+describe('formatearFechaConHora (SPEC 2.98)', () => {
+  test('agrega la hora cuando viene, sin correr el dia', () => {
+    expect(formatearFechaConHora('2026-09-26T00:00:00.000Z', '14:30')).toBe('26-09-2026 a las 14:30');
+  });
+
+  test('sin hora queda solo la fecha; sin fecha, el texto de vacio', () => {
+    expect(formatearFechaConHora('2026-09-26T00:00:00.000Z', null)).toBe('26-09-2026');
+    expect(formatearFechaConHora(null, '14:30', '-')).toBe('-');
   });
 });

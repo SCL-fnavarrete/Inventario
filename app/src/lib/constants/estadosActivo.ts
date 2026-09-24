@@ -131,6 +131,11 @@ export function motivoSinMantencion(estado: string): string | null {
   }
 }
 
+/** Estado al que vuelve un equipo que sale de mantencion (SPEC 2.96). */
+export function estadoTrasMantencion(asset: { empleadoActualId: string | null }): EstadoActivo {
+  return asset.empleadoActualId ? 'asignado' : 'disponible';
+}
+
 /** Etiqueta de una condicion que puede venir como texto libre. */
 export function etiquetaCondicionActivo(condicion: string): string {
   return CONDICION_ACTIVO_LABEL[condicion as CondicionActivo] ?? condicion;

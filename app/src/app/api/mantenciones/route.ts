@@ -6,8 +6,13 @@ import { requirePermission, handleApiError, respuestaDatosInvalidos, ConflictErr
 import { motivoSinMantencion } from '@/lib/constants/estadosActivo';
 import { sedeWhere, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
-import { formatearFechaCorta, inicioDeHoy } from '@/lib/utils/fechas';
+import { formatearFechaConHora, inicioDeHoy } from '@/lib/utils/fechas';
 import { busquedaActivo, palabrasDeBusqueda } from "@/lib/queries/activos";
+import {
+  INCLUDE_LISTADO_MANTENCION,
+  gruposAgenda,
+  paginarPorGrupos,
+} from "@/lib/queries/mantenciones";
 
 // GET /api/mantenciones - Listar mantenciones con filtros
 export async function GET(request: NextRequest) {
@@ -28,7 +33,7 @@ export async function GET(request: NextRequest) {
       diasCompletadas: searchParams.get("diasCompletadas") || undefined,
       page: searchParams.get("page") || 1,
       limit: searchParams.get("limit") || 10,
-      sortBy: searchParams.get("sortBy") || "fechaProgramada",
+      sortBy: searchParams.get("sortBy") || undefined,
       sortOrder: searchParams.get("sortOrder") || "asc",
     });
 
@@ -89,7 +94,8 @@ export async function GET(request: NextRequest) {
       where.estado = { in: ["pendiente", "en_proceso"] };
     }
 
-    // Filtro de vencidas (fecha programada pasada y no completada)
+    // Filtro de vencidas: pendientes cuya fecha ya paso (SPEC 2.98). Una en
+    // proceso ya se esta haciendo: no cuenta como vencida.
     if (filters.vencidas) {
       // No pisar where.AND directamente -- si tambien viene "search" (arriba)
       // ya dejo condiciones propias ahi; sobrescribir las perderia en vez de
@@ -103,7 +109,7 @@ export async function GET(request: NextRequest) {
       where.AND = [
         ...condicionesAndPrevias,
         { fechaProgramada: { lt: inicioDeHoy() } },
-        { estado: { in: ["pendiente", "en_proceso"] } },
+        { estado: "pendiente" },
       ];
     }
 
@@ -132,13 +138,13 @@ export async function GET(request: NextRequest) {
       const hoy = inicioDeHoy();
       const fechaLimite = new Date(hoy);
       fechaLimite.setUTCDate(fechaLimite.getUTCDate() + dias);
-      const fechaInicioCompletadas = new Date();
-      fechaInicioCompletadas.setDate(fechaInicioCompletadas.getDate() - diasCompletadas);
+      const fechaInicioCompletadas = new Date(hoy);
+      fechaInicioCompletadas.setUTCDate(fechaInicioCompletadas.getUTCDate() - diasCompletadas);
 
       const periodoOR: Prisma.MaintenanceWhereInput[] = [
-        { fechaProgramada: { lt: hoy }, estado: { in: ["pendiente", "en_proceso"] } },
+        { fechaProgramada: { lt: hoy }, estado: "pendiente" },
         { estado: "en_proceso" },
-        { fechaProgramada: { gte: hoy, lte: fechaLimite }, estado: { in: ["pendiente", "en_proceso"] } },
+        { fechaProgramada: { gte: hoy, lte: fechaLimite }, estado: "pendiente" },
         { fechaProgramada: null, estado: "pendiente" },
         { estado: "completada", fechaRealizada: { gte: fechaInicioCompletadas } },
         { estado: "cancelada" },
@@ -152,32 +158,24 @@ export async function GET(request: NextRequest) {
       where.AND = [...condicionesAnd, { OR: periodoOR }];
     }
 
-    // Ejecutar consulta
-    const [maintenances, total] = await Promise.all([
-      prisma.maintenance.findMany({
-        where,
-        include: {
-          tipo: true,
-          asset: {
-            include: {
-              categoria: true,
-              empleadoActual: {
-                select: {
-                  id: true,
-                  rut: true,
-                  nombres: true,
-                  apellidoPaterno: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: { [filters.sortBy]: filters.sortOrder },
-        skip,
-        take: filters.limit,
-      }),
-      prisma.maintenance.count({ where }),
-    ]);
+    // Sin orden pedido: orden de agenda (en proceso, proximas, vencidas,
+    // cerradas). Con sortBy, ese campo; por fecha, la hora desempata.
+    const { sortBy } = filters;
+    const { data: maintenances, total } = !sortBy
+      ? await paginarPorGrupos(where, gruposAgenda(inicioDeHoy()), skip, filters.limit)
+      : await Promise.all([
+          prisma.maintenance.findMany({
+            where,
+            include: INCLUDE_LISTADO_MANTENCION,
+            orderBy:
+              sortBy === "fechaProgramada"
+                ? [{ fechaProgramada: filters.sortOrder }, { horaProgramada: filters.sortOrder }]
+                : { [sortBy]: filters.sortOrder },
+            skip,
+            take: filters.limit,
+          }),
+          prisma.maintenance.count({ where }),
+        ]).then(([data, total]) => ({ data, total }));
 
     return NextResponse.json({
       data: maintenances,
@@ -258,6 +256,7 @@ export async function POST(request: NextRequest) {
           tipoId: data.tipoId,
           descripcion: data.descripcion,
           fechaProgramada: data.fechaProgramada,
+          horaProgramada: data.horaProgramada,
           proximaMantencion: data.proximaMantencion,
           realizadoPor: data.realizadoPor,
           costo: data.costo,
@@ -288,7 +287,7 @@ export async function POST(request: NextRequest) {
         data: {
           assetId: data.assetId,
           tipoEvento: "mantencion",
-          descripcion: `Mantención ${maintenance.tipo.nombre} programada para el ${formatearFechaCorta(data.fechaProgramada)}: ${data.descripcion}`,
+          descripcion: `Mantención ${maintenance.tipo.nombre} programada para el ${formatearFechaConHora(data.fechaProgramada, data.horaProgramada)}: ${data.descripcion}`,
           datosNuevos: { maintenanceId: maintenance.id },
           usuarioSistema: session.user?.email || data.realizadoPor || "Sistema",
         },

@@ -3,24 +3,25 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import {
-  Search,
-  Wrench,
-  Calendar,
-  User,
-  Package,
-  Loader2,
-  CheckCircle,
-  ChevronDown,
-} from "lucide-react";
-import { etiquetaEstadoActivo } from "@/lib/constants/estadosActivo";
+import { Search, Wrench, User, Package, Loader2, ChevronDown, X } from "lucide-react";
+import { motivoSinMantencion } from "@/lib/constants/estadosActivo";
 import { cn } from "@/lib/utils";
-import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { hoyISO } from "@/lib/utils/fechas";
+import { parseApiError } from "@/lib/utils/apiErrors";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
+import { AssetStatusBadge } from "@/components/ui/Badge";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
+import {
+  AvisoSeccion,
+  CampoFormulario,
+  CampoTexto,
+  ResumenErrores,
+  claseCampo,
+} from "@/components/ui/CampoFormulario";
 
 type Asset = {
   id: string;
@@ -28,592 +29,411 @@ type Asset = {
   marca: string;
   modelo: string;
   estado: string;
-  condicion: string;
-  categoria: {
-    id: string;
-    nombre: string;
-  };
-  empleadoActual: {
-    id: string;
-    rut: string;
-    nombres: string;
-    apellidoPaterno: string;
-  } | null;
+  categoria: { id: string; nombre: string };
+  empleadoActual: { id: string; nombres: string; apellidoPaterno: string } | null;
 };
 
-// Maintenance types are loaded from the editable catalog, not hardcoded.
-// Only active types are offered.
-type TipoMantencion = {
-  id: string;
-  nombre: string;
-  descripcion: string | null;
-  activo: boolean;
+// Tipos del catalogo editable; solo se ofrecen los activos.
+type TipoMantencion = { id: string; nombre: string };
+
+const ETIQUETAS = {
+  assetId: "Equipo",
+  tipoId: "Tipo de mantención",
+  fechaProgramada: "Fecha",
+  horaProgramada: "Hora",
+  descripcion: "Descripción",
 };
 
+// Cuantos equipos se muestran por busqueda: la lista es para elegir uno, no
+// para recorrer el inventario.
+const LIMITE_RESULTADOS = 20;
+
+/**
+ * Programar una mantencion en una sola pantalla (SPEC 2.98): se elige el
+ * equipo y se llenan tipo, fecha, hora y descripcion. Programar no cambia el
+ * estado del equipo: entra a mantencion al pulsar Iniciar (SPEC 2.96).
+ */
 export default function ProgramarMantencionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
-  const [step, setStep] = useState(1);
-  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [loadingAsset, setLoadingAsset] = useState(false);
-  const [tiposMantencion, setTiposMantencion] = useState<TipoMantencion[]>([]);
-  const [loadingTipos, setLoadingTipos] = useState(true);
-
-  // The wizard's entry point is the asset, not the employee: a maintenance
-  // can apply to an assigned asset or one sitting unassigned in stock.
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [loadingAssets, setLoadingAssets] = useState(true);
-  const [assetSearch, setAssetSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [categories, setCategories] = useState<{ id: string; nombre: string }[]>([]);
-  // Scopes the asset search to the nav's selected sede, consistent with
-  // the other sections that filter by this same global selector.
   const { sedeSeleccionada } = useSedeSeleccionada();
+  const { errores, resumen, reportar, limpiar } = useErroresFormulario(ETIQUETAS);
 
-  const [formData, setFormData] = useState({
+  const [equipo, setEquipo] = useState<Asset | null>(null);
+  const [cargandoEquipo, setCargandoEquipo] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
+  const busquedaDiferida = useDebouncedValue(busqueda, 350);
+  const [categoriaId, setCategoriaId] = useState("");
+  const [categorias, setCategorias] = useState<{ id: string; nombre: string }[]>([]);
+  const [resultados, setResultados] = useState<Asset[]>([]);
+  const [totalResultados, setTotalResultados] = useState(0);
+  const [buscando, setBuscando] = useState(true);
+
+  const [tipos, setTipos] = useState<TipoMantencion[]>([]);
+  const [cargandoTipos, setCargandoTipos] = useState(true);
+  const [form, setForm] = useState({
     tipoId: "",
+    fechaProgramada: hoyISO(),
+    horaProgramada: "",
     descripcion: "",
-    fechaProgramada: "",
-    realizadoPor: "",
   });
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState("");
 
-  // Load categories + tipos once; assets se recargan tambien cuando cambia
-  // la sede seleccionada en el nav.
   useEffect(() => {
-    fetchCategories();
-    fetchTipos();
+    fetch("/api/categorias")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setCategorias)
+      .catch(() => setCategorias([]));
+    fetch("/api/mantenciones/tipos?activo=true")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((lista: TipoMantencion[]) => {
+        setTipos(lista);
+        // Preventiva por defecto: es la que mas se programa.
+        const porDefecto = lista.find((t) => t.nombre === "Preventiva") ?? lista[0];
+        if (porDefecto) setForm((prev) => (prev.tipoId ? prev : { ...prev, tipoId: porDefecto.id }));
+      })
+      .catch(() => setTipos([]))
+      .finally(() => setCargandoTipos(false));
   }, []);
 
+  // Busqueda en el servidor, con las mismas reglas que Activos (por
+  // palabras, en marca, modelo, serie y persona asignada).
   useEffect(() => {
-    fetchAssets();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sedeSeleccionada]);
+    if (equipo) return;
+    const params = new URLSearchParams({ limit: String(LIMITE_RESULTADOS) });
+    if (busquedaDiferida.trim()) params.set("search", busquedaDiferida.trim());
+    if (categoriaId) params.set("categoriaId", categoriaId);
+    if (sedeSeleccionada) params.set("sedeId", sedeSeleccionada);
+    let vigente = true;
+    setBuscando(true);
+    fetch(`/api/activos?${params}`)
+      .then((r) => (r.ok ? r.json() : { data: [], pagination: { total: 0 } }))
+      .then((data) => {
+        if (!vigente) return;
+        setResultados(data.data || []);
+        setTotalResultados(data.pagination?.total ?? 0);
+      })
+      .catch(() => vigente && setResultados([]))
+      .finally(() => vigente && setBuscando(false));
+    return () => {
+      vigente = false;
+    };
+  }, [busquedaDiferida, categoriaId, sedeSeleccionada, equipo]);
 
-  async function fetchAssets() {
-    setLoadingAssets(true);
-    setError("");
-    setFieldErrors({});
-    try {
-      // No estado filter: any asset (assigned, available, in maintenance)
-      // should be findable here, not just "available" ones.
-      const params = new URLSearchParams({ limit: "500" });
-      if (sedeSeleccionada) params.set("sedeId", sedeSeleccionada);
-      const res = await fetch(`/api/activos?${params}`);
-      if (!res.ok) {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al cargar equipos");
-        setFieldErrors(fe);
-        throw new Error(message);
-      }
-      const data = await res.json();
-      setAssets(data.data || []);
-    } catch (err) {
-      console.error("Error fetching assets:", err);
-      setError(err instanceof Error ? err.message : "Error al cargar la lista de equipos");
-    } finally {
-      setLoadingAssets(false);
-    }
-  }
-
-  async function fetchCategories() {
-    try {
-      const res = await fetch("/api/categorias");
-      if (res.ok) {
-        setCategories(await res.json());
-      }
-    } catch (err) {
-      console.error("Error fetching categories:", err);
-    }
-  }
-
-  async function fetchTipos() {
-    setLoadingTipos(true);
-    try {
-      const res = await fetch("/api/mantenciones/tipos?activo=true");
-      if (res.ok) {
-        setTiposMantencion(await res.json());
-      }
-    } catch (err) {
-      console.error("Error fetching tipos de mantención:", err);
-    } finally {
-      setLoadingTipos(false);
-    }
-  }
-
-  // El tecnico asignado ya no se escribe a mano: siempre es quien esta
-  // programando la mantencion (usuario de la sesion actual).
-  useEffect(() => {
-    if (session?.user?.name) {
-      setFormData((prev) => ({ ...prev, realizadoPor: session.user.name as string }));
-    }
-  }, [session]);
-
-  // Load asset from URL parameter if present
+  // Entrada desde otra pantalla (detalle del activo, Kanban): el equipo ya
+  // viene elegido.
   useEffect(() => {
     const activoId = searchParams.get("activoId");
-    if (activoId) {
-      loadAssetById(activoId);
-    }
+    if (!activoId) return;
+    setCargandoEquipo(true);
+    fetch(`/api/activos/${activoId}`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await parseApiError(r, "Activo no encontrado")).message);
+        return r.json();
+      })
+      .then(elegirEquipo)
+      .catch((err) =>
+        setError(`${err instanceof Error ? err.message : "Activo no encontrado"}. Búscalo en la lista.`)
+      )
+      .finally(() => setCargandoEquipo(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  async function loadAssetById(id: string) {
-    setLoadingAsset(true);
+  function elegirEquipo(asset: Asset) {
+    setEquipo(asset);
     setError("");
-    setFieldErrors({});
-    try {
-      const res = await fetch(`/api/activos/${id}`);
-      if (!res.ok) {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Activo no encontrado");
-        setFieldErrors(fe);
-        throw new Error(message);
-      }
-      const asset = await res.json();
-      setSelectedAsset(asset);
-      setStep(2);
-    } catch (err) {
-      console.error("Error loading asset:", err);
-      setError(
-        err instanceof Error
-          ? `${err.message}. Por favor, selecciónalo manualmente.`
-          : "Error al cargar el activo. Por favor, selecciónalo manualmente."
-      );
-    } finally {
-      setLoadingAsset(false);
+    const bloqueo = motivoSinMantencion(asset.estado);
+    if (bloqueo) reportar({ assetId: `No se puede programar: ${bloqueo}` });
+    else limpiar("assetId");
+  }
+
+  function cambiar<K extends keyof typeof form>(campo: K, valor: string) {
+    setForm((prev) => ({ ...prev, [campo]: valor }));
+    limpiar(campo);
+  }
+
+  function validar(): Record<string, string> {
+    const e: Record<string, string> = {};
+    if (!equipo) e.assetId = "Elige el equipo";
+    else {
+      const bloqueo = motivoSinMantencion(equipo.estado);
+      if (bloqueo) e.assetId = `No se puede programar: ${bloqueo}`;
     }
+    if (!form.tipoId) e.tipoId = "Elige el tipo de mantención";
+    if (!form.fechaProgramada) e.fechaProgramada = "Elige la fecha";
+    if (!form.descripcion.trim()) e.descripcion = "Describe qué se va a hacer";
+    return e;
   }
 
-  function handleSelectAsset(asset: Asset) {
-    setSelectedAsset(asset);
-    setStep(2);
-  }
-
-  // Filter assets by search term + categoria (client-side, igual que
-  // SelectorActivos en Guias de Despacho).
-  const filteredAssets = assets.filter((asset) => {
-    const matchesSearch =
-      !assetSearch.trim() ||
-      (() => {
-        const search = assetSearch.toLowerCase();
-        return (
-          asset.marca.toLowerCase().includes(search) ||
-          asset.modelo.toLowerCase().includes(search) ||
-          (asset.numeroSerie?.toLowerCase().includes(search) ?? false) ||
-          (asset.empleadoActual
-            ? `${asset.empleadoActual.nombres} ${asset.empleadoActual.apellidoPaterno}`
-                .toLowerCase()
-                .includes(search)
-            : false)
-        );
-      })();
-
-    const matchesCategory = categoryFilter === "all" || asset.categoria.id === categoryFilter;
-
-    return matchesSearch && matchesCategory;
-  });
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selectedAsset || !formData.tipoId || !formData.descripcion || !formData.fechaProgramada) return;
-
-    setSubmitting(true);
+  async function handleSubmit(ev: React.FormEvent) {
+    ev.preventDefault();
     setError("");
-    setFieldErrors({});
-
+    if (reportar(validar()) || !equipo) return;
+    setEnviando(true);
     try {
       const res = await fetch("/api/mantenciones", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          assetId: selectedAsset.id,
-          tipoId: formData.tipoId,
-          descripcion: formData.descripcion,
-          fechaProgramada: formData.fechaProgramada || null,
-          realizadoPor: formData.realizadoPor || null,
+          assetId: equipo.id,
+          tipoId: form.tipoId,
+          descripcion: form.descripcion,
+          fechaProgramada: form.fechaProgramada,
+          horaProgramada: form.horaProgramada || null,
+          realizadoPor: session?.user?.name || null,
         }),
       });
-
       if (!res.ok) {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al programar mantención");
-        setError(message);
-        setFieldErrors(fe);
+        const { message, fieldErrors } = await parseApiError(res, "Error al programar mantención");
+        if (Object.keys(fieldErrors).length > 0) reportar(fieldErrors);
+        else setError(message);
         return;
       }
-
       const data = await res.json();
-
       router.push(`/mantenciones/${data.id}`);
-    } catch (err) {
-      console.error("Error creating maintenance:", err);
+    } catch {
       setError("Error al programar mantención");
     } finally {
-      setSubmitting(false);
+      setEnviando(false);
     }
   }
 
-  // Show loading spinner when loading asset from URL
-  if (loadingAsset) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary-700 mx-auto mb-4" />
-          <p className="text-fg-muted">Cargando activo...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="max-w-3xl mx-auto space-y-6">
       <PageHeader
         backHref="/mantenciones"
         title="Programar Mantención"
-        description="Programar una nueva mantención para un activo"
+        description="Elige el equipo y cuándo se hará. El equipo pasa a En Mantención al iniciarla."
       />
 
-      {/* Progress Steps */}
-      <div className="flex items-center justify-center gap-4">
-        {[1, 2, 3].map((s) => (
-          <div key={s} className="flex items-center">
-            <div
-              className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
-                step >= s
-                  ? "bg-brand text-white"
-                  : "bg-gray-200 text-fg-subtle"
+      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+        <ResumenErrores mensaje={resumen || error} />
+
+        {/* Equipo */}
+        <section className="card p-4 sm:p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-fg">Equipo</h2>
+
+          {cargandoEquipo ? (
+            <div className="flex items-center gap-3 py-6 text-fg-muted">
+              <Loader2 className="h-5 w-5 animate-spin" /> Cargando equipo...
+            </div>
+          ) : equipo ? (
+            <>
+              <div className="flex items-center gap-3 p-4 bg-surface-muted rounded-lg">
+                <span className="text-fg-subtle">
+                  <CategoryIcon categoria={equipo.categoria.nombre} className="h-5 w-5" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-fg truncate">
+                    {equipo.marca} {equipo.modelo}
+                  </p>
+                  <p className="text-sm text-fg-subtle truncate">
+                    {equipo.numeroSerie || "Sin número de serie"}
+                    {equipo.empleadoActual &&
+                      ` • ${equipo.empleadoActual.nombres} ${equipo.empleadoActual.apellidoPaterno}`}
+                  </p>
+                </div>
+                <AssetStatusBadge status={equipo.estado} />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEquipo(null);
+                    limpiar("assetId");
+                  }}
+                  className={buttonClasses({ variant: "outline", size: "sm" })}
+                >
+                  <X size={14} /> Cambiar
+                </button>
+              </div>
+              <AvisoSeccion mensaje={errores.assetId} />
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por marca, modelo, serie o persona asignada..."
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    aria-invalid={!!errores.assetId}
+                    className={cn(claseCampo(errores.assetId), "pl-9")}
+                  />
+                </div>
+                <div className="relative">
+                  <select
+                    value={categoriaId}
+                    onChange={(e) => setCategoriaId(e.target.value)}
+                    className="field-input appearance-none pr-9 cursor-pointer"
+                  >
+                    <option value="">Todas las categorías</option>
+                    {categorias.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-subtle pointer-events-none"
+                    size={16}
+                  />
+                </div>
+              </div>
+              {errores.assetId && <p className="text-xs text-red-600">{errores.assetId}</p>}
+
+              {buscando ? (
+                <div className="flex items-center justify-center py-10 text-fg-muted">
+                  <Loader2 className="h-6 w-6 animate-spin mr-3" /> Buscando equipos...
+                </div>
+              ) : resultados.length === 0 ? (
+                <div className="text-center py-10 text-fg-subtle">
+                  <Package className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+                  <p className="font-medium text-fg-muted">No se encontraron equipos</p>
+                  <p className="text-sm mt-1">Prueba con otras palabras o categoría.</p>
+                </div>
+              ) : (
+                <>
+                  <ul className="max-h-96 overflow-y-auto border border-line rounded-lg divide-y divide-line">
+                    {resultados.map((asset) => {
+                      const bloqueo = motivoSinMantencion(asset.estado);
+                      return (
+                        <li key={asset.id}>
+                          <button
+                            type="button"
+                            disabled={!!bloqueo}
+                            onClick={() => elegirEquipo(asset)}
+                            className={cn(
+                              "w-full flex items-center gap-3 p-3 sm:p-4 text-left transition-colors",
+                              bloqueo ? "opacity-60 cursor-not-allowed" : "hover:bg-primary-50"
+                            )}
+                          >
+                            <span className="flex-shrink-0 text-fg-subtle">
+                              <CategoryIcon categoria={asset.categoria.nombre} className="h-5 w-5" />
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-fg truncate">
+                                {asset.marca} {asset.modelo}
+                              </p>
+                              <p className="text-sm text-fg-subtle truncate">
+                                {asset.categoria.nombre} • {asset.numeroSerie || "Sin número de serie"}
+                                {asset.empleadoActual && (
+                                  <>
+                                    {" • "}
+                                    <User className="inline h-3.5 w-3.5 -mt-0.5 mr-0.5" />
+                                    {asset.empleadoActual.nombres} {asset.empleadoActual.apellidoPaterno}
+                                  </>
+                                )}
+                              </p>
+                              {bloqueo && <p className="text-xs text-fg-muted mt-0.5">{bloqueo}</p>}
+                            </div>
+                            <AssetStatusBadge status={asset.estado} className="flex-shrink-0" />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="text-sm text-fg-subtle text-center">
+                    {totalResultados > resultados.length
+                      ? `Mostrando ${resultados.length} de ${totalResultados}: escribe para acotar la búsqueda`
+                      : `${resultados.length} equipo${resultados.length !== 1 ? "s" : ""}`}
+                  </p>
+                </>
               )}
+            </>
+          )}
+        </section>
+
+        {/* Detalles */}
+        <section className="card p-4 sm:p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-fg">Mantención</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <CampoFormulario
+              label="Tipo"
+              obligatorio
+              error={errores.tipoId}
+              className="sm:col-span-3"
+              ayuda={
+                !cargandoTipos && tipos.length === 0
+                  ? 'No hay tipos activos: crea uno en la pestaña "Tipos".'
+                  : undefined
+              }
             >
-              {step > s ? <CheckCircle size={16} /> : s}
-            </div>
-            {s < 3 && (
-              <div
-                className={cn(
-                  "w-16 h-1 mx-2",
-                  step > s ? "bg-brand" : "bg-gray-200"
-                )}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Step 1: Select Asset */}
-      {step === 1 && (
-        <div className="card p-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-bold">
-              1
-            </span>
-            Seleccionar Equipo
-          </h2>
-
-          {/* Search + category filter */}
-          <div className="mb-4 flex flex-col sm:flex-row gap-3">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-fg-subtle pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Buscar por marca, modelo, serie o empleado asignado..."
-                value={assetSearch}
-                onChange={(e) => setAssetSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border-2 border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
-              />
-            </div>
-            <div className="relative">
               <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="appearance-none h-full pl-4 pr-9 py-3 border-2 border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-surface cursor-pointer"
+                value={form.tipoId}
+                onChange={(e) => cambiar("tipoId", e.target.value)}
+                aria-invalid={!!errores.tipoId}
+                className={claseCampo(errores.tipoId)}
+                disabled={cargandoTipos}
               >
-                <option value="all">Todas las categorías</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.nombre}
+                <option value="">{cargandoTipos ? "Cargando..." : "Elige un tipo"}</option>
+                {tipos.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre}
                   </option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-subtle pointer-events-none" size={16} />
-            </div>
-          </div>
-
-          {error && (
-            <div className="mb-4">
-              <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
-            </div>
-          )}
-
-          {/* Asset list */}
-          {loadingAssets ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary-700" />
-              <span className="ml-3 text-fg-muted">Cargando equipos...</span>
-            </div>
-          ) : filteredAssets.length === 0 ? (
-            <div className="text-center py-12 text-fg-subtle">
-              <Package className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-              <p className="font-medium text-fg-muted">
-                {assetSearch || categoryFilter !== "all"
-                  ? "No se encontraron equipos"
-                  : "No hay equipos registrados"}
-              </p>
-              {(assetSearch || categoryFilter !== "all") && (
-                <p className="text-sm mt-1">Intenta con otros términos de búsqueda o filtros</p>
-              )}
-            </div>
-          ) : (
-            <div className="max-h-96 overflow-y-auto border border-line rounded-lg divide-y divide-line">
-              {filteredAssets.map((asset) => (
-                <button
-                  key={asset.id}
-                  onClick={() => handleSelectAsset(asset)}
-                  className="w-full flex items-center gap-3 p-4 hover:bg-primary-50 transition-colors text-left"
-                >
-                  <span className="flex-shrink-0 text-fg-subtle">
-                    <CategoryIcon categoria={asset.categoria.nombre} className="h-5 w-5" />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-fg truncate">
-                      {asset.marca} {asset.modelo}
-                    </p>
-                    <p className="text-sm text-fg-subtle truncate">
-                      <span className="font-medium">{asset.categoria.nombre}</span>
-                      {" • "}
-                      <span>{asset.numeroSerie || "Sin número de serie"}</span>
-                      {asset.empleadoActual && (
-                        <>
-                          {" • "}
-                          <User className="inline h-3.5 w-3.5 -mt-0.5 mr-0.5" />
-                          {asset.empleadoActual.nombres} {asset.empleadoActual.apellidoPaterno}
-                        </>
-                      )}
-                    </p>
-                  </div>
-                  <div className="flex-shrink-0">
-                    <span
-                      className={cn(
-                        "px-2.5 py-1 text-xs font-medium rounded-full whitespace-nowrap",
-                        asset.estado === "disponible" &&
-                          "bg-green-100 text-green-700",
-                        asset.estado === "asignado" &&
-                          "bg-primary-100 text-primary-800",
-                        asset.estado === "en_mantencion" &&
-                          "bg-orange-100 text-orange-700"
-                      )}
-                    >
-                      {etiquetaEstadoActivo(asset.estado)}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Count info */}
-          {!loadingAssets && filteredAssets.length > 0 && (
-            <div className="mt-4 text-sm text-fg-subtle text-center">
-              Mostrando {filteredAssets.length} equipo
-              {filteredAssets.length !== 1 ? "s" : ""}
-              {assetSearch || categoryFilter !== "all" ? ` de ${assets.length}` : ""}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Step 2: Tipo de Mantención */}
-      {step === 2 && selectedAsset && (
-        <div className="card p-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-bold">
-              2
-            </span>
-            Tipo de Mantención
-          </h2>
-
-          {/* Selected Asset Info */}
-          <div className="mb-6 p-4 bg-surface-muted rounded-lg">
-            <div className="flex items-center gap-3">
-              <span className="text-fg-subtle">
-                <CategoryIcon categoria={selectedAsset.categoria.nombre} className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="font-medium">
-                  {selectedAsset.marca} {selectedAsset.modelo}
-                </p>
-                <p className="text-sm text-fg-subtle">
-                  {selectedAsset.numeroSerie || "Sin serie"}
-                  {selectedAsset.empleadoActual && (
-                    <>
-                      {" • "}
-                      {selectedAsset.empleadoActual.nombres}{" "}
-                      {selectedAsset.empleadoActual.apellidoPaterno}
-                    </>
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {loadingTipos ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary-700" />
-            </div>
-          ) : tiposMantencion.length === 0 ? (
-            <div className="text-center py-8 text-fg-subtle">
-              <p className="font-medium text-fg-muted">No hay tipos de mantención configurados</p>
-              <p className="text-sm mt-1">
-                Crea al menos uno en la pestaña &quot;Tipos&quot; de Mantenciones antes de
-                programar una.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {tiposMantencion.map((tipo) => (
-                <button
-                  key={tipo.id}
-                  onClick={() => {
-                    setFormData((prev) => ({ ...prev, tipoId: tipo.id }));
-                    setStep(3);
-                  }}
-                  className={cn(
-                    "p-4 rounded-lg border text-left transition-colors",
-                    formData.tipoId === tipo.id
-                      ? "border-primary-500 bg-primary-50"
-                      : "border-line hover:border-primary-300 hover:bg-surface-muted"
-                  )}
-                >
-                  <p className="font-medium">{tipo.nombre}</p>
-                  {tipo.descripcion && (
-                    <p className="text-sm text-fg-subtle mt-1">{tipo.descripcion}</p>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-6 flex justify-between">
-            <button
-              onClick={() => setStep(1)}
-              className={buttonClasses({ variant: "outline" })}
+            </CampoFormulario>
+            <CampoTexto
+              label="Fecha"
+              obligatorio
+              type="date"
+              value={form.fechaProgramada}
+              onChange={(v) => cambiar("fechaProgramada", v)}
+              error={errores.fechaProgramada}
+              className="sm:col-span-2"
+            />
+            <CampoTexto
+              label="Hora (Chile)"
+              type="time"
+              value={form.horaProgramada}
+              onChange={(v) => cambiar("horaProgramada", v)}
+              error={errores.horaProgramada}
+              ayuda="Opcional"
+            />
+            <CampoFormulario
+              label="Descripción"
+              obligatorio
+              error={errores.descripcion}
+              className="sm:col-span-3"
             >
-              Volver
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Detalles de la Mantención */}
-      {step === 3 && selectedAsset && formData.tipoId && (
-        <form onSubmit={handleSubmit} className="card p-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-bold">
-              3
-            </span>
-            Detalles de la Mantención
-          </h2>
-
-          {/* Summary */}
-          <div className="mb-6 p-4 bg-surface-muted rounded-lg grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-fg-subtle">Activo</p>
-              <p className="font-medium">
-                {selectedAsset.marca} {selectedAsset.modelo}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-fg-subtle">Tipo de Mantención</p>
-              <p className="font-medium">
-                {tiposMantencion.find((t) => t.id === formData.tipoId)?.nombre}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="md:col-span-2">
-              <label className="field-label">
-                Descripción *
-              </label>
               <textarea
-                required
                 rows={3}
-                placeholder="Describe la mantención a realizar..."
-                value={formData.descripcion}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, descripcion: e.target.value }))
-                }
-                className="field-input"
+                placeholder="Qué se va a hacer: limpieza, cambio de batería, revisión..."
+                value={form.descripcion}
+                onChange={(e) => cambiar("descripcion", e.target.value)}
+                aria-invalid={!!errores.descripcion}
+                className={claseCampo(errores.descripcion)}
               />
-            </div>
-
-            <div>
-              <label className="field-label">
-                <Calendar className="inline h-4 w-4 mr-1" />
-                Fecha Programada *
-              </label>
-              <input
-                type="date"
-                required
-                value={formData.fechaProgramada}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, fechaProgramada: e.target.value }))
-                }
-                className="field-input"
-              />
-              <p className="text-xs text-fg-subtle mt-1">
-                Obligatoria: una mantención no puede quedar &quot;en proceso&quot; sin una fecha
-                programada.
-              </p>
-            </div>
-
-            <div>
-              <label className="field-label">
-                <User className="inline h-4 w-4 mr-1" />
-                Técnico Asignado
-              </label>
-              <input
-                type="text"
-                readOnly
-                disabled
-                value={formData.realizadoPor}
-                className="w-full px-4 py-2 border border-line bg-surface-muted text-fg-muted rounded-lg cursor-not-allowed"
-              />
-              <p className="text-xs text-fg-subtle mt-1">
-                Se asigna automáticamente: quien está programando la mantención.
-              </p>
-            </div>
+            </CampoFormulario>
+            <CampoTexto
+              label="Técnico"
+              value={session?.user?.name || ""}
+              onChange={() => {}}
+              readOnly
+              disabled
+              ayuda="Quien programa la mantención."
+              className="sm:col-span-3"
+            />
           </div>
+        </section>
 
-          {error && (
-            <div className="mt-4">
-              <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
-            </div>
-          )}
-
-          <div className="mt-6 flex justify-between">
-            <button
-              type="button"
-              onClick={() => setStep(2)}
-              className={buttonClasses({ variant: "outline" })}
-            >
-              Volver
-            </button>
-            <button
-              type="submit"
-              disabled={submitting || !formData.descripcion || !formData.fechaProgramada}
-              className={buttonClasses({ className: "px-6" })}
-            >
-              {submitting ? (
-                <Loader2 className="animate-spin" size={20} />
-              ) : (
-                <Wrench size={20} />
-              )}
-              Programar Mantención
-            </button>
-          </div>
-        </form>
-      )}
+        <div className="flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => router.push("/mantenciones")}
+            className={buttonClasses({ variant: "outline" })}
+          >
+            Cancelar
+          </button>
+          <button type="submit" disabled={enviando} className={buttonClasses({ className: "px-6" })}>
+            {enviando ? <Loader2 className="animate-spin" size={18} /> : <Wrench size={18} />}
+            Programar Mantención
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

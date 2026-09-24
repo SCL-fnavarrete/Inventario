@@ -9,6 +9,8 @@ import { buttonClasses } from "@/components/ui/buttonStyles";
 import { ActiveBadge } from "@/components/ui/Badge";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 
 // Maintenance types are an editable catalog (not a fixed enum), manageable
 // by both admin and technician roles, so this screen lives inside
@@ -34,6 +36,8 @@ type TipoMantencion = {
   _count?: { maintenances: number };
 };
 
+const ETIQUETAS = { nombre: "Nombre" };
+
 const FORM_INICIAL = {
   nombre: "",
   descripcion: "",
@@ -48,6 +52,26 @@ export default function TiposMantencionPage() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
+  // Validacion por campo, igual que el resto de los formularios (SPEC 2.95).
+  const { errores, resumen, reportar, limpiar } = useErroresFormulario(ETIQUETAS);
+
+  /** Nombre vacio: lo marca y no envia. */
+  const faltaNombre = () => reportar(formData.nombre.trim() ? {} : { nombre: "Escribe el nombre" });
+
+  /** Error del servidor: un nombre repetido marca el campo. */
+  const mostrarErrorServidor = (message: string, fe: FieldErrors) => {
+    if (fe.nombre) {
+      reportar({ nombre: fe.nombre });
+    } else {
+      setError(message);
+      setFieldErrors(fe);
+    }
+  };
+
+  const cambiarNombre = (nombre: string) => {
+    setFormData((prev) => ({ ...prev, nombre }));
+    limpiar("nombre");
+  };
 
   useEffect(() => {
     fetchTipos();
@@ -68,10 +92,7 @@ export default function TiposMantencionPage() {
   };
 
   const handleCreate = async () => {
-    if (!formData.nombre.trim()) {
-      setError("El nombre es requerido");
-      return;
-    }
+    if (faltaNombre()) return;
 
     try {
       const res = await fetch("/api/mantenciones/tipos", {
@@ -88,8 +109,7 @@ export default function TiposMantencionPage() {
         setFieldErrors({});
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear tipo de mantención");
-        setError(message);
-        setFieldErrors(fe);
+        mostrarErrorServidor(message, fe);
       }
     } catch (err) {
       setError("Error al crear tipo de mantención");
@@ -98,10 +118,7 @@ export default function TiposMantencionPage() {
   };
 
   const handleUpdate = async (id: string) => {
-    if (!formData.nombre.trim()) {
-      setError("El nombre es requerido");
-      return;
-    }
+    if (faltaNombre()) return;
 
     try {
       const res = await fetch(`/api/mantenciones/tipos/${id}`, {
@@ -118,8 +135,7 @@ export default function TiposMantencionPage() {
         setFieldErrors({});
       } else {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar tipo de mantención");
-        setError(message);
-        setFieldErrors(fe);
+        mostrarErrorServidor(message, fe);
       }
     } catch (err) {
       setError("Error al actualizar tipo de mantención");
@@ -187,6 +203,7 @@ export default function TiposMantencionPage() {
     setIsCreating(false);
     setError("");
     setFieldErrors({});
+    limpiar("nombre");
   };
 
   const cancelEdit = () => {
@@ -195,6 +212,7 @@ export default function TiposMantencionPage() {
     setFormData(FORM_INICIAL);
     setError("");
     setFieldErrors({});
+    limpiar("nombre");
   };
 
   if (loading) {
@@ -236,6 +254,7 @@ export default function TiposMantencionPage() {
         )}
       </div>
 
+      <ResumenErrores mensaje={resumen} />
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
       {/* Formulario de creación */}
@@ -248,10 +267,12 @@ export default function TiposMantencionPage() {
               <input
                 type="text"
                 value={formData.nombre}
-                onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="field-input"
+                onChange={(e) => cambiarNombre(e.target.value)}
+                aria-invalid={!!errores.nombre}
+                className={claseCampo(errores.nombre)}
                 placeholder="Ej: Preventiva, Correctiva"
               />
+              <MensajeCampo mensaje={errores.nombre} />
             </div>
             <div>
               <label className="field-label">Descripción</label>
@@ -313,9 +334,11 @@ export default function TiposMantencionPage() {
                       <input
                         type="text"
                         value={formData.nombre}
-                        onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                        className="w-full px-2 py-1 border border-line-strong rounded focus:ring-2 focus:ring-primary-500"
+                        onChange={(e) => cambiarNombre(e.target.value)}
+                        aria-invalid={!!errores.nombre}
+                        className={claseCampo(errores.nombre)}
                       />
+                      <MensajeCampo mensaje={errores.nombre} />
                     </td>
                     <td className="px-6 py-4">
                       <input

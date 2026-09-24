@@ -32,6 +32,15 @@ const fechaProgramadaSchema = z
     return date;
   });
 
+// Hora en Chile "HH:MM" (SPEC 2.98), opcional. Vacia se guarda como null;
+// si no viene queda undefined, y al editar no se toca la guardada.
+const horaProgramadaSchema = z
+  .string()
+  .regex(/^(([01]\d|2[0-3]):[0-5]\d)?$/, "Hora inválida (usa HH:MM)")
+  .nullable()
+  .optional()
+  .transform((val) => (val === "" ? null : val));
+
 const descripcionSchema = z
   .string()
   .trim()
@@ -45,6 +54,7 @@ export const createMaintenanceSchema = z.object({
   descripcion: descripcionSchema,
   // Obligatoria: una mantención no puede iniciarse sin fecha programada.
   fechaProgramada: fechaProgramadaSchema,
+  horaProgramada: horaProgramadaSchema,
   proximaMantencion: z.string().optional().nullable().transform((val) => {
     if (!val) return null;
     const date = new Date(val);
@@ -65,6 +75,7 @@ export const updateMaintenanceSchema = z.object({
   tipoId: tipoIdSchema.optional(),
   descripcion: descripcionSchema.optional(),
   fechaProgramada: fechaProgramadaSchema.optional(),
+  horaProgramada: horaProgramadaSchema,
   realizadoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   costo: costoSchema,
   proveedorExterno: z.string().max(200, "Máximo 200 caracteres").optional().nullable(),
@@ -142,7 +153,9 @@ export const maintenanceFiltersSchema = z.object({
   diasCompletadas: z.coerce.number().min(0).optional(),
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(10),
-  sortBy: z.enum(["fechaProgramada", "fechaRealizada", "createdAt", "tipoId", "estado"]).default("fechaProgramada"),
+  // Sin sortBy el listado va en orden de agenda (SPEC 2.98): en proceso,
+  // proximas, vencidas y al final las cerradas.
+  sortBy: z.enum(["fechaProgramada", "fechaRealizada", "createdAt", "tipoId", "estado"]).optional(),
   sortOrder: z.enum(["asc", "desc"]).default("asc"),
 });
 
