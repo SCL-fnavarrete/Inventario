@@ -3278,7 +3278,24 @@ Pedido de Javier: *"esa validación de que rellenen los campos me gusta, quiero 
   - Tipos de mantención deja su función propia y usa las compartidas.
 - Se quitan importaciones sin uso de `api/empleados/route.ts`, que sobraron de 2.94.
 
+## 2.103 Validación por campo en todos los formularios, parte 2: Compras (25-sep-2026)
+
+Continúa 2.102 con el módulo Compras, con la misma lógica de validación.
+
+- **Equipo nuevo desde una compra con el formulario de Activos.** "Nueva compra" tenía su propia copia del formulario de equipo y ya no seguía las reglas de 2.77: el N° de serie era opcional y el sistema operativo, el antivirus y la licencia M365 eran texto libre en vez de los catálogos. Ahora "Crear equipo nuevo" abre una ventana con `ActivoForm`, el mismo de Activos > Nuevo, con sus reglas y su validación. `ActivoForm` suma:
+  - `sedeFija`: el equipo queda en la sede de la compra, sin selector;
+  - `onCancel`: para cancelar dentro de una ventana.
+  La fecha de compra viene con la fecha de la factura. La página bajó de 1.083 a 767 líneas.
+- **Datos de la factura:**
+  - sede, N° y fecha obligatorios; el RUT del proveedor es opcional, pero si se escribe debe ser válido (misma regla que el servidor);
+  - se revisa con `validarDatosFactura` (`lib/validations/purchase.ts`) en Nueva compra y en Editar datos de la factura;
+  - los campos son un componente compartido, `CamposFactura` (`components/compras`), que reemplaza las dos copias.
+- **Sin equipos ni artículos:** el aviso aparece en rojo y la pantalla lleva a él.
+- **Botones que estaban desactivados sin explicación** ("Guardar Compra" y "Agregar" artículo de Kit/EPP, en Nueva y en el detalle): ahora se pueden pulsar y marcan lo que falta. Un N° de factura repetido marca su campo.
+
 ## Changelog SPEC
+- **v2.27 (2026-09-25):**
+  - Sección 2.103 (nueva): Compras con validación por campo; el equipo nuevo usa el formulario de Activos (N° de serie obligatorio, catálogos) y los datos de la factura quedan compartidos entre Nueva y Editar compra.
 - **v2.26 (2026-09-24):**
   - Sección 2.102 (nueva): validación por campo en Configuración (sedes, categorías, opciones de activos, usuarios, parámetros), el valor repetido marca su campo en toda la API y las reglas de correo, contraseña y parámetros quedan compartidas.
 - **v2.25 (2026-09-24):**

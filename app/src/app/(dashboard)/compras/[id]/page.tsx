@@ -24,6 +24,10 @@ import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { AssetStatusBadge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import { ETIQUETAS_FACTURA, validarDatosFactura } from "@/lib/validations/purchase";
+import { CamposFactura } from "@/components/compras/CamposFactura";
 
 /**
  * Confirmacion en modal propio, en vez de confirm()/alert() del navegador:
@@ -138,6 +142,10 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
   const [kitItemCantidad, setKitItemCantidad] = useState("1");
   const [addingKitItem, setAddingKitItem] = useState(false);
 
+  // Validacion por campo de la factura y del articulo a agregar (SPEC 2.103).
+  const { errores, resumen, reportar, reportarServidor, limpiar } =
+    useErroresFormulario(ETIQUETAS_FACTURA);
+
   const fetchPurchase = useCallback(async () => {
     try {
       const res = await fetch(`/api/compras/${id}`);
@@ -165,6 +173,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
     });
     setError(null);
     setFieldErrors({});
+    reportar({});
     setShowEditForm(true);
     if (sedes.length === 0) fetchSedes();
   }
@@ -181,6 +190,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
   async function guardarEdicion(e: React.FormEvent) {
     e.preventDefault();
+    if (reportar(validarDatosFactura(editForm))) return;
     setSavingEdit(true);
     setError(null);
     setFieldErrors({});
@@ -198,8 +208,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       });
       if (!res.ok) {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al guardar los cambios");
-        setError(message);
-        setFieldErrors(fe);
+        if (!reportarServidor(fe)) setError(message);
         return;
       }
       setShowEditForm(false);
@@ -319,7 +328,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
   }
 
   async function addKitItemToPurchase() {
-    if (!kitItemToAdd) return;
+    if (reportar(kitItemToAdd ? {} : { kitItem: "Elige un artículo" })) return;
     const cantidad = Math.max(1, parseInt(kitItemCantidad, 10) || 1);
     setAddingKitItem(true);
     try {
@@ -729,8 +738,12 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
               <label className="block text-xs font-medium text-fg-muted mb-1">Artículo</label>
               <select
                 value={kitItemToAdd}
-                onChange={(e) => setKitItemToAdd(e.target.value)}
-                className="field-input field-input-sm"
+                onChange={(e) => {
+                  setKitItemToAdd(e.target.value);
+                  limpiar("kitItem");
+                }}
+                aria-invalid={!!errores.kitItem}
+                className={claseCampo(errores.kitItem) + " field-input-sm"}
               >
                 <option value="">Selecciona un artículo...</option>
                 {kitItemsCatalogo.map((item) => (
@@ -739,6 +752,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                   </option>
                 ))}
               </select>
+              {errores.kitItem && <p className="mt-1 text-xs text-red-600">{errores.kitItem}</p>}
             </div>
             <div className="w-full sm:w-28">
               <label className="block text-xs font-medium text-fg-muted mb-1">Cantidad</label>
@@ -753,7 +767,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             <button
               type="button"
               onClick={addKitItemToPurchase}
-              disabled={!kitItemToAdd || addingKitItem}
+              disabled={addingKitItem}
               className={buttonClasses({ size: "sm" })}
             >
               {addingKitItem ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus size={16} />}
@@ -853,82 +867,23 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-surface rounded-lg p-6 max-w-lg w-full">
             <h3 className="text-lg font-semibold mb-4">Editar datos de la factura</h3>
-            <form onSubmit={guardarEdicion} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="field-label">
-                    N° Factura <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editForm.numeroFactura}
-                    onChange={(e) => setEditForm({ ...editForm, numeroFactura: e.target.value })}
-                    className="field-input"
-                  />
-                </div>
-                <div>
-                  <label className="field-label">
-                    Fecha de la factura <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={editForm.fechaFactura}
-                    onChange={(e) => setEditForm({ ...editForm, fechaFactura: e.target.value })}
-                    className="field-input"
-                  />
-                </div>
-                <div>
-                  <label className="field-label">
-                    RUT proveedor
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="11.223.344-K"
-                    value={editForm.rutProveedor}
-                    onChange={(e) => setEditForm({ ...editForm, rutProveedor: e.target.value })}
-                    className="field-input"
-                  />
-                </div>
-                <div>
-                  <label className="field-label">
-                    Orden de compra
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.ordenCompra}
-                    onChange={(e) => setEditForm({ ...editForm, ordenCompra: e.target.value })}
-                    className="field-input"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="field-label">
-                    Sede <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={editForm.sedeId}
-                    onChange={(e) => setEditForm({ ...editForm, sedeId: e.target.value })}
-                    required
-                    disabled={!esAdminSede}
-                    className="field-input"
-                  >
-                    <option value="" disabled>
-                      Selecciona una sede...
-                    </option>
-                    {sedes.map((sede) => (
-                      <option key={sede.id} value={sede.id}>
-                        {sede.nombre}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-fg-subtle mt-1">
-                    {esAdminSede
-                      ? "Cambiar la sede no mueve los equipos ya vinculados: cada uno conserva la suya."
-                      : "Mover una compra de sede es solo de admin."}
-                  </p>
-                </div>
-              </div>
+            <form onSubmit={guardarEdicion} className="space-y-4" noValidate>
+              <ResumenErrores mensaje={resumen} />
+              <CamposFactura
+                valores={editForm}
+                errores={errores}
+                onChange={(campo, valor) => {
+                  setEditForm((prev) => ({ ...prev, [campo]: valor }));
+                  limpiar(campo);
+                }}
+                sedes={sedes}
+                puedeElegirSede={esAdminSede}
+                ayudaSede={
+                  esAdminSede
+                    ? "Cambiar la sede no mueve los equipos ya vinculados: cada uno conserva la suya."
+                    : "Mover una compra de sede es solo de admin."
+                }
+              />
 
               {error && <ApiErrorSummary error={error} fieldErrors={fieldErrors} />}
 

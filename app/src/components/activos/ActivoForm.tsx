@@ -202,7 +202,14 @@ interface ActivoFormProps {
   initialValues?: ActivoFormValues;
   /** Guarda en el backend; si lanza o no redirige, el formulario se rehabilita. */
   onSubmit: (values: ActivoFormValues) => Promise<void>;
-  cancelHref: string;
+  /** A donde lleva Cancelar; o onCancel, si el formulario va en una ventana. */
+  cancelHref?: string;
+  onCancel?: () => void;
+  /**
+   * Sede ya decidida por quien usa el formulario (una compra crea sus
+   * equipos en la sede de la factura, SPEC 2.103): no se muestra el selector.
+   */
+  sedeFija?: string;
   /** Errores por campo que devolvio el servidor (ej. N° de serie repetido). */
   erroresServidor?: Record<string, string>;
 }
@@ -212,13 +219,16 @@ export function ActivoForm({
   initialValues = ACTIVO_FORM_VACIO,
   onSubmit,
   cancelHref,
+  onCancel,
+  sedeFija,
   erroresServidor = {},
 }: ActivoFormProps) {
   const crear = modo === "crear";
   const { data: session } = useSession();
   // Sede al crear: precargada con la del navbar o la propia (useCampoSede,
   // SPEC 2.80). Al editar no se muestra: el activo conserva la suya.
-  const [sedeId, setSedeId] = useCampoSede();
+  const [sedeElegida, setSedeId] = useCampoSede();
+  const sedeId = sedeFija ?? sedeElegida;
   const esAdminSede = session?.user?.role === "admin";
 
   const [values, setValues] = useState<ActivoFormValues>(initialValues);
@@ -332,7 +342,7 @@ export function ActivoForm({
         >
           <input type="date" {...bind("fechaGarantiaFin")} />
         </Campo>
-        {crear && (
+        {crear && !sedeFija && (
           <Campo
             label={
               <>
@@ -464,9 +474,15 @@ export function ActivoForm({
       </div>
 
       <div className="flex justify-end gap-4">
-        <Link href={cancelHref} className={buttonClasses({ variant: "outline", className: "px-6" })}>
-          Cancelar
-        </Link>
+        {onCancel ? (
+          <button type="button" onClick={onCancel} className={buttonClasses({ variant: "outline", className: "px-6" })}>
+            Cancelar
+          </button>
+        ) : (
+          <Link href={cancelHref ?? "/activos"} className={buttonClasses({ variant: "outline", className: "px-6" })}>
+            Cancelar
+          </Link>
+        )}
         <Button type="submit" loading={guardando} leftIcon={<Save size={18} />} className="px-6">
           {guardando ? "Guardando..." : crear ? "Guardar Activo" : "Guardar Cambios"}
         </Button>

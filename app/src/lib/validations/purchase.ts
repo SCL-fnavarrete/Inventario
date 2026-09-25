@@ -129,3 +129,34 @@ export type PurchaseKitItemInput = z.infer<typeof purchaseKitItemSchema>;
 export type LinkKitItemsToPurchaseInput = z.infer<typeof linkKitItemsToPurchaseSchema>;
 export type CreatePurchaseWithAssetsInput = z.infer<typeof createPurchaseWithAssetsSchema>;
 export type PurchaseFilters = z.infer<typeof purchaseFiltersSchema>;
+
+/** Nombre de cada dato de la factura en el resumen de errores. */
+export const ETIQUETAS_FACTURA: Record<string, string> = {
+  sedeId: "Sede",
+  numeroFactura: "N° de factura",
+  fechaFactura: "Fecha de la factura",
+  rutProveedor: "RUT del proveedor",
+  lineas: "Equipos o artículos",
+  kitItem: "Artículo de Kit/EPP",
+};
+
+/**
+ * Datos de la factura que faltan o estan mal (SPEC 2.103), para Nueva compra
+ * y Editar compra. Sede, N° y fecha son obligatorios en pantalla; el RUT del
+ * proveedor es opcional, pero si se escribe debe ser valido (misma regla que
+ * el servidor).
+ */
+export function validarDatosFactura(v: {
+  sedeId: string;
+  numeroFactura: string;
+  fechaFactura: string;
+  rutProveedor: string;
+}): Record<string, string> {
+  const e: Record<string, string> = {};
+  if (!v.sedeId) e.sedeId = "Elige la sede de la compra";
+  if (!v.numeroFactura.trim()) e.numeroFactura = "Escribe el número de factura";
+  if (!v.fechaFactura) e.fechaFactura = "Elige la fecha de la factura";
+  const rut = rutOptionalSchema.safeParse(v.rutProveedor.trim() || null);
+  if (!rut.success) e.rutProveedor = rut.error.issues[0].message;
+  return e;
+}
