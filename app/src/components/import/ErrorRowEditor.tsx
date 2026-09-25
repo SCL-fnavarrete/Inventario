@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { AlertCircle, CheckCircle, Edit2, Save, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { buttonClasses } from "@/components/ui/buttonStyles";
+import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 import { CatalogSelect } from "@/components/ui/CatalogSelect";
 import { parseEstado, parseCondicion } from "@/lib/importacion/estadoCondicion";
 import type { ImportRowStatus, ValidationError } from "@/types/import";
@@ -13,6 +16,13 @@ import {
 } from "@/lib/constants/estadosActivo";
 
 type Sede = { id: string; nombre: string };
+
+// Sin estos tres la fila no se puede importar (ver procesarFila).
+const CAMPOS_OBLIGATORIOS: Record<string, string> = {
+  marca: "Escribe la marca",
+  modelo: "Escribe el modelo",
+  numeroSerie: "Escribe el número de serie",
+};
 
 interface ErrorRowEditorProps {
   row: ImportRowStatus;
@@ -57,18 +67,32 @@ export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEdit
     normalizarEstadoCondicion(row.data)
   );
   const [isEditing, setIsEditing] = useState(false);
+  // Validacion por campo, igual que el resto de los formularios (SPEC 2.105):
+  // los obligatorios vacios se marcan al guardar.
+  const { errores, resumen, reportar, limpiar } = useErroresFormulario(fieldLabels);
+  // Campos que ya se corrigieron: dejan de mostrar el error que trajo la fila.
+  const [corregidos, setCorregidos] = useState<Set<string>>(new Set());
 
   const handleFieldChange = (field: string, value: string) => {
     setEditedData((prev) => ({ ...prev, [field]: value }));
+    limpiar(field);
+    setCorregidos((prev) => new Set(prev).add(field));
   };
 
   const handleSave = () => {
+    const faltan: Record<string, string> = {};
+    for (const [campo, mensaje] of Object.entries(CAMPOS_OBLIGATORIOS)) {
+      if (campo in fieldLabels && !editedData[campo]?.trim()) faltan[campo] = mensaje;
+    }
+    if (reportar(faltan)) return;
     onSave(row.rowIndex, editedData);
     setIsEditing(false);
   };
 
   const handleCancel = () => {
     setEditedData(normalizarEstadoCondicion(row.data));
+    setCorregidos(new Set());
+    reportar({});
     setIsEditing(false);
   };
 
@@ -76,10 +100,17 @@ export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEdit
     return row.errors.find((e) => e.field === field);
   };
 
+  /** Error del campo: el de esta pantalla o, si no se ha corregido, el de la fila. */
+  const errorDe = (field: string): string | undefined =>
+    errores[field] ?? (corregidos.has(field) ? undefined : getFieldError(field)?.message);
+
   // Filtrar solo campos con labels (los que son relevantes)
   const relevantFields = Object.entries(fieldLabels).filter(([key]) => {
     return editedData[key] !== undefined || row.errors.some((e) => e.field === key);
   });
+  const erroresGenerales = row.errors.filter(
+    (e) => !e.field || !relevantFields.some(([key]) => key === e.field)
+  );
 
   return (
     <div
@@ -125,7 +156,7 @@ export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEdit
         {!isEditing ? (
           <button
             onClick={() => setIsEditing(true)}
-            className="flex items-center gap-1 px-3 py-1 text-sm bg-primary-100 text-primary-800 rounded hover:bg-primary-200 transition-colors"
+            className={buttonClasses({ variant: "outline", size: "sm" })}
           >
             <Edit2 size={14} />
             Editar
@@ -134,15 +165,12 @@ export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEdit
           <div className="flex gap-2">
             <button
               onClick={handleSave}
-              className="flex items-center gap-1 px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-success-hover transition-colors"
+              className={buttonClasses({ size: "sm", className: "bg-success hover:bg-success-hover" })}
             >
               <Save size={14} />
               Guardar
             </button>
-            <button
-              onClick={handleCancel}
-              className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-200 text-fg-muted rounded hover:bg-gray-300 transition-colors"
-            >
+            <button onClick={handleCancel} className={buttonClasses({ variant: "outline", size: "sm" })}>
               <X size={14} />
               Cancelar
             </button>
@@ -151,9 +179,10 @@ export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEdit
       </div>
 
       {/* Lista de errores */}
-      {row.errors.length > 0 && (
+      {isEditing && <div className="mb-3"><ResumenErrores mensaje={resumen} /></div>}
+      {erroresGenerales.length > 0 && (
         <div className="mb-3 space-y-1">
-          {row.errors.map((error, idx) => (
+          {erroresGenerales.map((error, idx) => (
             <div key={idx} className="text-sm text-red-700 flex items-start gap-2">
               <span className="text-red-500 mt-0.5">*</span>
               <span>{error.message}</span>
@@ -165,28 +194,28 @@ export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEdit
       {/* Campos editables */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {relevantFields.map(([fieldKey, label]) => {
-          const fieldError = getFieldError(fieldKey);
-          const hasError = !!fieldError;
+          const error = errorDe(fieldKey);
 
           return (
             <div key={fieldKey}>
               <label className="block text-xs font-medium text-fg-muted mb-1">
                 {label}
-                {hasError && <span className="text-red-500 ml-1">*</span>}
+                {fieldKey in CAMPOS_OBLIGATORIOS && " *"}
               </label>
               {isEditing ? (
-                renderEditControl(fieldKey, editedData[fieldKey] || "", handleFieldChange, hasError, sedes)
+                renderEditControl(fieldKey, editedData[fieldKey] || "", handleFieldChange, error, sedes)
               ) : (
                 <div
                   className={cn(
                     "px-2 py-1 text-sm rounded truncate",
-                    hasError ? "bg-red-100 text-red-800" : "bg-gray-100 text-fg"
+                    error ? "bg-red-100 text-red-800" : "bg-gray-100 text-fg"
                   )}
                   title={editedData[fieldKey] || "-"}
                 >
                   {editedData[fieldKey] || "-"}
                 </div>
               )}
+              <MensajeCampo mensaje={error} />
             </div>
           );
         })}
@@ -195,11 +224,11 @@ export function ErrorRowEditor({ row, fieldLabels, sedes, onSave }: ErrorRowEdit
   );
 }
 
-const inputClassName = (hasError: boolean) =>
-  cn(
-    "w-full px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-primary-500 focus:outline-none",
-    hasError ? "border-red-400 bg-red-50" : "border-line-strong"
-  );
+/** Control compacto, en rojo si tiene error (misma clase que el resto de los formularios). */
+const controlProps = (error?: string) => ({
+  "aria-invalid": !!error,
+  className: cn(claseCampo(error), "field-input-sm"),
+});
 
 /**
  * Decide que control mostrar para un campo en edicion. Los campos con
@@ -211,7 +240,7 @@ function renderEditControl(
   fieldKey: string,
   value: string,
   handleFieldChange: (field: string, value: string) => void,
-  hasError: boolean,
+  error: string | undefined,
   sedes: Sede[]
 ) {
   if (fieldKey === "sede" || fieldKey === "sedeId") {
@@ -219,7 +248,7 @@ function renderEditControl(
       <select
         value={value}
         onChange={(e) => handleFieldChange(fieldKey, e.target.value)}
-        className={inputClassName(hasError)}
+        {...controlProps(error)}
       >
         <option value="">Selecciona una sede...</option>
         {sedes.map((s) => (
@@ -241,7 +270,7 @@ function renderEditControl(
       <select
         value={value}
         onChange={(e) => handleFieldChange(fieldKey, e.target.value)}
-        className={inputClassName(hasError)}
+        {...controlProps(error)}
       >
         <option value="">Selecciona un estado...</option>
         {(Object.entries(estadoLabels) as [EstadoActivo, string][]).map(([valor, label]) => (
@@ -258,7 +287,7 @@ function renderEditControl(
       <select
         value={value}
         onChange={(e) => handleFieldChange(fieldKey, e.target.value)}
-        className={inputClassName(hasError)}
+        {...controlProps(error)}
       >
         <option value="">Selecciona una condición...</option>
         {(Object.entries(condicionLabels) as [CondicionActivo, string][]).map(([valor, label]) => (
@@ -286,7 +315,7 @@ function renderEditControl(
       type="text"
       value={value}
       onChange={(e) => handleFieldChange(fieldKey, e.target.value)}
-      className={inputClassName(hasError)}
+      {...controlProps(error)}
     />
   );
 }

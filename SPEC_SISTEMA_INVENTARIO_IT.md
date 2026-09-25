@@ -3312,7 +3312,21 @@ Continúa 2.102–2.103, con la misma lógica de validación.
   - el texto del campo ("2026-09-25T10:30") se mandaba tal cual y el servidor lo leía en su propia zona horaria. En el equipo local coincidía con Chile, pero en producción (UTC) una entrega a las 10:30 habría quedado a las 07:30. Ahora la pantalla manda el instante exacto (`inputFechaHoraAISO`). Aplica a la fecha de envío y de recepción de guías y a las fechas coordinadas de entrega, cambio y devolución de Solicitudes.
 - **Pieza compartida del servidor:** `respuestaErroresCampos` (`lib/auth/guard.ts`) arma la respuesta 400 con los errores por campo; la usan Guías y Parámetros.
 
+## 2.105 Validación por campo en todos los formularios, parte 4: Importación e inicio de sesión (25-sep-2026)
+
+Cierra el pedido de 2.102: con esta parte, todos los formularios de ingreso de datos del sistema usan la misma validación por campo. Los filtros y buscadores de las listas no entran.
+
+- **Corregir una fila con error (Importar activos):**
+  - el error que trae la fila se muestra bajo su campo, en rojo; antes solo había un asterisco y la lista de mensajes arriba. Arriba quedan solo los errores que no son de un campo;
+  - al guardar, marca, modelo y N° de serie vacíos se marcan con el resumen "Faltan o están incorrectos: …"; antes "Guardar" los dejaba pasar y el error volvía a aparecer al revalidar;
+  - un campo ya corregido deja de mostrar el error que traía;
+  - los botones usan los estilos estándar.
+- **Importación:** cuando faltan marca, modelo o N° de serie, el error indica el campo (`campo` en `procesarFila`), para que la revisión lo marque.
+- **Inicio de sesión:** correo (obligatorio y con formato) y contraseña se marcan en rojo con el resumen, en vez del aviso del navegador. Los campos indican al navegador cuál es el usuario y cuál la contraseña, para que pueda recordarlos.
+
 ## Changelog SPEC
+- **v2.29 (2026-09-25):**
+  - Sección 2.105 (nueva): validación por campo al corregir filas de importación y al iniciar sesión; el error de campos faltantes de la importación indica el campo. Con esto todos los formularios usan la misma validación.
 - **v2.28 (2026-09-25):**
   - Sección 2.104 (nueva): validación por campo en Guías de despacho y en los motivos de Solicitudes (ventana propia en vez de window.prompt); las fechas con hora se proponen y se envían en hora de Chile.
 - **v2.27 (2026-09-25):**

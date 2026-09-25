@@ -7,6 +7,11 @@ import { Button } from "@/components/ui/Button";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { Logo } from "@/components/ui/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import { esCorreoValido } from "@/lib/utils/text";
+
+const ETIQUETAS = { email: "Correo electrónico", password: "Contraseña" };
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,10 +19,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Validacion por campo, igual que el resto de los formularios (SPEC 2.105).
+  const { errores, resumen, reportar, limpiar } = useErroresFormulario(ETIQUETAS);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    const faltan: Record<string, string> = {};
+    if (!email.trim()) faltan.email = "Escribe tu correo";
+    else if (!esCorreoValido(email)) faltan.email = "El correo no es válido";
+    if (!password) faltan.password = "Escribe tu contraseña";
+    if (reportar(faltan)) return;
     setLoading(true);
 
     try {
@@ -53,7 +65,8 @@ export default function LoginPage() {
           <span className="mx-auto mt-4 block h-1 w-12 rounded-full bg-accent" aria-hidden="true" />
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+          <ResumenErrores mensaje={resumen} />
           <ApiErrorSummary error={error || null} />
 
           <div>
@@ -64,11 +77,16 @@ export default function LoginPage() {
               id="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="field-input"
+              onChange={(e) => {
+                setEmail(e.target.value);
+                limpiar("email");
+              }}
+              autoComplete="username"
+              aria-invalid={!!errores.email}
+              className={claseCampo(errores.email)}
               placeholder="usuario@sclconsultores.com"
             />
+            <MensajeCampo mensaje={errores.email} />
           </div>
 
           <div>
@@ -79,11 +97,16 @@ export default function LoginPage() {
               id="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="field-input"
+              onChange={(e) => {
+                setPassword(e.target.value);
+                limpiar("password");
+              }}
+              autoComplete="current-password"
+              aria-invalid={!!errores.password}
+              className={claseCampo(errores.password)}
               placeholder="••••••••"
             />
+            <MensajeCampo mensaje={errores.password} />
           </div>
 
           <Button type="submit" size="lg" loading={loading} className="w-full">

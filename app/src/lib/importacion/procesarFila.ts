@@ -104,6 +104,8 @@ export async function procesarFila(
       tipo: "missing_required_field",
       mensaje: `Campos faltantes: ${faltantes.join(", ")}`,
       data: datosFila,
+      // El primero que falta, para que la revision lo marque (SPEC 2.105).
+      campo: !marca ? "marca" : !modelo ? "modelo" : "numeroSerie",
     };
   }
 
