@@ -7,6 +7,7 @@ jest.mock('@/lib/prisma', () => ({
     systemUser: { findUnique: jest.fn(), count: jest.fn(), update: jest.fn() },
     systemConfig: { findUnique: jest.fn().mockResolvedValue(null) },
     accessLog: { findFirst: jest.fn(), findMany: jest.fn(), create: jest.fn() },
+    sesionCerrada: { upsert: jest.fn(), deleteMany: jest.fn() },
   },
 }));
 jest.mock('@/lib/auth/guard', () => {
@@ -21,7 +22,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission } from '@/lib/auth/guard';
 import { authOptions } from '@/lib/auth';
-import { minutosDeBloqueo, datosCliente } from '@/lib/services/accesoService';
+import { minutosDeBloqueo, datosCliente, cerrarSesion, duracionLegible } from '@/lib/services/accesoService';
 import { navegadorLegible } from '@/lib/constants/accesos';
 import { inicioDiaChile, rangoDiasChile } from '@/lib/utils/fechas';
 import { PUT as editarUsuario } from '@/app/api/usuarios/[id]/route';
@@ -29,6 +30,7 @@ import { PUT as editarUsuario } from '@/app/api/usuarios/[id]/route';
 const db = prisma as unknown as {
   systemUser: Record<string, jest.Mock>;
   accessLog: Record<string, jest.Mock>;
+  sesionCerrada: Record<string, jest.Mock>;
 };
 
 beforeEach(() => {
@@ -37,10 +39,20 @@ beforeEach(() => {
 
 describe('la sesion revisa la cuenta en cada consulta', () => {
   const jwt = authOptions.callbacks!.jwt!;
-  const token = { id: 'u1', role: 'tecnico', sedeId: 's1', expiraEn: Date.now() + 60_000 };
+  const inicio = Date.now() - 60_000;
+  const token = { id: 'u1', role: 'tecnico', sedeId: 's1', expiraEn: Date.now() + 60_000, sesionId: 'ses-1', inicio };
+  const cuenta = (extra = {}) => ({
+    activo: true,
+    rol: 'tecnico',
+    sedeId: 's1',
+    nombre: 'Ana',
+    sesionesDesde: null,
+    sesionesCerradas: [],
+    ...extra,
+  });
 
   test('una cuenta desactivada queda sin sesion', async () => {
-    db.systemUser.findUnique.mockResolvedValue({ activo: false, rol: 'tecnico', sedeId: 's1', nombre: 'Ana' });
+    db.systemUser.findUnique.mockResolvedValue(cuenta({ activo: false }));
     await expect(jwt({ token } as never)).rejects.toThrow(/desactivada/);
   });
 
@@ -50,9 +62,38 @@ describe('la sesion revisa la cuenta en cada consulta', () => {
   });
 
   test('un cambio de rol o de sede aplica de inmediato', async () => {
-    db.systemUser.findUnique.mockResolvedValue({ activo: true, rol: 'admin', sedeId: null, nombre: 'Ana' });
+    db.systemUser.findUnique.mockResolvedValue(cuenta({ rol: 'admin', sedeId: null }));
     const nuevo = await jwt({ token } as never);
     expect(nuevo).toMatchObject({ role: 'admin', sedeId: null });
+  });
+
+  test('una sesion cerrada (lista negra) no vuelve a servir', async () => {
+    db.systemUser.findUnique.mockResolvedValue(cuenta({ sesionesCerradas: [{ id: 'ses-1' }] }));
+    await expect(jwt({ token } as never)).rejects.toThrow(/cerrada/);
+    expect(db.systemUser.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({ sesionesCerradas: { where: { id: 'ses-1' }, select: { id: true } } }),
+      })
+    );
+  });
+
+  test('una sesion iniciada antes de desactivar no revive al reactivar la cuenta', async () => {
+    db.systemUser.findUnique.mockResolvedValue(cuenta({ sesionesDesde: new Date(inicio + 1000) }));
+    await expect(jwt({ token } as never)).rejects.toThrow(/cortada/);
+  });
+
+  test('una sesion iniciada despues de reactivar si vale', async () => {
+    db.systemUser.findUnique.mockResolvedValue(cuenta({ sesionesDesde: new Date(inicio - 1000) }));
+    await expect(jwt({ token } as never)).resolves.toMatchObject({ id: 'u1' });
+  });
+
+  test('una sesion sin identificador (anterior a la lista negra) pide entrar de nuevo', async () => {
+    await expect(jwt({ token: { ...token, sesionId: undefined } } as never)).rejects.toThrow(/vencida/);
+  });
+
+  test('al iniciar sesion, el token guarda su identificador y la hora de inicio', async () => {
+    const nuevo = await jwt({ token: {}, user: { id: 'u1', role: 'tecnico', sedeId: 's1', expiraEn: 1, sesionId: 'ses-9' } } as never);
+    expect(nuevo).toMatchObject({ sesionId: 'ses-9', inicio: expect.any(Number) });
   });
 
   test('la sesion vence segun la duracion configurada al iniciarla', async () => {
@@ -90,6 +131,37 @@ describe('bloqueo por intentos, contado en el registro de accesos', () => {
       ip: '200.1.2.3',
       navegador: 'X',
     });
+  });
+});
+
+describe('cerrar sesion: lista negra', () => {
+  const cliente = { ip: '200.1.2.3', navegador: 'X' };
+
+  test('anota la sesion hasta la hora en que su token habria vencido y borra las vencidas', async () => {
+    const expiraEn = Date.now() + 3 * 3600_000;
+    db.accessLog.findFirst.mockResolvedValue({ createdAt: new Date(Date.now() - 125 * 60_000) });
+    await cerrarSesion({ id: 'u1', email: 'a@x.cl', sesionId: 'ses-1', expiraEn }, cliente);
+    expect(db.sesionCerrada.upsert).toHaveBeenCalledWith({
+      where: { id: 'ses-1' },
+      create: { id: 'ses-1', usuarioId: 'u1', expiraEn: new Date(expiraEn) },
+      update: {},
+    });
+    expect(db.sesionCerrada.deleteMany).toHaveBeenCalledWith({ where: { expiraEn: { lt: expect.any(Date) } } });
+    expect(db.accessLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        resultado: 'cierre_sesion',
+        sesionId: 'ses-1',
+        ip: '200.1.2.3',
+        navegador: 'X',
+        detalle: 'Sesión de 2 h 5 min',
+      }),
+    });
+  });
+
+  test('duracion en palabras', () => {
+    expect(duracionLegible(30_000)).toBe('menos de 1 min');
+    expect(duracionLegible(12 * 60_000)).toBe('12 min');
+    expect(duracionLegible(120 * 60_000)).toBe('2 h');
   });
 });
 
@@ -158,6 +230,10 @@ describe('nunca quedarse sin administradores', () => {
     db.systemUser.update.mockResolvedValue({ ...admin('otro'), activo: false });
     const res = await editarUsuario(pedir({ activo: false }), ctx('otro'));
     expect(res.status).toBe(200);
+    // Anula para siempre sus sesiones abiertas (SPEC 2.112.5).
+    expect(db.systemUser.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ activo: false, sesionesDesde: expect.any(Date) }) })
+    );
     expect(db.accessLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ resultado: 'sesion_revocada', detalle: 'Cuenta desactivada por yo@x.cl' }),
     });

@@ -22,5 +22,10 @@ declare module "next-auth/jwt" {
     id: string;
     role: string;
     sedeId: string | null;
+    // SPEC 2.112: vencimiento segun Configuracion > Seguridad, identificador
+    // de la sesion (lista negra) y hora de inicio (sesionesDesde).
+    expiraEn?: number;
+    sesionId?: string;
+    inicio?: number;
   }
 }

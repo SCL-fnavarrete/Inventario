@@ -34,7 +34,7 @@ mas `api/` con los endpoints REST agrupados por feature.
 
 | Path | Purpose |
 |------|---------|
-| `src/lib/auth.ts` | NextAuth config: Credentials provider, JWT sessions (duración de Configuración > Seguridad), revisa la cuenta en cada consulta (una desactivada queda fuera), bloqueo por intentos contado en el registro de accesos (SPEC 2.112) |
+| `src/lib/auth.ts` | NextAuth config: Credentials provider, JWT sessions (duración de Configuración > Seguridad), revisa la cuenta en cada consulta (una desactivada queda fuera), lista negra de sesiones cerradas y "sesiones válidas desde" al desactivar (SPEC 2.112.5), bloqueo por intentos contado en el registro de accesos (SPEC 2.112) |
 | `src/lib/prisma.ts` | Prisma singleton (prevents connection pool exhaustion) |
 | `src/lib/services/assetHistoryService.ts` | Audit trail — logs all asset events with old/new values |
 | `src/lib/services/workflowExecutionService.ts` | Ejecuta acciones de workflow: asignaciones, desvinculaciones, guias al hacer transiciones |

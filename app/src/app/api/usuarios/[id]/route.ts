@@ -102,6 +102,9 @@ export async function PUT(
     }
     if (typeof activo === "boolean") {
       updateData.activo = activo;
+      // SPEC 2.112.5: desactivar anula para siempre las sesiones abiertas,
+      // aunque la cuenta se reactive despues.
+      if (!activo && existingUser.activo) updateData.sesionesDesde = new Date();
     }
     // Misma validacion de complejidad que al crear un usuario.
     if (password) {

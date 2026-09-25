@@ -27,6 +27,15 @@ type Registro = {
   usuario: { nombre: string } | null;
 };
 
+const FORMATO_FECHA: Intl.DateTimeFormatOptions = {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+};
+
 type Resumen = { ingresos_hoy: number; fallidos_hoy: number; bloqueos_hoy: number; desactivados_hoy: number };
 type Vista = keyof Resumen | "";
 
@@ -152,7 +161,7 @@ function Accesos() {
           <table className="min-w-full divide-y divide-line">
             <thead className="bg-surface-muted">
               <tr>
-                <th className="table-th px-4">Fecha y hora</th>
+                <th className="table-th px-4 hidden sm:table-cell">Fecha y hora</th>
                 <th className="table-th px-4">Usuario</th>
                 <th className="table-th px-4">Resultado</th>
                 <th className="table-th px-4 hidden md:table-cell">Dirección de red</th>
@@ -175,19 +184,14 @@ function Accesos() {
               ) : (
                 registros.map((r) => (
                   <tr key={r.id} className="hover:bg-surface-muted">
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-fg-muted">
-                      {formatearFechaHora(r.createdAt, {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                      })}
+                    <td className="hidden whitespace-nowrap px-4 py-3 text-sm text-fg-muted sm:table-cell">
+                      {formatearFechaHora(r.createdAt, FORMATO_FECHA)}
                     </td>
                     <td className="px-4 py-3 text-sm">
-                      <p className="font-medium text-fg">{r.usuario?.nombre ?? r.email}</p>
-                      {r.usuario && <p className="text-xs text-fg-subtle">{r.email}</p>}
+                      {/* En celular, fila compacta: la fecha va aqui arriba. */}
+                      <p className="text-xs text-fg-muted sm:hidden">{formatearFechaHora(r.createdAt, FORMATO_FECHA)}</p>
+                      <p className="break-all font-medium text-fg">{r.usuario?.nombre ?? r.email}</p>
+                      {r.usuario && <p className="break-all text-xs text-fg-subtle">{r.email}</p>}
                       <p className="text-xs text-fg-subtle md:hidden">
                         {navegadorLegible(r.navegador)}
                         {r.ip ? ` • ${r.ip}` : ""}

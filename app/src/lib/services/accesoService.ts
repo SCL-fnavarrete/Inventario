@@ -19,6 +19,7 @@ export type DatosAcceso = {
   ip?: string | null;
   navegador?: string | null;
   detalle?: string | null;
+  sesionId?: string | null;
 };
 
 /** Registra un acceso. Nunca hace fallar el inicio de sesion por esto. */
@@ -32,11 +33,57 @@ export async function registrarAcceso(d: DatosAcceso) {
         ip: d.ip?.slice(0, 100) ?? null,
         navegador: d.navegador?.slice(0, 300) ?? null,
         detalle: d.detalle?.slice(0, 300) ?? null,
+        sesionId: d.sesionId ?? null,
       },
     });
   } catch (error) {
     logger.error('No se pudo registrar el acceso', { error: String(error) });
   }
+}
+
+/** "2 h 5 min", "12 min", "menos de 1 min". */
+export function duracionLegible(ms: number) {
+  const minutos = Math.floor(ms / 60_000);
+  if (minutos < 1) return 'menos de 1 min';
+  const h = Math.floor(minutos / 60);
+  const m = minutos % 60;
+  if (h === 0) return `${m} min`;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
+type TokenSesion = { id?: unknown; email?: unknown; sesionId?: unknown; expiraEn?: unknown };
+
+/**
+ * Cierre de sesion desde el menu (SPEC 2.112.5):
+ * - anota la sesion en la lista negra hasta la hora en que su token habria
+ *   vencido, para que una copia guardada del token ya no sirva;
+ * - borra de pasada las filas ya vencidas (en Postgres no hay vencimiento
+ *   automatico como en Redis);
+ * - la deja en el registro de accesos, con cuanto duro la sesion.
+ * Cerrar el navegador no pasa por aqui.
+ */
+export async function cerrarSesion(token: TokenSesion, cliente: { ip: string | null; navegador: string | null }) {
+  const usuarioId = typeof token.id === 'string' ? token.id : null;
+  const sesionId = typeof token.sesionId === 'string' ? token.sesionId : null;
+  const email = typeof token.email === 'string' ? token.email : null;
+  if (!email) return;
+
+  let detalle: string | null = null;
+  if (usuarioId && sesionId) {
+    const expiraEn = new Date(typeof token.expiraEn === 'number' ? token.expiraEn : Date.now() + 31 * 24 * 3600_000);
+    await prisma.sesionCerrada.upsert({
+      where: { id: sesionId },
+      create: { id: sesionId, usuarioId, expiraEn },
+      update: {},
+    });
+    await prisma.sesionCerrada.deleteMany({ where: { expiraEn: { lt: new Date() } } });
+    const ingreso = await prisma.accessLog.findFirst({
+      where: { sesionId, resultado: 'exito' },
+      select: { createdAt: true },
+    });
+    if (ingreso) detalle = `Sesión de ${duracionLegible(Date.now() - ingreso.createdAt.getTime())}`;
+  }
+  await registrarAcceso({ email, usuarioId, resultado: 'cierre_sesion', sesionId, detalle, ...cliente });
 }
 
 /**

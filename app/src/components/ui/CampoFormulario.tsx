@@ -2,6 +2,7 @@
 
 import type { InputHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { InputClave } from "@/components/ui/InputClave";
 
 /**
  * Piezas compartidas para marcar campos obligatorios de un formulario:
@@ -90,7 +91,10 @@ type PropsCampoTexto = Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | 
   onChange: (valor: string) => void;
 };
 
-/** Caso mas comun: un input de texto/fecha dentro de CampoFormulario. */
+/**
+ * Caso mas comun: un input de texto/fecha dentro de CampoFormulario. Con
+ * type="password" lleva el ojo para mostrar la contraseña.
+ */
 export function CampoTexto({
   label,
   obligatorio,
@@ -104,14 +108,24 @@ export function CampoTexto({
 }: PropsCampoTexto) {
   return (
     <CampoFormulario label={label} obligatorio={obligatorio} error={error} ayuda={ayuda} className={className}>
-      <input
-        {...rest}
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-invalid={!!error}
-        className={claseInput(error)}
-      />
+      {type === "password" ? (
+        <InputClave
+          {...rest}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          aria-invalid={!!error}
+          className={claseInput(error)}
+        />
+      ) : (
+        <input
+          {...rest}
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          aria-invalid={!!error}
+          className={claseInput(error)}
+        />
+      )}
     </CampoFormulario>
   );
 }

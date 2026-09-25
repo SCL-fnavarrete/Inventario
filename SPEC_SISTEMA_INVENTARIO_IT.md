@@ -3659,14 +3659,24 @@ Idea de Javier: *"un módulo donde salgan los inicios de sesión o intentos, tip
 - El mensaje de error al iniciar sesión sigue siendo el mismo para correo inexistente, cuenta desactivada y contraseña incorrecta (para no revelar qué cuentas existen); el detalle real queda en el registro.
 - `inicioDiaChile` y `rangoDiasChile` (`lib/utils/fechas.ts`) filtran por días en hora de Chile ("hasta" incluye todo ese día); los usará también Auditoría.
 
-### 2.112.5 Próximas partes
+### 2.112.5 Sesiones anuladas de verdad: lista negra y "sesiones válidas desde"
+En la prueba en el navegador de la parte 2 apareció un hueco: si se desactivaba a un técnico y el navegador conservaba su token, al reactivar la cuenta ese token volvía a valer y entraba sin contraseña. Además, al cerrar sesión el navegador borraba su copia del token, pero una copia guardada antes seguía sirviendo hasta vencer. Idea de Javier: *"una lista negra en el servidor: al cerrar sesión se guarda el token con un vencimiento igual al tiempo que le quedaba de vida, y en cada consulta se revisa que no esté en la lista"*.
+- **Identificador de sesión:** al iniciar sesión se crea uno propio (`sesionId`) y se guarda en el token con la hora de inicio. No se usa el `jti` de NextAuth porque cambia cada vez que el token se renueva. Una sesión sin identificador (anterior a este cambio) pide iniciar sesión de nuevo.
+- **Lista negra al cerrar sesión** (tabla `sesiones_cerradas`, `SesionCerrada`): el cierre pasa por la ruta de NextAuth (`app/api/auth/[...nextauth]/route.ts`), que antes de borrar la cookie anota la sesión hasta la hora en que su token habría vencido (`cerrarSesion`, `lib/services/accesoService.ts`). Se guarda en Postgres y no en Redis: la aplicación ya consulta la base en cada petición para revisar la cuenta, y la lista va en esa misma consulta, sin sumar tiempo ni un servicio aparte. Como Postgres no tiene vencimiento automático, solo cuentan las filas vigentes y las vencidas se borran al anotar una nueva. Si el sistema crece, la lista se puede pasar a Redis sin cambiar la lógica.
+- **"Sesiones válidas desde"** (`SystemUser.sesionesDesde`): la lista negra sola no cubre la desactivación, porque quien desactiva es el admin y el servidor no tiene a mano los tokens del técnico. Al desactivar, la fecha pasa a "ahora" y toda sesión iniciada antes queda anulada para siempre, aunque la cuenta se reactive; para volver a entrar hay que escribir la contraseña.
+- **En cada consulta** (`jwt` en `lib/auth.ts`) se rechaza la sesión si la cuenta está desactivada, si su identificador está en la lista negra o si empezó antes de "sesiones válidas desde".
+- **Registro de accesos:** cada fila guarda el identificador de sesión (`sesion_id`), que une el ingreso con su cierre. El cierre de sesión ahora queda con dirección de red y navegador, y con su duración en el detalle ("Sesión de 2 h 5 min").
+- En celular, la tabla del registro se muestra en fila compacta (la fecha arriba del usuario) para que el resultado no quede fuera de la pantalla.
+- Pendiente para más adelante: anular también las sesiones de un usuario cuando se le cambia la contraseña (usa la misma fecha).
+
+### 2.112.6 Próximas partes
 3. Auditoría: filtros de fecha en hora de Chile, textos legibles y detalle entendible.
 4. Catálogos de Activos: unir Categorías y Opciones; "Requiere N° de serie" y "Requiere IMEI" pasan a funcionar (pensando en el futuro módulo de líneas telefónicas); avisos al renombrar.
 5. Usuarios, Sedes, celular, textos y limpieza de código.
 
 ## Changelog SPEC
 - **v2.36 (2026-09-25):**
-  - Sección 2.112 (nueva): Configuración se reduce a Sedes, Usuarios, Catálogos de Activos, Seguridad, Registro de accesos y Auditoría. Los usuarios no se eliminan, se desactivan, y la desactivación corta la sesión en la siguiente acción; nunca se queda el sistema sin administradores; nuevo Registro de accesos, base también del bloqueo por intentos. Se eliminan Mantenimiento de Datos, la sincronización con Microsoft (2.6 queda como historia) y los datos de la empresa, con sus columnas en la base.
+  - Sección 2.112 (nueva): Configuración se reduce a Sedes, Usuarios, Catálogos de Activos, Seguridad, Registro de accesos y Auditoría. Los usuarios no se eliminan, se desactivan, y la desactivación corta la sesión en la siguiente acción; nunca se queda el sistema sin administradores; nuevo Registro de accesos, base también del bloqueo por intentos. Las sesiones se anulan de verdad: lista negra al cerrar sesión y "sesiones válidas desde" al desactivar (2.112.5). Se eliminan Mantenimiento de Datos, la sincronización con Microsoft (2.6 queda como historia) y los datos de la empresa, con sus columnas en la base.
 - **v2.35 (2026-09-25):**
   - Sección 2.111 (nueva, regla aprobada, se implementa por partes; implementada en cinco partes: modelo; registrar; repartir; Kit/EPP en despachos y "Apareció"; revisión final con 4 huecos corregidos y 66 casos probados): en Compras primero se compra y después se reparte. El técnico ve todas las compras y lo que hay por repartir, en solo lectura. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
 - **v2.34 (2026-09-25):**

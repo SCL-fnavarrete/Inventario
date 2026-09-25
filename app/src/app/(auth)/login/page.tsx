@@ -8,6 +8,7 @@ import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { Logo } from "@/components/ui/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
+import { InputClave } from "@/components/ui/InputClave";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 import { esCorreoValido } from "@/lib/utils/text";
 
@@ -93,9 +94,8 @@ export default function LoginPage() {
             <label htmlFor="password" className="field-label">
               Contraseña
             </label>
-            <input
+            <InputClave
               id="password"
-              type="password"
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);

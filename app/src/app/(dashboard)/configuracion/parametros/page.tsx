@@ -26,7 +26,7 @@ type Campo = keyof Seguridad;
 const CAMPOS: { campo: Campo; ayuda: string }[] = [
   {
     campo: "duracionSesionHoras",
-    ayuda: "Cuánto dura una sesión antes de pedir iniciar sesión de nuevo. Aplica a las sesiones nuevas cuando el servidor se reinicia.",
+    ayuda: "Cuánto dura una sesión antes de pedir iniciar sesión de nuevo. Aplica a las sesiones que se inicien desde que se guarda; las ya abiertas mantienen la duración con que empezaron.",
   },
   {
     campo: "maxIntentosLogin",

@@ -20,6 +20,10 @@ model SystemUser {
   // todas las sedes; el resto queda restringido a los datos de la suya
   // (ver sedeScope()).
   sedeId       String?    @map("sede_id")
+  // Solo valen las sesiones iniciadas desde esta fecha (SPEC 2.112.5): al
+  // desactivar la cuenta pasa a "ahora" y todas sus sesiones abiertas quedan
+  // anuladas para siempre, aunque despues se reactive.
+  sesionesDesde DateTime? @map("sesiones_desde")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
@@ -29,6 +33,7 @@ model SystemUser {
   workflowComments    WorkflowComment[]
   workflowTransitions WorkflowTransition[]
   accesos             AccessLog[]
+  sesionesCerradas    SesionCerrada[]
 
   @@index([sedeId])
   @@map("system_users")
@@ -50,13 +55,34 @@ model AccessLog {
   navegador String?
   // Aclaracion, por ejemplo quien desactivo la cuenta.
   detalle   String?
+  // Sesion a la que pertenece: une el ingreso con su cierre.
+  sesionId  String?         @map("sesion_id")
   createdAt DateTime        @default(now()) @map("created_at")
   usuario   SystemUser?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   @@index([email, createdAt])
   @@index([createdAt])
   @@index([resultado])
+  @@index([sesionId])
   @@map("access_logs")
+}
+
+// Lista negra de sesiones cerradas (SPEC 2.112.5): al cerrar sesion, el
+// identificador de esa sesion queda aqui hasta la hora en que su token
+// habria vencido. Si alguien guardo una copia del token, ya no le sirve.
+// Las filas vencidas se borran al anotar una nueva.
+model SesionCerrada {
+  // Identificador propio de la sesion (no el jti de NextAuth, que cambia en
+  // cada renovacion del token).
+  id        String     @id
+  usuarioId String     @map("usuario_id")
+  expiraEn  DateTime   @map("expira_en")
+  createdAt DateTime   @default(now()) @map("created_at")
+  usuario   SystemUser @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@index([expiraEn])
+  @@map("sesiones_cerradas")
 }
 
 enum ResultadoAcceso {

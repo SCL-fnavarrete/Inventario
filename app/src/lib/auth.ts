@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
@@ -86,7 +87,11 @@ export const authOptions: NextAuthOptions = {
           where: { id: user.id },
           data: { ultimoLogin: new Date() },
         });
-        await registrarAcceso({ email, usuarioId: user.id, resultado: "exito", ...cliente });
+        // Identificador propio de esta sesion (SPEC 2.112.5): une el ingreso
+        // con su cierre en el registro y es lo que se anota en la lista negra
+        // al cerrar sesion.
+        const sesionId = randomUUID();
+        await registrarAcceso({ email, usuarioId: user.id, resultado: "exito", sesionId, ...cliente });
 
         return {
           id: user.id,
@@ -95,6 +100,7 @@ export const authOptions: NextAuthOptions = {
           role: user.rol,
           sedeId: user.sedeId,
           expiraEn: Date.now() + horasSesion * 60 * 60 * 1000,
+          sesionId,
         };
       },
     }),
@@ -106,12 +112,21 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role;
         token.sedeId = (user as { sedeId?: string | null }).sedeId ?? null;
         token.expiraEn = (user as { expiraEn?: number }).expiraEn;
+        token.sesionId = (user as { sesionId?: string }).sesionId;
+        token.inicio = Date.now();
         return token;
       }
 
       // SPEC 2.112: la duracion de la sesion es la de Configuracion >
       // Seguridad al momento de iniciarla.
-      if (typeof token.expiraEn === "number" && Date.now() > token.expiraEn) {
+      // Una sesion sin identificador es anterior a la lista negra: se pide
+      // iniciar sesion de nuevo.
+      if (
+        typeof token.expiraEn !== "number" ||
+        Date.now() > token.expiraEn ||
+        typeof token.sesionId !== "string" ||
+        typeof token.inicio !== "number"
+      ) {
         throw new Error("Sesión vencida");
       }
 
@@ -119,12 +134,30 @@ export const authOptions: NextAuthOptions = {
       // acceso en su siguiente accion, y un cambio de rol o de sede aplica
       // de inmediato (antes esperaba a que venciera la sesion). Lanzar aqui
       // hace que NextAuth invalide la sesion.
+      //
+      // En la misma consulta (SPEC 2.112.5): si esta sesion se cerro (lista
+      // negra) o se inicio antes de que se desactivara la cuenta, ya no vale,
+      // aunque alguien haya guardado una copia del token o la cuenta se haya
+      // reactivado despues.
       const actual = await prisma.systemUser.findUnique({
         where: { id: token.id as string },
-        select: { activo: true, rol: true, sedeId: true, nombre: true },
+        select: {
+          activo: true,
+          rol: true,
+          sedeId: true,
+          nombre: true,
+          sesionesDesde: true,
+          sesionesCerradas: { where: { id: token.sesionId }, select: { id: true } },
+        },
       });
       if (!actual || !actual.activo) {
         throw new Error("Cuenta desactivada");
+      }
+      if (actual.sesionesCerradas.length > 0) {
+        throw new Error("Sesión cerrada");
+      }
+      if (actual.sesionesDesde && token.inicio < actual.sesionesDesde.getTime()) {
+        throw new Error("Sesión cortada");
       }
       token.role = actual.rol;
       token.sedeId = actual.sedeId;
@@ -141,19 +174,9 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  events: {
-    // Cierre de sesion desde el menu (SPEC 2.112). Cerrar el navegador no
-    // pasa por aqui.
-    async signOut({ token }) {
-      if (token?.email) {
-        await registrarAcceso({
-          email: token.email,
-          usuarioId: (token.id as string | undefined) ?? null,
-          resultado: "cierre_sesion",
-        });
-      }
-    },
-  },
+  // El cierre de sesion (registro y lista negra) lo hace la ruta de
+  // NextAuth, que tiene la direccion de red y el navegador: ver
+  // app/api/auth/[...nextauth]/route.ts y cerrarSesion().
   pages: {
     signIn: "/login",
     error: "/login",
