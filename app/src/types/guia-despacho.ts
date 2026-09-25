@@ -35,6 +35,26 @@ export interface DispatchGuideItem {
   asset: DispatchGuideAsset;
 }
 
+/** Kit/EPP que viaja en un despacho (SPEC 2.111.4): un articulo y cantidades. */
+export interface DispatchGuideKitLine {
+  id: string;
+  itemId: string;
+  cantidad: number;
+  cantidadRecibida: number;
+  cantidadPerdida: number;
+  estado: EstadoItemGuia;
+  motivoPerdida: string | null;
+  fechaResolucion: Date | null;
+  resueltoPor: string | null;
+  item: { id: string; nombre: string; categoria: string };
+  itemDestino: { id: string; nombre: string; cantidad: number } | null;
+}
+
+/** Unidades que todavia no se resuelven (ni llegaron ni se perdieron). */
+export function pendienteKit(l: Pick<DispatchGuideKitLine, "cantidad" | "cantidadRecibida" | "cantidadPerdida">) {
+  return l.cantidad - l.cantidadRecibida - l.cantidadPerdida;
+}
+
 export interface DispatchGuideSede {
   id: string;
   nombre: string;
@@ -55,6 +75,7 @@ export interface DispatchGuideListItem {
   sedeDestino: DispatchGuideSede;
   _count: {
     items: number;
+    kitItems: number;
   };
 }
 
@@ -79,6 +100,10 @@ export interface DispatchGuideDetail {
   createdAt: Date;
   updatedAt: Date;
   items: DispatchGuideItem[];
+  kitItems: DispatchGuideKitLine[];
+  // Compra de origen, si el despacho viene de un reparto (SPEC 2.111).
+  purchaseId: string | null;
+  purchase: { id: string; numeroFactura: string | null } | null;
   sede: DispatchGuideSede | null;
   sedeDestino: DispatchGuideSede;
 }

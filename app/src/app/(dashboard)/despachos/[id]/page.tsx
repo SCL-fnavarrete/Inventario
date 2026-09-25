@@ -14,6 +14,7 @@ import {
   XCircle,
   Truck,
   AlertTriangle,
+  Shirt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { parseApiError } from "@/lib/utils/apiErrors";
@@ -23,8 +24,10 @@ import {
   ESTADO_GUIA_COLORS,
   ESTADO_ITEM_GUIA_LABELS,
   ESTADO_ITEM_GUIA_COLORS,
+  pendienteKit,
   type DispatchGuideDetail,
   type DispatchGuideItem,
+  type DispatchGuideKitLine,
 } from "@/types/guia-despacho";
 import {
   ahoraParaInputFechaHora,
@@ -42,6 +45,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { VentanaMotivo } from "@/components/ui/VentanaMotivo";
+import { VentanaKitDespacho, type AccionKitDespacho } from "@/components/guias-despacho/VentanaKitDespacho";
 
 const BOTON_EXITO = "bg-success hover:bg-success-hover disabled:hover:bg-success";
 
@@ -64,11 +68,19 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
   const [anulando, setAnulando] = useState(false);
   const [llego, setLlego] = useState<DispatchGuideItem | null>(null);
   const [perdido, setPerdido] = useState<DispatchGuideItem | null>(null);
+  // Un equipo que se dio por perdido y aparecio (SPEC 2.111.4).
+  const [aparecio, setAparecio] = useState<DispatchGuideItem | null>(null);
+  // Kit/EPP: una linea y lo que se resuelve de ella.
+  const [kitVentana, setKitVentana] = useState<{ linea: DispatchGuideKitLine; accion: AccionKitDespacho } | null>(
+    null
+  );
 
   const [recepcion, setRecepcion] = useState({
     recibidoPor: "",
     fechaRecepcion: ahoraParaInputFechaHora(),
     llegaron: [] as string[],
+    // Unidades de Kit/EPP que llegaron, por linea.
+    kit: {} as Record<string, string>,
   });
   // Validacion por campo, con las mismas reglas que el servidor.
   const { errores, resumen, reportar, reportarServidor, limpiar } =
@@ -117,6 +129,8 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
       recibidoPor: guide.receptorNombre,
       fechaRecepcion: ahoraParaInputFechaHora(),
       llegaron: guide.items.map((i) => i.id),
+      // Parte con todo lo enviado; se corrige si llego menos.
+      kit: Object.fromEntries(guide.kitItems.map((k) => [k.id, String(k.cantidad)])),
     });
     reportar({});
     setRecibiendo(true);
@@ -129,19 +143,36 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
       { recibidoPor: recepcion.recibidoPor, fechaRecepcion: fechaISO },
       guide.fechaDespacho
     );
-    if (recepcion.llegaron.length === 0) faltan.llegaron = "Marca al menos un equipo que llegó";
+    const kitRecibido = guide.kitItems.map((k) => ({
+      lineaId: k.id,
+      cantidad: parseInt(recepcion.kit[k.id] || "0", 10) || 0,
+      linea: k,
+    }));
+    const excedida = kitRecibido.find((k) => k.cantidad > k.linea.cantidad || k.cantidad < 0);
+    if (excedida) faltan.kit = `De ${excedida.linea.item.nombre} se enviaron ${excedida.linea.cantidad}`;
+    if (recepcion.llegaron.length === 0 && kitRecibido.every((k) => k.cantidad === 0)) {
+      faltan.llegaron =
+        guide.kitItems.length > 0
+          ? "Marca al menos un equipo o una cantidad de Kit/EPP que llegó"
+          : "Marca al menos un equipo que llegó";
+    }
     if (reportar(faltan)) return;
     const r = await enviar(
       `/api/guias-despacho/${id}`,
       "PATCH",
-      { recibidoPor: recepcion.recibidoPor, fechaRecepcion: fechaISO, llegaron: recepcion.llegaron },
+      {
+        recibidoPor: recepcion.recibidoPor,
+        fechaRecepcion: fechaISO,
+        llegaron: recepcion.llegaron,
+        kitRecibido: kitRecibido.filter((k) => k.cantidad > 0).map(({ lineaId, cantidad }) => ({ lineaId, cantidad })),
+      },
       "Error al confirmar la recepción"
     );
     if (r.ok) setRecibiendo(false);
     else if (!reportarServidor(r.fieldErrors)) setError(r.message);
   }
 
-  async function resolverItem(item: DispatchGuideItem, accion: "llego" | "perdido", motivo?: string) {
+  async function resolverItem(item: DispatchGuideItem, accion: "llego" | "perdido" | "aparecio", motivo?: string) {
     const r = await enviar(
       `/api/guias-despacho/${id}/items/${item.id}`,
       "POST",
@@ -150,7 +181,27 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
     );
     setLlego(null);
     setPerdido(null);
+    setAparecio(null);
     if (!r.ok) setError(r.message);
+  }
+
+  /** Llego, se perdio o aparecio Kit/EPP de una linea. */
+  async function resolverKitLinea(cantidad: number, motivo: string) {
+    if (!kitVentana) return;
+    const r = await enviar(
+      `/api/guias-despacho/${id}/kit/${kitVentana.linea.id}`,
+      "POST",
+      { accion: kitVentana.accion, cantidad, motivo },
+      "Error al resolver el Kit/EPP"
+    );
+    if (r.ok) {
+      setKitVentana(null);
+      return;
+    }
+    // Los errores de cantidad o motivo se marcan en la ventana.
+    if (Object.keys(r.fieldErrors).length > 0) return r.fieldErrors;
+    setKitVentana(null);
+    setError(r.message);
   }
 
   async function anular(motivo: string) {
@@ -183,11 +234,22 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
     !!sesion &&
     puedeAnularGuia(sesion, guide) &&
     guide.estado === "en_transito" &&
-    guide.items.every((i) => i.estado === "en_transito");
+    guide.items.every((i) => i.estado === "en_transito") &&
+    guide.kitItems.every((k) => k.cantidadRecibida === 0 && k.cantidadPerdida === 0);
   const pendientes = guide.items.filter((i) => i.estado === "en_transito");
+  const kitPendiente = guide.kitItems.reduce((s, k) => s + pendienteKit(k), 0);
   // Los faltantes se resuelven uno a uno despues de la recepcion; "se
   // perdio" tambien antes (por ejemplo, un paquete extraviado).
   const resolverFaltantes = puedeRecibir && (guide.estado === "en_transito" || guide.estado === "recibida_parcial");
+  // "Aparecio" tambien en un despacho ya recibido (SPEC 2.111.4).
+  const mostrarAcciones = puedeRecibir && guide.estado !== "anulada";
+  const deReparto = !!guide.purchaseId;
+  const faltantesTexto = [
+    pendientes.length > 0 && (pendientes.length === 1 ? "1 equipo" : `${pendientes.length} equipos`),
+    kitPendiente > 0 && `${kitPendiente} unidad(es) de Kit/EPP`,
+  ]
+    .filter(Boolean)
+    .join(" y ");
 
   return (
     <div className="space-y-6">
@@ -228,9 +290,9 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
         <div className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sky-900 flex gap-3">
           <Truck className="h-5 w-5 shrink-0 mt-0.5" />
           <p className="text-sm">
-            Los equipos viajan hacia <strong>{guide.sedeDestino.nombre}</strong>. Siguen en{" "}
-            {guide.sede?.nombre ?? "la sede de origen"} hasta que {guide.sedeDestino.nombre} confirme cuáles
-            llegaron.
+            Lo despachado viaja hacia <strong>{guide.sedeDestino.nombre}</strong>. Sigue en{" "}
+            {guide.sede?.nombre ?? "la sede de origen"} hasta que {guide.sedeDestino.nombre} confirme qué
+            llegó.
             {!puedeRecibir && ` Solo ${guide.sedeDestino.nombre} puede confirmar la recepción.`}
           </p>
         </div>
@@ -239,8 +301,8 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 flex gap-3">
           <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
           <p className="text-sm">
-            {pendientes.length === 1 ? "Falta 1 equipo" : `Faltan ${pendientes.length} equipos`}: siguen en
-            tránsito. {puedeRecibir ? "Resuélvelos abajo: llegó o se perdió." : `Los resuelve ${guide.sedeDestino.nombre}.`}
+            Falta: {faltantesTexto}, en tránsito.{" "}
+            {puedeRecibir ? "Resuélvelo abajo: llegó o se perdió." : `Lo resuelve ${guide.sedeDestino.nombre}.`}
           </p>
         </div>
       )}
@@ -249,7 +311,10 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
           <XCircle className="h-5 w-5 shrink-0 mt-0.5" />
           <p className="text-sm">
             Anulado el {formatearFechaHoraCorta(guide.fechaAnulacion, "-")} por {guide.anuladaPor ?? "-"}:{" "}
-            {guide.motivoAnulacion}. Los equipos volvieron a Disponible en {guide.sede?.nombre ?? "su sede"}.
+            {guide.motivoAnulacion}.{" "}
+            {deReparto
+              ? "Lo despachado volvió a Por repartir en su compra."
+              : `Los equipos volvieron a Disponible en ${guide.sede?.nombre ?? "su sede"}.`}
           </p>
         </div>
       )}
@@ -267,6 +332,13 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
             <Dato label="Emisor">{guide.despachadoPor}</Dato>
             <Dato label="Fecha de envío">{formatearFechaHoraCorta(guide.fechaDespacho, "-")}</Dato>
             <Dato label="Fecha estimada de llegada">{formatearFechaLarga(guide.fechaEstimadaLlegada, "-")}</Dato>
+            {guide.purchase && (
+              <Dato label="Reparto de la compra">
+                <Link href={`/compras/${guide.purchase.id}`} className="text-primary-700 hover:underline">
+                  Factura {guide.purchase.numeroFactura ?? "sin número"}
+                </Link>
+              </Dato>
+            )}
           </dl>
         </div>
 
@@ -309,6 +381,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
       )}
 
       {/* Equipos, cada uno con su estado */}
+      {guide.items.length > 0 && (
       <div className="card p-6">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <Package className="text-primary-700" size={20} />
@@ -326,7 +399,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
                 <th className="table-th px-4 hidden md:table-cell">N° Serie</th>
                 <th className="table-th px-4 hidden md:table-cell">Especificaciones</th>
                 <th className="table-th px-4">Estado</th>
-                {resolverFaltantes && <th className="table-th px-4 text-right hidden md:table-cell">Acciones</th>}
+                {mostrarAcciones && <th className="table-th px-4 text-right hidden md:table-cell">Acciones</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -335,7 +408,16 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
                 // "Llegó" / "Se perdió": en escritorio en su columna; en
                 // celular bajo el equipo, a lo ancho y faciles de tocar.
                 const acciones = (clase: string) =>
-                  resolverFaltantes && item.estado === "en_transito" ? (
+                  mostrarAcciones && item.estado === "perdido" ? (
+                    <div className={clase}>
+                      <button
+                        onClick={() => setAparecio(item)}
+                        className={buttonClasses({ size: "sm", variant: "outline", className: "flex-1 md:flex-none whitespace-nowrap" })}
+                      >
+                        Apareció
+                      </button>
+                    </div>
+                  ) : resolverFaltantes && item.estado === "en_transito" ? (
                     <div className={clase}>
                       {guide.estado === "recibida_parcial" && (
                         <button
@@ -388,7 +470,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
                         {ESTADO_ITEM_GUIA_LABELS[item.estado]}
                       </span>
                     </td>
-                    {resolverFaltantes && (
+                    {mostrarAcciones && (
                       <td className="px-4 py-3 text-right whitespace-nowrap hidden md:table-cell">
                         {acciones("flex justify-end gap-2")}
                       </td>
@@ -400,6 +482,98 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
           </table>
         </div>
       </div>
+      )}
+
+      {/* Kit/EPP del despacho (SPEC 2.111.4) */}
+      {guide.kitItems.length > 0 && (
+        <div className="card p-6">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Shirt className="text-primary-700" size={20} />
+            Kit/EPP ({guide.kitItems.length})
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-line">
+              <thead className="bg-surface-muted">
+                <tr>
+                  <th className="table-th px-4">Artículo</th>
+                  <th className="table-th px-4 text-center">Enviado</th>
+                  <th className="table-th px-4 text-center hidden sm:table-cell">Recibido</th>
+                  <th className="table-th px-4 text-center hidden sm:table-cell">Perdido</th>
+                  <th className="table-th px-4 text-center">Pendiente</th>
+                  {mostrarAcciones && <th className="table-th px-4 text-right">Acciones</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {guide.kitItems.map((k) => {
+                  const pendiente = pendienteKit(k);
+                  const abrir = (accion: AccionKitDespacho) => setKitVentana({ linea: k, accion });
+                  return (
+                    <tr key={k.id} className="hover:bg-surface-muted">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-sm">{k.item.nombre}</p>
+                        <p className="text-xs text-fg-subtle">
+                          {k.item.categoria === "epp" ? "EPP" : "Kit Bienvenida"}
+                          <span className="sm:hidden">
+                            {" "}• recibido {k.cantidadRecibida}
+                            {k.cantidadPerdida > 0 && `, perdido ${k.cantidadPerdida}`}
+                          </span>
+                        </p>
+                        {k.motivoPerdida && (
+                          <p className="text-xs text-red-700" title="Perdido">
+                            Perdido: {k.motivoPerdida}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center text-sm">{k.cantidad}</td>
+                      <td className="px-4 py-3 text-center text-sm hidden sm:table-cell">{k.cantidadRecibida}</td>
+                      <td className="px-4 py-3 text-center text-sm hidden sm:table-cell">
+                        <span className={k.cantidadPerdida > 0 ? "font-medium text-red-700" : ""}>{k.cantidadPerdida}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center text-sm">
+                        <span className={pendiente > 0 ? "font-medium text-sky-700" : "text-fg-subtle"}>{pendiente}</span>
+                      </td>
+                      {mostrarAcciones && (
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap justify-end gap-2">
+                            {pendiente > 0 && guide.estado === "recibida_parcial" && (
+                              <button
+                                onClick={() => abrir("llego")}
+                                className={buttonClasses({ size: "sm", className: cn(BOTON_EXITO, "whitespace-nowrap") })}
+                              >
+                                Llegó
+                              </button>
+                            )}
+                            {pendiente > 0 && resolverFaltantes && (
+                              <button
+                                onClick={() => abrir("perdido")}
+                                className={buttonClasses({
+                                  size: "sm",
+                                  variant: "outline",
+                                  className: "text-red-600 border-red-300 whitespace-nowrap",
+                                })}
+                              >
+                                Se perdió
+                              </button>
+                            )}
+                            {k.cantidadPerdida > 0 && (
+                              <button
+                                onClick={() => abrir("aparecio")}
+                                className={buttonClasses({ size: "sm", variant: "outline", className: "whitespace-nowrap" })}
+                              >
+                                Apareció
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Confirmar recepción: se marcan los equipos que llegaron */}
       <Modal isOpen={recibiendo} onClose={() => setRecibiendo(false)} title="Confirmar recepción" size="lg">
@@ -427,9 +601,10 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
               error={errores.fechaRecepcion}
             />
           </div>
+          <AvisoSeccion mensaje={errores.llegaron} />
+          {guide.items.length > 0 && (
           <div>
-            <p className="field-label">Marca los equipos que llegaron *</p>
-            <AvisoSeccion mensaje={errores.llegaron} className="mb-2" />
+            <p className="field-label">Marca los equipos que llegaron</p>
             <ul className="border border-line rounded-lg divide-y divide-line max-h-72 overflow-y-auto">
               {guide.items.map((item) => (
                 <li key={item.id}>
@@ -462,13 +637,47 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
               se resuelven después.
             </p>
           </div>
+          )}
+          {guide.kitItems.length > 0 && (
+            <div>
+              <p className="field-label">Cuánto Kit/EPP llegó</p>
+              <ul className="border border-line rounded-lg divide-y divide-line">
+                {guide.kitItems.map((k) => (
+                  <li key={k.id} className="flex items-center gap-3 px-3 py-2">
+                    <span className="flex-1 text-sm">
+                      {k.item.nombre}
+                      <span className="block text-xs text-fg-subtle">Se enviaron {k.cantidad}</span>
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={k.cantidad}
+                      inputMode="numeric"
+                      aria-label={`Llegaron de ${k.item.nombre}`}
+                      value={recepcion.kit[k.id] ?? ""}
+                      onChange={(e) => {
+                        limpiar("kit");
+                        limpiar("llegaron");
+                        setRecepcion((prev) => ({ ...prev, kit: { ...prev.kit, [k.id]: e.target.value } }));
+                      }}
+                      className="field-input field-input-sm w-24 text-center"
+                    />
+                  </li>
+                ))}
+              </ul>
+              <AvisoSeccion mensaje={errores.kit} />
+              <p className="text-xs text-fg-subtle mt-1">
+                Se suma al stock de {guide.sedeDestino.nombre}. Lo que no llegó queda pendiente y se resuelve después.
+              </p>
+            </div>
+          )}
           <div className="flex justify-end gap-2">
             <button onClick={() => setRecibiendo(false)} className={buttonClasses({ variant: "outline" })}>
               Volver
             </button>
             <button onClick={confirmarRecepcion} disabled={updating} className={buttonClasses({ className: BOTON_EXITO })}>
               {updating ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle size={18} />}
-              Confirmar {recepcion.llegaron.length} de {guide.items.length}
+              Confirmar recepción
             </button>
           </div>
         </div>
@@ -506,12 +715,49 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
         variante="danger"
         cargando={updating}
       />
+      <ConfirmDialog
+        isOpen={aparecio !== null}
+        onClose={() => setAparecio(null)}
+        onConfirm={() => {
+          if (aparecio) return resolverItem(aparecio, "aparecio");
+        }}
+        variant="info"
+        title="El equipo apareció"
+        message={
+          aparecio
+            ? `${aparecio.asset.marca} ${aparecio.asset.modelo} sale de la baja por extravío y queda Disponible en ${guide.sedeDestino.nombre}. La mantención de la baja queda como registro.`
+            : ""
+        }
+        confirmLabel="Apareció"
+        cancelLabel="Volver"
+        loading={updating}
+      />
+      <VentanaKitDespacho
+        abierto={
+          kitVentana
+            ? {
+                accion: kitVentana.accion,
+                nombre: kitVentana.linea.item.nombre,
+                maximo:
+                  kitVentana.accion === "aparecio" ? kitVentana.linea.cantidadPerdida : pendienteKit(kitVentana.linea),
+              }
+            : null
+        }
+        sedeDestino={guide.sedeDestino.nombre}
+        cargando={updating}
+        onClose={() => setKitVentana(null)}
+        onConfirm={resolverKitLinea}
+      />
       <VentanaMotivo
         isOpen={anulando}
         onClose={() => setAnulando(false)}
         onConfirm={anular}
         titulo="Anular despacho"
-        descripcion={`Los ${guide.items.length} equipos vuelven a Disponible en ${guide.sede?.nombre ?? "la sede de origen"}. El despacho queda anulado.`}
+        descripcion={
+          deReparto
+            ? "Lo despachado vuelve a Por repartir en su compra, para repartirlo de nuevo. El despacho queda anulado."
+            : `Los ${guide.items.length} equipos vuelven a Disponible en ${guide.sede?.nombre ?? "la sede de origen"}. El despacho queda anulado.`
+        }
         placeholder="Ej: El paquete no salió, se envió a la sede equivocada..."
         textoConfirmar="Anular despacho"
         variante="danger"

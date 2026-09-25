@@ -27,6 +27,7 @@ import { darDeBajaEnTransaccion } from '@/lib/services/mantencionActivoService';
 import { PATCH as recibir } from '@/app/api/guias-despacho/[id]/route';
 import { POST as resolverItem } from '@/app/api/guias-despacho/[id]/items/[itemId]/route';
 import { POST as anular } from '@/app/api/guias-despacho/[id]/anular/route';
+import { POST as resolverKitRuta } from '@/app/api/guias-despacho/[id]/kit/[lineaId]/route';
 
 const sesion = (role: string, sedeId: string | null) => ({
   user: { id: 'u1', email: 'qa@scl.cl', name: 'QA', role, sedeId },
@@ -34,14 +35,32 @@ const sesion = (role: string, sedeId: string | null) => ({
 const comoDestino = () => (requirePermission as jest.Mock).mockResolvedValue(sesion('tecnico', 'conce'));
 const comoOrigen = () => (requirePermission as jest.Mock).mockResolvedValue(sesion('tecnico', 'stgo'));
 
-const item = (id: string, estado = 'en_transito') => ({
+const item = (id: string, estado = 'en_transito', estadoEquipo = 'en_transito') => ({
   id,
   assetId: `activo-${id}`,
   estado,
-  asset: { marca: 'Dell', modelo: 'Latitude' },
+  asset: { marca: 'Dell', modelo: 'Latitude', estado: estadoEquipo },
 });
 
-const guia = (estado: string, items = [item('i1'), item('i2')]) => ({
+// Linea de Kit/EPP del despacho (SPEC 2.111.4)
+const lineaKit = (cantidad = 4, cantidadRecibida = 0, cantidadPerdida = 0) => ({
+  id: 'k1',
+  itemId: 'casco-stgo',
+  itemDestinoId: null,
+  cantidad,
+  cantidadRecibida,
+  cantidadPerdida,
+  motivoPerdida: null,
+  estado: 'en_transito',
+  item: { id: 'casco-stgo', nombre: 'Casco', categoria: 'epp', stockMinimo: 5 },
+});
+
+const guia = (
+  estado: string,
+  items: ReturnType<typeof item>[] = [item('i1'), item('i2')],
+  kitItems: ReturnType<typeof lineaKit>[] = [],
+  purchaseId: string | null = null
+) => ({
   id: 'g1',
   numero: 'GD-2026-0001',
   estado,
@@ -51,15 +70,31 @@ const guia = (estado: string, items = [item('i1'), item('i2')]) => ({
   sedeDestino: { nombre: 'Concepción' },
   fechaDespacho: new Date('2026-09-25T13:00:00.000Z'),
   items,
+  kitItems,
+  purchaseId,
 });
 
 // Transaccion simulada: registra lo que se escribe.
 let tx: Record<string, Record<string, jest.Mock>>;
 let pendientesTrasRecepcion = 0;
+let kitPendiente = 0;
 
 beforeEach(() => {
   pendientesTrasRecepcion = 0;
+  kitPendiente = 0;
   tx = {
+    dispatchGuideKitItem: {
+      count: jest.fn(() => Promise.resolve(kitPendiente)),
+      findFirst: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
+    welcomeKitItem: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'casco-conce' }),
+      create: jest.fn(),
+      update: jest.fn().mockResolvedValue({ id: 'casco-conce', nombre: 'Casco', cantidad: 3 }),
+    },
+    purchaseKitReparto: { findMany: jest.fn().mockResolvedValue([]) },
+    purchaseKitItem: { update: jest.fn() },
     dispatchGuideItem: {
       findMany: jest.fn(({ where }) =>
         Promise.resolve(where.id.in.map((id: string) => ({ id, assetId: `activo-${id}` })))
@@ -69,6 +104,7 @@ beforeEach(() => {
     },
     asset: {
       update: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'activo-i1', maintenances: [] }),
     },
     assetHistory: { create: jest.fn() },
@@ -228,5 +264,146 @@ describe('POST /api/guias-despacho/[id]/anular', () => {
     comoOrigen();
     buscarGuia(guia('en_transito'));
     expect((await anular(pedir('POST', { motivo: '' }), ctx)).status).toBe(400);
+  });
+});
+
+// ─── Kit/EPP en un despacho y "Apareció" (SPEC 2.111.4) ─────────────────
+
+const ctxKit = { params: Promise.resolve({ id: 'g1', lineaId: 'k1' }) };
+
+describe('recepción con Kit/EPP', () => {
+  test('un despacho solo con Kit/EPP se recibe: suma stock en la sede destino y quedan faltantes', async () => {
+    comoDestino();
+    buscarGuia(guia('en_transito', [], [lineaKit(4)]));
+    tx.dispatchGuideKitItem.findFirst.mockResolvedValue(lineaKit(4));
+    kitPendiente = 1;
+    const res = await recibir(
+      pedir('PATCH', { recibidoPor: 'Ana', llegaron: [], kitRecibido: [{ lineaId: 'k1', cantidad: 3 }] }),
+      ctx
+    );
+    expect(res.status).toBe(200);
+    // El mismo articulo en Concepcion, +3
+    expect(tx.welcomeKitItem.update).toHaveBeenCalledWith({
+      where: { id: 'casco-conce' },
+      data: { cantidad: { increment: 3 } },
+    });
+    expect(tx.dispatchGuideKitItem.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ cantidadRecibida: 3, estado: 'en_transito', itemDestinoId: 'casco-conce' }),
+      })
+    );
+    expect(tx.dispatchGuide.update).toHaveBeenLastCalledWith({ where: { id: 'g1' }, data: { estado: 'recibida_parcial' } });
+  });
+
+  test('sin equipos ni cantidades: 400', async () => {
+    comoDestino();
+    buscarGuia(guia('en_transito', [], [lineaKit(4)]));
+    const res = await recibir(pedir('PATCH', { recibidoPor: 'Ana', llegaron: [], kitRecibido: [] }), ctx);
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /api/guias-despacho/[id]/kit/[lineaId]', () => {
+  test('"Se perdió" sin motivo: 400', async () => {
+    comoDestino();
+    buscarGuia(guia('recibida_parcial', [], [lineaKit(4, 3)]));
+    const res = await resolverKitRuta(pedir('POST', { accion: 'perdido', cantidad: 1 }), ctxKit);
+    expect(res.status).toBe(400);
+  });
+
+  test('no se pierde más de lo pendiente: 400 en el campo cantidad', async () => {
+    comoDestino();
+    buscarGuia(guia('recibida_parcial', [], [lineaKit(4, 3)]));
+    tx.dispatchGuideKitItem.findFirst.mockResolvedValue(lineaKit(4, 3));
+    const res = await resolverKitRuta(pedir('POST', { accion: 'perdido', cantidad: 2, motivo: 'no vino' }), ctxKit);
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(await res.json())).toMatch(/cantidad/);
+  });
+
+  test('"Se perdió" no toca el stock y deja el despacho Recibido si ya no queda nada', async () => {
+    comoDestino();
+    buscarGuia(guia('recibida_parcial', [], [lineaKit(4, 3)]));
+    tx.dispatchGuideKitItem.findFirst.mockResolvedValue(lineaKit(4, 3));
+    const res = await resolverKitRuta(pedir('POST', { accion: 'perdido', cantidad: 1, motivo: 'no vino' }), ctxKit);
+    expect(res.status).toBe(200);
+    expect(tx.welcomeKitItem.update).not.toHaveBeenCalled();
+    expect(tx.dispatchGuideKitItem.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ cantidadPerdida: 1, estado: 'perdido' }) })
+    );
+    expect(tx.dispatchGuide.update).toHaveBeenLastCalledWith({ where: { id: 'g1' }, data: { estado: 'recibida' } });
+  });
+
+  test('"Apareció": pasa de perdido a recibido y suma stock', async () => {
+    comoDestino();
+    buscarGuia(guia('recibida', [], [lineaKit(4, 3, 1)]));
+    tx.dispatchGuideKitItem.findFirst.mockResolvedValue(lineaKit(4, 3, 1));
+    const res = await resolverKitRuta(pedir('POST', { accion: 'aparecio', cantidad: 1 }), ctxKit);
+    expect(res.status).toBe(200);
+    expect(tx.welcomeKitItem.update).toHaveBeenCalledWith({
+      where: { id: 'casco-conce' },
+      data: { cantidad: { increment: 1 } },
+    });
+    expect(tx.dispatchGuideKitItem.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ cantidadRecibida: 4, cantidadPerdida: 0, estado: 'recibido' }),
+      })
+    );
+  });
+
+  test('la sede que despachó no resuelve Kit/EPP: 403', async () => {
+    comoOrigen();
+    buscarGuia(guia('recibida_parcial', [], [lineaKit(4, 3)]));
+    expect((await resolverKitRuta(pedir('POST', { accion: 'llego', cantidad: 1 }), ctxKit)).status).toBe(403);
+  });
+});
+
+describe('"Apareció" de un equipo perdido en el despacho', () => {
+  test('sale de la baja y queda Disponible en la sede destino', async () => {
+    comoDestino();
+    buscarGuia(guia('recibida', [item('i1', 'perdido', 'baja'), item('i2', 'recibido', 'disponible')]));
+    const res = await resolverItem(pedir('POST', { accion: 'aparecio' }), ctxItem);
+    expect(res.status).toBe(200);
+    expect(tx.asset.updateMany).toHaveBeenCalledWith({
+      where: { id: 'activo-i1', estado: 'baja' },
+      data: { estado: 'disponible', sedeId: 'conce', fechaBaja: null },
+    });
+    expect(tx.dispatchGuideItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'i1' }, data: expect.objectContaining({ estado: 'recibido' }) })
+    );
+  });
+
+  test('si el equipo ya se vendió: 409', async () => {
+    comoDestino();
+    buscarGuia(guia('recibida', [item('i1', 'perdido', 'vendido')]));
+    const res = await resolverItem(pedir('POST', { accion: 'aparecio' }), ctxItem);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/vendido/);
+  });
+
+  test('un equipo que no está perdido no "aparece": 409', async () => {
+    comoDestino();
+    buscarGuia(guia('recibida', [item('i1', 'recibido', 'disponible')]));
+    expect((await resolverItem(pedir('POST', { accion: 'aparecio' }), ctxItem)).status).toBe(409);
+  });
+});
+
+describe('anular un despacho de reparto (SPEC 2.111.5)', () => {
+  test('los equipos vuelven a Por repartir y el Kit/EPP a lo pendiente de la compra', async () => {
+    comoOrigen();
+    buscarGuia(guia('en_transito', [item('i1')], [lineaKit(4)], 'compra-1'));
+    tx.purchaseKitReparto.findMany.mockResolvedValue([{ purchaseKitItemId: 'l1', cantidad: 4 }]);
+    const res = await anular(pedir('POST', { motivo: 'Se repartió a la sede equivocada' }), ctx);
+    expect(res.status).toBe(200);
+    expect(tx.asset.update).toHaveBeenCalledWith({ where: { id: 'activo-i1' }, data: { estado: 'por_repartir' } });
+    expect(tx.purchaseKitItem.update).toHaveBeenCalledWith({
+      where: { id: 'l1' },
+      data: { cantidadPorRepartir: { increment: 4 } },
+    });
+  });
+
+  test('con Kit/EPP ya recibido no se anula: 409', async () => {
+    comoOrigen();
+    buscarGuia(guia('en_transito', [item('i1')], [lineaKit(4, 1)], 'compra-1'));
+    expect((await anular(pedir('POST', { motivo: 'x' }), ctx)).status).toBe(409);
   });
 });

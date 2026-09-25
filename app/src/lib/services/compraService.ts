@@ -1,4 +1,4 @@
-import type { Prisma, WelcomeKitItem } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
@@ -7,6 +7,7 @@ import type { RepartoCompraInput } from '@/lib/validations/purchase';
 import { validarDatosDespacho } from '@/lib/validations/guia';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { auditLogService } from '@/lib/services/auditLogService';
+import { articuloKitEnSede, sumarStockKit } from '@/lib/services/kitService';
 import {
   crearDespacho,
   crearGuiaConNumero,
@@ -195,25 +196,6 @@ export async function agregarLineasKit(
 }
 
 /**
- * El mismo articulo (nombre y categoria) en el catalogo de otra sede, o uno
- * nuevo sin stock si esa sede no lo tiene. Cada sede tiene su catalogo, asi
- * que es la forma de llevar Kit/EPP de una sede a otra.
- */
-export async function articuloKitEnSede(
-  tx: Tx,
-  item: Pick<WelcomeKitItem, 'nombre' | 'categoria' | 'stockMinimo'>,
-  sedeId: string
-) {
-  const existente = await tx.welcomeKitItem.findFirst({
-    where: { sedeId, categoria: item.categoria, nombre: { equals: item.nombre, mode: 'insensitive' } },
-  });
-  if (existente) return existente;
-  return tx.welcomeKitItem.create({
-    data: { nombre: item.nombre, categoria: item.categoria, stockMinimo: item.stockMinimo, cantidad: 0, sedeId },
-  });
-}
-
-/**
  * Cambiar la sede de llegada (solo si nada se repartio): lo que espera
  * "Por repartir" esta fisicamente en la nueva sede, asi que sus equipos se
  * mueven y sus lineas de Kit/EPP pasan al mismo articulo en esa sede.
@@ -339,22 +321,10 @@ export async function repartirCompra(
       }
       for (const { linea, cantidad } of kit) {
         await descontar(tx, linea.id, cantidad);
-        const item = await tx.welcomeKitItem.update({
-          where: { id: linea.itemId },
-          data: { cantidad: { increment: cantidad } },
-        });
+        await sumarStockKit(tx, linea.itemId, cantidad, `Stock repartido desde la compra (${factura})`, quien.usuario);
         await tx.purchaseKitReparto.create({
           data: { purchaseKitItemId: linea.id, sedeId: sedeLlegada, cantidad, repartidoPor: quien.usuario },
         });
-        await auditLogService.registrarActualizacion(
-          'kit_item',
-          linea.itemId,
-          `Stock repartido desde la compra (${factura}): +${cantidad} ${linea.item.nombre}`,
-          { cantidad: item.cantidad - cantidad },
-          { cantidad: item.cantidad },
-          quien.usuario,
-          tx
-        );
       }
       await auditLogService.registrarActualizacion(
         'compra',

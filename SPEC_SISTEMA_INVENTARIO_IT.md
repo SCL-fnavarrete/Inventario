@@ -801,11 +801,12 @@ Sincronización **read-only** de empleados desde el directorio corporativo Micro
 | `reutilizable` | `disponible` | Sin restricción | — |
 | `reutilizable` | `baja` | Requiere motivo obligatorio | `fechaBaja` = hoy |
 | `baja` | `vendido` | Requiere datos de venta (comprador, monto, fecha) | — |
+| `baja` | `disponible` | **Solo** un equipo perdido en un despacho que apareció, desde ese despacho (`aparecioEnDespacho`, 2.111.4). Una baja por cualquier otro motivo, o registrada fuera de un despacho, sigue siendo definitiva | Queda en la sede destino, sin `fechaBaja`; la mantención de la baja queda como registro |
 | `vendido` | — | **Estado terminal.** No se permite ninguna transición. | — |
 
 ### 2.7.3 Proceso de Baja
 
-Dar de baja un activo es una operación irreversible (solo puede ir a `vendido` después). Requiere:
+Dar de baja un activo es una operación irreversible (solo puede ir a `vendido` después), con una sola excepción: un equipo que se dio por perdido en un despacho y apareció (2.111.4). Requiere:
 
 1. **Precondiciones:**
    - El activo NO tiene asignación activa (si tiene, debe devolverse primero)
@@ -3546,6 +3547,10 @@ Javier: *"yo había entendido mal y lo documenté como no debía ser. El princip
 - Una línea de Kit/EPP en un despacho es un artículo y una cantidad.
 - Al confirmar la recepción, la sede destino indica cuántas unidades llegaron. Ese stock se suma al artículo **del mismo nombre y categoría en la sede destino**; si esa sede no lo tiene en su catálogo, se crea con ese stock.
 - Si llegan menos, el despacho queda "Recibido con faltantes" y lo que falta se resuelve después, igual que un equipo: "Llegó" (suma el stock) o "Se perdió" (queda registrado como perdido con su motivo; no hay baja porque el Kit/EPP es stock, no un equipo con ficha).
+- **"Apareció"** (decisión de Javier, 25-sep-2026: *"si se pierde para siempre se daría de baja con motivo extraviado, y si se encuentra queda en disponible"*):
+  - **Kit/EPP perdido que aparece:** pasa de perdido a recibido y suma stock en la sede destino, registrando quién y cuándo.
+  - **Equipo perdido que aparece:** sale de la baja por Extravío y queda **Disponible en la sede destino** (apareció donde tenía que llegar); se limpia `fechaBaja` y el historial dice "Apareció: se había dado por perdido en el despacho …". La mantención "Sin reparación" de la baja no se borra.
+  - **Solo desde el despacho.** Una baja por extravío registrada fuera de un despacho (por ejemplo, desde Mantenciones) sigue siendo definitiva: esa regla se definirá aparte. Un equipo ya vendido no "aparece".
 
 ### 2.111.5 Anular un despacho de reparto
 - Si se anula un despacho creado por un reparto, sus equipos vuelven a **"Por repartir"** en la sede de llegada, y sus cantidades de Kit/EPP vuelven a quedar por repartir en la compra: el reparto se deshace y se puede repartir de nuevo.
@@ -3593,12 +3598,20 @@ Javier: *"la idea es que también los técnicos puedan ver lo que hay por repart
    - **A prueba de dos repartos a la vez:** lo pendiente de una línea y el estado de cada equipo se actualizan solo si siguen como se leyeron; si otro reparto se adelantó, se cancela todo con un aviso.
    - **Tarjetas:** en Compras, "Por repartir" (compras con algo pendiente) filtra la lista (`?vista=por_repartir`, `WHERE_COMPRA_POR_REPARTIR`) y cada fila muestra su avance en la columna "Reparto". Se quitó la tarjeta "Activos Vinculados", que sumaba solo la página visible. En Activos, la tarjeta "Por repartir" (solo si hay alguno) cuenta los de **todas las sedes**, también para el técnico.
    - **El técnico ve lo que hay por repartir** (2.111.6): la lista de Activos con estado "Por repartir" no se acota a su sede (`whereFiltrosActivos`), y puede abrir la ficha de esos equipos. La regla de qué ficha puede abrir vive en `puedeVerActivo` (`lib/queries/activos.ts`), que usan la API y la página.
-4. Kit/EPP en Despachos: recepción por cantidad, faltantes y anulación que devuelve al reparto.
+4. **Hecha (25-sep-2026).** Kit/EPP en Despachos:
+   - **El detalle del despacho** muestra una tabla de Kit/EPP (enviado, recibido, perdido, pendiente) y, si viene de un reparto, un enlace a su compra. La sección de equipos solo aparece si el despacho lleva equipos.
+   - **Confirmar la recepción** pide cuántas unidades de cada línea llegaron (parte con lo enviado; no deja más de lo enviado). Un despacho que lleva **solo** Kit/EPP se puede recibir: se exige al menos un equipo o una cantidad.
+   - **Lo recibido suma stock** al mismo artículo (nombre y categoría) en la sede destino, que se crea sin stock si esa sede no lo tiene (`articuloKitEnSede`, ahora en `kitService` junto a `sumarStockKit` y `estadoLineaKit`).
+   - **Faltantes y "Apareció":** `POST /api/guias-despacho/[id]/kit/[lineaId]` con `llego` / `perdido` (motivo obligatorio) / `aparecio`, por cantidad (ventana `VentanaKitDespacho`). Todo pasa por `resolverKit` (`guiaDespachoService`), que también usa la recepción. El equipo perdido usa `aparecio` en `POST /api/guias-despacho/[id]/items/[itemId]`.
+   - **El estado del despacho** cuenta equipos y líneas de Kit/EPP pendientes (`actualizarEstadoGuia`).
+   - **Anular:** solo si ningún equipo ni unidad de Kit/EPP se resolvió. Un despacho de reparto devuelve sus equipos a "Por repartir" y su Kit/EPP a lo pendiente de la compra (el registro del reparto queda, marcado "anulado"); uno del módulo deja los equipos Disponibles, como antes. Ambos pasan por `validateTransition`.
+   - **A prueba de dos personas a la vez:** cada línea se actualiza solo si sigue como se leyó.
+   - La lista de Despachos muestra "+ N Kit/EPP" junto a los equipos.
 5. Vista del técnico, pruebas y prueba en navegador.
 
 ## Changelog SPEC
 - **v2.35 (2026-09-25):**
-  - Sección 2.111 (nueva, regla aprobada, se implementa por partes; hechas la 1, modelo y migración; la 2, registrar la compra; y la 3, repartir): en Compras primero se compra y después se reparte. El técnico ve todas las compras y lo que hay por repartir, en solo lectura. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
+  - Sección 2.111 (nueva, regla aprobada, se implementa por partes; hechas la 1, modelo y migración; la 2, registrar la compra; la 3, repartir; y la 4, Kit/EPP en despachos y "Apareció"): en Compras primero se compra y después se reparte. El técnico ve todas las compras y lo que hay por repartir, en solo lectura. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
 - **v2.34 (2026-09-25):**
   - Sección 2.110 (nueva): "Guías de despacho" pasa a llamarse "Despachos" en pantallas, mensajes e historial; dirección `/despachos` con redirección desde la antigua; estados en masculino. Por dentro (datos, API, permiso, numeración GD) no cambia.
 - **v2.33 (2026-09-25):**

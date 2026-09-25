@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError, ConflictError } from '@/lib/auth/guard';
 import { ForbiddenError, ValidationError } from '@/lib/errors';
+import { validateTransition } from '@/lib/services/assetStateMachine';
 import { puedeAnularGuia } from '@/lib/queries/guias';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { INCLUDE_DETALLE_GUIA, buscarGuiaVisible } from '@/lib/services/guiaDespachoService';
@@ -24,7 +25,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!puedeAnularGuia(session, guia)) {
       throw new ForbiddenError('Solo la sede que despachó puede anular este despacho');
     }
-    if (guia.estado !== 'en_transito' || guia.items.some((i) => i.estado !== 'en_transito')) {
+    const kitTocado = guia.kitItems.some((k) => k.cantidadRecibida > 0 || k.cantidadPerdida > 0);
+    if (guia.estado !== 'en_transito' || guia.items.some((i) => i.estado !== 'en_transito') || kitTocado) {
       throw new ConflictError('Solo se anula un despacho en tránsito que todavía no se recibe');
     }
     const detalle = typeof motivo === 'string' ? motivo.trim() : '';
@@ -34,18 +36,37 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const usuario = session.user?.email || 'Sistema';
+    // Un despacho de reparto (SPEC 2.111.5) deshace el reparto: sus equipos
+    // vuelven a "Por repartir" y su Kit/EPP a lo pendiente de la compra, para
+    // repartirlo de nuevo. Uno del modulo deja los equipos Disponibles.
+    const estadoVuelta = guia.purchaseId ? 'por_repartir' : 'disponible';
+    const textoVuelta = guia.purchaseId ? 'vuelve a Por repartir' : 'vuelve a Disponible';
     const actualizada = await prisma.$transaction(async (tx) => {
       for (const item of guia.items) {
-        await tx.asset.update({ where: { id: item.assetId }, data: { estado: 'disponible' } });
+        const transicion = validateTransition('en_transito', estadoVuelta, {
+          hasActiveAssignment: false,
+          hasActiveMaintenance: false,
+        });
+        if (!transicion.valid) throw new ConflictError(transicion.errors[0]);
+        await tx.asset.update({ where: { id: item.assetId }, data: { estado: estadoVuelta } });
         await tx.assetHistory.create({
           data: {
             assetId: item.assetId,
             tipoEvento: 'traslado',
-            descripcion: `Despacho ${guia.numero} anulado: vuelve a Disponible en ${guia.sede?.nombre ?? 'su sede'}. Motivo: ${detalle}`,
+            descripcion: `Despacho ${guia.numero} anulado: ${textoVuelta} en ${guia.sede?.nombre ?? 'su sede'}. Motivo: ${detalle}`,
             datosAnteriores: { estado: 'en_transito' },
-            datosNuevos: { estado: 'disponible', guideId: guia.id },
+            datosNuevos: { estado: estadoVuelta, guideId: guia.id },
             usuarioSistema: usuario,
           },
+        });
+      }
+      // Kit/EPP del reparto: vuelve a lo pendiente de su linea de compra. El
+      // registro del reparto queda, con el despacho anulado.
+      const repartos = await tx.purchaseKitReparto.findMany({ where: { guideId: guia.id } });
+      for (const r of repartos) {
+        await tx.purchaseKitItem.update({
+          where: { id: r.purchaseKitItemId },
+          data: { cantidadPorRepartir: { increment: r.cantidad } },
         });
       }
       await tx.dispatchGuide.update({

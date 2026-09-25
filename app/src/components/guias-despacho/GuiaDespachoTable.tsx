@@ -77,6 +77,7 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
                   <div className="md:hidden text-xs text-fg-subtle">
                     {formatearFechaCorta(guide.fechaDespacho)} · {guide._count.items}{" "}
                     {guide._count.items === 1 ? "equipo" : "equipos"}
+                    {guide._count.kitItems > 0 && ` + Kit/EPP`}
                   </div>
                 </td>
                 <td className={cn("px-6 py-4 whitespace-nowrap text-sm text-fg-subtle", soloEscritorio)}>
@@ -96,6 +97,9 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
                 </td>
                 <td className={cn("px-6 py-4 whitespace-nowrap text-sm text-fg-subtle", soloEscritorio)}>
                   {guide._count.items}
+                  {guide._count.kitItems > 0 && (
+                    <span className="block text-xs">+ {guide._count.kitItems} Kit/EPP</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap align-top md:align-middle">
                   <span

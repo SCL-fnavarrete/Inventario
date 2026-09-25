@@ -1,11 +1,12 @@
 import { prisma } from '@/lib/prisma';
 import { Prisma, type EstadoActivo } from '@prisma/client';
 import { hoyISO } from '@/lib/utils/fechas';
-import { ConflictError, NotFoundError, errorDeCampo } from '@/lib/errors';
+import { ConflictError, NotFoundError, ValidationError, errorDeCampo } from '@/lib/errors';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { formatearRut } from '@/lib/validations/rut';
+import { articuloKitEnSede, estadoLineaKit, sumarStockKit } from '@/lib/services/kitService';
 import { puedeVerGuia } from '@/lib/queries/guias';
 import type { SesionAutenticada } from '@/lib/auth/guard';
 
@@ -125,9 +126,12 @@ export async function actualizarEstadoGuia(
   guiaId: string,
   yaRecibida: boolean
 ) {
-  const pendientes = await tx.dispatchGuideItem.count({
-    where: { guideId: guiaId, estado: 'en_transito' },
-  });
+  // Equipos y lineas de Kit/EPP que todavia no se resuelven (SPEC 2.111.4).
+  const [equipos, kit] = await Promise.all([
+    tx.dispatchGuideItem.count({ where: { guideId: guiaId, estado: 'en_transito' } }),
+    tx.dispatchGuideKitItem.count({ where: { guideId: guiaId, estado: 'en_transito' } }),
+  ]);
+  const pendientes = equipos + kit;
   const estado = pendientes === 0 ? 'recibida' : yaRecibida ? 'recibida_parcial' : 'en_transito';
   await tx.dispatchGuide.update({ where: { id: guiaId }, data: { estado } });
   return estado;
@@ -139,6 +143,13 @@ export const INCLUDE_DETALLE_GUIA = {
     include: { asset: { include: { categoria: true } } },
     orderBy: { createdAt: 'asc' },
   },
+  // Kit/EPP del despacho (SPEC 2.111.4)
+  kitItems: {
+    include: { item: true, itemDestino: { select: { id: true, nombre: true, cantidad: true } } },
+    orderBy: { createdAt: 'asc' },
+  },
+  // Compra de origen, si el despacho viene de un reparto (SPEC 2.111)
+  purchase: { select: { id: true, numeroFactura: true } },
   sede: true,
   sedeDestino: true,
 } satisfies Prisma.DispatchGuideInclude;
@@ -270,4 +281,86 @@ export async function crearDespacho(
   }
 
   return guia;
+}
+
+// ─── Kit/EPP de un despacho (SPEC 2.111.4) ───────────────────────────────
+
+export type AccionKit = 'llego' | 'perdido' | 'aparecio';
+
+/**
+ * Resuelve unidades de una linea de Kit/EPP de un despacho:
+ * - "llego": pasan de pendientes a recibidas y suman stock en la sede
+ *   destino (al mismo articulo por nombre y categoria; se crea si esa sede
+ *   no lo tiene). Lo usan la recepcion y el faltante que llega despues.
+ * - "perdido": pasan de pendientes a perdidas, con su motivo. No hay baja:
+ *   el Kit/EPP es stock, no un equipo con ficha.
+ * - "aparecio": pasan de perdidas a recibidas y suman stock.
+ * La linea se actualiza solo si sigue como se leyo (dos personas a la vez).
+ */
+export async function resolverKit(
+  tx: Prisma.TransactionClient,
+  guia: { id: string; numero: string; sedeDestinoId: string },
+  lineaId: string,
+  accion: AccionKit,
+  cantidad: number,
+  usuario: string,
+  motivo?: string
+) {
+  const linea = await tx.dispatchGuideKitItem.findFirst({
+    where: { id: lineaId, guideId: guia.id },
+    include: { item: true },
+  });
+  if (!linea) throw new NotFoundError('Ese artículo no es de este despacho');
+
+  const pendiente = linea.cantidad - linea.cantidadRecibida - linea.cantidadPerdida;
+  const disponible = accion === 'aparecio' ? linea.cantidadPerdida : pendiente;
+  // Una cantidad fuera de rango es un dato mal ingresado (400), marcado en su campo.
+  const errorCantidad = (m: string) => new ValidationError(m, [{ field: 'cantidad', message: m }]);
+  if (!Number.isInteger(cantidad) || cantidad < 1) throw errorCantidad('La cantidad debe ser al menos 1');
+  if (cantidad > disponible) {
+    throw errorCantidad(
+      accion === 'aparecio'
+        ? `De ${linea.item.nombre} hay ${disponible} perdido(s)`
+        : `De ${linea.item.nombre} quedan ${disponible} pendiente(s)`
+    );
+  }
+
+  const recibida = linea.cantidadRecibida + (accion === 'perdido' ? 0 : cantidad);
+  const perdida =
+    linea.cantidadPerdida + (accion === 'perdido' ? cantidad : accion === 'aparecio' ? -cantidad : 0);
+
+  // Stock en la sede destino, salvo que se pierda.
+  let itemDestinoId = linea.itemDestinoId;
+  if (accion !== 'perdido') {
+    if (!itemDestinoId) itemDestinoId = (await articuloKitEnSede(tx, linea.item, guia.sedeDestinoId)).id;
+    await sumarStockKit(
+      tx,
+      itemDestinoId,
+      cantidad,
+      accion === 'aparecio' ? `Apareció en el despacho ${guia.numero}` : `Llegó en el despacho ${guia.numero}`,
+      usuario
+    );
+  }
+
+  const motivoPerdida =
+    accion === 'perdido'
+      ? [linea.motivoPerdida, `${cantidad}: ${motivo}`].filter(Boolean).join(' | ')
+      : linea.motivoPerdida;
+
+  const { count } = await tx.dispatchGuideKitItem.updateMany({
+    where: { id: linea.id, cantidadRecibida: linea.cantidadRecibida, cantidadPerdida: linea.cantidadPerdida },
+    data: {
+      cantidadRecibida: recibida,
+      cantidadPerdida: perdida,
+      estado: estadoLineaKit({ cantidad: linea.cantidad, cantidadRecibida: recibida, cantidadPerdida: perdida }),
+      itemDestinoId,
+      motivoPerdida,
+      fechaResolucion: new Date(),
+      resueltoPor: usuario,
+    },
+  });
+  if (count !== 1) {
+    throw new ConflictError('Otra persona actualizó este artículo del despacho. Vuelve a cargar la página.');
+  }
+  return { nombre: linea.item.nombre };
 }

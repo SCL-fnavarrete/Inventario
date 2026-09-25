@@ -14,6 +14,7 @@ import {
   actualizarEstadoGuia,
   buscarGuiaVisible,
   recibirEquipos,
+  resolverKit,
 } from '@/lib/services/guiaDespachoService';
 import { ETIQUETAS_GUIA, validarRecepcion } from '@/lib/validations/guia';
 
@@ -40,7 +41,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('guias', 'write');
     const { id } = await params;
-    const { recibidoPor, fechaRecepcion, llegaron } = await request.json();
+    const { recibidoPor, fechaRecepcion, llegaron, kitRecibido } = await request.json();
 
     const guia = await buscarGuiaVisible(session, id);
     if (!puedeConfirmarRecepcion(session, guia)) {
@@ -52,8 +53,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const errores = validarRecepcion({ recibidoPor, fechaRecepcion }, guia.fechaDespacho);
     const idsLlegaron = Array.isArray(llegaron) ? (llegaron as string[]) : [];
-    if (idsLlegaron.length === 0) {
-      errores.llegaron = "Marca al menos un equipo que llegó";
+    // Kit/EPP (SPEC 2.111.4): cuantas unidades de cada linea llegaron.
+    const kitLlego = (Array.isArray(kitRecibido) ? (kitRecibido as { lineaId: string; cantidad: number }[]) : [])
+      .map((k) => ({ lineaId: String(k.lineaId), cantidad: Number(k.cantidad) }))
+      .filter((k) => k.cantidad > 0);
+    if (idsLlegaron.length === 0 && kitLlego.length === 0) {
+      errores.llegaron = guia.kitItems.length > 0
+        ? "Marca al menos un equipo o una cantidad de Kit/EPP que llegó"
+        : "Marca al menos un equipo que llegó";
     }
     const invalido = respuestaErroresCampos(errores, ETIQUETAS_GUIA);
     if (invalido) return invalido;
@@ -61,7 +68,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const usuario = session.user?.email || recibidoPor;
     const actualizada = await prisma.$transaction(async (tx) => {
       const recibidos = await recibirEquipos(tx, guia, idsLlegaron, usuario);
-      if (recibidos === 0) throw new NotFoundError('Los equipos marcados no son de este despacho');
+      if (idsLlegaron.length > 0 && recibidos === 0) {
+        throw new NotFoundError('Los equipos marcados no son de este despacho');
+      }
+      for (const k of kitLlego) {
+        await resolverKit(tx, guia, k.lineaId, 'llego', k.cantidad, usuario);
+      }
+      const unidadesKit = kitLlego.reduce((s, k) => s + k.cantidad, 0);
 
       await tx.dispatchGuide.update({
         where: { id },
@@ -75,9 +88,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       await auditLogService.registrarActualizacion(
         'guia_despacho',
         id,
-        `Despacho ${guia.numero}: recepción confirmada por ${recibidoPor} (${recibidos} de ${guia.items.length} equipos)`,
+        `Despacho ${guia.numero}: recepción confirmada por ${recibidoPor} (${recibidos} de ${guia.items.length} equipos${
+          guia.kitItems.length > 0 ? `, ${unidadesKit} unidad(es) de Kit/EPP` : ''
+        })`,
         { estado: guia.estado },
-        { estado, recibidoPor, recibidos },
+        { estado, recibidoPor, recibidos, unidadesKit },
         session.user?.email,
         tx
       );

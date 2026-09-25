@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     const where = { AND: condiciones };
 
     const includeGuia = {
-      _count: { select: { items: true } },
+      _count: { select: { items: true, kitItems: true } },
       // Sede origen ademas de destino, relevante para el filtro por ambas puntas.
       sede: true,
       sedeDestino: true,

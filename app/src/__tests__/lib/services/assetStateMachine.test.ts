@@ -24,6 +24,8 @@ describe('assetStateMachine — canTransitionAsset', () => {
     ['en_mantencion', 'asignado'],
     ['en_mantencion', 'baja'],
     ['baja', 'vendido'],
+    // SPEC 2.111.4: solo si aparecio un equipo perdido en un despacho (precondicion).
+    ['baja', 'disponible'],
     // 20-sep-2026 (SPEC 2.57): desvinculacion sin devolucion del equipo.
     ['asignado', 'no_devuelto'],
     ['no_devuelto', 'disponible'],
@@ -41,7 +43,6 @@ describe('assetStateMachine — canTransitionAsset', () => {
     ['disponible', 'vendido'],
     ['asignado', 'vendido'],
     ['en_mantencion', 'vendido'],
-    ['baja', 'disponible'],
     ['baja', 'asignado'],
     ['baja', 'en_mantencion'],
     ['vendido', 'disponible'],
@@ -91,8 +92,8 @@ describe('assetStateMachine — getValidTransitions', () => {
     expect(getValidTransitions('en_mantencion')).toEqual(['disponible', 'asignado', 'baja']);
   });
 
-  test('baja solo puede ir a vendido', () => {
-    expect(getValidTransitions('baja')).toEqual(['vendido']);
+  test('baja puede ir a vendido, o a disponible si aparece un equipo perdido en un despacho', () => {
+    expect(getValidTransitions('baja')).toEqual(['vendido', 'disponible']);
   });
 
   test('vendido no tiene transiciones (terminal)', () => {
@@ -221,6 +222,17 @@ describe('assetStateMachine — validateTransition', () => {
   test('repartir: por_repartir va a disponible o sale en un despacho', () => {
     expect(validateTransition('por_repartir', 'disponible', baseContext).valid).toBe(true);
     expect(validateTransition('por_repartir', 'en_transito', baseContext).valid).toBe(true);
+  });
+
+  // SPEC 2.111.4: una baja solo se revierte desde el despacho donde se perdio.
+  test('baja→disponible sin haber aparecido en un despacho es inválida', () => {
+    const r = validateTransition('baja', 'disponible', baseContext);
+    expect(r.valid).toBe(false);
+    expect(r.errors[0]).toMatch(/despacho/);
+  });
+
+  test('baja→disponible de un equipo que apareció en su despacho es válida', () => {
+    expect(validateTransition('baja', 'disponible', { ...baseContext, aparecioEnDespacho: true }).valid).toBe(true);
   });
 
   test('en_transito no puede asignarse ni ir a mantención', () => {
