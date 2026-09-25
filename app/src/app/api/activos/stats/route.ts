@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
       vendido: 0,
       no_devuelto: 0,
       en_transito: 0,
+      por_repartir: 0,
     };
 
     byStatusRaw.forEach((item) => {

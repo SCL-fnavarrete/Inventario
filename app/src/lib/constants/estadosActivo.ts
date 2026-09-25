@@ -18,6 +18,7 @@ export const ESTADO_ACTIVO_LABEL: Record<EstadoActivo, string> = {
   baja: 'Baja',
   vendido: 'Vendido',
   en_transito: 'En tránsito',
+  por_repartir: 'Por repartir',
 };
 
 /** Clases de badge (fondo + texto + borde) por estado. */
@@ -29,6 +30,7 @@ export const ESTADO_ACTIVO_BADGE: Record<EstadoActivo, string> = {
   baja: 'bg-red-50 text-red-800 border-red-200',
   vendido: 'bg-gray-100 text-fg-muted border-line',
   en_transito: 'bg-sky-50 text-sky-800 border-sky-200',
+  por_repartir: 'bg-purple-50 text-purple-800 border-purple-200',
 };
 
 /**
@@ -44,6 +46,7 @@ export const ESTADO_ACTIVO_COLOR: Record<EstadoActivo, string> = {
   baja: '#ef4444',
   vendido: '#6b7280',
   en_transito: '#0ea5e9',
+  por_repartir: '#a855f7',
 };
 
 export const CONDICION_ACTIVO_LABEL: Record<CondicionActivo, string> = {
@@ -118,6 +121,8 @@ export function motivoSinBaja(activo: {
       return 'Ya fue vendido.';
     case 'en_transito':
       return 'Está en tránsito en un despacho: si se perdió, márcalo en Despachos.';
+    case 'por_repartir':
+      return 'Está por repartir: primero repártelo desde su compra.';
     default:
       return `No se puede dar de baja en estado "${etiquetaEstadoActivo(estado)}".`;
   }
@@ -143,6 +148,8 @@ export function motivoSinMantencion(estado: string): string | null {
       return 'Fue vendido.';
     case 'en_transito':
       return 'Está en tránsito en un despacho: espera a que llegue.';
+    case 'por_repartir':
+      return 'Está por repartir: primero repártelo desde su compra.';
     default:
       return `No admite mantenciones en estado "${etiquetaEstadoActivo(estado)}".`;
   }

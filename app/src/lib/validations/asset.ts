@@ -9,6 +9,7 @@ export const estadoActivoEnum = z.enum([
   "disponible",
   "asignado",
   "en_mantencion",
+  "por_repartir",
   "baja",
   "vendido",
   "no_devuelto",

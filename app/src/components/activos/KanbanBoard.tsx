@@ -166,7 +166,7 @@ export function KanbanBoard({ assets, onStatusChange, isUpdating }: KanbanBoardP
       acc[col.id] = assets.filter((a) => a.estado === col.id);
       return acc;
     },
-    { disponible: [], asignado: [], en_mantencion: [], no_devuelto: [], en_transito: [], baja: [], vendido: [] }
+    { disponible: [], asignado: [], en_mantencion: [], no_devuelto: [], en_transito: [], por_repartir: [], baja: [], vendido: [] }
   );
 
   return (

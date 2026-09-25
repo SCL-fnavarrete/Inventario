@@ -30,6 +30,7 @@ interface StatsData {
     vendido: number;
     no_devuelto: number;
     en_transito: number;
+    por_repartir: number;
   };
 }
 
@@ -53,6 +54,8 @@ const statusConfig: Record<
   en_transito: { label: "En tránsito", icon: Truck, tono: ESTADO_ACTIVO_TONO.en_transito },
   // Vienen en camino a la sede (SPEC 2.108): todavia son de la sede de origen.
   por_llegar: { label: "Por llegar", icon: PackageOpen, tono: "primary" },
+  // Recien comprados, esperan su reparto (SPEC 2.111).
+  por_repartir: { label: "Por repartir", icon: PackageOpen, tono: ESTADO_ACTIVO_TONO.por_repartir },
   baja: { label: "Baja", icon: XCircle, tono: ESTADO_ACTIVO_TONO.baja },
   vendido: { label: "Vendido", icon: DollarSign, tono: ESTADO_ACTIVO_TONO.vendido },
 };

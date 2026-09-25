@@ -168,7 +168,8 @@ CREATE TABLE assets (
     conectividad VARCHAR(20),                  -- "usb" | "bluetooth" | "cable"
 
     -- Estado y ubicación
-    estado ENUM('disponible', 'asignado', 'en_mantencion', 'reutilizable', 'baja', 'vendido') DEFAULT 'disponible',
+    -- en_transito: viaja en un despacho (2.108). por_repartir: recien comprado, espera su reparto (2.111).
+    estado ENUM('disponible', 'asignado', 'en_mantencion', 'no_devuelto', 'en_transito', 'por_repartir', 'baja', 'vendido') DEFAULT 'disponible',
     condicion ENUM('nuevo', 'usado', 'dañado') DEFAULT 'nuevo',
     ubicacion_fisica VARCHAR(100),             -- Ej: "Bodega", "Oficina Santiago"
     empleado_actual_id UUID REFERENCES employees(id),  -- Desnormalización: empleado con asignación activa
@@ -222,7 +223,7 @@ no se usaba (ver 2.10.1).
 ```sql
 CREATE TABLE purchases (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    sede_id UUID REFERENCES sedes(id),         -- Nullable solo por compatibilidad con filas antiguas: admin ahora debe elegir sede al crear (ver 2.10.1)
+    sede_id UUID REFERENCES sedes(id),         -- Sede de llegada (2.111): donde llega lo comprado. Obligatoria al crear; nullable solo por filas antiguas
     numero_factura VARCHAR(50),                -- Opcional: gastos menores pueden no tener factura
     fecha_factura DATE NOT NULL,
     rut_proveedor VARCHAR(15),                 -- Texto libre validado (dígito verificador), sin catálogo (11-sep-2026)
@@ -240,6 +241,30 @@ CREATE TABLE purchase_assets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     purchase_id UUID REFERENCES purchases(id),
     asset_id UUID REFERENCES assets(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### KIT/EPP COMPRADO (purchase_kit_items) y su reparto (purchase_kit_repartos)
+```sql
+CREATE TABLE purchase_kit_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    purchase_id UUID REFERENCES purchases(id) NOT NULL,
+    item_id UUID REFERENCES welcome_kit_items(id) NOT NULL,   -- Articulo del catalogo de la sede de llegada
+    cantidad INT NOT NULL,
+    cantidad_por_repartir INT NOT NULL DEFAULT 0,  -- 2.111: baja al repartir, sube si se anula un despacho de reparto. Compras anteriores: 0
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2.111: a donde se repartio cada parte de una linea. Sin despacho si la
+-- sede es la de llegada; con despacho si viajo a otra sede.
+CREATE TABLE purchase_kit_repartos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    purchase_kit_item_id UUID REFERENCES purchase_kit_items(id) ON DELETE CASCADE NOT NULL,
+    sede_id UUID REFERENCES sedes(id) NOT NULL,
+    cantidad INT NOT NULL,
+    guide_id UUID REFERENCES dispatch_guides(id) ON DELETE SET NULL,
+    repartido_por VARCHAR(100) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -548,6 +573,7 @@ CREATE TABLE dispatch_guides (
     motivo_anulacion TEXT,
     sede_destino_id UUID NOT NULL REFERENCES sedes(id) ON DELETE RESTRICT,  -- Obligatoria
     sede_id UUID REFERENCES sedes(id),         -- Sede del emisor: determina qué soporte ve el registro
+    purchase_id UUID REFERENCES purchases(id) ON DELETE SET NULL,  -- 2.111: compra cuyo reparto creo el despacho
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -562,6 +588,27 @@ CREATE TABLE dispatch_guide_items (
     observaciones TEXT,
     -- Cada equipo se resuelve por separado (2.108): llegó o se perdió.
     estado ENUM('en_transito', 'recibido', 'perdido') DEFAULT 'en_transito',
+    fecha_resolucion TIMESTAMP,
+    resuelto_por VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### KIT/EPP EN UN DESPACHO (dispatch_guide_kit_items)
+```sql
+-- 2.111.4: un articulo y una cantidad. Al recibir, el stock se suma al
+-- articulo del mismo nombre y categoria en la sede destino (se crea si no
+-- existe). Lo que falta se resuelve despues: llego o se perdio.
+CREATE TABLE dispatch_guide_kit_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    guide_id UUID REFERENCES dispatch_guides(id) ON DELETE CASCADE NOT NULL,
+    item_id UUID REFERENCES welcome_kit_items(id) NOT NULL,        -- Articulo en la sede de origen
+    item_destino_id UUID REFERENCES welcome_kit_items(id) ON DELETE SET NULL,  -- Donde se sumo el stock
+    cantidad INT NOT NULL,
+    cantidad_recibida INT NOT NULL DEFAULT 0,
+    cantidad_perdida INT NOT NULL DEFAULT 0,
+    estado ENUM('en_transito', 'recibido', 'perdido') DEFAULT 'en_transito',  -- en_transito mientras quede algo sin resolver
+    motivo_perdida TEXT,
     fecha_resolucion TIMESTAMP,
     resuelto_por VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -740,6 +787,9 @@ Sincronización **read-only** de empleados desde el directorio corporativo Micro
 | `disponible` | `en_transito` | Se incluye en una guía de despacho (2.108) | Sigue en su sede de origen |
 | `en_transito` | `disponible` | La sede destino confirma que llegó, o la guía se anula (2.108) | Si llegó: `sedeId` = sede destino. Si se anuló: queda en su sede |
 | `en_transito` | `baja` | Se perdió en el despacho: motivo obligatorio (Extravío) (2.108) | Baja con una mantención "Sin reparación", como toda baja (2.88) |
+| `en_transito` | `por_repartir` | Se anuló el despacho de un reparto (2.111.5) | Vuelve a esperar en la sede de llegada |
+| `por_repartir` | `disponible` | Se reparte a la sede de llegada (2.111.3) | Queda en esa sede |
+| `por_repartir` | `en_transito` | Se reparte a otra sede: sale en un despacho automático (2.111.3) | Sigue en la sede de llegada hasta que la destino confirma |
 | `asignado` | `reutilizable` | Requiere devolución con estado `ok` o `incompleto` | `empleadoActualId` → null |
 | `asignado` | `baja` | Requiere devolución con estado `danado` | `empleadoActualId` → null, `fechaBaja` = hoy |
 | `asignado` | `en_mantencion` | Debe existir mantención programada | Asignación se pausa |
@@ -3469,13 +3519,14 @@ Pedido de Javier: *"cambia el nombre guías por Despachos"*. Desde aquí, lo que
 
 ## 2.111 Compras: primero se compra, después se reparte a las sedes (25-sep-2026)
 
-**Estado: regla aprobada; implementación pendiente, por partes.** Hasta que cada parte se implemente, el sistema sigue funcionando como describen 2.10 y 2.36.
+**Estado: regla aprobada; se implementa por partes (2.111.9).** Hasta que cada parte se implemente, el sistema sigue funcionando como describen 2.10 y 2.36.
 
 Javier: *"yo había entendido mal y lo documenté como no debía ser. El principio es este: primero se compran los artículos, y luego se ve en qué sede se reparten."* La regla de 2.10 daba la compra por "de una sede": sus equipos nacían en ella y el Kit/EPP sumaba stock ahí mismo, como si al comprar ya se supiera el destino. Hoy lo comprado llega a Santiago y desde ahí se reparte.
 
 ### 2.111.1 Registrar la compra (solo admin)
 - Datos de la factura, como hoy: N°, fecha, RUT del proveedor y orden de compra.
 - **Sede de llegada, obligatoria y elegida explícitamente**, igual que en los demás procesos: donde llega físicamente el pedido. Hoy casi siempre es Santiago, pero el sistema no lo supone, por si cambia a futuro. Es la columna `purchases.sede_id` que ya existe, con este nuevo significado.
+  - Viene prellenada con la sede elegida en el menú, como en los demás formularios (2.80); con "Todas las sedes" viene vacía. Se puede cambiar antes de guardar, y después con "Editar datos de la factura" mientras no se haya repartido nada.
 - Lo que trajo: equipos (con el formulario de Activos) y cantidades de Kit/EPP.
 - La compra es **de la empresa**, no de una sede. El técnico ya no registra compras: `compras` pasa a solo lectura para técnico en la matriz 1.3.1.
 
@@ -3512,7 +3563,14 @@ Javier: *"la idea es que también los técnicos puedan ver lo que hay por repart
 - Las compras actuales: su sede pasa a ser la "sede de llegada" y todo se da por **ya repartido** (los equipos ya están en su sede y el stock ya se sumó). Nada se mueve.
 
 ### 2.111.9 Plan por partes
-1. Modelo y migración: estado `por_repartir`, avance del reparto en las líneas de la compra, Kit/EPP en los despachos y el vínculo despacho ↔ compra; datos existentes como "ya repartidos".
+1. **Hecha (25-sep-2026).** Modelo y migración `20260925180000_compras_repartir`:
+   - estado `por_repartir` ("Por repartir", morado) y sus transiciones en `assetStateMachine`: → `disponible`, → `en_transito`, y `en_transito` → `por_repartir`;
+   - `purchase_kit_items.cantidad_por_repartir` y la tabla `purchase_kit_repartos`;
+   - `dispatch_guides.purchase_id` y la tabla `dispatch_guide_kit_items`;
+   - todo parte vacío o en 0: las compras existentes quedan ya repartidas;
+   - "Por repartir" no se importa desde Excel, no se da de baja ni va a mantención (`motivoSinBaja`, `motivoSinMantencion`);
+   - el tono `purple` se suma a las tarjetas.
+   Las pantallas y la lógica de compras no cambian todavía.
 2. Registrar la compra: solo admin, sede de llegada, equipos "Por repartir", Kit/EPP sin sumar stock; matriz de permisos.
 3. Repartir: pantalla en el detalle de la compra, reparto a la sede de llegada y despachos automáticos; tarjetas de avance.
 4. Kit/EPP en Despachos: recepción por cantidad, faltantes y anulación que devuelve al reparto.
@@ -3520,7 +3578,7 @@ Javier: *"la idea es que también los técnicos puedan ver lo que hay por repart
 
 ## Changelog SPEC
 - **v2.35 (2026-09-25):**
-  - Sección 2.111 (nueva, regla aprobada, implementación pendiente): en Compras primero se compra y después se reparte. El técnico ve todas las compras y lo que hay por repartir, en solo lectura. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
+  - Sección 2.111 (nueva, regla aprobada, se implementa por partes; parte 1 hecha: modelo y migración): en Compras primero se compra y después se reparte. El técnico ve todas las compras y lo que hay por repartir, en solo lectura. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
 - **v2.34 (2026-09-25):**
   - Sección 2.110 (nueva): "Guías de despacho" pasa a llamarse "Despachos" en pantallas, mensajes e historial; dirección `/despachos` con redirección desde la antigua; estados en masculino. Por dentro (datos, API, permiso, numeración GD) no cambia.
 - **v2.33 (2026-09-25):**

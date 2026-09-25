@@ -228,9 +228,9 @@ model Purchase {
   descripcion    String?
   compradoPor    String?         @map("comprado_por")
   ordenCompra    String?         @map("orden_compra")
-  // Sede a la que se le atribuye la compra (ver sedeScope.ts). Obligatoria
-  // para admin al crear (sedeIdParaCrear con requerido: true), pero sigue
-  // nullable en la columna por compatibilidad con filas anteriores.
+  // Sede de llegada (SPEC 2.111): donde llega fisicamente lo comprado y
+  // donde espera "Por repartir". Obligatoria al crear, elegida
+  // explicitamente; nullable en la columna solo por filas antiguas.
   sedeId         String?         @map("sede_id")
   createdAt      DateTime        @default(now()) @map("created_at")
   purchaseAssets PurchaseAsset[]
@@ -239,6 +239,8 @@ model Purchase {
   // stock contable (ver WelcomeKitItem.cantidad), asi que cada linea suma
   // una cantidad al stock existente del articulo.
   purchaseKitItems PurchaseKitItem[]
+  // Despachos creados al repartir esta compra a otras sedes (SPEC 2.111).
+  despachos      DispatchGuide[]
   sede           Sede?           @relation(fields: [sedeId], references: [id])
 
   @@index([sedeId])
@@ -265,13 +267,41 @@ model PurchaseKitItem {
   purchaseId String         @map("purchase_id")
   itemId     String         @map("item_id")
   cantidad   Int
+  // Unidades que todavia no se reparten a ninguna sede (SPEC 2.111). Parte
+  // igual a `cantidad` y baja al repartir; vuelve a subir si se anula un
+  // despacho de reparto. Las compras anteriores a 2.111 quedan en 0: ya
+  // sumaron su stock al registrarse.
+  cantidadPorRepartir Int     @default(0) @map("cantidad_por_repartir")
   createdAt  DateTime       @default(now()) @map("created_at")
   purchase   Purchase       @relation(fields: [purchaseId], references: [id])
   item       WelcomeKitItem @relation(fields: [itemId], references: [id])
+  repartos   PurchaseKitReparto[]
 
   @@index([purchaseId])
   @@index([itemId])
   @@map("purchase_kit_items")
+}
+
+// A donde se repartio cada parte de una linea de Kit/EPP comprada (SPEC
+// 2.111). Si la sede destino es la de llegada, el stock se suma al repartir
+// y no hay despacho; si es otra, viaja en el despacho (`guideId`). Si ese
+// despacho se anula, la fila queda como historia y la cantidad vuelve a
+// "por repartir".
+model PurchaseKitReparto {
+  id                String          @id @default(uuid())
+  purchaseKitItemId String          @map("purchase_kit_item_id")
+  sedeId            String          @map("sede_id")
+  cantidad          Int
+  guideId           String?         @map("guide_id")
+  repartidoPor      String          @map("repartido_por")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  purchaseKitItem   PurchaseKitItem @relation(fields: [purchaseKitItemId], references: [id], onDelete: Cascade)
+  sede              Sede            @relation("RepartosKitSede", fields: [sedeId], references: [id])
+  guide             DispatchGuide?  @relation(fields: [guideId], references: [id])
+
+  @@index([purchaseKitItemId])
+  @@index([guideId])
+  @@map("purchase_kit_repartos")
 }
 
 model Assignment {
@@ -339,6 +369,8 @@ model WelcomeKitItem {
   requeridoEn    RequestKitItem[]
   // Compras que trajeron stock de este articulo.
   purchaseKitItems PurchaseKitItem[]
+  despachadoEn     DispatchGuideKitItem[] @relation("KitDespachoOrigen")
+  recibidoEn       DispatchGuideKitItem[] @relation("KitDespachoDestino")
 
   @@index([sedeId])
   @@map("welcome_kit_items")
@@ -563,9 +595,15 @@ model DispatchGuide {
   // Sede de quien crea la guia (el emisor) -- junto con sedeDestinoId
   // determina que soporte puede ver/actuar sobre el registro.
   sedeId               String?             @map("sede_id")
+  // Compra cuyo reparto creo este despacho (SPEC 2.111). Si se anula, lo
+  // que viajaba vuelve a "Por repartir" en esa compra.
+  purchaseId           String?             @map("purchase_id")
   createdAt            DateTime            @default(now()) @map("created_at")
   updatedAt            DateTime            @updatedAt @map("updated_at")
   items                DispatchGuideItem[]
+  kitItems             DispatchGuideKitItem[]
+  repartosKit          PurchaseKitReparto[]
+  purchase             Purchase?           @relation(fields: [purchaseId], references: [id])
   sede                 Sede?               @relation("GuiasSede", fields: [sedeId], references: [id])
   sedeDestino          Sede                @relation("GuiasDestino", fields: [sedeDestinoId], references: [id])
 
@@ -574,7 +612,38 @@ model DispatchGuide {
   @@index([fechaDespacho])
   @@index([sedeId])
   @@index([sedeDestinoId])
+  @@index([purchaseId])
   @@map("dispatch_guides")
+}
+
+// Kit/EPP que viaja en un despacho (SPEC 2.111.4): un articulo y una
+// cantidad. Al recibir se indica cuanto llego y ese stock se suma al
+// articulo del mismo nombre y categoria en la sede destino
+// (`itemDestinoId`, se crea si esa sede no lo tiene). Lo que falta se
+// resuelve despues: llego o se perdio (sin baja: es stock, no un equipo).
+model DispatchGuideKitItem {
+  id               String          @id @default(uuid())
+  guideId          String          @map("guide_id")
+  // Articulo en la sede de origen: dice que es lo que viaja.
+  itemId           String          @map("item_id")
+  itemDestinoId    String?         @map("item_destino_id")
+  cantidad         Int
+  cantidadRecibida Int             @default(0) @map("cantidad_recibida")
+  cantidadPerdida  Int             @default(0) @map("cantidad_perdida")
+  // en_transito mientras quede algo sin resolver; recibido si llego todo;
+  // perdido si se resolvio con alguna unidad perdida.
+  estado           EstadoItemGuia  @default(en_transito)
+  motivoPerdida    String?         @map("motivo_perdida")
+  fechaResolucion  DateTime?       @map("fecha_resolucion")
+  resueltoPor      String?         @map("resuelto_por")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  guide            DispatchGuide   @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  item             WelcomeKitItem  @relation("KitDespachoOrigen", fields: [itemId], references: [id])
+  itemDestino      WelcomeKitItem? @relation("KitDespachoDestino", fields: [itemDestinoId], references: [id])
+
+  @@index([guideId])
+  @@index([itemId])
+  @@map("dispatch_guide_kit_items")
 }
 
 model Sede {
@@ -597,6 +666,7 @@ model Sede {
   guiasDestino DispatchGuide[]   @relation("GuiasDestino")
   kitItems     WelcomeKitItem[]
   compras      Purchase[]
+  repartosKit  PurchaseKitReparto[] @relation("RepartosKitSede")
 
   @@map("sedes")
 }
@@ -793,6 +863,9 @@ enum EstadoActivo {
   // Viaja en una guia de despacho (SPEC 2.108): sigue en la sede de origen
   // hasta que la destino confirma que llego.
   en_transito
+  // Recien comprado (SPEC 2.111): espera en la sede de llegada hasta que el
+  // administrador decide a que sede va. No se asigna ni se mueve a mano.
+  por_repartir
 }
 
 enum CondicionActivo {

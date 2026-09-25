@@ -50,6 +50,14 @@ const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
   en_transito: [
     { to: 'disponible', description: 'Llegó a la sede destino, o se anuló el despacho' },
     { to: 'baja', description: 'Se perdió en el despacho' },
+    // SPEC 2.111.5: se anulo el despacho de un reparto; se reparte de nuevo.
+    { to: 'por_repartir', description: 'Se anuló el despacho del reparto' },
+  ],
+  // SPEC 2.111: recien comprado, espera en la sede de llegada. Solo sale
+  // al repartirlo, desde su compra.
+  por_repartir: [
+    { to: 'disponible', description: 'Repartido a la sede de llegada' },
+    { to: 'en_transito', description: 'Repartido a otra sede: sale en un despacho' },
   ],
   no_devuelto: [
     { to: 'disponible', description: 'Equipo recuperado en buen estado' },

@@ -64,8 +64,14 @@ describe('assetStateMachine — getValidTransitions', () => {
   });
 
   // SPEC 2.108: un equipo en transito llega (disponible) o se pierde (baja).
-  test('en_transito puede ir a disponible y baja', () => {
-    expect(getValidTransitions('en_transito')).toEqual(['disponible', 'baja']);
+  // SPEC 2.111.5: si se anula el despacho de un reparto, vuelve a por repartir.
+  test('en_transito puede ir a disponible, baja y por_repartir', () => {
+    expect(getValidTransitions('en_transito')).toEqual(['disponible', 'baja', 'por_repartir']);
+  });
+
+  // SPEC 2.111: recien comprado, solo sale al repartirlo.
+  test('por_repartir solo puede ir a disponible o en_transito', () => {
+    expect(getValidTransitions('por_repartir')).toEqual(['disponible', 'en_transito']);
   });
 
   test('asignado puede ir a disponible, baja, en_mantencion y no_devuelto', () => {
@@ -204,6 +210,17 @@ describe('assetStateMachine — validateTransition', () => {
     expect(
       validateTransition('en_transito', 'baja', { ...baseContext, motivo: 'Extravío: no llegó' }).valid
     ).toBe(true);
+  });
+
+  test('por_repartir no se asigna, no va a mantención ni se da de baja', () => {
+    expect(validateTransition('por_repartir', 'asignado', baseContext).valid).toBe(false);
+    expect(validateTransition('por_repartir', 'en_mantencion', baseContext).valid).toBe(false);
+    expect(validateTransition('por_repartir', 'baja', baseContext).valid).toBe(false);
+  });
+
+  test('repartir: por_repartir va a disponible o sale en un despacho', () => {
+    expect(validateTransition('por_repartir', 'disponible', baseContext).valid).toBe(true);
+    expect(validateTransition('por_repartir', 'en_transito', baseContext).valid).toBe(true);
   });
 
   test('en_transito no puede asignarse ni ir a mantención', () => {

@@ -28,8 +28,9 @@ export function clave(valor: string): string {
  * que palabra del Excel se reconoce. Nada de estados que existen en la base pero
  * que ninguna importacion sabe leer.
  */
-// "En transito" no se importa: solo nace de una guia de despacho (SPEC 2.108).
-export const PALABRA_CANONICA_ESTADO: Record<Exclude<EstadoActivo, "en_transito">, string> = {
+// "En transito" y "Por repartir" no se importan: nacen de un despacho
+// (SPEC 2.108) y de una compra (SPEC 2.111).
+export const PALABRA_CANONICA_ESTADO: Record<Exclude<EstadoActivo, "en_transito" | "por_repartir">, string> = {
   disponible: "disponible",
   asignado: "asignado",
   en_mantencion: "en mantencion",

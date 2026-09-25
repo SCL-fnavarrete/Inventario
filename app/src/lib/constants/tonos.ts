@@ -1,7 +1,7 @@
 import type { EstadoActivo } from '@prisma/client';
 
 /** Tono semantico de un indicador o tarjeta. */
-export type Tono = 'neutral' | 'primary' | 'success' | 'warning' | 'orange' | 'danger';
+export type Tono = 'neutral' | 'primary' | 'success' | 'warning' | 'orange' | 'danger' | 'purple';
 
 /**
  * Color de acento de `card-feature` (globals.css) por tono. Se toma el 500
@@ -15,6 +15,7 @@ export const TONO_ACENTO: Record<Tono, string> = {
   warning: '[--card-accent:var(--color-amber-500)]',
   orange: '[--card-accent:var(--color-orange-500)]',
   danger: '[--card-accent:var(--color-red-500)]',
+  purple: '[--card-accent:var(--color-purple-500)]',
 };
 
 /**
@@ -28,6 +29,7 @@ export const TONO_ESTILO: Record<Tono, { valor: string; suave: string; icono: st
   warning: { valor: 'text-amber-700', suave: 'bg-amber-50', icono: 'bg-amber-100 text-amber-700' },
   orange: { valor: 'text-orange-700', suave: 'bg-orange-50', icono: 'bg-orange-100 text-orange-700' },
   danger: { valor: 'text-red-700', suave: 'bg-red-50', icono: 'bg-red-100 text-red-700' },
+  purple: { valor: 'text-purple-700', suave: 'bg-purple-50', icono: 'bg-purple-100 text-purple-700' },
 };
 
 /** Tono de cada estado del activo: mismo color que su badge (estadosActivo.ts). */
@@ -39,4 +41,5 @@ export const ESTADO_ACTIVO_TONO: Record<EstadoActivo, Tono> = {
   baja: 'danger',
   vendido: 'neutral',
   en_transito: 'primary',
+  por_repartir: 'purple',
 };

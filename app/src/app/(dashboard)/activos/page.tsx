@@ -85,6 +85,7 @@ type StatsData = {
     vendido: number;
     no_devuelto: number;
     en_transito: number;
+    por_repartir: number;
   };
   byCategory: Array<{ id: string; nombre: string; count: number }>;
   byCondition: Record<string, number>;
