@@ -15,7 +15,10 @@ import {
   Eye,
   Shirt,
   Pencil,
-  PackagePlus } from "lucide-react";
+  PackagePlus,
+  Split,
+  Truck,
+  CheckCircle } from "lucide-react";
 import { Can } from "@/components/auth/Can";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
@@ -41,6 +44,9 @@ import {
   type AvanceReparto,
 } from "@/lib/constants/repartoCompra";
 import { cn } from "@/lib/utils";
+import { VentanaReparto } from "@/components/compras/VentanaReparto";
+import { ESTADO_GUIA_COLORS, ESTADO_GUIA_LABELS } from "@/types/guia-despacho";
+import type { EstadoGuia } from "@prisma/client";
 
 /**
  * Confirmacion en modal propio, en vez de confirm()/alert() del navegador:
@@ -97,6 +103,23 @@ type PurchaseKitItem = {
   // Unidades que todavia no se reparten (SPEC 2.111).
   cantidadPorRepartir: number;
   item: KitItem;
+  // A donde se repartio cada parte.
+  repartos: {
+    id: string;
+    cantidad: number;
+    sede: { id: string; nombre: string };
+    guide: { id: string; numero: string; estado: EstadoGuia } | null;
+  }[];
+};
+
+// Despacho creado al repartir a otra sede.
+type DespachoReparto = {
+  id: string;
+  numero: string;
+  estado: EstadoGuia;
+  fechaDespacho: string;
+  sedeDestino: { id: string; nombre: string };
+  _count: { items: number; kitItems: number };
 };
 
 type Sede = {
@@ -115,6 +138,7 @@ type Purchase = {
   purchaseAssets: PurchaseAsset[];
   purchaseKitItems: PurchaseKitItem[];
   reparto: AvanceReparto;
+  despachos: DespachoReparto[];
   stats: {
     cantidadActivos: number;
     cantidadArticulosKit: number;
@@ -144,6 +168,12 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
     ordenCompra: "",
     sedeId: "",
   });
+
+  // Repartir a una sede (SPEC 2.111.3), y el aviso de lo ultimo repartido.
+  const [showReparto, setShowReparto] = useState(false);
+  const [avisoReparto, setAvisoReparto] = useState<{ texto: string; despacho?: { id: string; numero: string } } | null>(
+    null
+  );
 
   // Equipo comprado (SPEC 2.111): el formulario de Activos en una ventana;
   // nace "Por repartir" en la sede de llegada.
@@ -521,7 +551,22 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             </h1>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {purchase.reparto.pendiente > 0 && (
+            <Can recurso="compras">
+              <button
+                onClick={() => {
+                  setAvisoReparto(null);
+                  if (sedes.length === 0) fetchSedes();
+                  setShowReparto(true);
+                }}
+                className={buttonClasses()}
+              >
+                <Split size={20} />
+                Repartir
+              </button>
+            </Can>
+          )}
           <Can recurso="compras">
             <button
               onClick={abrirEdicion}
@@ -552,6 +597,23 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       {/* Errores de las acciones de esta pantalla (vincular/desvincular
           activos y articulos de Kit/EPP). */}
       {error && <ApiErrorSummary error={error} fieldErrors={fieldErrors} />}
+
+      {avisoReparto && (
+        <div className="flex gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+          <CheckCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <p className="text-sm">
+            {avisoReparto.texto}
+            {avisoReparto.despacho && (
+              <>
+                {" "}
+                <Link href={`/despachos/${avisoReparto.despacho.id}`} className="font-medium underline">
+                  Ver despacho {avisoReparto.despacho.numero}
+                </Link>
+              </>
+            )}
+          </p>
+        </div>
+      )}
 
       {/* Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -921,6 +983,22 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                           <p className="text-xs text-fg-subtle">
                             {pk.item.categoria === "epp" ? "EPP" : "Kit Bienvenida"}
                           </p>
+                          {/* A donde fue cada parte (SPEC 2.111). */}
+                          {pk.repartos.map((r) => (
+                            <p key={r.id} className="text-xs text-fg-muted">
+                              {r.cantidad} → {r.sede.nombre}
+                              {r.guide && (
+                                <>
+                                  {" "}
+                                  (
+                                  <Link href={`/despachos/${r.guide.id}`} className="text-primary-700 hover:underline">
+                                    {r.guide.numero}
+                                  </Link>
+                                  {r.guide.estado === "anulada" && ", anulado"})
+                                </>
+                              )}
+                            </p>
+                          ))}
                         </div>
                       </div>
                     </td>
@@ -957,6 +1035,70 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
           </div>
         )}
       </div>
+
+      {/* Despachos que creo el reparto hacia otras sedes */}
+      {purchase.despachos.length > 0 && (
+        <div className="card">
+          <div className="p-6 border-b">
+            <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
+              <Truck className="h-5 w-5 text-fg-subtle" />
+              Despachos del reparto ({purchase.despachos.length})
+            </h2>
+          </div>
+          <ul className="divide-y divide-line">
+            {purchase.despachos.map((d) => (
+              <li key={d.id} className="flex flex-wrap items-center gap-3 px-6 py-3">
+                <Link href={`/despachos/${d.id}`} className="font-medium text-primary-700 hover:text-primary-900">
+                  {d.numero}
+                </Link>
+                <span className="text-sm text-fg-muted">
+                  a {d.sedeDestino.nombre} • {formatearFechaLarga(d.fechaDespacho)} • {d._count.items} equipo(s)
+                  {d._count.kitItems > 0 && `, ${d._count.kitItems} línea(s) de Kit/EPP`}
+                </span>
+                <span
+                  className={cn(
+                    "ml-auto rounded-full px-2 py-0.5 text-xs font-medium",
+                    ESTADO_GUIA_COLORS[d.estado]
+                  )}
+                >
+                  {ESTADO_GUIA_LABELS[d.estado]}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {purchase.sede && (
+        <VentanaReparto
+          isOpen={showReparto}
+          onClose={() => setShowReparto(false)}
+          onRepartido={async (despacho) => {
+            setShowReparto(false);
+            setAvisoReparto(
+              despacho
+                ? { texto: `Se creó el despacho ${despacho.numero}: lo repartido viaja En tránsito.`, despacho }
+                : { texto: `Lo repartido quedó Disponible en ${purchase.sede?.nombre}.` }
+            );
+            await fetchPurchase();
+          }}
+          compraId={purchase.id}
+          sedeLlegada={purchase.sede}
+          sedes={sedes}
+          equipos={purchase.purchaseAssets
+            .filter((pa) => pa.llegoConCompra && pa.asset.estado === "por_repartir")
+            .map((pa) => ({
+              id: pa.assetId,
+              marca: pa.asset.marca,
+              modelo: pa.asset.modelo,
+              numeroSerie: pa.asset.numeroSerie,
+              categoria: pa.asset.categoria.nombre,
+            }))}
+          lineas={purchase.purchaseKitItems
+            .filter((pk) => pk.cantidadPorRepartir > 0)
+            .map((pk) => ({ id: pk.id, nombre: pk.item.nombre, porRepartir: pk.cantidadPorRepartir }))}
+        />
+      )}
 
       <Modal
         isOpen={showNewAssetForm}

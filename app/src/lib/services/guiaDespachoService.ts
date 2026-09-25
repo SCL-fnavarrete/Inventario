@@ -1,7 +1,11 @@
 import { prisma } from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
+import { Prisma, type EstadoActivo } from '@prisma/client';
 import { hoyISO } from '@/lib/utils/fechas';
-import { NotFoundError } from '@/lib/errors';
+import { ConflictError, NotFoundError, errorDeCampo } from '@/lib/errors';
+import { validateTransition } from '@/lib/services/assetStateMachine';
+import { assetHistoryService } from '@/lib/services/assetHistoryService';
+import { auditLogService } from '@/lib/services/auditLogService';
+import { formatearRut } from '@/lib/validations/rut';
 import { puedeVerGuia } from '@/lib/queries/guias';
 import type { SesionAutenticada } from '@/lib/auth/guard';
 
@@ -146,5 +150,124 @@ export const INCLUDE_DETALLE_GUIA = {
 export async function buscarGuiaVisible(session: SesionAutenticada, id: string) {
   const guia = await prisma.dispatchGuide.findUnique({ where: { id }, include: INCLUDE_DETALLE_GUIA });
   if (!guia || !puedeVerGuia(session, guia)) throw new NotFoundError('Despacho no encontrado');
+  return guia;
+}
+
+// ─── Crear un despacho ───────────────────────────────────────────────────
+
+/** Datos del envio, ya validados con validarDatosDespacho. */
+export type DatosEnvio = {
+  otChilexpress: string;
+  fechaDespacho: string;
+  fechaEstimadaLlegada?: string | null;
+  receptorNombre: string;
+  receptorRut: string;
+  observaciones?: string | null;
+};
+
+/**
+ * La sede destino existe, esta activa y no es la de origen (SPEC 2.108). La
+ * usan el despacho del modulo y el reparto de una compra (SPEC 2.111).
+ */
+export async function sedeDestinoValida(sedeDestinoId: string, sedeOrigenId: string | null) {
+  const sede = await prisma.sede.findUnique({ where: { id: sedeDestinoId } });
+  if (!sede) throw errorDeCampo('sedeDestinoId', 'La sede destino no existe');
+  if (!sede.activa) throw errorDeCampo('sedeDestinoId', `La sede ${sede.nombre} está inactiva`);
+  if (sedeOrigenId && sede.id === sedeOrigenId) {
+    throw errorDeCampo('sedeDestinoId', 'La sede destino debe ser distinta de la sede origen');
+  }
+  return sede;
+}
+
+/**
+ * Crea el despacho dentro de la transaccion de crearGuiaConNumero: la guia
+ * "En transito", sus equipos y su Kit/EPP, el paso de cada equipo a "En
+ * transito" (validado con la maquina de estados) y el historial. Unico
+ * punto de creacion: lo usan POST /api/guias-despacho (equipos disponibles)
+ * y el reparto de una compra (equipos "Por repartir" y Kit/EPP, SPEC 2.111).
+ *
+ * Cada equipo se actualiza solo si sigue en el estado con que se eligio: si
+ * otro lo movio mientras tanto, se cancela todo.
+ */
+export async function crearDespacho(
+  tx: Prisma.TransactionClient,
+  numero: string,
+  d: {
+    envio: DatosEnvio;
+    sedeId: string | null;
+    sedeDestino: { id: string; nombre: string };
+    equipos: { id: string; estado: EstadoActivo; sedeId: string | null }[];
+    kit?: { itemId: string; cantidad: number }[];
+    purchaseId?: string;
+    emisor: string;
+    usuario: string;
+  }
+) {
+  const guia = await tx.dispatchGuide.create({
+    data: {
+      numero,
+      otChilexpress: d.envio.otChilexpress,
+      fechaDespacho: new Date(d.envio.fechaDespacho),
+      fechaEstimadaLlegada: d.envio.fechaEstimadaLlegada ? new Date(d.envio.fechaEstimadaLlegada) : null,
+      despachadoPor: d.emisor,
+      receptorNombre: d.envio.receptorNombre,
+      receptorRut: formatearRut(d.envio.receptorRut),
+      observaciones: d.envio.observaciones || null,
+      estado: 'en_transito',
+      sedeId: d.sedeId,
+      sedeDestinoId: d.sedeDestino.id,
+      purchaseId: d.purchaseId ?? null,
+      items: { create: d.equipos.map((e) => ({ assetId: e.id })) },
+      kitItems: { create: (d.kit ?? []).map((k) => ({ itemId: k.itemId, cantidad: k.cantidad })) },
+    },
+    include: {
+      items: { include: { asset: { include: { categoria: true } } } },
+      sedeDestino: true,
+    },
+  });
+
+  await auditLogService.registrarCreacion(
+    'guia_despacho',
+    guia.id,
+    `Despacho creado: ${guia.numero} (OT ${d.envio.otChilexpress})`,
+    {
+      sedeId: d.sedeId,
+      sedeDestinoId: d.sedeDestino.id,
+      cantidadEquipos: d.equipos.length,
+      lineasKit: d.kit?.length ?? 0,
+      purchaseId: d.purchaseId ?? null,
+    },
+    d.usuario,
+    tx
+  );
+
+  for (const equipo of d.equipos) {
+    const transicion = validateTransition(equipo.estado, 'en_transito', {
+      hasActiveAssignment: false,
+      hasActiveMaintenance: false,
+    });
+    if (!transicion.valid) throw new ConflictError(transicion.errors[0]);
+
+    // Sigue en su sede hasta que llegue (SPEC 2.108).
+    const { count } = await tx.asset.updateMany({
+      where: { id: equipo.id, estado: equipo.estado, deletedAt: null },
+      data: { estado: 'en_transito' },
+    });
+    if (count !== 1) {
+      throw new ConflictError('Un equipo cambió de estado mientras se preparaba el despacho. Vuelve a intentarlo.');
+    }
+    await assetHistoryService.registrar(
+      {
+        assetId: equipo.id,
+        tipoEvento: 'traslado',
+        descripcion: `Despachado a ${d.sedeDestino.nombre} en el despacho ${guia.numero} (OT Chilexpress ${d.envio.otChilexpress}): en tránsito`,
+        datosAnteriores: { estado: equipo.estado, sedeId: equipo.sedeId },
+        datosNuevos: { estado: 'en_transito', guideId: guia.id, sedeDestinoId: d.sedeDestino.id },
+        usuarioSistema: d.usuario,
+      },
+      tx
+    );
+  }
+
   return guia;
 }

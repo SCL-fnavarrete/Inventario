@@ -15,10 +15,7 @@ import {
   whereGuiaVisible,
   type VistaGuia,
 } from '@/lib/queries/guias';
-import { assetHistoryService } from '@/lib/services/assetHistoryService';
-import { crearGuiaConNumero } from '@/lib/services/guiaDespachoService';
-import { auditLogService } from '@/lib/services/auditLogService';
-import { formatearRut } from '@/lib/validations/rut';
+import { crearDespacho, crearGuiaConNumero, sedeDestinoValida } from '@/lib/services/guiaDespachoService';
 import { ETIQUETAS_GUIA, validarNuevaGuia } from '@/lib/validations/guia';
 import { etiquetaEstadoActivo } from '@/lib/constants/estadosActivo';
 import { coincideBusqueda } from '@/lib/utils/text';
@@ -126,29 +123,14 @@ export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('guias', 'write');
     const body = await request.json();
-    const {
-      otChilexpress,
-      fechaDespacho,
-      fechaEstimadaLlegada,
-      receptorNombre,
-      receptorRut,
-      observaciones,
-      sedeDestinoId,
-    } = body;
+    const { otChilexpress, fechaDespacho, fechaEstimadaLlegada, receptorNombre, receptorRut, observaciones, sedeDestinoId } =
+      body;
 
     // Mismas reglas que la pantalla (SPEC 2.104), con el campo de cada error.
     const invalido = respuestaErroresCampos(validarNuevaGuia(body), ETIQUETAS_GUIA);
     if (invalido) return invalido;
-    const receptorRutFormateado = formatearRut(receptorRut);
     // Un equipo repetido en la lista se despacha una sola vez.
     const assetIds = [...new Set(body.assetIds as string[])];
-
-    const sedeDestino = await prisma.sede.findUnique({ where: { id: sedeDestinoId } });
-    if (!sedeDestino) throw errorDeCampo("sedeDestinoId", "La sede destino no existe");
-    // La pantalla solo ofrece sedes activas; el servidor tambien lo exige (SPEC 2.108).
-    if (!sedeDestino.activa) {
-      throw errorDeCampo("sedeDestinoId", `La sede ${sedeDestino.nombre} está inactiva`);
-    }
 
     // Verificar que los activos existen y están disponibles -- no se puede
     // despachar algo que ya esta asignado, en mantencion, de baja, etc.
@@ -188,76 +170,22 @@ export async function POST(request: NextRequest) {
       throw errorDeCampo("assetIds", `No son de la sede origen: ${detalle}`);
     }
 
-    if (sedeId && sedeDestinoId === sedeId) {
-      throw errorDeCampo("sedeDestinoId", "La sede destino debe ser distinta de la sede origen");
-    }
-
-    const emisor = session.user.name || session.user.email || "Técnico";
+    // Existe, esta activa y no es la de origen (SPEC 2.108).
+    const sedeDestino = await sedeDestinoValida(sedeDestinoId, sedeId);
 
     // El numero se toma dentro de la transaccion; si otra guia simultanea ya
-    // lo uso, se reintenta con el siguiente (SPEC 2.108).
-    const guide = await crearGuiaConNumero(async (numero, tx) => {
-      const nuevaGuia = await tx.dispatchGuide.create({
-        data: {
-          numero,
-          otChilexpress,
-          fechaDespacho: new Date(fechaDespacho),
-          fechaEstimadaLlegada: fechaEstimadaLlegada ? new Date(fechaEstimadaLlegada) : null,
-          despachadoPor: emisor,
-          receptorNombre,
-          receptorRut: receptorRutFormateado,
-          observaciones: observaciones || null,
-          estado: EstadoGuia.en_transito,
-          sedeId,
-          sedeDestinoId,
-          items: {
-            create: assetIds.map((assetId) => ({ assetId })),
-          },
-        },
-        include: {
-          items: {
-            include: {
-              asset: { include: { categoria: true } },
-            },
-          },
-          sedeDestino: true,
-        },
-      });
-
-      // Auditoria generica: quien creo la guia de despacho.
-      await auditLogService.registrarCreacion(
-        'guia_despacho',
-        nuevaGuia.id,
-        `Despacho creado: ${nuevaGuia.numero} (OT ${otChilexpress})`,
-        { sedeId, sedeDestinoId, cantidadEquipos: assetIds.length },
-        session.user?.email,
-        tx
-      );
-
-      for (const assetId of assetIds) {
-        const sedeAnteriorId = assets.find((a) => a.id === assetId)?.sedeId ?? null;
-
-        // Sigue en su sede hasta que llegue (SPEC 2.108).
-        await tx.asset.update({
-          where: { id: assetId },
-          data: { estado: "en_transito" },
-        });
-
-        await assetHistoryService.registrar(
-          {
-            assetId,
-            tipoEvento: 'traslado',
-            descripcion: `Despachado a ${sedeDestino.nombre} en el despacho ${nuevaGuia.numero} (OT Chilexpress ${otChilexpress}): en tránsito`,
-            datosAnteriores: { estado: "disponible", sedeId: sedeAnteriorId },
-            datosNuevos: { estado: "en_transito", guideId: nuevaGuia.id, sedeDestinoId },
-            usuarioSistema: session.user?.email,
-          },
-          tx
-        );
-      }
-
-      return nuevaGuia;
-    });
+    // lo uso, se reintenta con el siguiente (SPEC 2.108). La creacion es la
+    // misma que usa el reparto de una compra (crearDespacho, SPEC 2.111).
+    const guide = await crearGuiaConNumero((numero, tx) =>
+      crearDespacho(tx, numero, {
+        envio: { otChilexpress, fechaDespacho, fechaEstimadaLlegada, receptorNombre, receptorRut, observaciones },
+        sedeId,
+        sedeDestino,
+        equipos: assets.map((a) => ({ id: a.id, estado: a.estado, sedeId: a.sedeId })),
+        emisor: session.user.name || session.user.email || "Técnico",
+        usuario: session.user?.email || "sistema",
+      })
+    );
 
     return NextResponse.json(guide, { status: 201 });
   } catch (error) {

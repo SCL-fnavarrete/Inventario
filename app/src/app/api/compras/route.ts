@@ -11,6 +11,7 @@ import { NotFoundError } from '@/lib/errors';
 import { auditLogService } from '@/lib/services/auditLogService';
 import {
   INCLUDE_AVANCE_REPARTO,
+  WHERE_COMPRA_POR_REPARTIR,
   agregarEquiposNuevos,
   agregarLineasKit,
   avanceReparto,
@@ -42,6 +43,9 @@ export async function GET(request: NextRequest) {
 
     const filters = filtersResult.data;
     const skip = (filters.page - 1) * filters.limit;
+    // Tarjeta "Por repartir" (SPEC 2.111.3): la misma condicion la cuenta y
+    // filtra la lista.
+    const soloPorRepartir = searchParams.get("vista") === "por_repartir";
 
     // SPEC 2.111.6: la compra es de la empresa, asi que admin y tecnico ven
     // todas (lo pendiente todavia no tiene sede destino). La sede elegida en
@@ -77,8 +81,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // La tarjeta "Total" cuenta sin la vista; la lista, con ella.
+    const whereTotal = { ...where };
+    if (soloPorRepartir) where.AND = [WHERE_COMPRA_POR_REPARTIR];
+
     // Ejecutar consulta
-    const [purchases, total] = await Promise.all([
+    const [purchases, total, totalCompras, porRepartir] = await Promise.all([
       prisma.purchase.findMany({
         where,
         include: {
@@ -88,16 +96,24 @@ export async function GET(request: NextRequest) {
           _count: {
             select: { purchaseAssets: true },
           },
+          ...INCLUDE_AVANCE_REPARTO,
         },
         orderBy: { [filters.sortBy]: filters.sortOrder },
         skip,
         take: filters.limit,
       }),
       prisma.purchase.count({ where }),
+      prisma.purchase.count({ where: whereTotal }),
+      // Compras con algo por repartir, con los mismos filtros (tarjeta).
+      prisma.purchase.count({ where: { AND: [whereTotal, WHERE_COMPRA_POR_REPARTIR] } }),
     ]);
 
     return NextResponse.json({
-      data: purchases,
+      // Cada compra con su avance de reparto, sin las lineas que lo calculan.
+      data: purchases.map(({ purchaseAssets, purchaseKitItems, ...compra }) => ({
+        ...compra,
+        reparto: avanceReparto({ purchaseAssets, purchaseKitItems }),
+      })),
       pagination: {
         total,
         page: filters.page,
@@ -105,7 +121,8 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(total / filters.limit),
       },
       stats: {
-        totalCompras: total,
+        totalCompras,
+        porRepartir,
       },
     });
   } catch (error) {

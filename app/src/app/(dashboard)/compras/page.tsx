@@ -7,10 +7,10 @@ import {
   Plus,
   Search,
   FileText,
-  Package,
   Loader2,
   Calendar,
   RefreshCw,
+  Split,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Can } from "@/components/auth/Can";
@@ -21,6 +21,11 @@ import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard, StatGrid } from "@/components/ui/StatCard";
 import { Pagination } from "@/components/ui/Pagination";
+import {
+  ESTADO_REPARTO_BADGE,
+  ESTADO_REPARTO_LABEL,
+  type AvanceReparto,
+} from "@/lib/constants/repartoCompra";
 
 type Purchase = {
   id: string;
@@ -32,10 +37,12 @@ type Purchase = {
   _count: {
     purchaseAssets: number;
   };
+  reparto: AvanceReparto;
 };
 
 type Stats = {
   totalCompras: number;
+  porRepartir: number;
 };
 
 export default function ComprasPage() {
@@ -54,11 +61,13 @@ export default function ComprasPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  // Tarjeta "Por repartir" pulsada (SPEC 2.111.3): filtra la lista.
+  const [soloPorRepartir, setSoloPorRepartir] = useState(false);
 
   useEffect(() => {
     fetchPurchases();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, sedeSeleccionada, fechaDesde, fechaHasta, page]);
+  }, [debouncedSearch, sedeSeleccionada, fechaDesde, fechaHasta, page, soloPorRepartir]);
 
   async function fetchPurchases() {
     setLoading(true);
@@ -72,6 +81,7 @@ export default function ComprasPage() {
       if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
       if (fechaDesde) params.append("fechaDesde", fechaDesde);
       if (fechaHasta) params.append("fechaHasta", fechaHasta);
+      if (soloPorRepartir) params.append("vista", "por_repartir");
 
       const res = await fetch(`/api/compras?${params}`);
       const data = await res.json();
@@ -108,15 +118,32 @@ export default function ComprasPage() {
         }
       />
 
-      {/* Stats Cards */}
+      {/* Cada tarjeta filtra la lista al pulsarla (SPEC 2.111.3). */}
       <StatGrid cols={2} className="grid-cols-1 sm:grid-cols-2">
-        <StatCard tilt label="Total Facturas" value={stats?.totalCompras || 0} tone="primary" icon={FileText} />
         <StatCard
           tilt
-          label="Activos Vinculados"
-          value={purchases.reduce((sum, p) => sum + p._count.purchaseAssets, 0)}
-          tone="orange"
-          icon={Package}
+          label="Total Facturas"
+          value={stats?.totalCompras || 0}
+          tone="primary"
+          icon={FileText}
+          activa={!soloPorRepartir}
+          onClick={() => {
+            setSoloPorRepartir(false);
+            setPage(1);
+          }}
+        />
+        <StatCard
+          tilt
+          label="Por repartir"
+          hint="Compras con equipos o Kit/EPP sin repartir"
+          value={stats?.porRepartir || 0}
+          tone="purple"
+          icon={Split}
+          activa={soloPorRepartir}
+          onClick={() => {
+            setSoloPorRepartir(!soloPorRepartir);
+            setPage(1);
+          }}
         />
       </StatGrid>
 
@@ -228,6 +255,9 @@ export default function ComprasPage() {
                     <th className="table-th px-4">
                       OC
                     </th>
+                    <th className="table-th px-4">
+                      Reparto
+                    </th>
                     <th className="table-th px-4 text-right">
                       Acciones
                     </th>
@@ -263,6 +293,21 @@ export default function ComprasPage() {
                       </td>
                       <td className="px-4 py-4 text-sm text-fg-subtle">
                         {purchase.ordenCompra || "-"}
+                      </td>
+                      <td className="px-4 py-4">
+                        {purchase.reparto.estado ? (
+                          <span
+                            className={cn(
+                              "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium",
+                              ESTADO_REPARTO_BADGE[purchase.reparto.estado]
+                            )}
+                            title={`${purchase.reparto.pendiente} por repartir, ${purchase.reparto.repartido} repartido(s)`}
+                          >
+                            {ESTADO_REPARTO_LABEL[purchase.reparto.estado]}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-fg-subtle">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">

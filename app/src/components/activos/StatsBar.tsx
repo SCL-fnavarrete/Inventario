@@ -22,6 +22,8 @@ interface StatsData {
   total: number;
   /** Equipos que vienen en camino a la sede (null si no hay sede propia). */
   porLlegar: number | null;
+  /** Recien comprados que esperan su reparto, de todas las sedes (SPEC 2.111). */
+  porRepartir: number;
   byStatus: {
     disponible: number;
     asignado: number;
@@ -79,6 +81,8 @@ export function StatsBar({ data, isLoading, selectedStatus, onStatusClick }: Sta
     { key: "no_devuelto", value: data.byStatus.no_devuelto },
     { key: "en_transito", value: data.byStatus.en_transito },
     ...(data.porLlegar !== null ? [{ key: "por_llegar", value: data.porLlegar } as const] : []),
+    // Solo cuando hay algo por repartir: es un estado de paso.
+    ...(data.porRepartir > 0 ? [{ key: "por_repartir", value: data.porRepartir } as const] : []),
     { key: "baja", value: data.byStatus.baja },
     { key: "vendido", value: data.byStatus.vendido },
   ] as const;
@@ -87,7 +91,11 @@ export function StatsBar({ data, isLoading, selectedStatus, onStatusClick }: Sta
     <div
       className={cn(
         "grid grid-cols-2 gap-3 sm:grid-cols-4",
-        statItems.length > 8 ? "lg:grid-cols-5 xl:grid-cols-9" : "lg:grid-cols-8"
+        statItems.length > 9
+          ? "lg:grid-cols-5 xl:grid-cols-10"
+          : statItems.length > 8
+            ? "lg:grid-cols-5 xl:grid-cols-9"
+            : "lg:grid-cols-8"
       )}
     >
       {statItems.map(({ key, value }) => {

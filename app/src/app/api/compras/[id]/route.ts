@@ -50,9 +50,31 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           },
           orderBy: { createdAt: "asc" },
         },
-        // Lineas de Kit/EPP compradas con esta factura.
+        // Lineas de Kit/EPP compradas con esta factura, y a donde se
+        // repartio cada parte (SPEC 2.111).
         purchaseKitItems: {
-          include: { item: true },
+          include: {
+            item: true,
+            repartos: {
+              include: {
+                sede: { select: { id: true, nombre: true } },
+                guide: { select: { id: true, numero: true, estado: true } },
+              },
+              orderBy: { createdAt: "asc" },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
+        // Despachos que creo el reparto hacia otras sedes.
+        despachos: {
+          select: {
+            id: true,
+            numero: true,
+            estado: true,
+            fechaDespacho: true,
+            sedeDestino: { select: { id: true, nombre: true } },
+            _count: { select: { items: true, kitItems: true } },
+          },
           orderBy: { createdAt: "asc" },
         },
       },

@@ -77,6 +77,7 @@ type Asset = {
 type StatsData = {
   total: number;
   porLlegar: number | null;
+  porRepartir: number;
   byStatus: {
     disponible: number;
     asignado: number;

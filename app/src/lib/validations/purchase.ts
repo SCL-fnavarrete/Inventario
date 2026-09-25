@@ -199,3 +199,44 @@ export function validarDatosFactura(v: {
   if (!rut.success) e.rutProveedor = rut.error.issues[0].message;
   return e;
 }
+
+/**
+ * Repartir parte de una compra a una sede (SPEC 2.111.3): equipos "Por
+ * repartir" y cantidades de Kit/EPP. Los datos del despacho (`envio`) solo
+ * se piden si la sede destino no es la de llegada; se revisan con las
+ * mismas reglas que un despacho del modulo (validarDatosDespacho).
+ */
+export const repartoCompraSchema = z
+  .object({
+    sedeDestinoId: z.string({ error: "Elige la sede destino" }).uuid("Elige la sede destino"),
+    equipos: z.array(z.string().uuid("ID de equipo inválido")).default([]),
+    kit: z
+      .array(
+        z.object({
+          lineaId: z.string().uuid("Línea inválida"),
+          cantidad: z.coerce.number().int().min(1, "La cantidad debe ser al menos 1"),
+        })
+      )
+      .default([]),
+    envio: z
+      .object({
+        otChilexpress: z.string().optional(),
+        fechaDespacho: z.string().optional(),
+        fechaEstimadaLlegada: z.string().nullable().optional(),
+        receptorNombre: z.string().optional(),
+        receptorRut: z.string().optional(),
+        observaciones: z.string().nullable().optional(),
+      })
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.equipos.length === 0 && data.kit.length === 0) {
+      ctx.addIssue({ code: "custom", path: ["reparto"], message: "Elige al menos un equipo o una cantidad de Kit/EPP" });
+    }
+    const lineas = data.kit.map((k) => k.lineaId);
+    if (new Set(lineas).size !== lineas.length) {
+      ctx.addIssue({ code: "custom", path: ["kit"], message: "Una línea de Kit/EPP está repetida" });
+    }
+  });
+
+export type RepartoCompraInput = z.infer<typeof repartoCompraSchema>;

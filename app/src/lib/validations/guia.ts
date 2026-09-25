@@ -32,6 +32,16 @@ type DatosGuia = {
 export function validarNuevaGuia(d: DatosGuia): Record<string, string> {
   const e: Record<string, string> = {};
   if (!d.assetIds || d.assetIds.length === 0) e.assetIds = "Elige al menos un equipo";
+  return { ...e, ...validarDatosDespacho(d) };
+}
+
+/**
+ * Datos del envio, sin los equipos: los comparten el despacho del modulo y
+ * el despacho que crea el reparto de una compra (SPEC 2.111), que puede
+ * llevar solo Kit/EPP.
+ */
+export function validarDatosDespacho(d: Omit<DatosGuia, "assetIds">): Record<string, string> {
+  const e: Record<string, string> = {};
   if (!d.otChilexpress?.trim()) e.otChilexpress = "Escribe la OT de Chilexpress";
   if (!d.sedeDestinoId) e.sedeDestinoId = "Elige la sede destino";
   if (!d.fechaDespacho) e.fechaDespacho = "Elige la fecha de envío";

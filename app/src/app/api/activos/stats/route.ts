@@ -25,6 +25,16 @@ export async function GET(request: NextRequest) {
     // Obtener total de activos
     const total = await prisma.asset.count({ where: whereVigentes });
 
+    // "Por repartir" (SPEC 2.111.6): de todas las sedes, tambien para el
+    // tecnico; la sede del menu filtra para quien ve todas.
+    const porRepartir = await prisma.asset.count({
+      where: {
+        ...ACTIVOS_VIGENTES,
+        estado: "por_repartir",
+        ...(sedeIdFiltro && tieneVisibilidadTotal(session) && { sedeId: sedeIdFiltro }),
+      },
+    });
+
     // Obtener conteo por estado
     const byStatusRaw = await prisma.asset.groupBy({
       by: ["estado"],
@@ -109,6 +119,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       total,
       porLlegar,
+      porRepartir,
       byStatus,
       byCategory,
       byCondition,

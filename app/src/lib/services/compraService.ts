@@ -1,7 +1,18 @@
 import type { Prisma, WelcomeKitItem } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import type { CreateAssetInput } from '@/lib/validations/asset';
+import type { RepartoCompraInput } from '@/lib/validations/purchase';
+import { validarDatosDespacho } from '@/lib/validations/guia';
+import { validateTransition } from '@/lib/services/assetStateMachine';
+import { auditLogService } from '@/lib/services/auditLogService';
+import {
+  crearDespacho,
+  crearGuiaConNumero,
+  sedeDestinoValida,
+  type DatosEnvio,
+} from '@/lib/services/guiaDespachoService';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { crearActivo, descartarActivo } from '@/lib/services/activoService';
 import type { AvanceReparto, EstadoReparto } from '@/lib/constants/repartoCompra';
@@ -224,4 +235,184 @@ export async function moverSedeDeLlegada(tx: Tx, compraId: string, nuevaSedeId: 
     const destino = await articuloKitEnSede(tx, linea.item, nuevaSedeId);
     await tx.purchaseKitItem.update({ where: { id: linea.id }, data: { itemId: destino.id } });
   }
+}
+
+// ─── Repartir (SPEC 2.111.3) ─────────────────────────────────────────────
+
+/**
+ * Reparte parte de una compra a una sede.
+ * - A la sede de llegada: los equipos pasan a "Disponible" y el Kit/EPP suma
+ *   al stock de esa sede, en el momento.
+ * - A otra sede: se crea un despacho (el mismo crearDespacho del modulo)
+ *   desde la sede de llegada, vinculado a la compra, con los equipos y el
+ *   Kit/EPP. El stock se suma en la sede destino al recibirlo.
+ * En ambos casos baja lo pendiente de la compra y queda a donde fue cada
+ * parte del Kit/EPP. Todo en una transaccion.
+ */
+export async function repartirCompra(
+  compraId: string,
+  datos: RepartoCompraInput,
+  quien: { emisor: string; usuario: string }
+) {
+  const compra = await prisma.purchase.findUnique({
+    where: { id: compraId },
+    include: {
+      sede: { select: { id: true, nombre: true } },
+      purchaseAssets: {
+        include: {
+          asset: { select: { id: true, estado: true, sedeId: true, deletedAt: true, marca: true, modelo: true } },
+        },
+      },
+      purchaseKitItems: { include: { item: true } },
+    },
+  });
+  if (!compra) throw new NotFoundError('Compra no encontrada');
+  const sedeLlegada = sedeDeLlegada(compra);
+
+  // Equipos: comprados en esta compra y todavia "Por repartir".
+  const vinculos = new Map(compra.purchaseAssets.map((pa) => [pa.assetId, pa]));
+  const equipos = [...new Set(datos.equipos)].map((id) => {
+    const pa = vinculos.get(id);
+    if (!pa || !pa.llegoConCompra || pa.asset.deletedAt) {
+      throw new ValidationError('Uno de los equipos no es de esta compra');
+    }
+    if (pa.asset.estado !== 'por_repartir') {
+      throw new ConflictError(`${pa.asset.marca} ${pa.asset.modelo} ya se repartió`);
+    }
+    return pa.asset;
+  });
+
+  // Kit/EPP: cada cantidad dentro de lo que falta repartir de su linea.
+  const lineas = new Map(compra.purchaseKitItems.map((l) => [l.id, l]));
+  const kit = datos.kit.map(({ lineaId, cantidad }) => {
+    const linea = lineas.get(lineaId);
+    if (!linea) throw new ValidationError('Una de las líneas de Kit/EPP no es de esta compra');
+    if (cantidad > linea.cantidadPorRepartir) {
+      throw new ValidationError(
+        `De ${linea.item.nombre} quedan ${linea.cantidadPorRepartir} por repartir; no se pueden repartir ${cantidad}`
+      );
+    }
+    return { linea, cantidad };
+  });
+
+  const factura = compra.numeroFactura ? `factura ${compra.numeroFactura}` : 'compra sin número';
+  const resumen = `${equipos.length} equipo(s) y ${kit.reduce((s, k) => s + k.cantidad, 0)} unidad(es) de Kit/EPP`;
+
+  // Baja lo pendiente de la linea solo si todavia alcanza: si otro reparto
+  // se adelanto, se cancela todo.
+  const descontar = async (tx: Tx, lineaId: string, cantidad: number) => {
+    const { count } = await tx.purchaseKitItem.updateMany({
+      where: { id: lineaId, cantidadPorRepartir: { gte: cantidad } },
+      data: { cantidadPorRepartir: { decrement: cantidad } },
+    });
+    if (count !== 1) {
+      throw new ConflictError('Otro reparto cambió lo pendiente de esta compra. Vuelve a intentarlo.');
+    }
+  };
+
+  if (datos.sedeDestinoId === sedeLlegada) {
+    await prisma.$transaction(async (tx) => {
+      for (const equipo of equipos) {
+        const transicion = validateTransition('por_repartir', 'disponible', {
+          hasActiveAssignment: false,
+          hasActiveMaintenance: false,
+        });
+        if (!transicion.valid) throw new ConflictError(transicion.errors[0]);
+        const { count } = await tx.asset.updateMany({
+          where: { id: equipo.id, estado: 'por_repartir', deletedAt: null },
+          data: { estado: 'disponible' },
+        });
+        if (count !== 1) {
+          throw new ConflictError('Un equipo cambió de estado mientras se repartía. Vuelve a intentarlo.');
+        }
+        await assetHistoryService.registrar(
+          {
+            assetId: equipo.id,
+            tipoEvento: 'cambio_estado',
+            descripcion: `Repartido a ${compra.sede?.nombre ?? 'la sede de llegada'} (${factura}): queda Disponible`,
+            datosAnteriores: { estado: 'por_repartir' },
+            datosNuevos: { estado: 'disponible', purchaseId: compra.id },
+            usuarioSistema: quien.usuario,
+          },
+          tx
+        );
+      }
+      for (const { linea, cantidad } of kit) {
+        await descontar(tx, linea.id, cantidad);
+        const item = await tx.welcomeKitItem.update({
+          where: { id: linea.itemId },
+          data: { cantidad: { increment: cantidad } },
+        });
+        await tx.purchaseKitReparto.create({
+          data: { purchaseKitItemId: linea.id, sedeId: sedeLlegada, cantidad, repartidoPor: quien.usuario },
+        });
+        await auditLogService.registrarActualizacion(
+          'kit_item',
+          linea.itemId,
+          `Stock repartido desde la compra (${factura}): +${cantidad} ${linea.item.nombre}`,
+          { cantidad: item.cantidad - cantidad },
+          { cantidad: item.cantidad },
+          quien.usuario,
+          tx
+        );
+      }
+      await auditLogService.registrarActualizacion(
+        'compra',
+        compra.id,
+        `Reparto a ${compra.sede?.nombre ?? 'la sede de llegada'}: ${resumen}`,
+        {},
+        { sedeDestinoId: sedeLlegada, equipos: equipos.length },
+        quien.usuario,
+        tx
+      );
+    });
+    return { despacho: null };
+  }
+
+  // A otra sede: con un despacho, igual que el modulo de Despachos.
+  const errores = validarDatosDespacho({ ...datos.envio, sedeDestinoId: datos.sedeDestinoId });
+  if (Object.keys(errores).length > 0) {
+    throw new ValidationError(
+      'Faltan o están incorrectos datos del despacho',
+      Object.entries(errores).map(([field, message]) => ({ field, message }))
+    );
+  }
+  const envio = datos.envio as DatosEnvio;
+  const sedeDestino = await sedeDestinoValida(datos.sedeDestinoId, sedeLlegada);
+
+  const despacho = await crearGuiaConNumero(async (numero, tx) => {
+    const guia = await crearDespacho(tx, numero, {
+      envio,
+      sedeId: sedeLlegada,
+      sedeDestino,
+      equipos: equipos.map((e) => ({ id: e.id, estado: e.estado, sedeId: e.sedeId })),
+      kit: kit.map((k) => ({ itemId: k.linea.itemId, cantidad: k.cantidad })),
+      purchaseId: compra.id,
+      emisor: quien.emisor,
+      usuario: quien.usuario,
+    });
+    for (const { linea, cantidad } of kit) {
+      await descontar(tx, linea.id, cantidad);
+      await tx.purchaseKitReparto.create({
+        data: {
+          purchaseKitItemId: linea.id,
+          sedeId: sedeDestino.id,
+          cantidad,
+          guideId: guia.id,
+          repartidoPor: quien.usuario,
+        },
+      });
+    }
+    await auditLogService.registrarActualizacion(
+      'compra',
+      compra.id,
+      `Reparto a ${sedeDestino.nombre} en el despacho ${guia.numero}: ${resumen}`,
+      {},
+      { sedeDestinoId: sedeDestino.id, guideId: guia.id, equipos: equipos.length },
+      quien.usuario,
+      tx
+    );
+    return guia;
+  });
+  return { despacho: { id: despacho.id, numero: despacho.numero } };
 }

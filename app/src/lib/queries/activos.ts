@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import type { SesionAutenticada } from '@/lib/auth/guard';
 import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { estadoActivoEnum } from '@/lib/validations/asset';
-import { sedePropiaGuias, whereActivosPorLlegar } from '@/lib/queries/guias';
+import { sedePropiaGuias, vieneAMiSede, whereActivosPorLlegar } from '@/lib/queries/guias';
 
 /**
  * Filtro de activos vigentes.
@@ -27,6 +27,8 @@ export const ACTIVOS_VIGENTES = { deletedAt: null } satisfies Prisma.AssetWhereI
  * (asi el archivo trae lo mismo que se ve en pantalla):
  * - vigentes y de la sede de la sesion; o, con `porLlegar`, los que vienen
  *   en camino a mi sede (SPEC 2.108), que todavia son de la sede de origen;
+ *   o, en "Por repartir", los de todas las sedes: el tecnico tambien ve lo
+ *   que se esta por repartir (SPEC 2.111.6);
  * - estado (uno desconocido, de una URL editada a mano, se ignora) y categoria;
  * - sede elegida en el menu, solo para quien ve todas.
  */
@@ -36,12 +38,29 @@ export function whereFiltrosActivos(
 ): Prisma.AssetWhereInput {
   const where: Prisma.AssetWhereInput = f.porLlegar
     ? whereActivosPorLlegar(sedePropiaGuias(session, f.sedeIdFiltro))
-    : { ...ACTIVOS_VIGENTES, ...sedeWhere(session) };
+    : f.estado === 'por_repartir'
+      ? { ...ACTIVOS_VIGENTES }
+      : { ...ACTIVOS_VIGENTES, ...sedeWhere(session) };
   const estado = estadoActivoEnum.safeParse(f.estado);
   if (estado.success) where.estado = estado.data;
   if (f.categoriaId) where.categoriaId = f.categoriaId;
   if (f.sedeIdFiltro && tieneVisibilidadTotal(session) && !f.porLlegar) where.sedeId = f.sedeIdFiltro;
   return where;
+}
+
+/**
+ * ¿La sesion puede abrir la ficha de este equipo? La de su sede; la de uno
+ * que viene en camino a su sede (SPEC 2.108); y la de uno "Por repartir" de
+ * cualquier sede (SPEC 2.111.6). Admin, todas. La usan la API y la pagina.
+ */
+export async function puedeVerActivo(
+  session: SesionAutenticada,
+  asset: { id: string; sedeId: string | null; estado: string }
+): Promise<boolean> {
+  if (tieneVisibilidadTotal(session)) return true;
+  if (asset.sedeId && asset.sedeId === session.user.sedeId) return true;
+  if (asset.estado === 'por_repartir') return true;
+  return vieneAMiSede(session, asset.id);
 }
 
 /** Palabras de un termino de busqueda, sin espacios de sobra. */

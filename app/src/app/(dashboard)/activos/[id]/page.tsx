@@ -4,8 +4,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import type { SesionAutenticada } from "@/lib/auth/guard";
-import { tieneVisibilidadTotal } from "@/lib/auth/sedeScope";
-import { vieneAMiSede } from "@/lib/queries/guias";
+import { puedeVerActivo } from "@/lib/queries/activos";
 import {
   Edit,
   User,
@@ -128,11 +127,8 @@ export default async function DetalleActivoPage({
     notFound();
   }
   // La sede destino ve un equipo que viene en camino a ella (SPEC 2.108).
-  if (
-    !tieneVisibilidadTotal(session) &&
-    asset.sedeId !== session.user.sedeId &&
-    !(await vieneAMiSede(session, asset.id))
-  ) {
+  // La misma regla que la API (puedeVerActivo).
+  if (!(await puedeVerActivo(session, asset))) {
     notFound();
   }
 
