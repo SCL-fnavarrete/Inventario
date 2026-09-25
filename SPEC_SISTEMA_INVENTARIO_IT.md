@@ -3632,19 +3632,41 @@ Todo el módulo es solo de admin (`layout.tsx`, recurso `configuracion`).
 | Usuarios | Cuentas de acceso, rol y sede |
 | Catálogos de Activos | Categorías, Sistema Operativo, Antivirus y Licencia M365 (se unirán Categorías y Opciones de Activos) |
 | Seguridad | Antes "Parámetros Generales": duración de la sesión, intentos de inicio de sesión y minutos de bloqueo |
+| Registro de accesos | Inicios de sesión, intentos fallidos, bloqueos, cierres de sesión y sesiones cortadas (2.112.4) |
 | Auditoría | Quién hizo qué y cuándo |
 
 El catálogo de Kit/EPP sigue en Activos y los tipos de mantención en Mantenciones, porque el técnico también los maneja.
 
-### 2.112.3 Próximas partes
-2. Seguridad de los usuarios: que desactivar o cambiar el rol o la sede aplique sin esperar a que venza la sesión, que nunca se quede el sistema sin administradores, y un registro de inicios de sesión.
+### 2.112.3 Usuarios: no se eliminan, se desactivan (parte 2)
+Decisión de Javier: *"en vez de eliminar un usuario es mejor tener la opción de desactivarlo, y un usuario inactivo no puede iniciar sesión ni entrar a nada"*.
+- **Sin eliminar:** se quitan el botón y `DELETE /api/usuarios/[id]`. Su nombre queda en la Auditoría, en las solicitudes y en todo lo que hizo.
+- **Activar / Desactivar** es un botón propio con confirmación (antes, un clic sobre la etiqueta de estado, sin confirmar). El formulario de edición ya no cambia el estado.
+- **Un usuario inactivo no entra a nada:**
+  - no puede iniciar sesión (ya era así);
+  - **si tenía la sesión abierta, queda fuera en su siguiente acción.** Antes seguía entrando hasta que vencía la sesión (24 horas), porque el rol, la sede y el estado se guardaban al iniciar sesión y no se volvían a revisar. Ahora la sesión revisa la cuenta en cada consulta al servidor (`jwt` en `lib/auth.ts`): si está desactivada, la invalida; y un cambio de rol o de sede aplica de inmediato;
+  - la pantalla vuelve a consultar su sesión cada 30 segundos y al volver a la pestaña, y si ya no vale va al inicio de sesión (`SessionProvider`);
+  - desactivar deja en el Registro de accesos "Sesión cortada — Cuenta desactivada por …".
+- **Nunca quedarse sin administradores** (`PUT /api/usuarios/[id]`): no te puedes desactivar ni quitar el rol de administrador a ti mismo (el botón no aparece en tu propia fila), y no se puede desactivar ni quitarle el rol al último administrador activo. Responde 409 con el motivo.
+- **Duración de la sesión:** se toma de Configuración > Seguridad al iniciar cada sesión (`expiraEn`), sin esperar a que el servidor se reinicie. El JWT tiene un tope fijo de 31 días, mayor que el máximo permitido (720 horas).
+- **Ciclo corregido:** con una sesión de una cuenta desactivada, el middleware mandaba de `/login` al inicio y el inicio de vuelta a `/login`. Ahora quien decide si el login redirige es su propio layout, que sí consulta la base.
+- Un correo repetido al editar se marca en su campo.
+
+### 2.112.4 Registro de accesos (parte 2)
+Idea de Javier: *"un módulo donde salgan los inicios de sesión o intentos, tipo logs"*. Decisiones: guardar la dirección de red y el navegador, y registrar también los cierres de sesión.
+- **Tabla `access_logs`** (`AccessLog`, migración `20260925210000_registro_accesos`): correo usado, usuario (si existe), resultado, dirección de red, navegador, detalle y fecha. Resultados (`ResultadoAcceso`): ingresó, contraseña incorrecta, usuario no existe, usuario desactivado, bloqueado por intentos, cerró sesión (desde el menú; cerrar el navegador no queda registrado) y sesión cortada (al desactivar la cuenta).
+- **Configuración > Registro de accesos** (`/configuracion/accesos`, `GET /api/accesos`, solo admin): tarjetas que filtran (ingresos, intentos fallidos, bloqueos e intentos de cuentas desactivadas, de hoy en Chile), filtros por usuario, resultado y fechas en hora de Chile, y la lista con fecha y hora, usuario, resultado, dirección de red y navegador en palabras ("Edge en Windows"; el texto completo al pasar el mouse). En Usuarios, cada fila tiene "Ver sus accesos".
+- **El bloqueo por intentos se cuenta en este registro** (`minutosDeBloqueo`, `lib/services/accesoService.ts`): los fallos desde el último ingreso correcto, dentro de la ventana de bloqueo. Antes se contaba en la memoria del servidor, que en Vercel (varias copias del servidor) se podía saltar.
+- El mensaje de error al iniciar sesión sigue siendo el mismo para correo inexistente, cuenta desactivada y contraseña incorrecta (para no revelar qué cuentas existen); el detalle real queda en el registro.
+- `inicioDiaChile` y `rangoDiasChile` (`lib/utils/fechas.ts`) filtran por días en hora de Chile ("hasta" incluye todo ese día); los usará también Auditoría.
+
+### 2.112.5 Próximas partes
 3. Auditoría: filtros de fecha en hora de Chile, textos legibles y detalle entendible.
 4. Catálogos de Activos: unir Categorías y Opciones; "Requiere N° de serie" y "Requiere IMEI" pasan a funcionar (pensando en el futuro módulo de líneas telefónicas); avisos al renombrar.
 5. Usuarios, Sedes, celular, textos y limpieza de código.
 
 ## Changelog SPEC
 - **v2.36 (2026-09-25):**
-  - Sección 2.112 (nueva): Configuración se reduce a Sedes, Usuarios, Catálogos de Activos, Seguridad y Auditoría. Se eliminan Mantenimiento de Datos, la sincronización con Microsoft (2.6 queda como historia) y los datos de la empresa, con sus columnas en la base.
+  - Sección 2.112 (nueva): Configuración se reduce a Sedes, Usuarios, Catálogos de Activos, Seguridad, Registro de accesos y Auditoría. Los usuarios no se eliminan, se desactivan, y la desactivación corta la sesión en la siguiente acción; nunca se queda el sistema sin administradores; nuevo Registro de accesos, base también del bloqueo por intentos. Se eliminan Mantenimiento de Datos, la sincronización con Microsoft (2.6 queda como historia) y los datos de la empresa, con sus columnas en la base.
 - **v2.35 (2026-09-25):**
   - Sección 2.111 (nueva, regla aprobada, se implementa por partes; implementada en cinco partes: modelo; registrar; repartir; Kit/EPP en despachos y "Apareció"; revisión final con 4 huecos corregidos y 66 casos probados): en Compras primero se compra y después se reparte. El técnico ve todas las compras y lo que hay por repartir, en solo lectura. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
 - **v2.34 (2026-09-25):**

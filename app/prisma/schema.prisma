@@ -28,9 +28,45 @@ model SystemUser {
   solicitudesAsignadas WorkflowRequest[] @relation("ResponsableRelation")
   workflowComments    WorkflowComment[]
   workflowTransitions WorkflowTransition[]
+  accesos             AccessLog[]
 
   @@index([sedeId])
   @@map("system_users")
+}
+
+// Registro de accesos (SPEC 2.112, Configuracion > Registro de accesos):
+// cada intento de iniciar sesion, cada cierre de sesion y cada sesion que
+// el sistema corta al desactivar una cuenta. Tambien es la base del bloqueo
+// por intentos fallidos: se cuenta aqui y no en la memoria del servidor.
+model AccessLog {
+  id        String          @id @default(uuid())
+  // Correo con que se intento entrar (puede no existir como usuario).
+  email     String
+  usuarioId String?         @map("usuario_id")
+  resultado ResultadoAcceso
+  // Direccion de red y navegador de quien intento (no hay en cierres de
+  // sesion ni cortes hechos por el sistema).
+  ip        String?
+  navegador String?
+  // Aclaracion, por ejemplo quien desactivo la cuenta.
+  detalle   String?
+  createdAt DateTime        @default(now()) @map("created_at")
+  usuario   SystemUser?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([email, createdAt])
+  @@index([createdAt])
+  @@index([resultado])
+  @@map("access_logs")
+}
+
+enum ResultadoAcceso {
+  exito
+  clave_incorrecta
+  usuario_inexistente
+  usuario_inactivo
+  bloqueado
+  cierre_sesion
+  sesion_revocada
 }
 
 model Employee {

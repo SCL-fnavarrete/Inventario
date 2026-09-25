@@ -7,6 +7,7 @@ import {
   MapPin,
   History,
   ListChecks,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -53,6 +54,13 @@ const configSections = [
     href: "/configuracion/parametros",
     icon: Settings2,
     adminOnly: false,
+  },
+  {
+    title: "Registro de accesos",
+    description: "Inicios de sesión, intentos fallidos, bloqueos y cierres de sesión",
+    href: "/configuracion/accesos",
+    icon: KeyRound,
+    adminOnly: true,
   },
   {
     title: "Auditoría",

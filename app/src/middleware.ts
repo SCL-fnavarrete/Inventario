@@ -11,10 +11,9 @@ export default withAuth(
       return NextResponse.redirect(new URL("/login", req.url));
     }
 
-    // Si el usuario está autenticado y está en login, redirigir a dashboard
-    if (token && path === "/login") {
-      return NextResponse.redirect(new URL("/", req.url));
-    }
+    // Con sesion, el login lo decide su propio layout, que revisa la cuenta
+    // en la base: aqui una cuenta desactivada todavia tiene su cookie y se
+    // produciria un ciclo login -> inicio -> login (SPEC 2.112).
 
     return NextResponse.next();
   },

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Save, ShieldCheck, ShieldAlert } from "lucide-react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { Plus, Edit, Save, ShieldCheck, ShieldAlert, UserX, UserCheck, KeyRound } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -30,8 +32,9 @@ const usuarioFieldLabels: Record<string, string> = {
 };
 
 /**
- * Confirmacion para eliminar un usuario con el componente compartido
- * ConfirmDialog, en vez de confirm() del navegador.
+ * Confirmacion para activar o desactivar un usuario, con el componente
+ * compartido ConfirmDialog. Un usuario no se elimina: se desactiva (SPEC
+ * 2.112), asi su nombre queda en la auditoria y en todo lo que hizo.
  */
 type Confirmacion = {
   titulo: string;
@@ -70,12 +73,14 @@ const roleColors: Record<string, string> = {
 };
 
 const roleDescriptions: Record<string, string> = {
-  admin: "CRUD completo, configuración, ve todas las sedes",
+  admin: "Todo el sistema, incluida la Configuración; ve todas las sedes",
   tecnico: "Trabajo operativo de soporte, solo en su propia sede; sin acceso a Configuración",
 };
 
 export default function UsuariosPage() {
   const toast = useToast();
+  const { data: session } = useSession();
+  const miId = session?.user?.id;
   const [users, setUsers] = useState<SystemUser[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,11 +184,12 @@ export default function UsuariosPage() {
     if (reportar(validar(false))) return;
 
     try {
+      // El estado activo/inactivo se cambia con su propio boton, con
+      // confirmacion, no desde este formulario.
       const updateData: Record<string, unknown> = {
         email: formData.email,
         nombre: formData.nombre,
         rol: formData.rol,
-        activo: formData.activo,
         sedeId: formData.rol === "admin" ? null : formData.sedeId,
       };
 
@@ -214,38 +220,26 @@ export default function UsuariosPage() {
     }
   };
 
-  const pedirEliminar = (user: SystemUser) => {
-    setConfirmacion({
-      titulo: "Eliminar usuario",
-      mensaje: `${user.nombre} (${user.email}) pierde el acceso al sistema y su cuenta se borra. No se puede deshacer; si solo quieres bloquearlo temporalmente, desactívalo en vez de eliminarlo.`,
-      textoBoton: "Eliminar",
-      onConfirm: () => handleDelete(user.id),
-    });
-  };
-
-  const handleDelete = async (id: string) => {
-    setConfirmacion(null);
-
-    try {
-      const res = await fetch(`/api/usuarios/${id}`, {
-        method: "DELETE",
-      });
-
-      if (res.ok) {
-        await fetchUsers();
-        toast.success("Usuario eliminado exitosamente");
-      } else {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al eliminar usuario");
-        setError(message);
-        setFieldErrors(fe);
-      }
-    } catch (err) {
-      setError("Error al eliminar usuario");
-      console.error(err);
-    }
+  const pedirCambioEstado = (user: SystemUser) => {
+    setConfirmacion(
+      user.activo
+        ? {
+            titulo: "Desactivar usuario",
+            mensaje: `${user.nombre} (${user.email}) no podrá iniciar sesión, y si está dentro del sistema quedará fuera en su siguiente acción. Su nombre se conserva en la auditoría y en todo lo que hizo. Puedes volver a activarlo cuando quieras.`,
+            textoBoton: "Desactivar",
+            onConfirm: () => toggleUserStatus(user),
+          }
+        : {
+            titulo: "Activar usuario",
+            mensaje: `${user.nombre} (${user.email}) podrá volver a iniciar sesión con su contraseña.`,
+            textoBoton: "Activar",
+            onConfirm: () => toggleUserStatus(user),
+          }
+    );
   };
 
   const toggleUserStatus = async (user: SystemUser) => {
+    setConfirmacion(null);
     try {
       const res = await fetch(`/api/usuarios/${user.id}`, {
         method: "PUT",
@@ -418,19 +412,6 @@ export default function UsuariosPage() {
                 </select>
               </CampoFormulario>
             )}
-            {editingId && (
-              <div className="flex items-center">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.activo}
-                    onChange={(e) => cambiar("activo", e.target.checked)}
-                    className="field-checkbox"
-                  />
-                  <span className="text-sm text-fg-muted">Usuario Activo</span>
-                </label>
-              </div>
-            )}
           </div>
           <div className="flex justify-end gap-3 mt-4">
             <button
@@ -497,7 +478,7 @@ export default function UsuariosPage() {
                   )}
                 </td>
                 <td className="px-6 py-4 text-center">
-                  <ActiveBadge activo={user.activo} onToggle={() => toggleUserStatus(user)} />
+                  <ActiveBadge activo={user.activo} />
                 </td>
                 <td className="px-6 py-4 text-sm text-fg-subtle">
                   {formatearFechaHoraCorta(user.ultimoLogin, "Nunca")}
@@ -511,13 +492,29 @@ export default function UsuariosPage() {
                     >
                       <Edit size={18} />
                     </button>
-                    <button
-                      onClick={() => pedirEliminar(user)}
-                      className="p-1 text-red-600 hover:bg-red-50 rounded"
-                      title="Eliminar"
+                    <Link
+                      href={`/configuracion/accesos?usuario=${encodeURIComponent(user.email)}`}
+                      className="p-1 text-fg-muted hover:bg-surface-muted rounded"
+                      title="Ver sus accesos"
+                      aria-label={`Ver los accesos de ${user.nombre}`}
                     >
-                      <Trash2 size={18} />
-                    </button>
+                      <KeyRound size={18} />
+                    </Link>
+                    {/* No te puedes desactivar a ti mismo (SPEC 2.112). */}
+                    {user.id !== miId && (
+                      <button
+                        onClick={() => pedirCambioEstado(user)}
+                        className={
+                          user.activo
+                            ? "p-1 text-red-600 hover:bg-red-50 rounded"
+                            : "p-1 text-green-600 hover:bg-green-50 rounded"
+                        }
+                        title={user.activo ? "Desactivar" : "Activar"}
+                        aria-label={`${user.activo ? "Desactivar" : "Activar"} a ${user.nombre}`}
+                      >
+                        {user.activo ? <UserX size={18} /> : <UserCheck size={18} />}
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -539,10 +536,10 @@ export default function UsuariosPage() {
         isOpen={confirmacion !== null}
         onClose={() => setConfirmacion(null)}
         onConfirm={() => confirmacion?.onConfirm()}
-        variant="danger"
+        variant={confirmacion?.textoBoton === "Activar" ? "info" : "danger"}
         title={confirmacion?.titulo ?? ""}
         message={confirmacion?.mensaje ?? ""}
-        confirmLabel={confirmacion?.textoBoton ?? "Eliminar"}
+        confirmLabel={confirmacion?.textoBoton ?? "Confirmar"}
       />
     </div>
   );

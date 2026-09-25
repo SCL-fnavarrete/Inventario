@@ -2,99 +2,36 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "./prisma";
+import { datosCliente, minutosDeBloqueo, registrarAcceso } from "./services/accesoService";
 
-// Rate limiting en memoria (usar Redis en producción)
-const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
-
-// Valores por defecto -- se usan mientras Configuracion > Parametros
-// Generales no tenga fila guardada, o si la consulta a la config falla: el
-// login no se puede caer por esto.
+// Valores por defecto -- se usan mientras Configuracion > Seguridad no tenga
+// fila guardada, o si la consulta a la config falla: el login no se puede
+// caer por esto.
 const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_LOCKOUT_MINUTOS = 15;
 const DEFAULT_SESION_HORAS = 24;
 
-/**
- * Intentos de login / bloqueo: se leen de SystemConfig en cada intento (ya
- * es una operacion async, no cuesta nada extra) -- un cambio en
- * Configuracion aplica de inmediato al siguiente login.
- */
-async function getConfigLogin(): Promise<{ maxAttempts: number; lockoutMs: number }> {
+// Tope del JWT. La duracion real la controla `expiraEn` (ver jwt()), que se
+// calcula al iniciar sesion con el valor de Configuracion > Seguridad; este
+// tope solo tiene que ser mayor que el maximo permitido (720 horas).
+const TOPE_JWT_SEGUNDOS = 31 * 24 * 60 * 60;
+
+/** Configuracion > Seguridad, leida en cada inicio de sesion (aplica de inmediato). */
+async function getConfigSeguridad() {
   try {
     const config = await prisma.systemConfig.findUnique({ where: { id: "singleton" } });
     return {
-      maxAttempts: config?.maxIntentosLogin ?? DEFAULT_MAX_ATTEMPTS,
-      lockoutMs: (config?.minutosBloqueoLogin ?? DEFAULT_LOCKOUT_MINUTOS) * 60 * 1000,
+      maxIntentos: config?.maxIntentosLogin ?? DEFAULT_MAX_ATTEMPTS,
+      minutosBloqueo: config?.minutosBloqueoLogin ?? DEFAULT_LOCKOUT_MINUTOS,
+      horasSesion: config?.duracionSesionHoras ?? DEFAULT_SESION_HORAS,
     };
   } catch {
-    return { maxAttempts: DEFAULT_MAX_ATTEMPTS, lockoutMs: DEFAULT_LOCKOUT_MINUTOS * 60 * 1000 };
+    return {
+      maxIntentos: DEFAULT_MAX_ATTEMPTS,
+      minutosBloqueo: DEFAULT_LOCKOUT_MINUTOS,
+      horasSesion: DEFAULT_SESION_HORAS,
+    };
   }
-}
-
-/**
- * Duracion de la sesion (`session.maxAge`, en segundos): a diferencia de lo
- * anterior, NextAuth necesita este valor SINCRONO al construir
- * `authOptions` (se usa para calcular la expiracion del JWT en cada login) --
- * no se puede volver a consultar la base en cada request sin reestructurar
- * como se arma el handler de NextAuth en todas partes donde se usa
- * `getServerSession(authOptions)`.
- *
- * Se arranca con el default y se actualiza en segundo plano (sin bloquear
- * el arranque del modulo ni el login) apenas la consulta a SystemConfig
- * responde; `authOptions.session` usa un getter para leer siempre el valor
- * mas reciente de `cachedSesionMaxAgeSegundos`.
- *
- * Consecuencia practica: cambiar la duracion de sesion desde Configuracion
- * aplica recien despues de que el servidor se reinicie/redespliegue, no de
- * inmediato como los intentos de login, porque el valor no se vuelve a
- * releer despues de ese refresh inicial.
- */
-let cachedSesionMaxAgeSegundos = DEFAULT_SESION_HORAS * 60 * 60;
-
-async function refrescarSesionMaxAge(): Promise<void> {
-  try {
-    const config = await prisma.systemConfig.findUnique({ where: { id: "singleton" } });
-    if (config) {
-      cachedSesionMaxAgeSegundos = config.duracionSesionHoras * 60 * 60;
-    }
-  } catch {
-    // Se mantiene el default -- ver comentario de la constante.
-  }
-}
-// Fire-and-forget: no se espera esta promesa en ningun lado a proposito, el
-// modulo tiene que terminar de cargar (y el login tiene que poder ejecutarse)
-// aunque la base todavia no responda.
-void refrescarSesionMaxAge();
-
-function checkRateLimit(email: string, maxAttempts: number, lockoutMs: number): boolean {
-  const now = Date.now();
-  const attempts = loginAttempts.get(email);
-
-  if (!attempts) {
-    return true;
-  }
-
-  // Limpiar intentos antiguos
-  if (now - attempts.lastAttempt > lockoutMs) {
-    loginAttempts.delete(email);
-    return true;
-  }
-
-  return attempts.count < maxAttempts;
-}
-
-function recordFailedAttempt(email: string, lockoutMs: number): void {
-  const now = Date.now();
-  const attempts = loginAttempts.get(email);
-
-  if (!attempts || now - attempts.lastAttempt > lockoutMs) {
-    loginAttempts.set(email, { count: 1, lastAttempt: now });
-  } else {
-    loginAttempts.set(email, { count: attempts.count + 1, lastAttempt: now });
-  }
-}
-
-function clearAttempts(email: string): void {
-  loginAttempts.delete(email);
 }
 
 export const authOptions: NextAuthOptions = {
@@ -105,49 +42,51 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Email y contraseña son requeridos");
         }
 
-        const email = credentials.email.toLowerCase();
-        const { maxAttempts, lockoutMs } = await getConfigLogin();
+        const email = credentials.email.toLowerCase().trim();
+        const cliente = datosCliente(req?.headers);
+        const { maxIntentos, minutosBloqueo, horasSesion } = await getConfigSeguridad();
 
-        // Verificar rate limiting
-        if (!checkRateLimit(email, maxAttempts, lockoutMs)) {
-          throw new Error(`Demasiados intentos. Intente en ${Math.ceil(lockoutMs / 60000)} minutos`);
+        // Bloqueo por intentos fallidos, contados en el registro de accesos
+        // (SPEC 2.112): funciona aunque el servidor corra en varias copias.
+        const bloqueo = await minutosDeBloqueo(email, maxIntentos, minutosBloqueo);
+        if (bloqueo > 0) {
+          await registrarAcceso({ email, resultado: "bloqueado", ...cliente });
+          throw new Error(`Demasiados intentos. Intente en ${bloqueo} minuto${bloqueo === 1 ? "" : "s"}`);
         }
 
-        const user = await prisma.systemUser.findUnique({
-          where: { email },
-        });
+        const user = await prisma.systemUser.findUnique({ where: { email } });
 
         // Mismo mensaje para "el correo no existe", "la cuenta esta
         // desactivada" y "la contrasena no coincide", para no permitir
         // enumerar cuentas reales probando correos uno por uno. El detalle
-        // real sigue disponible en el registro de intentos fallidos.
+        // real queda en el registro de accesos.
         const CREDENCIALES_INVALIDAS = "Correo o contraseña incorrectos";
 
-        if (!user || !user.activo) {
-          recordFailedAttempt(email, lockoutMs);
+        if (!user) {
+          await registrarAcceso({ email, resultado: "usuario_inexistente", ...cliente });
+          throw new Error(CREDENCIALES_INVALIDAS);
+        }
+        if (!user.activo) {
+          await registrarAcceso({ email, usuarioId: user.id, resultado: "usuario_inactivo", ...cliente });
           throw new Error(CREDENCIALES_INVALIDAS);
         }
 
         const isPasswordValid = await compare(credentials.password, user.passwordHash);
-
         if (!isPasswordValid) {
-          recordFailedAttempt(email, lockoutMs);
+          await registrarAcceso({ email, usuarioId: user.id, resultado: "clave_incorrecta", ...cliente });
           throw new Error(CREDENCIALES_INVALIDAS);
         }
 
-        // Limpiar intentos al login exitoso
-        clearAttempts(email);
-
-        // Actualizar último login
         await prisma.systemUser.update({
           where: { id: user.id },
           data: { ultimoLogin: new Date() },
         });
+        await registrarAcceso({ email, usuarioId: user.id, resultado: "exito", ...cliente });
 
         return {
           id: user.id,
@@ -155,6 +94,7 @@ export const authOptions: NextAuthOptions = {
           name: user.nombre,
           role: user.rol,
           sedeId: user.sedeId,
+          expiraEn: Date.now() + horasSesion * 60 * 60 * 1000,
         };
       },
     }),
@@ -164,11 +104,31 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
-        // `sedeId` viaja en el token para que sedeScope() no tenga que ir a
-        // buscar el usuario en cada request. Si el admin le cambia la sede
-        // a alguien con sesion activa, el cambio aplica en el proximo login.
         token.sedeId = (user as { sedeId?: string | null }).sedeId ?? null;
+        token.expiraEn = (user as { expiraEn?: number }).expiraEn;
+        return token;
       }
+
+      // SPEC 2.112: la duracion de la sesion es la de Configuracion >
+      // Seguridad al momento de iniciarla.
+      if (typeof token.expiraEn === "number" && Date.now() > token.expiraEn) {
+        throw new Error("Sesión vencida");
+      }
+
+      // En cada consulta se revisa la cuenta: una desactivada queda sin
+      // acceso en su siguiente accion, y un cambio de rol o de sede aplica
+      // de inmediato (antes esperaba a que venciera la sesion). Lanzar aqui
+      // hace que NextAuth invalide la sesion.
+      const actual = await prisma.systemUser.findUnique({
+        where: { id: token.id as string },
+        select: { activo: true, rol: true, sedeId: true, nombre: true },
+      });
+      if (!actual || !actual.activo) {
+        throw new Error("Cuenta desactivada");
+      }
+      token.role = actual.rol;
+      token.sedeId = actual.sedeId;
+      token.name = actual.nombre;
       return token;
     },
     async session({ session, token }) {
@@ -176,8 +136,22 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
         session.user.sedeId = (token.sedeId as string | null) ?? null;
+        if (token.name) session.user.name = token.name;
       }
       return session;
+    },
+  },
+  events: {
+    // Cierre de sesion desde el menu (SPEC 2.112). Cerrar el navegador no
+    // pasa por aqui.
+    async signOut({ token }) {
+      if (token?.email) {
+        await registrarAcceso({
+          email: token.email,
+          usuarioId: (token.id as string | undefined) ?? null,
+          resultado: "cierre_sesion",
+        });
+      }
     },
   },
   pages: {
@@ -186,13 +160,7 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    // Getter en vez de un numero fijo: lee siempre el valor cacheado mas
-    // reciente (ver cachedSesionMaxAgeSegundos / refrescarSesionMaxAge
-    // arriba). Configurable desde Configuracion > Parametros Generales,
-    // aplica despues de reiniciar/redesplegar el servidor.
-    get maxAge() {
-      return cachedSesionMaxAgeSegundos;
-    },
+    maxAge: TOPE_JWT_SEGUNDOS,
   },
   secret: process.env.NEXTAUTH_SECRET,
 };

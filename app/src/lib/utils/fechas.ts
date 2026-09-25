@@ -162,3 +162,33 @@ export function inputFechaHoraAISO(valor: string): string | undefined {
   const fecha = new Date(valor);
   return isNaN(fecha.getTime()) ? undefined : fecha.toISOString();
 }
+
+/**
+ * Instante en que empieza un dia en Chile ("2026-09-25" -> 00:00 hora de
+ * Chile, en UTC). Para filtrar marcas de tiempo por dia (Registro de
+ * accesos, Auditoria): new Date("2026-09-25") es medianoche de Londres, 3 o 4
+ * horas antes. Chile esta en UTC-3 o UTC-4 segun la epoca del año.
+ */
+export function inicioDiaChile(dia: string): Date {
+  for (const desfase of ["-03:00", "-04:00"]) {
+    const instante = new Date(`${dia}T00:00:00${desfase}`);
+    const hora = instante.toLocaleTimeString("en-GB", { timeZone: "America/Santiago", hour12: false });
+    if (hora.startsWith("00:00")) return instante;
+  }
+  return new Date(`${dia}T00:00:00-03:00`);
+}
+
+/**
+ * Rango [desde, hasta] de dias en Chile para filtrar marcas de tiempo:
+ * "hasta" incluye todo ese dia (hasta antes de que empiece el siguiente).
+ */
+export function rangoDiasChile(desde?: string | null, hasta?: string | null) {
+  const rango: { gte?: Date; lt?: Date } = {};
+  if (desde) rango.gte = inicioDiaChile(desde);
+  if (hasta) {
+    const siguiente = new Date(`${hasta}T12:00:00Z`);
+    siguiente.setUTCDate(siguiente.getUTCDate() + 1);
+    rango.lt = inicioDiaChile(siguiente.toISOString().slice(0, 10));
+  }
+  return Object.keys(rango).length > 0 ? rango : undefined;
+}
