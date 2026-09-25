@@ -241,6 +241,7 @@ CREATE TABLE purchase_assets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     purchase_id UUID REFERENCES purchases(id),
     asset_id UUID REFERENCES assets(id),
+    llego_con_compra BOOLEAN NOT NULL DEFAULT false,  -- 2.111: comprado en esta compra (pasa por el reparto) o solo vinculado. Vinculos anteriores: false
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -3571,14 +3572,25 @@ Javier: *"la idea es que también los técnicos puedan ver lo que hay por repart
    - "Por repartir" no se importa desde Excel, no se da de baja ni va a mantención (`motivoSinBaja`, `motivoSinMantencion`);
    - el tono `purple` se suma a las tarjetas.
    Las pantallas y la lógica de compras no cambian todavía.
-2. Registrar la compra: solo admin, sede de llegada, equipos "Por repartir", Kit/EPP sin sumar stock; matriz de permisos.
+2. **Hecha (25-sep-2026).** Registrar la compra:
+   - **Solo admin registra, edita y elimina** (`compras`: técnico R, admin RWD). `/compras/nueva` tiene un guard del lado del servidor (`layout.tsx`) que devuelve al técnico al listado; en el detalle y el listado los botones van detrás de `<Can>`. El técnico ve **todas** las compras, de todas las sedes (se quitó el aislamiento por sede de lectura).
+   - **Los equipos comprados se crean al guardar la compra, no antes.** Antes "Crear equipo nuevo" los daba de alta en el momento, y si se cancelaba la compra quedaban sueltos. Ahora se anotan en la lista y `POST /api/compras` los crea en la misma transacción que la compra, "Por repartir", en la sede de llegada y con la fecha de la factura como fecha de compra. Si uno falla (N° de serie repetido), no queda nada. El N° de serie se revisa antes en la ventana (en la lista y en el inventario) y otra vez en el servidor.
+   - "Agregar equipo comprado" también está en el detalle (`POST /api/compras/[id]/activos` con `equiposNuevos`).
+   - **"Vincular equipo existente"** se mantiene para facturas de equipos antiguos: `llego_con_compra = false`, no cambia estado ni sede, y no cuenta para el reparto.
+   - **Kit/EPP:** la línea queda entera por repartir (`cantidad_por_repartir = cantidad`) y **no suma stock**. El artículo debe ser del catálogo de la sede de llegada.
+   - **Quitar de la compra:** un equipo comprado que sigue "Por repartir" se **descarta** (`deletedAt`; su historial queda, SPEC 2.7.7); uno ya repartido no se quita; uno solo vinculado se desvincula. Una línea de Kit/EPP se quita solo si no se repartió nada (no hay stock que revertir).
+   - **Eliminar la compra:** solo si no se repartió nada (`exigirSinReparto`, 409 si no); descarta sus equipos por repartir y quita sus líneas de Kit/EPP.
+   - **Editar la sede de llegada:** solo si no se repartió nada. Lo que espera "Por repartir" se mueve con ella: los equipos cambian de sede y cada línea de Kit/EPP pasa al mismo artículo (nombre y categoría) en la nueva sede, que se crea sin stock si no existe (`articuloKitEnSede`, que usará también la recepción de Kit/EPP en un despacho).
+   - **Avance del reparto** (`avanceReparto`): unidades por repartir y repartidas (cada equipo cuenta 1, el Kit/EPP su cantidad); estado Por repartir / Repartida en parte / Repartida. El detalle lo muestra en su encabezado y en la tarjeta "Reparto"; la tabla de Kit/EPP muestra "Comprado" y "Por repartir".
+   - **Código compartido:** `crearActivo` y `descartarActivo` (`lib/services/activoService.ts`) los usan Activos > Nuevo, el descarte de duplicados y las compras, en vez de tener cada uno su copia. `compraService` reúne lo que comparten las rutas de una compra.
+   - Migración `20260925190000_compras_llego_con_compra`: la columna `purchase_assets.llego_con_compra`. Sin ella, un equipo existente vinculado (Disponible) no se distinguiría de uno comprado y ya repartido.
 3. Repartir: pantalla en el detalle de la compra, reparto a la sede de llegada y despachos automáticos; tarjetas de avance.
 4. Kit/EPP en Despachos: recepción por cantidad, faltantes y anulación que devuelve al reparto.
 5. Vista del técnico, pruebas y prueba en navegador.
 
 ## Changelog SPEC
 - **v2.35 (2026-09-25):**
-  - Sección 2.111 (nueva, regla aprobada, se implementa por partes; parte 1 hecha: modelo y migración): en Compras primero se compra y después se reparte. El técnico ve todas las compras y lo que hay por repartir, en solo lectura. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
+  - Sección 2.111 (nueva, regla aprobada, se implementa por partes; hechas la 1, modelo y migración, y la 2, registrar la compra): en Compras primero se compra y después se reparte. El técnico ve todas las compras y lo que hay por repartir, en solo lectura. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
 - **v2.34 (2026-09-25):**
   - Sección 2.110 (nueva): "Guías de despacho" pasa a llamarse "Despachos" en pantallas, mensajes e historial; dirección `/despachos` con redirección desde la antigua; estados en masculino. Por dentro (datos, API, permiso, numeración GD) no cambia.
 - **v2.33 (2026-09-25):**

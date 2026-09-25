@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createAssetSchema } from "@/lib/validations/asset";
-import { assetHistoryService } from "@/lib/services/assetHistoryService";
+import { crearActivo } from "@/lib/services/activoService";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { sedeIdParaCrear } from '@/lib/auth/sedeScope';
 import { busquedaActivo, palabrasDeBusqueda, whereFiltrosActivos } from '@/lib/queries/activos';
@@ -104,69 +104,16 @@ export async function POST(request: NextRequest) {
     // Validar datos con Zod
     const validatedData = createAssetSchema.parse(body);
 
-    // Verificar si el número de serie ya existe (solo si se proporciona)
-    if (validatedData.numeroSerie) {
-      const existingAsset = await prisma.asset.findUnique({
-        where: { numeroSerie: validatedData.numeroSerie },
-      });
-
-      if (existingAsset) {
-        return NextResponse.json(
-          {
-            error: "Ya existe un activo con este número de serie",
-            // Para marcar el campo en el formulario.
-            details: [{ field: "numeroSerie", message: "Ya existe un activo con este número de serie" }],
-          },
-          { status: 409 }
-        );
-      }
-    }
-
     // La sede se hereda de quien crea el activo; admin debe elegirla
     // explicitamente, igual que un tecnico con la suya.
     const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId, {
       requerido: true,
     });
 
-    const asset = await prisma.asset.create({
-      data: {
-        categoriaId: validatedData.categoriaId,
-        sedeId,
-        marca: validatedData.marca,
-        modelo: validatedData.modelo,
-        numeroSerie: validatedData.numeroSerie || null,
-        estado: validatedData.estado || "disponible",
-        condicion: validatedData.condicion || "nuevo",
-        fechaCompra: validatedData.fechaCompra ? new Date(validatedData.fechaCompra) : null,
-        fechaGarantiaFin: validatedData.fechaGarantiaFin ? new Date(validatedData.fechaGarantiaFin) : null,
-        fechaBaja: validatedData.fechaBaja ? new Date(validatedData.fechaBaja) : null,
-        procesador: validatedData.procesador || null,
-        ram: validatedData.ram || null,
-        discoDuro: validatedData.discoDuro || null,
-        sistemaOperativo: validatedData.sistemaOperativo || null,
-        imei: validatedData.imei || null,
-        numeroTelefono: validatedData.numeroTelefono || null,
-        numeroActivacion: validatedData.numeroActivacion || null,
-        tipoPlan: validatedData.tipoPlan || null,
-        tieneCargador: validatedData.tieneCargador || false,
-        pulgadas: validatedData.pulgadas || null,
-        ubicacionFisica: validatedData.ubicacionFisica || null,
-        microsoft365: validatedData.microsoft365 || false,
-        tipoLicenciaMicrosoft365: validatedData.tipoLicenciaMicrosoft365 || null,
-        intuneEnrolled: validatedData.intuneEnrolled || false,
-        listaDistribucion: validatedData.listaDistribucion || null,
-        observaciones: validatedData.observaciones || null,
-        antivirus: validatedData.antivirus || null,
-        incidencia: validatedData.incidencia || null,
-        nombreEquipo: validatedData.nombreEquipo || null,
-        conectividad: validatedData.conectividad || null,
-      },
-    });
-
-    // Registrar en historial usando el servicio
-    await assetHistoryService.registrarCreacion(
-      asset,
-      session.user?.email || "sistema"
+    // N° de serie unico e historial de creacion: las mismas reglas que usan
+    // las compras (crearActivo).
+    const asset = await prisma.$transaction((tx) =>
+      crearActivo(tx, validatedData, { sedeId, usuario: session.user?.email || "sistema" })
     );
 
     return NextResponse.json(asset, { status: 201 });

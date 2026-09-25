@@ -1,54 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { linkAssetsToPurchaseSchema } from "@/lib/validations/purchase";
 import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+import { agregarEquiposCompraSchema } from "@/lib/validations/purchase";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
-import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
-import { assetHistoryService } from '@/lib/services/assetHistoryService';
+import { NotFoundError, ValidationError } from '@/lib/errors';
+import {
+  agregarEquiposNuevos,
+  quitarEquipo,
+  vincularEquiposExistentes,
+} from '@/lib/services/compraService';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// GET /api/compras/[id]/activos - Listar activos de una compra
+async function buscarCompra(id: string) {
+  const compra = await prisma.purchase.findUnique({ where: { id } });
+  if (!compra) throw new NotFoundError('Compra no encontrada');
+  return compra;
+}
+
+const INCLUDE_EQUIPO = {
+  asset: {
+    include: {
+      categoria: true,
+      sede: { select: { id: true, nombre: true } },
+      empleadoActual: {
+        select: { id: true, rut: true, nombres: true, apellidoPaterno: true },
+      },
+    },
+  },
+} as const;
+
+// GET /api/compras/[id]/activos - Equipos de una compra (admin y tecnico).
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await requirePermission('compras', 'read');
+    await requirePermission('compras', 'read');
 
     const { id } = await params;
-
-    // Verificar que la compra existe
-    const purchase = await prisma.purchase.findUnique({
-      where: { id },
-    });
-
-    if (!purchase) {
-      return NextResponse.json(
-        { error: "Compra no encontrada" },
-        { status: 404 }
-      );
-    }
-
-    assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
+    await buscarCompra(id);
 
     const purchaseAssets = await prisma.purchaseAsset.findMany({
-      where: { purchaseId: id },
-      include: {
-        asset: {
-          include: {
-            categoria: true,
-            empleadoActual: {
-              select: {
-                id: true,
-                rut: true,
-                nombres: true,
-                apellidoPaterno: true,
-              },
-            },
-          },
-        },
-      },
+      where: { purchaseId: id, asset: { deletedAt: null } },
+      include: INCLUDE_EQUIPO,
       orderBy: { createdAt: "asc" },
     });
 
@@ -63,194 +57,73 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// POST /api/compras/[id]/activos - Vincular activos a una compra
+// POST /api/compras/[id]/activos - Agregar equipos a una compra (solo admin):
+// comprados (nacen "Por repartir" en la sede de llegada, SPEC 2.111) y/o que
+// ya existian (solo se vinculan a la factura).
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('compras', 'write');
+    const usuario = session.user?.email || 'sistema';
 
     const { id } = await params;
-    const body = await request.json();
+    const compra = await buscarCompra(id);
 
-    // Verificar que la compra existe
-    const purchase = await prisma.purchase.findUnique({
-      where: { id },
-    });
-
-    if (!purchase) {
-      return NextResponse.json(
-        { error: "Compra no encontrada" },
-        { status: 404 }
-      );
-    }
-
-    assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
-    const esAdmin = tieneVisibilidadTotal(session);
-
-    const validationResult = linkAssetsToPurchaseSchema.safeParse(body);
-
+    const validationResult = agregarEquiposCompraSchema.safeParse(await request.json());
     if (!validationResult.success) {
       return respuestaDatosInvalidos(validationResult.error);
     }
-
     const data = validationResult.data;
 
-    // Verificar que los activos existen
-    const existingAssets = await prisma.asset.findMany({
-      where: { ...ACTIVOS_VIGENTES, id: { in: data.assetIds } },
-      select: { id: true, numeroSerie: true, sedeId: true },
-    });
-
-    const existingAssetIds = new Set(existingAssets.map((a) => a.id));
-    const missingAssets = data.assetIds.filter((id) => !existingAssetIds.has(id));
-
-    if (missingAssets.length > 0) {
-      return NextResponse.json(
-        { error: "Algunos activos no existen", missingAssets },
-        { status: 404 }
-      );
-    }
-
-    // Defensa en profundidad: un tecnico solo puede vincular activos de su propia sede.
-    if (!esAdmin) {
-      const ajenos = existingAssets.filter((a) => a.sedeId !== session.user.sedeId);
-      if (ajenos.length > 0) {
-        return NextResponse.json(
-          { error: "Algunos activos no pertenecen a tu sede" },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Verificar que los activos no estén ya vinculados a esta compra
-    const alreadyLinked = await prisma.purchaseAsset.findMany({
-      where: {
-        purchaseId: id,
-        assetId: { in: data.assetIds },
-      },
-      select: { assetId: true },
-    });
-
-    if (alreadyLinked.length > 0) {
-      const linkedIds = alreadyLinked.map((a) => a.assetId);
-      return NextResponse.json(
-        {
-          error: "Algunos activos ya están vinculados a esta compra",
-          linkedAssetIds: linkedIds,
-        },
-        { status: 409 }
-      );
-    }
-
-    // Vincular activos en transacción
     const result = await prisma.$transaction(async (tx) => {
-      // Crear vínculos
-      await tx.purchaseAsset.createMany({
-        data: data.assetIds.map((assetId) => ({
-          purchaseId: id,
-          assetId,
-        })),
-      });
-
-      // Actualizar fecha de compra en los activos
-      await tx.asset.updateMany({
-        where: { id: { in: data.assetIds } },
-        data: { fechaCompra: purchase.fechaFactura },
-      });
-
-      // Registrar la vinculacion en el historial del activo.
-      const usuario = session.user?.email || undefined;
-      for (const assetId of data.assetIds) {
-        await assetHistoryService.registrarVinculacionCompra(
-          assetId,
-          purchase.numeroFactura,
-          usuario,
-          tx
-        );
+      await agregarEquiposNuevos(tx, compra, data.equiposNuevos, usuario);
+      if (data.assetIds.length > 0) {
+        await vincularEquiposExistentes(tx, compra, data.assetIds, usuario);
       }
-
-      // Retornar los activos vinculados
-      return await tx.purchaseAsset.findMany({
-        where: { purchaseId: id },
-        include: {
-          asset: {
-            include: {
-              categoria: true,
-            },
-          },
-        },
-        orderBy: { createdAt: "desc" },
+      return tx.purchaseAsset.findMany({
+        where: { purchaseId: id, asset: { deletedAt: null } },
+        include: INCLUDE_EQUIPO,
+        orderBy: { createdAt: "asc" },
       });
     });
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    return handleApiError(error, 'Error al vincular activos a la compra');
+    return handleApiError(error, 'Error al agregar equipos a la compra');
   }
 }
 
-// DELETE /api/compras/[id]/activos - Desvincular activos de una compra
+// DELETE /api/compras/[id]/activos?assetIds=... - Quitar equipos de una
+// compra (solo admin). Uno comprado que sigue "Por repartir" se descarta; uno
+// ya repartido no se quita; uno solo vinculado se desvincula.
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('compras', 'delete');
+    const usuario = session.user?.email || 'sistema';
 
     const { id } = await params;
-    const searchParams = request.nextUrl.searchParams;
-    const assetIdsParam = searchParams.get("assetIds");
+    const compra = await buscarCompra(id);
 
-    // Verificar que la compra existe
-    const purchase = await prisma.purchase.findUnique({
-      where: { id },
+    const ids = z
+      .array(z.string().uuid())
+      .min(1)
+      .safeParse((request.nextUrl.searchParams.get("assetIds") || "").split(",").filter(Boolean));
+    if (!ids.success) throw new ValidationError('Indica los equipos a quitar');
+
+    const vinculos = await prisma.purchaseAsset.findMany({
+      where: { purchaseId: id, assetId: { in: ids.data }, asset: { deletedAt: null } },
+      include: { asset: { select: { estado: true } } },
     });
+    if (vinculos.length === 0) throw new NotFoundError('Esos equipos no son de esta compra');
 
-    if (!purchase) {
-      return NextResponse.json(
-        { error: "Compra no encontrada" },
-        { status: 404 }
-      );
-    }
-
-    // Solo-admin hoy (ver permissions.ts); se deja por consistencia con el resto de rutas.
-    assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
-
-    // Si no se especifican activos, desvincular todos
-    let assetIds: string[] | undefined;
-    if (assetIdsParam) {
-      const assetIdsSchema = z.array(z.string().uuid());
-      const validationResult = assetIdsSchema.safeParse(
-        assetIdsParam.split(",")
-      );
-
-      if (!validationResult.success) {
-        return NextResponse.json(
-          { error: "IDs de activos inválidos" },
-          { status: 400 }
-        );
-      }
-      assetIds = validationResult.data;
-    }
-
-    // Desvincular en transacción
-    const deletedCount = await prisma.$transaction(async (tx) => {
-      const whereCondition: { purchaseId: string; assetId?: { in: string[] } } = {
-        purchaseId: id,
-      };
-
-      if (assetIds) {
-        whereCondition.assetId = { in: assetIds };
-      }
-
-      const result = await tx.purchaseAsset.deleteMany({
-        where: whereCondition,
-      });
-
-      return result.count;
+    await prisma.$transaction(async (tx) => {
+      for (const vinculo of vinculos) await quitarEquipo(tx, compra, vinculo, usuario);
     });
 
     return NextResponse.json({
-      message: `${deletedCount} activo(s) desvinculado(s) exitosamente`,
-      deletedCount,
+      message: `${vinculos.length} equipo(s) quitado(s) de la compra`,
+      deletedCount: vinculos.length,
     });
   } catch (error) {
-    return handleApiError(error, 'Error al desvincular activos de la compra');
+    return handleApiError(error, 'Error al quitar equipos de la compra');
   }
 }

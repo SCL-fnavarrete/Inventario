@@ -56,7 +56,7 @@ export const assetHistoryService = {
   /**
    * Registra la creación de un activo
    */
-  async registrarCreacion(asset: Asset, usuario?: string) {
+  async registrarCreacion(asset: Asset, usuario?: string, tx?: PrismaTx) {
     return this.registrar({
       assetId: asset.id,
       tipoEvento: 'creacion',
@@ -69,7 +69,7 @@ export const assetHistoryService = {
         condicion: asset.condicion,
       },
       usuarioSistema: usuario,
-    })
+    }, tx)
   },
 
   /**

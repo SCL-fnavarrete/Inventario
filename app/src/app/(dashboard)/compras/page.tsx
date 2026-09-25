@@ -92,7 +92,7 @@ export default function ComprasPage() {
       {/* Header */}
       <PageHeader
         title="Compras y Facturas"
-        description="Gestión de facturas y vinculación con activos"
+        description="Lo que se compra llega a una sede y desde ahí se reparte a las sedes"
         actions={
           <>
             <Can recurso="compras">
@@ -217,13 +217,13 @@ export default function ComprasPage() {
                       RUT Proveedor
                     </th>
                     <th className="table-th px-4">
-                      Sede
+                      Sede de llegada
                     </th>
                     <th className="table-th px-4">
                       Fecha
                     </th>
                     <th className="table-th px-4 text-center">
-                      Activos
+                      Equipos
                     </th>
                     <th className="table-th px-4">
                       OC
@@ -246,9 +246,7 @@ export default function ComprasPage() {
                         {purchase.rutProveedor || "-"}
                       </td>
                       <td className="px-4 py-4 text-sm text-fg-subtle">
-                        {purchase.sede ? purchase.sede.nombre : (
-                          <span className="text-fg-subtle italic">Transversal</span>
-                        )}
+                        {purchase.sede?.nombre ?? "-"}
                       </td>
                       <td className="px-4 py-4 text-sm text-fg-subtle">
                         {formatearFecha(purchase.fechaFactura)}

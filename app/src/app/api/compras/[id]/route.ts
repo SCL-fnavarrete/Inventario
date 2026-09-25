@@ -3,18 +3,25 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { updatePurchaseSchema } from "@/lib/validations/purchase";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
-import { ValidationError } from '@/lib/errors';
+import { NotFoundError, ValidationError } from '@/lib/errors';
 import { auditLogService } from '@/lib/services/auditLogService';
+import {
+  INCLUDE_AVANCE_REPARTO,
+  avanceReparto,
+  exigirSinReparto,
+  moverSedeDeLlegada,
+  quitarEquipo,
+} from '@/lib/services/compraService';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// GET /api/compras/[id] - Obtener compra por ID con sus activos
+// GET /api/compras/[id] - Compra con sus equipos, su Kit/EPP y el avance del
+// reparto. La ven admin y tecnico (SPEC 2.111.6).
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await requirePermission('compras', 'read');
+    await requirePermission('compras', 'read');
 
     const { id } = await params;
 
@@ -29,6 +36,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             asset: {
               include: {
                 categoria: true,
+                sede: { select: { id: true, nombre: true } },
                 empleadoActual: {
                   select: {
                     id: true,
@@ -40,39 +48,38 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
               },
             },
           },
+          orderBy: { createdAt: "asc" },
         },
         // Lineas de Kit/EPP compradas con esta factura.
         purchaseKitItems: {
           include: { item: true },
+          orderBy: { createdAt: "asc" },
         },
       },
     });
 
-    if (!purchase) {
-      return NextResponse.json(
-        { error: "Compra no encontrada" },
-        { status: 404 }
-      );
-    }
+    if (!purchase) throw new NotFoundError('Compra no encontrada');
 
-    assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
-
-    // Estadisticas de la compra: solo cuenta activos y articulos de kit asociados.
-    const stats = {
-      cantidadActivos: purchase.purchaseAssets.length,
-      cantidadArticulosKit: purchase.purchaseKitItems.length,
-    };
+    // Un equipo descartado (se quito antes de repartirlo) ya no es parte de
+    // la compra que se muestra; su registro queda en el historial.
+    const purchaseAssets = purchase.purchaseAssets.filter((pa) => !pa.asset.deletedAt);
 
     return NextResponse.json({
       ...purchase,
-      stats,
+      purchaseAssets,
+      reparto: avanceReparto(purchase),
+      stats: {
+        cantidadActivos: purchaseAssets.length,
+        cantidadArticulosKit: purchase.purchaseKitItems.length,
+      },
     });
   } catch (error) {
     return handleApiError(error, 'Error al obtener compra');
   }
 }
 
-// PUT /api/compras/[id] - Actualizar compra
+// PUT /api/compras/[id] - Editar los datos de la factura (solo admin). La
+// sede de llegada solo cambia mientras no se haya repartido nada.
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('compras', 'write');
@@ -80,19 +87,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const body = await request.json();
 
-    // Verificar que la compra existe
     const existingPurchase = await prisma.purchase.findUnique({
       where: { id },
+      include: INCLUDE_AVANCE_REPARTO,
     });
-
-    if (!existingPurchase) {
-      return NextResponse.json(
-        { error: "Compra no encontrada" },
-        { status: 404 }
-      );
-    }
-
-    assertSedeAccess(session, existingPurchase.sedeId, 'Compra no encontrada');
+    if (!existingPurchase) throw new NotFoundError('Compra no encontrada');
 
     const validationResult = updatePurchaseSchema.safeParse(body);
 
@@ -102,19 +101,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const data = validationResult.data;
 
-    // Verificar que la sede existe si se va a cambiar
-    if (data.sedeId) {
-      const sede = await prisma.sede.findUnique({ where: { id: data.sedeId } });
-      if (!sede) {
-        return NextResponse.json({ error: "Sede no encontrada" }, { status: 404 });
-      }
+    if (data.sedeId === null) {
+      throw new ValidationError('Elige la sede de llegada', [
+        { field: 'sedeId', message: 'Elige la sede de llegada' },
+      ]);
     }
-
-    // Para tecnico se ignora en silencio el sedeId (no puede mover la compra
-    // de sede). Para admin, sede es obligatoria: sedeId: null se rechaza.
-    const esAdmin = tieneVisibilidadTotal(session);
-    if (esAdmin && data.sedeId === null) {
-      throw new ValidationError('Debes seleccionar una sede.');
+    const cambiaSede = !!data.sedeId && data.sedeId !== existingPurchase.sedeId;
+    if (cambiaSede) {
+      exigirSinReparto(existingPurchase, 'cambiar la sede de llegada');
+      const sede = await prisma.sede.findUnique({ where: { id: data.sedeId! } });
+      if (!sede) throw new NotFoundError('La sede de llegada no existe');
     }
 
     // N° de factura unico en todo el sistema, excluyendo la propia compra que se edita.
@@ -127,7 +123,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         return respuestaDatosInvalidos(
           new z.ZodError([
             {
-              code: z.ZodIssueCode.custom,
+              code: "custom",
               path: ["numeroFactura"],
               message: `Ya existe otra compra con la factura ${data.numeroFactura}.`,
             },
@@ -136,53 +132,52 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const purchase = await prisma.purchase.update({
-      where: { id },
-      data: {
-        ...(esAdmin && data.sedeId !== undefined && { sedeId: data.sedeId }),
-        ...(data.numeroFactura !== undefined && { numeroFactura: data.numeroFactura }),
-        ...(data.fechaFactura !== undefined && { fechaFactura: data.fechaFactura }),
-        ...(data.rutProveedor !== undefined && { rutProveedor: data.rutProveedor }),
-        ...(data.tipoCompra !== undefined && { tipoCompra: data.tipoCompra }),
-        ...(data.descripcion !== undefined && { descripcion: data.descripcion }),
-        ...(data.compradoPor !== undefined && { compradoPor: data.compradoPor }),
-        ...(data.ordenCompra !== undefined && { ordenCompra: data.ordenCompra }),
-      },
-      include: {
-        sede: {
-          select: { id: true, nombre: true, codigo: true },
+    const purchase = await prisma.$transaction(async (tx) => {
+      // Lo que espera "Por repartir" esta fisicamente en la sede de llegada:
+      // si se corrige la sede, se mueve con ella.
+      if (cambiaSede) await moverSedeDeLlegada(tx, id, data.sedeId!);
+
+      const actualizada = await tx.purchase.update({
+        where: { id },
+        data: {
+          ...(cambiaSede && { sedeId: data.sedeId }),
+          ...(data.numeroFactura !== undefined && { numeroFactura: data.numeroFactura }),
+          ...(data.fechaFactura !== undefined && { fechaFactura: data.fechaFactura }),
+          ...(data.rutProveedor !== undefined && { rutProveedor: data.rutProveedor }),
+          ...(data.tipoCompra !== undefined && { tipoCompra: data.tipoCompra }),
+          ...(data.descripcion !== undefined && { descripcion: data.descripcion }),
+          ...(data.compradoPor !== undefined && { compradoPor: data.compradoPor }),
+          ...(data.ordenCompra !== undefined && { ordenCompra: data.ordenCompra }),
         },
-        purchaseAssets: {
-          include: {
-            asset: {
-              include: {
-                categoria: true,
-              },
-            },
+        include: {
+          sede: {
+            select: { id: true, nombre: true, codigo: true },
           },
         },
-      },
-    });
+      });
 
-    // Auditoria generica: que cambio y quien lo hizo.
-    await auditLogService.registrarActualizacion(
-      'compra',
-      purchase.id,
-      `Compra actualizada: factura ${purchase.numeroFactura}`,
-      {
-        numeroFactura: existingPurchase.numeroFactura,
-        rutProveedor: existingPurchase.rutProveedor,
-        tipoCompra: existingPurchase.tipoCompra,
-        sedeId: existingPurchase.sedeId,
-      },
-      {
-        numeroFactura: purchase.numeroFactura,
-        rutProveedor: purchase.rutProveedor,
-        tipoCompra: purchase.tipoCompra,
-        sedeId: purchase.sedeId,
-      },
-      session.user?.email
-    );
+      // Auditoria generica: que cambio y quien lo hizo.
+      await auditLogService.registrarActualizacion(
+        'compra',
+        actualizada.id,
+        `Compra actualizada: factura ${actualizada.numeroFactura}`,
+        {
+          numeroFactura: existingPurchase.numeroFactura,
+          rutProveedor: existingPurchase.rutProveedor,
+          tipoCompra: existingPurchase.tipoCompra,
+          sedeId: existingPurchase.sedeId,
+        },
+        {
+          numeroFactura: actualizada.numeroFactura,
+          rutProveedor: actualizada.rutProveedor,
+          tipoCompra: actualizada.tipoCompra,
+          sedeId: actualizada.sedeId,
+        },
+        session.user?.email,
+        tx
+      );
+      return actualizada;
+    });
 
     return NextResponse.json(purchase);
   } catch (error) {
@@ -190,64 +185,37 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/compras/[id] - Eliminar compra
+// DELETE /api/compras/[id] - Eliminar una compra (solo admin), solo si no se
+// repartio nada (SPEC 2.111.7). Sus equipos "Por repartir" se descartan
+// (nunca se usaron; el historial los conserva) y sus lineas de Kit/EPP se
+// borran: todavia no habian sumado stock.
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('compras', 'delete');
+    const usuario = session.user?.email || 'sistema';
 
     const { id } = await params;
 
-    // Verificar que la compra existe
     const purchase = await prisma.purchase.findUnique({
       where: { id },
       include: {
-        purchaseAssets: true,
-        // Se necesita el stock actual de cada articulo para poder revertir
-        // lo que esta compra sumo, sin bajar de 0.
-        purchaseKitItems: { include: { item: true } },
+        purchaseAssets: { include: { asset: { select: { estado: true, deletedAt: true } } } },
+        purchaseKitItems: true,
       },
     });
+    if (!purchase) throw new NotFoundError('Compra no encontrada');
 
-    if (!purchase) {
-      return NextResponse.json(
-        { error: "Compra no encontrada" },
-        { status: 404 }
-      );
-    }
+    exigirSinReparto(purchase, 'eliminar la compra');
 
-    // Solo-admin hoy (ver permissions.ts); se deja por consistencia con el resto de rutas.
-    assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
-
-    // Eliminar en transacción (primero los vínculos, luego la compra)
     await prisma.$transaction(async (tx) => {
-      // Eliminar vínculos con activos
-      if (purchase.purchaseAssets.length > 0) {
-        await tx.purchaseAsset.deleteMany({
-          where: { purchaseId: id },
-        });
+      for (const vinculo of purchase.purchaseAssets) {
+        if (vinculo.asset.deletedAt) {
+          await tx.purchaseAsset.delete({ where: { id: vinculo.id } });
+        } else {
+          await quitarEquipo(tx, purchase, vinculo, usuario);
+        }
       }
-
-      // Revertir el stock que esta compra sumo a cada articulo de Kit/EPP,
-      // sin bajar de 0 (puede haberse entregado parte ya).
-      for (const linea of purchase.purchaseKitItems) {
-        const nuevaCantidad = Math.max(0, linea.item.cantidad - linea.cantidad);
-        const updatedItem = await tx.welcomeKitItem.update({
-          where: { id: linea.itemId },
-          data: { cantidad: nuevaCantidad },
-        });
-        await auditLogService.registrarActualizacion(
-          'kit_item',
-          linea.itemId,
-          `Stock revertido: compra eliminada (factura ${purchase.numeroFactura ?? "s/n"}): -${linea.cantidad} ${linea.item.nombre}`,
-          { cantidad: linea.item.cantidad },
-          { cantidad: updatedItem.cantidad },
-          session.user?.email,
-          tx
-        );
-      }
-      if (purchase.purchaseKitItems.length > 0) {
-        await tx.purchaseKitItem.deleteMany({ where: { purchaseId: id } });
-      }
+      await tx.purchaseKitItem.deleteMany({ where: { purchaseId: id } });
 
       // Auditoria antes del delete fisico: el snapshot es lo unico que
       // queda de esta compra despues de esto.
@@ -263,14 +231,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
           cantidadActivosVinculados: purchase.purchaseAssets.length,
           cantidadArticulosKitVinculados: purchase.purchaseKitItems.length,
         },
-        session.user?.email,
+        usuario,
         tx
       );
 
-      // Eliminar la compra
-      await tx.purchase.delete({
-        where: { id },
-      });
+      await tx.purchase.delete({ where: { id } });
     });
 
     return NextResponse.json({ message: "Compra eliminada exitosamente" });

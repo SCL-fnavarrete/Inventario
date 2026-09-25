@@ -7,14 +7,20 @@ import {
 } from "@/lib/validations/purchase";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { sedeWhere, sedeIdParaCrear, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
-import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { NotFoundError } from '@/lib/errors';
 import { auditLogService } from '@/lib/services/auditLogService';
+import {
+  INCLUDE_AVANCE_REPARTO,
+  agregarEquiposNuevos,
+  agregarLineasKit,
+  avanceReparto,
+  vincularEquiposExistentes,
+} from '@/lib/services/compraService';
 
 // GET /api/compras - Listar compras/facturas con filtros y paginación
 export async function GET(request: NextRequest) {
   try {
-    const session = await requirePermission('compras', 'read');
+    await requirePermission('compras', 'read');
 
     const searchParams = request.nextUrl.searchParams;
 
@@ -37,9 +43,10 @@ export async function GET(request: NextRequest) {
     const filters = filtersResult.data;
     const skip = (filters.page - 1) * filters.limit;
 
-    // Construir condiciones de busqueda. Aislamiento por sede: un tecnico
-    // solo ve las compras de su propia sede, admin ve todas.
-    const where: Prisma.PurchaseWhereInput = { ...sedeWhere(session) };
+    // SPEC 2.111.6: la compra es de la empresa, asi que admin y tecnico ven
+    // todas (lo pendiente todavia no tiene sede destino). La sede elegida en
+    // el menu filtra por sede de llegada.
+    const where: Prisma.PurchaseWhereInput = {};
 
     if (filters.sedeId) {
       where.sedeId = filters.sedeId;
@@ -106,10 +113,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/compras - Crear nueva compra/factura con activos opcionales
+// POST /api/compras - Registrar una compra (SPEC 2.111.1, solo admin). Lo
+// comprado queda "Por repartir" en la sede de llegada: los equipos nuevos se
+// crean aqui mismo y el Kit/EPP no suma stock hasta repartirlo.
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('compras', 'write');
+    const usuario = session.user?.email || 'sistema';
 
     const body = await request.json();
 
@@ -120,78 +130,11 @@ export async function POST(request: NextRequest) {
     }
 
     const data = validationResult.data;
-    const esAdmin = tieneVisibilidadTotal(session);
+    // Solo admin registra (matriz 1.3.1) y la sede ya viene validada.
+    const sedeId = data.sedeId;
 
-    // Verificar que la sede existe (si se proporciona)
-    if (data.sedeId) {
-      const sede = await prisma.sede.findUnique({ where: { id: data.sedeId } });
-      if (!sede) {
-        return NextResponse.json({ error: "Sede no encontrada" }, { status: 404 });
-      }
-    }
-
-    // Verificar que los activos existen (si se proporcionan)
-    if (data.assets && data.assets.length > 0) {
-      const assetIds = data.assets.map((a) => a.assetId);
-      const existingAssets = await prisma.asset.findMany({
-        where: { ...ACTIVOS_VIGENTES, id: { in: assetIds } },
-        select: { id: true, sedeId: true },
-      });
-
-      const existingAssetIds = new Set(existingAssets.map((a) => a.id));
-      const missingAssets = assetIds.filter((id) => !existingAssetIds.has(id));
-
-      if (missingAssets.length > 0) {
-        return NextResponse.json(
-          { error: "Algunos activos no existen", missingAssets },
-          { status: 404 }
-        );
-      }
-
-      // Defensa en profundidad: un tecnico solo puede asociar a la compra
-      // activos de su propia sede, aunque el selector del formulario ya
-      // venga filtrado.
-      if (!esAdmin) {
-        const ajenos = existingAssets.filter((a) => a.sedeId !== session.user.sedeId);
-        if (ajenos.length > 0) {
-          return NextResponse.json(
-            { error: "Algunos activos no pertenecen a tu sede" },
-            { status: 400 }
-          );
-        }
-      }
-    }
-
-    // Verificar que los articulos de Kit/EPP existen, con el mismo
-    // criterio de aislamiento por sede que los activos.
-    let existingKitItems: { id: string; nombre: string; cantidad: number; sedeId: string | null }[] = [];
-    if (data.kitItems && data.kitItems.length > 0) {
-      const itemIds = data.kitItems.map((k) => k.itemId);
-      existingKitItems = await prisma.welcomeKitItem.findMany({
-        where: { id: { in: itemIds } },
-        select: { id: true, nombre: true, cantidad: true, sedeId: true },
-      });
-
-      const existingItemIds = new Set(existingKitItems.map((i) => i.id));
-      const missingItems = itemIds.filter((id) => !existingItemIds.has(id));
-
-      if (missingItems.length > 0) {
-        return NextResponse.json(
-          { error: "Algunos artículos de Kit/EPP no existen", missingItems },
-          { status: 404 }
-        );
-      }
-
-      if (!esAdmin) {
-        const ajenos = existingKitItems.filter((i) => i.sedeId !== session.user.sedeId);
-        if (ajenos.length > 0) {
-          return NextResponse.json(
-            { error: "Algunos artículos de Kit/EPP no pertenecen a tu sede" },
-            { status: 400 }
-          );
-        }
-      }
-    }
+    const sede = await prisma.sede.findUnique({ where: { id: sedeId } });
+    if (!sede) throw new NotFoundError('La sede de llegada no existe');
 
     // N° de factura unico en todo el sistema. Se valida aca y no con un
     // indice unico en la base para no exigir una migracion; el numero es
@@ -206,7 +149,7 @@ export async function POST(request: NextRequest) {
         return respuestaDatosInvalidos(
           new z.ZodError([
             {
-              code: z.ZodIssueCode.custom,
+              code: "custom",
               path: ["numeroFactura"],
               message: `Ya existe una compra con la factura ${data.numeroFactura}.`,
             },
@@ -215,14 +158,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Crear la compra en una transacción
+    // Todo en una transaccion: si un equipo no se puede crear (N° de serie
+    // repetido), no queda ni la compra ni el resto de los equipos.
     const purchase = await prisma.$transaction(async (tx) => {
-      // Crear la compra
-      const newPurchase = await tx.purchase.create({
+      const compra = await tx.purchase.create({
         data: {
-          // Tecnico: siempre su propia sede (se ignora cualquier sedeId del
-          // body). Admin: obligado a elegir una entre las sedes existentes.
-          sedeId: sedeIdParaCrear(session, data.sedeId, { requerido: true }),
+          sedeId,
           numeroFactura: data.numeroFactura,
           fechaFactura: data.fechaFactura,
           rutProveedor: data.rutProveedor,
@@ -233,99 +174,41 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Auditoria generica, dentro de la misma transaccion: si la compra
-      // no se llega a crear, tampoco queda el registro.
       await auditLogService.registrarCreacion(
         'compra',
-        newPurchase.id,
-        `Compra creada: factura ${newPurchase.numeroFactura}`,
+        compra.id,
+        `Compra creada: factura ${compra.numeroFactura}`,
         {
-          numeroFactura: newPurchase.numeroFactura,
-          rutProveedor: newPurchase.rutProveedor,
-          tipoCompra: newPurchase.tipoCompra,
-          sedeId: newPurchase.sedeId,
+          numeroFactura: compra.numeroFactura,
+          rutProveedor: compra.rutProveedor,
+          tipoCompra: compra.tipoCompra,
+          sedeId: compra.sedeId,
+          equiposNuevos: data.equiposNuevos.length,
+          equiposVinculados: data.assets.length,
+          lineasKit: data.kitItems.length,
         },
-        session.user?.email,
+        usuario,
         tx
       );
 
-      // Vincular activos si se proporcionan
-      if (data.assets && data.assets.length > 0) {
-        await tx.purchaseAsset.createMany({
-          data: data.assets.map((asset) => ({
-            purchaseId: newPurchase.id,
-            assetId: asset.assetId,
-          })),
-        });
-
-        // Actualizar fecha de compra en los activos
-        await tx.asset.updateMany({
-          where: {
-            id: { in: data.assets.map((a) => a.assetId) },
-          },
-          data: {
-            fechaCompra: data.fechaFactura,
-          },
-        });
+      await agregarEquiposNuevos(tx, compra, data.equiposNuevos, usuario);
+      if (data.assets.length > 0) {
+        await vincularEquiposExistentes(tx, compra, data.assets.map((a) => a.assetId), usuario);
+      }
+      if (data.kitItems.length > 0) {
+        await agregarLineasKit(tx, compra, data.kitItems);
       }
 
-      // Vincular articulos de Kit/EPP si se proporcionan: cada linea suma
-      // su cantidad al stock del articulo, y queda registrada la linea de
-      // compra para poder desvincularla/revertirla despues.
-      if (data.kitItems && data.kitItems.length > 0) {
-        for (const kitItem of data.kitItems) {
-          await tx.purchaseKitItem.create({
-            data: {
-              purchaseId: newPurchase.id,
-              itemId: kitItem.itemId,
-              cantidad: kitItem.cantidad,
-            },
-          });
-
-          const item = existingKitItems.find((i) => i.id === kitItem.itemId);
-          const updatedItem = await tx.welcomeKitItem.update({
-            where: { id: kitItem.itemId },
-            data: { cantidad: { increment: kitItem.cantidad } },
-          });
-
-          // Auditoria generica: queda en la misma linea de tiempo que
-          // cualquier otro cambio de stock del articulo.
-          await auditLogService.registrarActualizacion(
-            'kit_item',
-            kitItem.itemId,
-            `Stock repuesto por compra${newPurchase.numeroFactura ? ` (factura ${newPurchase.numeroFactura})` : ""}: +${kitItem.cantidad} ${item?.nombre ?? ""}`.trim(),
-            { cantidad: item?.cantidad ?? null },
-            { cantidad: updatedItem.cantidad },
-            session.user?.email,
-            tx
-          );
-        }
-      }
-
-      // Retornar la compra con sus relaciones
-      return await tx.purchase.findUnique({
-        where: { id: newPurchase.id },
+      return tx.purchase.findUniqueOrThrow({
+        where: { id: compra.id },
         include: {
-          sede: {
-            select: { id: true, nombre: true, codigo: true },
-          },
-          purchaseAssets: {
-            include: {
-              asset: {
-                include: {
-                  categoria: true,
-                },
-              },
-            },
-          },
-          purchaseKitItems: {
-            include: { item: true },
-          },
+          sede: { select: { id: true, nombre: true, codigo: true } },
+          ...INCLUDE_AVANCE_REPARTO,
         },
       });
     });
 
-    return NextResponse.json(purchase, { status: 201 });
+    return NextResponse.json({ ...purchase, reparto: avanceReparto(purchase) }, { status: 201 });
   } catch (error) {
     return handleApiError(error, 'Error al crear compra');
   }

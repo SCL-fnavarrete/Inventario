@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { rutOptionalSchema } from "./rut";
+import { createAssetSchema } from "./asset";
 
 export const TipoCompraEnum = z.enum(["FACTURA", "GASTO_MENOR"]);
 
@@ -7,8 +8,8 @@ export const TipoCompraEnum = z.enum(["FACTURA", "GASTO_MENOR"]);
 // relacionarla) y los equipos que vinieron con ella, sin catalogo de
 // proveedor ni datos financieros (ver nota en el modelo Purchase).
 export const createPurchaseSchema = z.object({
-  // A que sede se le atribuye la compra; opcional para compras transversales.
-  sedeId: z.string().uuid("Sede inválida").optional().nullable(),
+  // Sede de llegada (SPEC 2.111): donde llega lo comprado. Obligatoria.
+  sedeId: z.string({ error: "Elige la sede de llegada" }).uuid("Elige la sede de llegada"),
   numeroFactura: z
     .string()
     .max(50, "Máximo 50 caracteres")
@@ -53,12 +54,44 @@ export const updatePurchaseSchema = z.object({
     .transform((val) => val || null),
 });
 
-// Schema para vincular activos a una compra
-export const linkAssetsToPurchaseSchema = z.object({
-  assetIds: z
-    .array(z.string().uuid("ID de activo inválido"))
-    .min(1, "Debe seleccionar al menos un activo"),
-});
+// Equipo comprado (SPEC 2.111): los mismos datos y reglas que Activos >
+// Nuevo. La sede y el estado no se eligen: nace "Por repartir" en la sede
+// de llegada.
+export const equipoNuevoCompraSchema = createAssetSchema.omit({ estado: true });
+
+/** Un mismo N° de serie dos veces en la lista de equipos nuevos. */
+function revisarSeriesRepetidas(
+  equipos: { numeroSerie?: string | null }[],
+  ctx: z.RefinementCtx
+) {
+  const vistas = new Set<string>();
+  for (const e of equipos) {
+    const serie = e.numeroSerie?.trim().toUpperCase();
+    if (!serie) continue;
+    if (vistas.has(serie)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["equiposNuevos"],
+        message: `El N° de serie ${e.numeroSerie} está dos veces en la lista`,
+      });
+    }
+    vistas.add(serie);
+  }
+}
+
+// Schema para agregar equipos a una compra ya creada: equipos comprados
+// (nacen "Por repartir") y/o equipos que ya existian (solo se vinculan).
+export const agregarEquiposCompraSchema = z
+  .object({
+    assetIds: z.array(z.string().uuid("ID de activo inválido")).default([]),
+    equiposNuevos: z.array(equipoNuevoCompraSchema).default([]),
+  })
+  .superRefine((data, ctx) => {
+    if (data.assetIds.length === 0 && data.equiposNuevos.length === 0) {
+      ctx.addIssue({ code: "custom", path: ["equiposNuevos"], message: "Agrega al menos un equipo" });
+    }
+    revisarSeriesRepetidas(data.equiposNuevos, ctx);
+  });
 
 // Schema para un solo activo vinculado
 export const purchaseAssetSchema = z.object({
@@ -82,27 +115,32 @@ export const linkKitItemsToPurchaseSchema = z.object({
 // Schema para crear compra con activos y/o artículos de Kit/EPP incluidos
 export const createPurchaseWithAssetsSchema = createPurchaseSchema
   .extend({
+    // Equipos que ya existian: solo se vinculan a la factura.
     assets: z
       .array(purchaseAssetSchema)
       .optional()
       .default([]),
+    // Equipos comprados: se crean "Por repartir" al guardar la compra
+    // (SPEC 2.111), nunca antes, asi no quedan equipos sueltos si se cancela.
+    equiposNuevos: z.array(equipoNuevoCompraSchema).optional().default([]),
     kitItems: z
       .array(purchaseKitItemSchema)
       .optional()
       .default([]),
   })
-  // Se exige al menos una linea (activo o articulo de kit) vinculada.
+  // Se exige al menos una linea: equipo (nuevo o existente) o articulo de kit.
   .superRefine((data, ctx) => {
-    const sinEquipos = !data.assets || data.assets.length === 0;
-    const sinKit = !data.kitItems || data.kitItems.length === 0;
+    const sinEquipos = data.assets.length === 0 && data.equiposNuevos.length === 0;
+    const sinKit = data.kitItems.length === 0;
     if (sinEquipos && sinKit) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["assets"],
+        code: "custom",
+        path: ["lineas"],
         message:
-          "Vincula al menos un equipo o un artículo de Kit/EPP: una factura sin nada asociado no registra nada.",
+          "Agrega al menos un equipo o un artículo de Kit/EPP: una factura sin nada asociado no registra nada.",
       });
     }
+    revisarSeriesRepetidas(data.equiposNuevos, ctx);
   });
 
 // Schema para filtros de búsqueda de compras
@@ -123,7 +161,7 @@ export const purchaseFiltersSchema = z.object({
 // Tipos inferidos
 export type CreatePurchaseInput = z.infer<typeof createPurchaseSchema>;
 export type UpdatePurchaseInput = z.infer<typeof updatePurchaseSchema>;
-export type LinkAssetsToPurchaseInput = z.infer<typeof linkAssetsToPurchaseSchema>;
+export type AgregarEquiposCompraInput = z.infer<typeof agregarEquiposCompraSchema>;
 export type PurchaseAssetInput = z.infer<typeof purchaseAssetSchema>;
 export type PurchaseKitItemInput = z.infer<typeof purchaseKitItemSchema>;
 export type LinkKitItemsToPurchaseInput = z.infer<typeof linkKitItemsToPurchaseSchema>;
@@ -132,11 +170,12 @@ export type PurchaseFilters = z.infer<typeof purchaseFiltersSchema>;
 
 /** Nombre de cada dato de la factura en el resumen de errores. */
 export const ETIQUETAS_FACTURA: Record<string, string> = {
-  sedeId: "Sede",
+  sedeId: "Sede de llegada",
   numeroFactura: "N° de factura",
   fechaFactura: "Fecha de la factura",
   rutProveedor: "RUT del proveedor",
   lineas: "Equipos o artículos",
+  equiposNuevos: "Equipos",
   kitItem: "Artículo de Kit/EPP",
 };
 
@@ -153,7 +192,7 @@ export function validarDatosFactura(v: {
   rutProveedor: string;
 }): Record<string, string> {
   const e: Record<string, string> = {};
-  if (!v.sedeId) e.sedeId = "Elige la sede de la compra";
+  if (!v.sedeId) e.sedeId = "Elige la sede de llegada";
   if (!v.numeroFactura.trim()) e.numeroFactura = "Escribe el número de factura";
   if (!v.fechaFactura) e.fechaFactura = "Elige la fecha de la factura";
   const rut = rutOptionalSchema.safeParse(v.rutProveedor.trim() || null);

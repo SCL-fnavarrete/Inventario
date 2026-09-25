@@ -1,33 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { linkKitItemsToPurchaseSchema } from "@/lib/validations/purchase";
-import { z } from "zod";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
-import { auditLogService } from '@/lib/services/auditLogService';
+import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
+import { agregarLineasKit } from '@/lib/services/compraService';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// Vinculacion de articulos de Kit/EPP a una compra. Mismo patron que
-// /api/compras/[id]/activos, salvo que aca no se vincula una unidad
-// existente: cada linea SUMA una cantidad al stock del articulo
-// (WelcomeKitItem.cantidad), y al desvincularse se resta de vuelta (sin
-// bajar de 0).
+// Kit/EPP de una compra (SPEC 2.111). Cada linea es un articulo del catalogo
+// de la sede de llegada y una cantidad, que queda "por repartir": el stock
+// sube recien al repartirla, no al registrarla.
 
-// GET /api/compras/[id]/kit-items - Listar líneas de Kit/EPP de una compra
+async function buscarCompra(id: string) {
+  const compra = await prisma.purchase.findUnique({ where: { id } });
+  if (!compra) throw new NotFoundError('Compra no encontrada');
+  return compra;
+}
+
+// GET /api/compras/[id]/kit-items - Líneas de Kit/EPP de una compra
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await requirePermission('compras', 'read');
+    await requirePermission('compras', 'read');
 
     const { id } = await params;
-
-    const purchase = await prisma.purchase.findUnique({ where: { id } });
-    if (!purchase) {
-      return NextResponse.json({ error: "Compra no encontrada" }, { status: 404 });
-    }
-    assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
+    await buscarCompra(id);
 
     const purchaseKitItems = await prisma.purchaseKitItem.findMany({
       where: { purchaseId: id },
@@ -44,156 +43,72 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// POST /api/compras/[id]/kit-items - Agregar artículos de Kit/EPP a una compra
+// POST /api/compras/[id]/kit-items - Agregar Kit/EPP a una compra (solo admin)
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await requirePermission('compras', 'write');
+    await requirePermission('compras', 'write');
 
     const { id } = await params;
-    const body = await request.json();
+    const compra = await buscarCompra(id);
 
-    const purchase = await prisma.purchase.findUnique({ where: { id } });
-    if (!purchase) {
-      return NextResponse.json({ error: "Compra no encontrada" }, { status: 404 });
-    }
-    assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
-    const esAdmin = tieneVisibilidadTotal(session);
-
-    const validationResult = linkKitItemsToPurchaseSchema.safeParse(body);
+    const validationResult = linkKitItemsToPurchaseSchema.safeParse(await request.json());
     if (!validationResult.success) {
       return respuestaDatosInvalidos(validationResult.error);
     }
 
-    const data = validationResult.data;
-    const itemIds = data.items.map((i) => i.itemId);
-
-    const existingItems = await prisma.welcomeKitItem.findMany({
-      where: { id: { in: itemIds } },
-      select: { id: true, nombre: true, cantidad: true, sedeId: true },
-    });
-
-    const existingItemIds = new Set(existingItems.map((i) => i.id));
-    const missingItems = itemIds.filter((itemId) => !existingItemIds.has(itemId));
-    if (missingItems.length > 0) {
-      return NextResponse.json(
-        { error: "Algunos artículos de Kit/EPP no existen", missingItems },
-        { status: 404 }
-      );
-    }
-
-    if (!esAdmin) {
-      const ajenos = existingItems.filter((i) => i.sedeId !== session.user.sedeId);
-      if (ajenos.length > 0) {
-        return NextResponse.json(
-          { error: "Algunos artículos de Kit/EPP no pertenecen a tu sede" },
-          { status: 400 }
-        );
-      }
-    }
-
     const result = await prisma.$transaction(async (tx) => {
-      const creadas = [];
-      for (const linea of data.items) {
-        const nueva = await tx.purchaseKitItem.create({
-          data: { purchaseId: id, itemId: linea.itemId, cantidad: linea.cantidad },
-        });
-        creadas.push(nueva);
-
-        const item = existingItems.find((i) => i.id === linea.itemId);
-        const updatedItem = await tx.welcomeKitItem.update({
-          where: { id: linea.itemId },
-          data: { cantidad: { increment: linea.cantidad } },
-        });
-
-        await auditLogService.registrarActualizacion(
-          'kit_item',
-          linea.itemId,
-          `Stock repuesto por compra${purchase.numeroFactura ? ` (factura ${purchase.numeroFactura})` : ""}: +${linea.cantidad} ${item?.nombre ?? ""}`.trim(),
-          { cantidad: item?.cantidad ?? null },
-          { cantidad: updatedItem.cantidad },
-          session.user?.email,
-          tx
-        );
-      }
-
-      return await tx.purchaseKitItem.findMany({
+      await agregarLineasKit(tx, compra, validationResult.data.items);
+      return tx.purchaseKitItem.findMany({
         where: { purchaseId: id },
         include: { item: true },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: "asc" },
       });
     });
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    return handleApiError(error, 'Error al vincular artículos de Kit/EPP a la compra');
+    return handleApiError(error, 'Error al agregar artículos de Kit/EPP a la compra');
   }
 }
 
-// DELETE /api/compras/[id]/kit-items?lineIds=... - Desvincular líneas de
-// Kit/EPP de una compra, revirtiendo el stock que habían sumado (sin bajar
-// de 0, por si ya se entregó parte a un empleado mientras tanto).
+// DELETE /api/compras/[id]/kit-items?lineIds=... - Quitar líneas de Kit/EPP
+// (solo admin). Solo las que no se han repartido: todavia no sumaron stock,
+// asi que no hay nada que revertir.
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await requirePermission('compras', 'delete');
+    await requirePermission('compras', 'delete');
 
     const { id } = await params;
-    const searchParams = request.nextUrl.searchParams;
-    const lineIdsParam = searchParams.get("lineIds");
+    await buscarCompra(id);
 
-    const purchase = await prisma.purchase.findUnique({ where: { id } });
-    if (!purchase) {
-      return NextResponse.json({ error: "Compra no encontrada" }, { status: 404 });
-    }
-    assertSedeAccess(session, purchase.sedeId, 'Compra no encontrada');
+    const ids = z
+      .array(z.string().uuid())
+      .min(1)
+      .safeParse((request.nextUrl.searchParams.get("lineIds") || "").split(",").filter(Boolean));
+    if (!ids.success) throw new ValidationError('Indica las líneas a quitar');
 
-    let lineIds: string[] | undefined;
-    if (lineIdsParam) {
-      const lineIdsSchema = z.array(z.string().uuid());
-      const validationResult = lineIdsSchema.safeParse(lineIdsParam.split(","));
-      if (!validationResult.success) {
-        return NextResponse.json({ error: "IDs de línea inválidos" }, { status: 400 });
-      }
-      lineIds = validationResult.data;
-    }
-
-    const lineasABorrar = await prisma.purchaseKitItem.findMany({
-      where: { purchaseId: id, ...(lineIds ? { id: { in: lineIds } } : {}) },
-      include: { item: true },
+    const lineas = await prisma.purchaseKitItem.findMany({
+      where: { purchaseId: id, id: { in: ids.data } },
+      include: { item: { select: { nombre: true } } },
     });
+    if (lineas.length === 0) throw new NotFoundError('Esas líneas no son de esta compra');
 
-    const deletedCount = await prisma.$transaction(async (tx) => {
-      for (const linea of lineasABorrar) {
-        // No baja de 0: si ya se entregó más stock del que esta línea trajo,
-        // no tiene sentido dejar el contador en negativo.
-        const nuevaCantidad = Math.max(0, linea.item.cantidad - linea.cantidad);
-        const updatedItem = await tx.welcomeKitItem.update({
-          where: { id: linea.itemId },
-          data: { cantidad: nuevaCantidad },
-        });
+    const repartidas = lineas.filter((l) => l.cantidadPorRepartir < l.cantidad);
+    if (repartidas.length > 0) {
+      throw new ConflictError(
+        `Ya se repartió parte de ${repartidas.map((l) => l.item.nombre).join(', ')}: no se puede quitar de la compra`
+      );
+    }
 
-        await auditLogService.registrarActualizacion(
-          'kit_item',
-          linea.itemId,
-          `Stock revertido: compra desvinculada (factura ${purchase.numeroFactura ?? "s/n"}): -${linea.cantidad} ${linea.item.nombre}`,
-          { cantidad: linea.item.cantidad },
-          { cantidad: updatedItem.cantidad },
-          session.user?.email,
-          tx
-        );
-      }
-
-      const result = await tx.purchaseKitItem.deleteMany({
-        where: { id: { in: lineasABorrar.map((l) => l.id) } },
-      });
-
-      return result.count;
+    const { count } = await prisma.purchaseKitItem.deleteMany({
+      where: { id: { in: lineas.map((l) => l.id) } },
     });
 
     return NextResponse.json({
-      message: `${deletedCount} artículo(s) de Kit/EPP desvinculado(s) exitosamente`,
-      deletedCount,
+      message: `${count} artículo(s) de Kit/EPP quitado(s) de la compra`,
+      deletedCount: count,
     });
   } catch (error) {
-    return handleApiError(error, 'Error al desvincular artículos de Kit/EPP de la compra');
+    return handleApiError(error, 'Error al quitar artículos de Kit/EPP de la compra');
   }
 }

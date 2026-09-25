@@ -251,6 +251,11 @@ model PurchaseAsset {
   id         String   @id @default(uuid())
   purchaseId String   @map("purchase_id")
   assetId    String   @map("asset_id")
+  // SPEC 2.111: true si el equipo se compro en esta compra y pasa por el
+  // reparto (nace "Por repartir"); false si ya existia y solo se vinculo a
+  // la factura. Asi se sabe que se repartio y si la compra se puede eliminar.
+  // Los vinculos anteriores a 2.111 quedan en false.
+  llegoConCompra Boolean @default(false) @map("llego_con_compra")
   createdAt  DateTime @default(now()) @map("created_at")
   asset      Asset    @relation(fields: [assetId], references: [id])
   purchase   Purchase @relation(fields: [purchaseId], references: [id])

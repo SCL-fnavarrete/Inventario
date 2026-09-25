@@ -96,13 +96,12 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
     delete: ADMIN,
   },
 
-  // Registrar una compra es trabajo operativo del tecnico: llega un
-  // despacho y necesita quedar registrado, igual que cualquier otro
-  // modulo scopeado por sede. El modelo no tiene campos financieros, asi
-  // que compras es simplemente RW para tecnico; borrar queda para admin.
+  // SPEC 2.111: la compra es de la empresa. El admin la registra y decide a
+  // que sede se reparte lo comprado; el tecnico ve todas las compras y lo
+  // que hay por repartir, en solo lectura.
   compras: {
     read: AMBOS,
-    write: AMBOS,
+    write: ADMIN,
     delete: ADMIN,
   },
 

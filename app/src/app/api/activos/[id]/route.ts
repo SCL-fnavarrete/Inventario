@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { updateAssetSchema } from '@/lib/validations/asset';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
+import { descartarActivo } from '@/lib/services/activoService';
 import {
   requirePermission,
   handleApiError,
@@ -289,24 +290,7 @@ export async function DELETE(
         );
       }
 
-      const asset = await prisma.$transaction(async (tx) => {
-        await assetHistoryService.registrar(
-          {
-            assetId: id,
-            tipoEvento: 'baja',
-            descripcion: `Registro descartado: ${motivo}`,
-            datosAnteriores: { deletedAt: null },
-            datosNuevos: { deletedAt: new Date().toISOString(), motivo },
-            usuarioSistema: usuario,
-          },
-          tx
-        );
-
-        return tx.asset.update({
-          where: { id },
-          data: { deletedAt: new Date() },
-        });
-      });
+      const asset = await prisma.$transaction((tx) => descartarActivo(tx, id, motivo, usuario));
 
       return NextResponse.json({ success: true, descartado: true, asset });
     }

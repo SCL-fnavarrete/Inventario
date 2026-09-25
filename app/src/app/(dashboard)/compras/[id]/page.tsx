@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -15,7 +14,8 @@ import {
   Search,
   Eye,
   Shirt,
-  Pencil } from "lucide-react";
+  Pencil,
+  PackagePlus } from "lucide-react";
 import { Can } from "@/components/auth/Can";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
@@ -28,6 +28,19 @@ import { ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 import { ETIQUETAS_FACTURA, validarDatosFactura } from "@/lib/validations/purchase";
 import { CamposFactura } from "@/components/compras/CamposFactura";
+import { Modal } from "@/components/ui/Modal";
+import {
+  ACTIVO_FORM_VACIO,
+  ActivoForm,
+  payloadActivo,
+  type ActivoFormValues,
+} from "@/components/activos/ActivoForm";
+import {
+  ESTADO_REPARTO_BADGE,
+  ESTADO_REPARTO_LABEL,
+  type AvanceReparto,
+} from "@/lib/constants/repartoCompra";
+import { cn } from "@/lib/utils";
 
 /**
  * Confirmacion en modal propio, en vez de confirm()/alert() del navegador:
@@ -50,6 +63,7 @@ type Asset = {
   categoria: {
     nombre: string;
   };
+  sede?: { id: string; nombre: string } | null;
   empleadoActual: {
     id: string;
     rut: string;
@@ -61,6 +75,9 @@ type Asset = {
 type PurchaseAsset = {
   id: string;
   assetId: string;
+  // SPEC 2.111: comprado en esta compra (pasa por el reparto) o equipo que
+  // ya existia y solo se vinculo a la factura.
+  llegoConCompra: boolean;
   asset: Asset;
 };
 
@@ -77,6 +94,8 @@ type PurchaseKitItem = {
   id: string;
   itemId: string;
   cantidad: number;
+  // Unidades que todavia no se reparten (SPEC 2.111).
+  cantidadPorRepartir: number;
   item: KitItem;
 };
 
@@ -95,6 +114,7 @@ type Purchase = {
   sede: Sede | null;
   purchaseAssets: PurchaseAsset[];
   purchaseKitItems: PurchaseKitItem[];
+  reparto: AvanceReparto;
   stats: {
     cantidadActivos: number;
     cantidadArticulosKit: number;
@@ -105,9 +125,6 @@ type Purchase = {
 export default function CompraDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { data: session } = useSession();
-  // Solo admin puede elegir la sede.
-  const esAdminSede = session?.user?.role === "admin";
   const [purchase, setPurchase] = useState<Purchase | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
@@ -128,7 +145,13 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
     sedeId: "",
   });
 
-  // Para agregar activos
+  // Equipo comprado (SPEC 2.111): el formulario de Activos en una ventana;
+  // nace "Por repartir" en la sede de llegada.
+  const [showNewAssetForm, setShowNewAssetForm] = useState(false);
+  const [newAssetError, setNewAssetError] = useState<string | null>(null);
+  const [newAssetFieldErrors, setNewAssetFieldErrors] = useState<FieldErrors>({});
+
+  // Para vincular un equipo que ya existia
   const [showAssetSearch, setShowAssetSearch] = useState(false);
   const [assetSearch, setAssetSearch] = useState("");
   const [availableAssets, setAvailableAssets] = useState<Asset[]>([]);
@@ -253,6 +276,28 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
     }
   }, [assetSearch, searchAssets]);
 
+  async function agregarEquipoComprado(values: ActivoFormValues) {
+    setNewAssetError(null);
+    setNewAssetFieldErrors({});
+    try {
+      const res = await fetch(`/api/compras/${id}/activos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ equiposNuevos: [payloadActivo(values, "crear")] }),
+      });
+      if (!res.ok) {
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al agregar el equipo");
+        setNewAssetError(message);
+        setNewAssetFieldErrors(fe);
+        return;
+      }
+      setShowNewAssetForm(false);
+      await fetchPurchase();
+    } catch (err) {
+      setNewAssetError(err instanceof Error ? err.message : "Error al agregar el equipo");
+    }
+  }
+
   async function addAssetToPurchase(asset: Asset) {
     setAddingAsset(true);
     try {
@@ -282,14 +327,24 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
     }
   }
 
-  function pedirDesvincularActivo(assetId: string) {
-    setConfirmacion({
-      titulo: "Desvincular activo",
-      mensaje:
-        "El activo se desvincula de esta factura, pero no se elimina ni cambia de estado: sigue en el inventario tal como está.",
-      textoBoton: "Desvincular",
-      onConfirm: () => removeAssetFromPurchase(assetId),
-    });
+  function pedirDesvincularActivo(pa: PurchaseAsset) {
+    setConfirmacion(
+      pa.llegoConCompra
+        ? {
+            titulo: "Quitar equipo de la compra",
+            mensaje:
+              "El equipo todavía no se reparte: se quita de la compra y se descarta del inventario. Su registro queda en el historial.",
+            textoBoton: "Quitar",
+            onConfirm: () => removeAssetFromPurchase(pa.assetId),
+          }
+        : {
+            titulo: "Desvincular equipo",
+            mensaje:
+              "El equipo se desvincula de esta factura, pero no se elimina ni cambia de estado: sigue en el inventario tal como está.",
+            textoBoton: "Desvincular",
+            onConfirm: () => removeAssetFromPurchase(pa.assetId),
+          }
+    );
   }
 
   async function removeAssetFromPurchase(assetId: string) {
@@ -357,10 +412,10 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
   function pedirDesvincularKitItem(lineId: string) {
     setConfirmacion({
-      titulo: "Desvincular artículo de Kit/EPP",
+      titulo: "Quitar artículo de Kit/EPP",
       mensaje:
-        "Se restará del stock la cantidad que esta línea había sumado. El stock nunca baja de 0, por si ya se entregó parte de lo comprado.",
-      textoBoton: "Desvincular",
+        "La línea se quita de la compra. Todavía no se había repartido, así que no sumó stock y el stock no cambia.",
+      textoBoton: "Quitar",
       onConfirm: () => removeKitItemFromPurchase(lineId),
     });
   }
@@ -436,6 +491,9 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
     );
   }
 
+  // Algo ya se repartio: la compra no se elimina ni cambia de sede de llegada.
+  const seRepartio = purchase.reparto.repartido > 0;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -448,8 +506,18 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             <ArrowLeft size={24} />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-fg">
+            <h1 className="text-2xl font-bold text-fg flex flex-wrap items-center gap-3">
               Factura {purchase.numeroFactura}
+              {purchase.reparto.estado && (
+                <span
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-sm font-medium",
+                    ESTADO_REPARTO_BADGE[purchase.reparto.estado]
+                  )}
+                >
+                  {ESTADO_REPARTO_LABEL[purchase.reparto.estado]}
+                </span>
+              )}
             </h1>
           </div>
         </div>
@@ -466,7 +534,13 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
           <Can recurso="compras" accion="delete">
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
+              disabled={seRepartio}
+              title={
+                seRepartio
+                  ? "Ya se repartió parte de lo comprado: la compra es el comprobante y no se elimina"
+                  : undefined
+              }
+              className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             >
               <Trash2 size={20} />
               Eliminar
@@ -497,12 +571,8 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
               <dd className="font-medium">{formatearFechaLarga(purchase.fechaFactura)}</dd>
             </div>
             <div>
-              <dt className="text-sm text-fg-subtle">Sede</dt>
-              <dd className="font-medium">
-                {purchase.sede ? purchase.sede.nombre : (
-                  <span className="text-fg-subtle italic">Transversal (sin sede)</span>
-                )}
-              </dd>
+              <dt className="text-sm text-fg-subtle">Sede de llegada</dt>
+              <dd className="font-medium">{purchase.sede?.nombre ?? "-"}</dd>
             </div>
             {purchase.rutProveedor && (
               <div>
@@ -523,18 +593,30 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
         <div className="card p-6">
           <h2 className="text-lg font-semibold text-fg mb-4 flex items-center gap-2">
             <Package className="h-5 w-5 text-fg-subtle" />
-            Resumen de Activos
+            Reparto
           </h2>
-          <dl className="space-y-3">
+          <dl className="grid grid-cols-2 gap-3">
             <div>
-              <dt className="text-sm text-fg-subtle">Cantidad de Activos</dt>
-              <dd className="font-medium text-2xl">{purchase.stats.cantidadActivos}</dd>
+              <dt className="text-sm text-fg-subtle">Por repartir</dt>
+              <dd className="font-medium text-2xl text-purple-700">{purchase.reparto.pendiente}</dd>
             </div>
             <div>
-              <dt className="text-sm text-fg-subtle">Artículos de Kit/EPP</dt>
-              <dd className="font-medium text-2xl">{purchase.stats.cantidadArticulosKit}</dd>
+              <dt className="text-sm text-fg-subtle">Repartido</dt>
+              <dd className="font-medium text-2xl">{purchase.reparto.repartido}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-fg-subtle">Equipos</dt>
+              <dd className="font-medium">{purchase.stats.cantidadActivos}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-fg-subtle">Líneas de Kit/EPP</dt>
+              <dd className="font-medium">{purchase.stats.cantidadArticulosKit}</dd>
             </div>
           </dl>
+          <p className="mt-4 text-xs text-fg-subtle">
+            En unidades: cada equipo cuenta 1 y el Kit/EPP cuenta su cantidad. Lo comprado espera en{" "}
+            {purchase.sede?.nombre ?? "la sede de llegada"} hasta que se reparte a las sedes.
+          </p>
         </div>
       </div>
 
@@ -543,15 +625,32 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
         <div className="p-6 border-b flex items-center justify-between">
           <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
             <Package className="h-5 w-5 text-fg-subtle" />
-            Activos Vinculados ({purchase.purchaseAssets.length})
+            Equipos ({purchase.purchaseAssets.length})
           </h2>
-          <button
-            onClick={() => setShowAssetSearch(true)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100"
-          >
-            <Plus size={16} />
-            Agregar Activo
-          </button>
+          <Can recurso="compras">
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowAssetSearch(false);
+                  setNewAssetError(null);
+                  setNewAssetFieldErrors({});
+                  setShowNewAssetForm(true);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100"
+              >
+                <PackagePlus size={16} />
+                Agregar equipo comprado
+              </button>
+              <button
+                onClick={() => setShowAssetSearch(true)}
+                title="Para facturas de equipos que ya estaban en el inventario"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100"
+              >
+                <Plus size={16} />
+                Vincular equipo existente
+              </button>
+            </div>
+          </Can>
         </div>
 
         {/* Búsqueda de activos */}
@@ -631,6 +730,9 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                     Estado
                   </th>
                   <th className="table-th px-4">
+                    Sede
+                  </th>
+                  <th className="table-th px-4">
                     Asignado a
                   </th>
                   <th className="table-th px-4 text-right">
@@ -653,6 +755,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                             </p>
                             <p className="text-xs text-fg-subtle">
                               {pa.asset.categoria.nombre}
+                              {!pa.llegoConCompra && " • ya existía, solo vinculado"}
                             </p>
                           </div>
                         </div>
@@ -662,6 +765,9 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                       </td>
                       <td className="px-4 py-4">
                         <AssetStatusBadge status={pa.asset.estado} size="sm" />
+                      </td>
+                      <td className="px-4 py-4 text-sm text-fg-subtle">
+                        {pa.asset.sede?.nombre ?? "-"}
                       </td>
                       <td className="px-4 py-4 text-sm text-fg-subtle">
                         {pa.asset.empleadoActual ? (
@@ -684,13 +790,19 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                           >
                             <Eye size={18} />
                           </Link>
-                          <button
-                            onClick={() => pedirDesvincularActivo(pa.assetId)}
-                            className="p-1.5 text-fg-subtle hover:text-red-600"
-                            title="Desvincular"
-                          >
-                            <X size={18} />
-                          </button>
+                          {/* Uno comprado y ya repartido no se quita: la compra es su comprobante. */}
+                          {(!pa.llegoConCompra || pa.asset.estado === "por_repartir") && (
+                            <Can recurso="compras" accion="delete">
+                              <button
+                                onClick={() => pedirDesvincularActivo(pa)}
+                                className="p-1.5 text-fg-subtle hover:text-red-600"
+                                title={pa.llegoConCompra ? "Quitar de la compra" : "Desvincular"}
+                                aria-label={pa.llegoConCompra ? "Quitar de la compra" : "Desvincular"}
+                              >
+                                <X size={18} />
+                              </button>
+                            </Can>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -702,13 +814,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
         ) : (
           <div className="text-center py-12 text-fg-subtle">
             <Package className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-            <p>No hay activos vinculados</p>
-            <button
-              onClick={() => setShowAssetSearch(true)}
-              className="mt-4 text-primary-700 hover:text-primary-900 text-sm"
-            >
-              Vincular primer activo
-            </button>
+            <p>No hay equipos en esta compra</p>
           </div>
         )}
       </div>
@@ -720,16 +826,18 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             <Shirt className="h-5 w-5 text-fg-subtle" />
             Kit de Bienvenida / EPP Comprado ({purchase.purchaseKitItems.length})
           </h2>
-          <button
-            onClick={() => {
-              setShowKitItemPicker(true);
-              fetchKitItemsCatalogo();
-            }}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100"
-          >
-            <Plus size={16} />
-            Agregar Artículo
-          </button>
+          <Can recurso="compras">
+            <button
+              onClick={() => {
+                setShowKitItemPicker(true);
+                fetchKitItemsCatalogo();
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100"
+            >
+              <Plus size={16} />
+              Agregar Artículo
+            </button>
+          </Can>
         </div>
 
         {showKitItemPicker && (
@@ -792,10 +900,10 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                     Artículo
                   </th>
                   <th className="table-th px-4">
-                    Cantidad comprada
+                    Comprado
                   </th>
                   <th className="table-th px-4">
-                    Stock actual del artículo
+                    Por repartir
                   </th>
                   <th className="table-th px-4 text-right">
                     Acciones
@@ -816,16 +924,26 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-sm text-fg-muted">+{pk.cantidad}</td>
-                    <td className="px-4 py-4 text-sm text-fg-subtle">{pk.item.cantidad}</td>
+                    <td className="px-4 py-4 text-sm text-fg-muted">{pk.cantidad}</td>
+                    <td className="px-4 py-4 text-sm">
+                      <span className={pk.cantidadPorRepartir > 0 ? "font-medium text-purple-700" : "text-fg-subtle"}>
+                        {pk.cantidadPorRepartir}
+                      </span>
+                    </td>
                     <td className="px-4 py-4 text-right">
-                      <button
-                        onClick={() => pedirDesvincularKitItem(pk.id)}
-                        className="p-1.5 text-fg-subtle hover:text-red-600"
-                        title="Desvincular"
-                      >
-                        <X size={18} />
-                      </button>
+                      {/* Solo sin repartir: todavia no sumo stock. */}
+                      {pk.cantidadPorRepartir === pk.cantidad && (
+                        <Can recurso="compras" accion="delete">
+                          <button
+                            onClick={() => pedirDesvincularKitItem(pk.id)}
+                            className="p-1.5 text-fg-subtle hover:text-red-600"
+                            title="Quitar de la compra"
+                            aria-label="Quitar de la compra"
+                          >
+                            <X size={18} />
+                          </button>
+                        </Can>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -835,19 +953,33 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
         ) : (
           <div className="text-center py-12 text-fg-subtle">
             <Shirt className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-            <p>No hay artículos de Kit/EPP vinculados</p>
-            <button
-              onClick={() => {
-                setShowKitItemPicker(true);
-                fetchKitItemsCatalogo();
-              }}
-              className="mt-4 text-primary-700 hover:text-primary-900 text-sm"
-            >
-              Vincular primer artículo
-            </button>
+            <p>No hay artículos de Kit/EPP en esta compra</p>
           </div>
         )}
       </div>
+
+      <Modal
+        isOpen={showNewAssetForm}
+        onClose={() => setShowNewAssetForm(false)}
+        title="Agregar equipo comprado"
+        size="xl"
+      >
+        <p className="text-sm text-fg-subtle mb-4">
+          Queda en Activos como &quot;Por repartir&quot; en {purchase.sede?.nombre ?? "la sede de llegada"},
+          vinculado a esta factura.
+        </p>
+        <ApiErrorSummary error={newAssetError} fieldErrors={newAssetFieldErrors} />
+        {showNewAssetForm && (
+          <ActivoForm
+            modo="crear"
+            sedeFija={purchase.sede?.id ?? ""}
+            initialValues={{ ...ACTIVO_FORM_VACIO, fechaCompra: purchase.fechaFactura.slice(0, 10) }}
+            onSubmit={agregarEquipoComprado}
+            onCancel={() => setShowNewAssetForm(false)}
+            erroresServidor={newAssetFieldErrors}
+          />
+        )}
+      </Modal>
 
       {/* Confirmacion de desvincular activo / articulo de Kit/EPP. Mismo
           formato que el modal de eliminar factura de mas abajo. */}
@@ -877,11 +1009,11 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                   limpiar(campo);
                 }}
                 sedes={sedes}
-                puedeElegirSede={esAdminSede}
+                puedeElegirSede={!seRepartio}
                 ayudaSede={
-                  esAdminSede
-                    ? "Cambiar la sede no mueve los equipos ya vinculados: cada uno conserva la suya."
-                    : "Mover una compra de sede es solo de admin."
+                  seRepartio
+                    ? "Ya se repartió parte de lo comprado: la sede de llegada no se puede cambiar."
+                    : 'Si la corriges, lo que espera "Por repartir" se mueve con ella.'
                 }
               />
 
@@ -917,14 +1049,20 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
             </h3>
             <p className="text-fg-muted mb-4">
               ¿Está seguro de eliminar la factura <strong>{purchase.numeroFactura}</strong>?
-              {purchase.purchaseAssets.length > 0 && (
+              {purchase.purchaseAssets.some((pa) => pa.llegoConCompra) && (
                 <span className="block mt-2 text-orange-600">
-                  Se desvinculará de {purchase.purchaseAssets.length} activo(s).
+                  Sus {purchase.purchaseAssets.filter((pa) => pa.llegoConCompra).length} equipo(s) por repartir se
+                  descartan del inventario; su registro queda en el historial.
+                </span>
+              )}
+              {purchase.purchaseAssets.some((pa) => !pa.llegoConCompra) && (
+                <span className="block mt-2 text-orange-600">
+                  Los equipos que ya existían solo se desvinculan.
                 </span>
               )}
               {purchase.purchaseKitItems.length > 0 && (
                 <span className="block mt-2 text-orange-600">
-                  Se revertirá el stock sumado por {purchase.purchaseKitItems.length} artículo(s) de Kit/EPP.
+                  Sus {purchase.purchaseKitItems.length} línea(s) de Kit/EPP se quitan; todavía no sumaban stock.
                 </span>
               )}
             </p>

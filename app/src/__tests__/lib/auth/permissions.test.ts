@@ -93,11 +93,11 @@ describe('permissions — tecnico', () => {
     expect(can('tecnico', 'configuracion', 'read')).toBe(false);
   });
 
-  // compras es trabajo operativo del tecnico, no un dato maestro (ver nota
-  // en permissions.ts).
-  test('sí puede leer y escribir compras (trabajo operativo, no dato maestro)', () => {
+  // SPEC 2.111: la compra es de la empresa; el tecnico ve todas y lo que
+  // hay por repartir, pero registrar y repartir es del admin.
+  test('ve las compras en solo lectura', () => {
     expect(can('tecnico', 'compras', 'read')).toBe(true);
-    expect(can('tecnico', 'compras', 'write')).toBe(true);
+    expect(can('tecnico', 'compras', 'write')).toBe(false);
     expect(can('tecnico', 'compras', 'delete')).toBe(false);
   });
 
@@ -173,7 +173,7 @@ describe('permissions — helpers', () => {
     const recursos = recursosPermitidos('tecnico', 'read');
     expect(recursos).not.toContain('usuarios');
     expect(recursos).not.toContain('configuracion');
-    // compras SÍ está incluido: es trabajo operativo del técnico.
+    // compras SÍ está incluido: el técnico ve lo que hay por repartir (SPEC 2.111.6).
     expect(recursos).toContain('compras');
     expect(recursos.length).toBeGreaterThan(0);
   });

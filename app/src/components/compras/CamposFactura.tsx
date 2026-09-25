@@ -34,7 +34,7 @@ export function CamposFactura({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <CampoFormulario
-        label="Sede"
+        label="Sede de llegada"
         obligatorio
         error={errores.sedeId}
         ayuda={ayudaSede}
