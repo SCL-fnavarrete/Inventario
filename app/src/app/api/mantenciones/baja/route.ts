@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
     if (asset.deletedAt) {
       throw new ConflictError('Este activo esta descartado y no admite movimientos');
     }
-    const bloqueo = motivoSinBaja(asset.estado);
+    // Regla unica de la baja (SPEC 2.106): solo un equipo sin empleado asignado.
+    const bloqueo = motivoSinBaja(asset);
     if (bloqueo) throw new ConflictError(bloqueo);
 
     const motivoTexto =
@@ -54,16 +55,11 @@ export async function POST(request: NextRequest) {
         : etiquetaMotivoBaja(data.motivo);
 
     const transicion = validateTransition(asset.estado, 'baja', {
-      hasActiveAssignment: false,
+      hasActiveAssignment: !!asset.empleadoActualId,
       hasActiveMaintenance: false,
       motivo: motivoTexto,
     });
-    if (!transicion.valid) {
-      return NextResponse.json(
-        { error: 'Transición no permitida', details: transicion.errors },
-        { status: 400 }
-      );
-    }
+    if (!transicion.valid) throw new ConflictError(transicion.errors[0]);
 
     // Se cierra la en proceso o la pendiente mas antigua; su tipo manda. Las
     // demas abiertas se cancelan.

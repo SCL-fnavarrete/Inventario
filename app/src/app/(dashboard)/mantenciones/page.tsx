@@ -52,6 +52,7 @@ type Maintenance = {
     marca: string;
     modelo: string;
     estado: string;
+    empleadoActualId: string | null;
     categoria: {
       nombre: string;
     };
@@ -112,7 +113,7 @@ function AccionesMantencion({ m }: { m: Maintenance }) {
       </Link>
       {/* Baja por mantencion (SPEC 2.88): cierra esta misma. Solo si el
           equipo se puede dar de baja (no asignado ni no devuelto). */}
-      {abierta && !motivoSinBaja(m.asset.estado) && (
+      {abierta && !motivoSinBaja(m.asset) && (
         <Can recurso="mantenciones">
           <Link
             href={`/mantenciones/baja?activoId=${m.asset.id}`}

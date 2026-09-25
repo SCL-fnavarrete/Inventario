@@ -85,12 +85,22 @@ export function etiquetaMotivoBaja(motivo: string): string {
 }
 
 /**
- * Por que un equipo no se puede dar de baja, o null si se puede (SPEC 2.88).
- * La baja pasa siempre por una mantencion "No reparable", y solo desde
- * disponible o en mantencion: un equipo asignado o no devuelto primero tiene
- * que volver con una solicitud. La usan la API y los botones de la interfaz.
+ * Por que un equipo no se puede dar de baja, o null si se puede (SPEC 2.88,
+ * 2.106). La regla: solo un equipo sin empleado asignado. Se mira el
+ * empleado, no solo el estado: un equipo en mantencion puede seguir asignado
+ * a su dueño (se repara y vuelve a el), y uno devuelto dañado queda en
+ * mantencion sin dueño y si se puede dar de baja. Unico punto de verdad: la
+ * usan las dos rutas que dan de baja (/baja y completar "Sin reparación") y
+ * los botones de la interfaz, que avisan antes.
  */
-export function motivoSinBaja(estado: string): string | null {
+export function motivoSinBaja(activo: {
+  estado: string;
+  empleadoActualId: string | null;
+}): string | null {
+  const { estado } = activo;
+  if (estado === 'en_mantencion' && activo.empleadoActualId) {
+    return 'Está asignado a un empleado: complétalo como "Reparado, vuelve a uso" o devuélvelo con una solicitud antes de darlo de baja.';
+  }
   switch (estado) {
     case 'disponible':
     case 'en_mantencion':

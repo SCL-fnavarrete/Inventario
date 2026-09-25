@@ -17,6 +17,7 @@ import { auditLogService } from '@/lib/services/auditLogService';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { formatearFechaCorta } from '@/lib/utils/fechas';
 import { etiquetaResultadoMantencion } from '@/lib/constants/resultadosMantencion';
+import { motivoSinBaja } from '@/lib/constants/estadosActivo';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -109,20 +110,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json(enEspera);
     }
 
-    // Valida la transicion a "baja" con la misma logica que
-    // POST /api/mantenciones/baja, en vez de escribir el estado directo.
+    // "Sin reparación" da de baja: misma regla y misma transicion que
+    // POST /api/mantenciones/baja (SPEC 2.106), en vez de escribir el estado
+    // directo. Antes esta ruta no revisaba si el equipo seguia asignado.
     if (data.resultadoTipo === "no_reparable") {
+      const bloqueo = motivoSinBaja(maintenance.asset);
+      if (bloqueo) throw new ConflictError(bloqueo);
       const transitionResult = validateTransition(maintenance.asset.estado, "baja", {
-        hasActiveAssignment: false,
+        hasActiveAssignment: !!maintenance.asset.empleadoActualId,
         hasActiveMaintenance: false,
         motivo: data.motivoBaja ?? undefined,
       });
-      if (!transitionResult.valid) {
-        return NextResponse.json(
-          { error: "Transición no permitida", details: transitionResult.errors },
-          { status: 400 }
-        );
-      }
+      if (!transitionResult.valid) throw new ConflictError(transitionResult.errors[0]);
     }
 
     // Completar en transacción

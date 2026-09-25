@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import {
   estadoTrasMantencion,
+  motivoSinBaja,
   etiquetaCondicionActivo,
   etiquetaEstadoActivo,
 } from "@/lib/constants/estadosActivo";
@@ -344,6 +345,9 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
     maintenance.estado === "en_proceso" && maintenance.resultadoTipo === "pendiente_repuestos";
   const fechaTexto = formatearFechaConHora(maintenance.fechaProgramada, maintenance.horaProgramada, "-");
   const vuelveA = etiquetaEstadoActivo(estadoTrasMantencion(maintenance.asset));
+  // "Sin reparación" da de baja: misma regla que el servidor, avisada antes
+  // (SPEC 2.106). Un equipo que sigue asignado a su dueño no se da de baja.
+  const bloqueoBaja = motivoSinBaja(maintenance.asset);
   const opcionElegida =
     OPCIONES_RESULTADO.find((o) => o.valor === completeForm.resultadoTipo) ?? OPCIONES_RESULTADO[0];
 
@@ -511,26 +515,30 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
                     {OPCIONES_RESULTADO.map((o) => {
                       const elegido = completeForm.resultadoTipo === o.valor;
                       const Icono = o.icono;
+                      const bloqueo = o.valor === "no_reparable" ? bloqueoBaja : null;
                       return (
                         <button
                           key={o.valor}
                           type="button"
                           role="radio"
                           aria-checked={elegido}
+                          disabled={!!bloqueo}
+                          title={bloqueo ?? undefined}
                           onClick={() => {
                             cambiarCompletar("resultadoTipo", o.valor);
                             erroresCompletar.limpiar("motivoBaja");
                           }}
                           className={cn(
                             "p-3 rounded-lg border-2 text-left transition-colors",
-                            elegido ? o.seleccionado : "border-line text-fg-muted hover:bg-surface-muted"
+                            elegido ? o.seleccionado : "border-line text-fg-muted hover:bg-surface-muted",
+                            bloqueo && "opacity-60 cursor-not-allowed hover:bg-transparent"
                           )}
                         >
                           <span className="flex items-center gap-2 font-semibold text-sm">
                             <Icono size={16} className="shrink-0" />
                             {RESULTADO_MANTENCION_LABEL[o.valor]}
                           </span>
-                          <span className="block text-xs mt-1 opacity-90">{o.detalle(vuelveA)}</span>
+                          <span className="block text-xs mt-1 opacity-90">{bloqueo ?? o.detalle(vuelveA)}</span>
                         </button>
                       );
                     })}

@@ -151,7 +151,7 @@ export default async function DetalleActivoPage({
   }
 
   // Por que no se puede dar de baja (null si se puede).
-  const bloqueoBaja = motivoSinBaja(asset.estado);
+  const bloqueoBaja = motivoSinBaja(asset);
 
   return (
     <div className="space-y-6">

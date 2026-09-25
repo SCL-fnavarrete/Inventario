@@ -3324,7 +3324,40 @@ Cierra el pedido de 2.102: con esta parte, todos los formularios de ingreso de d
 - **Importación:** cuando faltan marca, modelo o N° de serie, el error indica el campo (`campo` en `procesarFila`), para que la revisión lo marque.
 - **Inicio de sesión:** correo (obligatorio y con formato) y contraseña se marcan en rojo con el resumen, en vez del aviso del navegador. Los campos indican al navegador cuál es el usuario y cuál la contraseña, para que pueda recordarlos.
 
+## 2.106 Solo se da de baja un equipo sin empleado asignado (25-sep-2026)
+
+Regla de negocio (Javier): *"solo se puede dar de baja un equipo si no está asignado"*.
+
+**El hueco que había.**
+- Un equipo asignado puede estar "En Mantención": se repara y vuelve a su dueño (2.96), así que conserva su empleado.
+- `motivoSinBaja` miraba solo el estado y dejaba pasar "En Mantención".
+- Las dos rutas que dan de baja (`POST /api/mantenciones/baja` y completar como "Sin reparación") le pasaban `hasActiveAssignment: false` fijo a la regla de estados. Además, la regla de "en_mantencion → baja" no revisaba la asignación.
+- Así se podía dar de baja un equipo que el empleado todavía tenía.
+
+**La regla, en un solo lugar.**
+- `motivoSinBaja(activo)` (`lib/constants/estadosActivo.ts`) recibe el equipo, no solo su estado, y rechaza un equipo en mantención que tenga empleado: "Está asignado a un empleado: complétalo como 'Reparado, vuelve a uso' o devuélvelo con una solicitud antes de darlo de baja."
+- Se mira el empleado y no el estado. Por eso **sí** se puede dar de baja un equipo devuelto dañado: queda "En Mantención" pero sin empleado, porque la devolución lo desvincula (`executeReturn`).
+
+| Equipo | ¿Tiene empleado? | ¿Se da de baja? |
+|---|---|---|
+| Disponible | No | Sí |
+| En Mantención, devuelto dañado | No | Sí |
+| En Mantención, reparándose para su dueño | Sí | No |
+| Asignado / No devuelto | Sí | No (primero se devuelve con una solicitud) |
+| Baja / Vendido | — | No |
+
+**Quién la usa.**
+- Las dos rutas que dan de baja. Completar como "Sin reparación" no la revisaba; ahora sí. Rechazan con 409 y ese mensaje.
+- Las pantallas avisan **antes** de intentarlo, con la misma regla:
+  - el botón "Dar de baja" del detalle del activo queda desactivado y dice por qué;
+  - la lista de Mantenciones no ofrece el enlace;
+  - la página de baja muestra el aviso en vez del formulario;
+  - en Completar mantención, la opción "Sin reparación" aparece desactivada con el motivo.
+- Las rutas pasan a `validateTransition` la asignación real (`!!empleadoActualId`) y, si rechaza, responden 409 con su motivo en vez de "Transición no permitida".
+
 ## Changelog SPEC
+- **v2.30 (2026-09-25):**
+  - Sección 2.106 (nueva): solo se da de baja un equipo sin empleado asignado; `motivoSinBaja` mira el empleado además del estado y la usan las dos rutas de baja y las pantallas, que avisan antes.
 - **v2.29 (2026-09-25):**
   - Sección 2.105 (nueva): validación por campo al corregir filas de importación y al iniciar sesión; el error de campos faltantes de la importación indica el campo. Con esto todos los formularios usan la misma validación.
 - **v2.28 (2026-09-25):**

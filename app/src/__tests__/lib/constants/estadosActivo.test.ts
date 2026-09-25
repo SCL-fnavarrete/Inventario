@@ -25,20 +25,27 @@ describe('etiquetas legibles', () => {
   });
 });
 
-describe('motivoSinBaja', () => {
-  test('se puede dar de baja desde disponible o en mantencion', () => {
-    expect(motivoSinBaja('disponible')).toBeNull();
-    expect(motivoSinBaja('en_mantencion')).toBeNull();
+describe('motivoSinBaja (SPEC 2.106: solo un equipo sin empleado asignado)', () => {
+  const sin = (estado: string) => motivoSinBaja({ estado, empleadoActualId: null });
+  const con = (estado: string) => motivoSinBaja({ estado, empleadoActualId: 'emp-1' });
+
+  test('disponible y en mantencion sin dueño (devuelto dañado) se pueden dar de baja', () => {
+    expect(sin('disponible')).toBeNull();
+    expect(sin('en_mantencion')).toBeNull();
+  });
+
+  test('en mantencion pero asignado a su dueño: no (este era el hueco)', () => {
+    expect(con('en_mantencion')).toMatch(/Está asignado a un empleado/);
   });
 
   test('asignado y no devuelto primero tienen que volver con una solicitud', () => {
-    expect(motivoSinBaja('asignado')).toMatch(/devuélvelo con una solicitud/);
-    expect(motivoSinBaja('no_devuelto')).toMatch(/recupéralo con una solicitud/);
+    expect(con('asignado')).toMatch(/devuélvelo con una solicitud/);
+    expect(con('no_devuelto')).toMatch(/recupéralo con una solicitud/);
   });
 
   test('baja y vendido ya no admiten baja', () => {
-    expect(motivoSinBaja('baja')).toMatch(/Ya está dado de baja/);
-    expect(motivoSinBaja('vendido')).toMatch(/Ya fue vendido/);
+    expect(sin('baja')).toMatch(/Ya está dado de baja/);
+    expect(sin('vendido')).toMatch(/Ya fue vendido/);
   });
 });
 

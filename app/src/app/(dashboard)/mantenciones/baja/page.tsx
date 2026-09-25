@@ -30,6 +30,7 @@ type Activo = {
   modelo: string;
   numeroSerie: string | null;
   estado: string;
+  empleadoActualId: string | null;
   categoria: { nombre: string };
   maintenances: { id: string; estado: string; descripcion: string; tipo: { nombre: string } }[];
 };
@@ -106,7 +107,7 @@ function DarDeBajaContenido() {
     );
   }
 
-  const bloqueo = motivoSinBaja(activo.estado);
+  const bloqueo = motivoSinBaja(activo);
   // La misma que cierra el servidor; las demas abiertas se cancelan.
   const abierta = mantencionACerrar(activo.maintenances) ?? null;
   const otrasAbiertas = activo.maintenances.length - (abierta ? 1 : 0);
