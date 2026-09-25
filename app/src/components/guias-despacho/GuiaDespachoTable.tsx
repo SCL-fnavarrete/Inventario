@@ -15,6 +15,10 @@ interface GuiaDespachoTableProps {
   loading?: boolean;
 }
 
+// En celular se ven solo el N° y el Estado; el resto va bajo el numero
+// (mismo patron que Solicitudes). Tocar el numero abre el detalle.
+const soloEscritorio = "hidden md:table-cell";
+
 export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
   if (loading) {
     return (
@@ -46,65 +50,54 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
         <table className="min-w-full divide-y divide-line">
           <thead className="bg-surface-muted">
             <tr>
-              <th className="table-th">
-                N° Guía
-              </th>
-              <th className="table-th">
-                Fecha
-              </th>
-              <th className="table-th">
-                OT Chilexpress
-              </th>
-              <th className="table-th">
-                Sede origen
-              </th>
-              <th className="table-th">
-                Sede destino
-              </th>
-              <th className="table-th">
-                Receptor
-              </th>
-              <th className="table-th">
-                Items
-              </th>
-              <th className="table-th">
-                Estado
-              </th>
-              <th className="table-th text-right">
-                Acciones
-              </th>
+              <th className="table-th">N° Guía</th>
+              <th className={cn("table-th", soloEscritorio)}>Fecha</th>
+              <th className={cn("table-th", soloEscritorio)}>OT Chilexpress</th>
+              <th className={cn("table-th", soloEscritorio)}>Sede origen</th>
+              <th className={cn("table-th", soloEscritorio)}>Sede destino</th>
+              <th className={cn("table-th", soloEscritorio)}>Receptor</th>
+              <th className={cn("table-th", soloEscritorio)}>Items</th>
+              <th className="table-th">Estado</th>
+              <th className={cn("table-th text-right", soloEscritorio)}>Acciones</th>
             </tr>
           </thead>
           <tbody className="bg-surface divide-y divide-line">
             {guides.map((guide) => (
               <tr key={guide.id} className="hover:bg-surface-muted">
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-4 py-3 md:px-6 md:py-4 md:whitespace-nowrap">
                   <Link
                     href={`/guias-despacho/${guide.id}`}
                     className="text-primary-700 hover:text-primary-900 font-medium"
                   >
                     {guide.numero}
                   </Link>
+                  <div className="md:hidden mt-1 text-sm text-fg-muted">
+                    {guide.sede?.nombre || "-"} → {guide.sedeDestino?.nombre || "-"}
+                  </div>
+                  <div className="md:hidden text-xs text-fg-subtle">
+                    {formatearFechaCorta(guide.fechaDespacho)} · {guide._count.items}{" "}
+                    {guide._count.items === 1 ? "equipo" : "equipos"}
+                  </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-fg-subtle">
+                <td className={cn("px-6 py-4 whitespace-nowrap text-sm text-fg-subtle", soloEscritorio)}>
                   {formatearFechaCorta(guide.fechaDespacho)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-fg font-mono">
+                <td className={cn("px-6 py-4 whitespace-nowrap text-sm text-fg font-mono", soloEscritorio)}>
                   {guide.otChilexpress}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-fg">
+                <td className={cn("px-6 py-4 whitespace-nowrap text-sm text-fg", soloEscritorio)}>
                   {guide.sede?.nombre || "-"}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-fg">
+                <td className={cn("px-6 py-4 whitespace-nowrap text-sm text-fg", soloEscritorio)}>
                   {guide.sedeDestino?.nombre || "-"}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-fg">
+                <td className={cn("px-6 py-4 whitespace-nowrap text-sm text-fg", soloEscritorio)}>
                   {guide.receptorNombre}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-fg-subtle">
+                <td className={cn("px-6 py-4 whitespace-nowrap text-sm text-fg-subtle", soloEscritorio)}>
                   {guide._count.items}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap align-top md:align-middle">
                   <span
                     className={cn(
                       "inline-flex px-2 py-1 text-xs font-medium rounded-full",
@@ -114,7 +107,7 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
                     {ESTADO_GUIA_LABELS[guide.estado]}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <td className={cn("px-6 py-4 whitespace-nowrap text-right text-sm font-medium", soloEscritorio)}>
                   <div className="flex items-center justify-end gap-2">
                     <Link
                       href={`/guias-despacho/${guide.id}`}

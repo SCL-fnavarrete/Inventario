@@ -912,7 +912,7 @@ La confirmación de recepción es **puramente informativa**: no modifica activos
 
 A diferencia del resto de los módulos con aislamiento por sede (2.8), una guía interesa a **dos** sedes: la del emisor y la sede destino, porque el técnico que recibe el despacho necesita verla para confirmar la recepción. Un técnico ve una guía si su sede coincide con `sedeId` **o** con `sedeDestinoId`; `admin` ve todas.
 
-### 2.9.5 Sin documento PDF (por ahora)
+### 2.9.5 Sin documento PDF
 
 La guía es solo un registro dentro del sistema (listado + detalle) — no genera ningún documento PDF descargable.
 
@@ -3438,6 +3438,11 @@ Idea de Javier: *"que haya una sede destino y una de emisión… cuando se gener
 - Faltar el motivo al anular o al marcar perdido respondía 409; ahora es 400 con el campo marcado (es un dato que falta, no un conflicto).
 - El encabezado "Condición" del selector de equipos salía cortado.
 - Un equipo perdido queda de baja en la sede de origen: nunca llegó a la destino.
+
+**En el celular** (pedido de Javier, mismo patrón que Solicitudes): las tablas ya no se cortan a la derecha.
+- Lista: se ven el N° de guía y el Estado; bajo el número, la ruta ("Santiago → Concepción"), la fecha y cuántos equipos lleva. Tocar el número abre el detalle.
+- Detalle: se ocultan Tipo, N° de serie y Especificaciones; la serie va bajo el equipo y los botones "Llegó" / "Se perdió" debajo, fáciles de tocar. Es el mismo bloque de botones en celular y escritorio.
+- No se hace documento imprimible de la guía: es un registro del despacho dentro del sistema (2.9.5).
 
 ## 2.109 Una sola paginación para todas las listas (25-sep-2026)
 

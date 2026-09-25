@@ -318,20 +318,48 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
           <table className="min-w-full divide-y divide-line">
             <thead className="bg-surface-muted">
               <tr>
-                <th className="table-th px-4">Tipo</th>
-                <th className="table-th px-4">Marca / Modelo</th>
-                <th className="table-th px-4">N° Serie</th>
-                <th className="table-th px-4">Especificaciones</th>
+                <th className="table-th px-4 hidden md:table-cell">Tipo</th>
+                <th className="table-th px-4">
+                  <span className="md:hidden">Equipo</span>
+                  <span className="hidden md:inline">Marca / Modelo</span>
+                </th>
+                <th className="table-th px-4 hidden md:table-cell">N° Serie</th>
+                <th className="table-th px-4 hidden md:table-cell">Especificaciones</th>
                 <th className="table-th px-4">Estado</th>
-                {resolverFaltantes && <th className="table-th px-4 text-right">Acciones</th>}
+                {resolverFaltantes && <th className="table-th px-4 text-right hidden md:table-cell">Acciones</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {guide.items.map((item) => {
                 const asset = item.asset;
+                // "Llegó" / "Se perdió": en escritorio en su columna; en
+                // celular bajo el equipo, a lo ancho y faciles de tocar.
+                const acciones = (clase: string) =>
+                  resolverFaltantes && item.estado === "en_transito" ? (
+                    <div className={clase}>
+                      {guide.estado === "recibida_parcial" && (
+                        <button
+                          onClick={() => setLlego(item)}
+                          className={buttonClasses({ size: "sm", className: cn(BOTON_EXITO, "flex-1 md:flex-none whitespace-nowrap") })}
+                        >
+                          Llegó
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setPerdido(item)}
+                        className={buttonClasses({
+                          size: "sm",
+                          variant: "outline",
+                          className: "text-red-600 border-red-300 flex-1 md:flex-none whitespace-nowrap",
+                        })}
+                      >
+                        Se perdió
+                      </button>
+                    </div>
+                  ) : null;
                 return (
                   <tr key={item.id} className="hover:bg-surface-muted">
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden md:table-cell">
                       <div className="flex items-center gap-2">
                         <CategoryIcon categoria={asset.categoria.nombre} className="h-5 w-5 text-fg-subtle" />
                         <span className="text-sm">{asset.categoria.nombre}</span>
@@ -341,34 +369,28 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
                       <Link href={`/activos/${asset.id}`} className="font-medium hover:text-primary-700">
                         {asset.marca} {asset.modelo}
                       </Link>
+                      <div className="md:hidden text-xs text-fg-muted font-mono break-all">
+                        {asset.numeroSerie || asset.imei || "-"}
+                      </div>
+                      {acciones("md:hidden mt-2 flex gap-2")}
                     </td>
-                    <td className="px-4 py-3 text-sm text-fg-muted font-mono">{asset.numeroSerie || asset.imei || "-"}</td>
-                    <td className="px-4 py-3 text-sm text-fg-muted">{especificacionesActivoTexto(asset) || "-"}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-sm text-fg-muted font-mono hidden md:table-cell">
+                      {asset.numeroSerie || asset.imei || "-"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-fg-muted hidden md:table-cell">
+                      {especificacionesActivoTexto(asset) || "-"}
+                    </td>
+                    <td className="px-4 py-3 align-top md:align-middle">
                       <span
-                        className={cn("inline-flex px-2 py-1 text-xs font-medium rounded-full", ESTADO_ITEM_GUIA_COLORS[item.estado])}
+                        className={cn("inline-flex px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap", ESTADO_ITEM_GUIA_COLORS[item.estado])}
                         title={item.estado === "perdido" ? item.observaciones ?? undefined : undefined}
                       >
                         {ESTADO_ITEM_GUIA_LABELS[item.estado]}
                       </span>
                     </td>
                     {resolverFaltantes && (
-                      <td className="px-4 py-3 text-right whitespace-nowrap">
-                        {item.estado === "en_transito" && (
-                          <div className="flex justify-end gap-2">
-                            {guide.estado === "recibida_parcial" && (
-                              <button onClick={() => setLlego(item)} className={buttonClasses({ size: "sm", className: BOTON_EXITO })}>
-                                Llegó
-                              </button>
-                            )}
-                            <button
-                              onClick={() => setPerdido(item)}
-                              className={buttonClasses({ size: "sm", variant: "outline", className: "text-red-600 border-red-300" })}
-                            >
-                              Se perdió
-                            </button>
-                          </div>
-                        )}
+                      <td className="px-4 py-3 text-right whitespace-nowrap hidden md:table-cell">
+                        {acciones("flex justify-end gap-2")}
                       </td>
                     )}
                   </tr>
