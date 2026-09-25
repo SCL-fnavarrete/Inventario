@@ -4,14 +4,18 @@ import { createMaintenanceSchema, maintenanceFiltersSchema } from "@/lib/validat
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError, respuestaDatosInvalidos, ConflictError } from '@/lib/auth/guard';
 import { motivoSinMantencion } from '@/lib/constants/estadosActivo';
-import { sedeWhere, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { formatearFechaConHora, inicioDeHoy } from '@/lib/utils/fechas';
 import { busquedaActivo, palabrasDeBusqueda } from "@/lib/queries/activos";
 import {
   INCLUDE_LISTADO_MANTENCION,
+  VISTAS_MANTENCION,
+  filtroPeriodo,
   gruposAgenda,
   paginarPorGrupos,
+  ventanaPeriodo,
+  whereSedeMantencion,
 } from "@/lib/queries/mantenciones";
 
 // GET /api/mantenciones - Listar mantenciones con filtros
@@ -29,6 +33,7 @@ export async function GET(request: NextRequest) {
       fechaHasta: searchParams.get("fechaHasta") || undefined,
       pendientes: searchParams.get("pendientes") || undefined,
       vencidas: searchParams.get("vencidas") || undefined,
+      vista: searchParams.get("vista") || undefined,
       dias: searchParams.get("dias") || undefined,
       diasCompletadas: searchParams.get("diasCompletadas") || undefined,
       page: searchParams.get("page") || 1,
@@ -44,19 +49,11 @@ export async function GET(request: NextRequest) {
     const filters = filtersResult.data;
     const skip = (filters.page - 1) * filters.limit;
 
-    // Construir condiciones de búsqueda
-    // Maintenance no tiene sedeId propio -- se filtra via su relacion al
-    // activo (mismo criterio que el Dashboard: swAsset = { asset: sw }).
-    const where: Prisma.MaintenanceWhereInput = {
-      asset: sedeWhere(session),
-    };
-
-    // Selector de sede del nav (Etapa 2): solo quien ya tiene visibilidad
-    // total (admin/tecnico) puede acotar por una sede especifica.
-    const sedeIdFiltro = searchParams.get("sedeId") || "";
-    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
-      where.asset = { ...(where.asset as Prisma.AssetWhereInput), sedeId: sedeIdFiltro };
-    }
+    // Sede del activo y, para quien ve todas, la del nav.
+    const where: Prisma.MaintenanceWhereInput = whereSedeMantencion(
+      session,
+      searchParams.get("sedeId")
+    );
 
     if (filters.assetId) {
       where.assetId = filters.assetId;
@@ -94,25 +91,6 @@ export async function GET(request: NextRequest) {
       where.estado = { in: ["pendiente", "en_proceso"] };
     }
 
-    // Filtro de vencidas: pendientes cuya fecha ya paso (SPEC 2.98). Una en
-    // proceso ya se esta haciendo: no cuenta como vencida.
-    if (filters.vencidas) {
-      // No pisar where.AND directamente -- si tambien viene "search" (arriba)
-      // ya dejo condiciones propias ahi; sobrescribir las perderia en vez de
-      // combinarlas (mismo patron de merge que ya usa el filtro de periodo,
-      // mas abajo).
-      const condicionesAndPrevias = Array.isArray(where.AND)
-        ? where.AND
-        : where.AND
-        ? [where.AND]
-        : [];
-      where.AND = [
-        ...condicionesAndPrevias,
-        { fechaProgramada: { lt: inicioDeHoy() } },
-        { estado: "pendiente" },
-      ];
-    }
-
     // Filtro por rango de fechas
     if (filters.fechaDesde || filters.fechaHasta) {
       where.fechaProgramada = {};
@@ -124,38 +102,22 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Filtro de periodo: el selector de periodo (Dia/Semana/Mes/...) aplica
-    // a todo el listado, no solo a las tarjetas de resumen. Vencidas y
-    // en_proceso se ven siempre; proximas se acotan por fechaProgramada
-    // dentro de "dias" y completadas por fechaRealizada dentro de
-    // "diasCompletadas". Canceladas y pendientes sin fecha programada se
-    // mantienen visibles.
-    if (filters.dias || filters.diasCompletadas) {
-      const dias = filters.dias ?? filters.diasCompletadas ?? 30;
-      const diasCompletadas = filters.diasCompletadas ?? dias;
-      // "Hoy" en hora de Chile, igual que el filtro de vencidas: con
-      // new Date() una mantencion de hoy salia vencida despues de las 21:00.
-      const hoy = inicioDeHoy();
-      const fechaLimite = new Date(hoy);
-      fechaLimite.setUTCDate(fechaLimite.getUTCDate() + dias);
-      const fechaInicioCompletadas = new Date(hoy);
-      fechaInicioCompletadas.setUTCDate(fechaInicioCompletadas.getUTCDate() - diasCompletadas);
-
-      const periodoOR: Prisma.MaintenanceWhereInput[] = [
-        { fechaProgramada: { lt: hoy }, estado: "pendiente" },
-        { estado: "en_proceso" },
-        { fechaProgramada: { gte: hoy, lte: fechaLimite }, estado: "pendiente" },
-        { fechaProgramada: null, estado: "pendiente" },
-        { estado: "completada", fechaRealizada: { gte: fechaInicioCompletadas } },
-        { estado: "cancelada" },
-      ];
-
-      const condicionesAnd = Array.isArray(where.AND)
-        ? where.AND
-        : where.AND
-        ? [where.AND]
-        : [];
-      where.AND = [...condicionesAnd, { OR: periodoOR }];
+    // Periodo (Dia/Semana/Mes...) y tarjeta pulsada, con las mismas reglas
+    // que cuentan las tarjetas de resumen (SPEC 2.107): el numero de la
+    // tarjeta y la lista siempre coinciden.
+    const ventana = ventanaPeriodo(
+      inicioDeHoy(),
+      filters.dias ?? filters.diasCompletadas ?? 0,
+      filters.diasCompletadas ?? filters.dias ?? 0
+    );
+    const vista = filters.vista ?? (filters.vencidas ? "vencidas" : undefined);
+    const condiciones = [
+      filtroPeriodo(ventana),
+      vista ? VISTAS_MANTENCION[vista](ventana) : null,
+    ].filter((c): c is Prisma.MaintenanceWhereInput => c !== null);
+    if (condiciones.length > 0) {
+      const previas = Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : [];
+      where.AND = [...previas, ...condiciones];
     }
 
     // Sin orden pedido: orden de agenda (en proceso, proximas, vencidas,

@@ -12,7 +12,9 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  ListChecks,
 } from "lucide-react";
+import type { VistaMantencion } from "@/lib/queries/mantenciones";
 import { cn } from "@/lib/utils";
 import { Can } from "@/components/auth/Can";
 import { EstadoMantencionBadge, MantencionesTabs } from "@/components/mantenciones";
@@ -66,6 +68,7 @@ type Maintenance = {
 };
 
 type Stats = {
+  total: number;
   totalVencidas: number;
   totalProximas: number;
   totalEnProceso: number;
@@ -137,7 +140,9 @@ export default function MantencionesPage() {
   const debouncedSearch = useDebouncedValue(search, 350);
   const [filterTipoId, setFilterTipoId] = useState("");
   const [filterEstado, setFilterEstado] = useState("");
-  const [showVencidas, setShowVencidas] = useState(false);
+  // Tarjeta de resumen pulsada (SPEC 2.107): filtra la lista con la misma
+  // regla que cuenta su numero. null = todas ("Total").
+  const [vista, setVista] = useState<VistaMantencion | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   // Selecting a sede in the nav also filters this screen.
@@ -154,7 +159,7 @@ export default function MantencionesPage() {
   useEffect(() => {
     fetchMaintenances();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, filterTipoId, filterEstado, showVencidas, page, sedeSeleccionada, periodo]);
+  }, [debouncedSearch, filterTipoId, filterEstado, vista, page, sedeSeleccionada, periodo]);
 
   useEffect(() => {
     fetchStats();
@@ -182,7 +187,7 @@ export default function MantencionesPage() {
       if (debouncedSearch) params.append("search", debouncedSearch);
       if (filterTipoId) params.append("tipoId", filterTipoId);
       if (filterEstado) params.append("estado", filterEstado);
-      if (showVencidas) params.append("vencidas", "true");
+      if (vista) params.append("vista", vista);
       if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
       // Same period value used for the stat cards also scopes this list.
       const diasPeriodo = diasDePeriodo(periodo).toString();
@@ -228,6 +233,21 @@ export default function MantencionesPage() {
   const periodoLabel =
     periodo === "todas" ? "todas" : PERIODOS.find((p) => p.value === periodo)?.label.toLowerCase();
 
+  // Pulsar una tarjeta deja la lista con exactamente lo que cuenta: se
+  // quitan los demas filtros. Pulsar la activa (o "Total") vuelve a todas.
+  const sinOtrosFiltros = !debouncedSearch && !filterTipoId && !filterEstado;
+  function elegirVista(nueva: VistaMantencion | null) {
+    setVista(vista === nueva ? null : nueva);
+    setSearch("");
+    setFilterTipoId("");
+    setFilterEstado("");
+    setPage(1);
+  }
+  const tarjeta = (v: VistaMantencion | null) => ({
+    onClick: () => elegirVista(v),
+    activa: vista === v && (v !== null || sinOtrosFiltros),
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -252,22 +272,47 @@ export default function MantencionesPage() {
       <MantencionesTabs />
 
       {/* Stats Cards */}
-      <StatGrid cols={4}>
-        <StatCard tilt label="Vencidas" value={stats?.totalVencidas || 0} tone="danger" icon={AlertTriangle} />
+      {/* Cada tarjeta filtra la lista al pulsarla (SPEC 2.107). */}
+      <StatGrid cols={5}>
+        <StatCard
+          tilt
+          label={`Total (${periodoLabel})`}
+          value={stats?.total || 0}
+          tone="neutral"
+          icon={ListChecks}
+          {...tarjeta(null)}
+        />
+        <StatCard
+          tilt
+          label="Vencidas"
+          value={stats?.totalVencidas || 0}
+          tone="danger"
+          icon={AlertTriangle}
+          {...tarjeta("vencidas")}
+        />
         <StatCard
           tilt
           label={`Próximas (${periodoLabel})`}
           value={stats?.totalProximas || 0}
           tone="orange"
           icon={Calendar}
+          {...tarjeta("proximas")}
         />
-        <StatCard tilt label="En Proceso" value={stats?.totalEnProceso || 0} tone="primary" icon={Wrench} />
+        <StatCard
+          tilt
+          label="En Proceso"
+          value={stats?.totalEnProceso || 0}
+          tone="primary"
+          icon={Wrench}
+          {...tarjeta("en_proceso")}
+        />
         <StatCard
           tilt
           label={`Completadas (${periodoLabel})`}
           value={stats?.totalCompletadas || 0}
           tone="success"
           icon={CheckCircle}
+          {...tarjeta("completadas")}
         />
       </StatGrid>
 
@@ -308,6 +353,8 @@ export default function MantencionesPage() {
             value={filterEstado}
             onChange={(e) => {
               setFilterEstado(e.target.value);
+              // El estado elegido a mano reemplaza a la tarjeta pulsada.
+              setVista(null);
               setPage(1);
             }}
             className="px-4 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500"
@@ -338,21 +385,6 @@ export default function MantencionesPage() {
             ))}
           </select>
 
-          <button
-            onClick={() => {
-              setShowVencidas(!showVencidas);
-              setPage(1);
-            }}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors",
-              showVencidas
-                ? "bg-red-50 border-red-300 text-red-700"
-                : "border-line-strong text-fg-muted hover:bg-surface-muted"
-            )}
-          >
-            <AlertTriangle size={20} />
-            Vencidas
-          </button>
         </div>
       </div>
 

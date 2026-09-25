@@ -3355,7 +3355,26 @@ Regla de negocio (Javier): *"solo se puede dar de baja un equipo si no está asi
   - en Completar mantención, la opción "Sin reparación" aparece desactivada con el motivo.
 - Las rutas pasan a `validateTransition` la asignación real (`!!empleadoActualId`) y, si rechaza, responden 409 con su motivo en vez de "Transición no permitida".
 
+## 2.107 Mantenciones: las tarjetas de resumen filtran la lista, y tarjeta "Total" (25-sep-2026)
+
+Pedido de Javier: *"que el filtro se active dependiendo la tarjeta que se apriete, y agrega otra tarjeta donde muestre el total completo"*.
+
+- **Tarjetas que filtran:** Vencidas, Próximas, En Proceso y Completadas son botones.
+  - Al pulsar una, la lista muestra exactamente lo que cuenta la tarjeta y se quitan los demás filtros (búsqueda, tipo, estado), así el número y la lista coinciden.
+  - La tarjeta activa queda marcada; pulsarla de nuevo vuelve a mostrar todas.
+  - Elegir un estado a mano en el filtro reemplaza a la tarjeta pulsada.
+- **Tarjeta "Total (período)":** cuenta todo lo del período elegido (lo mismo que muestra la lista sin filtros). Al pulsarla limpia los filtros.
+- Se quita el botón "Vencidas" de la barra de filtros, que repetía la tarjeta.
+- **Una sola regla para contar y filtrar** (`lib/queries/mantenciones.ts`):
+  - `VISTAS_MANTENCION` (vencidas, próximas, en proceso, completadas), `ventanaPeriodo` y `filtroPeriodo` los usan las tarjetas (`/api/mantenciones/pendientes`, que suma `total`) y la lista (`/api/mantenciones?vista=…`);
+  - antes cada ruta tenía su copia de las condiciones y del período;
+  - `whereSedeMantencion` reemplaza el filtro de sede, que las dos rutas repetían, sobre el `sedeWhereConFiltro` que ya existía;
+  - el orden de agenda (2.98) usa las mismas condiciones.
+- **`StatCard`** suma `onClick` y `activa`: cualquier pantalla puede usar sus tarjetas como filtro.
+
 ## Changelog SPEC
+- **v2.31 (2026-09-25):**
+  - Sección 2.107 (nueva): en Mantenciones, cada tarjeta de resumen filtra la lista y se agrega la tarjeta "Total"; tarjetas y lista usan las mismas condiciones.
 - **v2.30 (2026-09-25):**
   - Sección 2.106 (nueva): solo se da de baja un equipo sin empleado asignado; `motivoSinBaja` mira el empleado además del estado y la usan las dos rutas de baja y las pantallas, que avisan antes.
 - **v2.29 (2026-09-25):**

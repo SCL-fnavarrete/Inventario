@@ -149,6 +149,9 @@ export const maintenanceFiltersSchema = z.object({
   fechaHasta: z.string().optional(),
   pendientes: z.coerce.boolean().optional(),
   vencidas: z.coerce.boolean().optional(),
+  // Tarjeta de resumen pulsada (SPEC 2.107): filtra la lista con la misma
+  // condicion que cuenta la tarjeta.
+  vista: z.enum(["vencidas", "proximas", "en_proceso", "completadas"]).optional(),
   // Filtro de periodo, en dias. 0 es el sentinel de "sin limite" (filtro
   // "Todas"), por eso min(0) en vez de min(1).
   dias: z.coerce.number().min(0).optional(),

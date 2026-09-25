@@ -22,6 +22,13 @@ interface StatCardProps {
   hint?: ReactNode;
   /** Convierte la tarjeta en link (ej. "Equipos Vendidos" -> listado filtrado). */
   href?: string;
+  /**
+   * Convierte la tarjeta en boton de filtro (ej. Mantenciones, SPEC 2.107):
+   * al pulsarla filtra la lista de la misma pantalla.
+   */
+  onClick?: () => void;
+  /** Filtro de esta tarjeta aplicado: queda marcada. */
+  activa?: boolean;
   /** Inclinacion 3D al hover. Solo para filas cortas de KPIs, no listas. */
   tilt?: boolean;
   className?: string;
@@ -39,6 +46,8 @@ export function StatCard({
   variant = "card",
   hint,
   href,
+  onClick,
+  activa = false,
   tilt = false,
   className,
 }: StatCardProps) {
@@ -71,13 +80,23 @@ export function StatCard({
   );
   const base = cn(
     "card-feature flex h-full items-center justify-between gap-3 p-4",
-    TONO_ACENTO[tone]
+    TONO_ACENTO[tone],
+    activa && "ring-2 ring-primary-500 ring-offset-2 ring-offset-surface"
   );
 
   const tarjeta = href ? (
     <Link href={href} className={cn(base, !tilt && className)}>
       {contenido}
     </Link>
+  ) : onClick ? (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={activa}
+      className={cn(base, "w-full cursor-pointer text-left", !tilt && className)}
+    >
+      {contenido}
+    </button>
   ) : (
     <div className={cn(base, !tilt && className)}>{contenido}</div>
   );
