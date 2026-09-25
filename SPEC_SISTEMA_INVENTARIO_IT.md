@@ -3488,7 +3488,7 @@ Javier: *"yo había entendido mal y lo documenté como no debía ser. El princip
 - Se elige la sede destino de cada equipo y cuántas unidades de cada línea de Kit/EPP van a cada sede. Se puede repartir en partes.
 - **Destino = la sede de llegada:** el equipo pasa a "Disponible" y el Kit/EPP suma al stock de esa sede, en el momento.
 - **Destino = otra sede:** se crea automáticamente **un Despacho por sede destino** (2.108), desde la sede de llegada, con los equipos **y las cantidades de Kit/EPP** que van a esa sede. Para eso el reparto pide los datos de cada despacho: OT Chilexpress, fecha de envío y receptor (nombre y RUT). Los equipos viajan "En tránsito"; el Kit/EPP viaja como cantidad. Todo queda registrado en el despacho, igual que los equipos.
-- La compra muestra su avance: **Por repartir / Repartida en parte / Repartida**, con una tarjeta en Compras para encontrar lo pendiente, y en Activos una tarjeta "Por repartir" solo para el administrador.
+- La compra muestra su avance: **Por repartir / Repartida en parte / Repartida**, con una tarjeta en Compras para encontrar lo pendiente, y en Activos una tarjeta "Por repartir". Las dos las ven admin y técnico (2.111.6).
 
 ### 2.111.4 El Kit/EPP en un Despacho
 - Una línea de Kit/EPP en un despacho es un artículo y una cantidad.
@@ -3499,8 +3499,11 @@ Javier: *"yo había entendido mal y lo documenté como no debía ser. El princip
 - Si se anula un despacho creado por un reparto, sus equipos vuelven a **"Por repartir"** en la sede de llegada, y sus cantidades de Kit/EPP vuelven a quedar por repartir en la compra: el reparto se deshace y se puede repartir de nuevo.
 
 ### 2.111.6 Qué ve el técnico
-- Las compras que trajeron algo a su sede (llegada o reparto), en solo lectura.
-- Lo que viene en camino, con la tarjeta "Por llegar" de Activos y "Por recibir" de Despachos (2.108).
+Javier: *"la idea es que también los técnicos puedan ver lo que hay por repartir, pero no puedan realizar las funciones del admin"*.
+- **Ve todas las compras, de todas las sedes, en solo lectura**: como la compra es de la empresa y lo pendiente todavía no tiene sede destino, acotarla a su sede le escondería justo lo que se está por repartir. Ve el detalle de cada compra, qué tiene por repartir y a dónde se repartió lo demás.
+- En Activos ve la tarjeta y la lista **"Por repartir"** de todas las sedes, y puede abrir la ficha de esos equipos, en solo lectura.
+- **No puede** registrar, editar ni eliminar compras, ni repartir: esos botones no se le muestran (`<Can>` con la matriz 1.3.1) y las rutas se lo rechazan con 403.
+- Lo que viene hacia su sede lo sigue viendo con "Por llegar" (Activos) y "Por recibir" (Despachos), y confirma su recepción como en 2.108.
 
 ### 2.111.7 Eliminar una compra
 - Solo mientras no se haya repartido nada. Una vez repartida (aunque sea en parte), los equipos y el stock ya están en uso o en camino, y la compra es su comprobante.
@@ -3517,7 +3520,7 @@ Javier: *"yo había entendido mal y lo documenté como no debía ser. El princip
 
 ## Changelog SPEC
 - **v2.35 (2026-09-25):**
-  - Sección 2.111 (nueva, regla aprobada, implementación pendiente): en Compras primero se compra y después se reparte. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
+  - Sección 2.111 (nueva, regla aprobada, implementación pendiente): en Compras primero se compra y después se reparte. El técnico ve todas las compras y lo que hay por repartir, en solo lectura. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
 - **v2.34 (2026-09-25):**
   - Sección 2.110 (nueva): "Guías de despacho" pasa a llamarse "Despachos" en pantallas, mensajes e historial; dirección `/despachos` con redirección desde la antigua; estados en masculino. Por dentro (datos, API, permiso, numeración GD) no cambia.
 - **v2.33 (2026-09-25):**
