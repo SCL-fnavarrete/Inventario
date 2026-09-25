@@ -9,8 +9,6 @@ import {
   FileText,
   Package,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
   Calendar,
   RefreshCw,
 } from "lucide-react";
@@ -22,6 +20,7 @@ import { formatearFecha } from "@/lib/utils/fechas";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard, StatGrid } from "@/components/ui/StatCard";
+import { Pagination } from "@/components/ui/Pagination";
 
 type Purchase = {
   id: string;
@@ -54,6 +53,7 @@ export default function ComprasPage() {
   const [fechaHasta, setFechaHasta] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
     fetchPurchases();
@@ -78,6 +78,7 @@ export default function ComprasPage() {
 
       setPurchases(data.data || []);
       setTotalPages(data.pagination?.totalPages || 1);
+      setTotal(data.pagination?.total ?? 0);
       setStats(data.stats || null);
     } catch (error) {
       console.error("Error fetching purchases:", error);
@@ -281,28 +282,15 @@ export default function ComprasPage() {
               </table>
             </div>
 
-            {/* Pagination */}
-            <div className="px-4 py-3 border-t flex items-center justify-between">
-              <p className="text-sm text-fg-subtle">
-                Página {page} de {totalPages}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="p-2 border rounded hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="p-2 border rounded hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight size={20} />
-                </button>
-              </div>
-            </div>
+            <Pagination
+              className="px-4 py-3 border-t border-line"
+              current={page}
+              pages={totalPages}
+              total={total}
+              limit={10}
+              itemLabel="compras"
+              onPageChange={setPage}
+            />
           </>
         )}
       </div>

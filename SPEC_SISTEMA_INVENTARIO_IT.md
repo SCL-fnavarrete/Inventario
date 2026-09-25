@@ -3439,7 +3439,18 @@ Idea de Javier: *"que haya una sede destino y una de emisión… cuando se gener
 - El encabezado "Condición" del selector de equipos salía cortado.
 - Un equipo perdido queda de baja en la sede de origen: nunca llegó a la destino.
 
+## 2.109 Una sola paginación para todas las listas (25-sep-2026)
+
+Pedido de Javier: aplicar la paginación compartida en Guías y en las otras pantallas que tenían su propia copia.
+
+- `components/ui/Pagination` ya existía, pero solo la usaba Activos. Solicitudes, Compras, Mantenciones, Guías de despacho y Auditoría tenían cada una su copia, con textos y botones distintos ("Página X de Y", "Anterior / Siguiente", solo flechas).
+- Ahora las seis listas usan el mismo componente: "Mostrando X a Y de Z <registros>", números de página en escritorio y "Página X de Y" en el celular.
+- El componente suma `className` (borde o margen según dónde va) y no muestra nada cuando no hay registros (antes habría dicho "Mostrando 1 a 0 de 0").
+- Compras, Mantenciones y Guías guardan también el total que ya mandaba el servidor.
+
 ## Changelog SPEC
+- **v2.33 (2026-09-25):**
+  - Sección 2.109 (nueva): Solicitudes, Compras, Mantenciones, Guías y Auditoría usan la paginación compartida de Activos; se borran sus cinco copias.
 - **v2.32 (2026-09-25):**
   - Sección 2.108 (nueva, con su prueba en navegador): las guías de despacho dejan los equipos "En tránsito" hasta que la sede destino confirma qué llegó; faltantes que llegan después o se dan de baja por Extravío; anular mientras viaja; tarjetas que filtran y "Por llegar" en Activos. Se actualizan 2.7.2 (transiciones de `en_transito`), 2.9 y las tablas de guías.
 - **v2.31 (2026-09-25):**

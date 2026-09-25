@@ -12,6 +12,7 @@ import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProv
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard, StatGrid } from "@/components/ui/StatCard";
+import { Pagination } from "@/components/ui/Pagination";
 
 type Resumen = {
   total: number;
@@ -38,6 +39,7 @@ export default function GuiasDespachoPage() {
   // origen y destino -- ver la nota en la API.
   const { sedeSeleccionada } = useSedeSeleccionada();
   const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
   // La pagina vuelve a 1 cuando cambia cualquier filtro (busqueda, tarjeta o
   // sede del menu): se guarda junto a los filtros con que se eligio. Antes,
@@ -74,6 +76,7 @@ export default function GuiasDespachoPage() {
 
       setGuides(data.data || []);
       setTotalPages(data.pagination?.totalPages || 1);
+      setTotal(data.pagination?.total ?? 0);
     } catch (error) {
       console.error("Error fetching guides:", error);
     } finally {
@@ -168,28 +171,14 @@ export default function GuiasDespachoPage() {
       {/* Tabla */}
       <GuiaDespachoTable guides={guides} loading={loading} />
 
-      {/* Paginación */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          <button
-            onClick={() => irAPagina(Math.max(1, page - 1))}
-            disabled={page === 1}
-            className={buttonClasses({ variant: "outline" })}
-          >
-            Anterior
-          </button>
-          <span className="px-4 py-2 text-fg-muted">
-            Página {page} de {totalPages}
-          </span>
-          <button
-            onClick={() => irAPagina(Math.min(totalPages, page + 1))}
-            disabled={page === totalPages}
-            className={buttonClasses({ variant: "outline" })}
-          >
-            Siguiente
-          </button>
-        </div>
-      )}
+      <Pagination
+        current={page}
+        pages={totalPages}
+        total={total}
+        limit={10}
+        itemLabel="guías"
+        onPageChange={irAPagina}
+      />
     </div>
   );
 }

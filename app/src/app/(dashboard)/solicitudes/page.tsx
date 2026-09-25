@@ -6,8 +6,6 @@ import {
   Plus,
   Search,
   Filter,
-  ChevronLeft,
-  ChevronRight,
   Notebook,
   ClipboardList,
   LayoutGrid,
@@ -20,6 +18,7 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Pagination } from "@/components/ui/Pagination";
 import { documentoDeSolicitud } from '@/lib/constants/documentosSolicitud';
 
 type WorkflowRequest = {
@@ -45,7 +44,7 @@ type WorkflowRequest = {
   _count: { comments: number; pendientes: number };
 };
 
-type Pagination = {
+type Paginacion = {
   page: number;
   limit: number;
   total: number;
@@ -81,7 +80,7 @@ const estadoLabels: Record<string, string> = {
 
 export default function SolicitudesPage() {
   const [requests, setRequests] = useState<WorkflowRequest[]>([]);
-  const [pagination, setPagination] = useState<Pagination>({
+  const [pagination, setPagination] = useState<Paginacion>({
     page: 1,
     limit: 10,
     total: 0,
@@ -360,32 +359,15 @@ export default function SolicitudesPage() {
             </table>
           </div>
 
-          {/* Pagination */}
-          {pagination.totalPages > 1 && (
-            <div className="px-4 py-3 border-t flex items-center justify-between">
-              <p className="text-sm text-fg-subtle">
-                Mostrando {(pagination.page - 1) * pagination.limit + 1} a{' '}
-                {Math.min(pagination.page * pagination.limit, pagination.total)} de{' '}
-                {pagination.total}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => fetchRequests(pagination.page - 1)}
-                  disabled={pagination.page <= 1}
-                  className="p-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-muted"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => fetchRequests(pagination.page + 1)}
-                  disabled={pagination.page >= pagination.totalPages}
-                  className="p-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-muted"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          )}
+          <Pagination
+            className="px-4 py-3 border-t border-line"
+            current={pagination.page}
+            pages={pagination.totalPages}
+            total={pagination.total}
+            limit={pagination.limit}
+            itemLabel="solicitudes"
+            onPageChange={(p) => fetchRequests(p)}
+          />
         </div>
       ) : (
         /* Kanban View */

@@ -4,8 +4,6 @@ import { useState, useEffect, Fragment } from "react";
 import {
   History,
   Search,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   ChevronUp,
   Loader2,
@@ -13,6 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { Pagination } from "@/components/ui/Pagination";
 
 // Unifies AuditLog + AssetHistory + WorkflowTransition into a single
 // timeline. Per-record history tabs on Activo/Solicitud detail pages are
@@ -33,7 +32,7 @@ type EventoAuditoria = {
   contexto: string | null;
 };
 
-type Pagination = { page: number; limit: number; total: number; totalPages: number };
+type Paginacion = { page: number; limit: number; total: number; totalPages: number };
 
 const MODULOS = [
   { value: "", label: "Todos los módulos" },
@@ -74,7 +73,7 @@ function formatFecha(iso: string): string {
 
 export default function AuditoriaPage() {
   const [eventos, setEventos] = useState<EventoAuditoria[]>([]);
-  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
+  const [pagination, setPagination] = useState<Paginacion>({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
   const [topeAlcanzado, setTopeAlcanzado] = useState(false);
   const [expandido, setExpandido] = useState<string | null>(null);
@@ -316,32 +315,15 @@ export default function AuditoriaPage() {
           </table>
         </div>
 
-        {pagination.totalPages > 1 && (
-          <div className="px-4 py-4 border-t flex items-center justify-between">
-            <p className="text-sm text-fg-subtle">{pagination.total} eventos</p>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
-                disabled={pagination.page === 1}
-                className="p-2 rounded-lg border border-line-strong hover:bg-surface-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                aria-label="Página anterior"
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <span className="text-sm text-fg-muted px-2">
-                Página {pagination.page} de {pagination.totalPages}
-              </span>
-              <button
-                onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
-                disabled={pagination.page === pagination.totalPages}
-                className="p-2 rounded-lg border border-line-strong hover:bg-surface-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                aria-label="Página siguiente"
-              >
-                <ChevronRight size={18} />
-              </button>
-            </div>
-          </div>
-        )}
+        <Pagination
+          className="px-4 py-4 border-t border-line"
+          current={pagination.page}
+          pages={pagination.totalPages}
+          total={pagination.total}
+          limit={pagination.limit}
+          itemLabel="eventos"
+          onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
+        />
       </div>
     </div>
   );

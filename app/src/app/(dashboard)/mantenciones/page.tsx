@@ -10,8 +10,6 @@ import {
   AlertTriangle,
   CheckCircle,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
   ListChecks,
 } from "lucide-react";
 import type { VistaMantencion } from "@/lib/queries/mantenciones";
@@ -27,6 +25,7 @@ import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard, StatGrid } from "@/components/ui/StatCard";
+import { Pagination } from "@/components/ui/Pagination";
 
 type TipoMantencion = {
   id: string;
@@ -145,6 +144,7 @@ export default function MantencionesPage() {
   const [vista, setVista] = useState<VistaMantencion | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   // Selecting a sede in the nav also filters this screen.
   const { sedeSeleccionada } = useSedeSeleccionada();
   // Single period filter shared by the "Proximas"/"Completadas" cards and
@@ -201,11 +201,13 @@ export default function MantencionesPage() {
         console.error("Error fetching maintenances:", data.error || data);
         setMaintenances([]);
         setTotalPages(1);
+        setTotal(0);
         return;
       }
 
       setMaintenances(data.data || []);
       setTotalPages(data.pagination?.totalPages || 1);
+      setTotal(data.pagination?.total ?? 0);
     } catch (error) {
       console.error("Error fetching maintenances:", error);
     } finally {
@@ -509,28 +511,15 @@ export default function MantencionesPage() {
               </table>
             </div>
 
-            {/* Pagination */}
-            <div className="px-4 py-3 border-t flex items-center justify-between">
-              <p className="text-sm text-fg-subtle">
-                Página {page} de {totalPages}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="p-2 border rounded hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="p-2 border rounded hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight size={20} />
-                </button>
-              </div>
-            </div>
+            <Pagination
+              className="px-4 py-3 border-t border-line"
+              current={page}
+              pages={totalPages}
+              total={total}
+              limit={10}
+              itemLabel="mantenciones"
+              onPageChange={setPage}
+            />
           </>
         )}
       </div>

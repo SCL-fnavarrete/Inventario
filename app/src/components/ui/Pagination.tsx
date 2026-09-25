@@ -15,6 +15,8 @@ interface PaginationProps {
   limitOptions?: number[];
   /** Sustantivo en plural para el resumen ("activos", "empleados"). */
   itemLabel?: string;
+  /** Clases del contenedor (borde, margen) segun donde se ponga. */
+  className?: string;
 }
 
 // Ventana de hasta 7 numeros centrada en la pagina actual.
@@ -30,8 +32,9 @@ const navButton =
 
 /**
  * Resumen "Mostrando X a Y de Z", selector de tamano de pagina y botones
- * de navegacion. La tabla y la vista de tarjetas de Activos tenian cada una
- * su copia completa (~90 lineas); aca vive una sola.
+ * de navegacion. Activos, Solicitudes, Compras, Mantenciones, Guias y
+ * Auditoria tenian cada una su copia; aca vive una sola. Sin registros no
+ * muestra nada.
  */
 export function Pagination({
   current,
@@ -42,13 +45,15 @@ export function Pagination({
   onLimitChange,
   limitOptions = [10, 20, 25, 50, 100],
   itemLabel = "registros",
+  className,
 }: PaginationProps) {
   const selectId = useId();
+  if (total === 0) return null;
   const desde = (current - 1) * limit + 1;
   const hasta = Math.min(current * limit, total);
 
   return (
-    <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
+    <div className={cn("flex flex-col items-center justify-between gap-4 sm:flex-row", className)}>
       <div className="flex flex-col items-center gap-4 sm:flex-row">
         <p className="text-sm font-medium text-fg-muted">
           Mostrando {desde} a {hasta} de {total} {itemLabel}
