@@ -3453,7 +3453,19 @@ Pedido de Javier: aplicar la paginación compartida en Guías y en las otras pan
 - El componente suma `className` (borde o margen según dónde va) y no muestra nada cuando no hay registros (antes habría dicho "Mostrando 1 a 0 de 0").
 - Compras, Mantenciones y Guías guardan también el total que ya mandaba el servidor.
 
+## 2.110 "Guías de despacho" pasa a llamarse "Despachos" (25-sep-2026)
+
+Pedido de Javier: *"cambia el nombre guías por Despachos"*. Desde aquí, lo que el SPEC llama "guía de despacho" es un **despacho** para quien usa el sistema.
+
+- **Lo que se ve:** menú "Despachos" (con ícono de camión), "Nuevo despacho", "Despacho GD-2026-00001", "Anular despacho", columna "N° Despacho", el módulo "Despacho" en Auditoría y todos los mensajes y textos del historial.
+- **Estados en masculino**, porque ahora se habla de "el despacho": En tránsito, Recibido con faltantes, Recibido y Anulado. Las tarjetas dicen "Recibidos" y "Anulados".
+- **Dirección web:** `/despachos` (lista, `/despachos/nueva` y `/despachos/[id]`). La antigua `/guias-despacho` redirige a la nueva (`next.config.ts`), así los enlaces guardados siguen funcionando.
+- **Se mantiene igual por dentro**, para no migrar datos: la numeración `GD-<año>-NNNNN` (los números ya emitidos no cambian), las tablas `dispatch_guides` y `dispatch_guide_items`, los estados guardados (`recibida`, `anulada`…), la API `/api/guias-despacho` y el permiso `guias`.
+- Los eventos de historial ya registrados conservan su texto ("Guía de despacho …"); los nuevos dicen "Despacho …".
+
 ## Changelog SPEC
+- **v2.34 (2026-09-25):**
+  - Sección 2.110 (nueva): "Guías de despacho" pasa a llamarse "Despachos" en pantallas, mensajes e historial; dirección `/despachos` con redirección desde la antigua; estados en masculino. Por dentro (datos, API, permiso, numeración GD) no cambia.
 - **v2.33 (2026-09-25):**
   - Sección 2.109 (nueva): Solicitudes, Compras, Mantenciones, Guías y Auditoría usan la paginación compartida de Activos; se borran sus cinco copias.
 - **v2.32 (2026-09-25):**

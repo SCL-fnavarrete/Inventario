@@ -117,7 +117,7 @@ export function motivoSinBaja(activo: {
     case 'vendido':
       return 'Ya fue vendido.';
     case 'en_transito':
-      return 'Está en tránsito en una guía de despacho: si se perdió, márcalo en la guía.';
+      return 'Está en tránsito en un despacho: si se perdió, márcalo en Despachos.';
     default:
       return `No se puede dar de baja en estado "${etiquetaEstadoActivo(estado)}".`;
   }
@@ -142,7 +142,7 @@ export function motivoSinMantencion(estado: string): string | null {
     case 'vendido':
       return 'Fue vendido.';
     case 'en_transito':
-      return 'Está en tránsito en una guía de despacho: espera a que llegue.';
+      return 'Está en tránsito en un despacho: espera a que llegue.';
     default:
       return `No admite mantenciones en estado "${etiquetaEstadoActivo(estado)}".`;
   }

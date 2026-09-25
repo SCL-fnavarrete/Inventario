@@ -36,7 +36,7 @@ const MODULO_LABELS: Record<string, string> = {
   compra: "Compra",
   usuario: "Usuario",
   mantencion: "Mantención",
-  guia_despacho: "Guía de Despacho",
+  guia_despacho: "Despacho",
   desvinculacion: "Desvinculación",
   kit_item: "Kit/EPP",
   sede: "Sede",

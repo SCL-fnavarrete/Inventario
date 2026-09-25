@@ -25,7 +25,7 @@ const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
     { to: 'asignado', description: 'Asignar a empleado' },
     { to: 'en_mantencion', description: 'Enviar a mantención' },
     { to: 'baja', description: 'Dar de baja sin uso previo' },
-    { to: 'en_transito', description: 'Despachar en una guía de despacho' },
+    { to: 'en_transito', description: 'Enviar a otra sede en un despacho' },
   ],
   asignado: [
     // Devolver en buen estado deja el equipo en "disponible": ese es el
@@ -48,7 +48,7 @@ const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
   // SPEC 2.108: llega (disponible en la sede destino), se anula la guia
   // (disponible en origen) o se pierde (baja por Extravio).
   en_transito: [
-    { to: 'disponible', description: 'Llegó a la sede destino, o se anuló la guía' },
+    { to: 'disponible', description: 'Llegó a la sede destino, o se anuló el despacho' },
     { to: 'baja', description: 'Se perdió en el despacho' },
   ],
   no_devuelto: [

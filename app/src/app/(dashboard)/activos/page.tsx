@@ -369,14 +369,14 @@ function ActivosPageContent() {
 
   // Despachar a otra sede: con una guia de despacho (SPEC 2.108).
   if (currentStatus === "disponible" && newStatus === "en_transito") {
-    router.push("/guias-despacho/nueva");
+    router.push("/despachos/nueva");
     return;
   }
 
   // Un equipo en transito llega o se pierde en su guia, no desde el tablero.
   if (currentStatus === "en_transito") {
     setKanbanError(
-      "Este equipo viaja en una guía de despacho: cuando llegue, la sede destino confirma la recepción en la guía."
+      "Este equipo va en un despacho: cuando llegue, la sede destino confirma la recepción en Despachos."
     );
     return;
   }

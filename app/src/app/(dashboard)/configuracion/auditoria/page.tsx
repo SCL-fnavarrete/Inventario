@@ -42,7 +42,7 @@ const MODULOS = [
   { value: "compra", label: "Compra" },
   { value: "usuario", label: "Usuario" },
   { value: "mantencion", label: "Mantención" },
-  { value: "guia_despacho", label: "Guía de Despacho" },
+  { value: "guia_despacho", label: "Despacho" },
   { value: "desvinculacion", label: "Desvinculación" },
   { value: "kit_item", label: "Kit/EPP" },
   { value: "sede", label: "Sede" },

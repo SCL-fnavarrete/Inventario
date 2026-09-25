@@ -94,13 +94,13 @@ export default function GuiasDespachoPage() {
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
-        title="Guías de Despacho"
+        title="Despachos"
         description="Equipos que viajan entre sedes: pasan a la sede destino cuando esta confirma que llegaron"
         actions={
           <Can recurso="guias">
-            <Link href="/guias-despacho/nueva" className={buttonClasses()}>
+            <Link href="/despachos/nueva" className={buttonClasses()}>
               <Plus size={20} />
-              Nueva Guía
+              Nuevo despacho
             </Link>
           </Can>
         }
@@ -138,7 +138,7 @@ export default function GuiasDespachoPage() {
         />
         <StatCard
           tilt
-          label="Recibidas"
+          label="Recibidos"
           value={resumen?.recibidas ?? 0}
           tone="success"
           icon={CheckCircle}
@@ -146,7 +146,7 @@ export default function GuiasDespachoPage() {
         />
         <StatCard
           tilt
-          label="Anuladas"
+          label="Anulados"
           value={resumen?.anuladas ?? 0}
           tone="neutral"
           icon={XCircle}
@@ -176,7 +176,7 @@ export default function GuiasDespachoPage() {
         pages={totalPages}
         total={total}
         limit={10}
-        itemLabel="guías"
+        itemLabel="despachos"
         onPageChange={irAPagina}
       />
     </div>

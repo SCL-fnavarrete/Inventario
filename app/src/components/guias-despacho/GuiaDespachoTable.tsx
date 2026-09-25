@@ -38,7 +38,7 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
       <div className="card overflow-hidden">
         <div className="p-8 text-center text-fg-subtle">
           <FileText className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-          <p>No hay guías de despacho</p>
+          <p>No hay despachos</p>
         </div>
       </div>
     );
@@ -50,7 +50,7 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
         <table className="min-w-full divide-y divide-line">
           <thead className="bg-surface-muted">
             <tr>
-              <th className="table-th">N° Guía</th>
+              <th className="table-th">N° Despacho</th>
               <th className={cn("table-th", soloEscritorio)}>Fecha</th>
               <th className={cn("table-th", soloEscritorio)}>OT Chilexpress</th>
               <th className={cn("table-th", soloEscritorio)}>Sede origen</th>
@@ -66,7 +66,7 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
               <tr key={guide.id} className="hover:bg-surface-muted">
                 <td className="px-4 py-3 md:px-6 md:py-4 md:whitespace-nowrap">
                   <Link
-                    href={`/guias-despacho/${guide.id}`}
+                    href={`/despachos/${guide.id}`}
                     className="text-primary-700 hover:text-primary-900 font-medium"
                   >
                     {guide.numero}
@@ -110,7 +110,7 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
                 <td className={cn("px-6 py-4 whitespace-nowrap text-right text-sm font-medium", soloEscritorio)}>
                   <div className="flex items-center justify-end gap-2">
                     <Link
-                      href={`/guias-despacho/${guide.id}`}
+                      href={`/despachos/${guide.id}`}
                       className="p-2 text-fg-subtle hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
                       title="Ver detalle"
                     >

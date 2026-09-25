@@ -86,9 +86,9 @@ export interface DispatchGuideDetail {
 // Nombres y colores para mostrar en la UI (SPEC 2.108).
 export const ESTADO_GUIA_LABELS: Record<EstadoGuia, string> = {
   en_transito: "En tránsito",
-  recibida_parcial: "Recibida con faltantes",
-  recibida: "Recibida",
-  anulada: "Anulada",
+  recibida_parcial: "Recibido con faltantes",
+  recibida: "Recibido",
+  anulada: "Anulado",
 };
 
 export const ESTADO_GUIA_COLORS: Record<EstadoGuia, string> = {

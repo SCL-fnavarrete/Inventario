@@ -44,7 +44,7 @@ const deleteOptions: DeleteOption[] = [
     description: "Eliminar activos sin historial de auditoría (datos de prueba)",
     icon: Laptop,
     color: "text-primary-700 bg-primary-100",
-    warning: "Solo se eliminan los activos que no tienen historial ni guías de despacho asociadas. Los activos con historial se conservan siempre.",
+    warning: "Solo se eliminan los activos que no tienen historial ni despachos asociados. Los activos con historial se conservan siempre.",
   },
   {
     id: "empleados",

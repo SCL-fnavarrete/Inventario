@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    return handleApiError(error, 'Error al obtener guías de despacho');
+    return handleApiError(error, 'Error al obtener los despachos');
   }
 }
 
@@ -228,7 +228,7 @@ export async function POST(request: NextRequest) {
       await auditLogService.registrarCreacion(
         'guia_despacho',
         nuevaGuia.id,
-        `Guía de despacho creada: ${nuevaGuia.numero} (OT ${otChilexpress})`,
+        `Despacho creado: ${nuevaGuia.numero} (OT ${otChilexpress})`,
         { sedeId, sedeDestinoId, cantidadEquipos: assetIds.length },
         session.user?.email,
         tx
@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
           {
             assetId,
             tipoEvento: 'traslado',
-            descripcion: `Despachado a ${sedeDestino.nombre} vía guía ${nuevaGuia.numero} (OT Chilexpress ${otChilexpress}): en tránsito`,
+            descripcion: `Despachado a ${sedeDestino.nombre} en el despacho ${nuevaGuia.numero} (OT Chilexpress ${otChilexpress}): en tránsito`,
             datosAnteriores: { estado: "disponible", sedeId: sedeAnteriorId },
             datosNuevos: { estado: "en_transito", guideId: nuevaGuia.id, sedeDestinoId },
             usuarioSistema: session.user?.email,
@@ -261,6 +261,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(guide, { status: 201 });
   } catch (error) {
-    return handleApiError(error, 'Error al crear guía de despacho');
+    return handleApiError(error, 'Error al crear el despacho');
   }
 }

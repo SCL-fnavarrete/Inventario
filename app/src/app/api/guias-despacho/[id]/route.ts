@@ -28,7 +28,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     return NextResponse.json(await buscarGuiaVisible(session, id));
   } catch (error) {
-    return handleApiError(error, 'Error al obtener guía de despacho');
+    return handleApiError(error, 'Error al obtener el despacho');
   }
 }
 
@@ -44,10 +44,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const guia = await buscarGuiaVisible(session, id);
     if (!puedeConfirmarRecepcion(session, guia)) {
-      throw new ForbiddenError('Solo la sede destino puede confirmar la recepción de esta guía');
+      throw new ForbiddenError('Solo la sede destino puede confirmar la recepción de este despacho');
     }
     if (guia.estado !== 'en_transito') {
-      throw new ConflictError('Esta guía ya no está en tránsito: su recepción ya se confirmó o se anuló');
+      throw new ConflictError('Este despacho ya no está en tránsito: su recepción ya se confirmó o se anuló');
     }
 
     const errores = validarRecepcion({ recibidoPor, fechaRecepcion }, guia.fechaDespacho);
@@ -61,7 +61,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const usuario = session.user?.email || recibidoPor;
     const actualizada = await prisma.$transaction(async (tx) => {
       const recibidos = await recibirEquipos(tx, guia, idsLlegaron, usuario);
-      if (recibidos === 0) throw new NotFoundError('Los equipos marcados no son de esta guía');
+      if (recibidos === 0) throw new NotFoundError('Los equipos marcados no son de este despacho');
 
       await tx.dispatchGuide.update({
         where: { id },
@@ -75,7 +75,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       await auditLogService.registrarActualizacion(
         'guia_despacho',
         id,
-        `Guía de despacho ${guia.numero}: recepción confirmada por ${recibidoPor} (${recibidos} de ${guia.items.length} equipos)`,
+        `Despacho ${guia.numero}: recepción confirmada por ${recibidoPor} (${recibidos} de ${guia.items.length} equipos)`,
         { estado: guia.estado },
         { estado, recibidoPor, recibidos },
         session.user?.email,

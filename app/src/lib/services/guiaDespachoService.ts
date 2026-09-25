@@ -101,7 +101,7 @@ export async function recibirEquipos(
       data: {
         assetId: item.assetId,
         tipoEvento: 'traslado',
-        descripcion: `Llegó a ${guia.sedeDestino.nombre} (guía ${guia.numero}): queda Disponible ahí`,
+        descripcion: `Llegó a ${guia.sedeDestino.nombre} (despacho ${guia.numero}): queda Disponible ahí`,
         datosAnteriores: { estado: 'en_transito', sedeId: guia.sedeId },
         datosNuevos: { estado: 'disponible', sedeId: guia.sedeDestinoId, guideId: guia.id },
         usuarioSistema: usuario,
@@ -145,6 +145,6 @@ export const INCLUDE_DETALLE_GUIA = {
  */
 export async function buscarGuiaVisible(session: SesionAutenticada, id: string) {
   const guia = await prisma.dispatchGuide.findUnique({ where: { id }, include: INCLUDE_DETALLE_GUIA });
-  if (!guia || !puedeVerGuia(session, guia)) throw new NotFoundError('Guía de despacho no encontrada');
+  if (!guia || !puedeVerGuia(session, guia)) throw new NotFoundError('Despacho no encontrado');
   return guia;
 }

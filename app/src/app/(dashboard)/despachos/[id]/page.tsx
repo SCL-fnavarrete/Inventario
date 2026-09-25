@@ -77,10 +77,10 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
   const fetchGuide = useCallback(async () => {
     try {
       const res = await fetch(`/api/guias-despacho/${id}`);
-      if (!res.ok) throw new Error((await parseApiError(res, "Error al cargar la guía")).message);
+      if (!res.ok) throw new Error((await parseApiError(res, "Error al cargar el despacho")).message);
       setGuide(await res.json());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al cargar la guía");
+      setError(err instanceof Error ? err.message : "Error al cargar el despacho");
     } finally {
       setLoading(false);
     }
@@ -154,7 +154,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
   }
 
   async function anular(motivo: string) {
-    const r = await enviar(`/api/guias-despacho/${id}/anular`, "POST", { motivo }, "Error al anular la guía");
+    const r = await enviar(`/api/guias-despacho/${id}/anular`, "POST", { motivo }, "Error al anular el despacho");
     setAnulando(false);
     if (!r.ok) setError(r.message);
   }
@@ -163,7 +163,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
     return (
       <div className="flex items-center justify-center min-h-[400px] text-fg-muted">
         <Loader2 className="animate-spin mr-2" />
-        Cargando guía...
+        Cargando despacho...
       </div>
     );
   }
@@ -171,8 +171,8 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
   if (!guide) {
     return (
       <div className="space-y-6">
-        <PageHeader backHref="/guias-despacho" title="Guía de despacho" />
-        <ResumenErrores mensaje={error ?? "Guía de despacho no encontrada"} />
+        <PageHeader backHref="/despachos" title="Despacho" />
+        <ResumenErrores mensaje={error ?? "Despacho no encontrado"} />
       </div>
     );
   }
@@ -192,7 +192,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
   return (
     <div className="space-y-6">
       <PageHeader
-        backHref="/guias-despacho"
+        backHref="/despachos"
         title={
           <span className="flex flex-wrap items-center gap-3">
             {guide.numero}
@@ -214,7 +214,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
                 onClick={() => setAnulando(true)}
                 className={buttonClasses({ variant: "outline", className: "text-red-600 border-red-300" })}
               >
-                <XCircle size={18} /> Anular guía
+                <XCircle size={18} /> Anular despacho
               </button>
             )}
           </>
@@ -248,7 +248,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
         <div className="rounded-lg border border-line bg-surface-muted p-4 text-fg-muted flex gap-3">
           <XCircle className="h-5 w-5 shrink-0 mt-0.5" />
           <p className="text-sm">
-            Anulada el {formatearFechaHoraCorta(guide.fechaAnulacion, "-")} por {guide.anuladaPor ?? "-"}:{" "}
+            Anulado el {formatearFechaHoraCorta(guide.fechaAnulacion, "-")} por {guide.anuladaPor ?? "-"}:{" "}
             {guide.motivoAnulacion}. Los equipos volvieron a Disponible en {guide.sede?.nombre ?? "su sede"}.
           </p>
         </div>
@@ -510,10 +510,10 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
         isOpen={anulando}
         onClose={() => setAnulando(false)}
         onConfirm={anular}
-        titulo="Anular guía"
-        descripcion={`Los ${guide.items.length} equipos vuelven a Disponible en ${guide.sede?.nombre ?? "la sede de origen"}. La guía queda anulada.`}
+        titulo="Anular despacho"
+        descripcion={`Los ${guide.items.length} equipos vuelven a Disponible en ${guide.sede?.nombre ?? "la sede de origen"}. El despacho queda anulado.`}
         placeholder="Ej: El paquete no salió, se envió a la sede equivocada..."
-        textoConfirmar="Anular guía"
+        textoConfirmar="Anular despacho"
         variante="danger"
         cargando={updating}
       />

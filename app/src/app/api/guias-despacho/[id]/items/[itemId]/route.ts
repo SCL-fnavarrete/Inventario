@@ -34,10 +34,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const guia = await buscarGuiaVisible(session, id);
     if (!puedeConfirmarRecepcion(session, guia)) {
-      throw new ForbiddenError('Solo la sede destino puede resolver los equipos de esta guía');
+      throw new ForbiddenError('Solo la sede destino puede resolver los equipos de este despacho');
     }
     const item = guia.items.find((i) => i.id === itemId);
-    if (!item) throw new NotFoundError('Ese equipo no es de esta guía');
+    if (!item) throw new NotFoundError('Ese equipo no es de este despacho');
     if (item.estado !== 'en_transito') {
       throw new ConflictError('Ese equipo ya se resolvió: llegó o se marcó como perdido');
     }
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (accion === 'llego') {
       // Antes de la recepcion se confirma con ella, no uno a uno.
       if (guia.estado !== 'recibida_parcial') {
-        throw new ConflictError('Primero confirma la recepción de la guía');
+        throw new ConflictError('Primero confirma la recepción del despacho');
       }
       const actualizada = await prisma.$transaction(async (tx) => {
         await recibirEquipos(tx, guia, [itemId], usuario);
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         await auditLogService.registrarActualizacion(
           'guia_despacho',
           id,
-          `Guía de despacho ${guia.numero}: llegó ${nombreEquipo}`,
+          `Despacho ${guia.numero}: llegó ${nombreEquipo}`,
           { estado: guia.estado },
           { estado },
           usuario,
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (accion === 'perdido') {
       if (guia.estado !== 'en_transito' && guia.estado !== 'recibida_parcial') {
-        throw new ConflictError('Esta guía ya no tiene equipos por resolver');
+        throw new ConflictError('Este despacho ya no tiene equipos por resolver');
       }
       const detalle = typeof motivo === 'string' ? motivo.trim() : '';
       if (!detalle) {
@@ -108,11 +108,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           asset,
           tipo,
           motivoTexto,
-          resultado: `Perdido en el despacho (guía ${guia.numero}): ${detalle}`,
+          resultado: `Perdido en el despacho (despacho ${guia.numero}): ${detalle}`,
           fechaRealizada: new Date(),
           realizadoPor: session.user?.name || usuario,
           usuario,
-          descripcion: `Perdido en el despacho, guía ${guia.numero}`,
+          descripcion: `Perdido en el despacho ${guia.numero}`,
         });
         await tx.dispatchGuideItem.update({
           where: { id: itemId },
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         await auditLogService.registrarActualizacion(
           'guia_despacho',
           id,
-          `Guía de despacho ${guia.numero}: ${nombreEquipo} se perdió (${detalle})`,
+          `Despacho ${guia.numero}: ${nombreEquipo} se perdió (${detalle})`,
           { estado: guia.estado },
           { estado },
           usuario,
@@ -140,6 +140,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     throw new ConflictError('Acción desconocida');
   } catch (error) {
-    return handleApiError(error, 'Error al resolver el equipo de la guía');
+    return handleApiError(error, 'Error al resolver el equipo del despacho');
   }
 }

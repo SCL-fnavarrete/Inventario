@@ -153,7 +153,7 @@ export default function NuevaGuiaDespachoPage() {
       });
 
       if (!res.ok) {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear guía de despacho");
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear el despacho");
         if (!reportarServidor(fe)) setError(message);
         return;
       }
@@ -175,16 +175,16 @@ export default function NuevaGuiaDespachoPage() {
   if (result?.success) {
     return (
       <div className="space-y-6">
-        <PageHeader backHref="/guias-despacho" title="Nueva Guía de Despacho" />
+        <PageHeader backHref="/despachos" title="Nuevo despacho" />
 
         <div className="card p-6">
           <div className="p-6 bg-green-50 rounded-lg text-center">
             <CheckCircle className="mx-auto text-green-600 mb-4" size={48} />
             <h2 className="text-xl font-semibold text-green-800 mb-2">
-              Guía Creada Exitosamente
+              Despacho creado
             </h2>
             <p className="text-green-700 mb-2">
-              Número de guía: <strong>{result.numero}</strong>
+              Número de despacho: <strong>{result.numero}</strong>
             </p>
             <p className="text-sm text-green-700 mb-2">
               Los equipos quedaron En tránsito: pasan a la sede destino cuando esta confirme que
@@ -192,13 +192,13 @@ export default function NuevaGuiaDespachoPage() {
             </p>
             <div className="mt-6 flex justify-center gap-4">
               <Link
-                href="/guias-despacho"
+                href="/despachos"
                 className={buttonClasses({ variant: "outline" })}
               >
                 Ver Listado
               </Link>
               <Link
-                href={`/guias-despacho/${result.guideId}`}
+                href={`/despachos/${result.guideId}`}
                 className={buttonClasses()}
               >
                 Ver Detalle
@@ -213,9 +213,9 @@ export default function NuevaGuiaDespachoPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        backHref="/guias-despacho"
-        title="Nueva Guía de Despacho"
-        description="Crear guía para despacho de equipos"
+        backHref="/despachos"
+        title="Nuevo despacho"
+        description="Registra los equipos que se envían a otra sede"
       />
 
       <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
@@ -233,7 +233,7 @@ export default function NuevaGuiaDespachoPage() {
           error={errores.sedeId}
           ayuda={
             esAdminSede
-              ? "Obligatorio: desde cuál sede sale este despacho, para no mezclar equipos de sedes distintas en una misma guía."
+              ? "Obligatorio: desde cuál sede sale este despacho, para no mezclar equipos de sedes distintas en un mismo despacho."
               : "Es tu sede: el despacho sale desde ella."
           }
         >
@@ -401,12 +401,12 @@ export default function NuevaGuiaDespachoPage() {
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
           Los equipos quedarán <strong>En tránsito</strong>: siguen en la sede origen hasta que{" "}
           <strong>{sedeDestinoNombre || "la sede destino"}</strong> confirme que llegaron. Mientras viajan,
-          puedes anular la guía.
+          puedes anular el despacho.
         </div>
 
         <div className="flex justify-end gap-3">
           <Link
-            href="/guias-despacho"
+            href="/despachos"
             className={buttonClasses({ variant: "outline", className: "px-6" })}
           >
             Cancelar
@@ -426,7 +426,7 @@ export default function NuevaGuiaDespachoPage() {
             ) : (
               <>
                 <Check size={20} />
-                Crear Guía de Despacho
+                Crear despacho
               </>
             )}
           </button>

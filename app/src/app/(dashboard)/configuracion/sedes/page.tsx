@@ -165,7 +165,7 @@ export default function SedesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Sedes"
-        description="Cada activo, empleado, solicitud y guía de despacho queda ligado a una sede, que se elige explícitamente al crearlo. Admin y técnico ven todas las sedes; el selector del menú filtra lo que se muestra en pantalla, no lo que cada usuario puede ver."
+        description="Cada activo, empleado, solicitud y despacho queda ligado a una sede, que se elige explícitamente al crearlo. Admin y técnico ven todas las sedes; el selector del menú filtra lo que se muestra en pantalla, no lo que cada usuario puede ver."
         actions={
           <>
             {!isCreating && !editingId && (

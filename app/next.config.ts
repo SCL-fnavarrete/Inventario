@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // "Guias de despacho" se llama "Despachos" desde el 25-sep-2026 (SPEC
+  // 2.110): los enlaces guardados a la direccion antigua siguen funcionando.
+  async redirects() {
+    return [
+      { source: "/guias-despacho", destination: "/despachos", permanent: true },
+      { source: "/guias-despacho/:path*", destination: "/despachos/:path*", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {

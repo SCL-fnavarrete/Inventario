@@ -22,10 +22,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const guia = await buscarGuiaVisible(session, id);
     if (!puedeAnularGuia(session, guia)) {
-      throw new ForbiddenError('Solo la sede que despachó puede anular esta guía');
+      throw new ForbiddenError('Solo la sede que despachó puede anular este despacho');
     }
     if (guia.estado !== 'en_transito' || guia.items.some((i) => i.estado !== 'en_transito')) {
-      throw new ConflictError('Solo se anula una guía en tránsito que todavía no se recibe');
+      throw new ConflictError('Solo se anula un despacho en tránsito que todavía no se recibe');
     }
     const detalle = typeof motivo === 'string' ? motivo.trim() : '';
     if (!detalle) {
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           data: {
             assetId: item.assetId,
             tipoEvento: 'traslado',
-            descripcion: `Guía ${guia.numero} anulada: vuelve a Disponible en ${guia.sede?.nombre ?? 'su sede'}. Motivo: ${detalle}`,
+            descripcion: `Despacho ${guia.numero} anulado: vuelve a Disponible en ${guia.sede?.nombre ?? 'su sede'}. Motivo: ${detalle}`,
             datosAnteriores: { estado: 'en_transito' },
             datosNuevos: { estado: 'disponible', guideId: guia.id },
             usuarioSistema: usuario,
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       await auditLogService.registrarActualizacion(
         'guia_despacho',
         id,
-        `Guía de despacho ${guia.numero} anulada: ${detalle}`,
+        `Despacho ${guia.numero} anulado: ${detalle}`,
         { estado: guia.estado },
         { estado: 'anulada', motivoAnulacion: detalle },
         usuario,
@@ -71,6 +71,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(actualizada);
   } catch (error) {
-    return handleApiError(error, 'Error al anular la guía');
+    return handleApiError(error, 'Error al anular el despacho');
   }
 }

@@ -32,7 +32,7 @@ const navButton =
 
 /**
  * Resumen "Mostrando X a Y de Z", selector de tamano de pagina y botones
- * de navegacion. Activos, Solicitudes, Compras, Mantenciones, Guias y
+ * de navegacion. Activos, Solicitudes, Compras, Mantenciones, Despachos y
  * Auditoria tenian cada una su copia; aca vive una sola. Sin registros no
  * muestra nada.
  */

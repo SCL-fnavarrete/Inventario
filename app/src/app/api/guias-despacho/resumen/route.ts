@@ -45,6 +45,6 @@ export async function GET(request: NextRequest) {
       equiposEnTransito,
     });
   } catch (error) {
-    return handleApiError(error, 'Error al obtener el resumen de guías');
+    return handleApiError(error, 'Error al obtener el resumen de despachos');
   }
 }

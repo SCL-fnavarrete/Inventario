@@ -56,8 +56,8 @@ export async function POST(request: NextRequest) {
 
           const activosConservados = await tx.asset.count();
           message = deletedCount > 0
-            ? `Se eliminaron ${deletedCount} activos sin historial de auditoría. ${activosConservados} activos se conservaron porque tienen historial o guías de despacho asociadas.`
-            : `No se eliminó ningún activo: los ${activosConservados} activos existentes tienen historial de auditoría o guías de despacho asociadas.`;
+            ? `Se eliminaron ${deletedCount} activos sin historial de auditoría. ${activosConservados} activos se conservaron porque tienen historial o despachos asociados.`
+            : `No se eliminó ningún activo: los ${activosConservados} activos existentes tienen historial de auditoría o despachos asociados.`;
           break;
 
         case "empleados":
