@@ -19,6 +19,7 @@ import { parseApiError, type FieldErrors } from '@/lib/utils/apiErrors';
 import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
 import { formatearFecha } from "@/lib/utils/fechas";
 import { buttonClasses } from "@/components/ui/buttonStyles";
+import { VentanaMotivo } from '@/components/ui/VentanaMotivo';
 import { FilaEquipoTicket, type AsignacionFila } from '@/components/solicitudes/FilaEquipoTicket';
 import { documentoDeSolicitud } from '@/lib/constants/documentosSolicitud';
 
@@ -201,7 +202,6 @@ export default function SolicitudDetailPage() {
   // Cancelar solicitud: solo antes de ejecutar ningun efecto secundario
   // (ver handleCancelar / POST /api/solicitudes/[id]/cancelar).
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [motivoCancelacion, setMotivoCancelacion] = useState('');
   const [cancelling, setCancelling] = useState(false);
 
   // Kit de Bienvenida / EPP: catalogo con stock, independiente de Activos.
@@ -286,15 +286,14 @@ export default function SolicitudDetailPage() {
   };
 
   const [marcandoNoAplica, setMarcandoNoAplica] = useState<string | null>(null);
+  // Articulo al que se le esta pidiendo el motivo de "No aplica".
+  const [noAplicaId, setNoAplicaId] = useState<string | null>(null);
 
   // Marca un articulo requerido (RequestKitItem) como "No aplica" -- la
   // salida para cuando genuinamente no hay como entregarlo (sin stock, no
   // corresponde al puesto, etc.) y el ticket necesita poder cerrarse igual.
-  const handleMarcarNoAplica = async (requestKitItemId: string) => {
-    const motivo = window.prompt(
-      '¿Por qué no aplica este artículo? (obligatorio, se guarda en el ticket)'
-    );
-    if (!motivo || !motivo.trim()) return;
+  // El motivo se pide en VentanaMotivo (antes, window.prompt del navegador).
+  const handleMarcarNoAplica = async (requestKitItemId: string, motivo: string) => {
     setMarcandoNoAplica(requestKitItemId);
     setError('');
     setFieldErrors({});
@@ -302,16 +301,18 @@ export default function SolicitudDetailPage() {
       const res = await fetch(`/api/solicitudes/${id}/kit-epp`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestKitItemId, motivo: motivo.trim() }),
+        body: JSON.stringify({ requestKitItemId, motivo }),
       });
       if (!res.ok) {
         const { message, fieldErrors: fe } = await parseApiError(res, 'Error al marcar como no aplica');
         setFieldErrors(fe);
         throw new Error(message);
       }
+      setNoAplicaId(null);
       await fetchData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
+      setNoAplicaId(null);
     } finally {
       setMarcandoNoAplica(null);
     }
@@ -369,12 +370,8 @@ export default function SolicitudDetailPage() {
   // Cancela la solicitud: solo tiene sentido mientras no ejecuto ningun
   // efecto secundario (assignmentIds/kitReturnIds vacios) -- la ruta lo
   // valida igual del lado del servidor, esto es solo para no ofrecer el
-  // boton cuando ya no aplica. Pide motivo obligatorio.
-  const handleCancelar = async () => {
-    if (!motivoCancelacion.trim()) {
-      setError('Indica el motivo de la cancelación');
-      return;
-    }
+  // boton cuando ya no aplica. El motivo obligatorio lo pide VentanaMotivo.
+  const handleCancelar = async (motivo: string) => {
     setCancelling(true);
     setError('');
     setFieldErrors({});
@@ -382,7 +379,7 @@ export default function SolicitudDetailPage() {
       const res = await fetch(`/api/solicitudes/${id}/cancelar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ motivo: motivoCancelacion.trim() }),
+        body: JSON.stringify({ motivo }),
       });
       if (!res.ok) {
         const { message, fieldErrors: fe } = await parseApiError(res, 'Error al cancelar la solicitud');
@@ -390,7 +387,6 @@ export default function SolicitudDetailPage() {
         throw new Error(message);
       }
       setShowCancelModal(false);
-      setMotivoCancelacion('');
       fetchData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
@@ -486,49 +482,29 @@ export default function SolicitudDetailPage() {
         )}
       </div>
 
-      {showCancelModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-lg shadow-lg p-6 max-w-md w-full space-y-4">
-            <h3 className="font-semibold text-fg">Cancelar solicitud</h3>
-            <p className="text-sm text-fg-subtle">
-              Esta solicitud todavía no ejecutó ninguna acción sobre el inventario, así que se
-              puede cancelar directamente. Se registrará en el historial del ticket con el motivo
-              que indiques.
-            </p>
-            <div>
-              <label className="field-label">Motivo *</label>
-              <textarea
-                value={motivoCancelacion}
-                onChange={(e) => setMotivoCancelacion(e.target.value)}
-                placeholder="Ej: Ticket duplicado, ya no corresponde..."
-                rows={3}
-                className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCancelModal(false);
-                  setMotivoCancelacion('');
-                }}
-                disabled={cancelling}
-                className={buttonClasses({ variant: "outline" })}
-              >
-                Volver
-              </button>
-              <button
-                type="button"
-                onClick={handleCancelar}
-                disabled={cancelling || !motivoCancelacion.trim()}
-                className={buttonClasses({ variant: "danger" })}
-              >
-                {cancelling ? 'Cancelando...' : 'Confirmar cancelación'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <VentanaMotivo
+        isOpen={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        onConfirm={handleCancelar}
+        titulo="Cancelar solicitud"
+        descripcion="Esta solicitud todavía no ejecutó ninguna acción sobre el inventario, así que se puede cancelar directamente. Se registrará en el historial del ticket con el motivo que indiques."
+        placeholder="Ej: Ticket duplicado, ya no corresponde..."
+        textoConfirmar="Confirmar cancelación"
+        variante="danger"
+        cargando={cancelling}
+      />
+      <VentanaMotivo
+        isOpen={noAplicaId !== null}
+        onClose={() => setNoAplicaId(null)}
+        onConfirm={(motivo) => {
+          if (noAplicaId) return handleMarcarNoAplica(noAplicaId, motivo);
+        }}
+        titulo="Marcar como No aplica"
+        descripcion={`"${data.kitRequeridos.find((r) => r.id === noAplicaId)?.item.nombre ?? "Este artículo"}" no se entregará. El motivo queda guardado en el ticket.`}
+        placeholder="Ej: Sin stock, no corresponde al cargo..."
+        textoConfirmar="Marcar No aplica"
+        cargando={marcandoNoAplica !== null}
+      />
 
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
@@ -873,7 +849,7 @@ export default function SolicitudDetailPage() {
                         </div>
                         {r.estado === 'pendiente' && !isClosed ? (
                           <button
-                            onClick={() => handleMarcarNoAplica(r.id)}
+                            onClick={() => setNoAplicaId(r.id)}
                             disabled={marcandoNoAplica === r.id}
                             className="text-xs px-2 py-1 border border-line-strong rounded-lg text-fg-muted hover:bg-surface-muted disabled:opacity-50 whitespace-nowrap"
                           >

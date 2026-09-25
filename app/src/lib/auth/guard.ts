@@ -100,6 +100,27 @@ export function respuestaDatosInvalidos(error: ZodError): NextResponse<CuerpoErr
   );
 }
 
+/**
+ * 400 con los errores por campo de una regla compartida con la pantalla
+ * (validarParametros, validarNuevaGuia...). El mensaje general nombra el
+ * primero con su etiqueta legible; details lleva todos, para marcarlos.
+ * null si no hay errores.
+ */
+export function respuestaErroresCampos(
+  errores: Record<string, string>,
+  etiquetas: Record<string, string>
+): NextResponse<CuerpoError> | null {
+  const [primero] = Object.keys(errores);
+  if (!primero) return null;
+  return NextResponse.json(
+    {
+      error: `${etiquetas[primero] ?? primero}: ${errores[primero]}`,
+      details: Object.entries(errores).map(([field, message]) => ({ field, message })),
+    },
+    { status: 400 }
+  );
+}
+
 /** Nombre legible de los campos unicos, para el mensaje de dato repetido (P2002). */
 const ETIQUETA_CAMPO_UNICO: Record<string, string> = {
   correo_personal: 'correo personal',

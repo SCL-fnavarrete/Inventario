@@ -22,7 +22,15 @@ import {
   type DispatchGuideDetail,
 } from "@/types/guia-despacho";
 import { EstadoGuia } from "@prisma/client";
-import { formatearFechaLarga, formatearFechaHoraCorta } from "@/lib/utils/fechas";
+import {
+  ahoraParaInputFechaHora,
+  formatearFechaLarga,
+  formatearFechaHoraCorta,
+  inputFechaHoraAISO,
+} from "@/lib/utils/fechas";
+import { CampoTexto, ResumenErrores } from "@/components/ui/CampoFormulario";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import { ETIQUETAS_GUIA } from "@/lib/validations/guia";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 
@@ -41,10 +49,14 @@ export default function GuiaDespachoDetailPage({
   // other forms, instead of a blocking browser alert().
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  // La fecha parte con la hora de Chile (SPEC 2.104).
   const [recepcionData, setRecepcionData] = useState({
     recibidoPor: "",
-    fechaRecepcion: new Date().toISOString().slice(0, 16),
+    fechaRecepcion: ahoraParaInputFechaHora(),
   });
+  // Validacion por campo, igual que el resto de los formularios (SPEC 2.95).
+  const { errores, resumen, reportar, reportarServidor, limpiar } =
+    useErroresFormulario(ETIQUETAS_GUIA);
 
   const fetchGuide = useCallback(async () => {
     setLoading(true);
@@ -67,6 +79,7 @@ export default function GuiaDespachoDetailPage({
   }, [fetchGuide]);
 
   async function handleConfirmarRecepcion() {
+    if (reportar(recepcionData.recibidoPor.trim() ? {} : { recibidoPor: "Escribe quién recibió" })) return;
     setUpdating(true);
     setError(null);
     setFieldErrors({});
@@ -76,7 +89,8 @@ export default function GuiaDespachoDetailPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recibidoPor: recepcionData.recibidoPor,
-          fechaRecepcion: recepcionData.fechaRecepcion,
+          // Instante exacto: el servidor no debe leerla en su propia zona horaria.
+          fechaRecepcion: inputFechaHoraAISO(recepcionData.fechaRecepcion),
         }),
       });
 
@@ -84,8 +98,7 @@ export default function GuiaDespachoDetailPage({
         // Per-field errors are listed individually rather than flattened
         // into one string; the modal stays open so the data can be fixed.
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar");
-        setError(message);
-        setFieldErrors(fe);
+        if (!reportarServidor(fe)) setError(message);
         return;
       }
 
@@ -374,33 +387,24 @@ export default function GuiaDespachoDetailPage({
               </div>
             )}
             <div className="space-y-4 mb-6">
-              <div>
-                <label className="field-label">
-                  Recibido por <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={recepcionData.recibidoPor}
-                  onChange={(e) =>
-                    setRecepcionData((prev) => ({ ...prev, recibidoPor: e.target.value }))
-                  }
-                  placeholder="Nombre de quien recibe"
-                  className="w-full px-4 py-2 border border-line-strong rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="field-label">
-                  Fecha de Recepción
-                </label>
-                <input
-                  type="datetime-local"
-                  value={recepcionData.fechaRecepcion}
-                  onChange={(e) =>
-                    setRecepcionData((prev) => ({ ...prev, fechaRecepcion: e.target.value }))
-                  }
-                  className="w-full px-4 py-2 border border-line-strong rounded-lg"
-                />
-              </div>
+              <ResumenErrores mensaje={resumen} />
+              <CampoTexto
+                label="Recibido por"
+                obligatorio
+                value={recepcionData.recibidoPor}
+                onChange={(v) => {
+                  setRecepcionData((prev) => ({ ...prev, recibidoPor: v }));
+                  limpiar("recibidoPor");
+                }}
+                placeholder="Nombre de quien recibe"
+                error={errores.recibidoPor}
+              />
+              <CampoTexto
+                label="Fecha de recepción"
+                type="datetime-local"
+                value={recepcionData.fechaRecepcion}
+                onChange={(v) => setRecepcionData((prev) => ({ ...prev, fechaRecepcion: v }))}
+              />
             </div>
             <div className="flex gap-2 justify-end">
               <button
@@ -411,8 +415,8 @@ export default function GuiaDespachoDetailPage({
               </button>
               <button
                 onClick={handleConfirmarRecepcion}
-                disabled={updating || !recepcionData.recibidoPor}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-success-hover disabled:opacity-50"
+                disabled={updating}
+                className={buttonClasses({ className: "bg-success hover:bg-success-hover disabled:hover:bg-success" })}
               >
                 {updating ? <Loader2 className="animate-spin" size={20} /> : "Confirmar"}
               </button>

@@ -40,6 +40,7 @@ import {
   textoResumenErrores,
 } from '@/components/ui/CampoFormulario';
 import { esCorreoValido } from '@/lib/utils/text';
+import { inputFechaHoraAISO } from '@/lib/utils/fechas';
 import { useCampoSede, useSedeSeleccionada } from '@/components/providers/SedeSeleccionadaProvider';
 
 type Employee = {
@@ -828,7 +829,7 @@ export default function NuevaSolicitudPage() {
           assetIdsSeleccionados: Object.values(equipoSeleccionado),
           condicionCargadorPorAsset,
           ...(Object.values(equipoSeleccionado).length > 0 && {
-            fechaEntregaCoordinada: fechaEntregaCoordinada || undefined,
+            fechaEntregaCoordinada: inputFechaHoraAISO(fechaEntregaCoordinada),
             medioEntrega,
             lugarEntrega: medioEntrega === 'presencial' ? lugarEntrega || undefined : undefined,
             otChilexpressEntrega:
@@ -877,7 +878,7 @@ export default function NuevaSolicitudPage() {
           assetIdsSeleccionados: Object.values(equipoSeleccionado),
           condicionCargadorPorAsset,
           ...(Object.values(equipoSeleccionado).length > 0 && {
-            fechaEntregaCoordinada: fechaEntregaCoordinada || undefined,
+            fechaEntregaCoordinada: inputFechaHoraAISO(fechaEntregaCoordinada),
             medioEntrega,
             lugarEntrega: medioEntrega === 'presencial' ? lugarEntrega || undefined : undefined,
             otChilexpressEntrega:
@@ -914,7 +915,7 @@ export default function NuevaSolicitudPage() {
             observacionesCargadorNuevo: c.observacionesCargadorNuevo || undefined,
           })),
           // Coordinacion de la entrega de los reemplazos, en el mismo formulario.
-          fechaCambioCoordinada: fechaCambioCoordinada || undefined,
+          fechaCambioCoordinada: inputFechaHoraAISO(fechaCambioCoordinada),
           medioCambio,
           lugarCambio: medioCambio === 'presencial' ? lugarCambio || undefined : undefined,
           otCambioChilexpress:
@@ -929,7 +930,7 @@ export default function NuevaSolicitudPage() {
           medioDevolucion,
           otChilexpress: medioDevolucion === 'chilexpress' ? otChilexpress || undefined : undefined,
           ciudadDevolucion: medioDevolucion === 'chilexpress' ? ciudadDevolucion || undefined : undefined,
-          fechaDevolucionCoordinada: fechaDevolucionCoordinada || undefined,
+          fechaDevolucionCoordinada: inputFechaHoraAISO(fechaDevolucionCoordinada),
           lugarDevolucion: medioDevolucion === 'presencial' ? lugarDevolucion || undefined : undefined,
           // Solo se envian los equipos que efectivamente se calificaron; si
           // se dejaron sin calificar, el ticket nace igual (solicitud_emitida)

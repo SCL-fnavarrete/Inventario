@@ -140,3 +140,25 @@ export function formatearFechaConHora(
   const texto = formatearFechaCorta(fecha, siVacio);
   return fecha && hora ? `${texto} a las ${hora}` : texto;
 }
+
+/**
+ * Fecha y hora de ahora para un <input type="datetime-local">, en la hora de
+ * quien usa la pantalla (SPEC 2.104). `toISOString().slice(0, 16)` daba la
+ * hora de Londres: 3 horas mas en Chile.
+ */
+export function ahoraParaInputFechaHora(): string {
+  const ahora = new Date();
+  return new Date(ahora.getTime() - ahora.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+/**
+ * Lo que marca un <input type="datetime-local"> ("2026-09-25T10:30", hora de
+ * quien lo usa) como instante exacto para el servidor (SPEC 2.104). Mandar el
+ * texto tal cual hacia que el servidor lo leyera en su propia zona horaria:
+ * en produccion (UTC) una entrega a las 10:30 quedaba a las 07:30.
+ */
+export function inputFechaHoraAISO(valor: string): string | undefined {
+  if (!valor) return undefined;
+  const fecha = new Date(valor);
+  return isNaN(fecha.getTime()) ? undefined : fecha.toISOString();
+}

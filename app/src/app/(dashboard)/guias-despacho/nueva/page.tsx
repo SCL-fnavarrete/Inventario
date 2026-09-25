@@ -3,21 +3,23 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Check,
-  Loader2,
-  Package,
-  MapPin,
-  User,
-  CheckCircle,
-} from "lucide-react";
+import { Check, Loader2, Package, MapPin, User, CheckCircle } from "lucide-react";
 import { SelectorActivos } from "@/components/guias-despacho/SelectorActivos";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useCampoSede } from "@/components/providers/SedeSeleccionadaProvider";
+import {
+  AvisoSeccion,
+  CampoFormulario,
+  CampoTexto,
+  ResumenErrores,
+  claseCampo,
+} from "@/components/ui/CampoFormulario";
+import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import { ETIQUETAS_GUIA, validarNuevaGuia } from "@/lib/validations/guia";
+import { ahoraParaInputFechaHora, inputFechaHoraAISO } from "@/lib/utils/fechas";
 
 type Sede = {
   id: string;
@@ -57,6 +59,9 @@ export default function NuevaGuiaDespachoPage() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [sedes, setSedes] = useState<Sede[]>([]);
+  // Validacion por campo, con las mismas reglas que el servidor (SPEC 2.104).
+  const { errores, resumen, reportar, reportarServidor, limpiar } =
+    useErroresFormulario(ETIQUETAS_GUIA);
 
   // Sede origen: se elige explicitamente desde que sede despacha (evita
   // mezclar en un mismo despacho equipos de sedes distintas). Viene
@@ -70,10 +75,10 @@ export default function NuevaGuiaDespachoPage() {
 
   // Datos del despacho. El dato principal es la OT de Chilexpress -- todo
   // despacho pasa por ahi. El emisor no se pide: se autocompleta con el
-  // tecnico de la sesion.
+  // tecnico de la sesion. La fecha de envio parte con la hora de Chile.
   const [dispatchData, setDispatchData] = useState({
     otChilexpress: "",
-    fechaDespacho: new Date().toISOString().slice(0, 16),
+    fechaDespacho: ahoraParaInputFechaHora(),
     fechaEstimadaLlegada: "",
     observaciones: "",
     sedeDestinoId: "",
@@ -104,24 +109,23 @@ export default function NuevaGuiaDespachoPage() {
   const sedesDestinoDisponibles = sedes.filter((s) => s.id !== sedeOrigenId);
   const sedeDestinoNombre = sedes.find((s) => s.id === dispatchData.sedeDestinoId)?.nombre;
 
-  const formularioCompleto =
-    selectedAssets.length > 0 &&
-    !!dispatchData.otChilexpress &&
-    !!dispatchData.fechaDespacho &&
-    !!dispatchData.sedeDestinoId &&
-    !!receptor.nombre &&
-    !!receptor.rut &&
-    !!sedeOrigenId;
+  function cambiarDespacho(campo: keyof typeof dispatchData, valor: string) {
+    setDispatchData((prev) => ({ ...prev, [campo]: valor }));
+    limpiar(campo);
+  }
 
   async function handleSubmit() {
-    if (!sedeOrigenId) {
-      setError("Selecciona la sede origen del despacho.");
-      return;
-    }
-    if (!formularioCompleto) {
-      setError("Completa los equipos, los datos del despacho y del receptor antes de confirmar.");
-      return;
-    }
+    // La sede origen va primero: es el primer campo de la pantalla.
+    const faltan = {
+      ...(!sedeOrigenId && { sedeId: "Elige la sede origen" }),
+      ...validarNuevaGuia({
+        assetIds: selectedAssets,
+        ...dispatchData,
+        receptorNombre: receptor.nombre,
+        receptorRut: receptor.rut,
+      }),
+    };
+    if (reportar(faltan)) return;
 
     setSubmitting(true);
     setError(null);
@@ -130,7 +134,8 @@ export default function NuevaGuiaDespachoPage() {
     try {
       const body = {
         otChilexpress: dispatchData.otChilexpress,
-        fechaDespacho: dispatchData.fechaDespacho,
+        // Instante exacto: el servidor no debe leerla en su propia zona horaria.
+        fechaDespacho: inputFechaHoraAISO(dispatchData.fechaDespacho),
         fechaEstimadaLlegada: dispatchData.fechaEstimadaLlegada || null,
         observaciones: dispatchData.observaciones || null,
         sedeDestinoId: dispatchData.sedeDestinoId,
@@ -149,8 +154,7 @@ export default function NuevaGuiaDespachoPage() {
 
       if (!res.ok) {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear guía de despacho");
-        setError(message);
-        setFieldErrors(fe);
+        if (!reportarServidor(fe)) setError(message);
         return;
       }
 
@@ -207,21 +211,14 @@ export default function NuevaGuiaDespachoPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          href="/guias-despacho"
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <ArrowLeft size={24} />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-fg">Nueva Guía de Despacho</h1>
-          <p className="text-fg-muted">Crear guía para despacho de equipos</p>
-        </div>
-      </div>
+      <PageHeader
+        backHref="/guias-despacho"
+        title="Nueva Guía de Despacho"
+        description="Crear guía para despacho de equipos"
+      />
 
       <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
+      <ResumenErrores mensaje={resumen} />
 
       {/* Sección: Sede origen */}
       <div className="card p-6 space-y-4">
@@ -229,22 +226,30 @@ export default function NuevaGuiaDespachoPage() {
           <MapPin className="text-primary-700" size={20} />
           Sede origen
         </h2>
-        <div>
-          <label className="field-label">
-            Sede origen <span className="text-red-500">*</span>
-          </label>
+        <CampoFormulario
+          label="Sede origen"
+          obligatorio
+          error={errores.sedeId}
+          ayuda={
+            esAdminSede
+              ? "Obligatorio: desde cuál sede sale este despacho, para no mezclar equipos de sedes distintas en una misma guía."
+              : "Es tu sede: el despacho sale desde ella."
+          }
+        >
           <select
             value={sedeOrigenId}
             disabled={!esAdminSede}
             onChange={(e) => {
               setSedeOrigenId(e.target.value);
+              limpiar("sedeId");
               // Los equipos ya elegidos pueden ser de una sede distinta a
               // la nueva -- se limpian para no arrastrar una seleccion
-              // que ya no corresponde.
+              // que ya no corresponde. Y el destino no puede ser el origen.
               setSelectedAssets([]);
+              if (dispatchData.sedeDestinoId === e.target.value) cambiarDespacho("sedeDestinoId", "");
             }}
-            required
-            className="field-input"
+            aria-invalid={!!errores.sedeId}
+            className={claseCampo(errores.sedeId)}
           >
             <option value="" disabled>
               Selecciona una sede...
@@ -255,12 +260,7 @@ export default function NuevaGuiaDespachoPage() {
               </option>
             ))}
           </select>
-          <p className="text-xs text-fg-subtle mt-1">
-            {esAdminSede
-              ? "Obligatorio: desde cuál sede sale este despacho, para no mezclar equipos de sedes distintas en una misma guía."
-              : "Es tu sede: el despacho sale desde ella."}
-          </p>
-        </div>
+        </CampoFormulario>
       </div>
 
       {/* Sección: Equipos */}
@@ -269,6 +269,7 @@ export default function NuevaGuiaDespachoPage() {
           <Package className="text-primary-700" size={20} />
           Equipos a despachar
         </h2>
+        <AvisoSeccion mensaje={errores.assetIds} />
         {!sedeOrigenId ? (
           <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
             Selecciona primero la sede origen para ver el inventario disponible.
@@ -281,6 +282,7 @@ export default function NuevaGuiaDespachoPage() {
               // posterior del navbar no debe dejarlos en otra sede.
               setSedeOrigenId(sedeOrigenId);
               setSelectedAssets(activos);
+              limpiar("assetIds");
             }}
             sedeId={sedeOrigenId}
           />
@@ -295,30 +297,20 @@ export default function NuevaGuiaDespachoPage() {
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="field-label">
-              OT Chilexpress <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              placeholder="Ej: 123456789"
-              value={dispatchData.otChilexpress}
-              onChange={(e) =>
-                setDispatchData((prev) => ({ ...prev, otChilexpress: e.target.value }))
-              }
-              className="field-input"
-            />
-          </div>
-          <div>
-            <label className="field-label">
-              Sede destino <span className="text-red-500">*</span>
-            </label>
+          <CampoTexto
+            label="OT Chilexpress"
+            obligatorio
+            placeholder="Ej: 123456789"
+            value={dispatchData.otChilexpress}
+            onChange={(v) => cambiarDespacho("otChilexpress", v)}
+            error={errores.otChilexpress}
+          />
+          <CampoFormulario label="Sede destino" obligatorio error={errores.sedeDestinoId}>
             <select
               value={dispatchData.sedeDestinoId}
-              onChange={(e) =>
-                setDispatchData((prev) => ({ ...prev, sedeDestinoId: e.target.value }))
-              }
-              className="field-input"
+              onChange={(e) => cambiarDespacho("sedeDestinoId", e.target.value)}
+              aria-invalid={!!errores.sedeDestinoId}
+              className={claseCampo(errores.sedeDestinoId)}
             >
               <option value="">Seleccionar sede</option>
               {sedesDestinoDisponibles.map((sede) => (
@@ -327,61 +319,37 @@ export default function NuevaGuiaDespachoPage() {
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="field-label">
-              Fecha de envío <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="datetime-local"
-              value={dispatchData.fechaDespacho}
-              onChange={(e) =>
-                setDispatchData((prev) => ({ ...prev, fechaDespacho: e.target.value }))
-              }
-              className="field-input"
-            />
-          </div>
-          <div>
-            <label className="field-label">
-              Fecha estimada de llegada
-            </label>
-            <input
-              type="date"
-              value={dispatchData.fechaEstimadaLlegada}
-              onChange={(e) =>
-                setDispatchData((prev) => ({ ...prev, fechaEstimadaLlegada: e.target.value }))
-              }
-              className="field-input"
-            />
-          </div>
-          <div>
-            <label className="field-label">
-              Emisor
-            </label>
-            <input
-              type="text"
-              value={emisor}
-              disabled
-              className="w-full px-4 py-2 border border-line bg-surface-muted text-fg-subtle rounded-lg"
-            />
-            <p className="text-xs text-fg-subtle mt-1">
-              Se registra automáticamente con tu usuario.
-            </p>
-          </div>
-          <div className="md:col-span-2">
-            <label className="field-label">
-              Observaciones
-            </label>
+          </CampoFormulario>
+          <CampoTexto
+            label="Fecha de envío"
+            obligatorio
+            type="datetime-local"
+            value={dispatchData.fechaDespacho}
+            onChange={(v) => cambiarDespacho("fechaDespacho", v)}
+            error={errores.fechaDespacho}
+          />
+          <CampoTexto
+            label="Fecha estimada de llegada"
+            type="date"
+            value={dispatchData.fechaEstimadaLlegada}
+            onChange={(v) => cambiarDespacho("fechaEstimadaLlegada", v)}
+          />
+          <CampoTexto
+            label="Emisor"
+            value={emisor}
+            onChange={() => {}}
+            disabled
+            ayuda="Se registra automáticamente con tu usuario."
+          />
+          <CampoFormulario label="Observaciones" className="md:col-span-2">
             <textarea
               value={dispatchData.observaciones}
-              onChange={(e) =>
-                setDispatchData((prev) => ({ ...prev, observaciones: e.target.value }))
-              }
+              onChange={(e) => cambiarDespacho("observaciones", e.target.value)}
               rows={3}
               placeholder="Notas adicionales sobre el despacho..."
               className="field-input"
             />
-          </div>
+          </CampoFormulario>
         </div>
       </div>
 
@@ -397,34 +365,28 @@ export default function NuevaGuiaDespachoPage() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="field-label">
-              Nombre y apellido <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              placeholder="Nombre completo"
-              value={receptor.nombre}
-              onChange={(e) =>
-                setReceptor((prev) => ({ ...prev, nombre: e.target.value }))
-              }
-              className="field-input"
-            />
-          </div>
-          <div>
-            <label className="field-label">
-              RUT <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              placeholder="XX.XXX.XXX-X"
-              value={receptor.rut}
-              onChange={(e) =>
-                setReceptor((prev) => ({ ...prev, rut: e.target.value }))
-              }
-              className="field-input"
-            />
-          </div>
+          <CampoTexto
+            label="Nombre y apellido"
+            obligatorio
+            placeholder="Nombre completo"
+            value={receptor.nombre}
+            onChange={(v) => {
+              setReceptor((prev) => ({ ...prev, nombre: v }));
+              limpiar("receptorNombre");
+            }}
+            error={errores.receptorNombre}
+          />
+          <CampoTexto
+            label="RUT"
+            obligatorio
+            placeholder="XX.XXX.XXX-X"
+            value={receptor.rut}
+            onChange={(v) => {
+              setReceptor((prev) => ({ ...prev, rut: v }));
+              limpiar("receptorRut");
+            }}
+            error={errores.receptorRut}
+          />
         </div>
       </div>
 
@@ -450,8 +412,10 @@ export default function NuevaGuiaDespachoPage() {
           </Link>
           <button
             onClick={handleSubmit}
-            disabled={submitting || !formularioCompleto}
-            className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-success-hover disabled:opacity-50"
+            disabled={submitting}
+            className={buttonClasses({
+              className: "px-6 bg-success hover:bg-success-hover disabled:hover:bg-success",
+            })}
           >
             {submitting ? (
               <>

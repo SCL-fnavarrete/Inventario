@@ -3293,7 +3293,28 @@ Continúa 2.102 con el módulo Compras, con la misma lógica de validación.
 - **Sin equipos ni artículos:** el aviso aparece en rojo y la pantalla lleva a él.
 - **Botones que estaban desactivados sin explicación** ("Guardar Compra" y "Agregar" artículo de Kit/EPP, en Nueva y en el detalle): ahora se pueden pulsar y marcan lo que falta. Un N° de factura repetido marca su campo.
 
+## 2.104 Validación por campo en todos los formularios, parte 3: Guías de despacho y Solicitudes; fechas con hora (25-sep-2026)
+
+Continúa 2.102–2.103, con la misma lógica de validación.
+
+- **Nueva guía de despacho:**
+  - sede origen, equipos, OT Chilexpress, sede destino, fecha de envío, nombre y RUT del receptor (dígito verificador);
+  - pantalla y servidor usan las mismas reglas (`validarNuevaGuia`, `lib/validations/guia.ts`); antes el servidor respondía solo "Faltan campos requeridos";
+  - el botón "Crear Guía de Despacho" ya no queda desactivado sin decir qué falta;
+  - si la sede destino queda igual a la nueva sede origen, se limpia;
+  - el encabezado pasa al estándar (`PageHeader`).
+- **Confirmar recepción:** "Recibido por" se marca si falta; el servidor responde con el campo.
+- **Solicitudes:**
+  - cancelar la solicitud y "No aplica" de un artículo del kit piden el motivo en `VentanaMotivo` (`components/ui`), una ventana del sistema que marca el motivo vacío en rojo;
+  - "No aplica" antes usaba la ventanita del navegador (`window.prompt`), y la ventana de cancelar estaba hecha a mano.
+- **Fechas con hora (`datetime-local`), dos errores corregidos:**
+  - la hora propuesta para envío y recepción era la de Londres (`toISOString().slice(0, 16)`): 3 horas más en Chile. Ahora es `ahoraParaInputFechaHora()`;
+  - el texto del campo ("2026-09-25T10:30") se mandaba tal cual y el servidor lo leía en su propia zona horaria. En el equipo local coincidía con Chile, pero en producción (UTC) una entrega a las 10:30 habría quedado a las 07:30. Ahora la pantalla manda el instante exacto (`inputFechaHoraAISO`). Aplica a la fecha de envío y de recepción de guías y a las fechas coordinadas de entrega, cambio y devolución de Solicitudes.
+- **Pieza compartida del servidor:** `respuestaErroresCampos` (`lib/auth/guard.ts`) arma la respuesta 400 con los errores por campo; la usan Guías y Parámetros.
+
 ## Changelog SPEC
+- **v2.28 (2026-09-25):**
+  - Sección 2.104 (nueva): validación por campo en Guías de despacho y en los motivos de Solicitudes (ventana propia en vez de window.prompt); las fechas con hora se proponen y se envían en hora de Chile.
 - **v2.27 (2026-09-25):**
   - Sección 2.103 (nueva): Compras con validación por campo; el equipo nuevo usa el formulario de Activos (N° de serie obligatorio, catálogos) y los datos de la factura quedan compartidos entre Nueva y Editar compra.
 - **v2.26 (2026-09-24):**

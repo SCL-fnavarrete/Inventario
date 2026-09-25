@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError } from "@/lib/auth/guard";
+import { requirePermission, handleApiError, respuestaErroresCampos } from "@/lib/auth/guard";
 import { auditLogService } from "@/lib/services/auditLogService";
 import { ETIQUETAS_PARAMETROS, validarParametros } from "@/lib/validations/parametros";
 
@@ -60,17 +60,8 @@ export async function PUT(request: NextRequest) {
     // Mismas reglas que la pantalla (SPEC 2.102): RUT y email de la empresa
     // bien escritos y parametros de seguridad dentro de sus limites. Cada
     // error va con su campo y un mensaje legible.
-    const errores = validarParametros(body);
-    if (Object.keys(errores).length > 0) {
-      const [primero] = Object.keys(errores);
-      return NextResponse.json(
-        {
-          error: `${ETIQUETAS_PARAMETROS[primero]}: ${errores[primero]}`,
-          details: Object.entries(errores).map(([field, message]) => ({ field, message })),
-        },
-        { status: 400 }
-      );
-    }
+    const invalido = respuestaErroresCampos(validarParametros(body), ETIQUETAS_PARAMETROS);
+    if (invalido) return invalido;
 
     const anterior = await prisma.systemConfig.findUnique({ where: { id: SINGLETON_ID } });
 

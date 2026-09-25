@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { EstadoGuia } from "@prisma/client";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, respuestaErroresCampos } from '@/lib/auth/guard';
 import type { SesionAutenticada } from '@/lib/auth/guard';
 import { tieneVisibilidadTotal, sedeIdParaCrear } from '@/lib/auth/sedeScope';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { generarNumeroGuia } from '@/lib/services/guiaDespachoService';
 import { auditLogService } from '@/lib/services/auditLogService';
-import { formatearRut, validarDigitoVerificador } from '@/lib/validations/rut';
+import { formatearRut } from '@/lib/validations/rut';
+import { ETIQUETAS_GUIA, validarNuevaGuia } from '@/lib/validations/guia';
 import { coincideBusqueda } from '@/lib/utils/text';
 
 /**
@@ -127,26 +128,9 @@ export async function POST(request: NextRequest) {
       sedeDestinoId,
     } = body;
 
-    if (!otChilexpress || !fechaDespacho || !receptorNombre || !receptorRut || !sedeDestinoId) {
-      return NextResponse.json(
-        { error: "Faltan campos requeridos" },
-        { status: 400 }
-      );
-    }
-
-    if (!assetIds || assetIds.length === 0) {
-      return NextResponse.json(
-        { error: "Debe seleccionar al menos un activo" },
-        { status: 400 }
-      );
-    }
-
-    if (!validarDigitoVerificador(receptorRut)) {
-      return NextResponse.json(
-        { error: "El RUT del receptor no es válido" },
-        { status: 400 }
-      );
-    }
+    // Mismas reglas que la pantalla (SPEC 2.104), con el campo de cada error.
+    const invalido = respuestaErroresCampos(validarNuevaGuia(body), ETIQUETAS_GUIA);
+    if (invalido) return invalido;
     const receptorRutFormateado = formatearRut(receptorRut);
 
     const sedeDestino = await prisma.sede.findUnique({ where: { id: sedeDestinoId } });

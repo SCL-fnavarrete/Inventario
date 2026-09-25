@@ -112,9 +112,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    if (!recibidoPor) {
+    if (!recibidoPor?.trim()) {
       return NextResponse.json(
-        { error: "Falta indicar quién confirma la recepción" },
+        {
+          error: "Falta indicar quién recibió",
+          details: [{ field: "recibidoPor", message: "Escribe quién recibió" }],
+        },
         { status: 400 }
       );
     }
