@@ -12,6 +12,7 @@ import {
   Loader2,
   GripVertical,
   Truck,
+  PackageOpen,
 } from "lucide-react";
 import { AssetCard } from "./AssetCard";
 import type { EstadoActivo, CondicionActivo } from "@prisma/client";
@@ -90,6 +91,16 @@ const columns: {
     color: "text-orange-600",
     bgColor: "bg-orange-50",
     borderColor: "border-orange-200",
+    soloLectura: true,
+  },
+  {
+    // Recien comprado (SPEC 2.111): se reparte desde su compra, no desde aqui.
+    id: "por_repartir",
+    label: "Por repartir",
+    icon: PackageOpen,
+    color: "text-purple-600",
+    bgColor: "bg-purple-50",
+    borderColor: "border-purple-200",
     soloLectura: true,
   },
   {

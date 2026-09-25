@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { descartarActivo } from '@/lib/services/activoService';
 
 type DeleteType =
   | "activos"
@@ -101,14 +102,29 @@ export async function POST(request: NextRequest) {
           message = `Se eliminaron ${deletedCount} mantenciones.`;
           break;
 
-        case "compras":
-          // Eliminar relación compra-activo primero
+        case "compras": {
+          // SPEC 2.111: los equipos que siguen "Por repartir" nunca se usaron
+          // y sin su compra no se podrian repartir: se descartan (su
+          // historial queda). Lo ya repartido queda en su sede.
+          const porRepartir = await tx.purchaseAsset.findMany({
+            where: { llegoConCompra: true, asset: { estado: "por_repartir", deletedAt: null } },
+            select: { assetId: true },
+          });
+          for (const { assetId } of porRepartir) {
+            await descartarActivo(tx, assetId, "se eliminaron todas las compras antes de repartirlo", session.user.email || "sistema");
+          }
+          // Lineas de Kit/EPP (y sus repartos); antes quedaban y la eliminacion fallaba.
+          await tx.purchaseKitItem.deleteMany({});
+          // Eliminar relación compra-activo
           await tx.purchaseAsset.deleteMany({});
           // Eliminar compras
           const comprasResult = await tx.purchase.deleteMany({});
           deletedCount = comprasResult.count;
-          message = `Se eliminaron ${deletedCount} compras y sus vínculos con activos.`;
+          message = `Se eliminaron ${deletedCount} compras y sus vínculos con activos.${
+            porRepartir.length > 0 ? ` Se descartaron ${porRepartir.length} equipo(s) que estaban por repartir.` : ""
+          }`;
           break;
+        }
 
       }
     });

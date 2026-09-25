@@ -375,6 +375,12 @@ function ActivosPageContent() {
     return;
   }
 
+  // Un equipo recien comprado se reparte desde su compra (SPEC 2.111).
+  if (currentStatus === "por_repartir") {
+    setKanbanError("Este equipo está por repartir: se reparte desde su compra, en Compras.");
+    return;
+  }
+
   // Un equipo en transito llega o se pierde en su guia, no desde el tablero.
   if (currentStatus === "en_transito") {
     setKanbanError(

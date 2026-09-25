@@ -3521,7 +3521,7 @@ Pedido de Javier: *"cambia el nombre guías por Despachos"*. Desde aquí, lo que
 
 ## 2.111 Compras: primero se compra, después se reparte a las sedes (25-sep-2026)
 
-**Estado: regla aprobada; se implementa por partes (2.111.9).** Hasta que cada parte se implemente, el sistema sigue funcionando como describen 2.10 y 2.36.
+**Estado: implementada (25-sep-2026), en cinco partes (2.111.9).** 2.10 y 2.36 quedan como historia en lo que esta sección reemplaza.
 
 Javier: *"yo había entendido mal y lo documenté como no debía ser. El principio es este: primero se compran los artículos, y luego se ve en qué sede se reparten."* La regla de 2.10 daba la compra por "de una sede": sus equipos nacían en ella y el Kit/EPP sumaba stock ahí mismo, como si al comprar ya se supiera el destino. Hoy lo comprado llega a Santiago y desde ahí se reparte.
 
@@ -3607,11 +3607,18 @@ Javier: *"la idea es que también los técnicos puedan ver lo que hay por repart
    - **Anular:** solo si ningún equipo ni unidad de Kit/EPP se resolvió. Un despacho de reparto devuelve sus equipos a "Por repartir" y su Kit/EPP a lo pendiente de la compra (el registro del reparto queda, marcado "anulado"); uno del módulo deja los equipos Disponibles, como antes. Ambos pasan por `validateTransition`.
    - **A prueba de dos personas a la vez:** cada línea se actualiza solo si sigue como se leyó.
    - La lista de Despachos muestra "+ N Kit/EPP" junto a los equipos.
-5. Vista del técnico, pruebas y prueba en navegador.
+5. **Hecha (25-sep-2026).** Revisión final, pedida por Javier: *"revisa cada alternativa posible"*.
+   - **Huecos encontrados y corregidos:**
+     - El **tablero** de Activos no tenía columna "Por repartir": esos equipos no se veían en esa vista. Se agrega, de solo lectura (arrastrarlos avisa que se reparten desde su compra).
+     - **Configuración > Mantenimiento > "Eliminar compras"** dejaba los equipos "Por repartir" sin compra (nunca se podrían repartir) y no borraba las líneas de Kit/EPP, por lo que fallaba con cualquier compra que tuviera Kit/EPP (esto último, desde 2.36). Ahora descarta esos equipos (queda su historial) y borra las líneas.
+     - El **técnico solo veía las compras de su sede** en el listado: el menú le fija su sede y la lista la mandaba como filtro. Como en los demás módulos, la sede del menú solo filtra a quien ve todas (2.111.6).
+     - La **ficha de un equipo de otra sede** ("Por repartir" o que viene en camino) le mostraba al técnico "Editar", "Programar mantención" y "Dar de baja", que al usarlos respondían "no encontrado". Ahora dice "Solo lectura: el equipo es de …" y no muestra acciones.
+   - **Prueba de punta a punta** con admin y un técnico de cada sede (66 casos, todos OK): registrar (sin sede, sin líneas, serie repetida en la lista o en el inventario sin dejar nada a medias, Kit/EPP de otra sede, técnico, solo Kit/EPP, solo equipos, vincular existente, factura repetida); editar la sede de llegada (ida y vuelta) y la factura; quitar (por repartir, línea, existente); repartir (sin elegir, de más, sin datos, sede inactiva, técnico, a la llegada, solo Kit/EPP, solo equipo, dos repartos a la vez, ya repartido, y lo que se bloquea después de repartir); recibir (sede origen, vacío, de más, parcial, faltante que llega, dos veces); perdido y "Apareció" (equipo, equipo vendido, Kit/EPP parcial, más de lo perdido); anular (destino, origen, repartir de nuevo, ya recibido, despacho del módulo); lo que ve el técnico; otros módulos que no aceptan un equipo "Por repartir" (Despachos > Nuevo, baja, cambio de estado a mano); eliminar (sin reparto, con el reparto anulado) y la compra que termina "Repartida".
+   - Sin probar en vivo, a propósito: "Eliminar compras" de Mantenimiento borra todas las compras de la base.
 
 ## Changelog SPEC
 - **v2.35 (2026-09-25):**
-  - Sección 2.111 (nueva, regla aprobada, se implementa por partes; hechas la 1, modelo y migración; la 2, registrar la compra; la 3, repartir; y la 4, Kit/EPP en despachos y "Apareció"): en Compras primero se compra y después se reparte. El técnico ve todas las compras y lo que hay por repartir, en solo lectura. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
+  - Sección 2.111 (nueva, regla aprobada, se implementa por partes; implementada en cinco partes: modelo; registrar; repartir; Kit/EPP en despachos y "Apareció"; revisión final con 4 huecos corregidos y 66 casos probados): en Compras primero se compra y después se reparte. El técnico ve todas las compras y lo que hay por repartir, en solo lectura. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
 - **v2.34 (2026-09-25):**
   - Sección 2.110 (nueva): "Guías de despacho" pasa a llamarse "Despachos" en pantallas, mensajes e historial; dirección `/despachos` con redirección desde la antigua; estados en masculino. Por dentro (datos, API, permiso, numeración GD) no cambia.
 - **v2.33 (2026-09-25):**

@@ -8,6 +8,7 @@ import {
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { NotFoundError } from '@/lib/errors';
+import { tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
 import {
   INCLUDE_AVANCE_REPARTO,
@@ -21,7 +22,7 @@ import {
 // GET /api/compras - Listar compras/facturas con filtros y paginación
 export async function GET(request: NextRequest) {
   try {
-    await requirePermission('compras', 'read');
+    const session = await requirePermission('compras', 'read');
 
     const searchParams = request.nextUrl.searchParams;
 
@@ -49,10 +50,11 @@ export async function GET(request: NextRequest) {
 
     // SPEC 2.111.6: la compra es de la empresa, asi que admin y tecnico ven
     // todas (lo pendiente todavia no tiene sede destino). La sede elegida en
-    // el menu filtra por sede de llegada.
+    // el menu filtra por sede de llegada, solo para quien ve todas: al
+    // tecnico el menu le fija su sede, y le esconderia lo que llega a otra.
     const where: Prisma.PurchaseWhereInput = {};
 
-    if (filters.sedeId) {
+    if (filters.sedeId && tieneVisibilidadTotal(session)) {
       where.sedeId = filters.sedeId;
     }
 
