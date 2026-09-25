@@ -1,16 +1,10 @@
-// Reglas de Configuracion > Parametros, compartidas por pantalla y servidor (SPEC 2.102).
+// Reglas de Configuracion > Seguridad, compartidas por pantalla y servidor (SPEC 2.102, 2.112).
 import { validarParametros } from '@/lib/validations/parametros';
 import { esCorreoValido } from '@/lib/utils/text';
 
 describe('validarParametros', () => {
-  test('los datos de la empresa son opcionales', () => {
-    expect(validarParametros({ empresaRut: '', empresaEmail: '' })).toEqual({});
-  });
-
-  test('RUT con digito verificador malo y email mal escrito se marcan por campo', () => {
-    const e = validarParametros({ empresaRut: '76.123.456-1', empresaEmail: 'contacto@' });
-    expect(e.empresaRut).toMatch(/dígito verificador/);
-    expect(e.empresaEmail).toBe('El email no es válido');
+  test('valores dentro de sus limites no tienen errores', () => {
+    expect(validarParametros({ duracionSesionHoras: 24, maxIntentosLogin: 5, minutosBloqueoLogin: 15 })).toEqual({});
   });
 
   test('parametros de seguridad fuera de sus limites', () => {

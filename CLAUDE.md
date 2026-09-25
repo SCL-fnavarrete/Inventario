@@ -37,7 +37,6 @@ mas `api/` con los endpoints REST agrupados por feature.
 | `src/lib/auth.ts` | NextAuth config: Credentials provider, JWT sessions (24h), rate limiting (5 attempts/15min) |
 | `src/lib/prisma.ts` | Prisma singleton (prevents connection pool exhaustion) |
 | `src/lib/services/assetHistoryService.ts` | Audit trail — logs all asset events with old/new values |
-| `src/lib/services/microsoftGraphService.ts` | Microsoft Entra ID (Azure AD) sync — fetches users via Graph API (read-only) |
 | `src/lib/services/workflowExecutionService.ts` | Ejecuta acciones de workflow: asignaciones, desvinculaciones, guias al hacer transiciones |
 | `src/lib/services/workflowStateMachine.ts` | Define estados válidos y transiciones permitidas por tipo de solicitud |
 | `src/lib/services/documentGeneratorService.ts` | Genera documentos (actas, reportes) asociados a solicitudes de workflow |
@@ -94,8 +93,8 @@ En produccion (Vercel) se aplica con `npm run db:migrate:prod`.
 - **Session checks:** All non-auth API routes must verify session via `getServerSession(authOptions)`
 - **Formatting:** Prettier with semicolons, single quotes, 100 char width, es5 trailing commas
 - **UI language:** All user-facing text is in Spanish
-- **RUT handling:** RUT is optional (`String?`). Employees synced from Microsoft may not have RUT. Always use null-safe access (`employee.rut || "—"`) and optional chaining (`employee.rut?.toLowerCase()`)
-- **Microsoft Sync:** Read-only integration with Microsoft Entra ID via Graph API. Sync is manual (admin-only button). Employees matched by `correo` on first sync, by `microsoftId` on subsequent syncs. Never writes to Entra ID
+- **RUT handling:** RUT is optional (`String?`): when unknown it is left blank. Always use null-safe access (`employee.rut || "—"`) and optional chaining (`employee.rut?.toLowerCase()`)
+- **Sin sincronización con Microsoft:** se eliminó (SPEC 2.112). Las personas se crean solo en Onboarding.
 - **Transiciones de estado de activos:** Toda transición de estado de un activo debe pasar por `assetStateMachine.validateTransition()`, dentro de su proceso: solicitudes (asignar, devolver, cambiar), mantenciones (la baja pasa siempre por una mantención "No reparable": `/api/mantenciones/baja` o al completar una, SPEC 2.88) y `/api/activos/[id]/venta`. El PUT de `/api/activos/[id]` no cambia el estado: lo rechaza con 409 (SPEC 2.86)
 - **Workflow/Solicitudes:** El sistema de solicitudes orquesta flujos completos (onboarding, cambio equipo, devolución por término). `workflowStateMachine` valida transiciones; `workflowExecutionService` ejecuta las acciones reales (crea asignaciones, desvinculaciones, guías). Las transiciones quedan en `WorkflowTransition` para auditoría
 - **Estilos y tema:** seguir `app/docs/DESIGN_SYSTEM.md`. Nunca colores fijos para superficies o texto (`bg-white`, `text-gray-900`, hex): usar los tokens (`bg-surface`, `text-fg`, `border-line`...) para que funcione el modo oscuro. Tarjetas destacadas con `card-feature` y color derivado de un dato real (`lib/constants/tonos.ts`); `<Tilt>` solo en pocas tarjetas, nunca en listas grandes
@@ -103,8 +102,8 @@ En produccion (Vercel) se aplica con `npm run db:migrate:prod`.
 
 ## Environment Variables
 
-Ver `.env.example`: conexion Neon (`DATABASE_URL` pooled y `DATABASE_URL_UNPOOLED`
-directa, requerida por las migraciones), NextAuth y credenciales de Microsoft Entra ID.
+Conexion Neon (`DATABASE_URL` pooled y `DATABASE_URL_UNPOOLED` directa, requerida
+por las migraciones) y NextAuth (`NEXTAUTH_URL`, `NEXTAUTH_SECRET`).
 
 ## Deployment
 

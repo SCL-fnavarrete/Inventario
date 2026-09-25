@@ -61,8 +61,6 @@ model Employee {
   fechaTermino         DateTime?       @map("fecha_termino")
   estado               EstadoEmpleado  @default(activo)
   telefonoContacto     String?         @map("telefono_contacto")
-  microsoftId          String?         @unique @map("microsoft_id")
-  origenMicrosoft       Boolean         @default(false) @map("origen_microsoft")
   createdAt            DateTime        @default(now()) @map("created_at")
   updatedAt            DateTime        @updatedAt @map("updated_at")
   fechaEntregaEpp      DateTime?       @map("fecha_entrega_epp")
@@ -81,7 +79,6 @@ model Employee {
   @@index([tipoContrato])
   @@index([ubicacion])
   @@index([jefatura])
-  @@index([microsoftId])
   @@index([createdAt])
   @@index([sedeId])
   @@map("employees")
@@ -543,16 +540,8 @@ model AuditLog {
 model SystemConfig {
   id                   String   @id @default("singleton")
 
-  // Datos de la empresa: por ahora solo se guardan como referencia, no se
-  // usan en actas/reportes.
-  empresaNombre        String?  @map("empresa_nombre")
-  empresaRut           String?  @map("empresa_rut")
-  empresaDireccion     String?  @map("empresa_direccion")
-  empresaTelefono      String?  @map("empresa_telefono")
-  empresaEmail         String?  @map("empresa_email")
-  empresaSitioWeb      String?  @map("empresa_sitio_web")
-
-  // Seguridad de sesion y login.
+  // Seguridad de sesion y login (Configuracion > Seguridad, SPEC 2.112).
+  // Los "datos de la empresa" se quitaron: no se usaban en ninguna parte.
   duracionSesionHoras  Int      @default(24) @map("duracion_sesion_horas")
   maxIntentosLogin     Int      @default(5) @map("max_intentos_login")
   minutosBloqueoLogin  Int      @default(15) @map("minutos_bloqueo_login")

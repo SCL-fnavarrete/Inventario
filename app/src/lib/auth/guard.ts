@@ -135,8 +135,6 @@ const ETIQUETA_CAMPO_UNICO: Record<string, string> = {
   nombre: 'nombre',
   email: 'correo',
   codigo: 'código',
-  microsoft_id: 'cuenta de Microsoft',
-  microsoftId: 'cuenta de Microsoft',
 };
 
 /**

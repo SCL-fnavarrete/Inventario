@@ -106,8 +106,6 @@ CREATE TABLE employees (
     fecha_termino DATE,                         -- NULL si es planta indefinido
     estado ENUM('activo', 'desvinculado', 'licencia') DEFAULT 'activo',
     telefono_contacto VARCHAR(20),
-    microsoft_id VARCHAR(255) UNIQUE,          -- ID del usuario en Microsoft Entra ID
-    origen_microsoft BOOLEAN DEFAULT false,    -- true si fue sincronizado desde Entra ID
     fecha_entrega_epp DATE,                    -- Fecha de entrega de EPP al empleado
     fecha_entrega_kit DATE,                    -- Fecha de entrega del kit de bienvenida
     proxima_mantencion_epp DATE,               -- Próxima revisión de EPP programada
@@ -116,10 +114,7 @@ CREATE TABLE employees (
 );
 ```
 
-> **NOTA:** `rut` es opcional porque empleados sincronizados desde Microsoft Entra ID pueden
-> no tener el RUT registrado en el directorio corporativo. `correo` es el identificador primario
-> para el negocio. En la primera sincronización el match se realiza por `correo`; en las
-> sincronizaciones posteriores se usa `microsoft_id` (más robusto ante cambios de email).
+> **NOTA:** `rut` es opcional: cuando no se conoce se deja en blanco en vez de inventarlo. La sincronización con Microsoft Entra ID, que originó esta regla, se eliminó (2.112).
 
 ### CATEGORÍAS DE ACTIVOS (asset_categories)
 ```sql
@@ -717,6 +712,8 @@ El campo `datos_accion JSONB` en `workflow_transitions` transporta los datos var
 ---
 
 ## 2.6 Integración Microsoft Entra ID (Azure AD)
+
+> **Eliminada (25-sep-2026, 2.112).** No se sincronizará con Microsoft por ahora. Lo que sigue queda como historia.
 
 ### Propósito
 
@@ -3610,14 +3607,44 @@ Javier: *"la idea es que también los técnicos puedan ver lo que hay por repart
 5. **Hecha (25-sep-2026).** Revisión final, pedida por Javier: *"revisa cada alternativa posible"*.
    - **Huecos encontrados y corregidos:**
      - El **tablero** de Activos no tenía columna "Por repartir": esos equipos no se veían en esa vista. Se agrega, de solo lectura (arrastrarlos avisa que se reparten desde su compra).
-     - **Configuración > Mantenimiento > "Eliminar compras"** dejaba los equipos "Por repartir" sin compra (nunca se podrían repartir) y no borraba las líneas de Kit/EPP, por lo que fallaba con cualquier compra que tuviera Kit/EPP (esto último, desde 2.36). Ahora descarta esos equipos (queda su historial) y borra las líneas.
+     - **Configuración > Mantenimiento > "Eliminar compras"** (herramienta eliminada después, en 2.112) dejaba los equipos "Por repartir" sin compra (nunca se podrían repartir) y no borraba las líneas de Kit/EPP, por lo que fallaba con cualquier compra que tuviera Kit/EPP (esto último, desde 2.36). Ahora descarta esos equipos (queda su historial) y borra las líneas.
      - El **técnico solo veía las compras de su sede** en el listado: el menú le fija su sede y la lista la mandaba como filtro. Como en los demás módulos, la sede del menú solo filtra a quien ve todas (2.111.6).
      - La **ficha de un equipo de otra sede** ("Por repartir" o que viene en camino) le mostraba al técnico "Editar", "Programar mantención" y "Dar de baja", que al usarlos respondían "no encontrado". Ahora dice "Solo lectura: el equipo es de …" y no muestra acciones.
    - **Prueba de punta a punta** con admin y un técnico de cada sede (66 casos, todos OK): registrar (sin sede, sin líneas, serie repetida en la lista o en el inventario sin dejar nada a medias, Kit/EPP de otra sede, técnico, solo Kit/EPP, solo equipos, vincular existente, factura repetida); editar la sede de llegada (ida y vuelta) y la factura; quitar (por repartir, línea, existente); repartir (sin elegir, de más, sin datos, sede inactiva, técnico, a la llegada, solo Kit/EPP, solo equipo, dos repartos a la vez, ya repartido, y lo que se bloquea después de repartir); recibir (sede origen, vacío, de más, parcial, faltante que llega, dos veces); perdido y "Apareció" (equipo, equipo vendido, Kit/EPP parcial, más de lo perdido); anular (destino, origen, repartir de nuevo, ya recibido, despacho del módulo); lo que ve el técnico; otros módulos que no aceptan un equipo "Por repartir" (Despachos > Nuevo, baja, cambio de estado a mano); eliminar (sin reparto, con el reparto anulado) y la compra que termina "Repartida".
-   - Sin probar en vivo, a propósito: "Eliminar compras" de Mantenimiento borra todas las compras de la base.
    - **"Recibido" significa cerrado** (decisión de Javier, 25-sep-2026: *"dejarlo así"*). Si todo lo de un despacho se marca "Se perdió" antes de confirmar la recepción (por ejemplo, Chilexpress avisa que el paquete se extravió), el despacho queda "Recibido" aunque no llegó nada: ya no queda nada pendiente. En ese caso la tarjeta "Recepción" muestra "Aún no se recibe" y lo perdido se ve en sus tablas y en el historial de cada equipo.
 
+## 2.112 Configuración: qué queda y qué se elimina (25-sep-2026)
+
+Pedido de Javier, tras el análisis completo del módulo: *"mejor elimínalo, es peligroso tener la posibilidad de eliminar datos, elimina todo lo relacionado a él"*, *"no se sincronizará con Microsoft de momento así que no sirve de nada"* y quitar los datos de la empresa.
+
+### 2.112.1 Se eliminan (parte 1)
+- **Mantenimiento de Datos** (borrado masivo): la pantalla, `/api/mantenimiento/counts` y `/api/mantenimiento/eliminar`. Borraba empleados, asignaciones y mantenciones completas (incluidas las que respaldan cada baja), dejaba equipos "Disponible" sin pasar por la máquina de estados ni dejar historial, no quedaba en Auditoría y mostraba un conteo que no era lo que borraba. Contradecía que el historial es evidencia y no se borra (2.7.7). El descarte puntual de duplicados sigue existiendo en la ficha del equipo.
+- **Sincronización con Microsoft Entra ID** (2.6): la pantalla, `/api/microsoft-sync` y `/api/microsoft-sync/status`, `microsoftGraphService`, la validación de empleados sincronizados y la etiqueta "Microsoft" en Personal y en la ficha del empleado. Además de no usarse, creaba empleados (las personas se crean solo en Onboarding) y los desvinculaba sin Offboarding. En la base se quitan `employees.microsoft_id` y `employees.origen_microsoft` (ningún empleado los usaba).
+- **Datos de la empresa** en Parámetros: no se usaban en ninguna parte (las actas imprimen el nombre y RUT fijos de `EMPRESA` en `pdfStyles`). En la base se quitan las seis columnas `system_config.empresa_*` (nunca se guardó nada).
+- Migración `20260925200000_configuracion_sin_microsoft_ni_empresa`.
+
+### 2.112.2 Lo que queda en Configuración
+Todo el módulo es solo de admin (`layout.tsx`, recurso `configuracion`).
+
+| Sección | Qué hace |
+|---|---|
+| Sedes | Crear, renombrar, activar o desactivar sedes |
+| Usuarios | Cuentas de acceso, rol y sede |
+| Catálogos de Activos | Categorías, Sistema Operativo, Antivirus y Licencia M365 (se unirán Categorías y Opciones de Activos) |
+| Seguridad | Antes "Parámetros Generales": duración de la sesión, intentos de inicio de sesión y minutos de bloqueo |
+| Auditoría | Quién hizo qué y cuándo |
+
+El catálogo de Kit/EPP sigue en Activos y los tipos de mantención en Mantenciones, porque el técnico también los maneja.
+
+### 2.112.3 Próximas partes
+2. Seguridad de los usuarios: que desactivar o cambiar el rol o la sede aplique sin esperar a que venza la sesión, que nunca se quede el sistema sin administradores, y un registro de inicios de sesión.
+3. Auditoría: filtros de fecha en hora de Chile, textos legibles y detalle entendible.
+4. Catálogos de Activos: unir Categorías y Opciones; "Requiere N° de serie" y "Requiere IMEI" pasan a funcionar (pensando en el futuro módulo de líneas telefónicas); avisos al renombrar.
+5. Usuarios, Sedes, celular, textos y limpieza de código.
+
 ## Changelog SPEC
+- **v2.36 (2026-09-25):**
+  - Sección 2.112 (nueva): Configuración se reduce a Sedes, Usuarios, Catálogos de Activos, Seguridad y Auditoría. Se eliminan Mantenimiento de Datos, la sincronización con Microsoft (2.6 queda como historia) y los datos de la empresa, con sus columnas en la base.
 - **v2.35 (2026-09-25):**
   - Sección 2.111 (nueva, regla aprobada, se implementa por partes; implementada en cinco partes: modelo; registrar; repartir; Kit/EPP en despachos y "Apareció"; revisión final con 4 huecos corregidos y 66 casos probados): en Compras primero se compra y después se reparte. El técnico ve todas las compras y lo que hay por repartir, en solo lectura. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
 - **v2.34 (2026-09-25):**

@@ -116,7 +116,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         fechaTermino: employee.fechaTermino,
         estado: employee.estado,
         telefonoContacto: employee.telefonoContacto,
-        origenMicrosoft: employee.origenMicrosoft,
       },
 
       // Notebooks asignados (ahora array)

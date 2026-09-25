@@ -42,7 +42,6 @@ type Employee = {
   tipoContrato: TipoContrato;
   estado: EstadoEmpleado;
   fechaIngreso: string | null;
-  origenMicrosoft?: boolean;
   _count: {
     assignments: number;
     kitAssignments: number;
@@ -462,11 +461,6 @@ export default function PersonalPage() {
                         >
                           {employee.nombres} {employee.apellidoPaterno}
                         </Link>
-                        {employee.origenMicrosoft && (
-                          <span className="ml-1.5 inline-flex items-center text-[10px] bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded font-normal">
-                            Microsoft
-                          </span>
-                        )}
                       </p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

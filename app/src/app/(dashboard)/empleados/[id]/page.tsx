@@ -94,7 +94,6 @@ type Ficha = {
     fechaTermino: string | null;
     estado: EstadoEmpleado;
     telefonoContacto: string | null;
-    origenMicrosoft?: boolean;
   };
   notebooks: NotebookAsignado[];
   celulares: CelularAsignado[];
@@ -232,11 +231,6 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
               <h2 className="text-2xl font-bold">{ficha.empleado.nombreCompleto}</h2>
               <p className="text-primary-200 font-mono">
                 {ficha.empleado.rut || "Sin RUT"}
-                {ficha.empleado.origenMicrosoft && (
-                  <span className="ml-2 inline-flex items-center text-[10px] bg-sky-500/20 text-sky-200 px-1.5 py-0.5 rounded">
-                    Microsoft
-                  </span>
-                )}
               </p>
             </div>
           </div>

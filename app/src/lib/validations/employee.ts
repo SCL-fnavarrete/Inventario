@@ -105,22 +105,7 @@ export const employeeFiltersSchema = z.object({
   sortOrder: z.enum(["asc", "desc"]).default("asc"),
 });
 
-// Schema para sincronizacion desde Microsoft Entra ID
-export const microsoftSyncEmployeeSchema = z.object({
-  microsoftId: z.string().min(1),
-  nombres: z.string().min(1).max(100),
-  apellidoPaterno: z.string().min(1).max(100),
-  apellidoMaterno: z.string().max(100).optional().nullable(),
-  correoEmpresa: z.string().email().max(150),
-  cargo: z.string().max(100).optional().nullable(),
-  jefatura: z.string().max(100).optional().nullable(),
-  supervisor: z.string().max(100).optional().nullable(),
-  ubicacion: z.string().max(100).optional().nullable(),
-  telefonoContacto: z.string().max(20).optional().nullable(),
-});
-
 // Tipos inferidos
 export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>;
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>;
 export type EmployeeFilters = z.infer<typeof employeeFiltersSchema>;
-export type MicrosoftSyncEmployeeInput = z.infer<typeof microsoftSyncEmployeeSchema>;

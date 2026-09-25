@@ -146,8 +146,8 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
     delete: SOLO_LECTURA,
   },
 
-  // Parametros, sincronizacion Microsoft y utilidades de mantenimiento de la
-  // base (incluido el borrado masivo). Solo admin.
+  // Seguridad (duracion de sesion, intentos de inicio de sesion) y
+  // Auditoria (SPEC 2.112). Solo admin.
   configuracion: {
     read: ADMIN,
     write: ADMIN,

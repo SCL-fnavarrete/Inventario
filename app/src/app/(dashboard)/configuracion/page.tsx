@@ -3,7 +3,6 @@ import {
   FolderTree,
   Users,
   Settings2,
-  Trash2,
   ShieldAlert,
   MapPin,
   History,
@@ -16,12 +15,9 @@ import { LinkArrow } from "@/components/ui/Button";
 import { Tilt } from "@/components/ui/Tilt";
 import { TONO_ACENTO } from "@/lib/constants/tonos";
 
-// Proveedores and Microsoft Sync are hidden from this menu (their
-// routes still exist) since they're unused/uncertain. Auditoria unifies
-// AuditLog + AssetHistory + WorkflowTransition (see auditoria/page.tsx).
-//
-// Todas las secciones usan el color de marca; solo la destructiva
-// (Mantenimiento de Datos) va en rojo, para que destaque como tal.
+// Secciones de Configuracion (SPEC 2.112). Todo el modulo es solo de admin
+// (layout.tsx). Se eliminaron Mantenimiento de Datos (borrado masivo),
+// la sincronizacion con Microsoft y Proveedores.
 const configSections = [
   {
     title: "Sedes",
@@ -52,8 +48,8 @@ const configSections = [
     adminOnly: false,
   },
   {
-    title: "Parámetros Generales",
-    description: "Datos de la empresa y seguridad (duración de sesión, intentos de login)",
+    title: "Seguridad",
+    description: "Duración de la sesión e intentos de inicio de sesión",
     href: "/configuracion/parametros",
     icon: Settings2,
     adminOnly: false,
@@ -64,14 +60,6 @@ const configSections = [
     href: "/configuracion/auditoria",
     icon: History,
     adminOnly: true,
-  },
-  {
-    title: "Mantenimiento de Datos",
-    description: "Eliminación masiva de registros (Solo Administradores)",
-    href: "/configuracion/mantenimiento",
-    icon: Trash2,
-    adminOnly: true,
-    destructiva: true,
   },
 ];
 
@@ -90,17 +78,9 @@ export default function ConfiguracionPage() {
             <Tilt key={section.href}>
               <Link
                 href={section.href}
-                className={cn(
-                  "card-feature group flex h-full items-start gap-4 p-6",
-                  TONO_ACENTO[section.destructiva ? "danger" : "primary"]
-                )}
+                className={cn("card-feature group flex h-full items-start gap-4 p-6", TONO_ACENTO.primary)}
               >
-                <div
-                  className={cn(
-                    "rounded-control p-3",
-                    section.destructiva ? "bg-red-50 text-red-600" : "bg-primary-50 text-primary-700"
-                  )}
-                >
+                <div className="rounded-control p-3 bg-primary-50 text-primary-700">
                   <Icon size={24} />
                 </div>
                 <div className="flex-1">

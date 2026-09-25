@@ -4,34 +4,24 @@ import { requirePermission, handleApiError, respuestaErroresCampos } from "@/lib
 import { auditLogService } from "@/lib/services/auditLogService";
 import { ETIQUETAS_PARAMETROS, validarParametros } from "@/lib/validations/parametros";
 
-// Configuracion general del sistema, guardada como fila unica ("singleton").
-// GET siempre la devuelve (con defaults si aun no se guardo nada) y PUT
-// hace upsert sobre ese mismo id.
+// Configuracion > Seguridad (SPEC 2.112), guardada como fila unica
+// ("singleton"). GET siempre la devuelve (con los valores por defecto si aun
+// no se guardo nada) y PUT hace upsert sobre ese mismo id.
 const SINGLETON_ID = "singleton";
+
+const POR_DEFECTO = { duracionSesionHoras: 24, maxIntentosLogin: 5, minutosBloqueoLogin: 15 };
 
 // GET /api/configuracion/parametros
 export async function GET() {
   try {
     await requirePermission('configuracion', 'read');
 
-    const config =
-      (await prisma.systemConfig.findUnique({ where: { id: SINGLETON_ID } })) ??
-      // Sin fila guardada aun: devolver los defaults sin crearla (se crea
-      // recien al primer PUT).
-      {
-        id: SINGLETON_ID,
-        empresaNombre: null,
-        empresaRut: null,
-        empresaDireccion: null,
-        empresaTelefono: null,
-        empresaEmail: null,
-        empresaSitioWeb: null,
-        duracionSesionHoras: 24,
-        maxIntentosLogin: 5,
-        minutosBloqueoLogin: 15,
-        updatedAt: null,
-        updatedPor: null,
-      };
+    const config = (await prisma.systemConfig.findUnique({ where: { id: SINGLETON_ID } })) ?? {
+      id: SINGLETON_ID,
+      ...POR_DEFECTO,
+      updatedAt: null,
+      updatedPor: null,
+    };
 
     return NextResponse.json(config);
   } catch (error) {
@@ -45,36 +35,16 @@ export async function PUT(request: NextRequest) {
     const session = await requirePermission('configuracion', 'write');
     const body = await request.json();
 
-    const {
-      empresaNombre,
-      empresaRut,
-      empresaDireccion,
-      empresaTelefono,
-      empresaEmail,
-      empresaSitioWeb,
-      duracionSesionHoras,
-      maxIntentosLogin,
-      minutosBloqueoLogin,
-    } = body;
-
-    // Mismas reglas que la pantalla (SPEC 2.102): RUT y email de la empresa
-    // bien escritos y parametros de seguridad dentro de sus limites. Cada
-    // error va con su campo y un mensaje legible.
+    // Mismas reglas que la pantalla (SPEC 2.102): cada valor dentro de sus
+    // limites, con el campo de cada error.
     const invalido = respuestaErroresCampos(validarParametros(body), ETIQUETAS_PARAMETROS);
     if (invalido) return invalido;
 
     const anterior = await prisma.systemConfig.findUnique({ where: { id: SINGLETON_ID } });
-
     const datos = {
-      empresaNombre: empresaNombre?.trim() || null,
-      empresaRut: empresaRut?.trim() || null,
-      empresaDireccion: empresaDireccion?.trim() || null,
-      empresaTelefono: empresaTelefono?.trim() || null,
-      empresaEmail: empresaEmail?.trim() || null,
-      empresaSitioWeb: empresaSitioWeb?.trim() || null,
-      duracionSesionHoras: duracionSesionHoras ?? anterior?.duracionSesionHoras ?? 24,
-      maxIntentosLogin: maxIntentosLogin ?? anterior?.maxIntentosLogin ?? 5,
-      minutosBloqueoLogin: minutosBloqueoLogin ?? anterior?.minutosBloqueoLogin ?? 15,
+      duracionSesionHoras: body.duracionSesionHoras ?? anterior?.duracionSesionHoras ?? POR_DEFECTO.duracionSesionHoras,
+      maxIntentosLogin: body.maxIntentosLogin ?? anterior?.maxIntentosLogin ?? POR_DEFECTO.maxIntentosLogin,
+      minutosBloqueoLogin: body.minutosBloqueoLogin ?? anterior?.minutosBloqueoLogin ?? POR_DEFECTO.minutosBloqueoLogin,
       updatedPor: session.user?.email,
     };
 
@@ -84,19 +54,18 @@ export async function PUT(request: NextRequest) {
       update: datos,
     });
 
-    // Auditoria de configuracion sensible; siempre "actualizar", incluso la
-    // primera vez que se guarda algo.
+    // Configuracion sensible: siempre queda en Auditoria.
     await auditLogService.registrarActualizacion(
       "configuracion",
       SINGLETON_ID,
-      "Parámetros generales del sistema actualizados",
+      "Seguridad del sistema actualizada",
       anterior
         ? {
             duracionSesionHoras: anterior.duracionSesionHoras,
             maxIntentosLogin: anterior.maxIntentosLogin,
             minutosBloqueoLogin: anterior.minutosBloqueoLogin,
           }
-        : { duracionSesionHoras: 24, maxIntentosLogin: 5, minutosBloqueoLogin: 15 },
+        : POR_DEFECTO,
       {
         duracionSesionHoras: config.duracionSesionHoras,
         maxIntentosLogin: config.maxIntentosLogin,
