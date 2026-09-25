@@ -542,14 +542,20 @@ model DispatchGuide {
   receptorNombre       String              @map("receptor_nombre")
   receptorRut          String              @map("receptor_rut")
   observaciones        String?
-  // Solo dos estados: la guia nace `despachado` (el efecto sobre los
-  // activos ya se aplico al crearla -- ver POST) y pasa a `realizado`
-  // cuando alguien confirma que llego fisicamente. Esa confirmacion es
-  // puramente informativa, no dispara ningun cambio de datos. La guia no
-  // se puede anular una vez creada.
-  estado               EstadoGuia          @default(despachado)
+  // SPEC 2.108: la guia nace `en_transito` y sus equipos quedan "En
+  // transito" en la sede de origen. Recien al confirmar la recepcion, la
+  // sede destino marca los que llegaron y esos pasan a su inventario:
+  // `recibida` si llegaron todos, `recibida_parcial` si faltan (cada
+  // faltante se resuelve despues como "Llego" o "Se perdio"). La sede de
+  // origen puede anularla mientras esta en transito (`anulada`): los equipos
+  // vuelven a "Disponible" en origen.
+  estado               EstadoGuia          @default(en_transito)
+  // Primera confirmacion de recepcion.
   fechaRecepcion       DateTime?           @map("fecha_recepcion")
   recibidoPor          String?             @map("recibido_por")
+  fechaAnulacion       DateTime?           @map("fecha_anulacion")
+  anuladaPor           String?             @map("anulada_por")
+  motivoAnulacion      String?             @map("motivo_anulacion")
   // Sede destino: obligatoria, se elige explicitamente en el formulario.
   // Al crear la guia, cada activo despachado cambia de inmediato a esta
   // sede (ver POST /api/guias-despacho).
@@ -600,6 +606,11 @@ model DispatchGuideItem {
   guideId       String        @map("guide_id")
   assetId       String        @map("asset_id")
   observaciones String?
+  // Cada equipo de la guia se resuelve por separado (SPEC 2.108): llega a
+  // la sede destino o se pierde (se da de baja por Extravio).
+  estado          EstadoItemGuia @default(en_transito)
+  fechaResolucion DateTime?      @map("fecha_resolucion")
+  resueltoPor     String?        @map("resuelto_por")
   createdAt     DateTime      @default(now()) @map("created_at")
   asset         Asset         @relation(fields: [assetId], references: [id])
   guide         DispatchGuide @relation(fields: [guideId], references: [id], onDelete: Cascade)
@@ -779,6 +790,9 @@ enum EstadoActivo {
   baja
   vendido
   no_devuelto
+  // Viaja en una guia de despacho (SPEC 2.108): sigue en la sede de origen
+  // hasta que la destino confirma que llego.
+  en_transito
 }
 
 enum CondicionActivo {
@@ -942,6 +956,14 @@ enum CondicionCargador {
 }
 
 enum EstadoGuia {
-  despachado
-  realizado
+  en_transito
+  recibida_parcial
+  recibida
+  anulada
+}
+
+enum EstadoItemGuia {
+  en_transito
+  recibido
+  perdido
 }

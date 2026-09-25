@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sedePropiaGuias, whereActivosPorLlegar } from '@/lib/queries/guias';
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
@@ -40,6 +41,7 @@ export async function GET(request: NextRequest) {
       baja: 0,
       vendido: 0,
       no_devuelto: 0,
+      en_transito: 0,
     };
 
     byStatusRaw.forEach((item) => {
@@ -96,8 +98,16 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // Equipos que vienen en camino a la sede (tarjeta "Por llegar", SPEC
+    // 2.108). null si no hay una sede propia (admin sin sede elegida).
+    const sedePropia = sedePropiaGuias(session, sedeIdFiltro);
+    const porLlegar = sedePropia
+      ? await prisma.asset.count({ where: whereActivosPorLlegar(sedePropia) })
+      : null;
+
     return NextResponse.json({
       total,
+      porLlegar,
       byStatus,
       byCategory,
       byCondition,

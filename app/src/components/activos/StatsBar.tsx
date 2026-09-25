@@ -8,6 +8,8 @@ import {
   XCircle,
   DollarSign,
   UserX,
+  Truck,
+  PackageOpen,
   Loader2,
   type LucideIcon,
 } from "lucide-react";
@@ -18,6 +20,8 @@ import { ESTADO_ACTIVO_TONO, TONO_ACENTO, TONO_ESTILO, type Tono } from "@/lib/c
 
 interface StatsData {
   total: number;
+  /** Equipos que vienen en camino a la sede (null si no hay sede propia). */
+  porLlegar: number | null;
   byStatus: {
     disponible: number;
     asignado: number;
@@ -25,6 +29,7 @@ interface StatsData {
     baja: number;
     vendido: number;
     no_devuelto: number;
+    en_transito: number;
   };
 }
 
@@ -37,7 +42,7 @@ interface StatsBarProps {
 
 // Tono de cada tarjeta: el mismo del badge del estado (ESTADO_ACTIVO_TONO).
 const statusConfig: Record<
-  "total" | EstadoActivo,
+  "total" | "por_llegar" | EstadoActivo,
   { label: string; icon: LucideIcon; tono: Tono }
 > = {
   total: { label: "Total", icon: Package, tono: "neutral" },
@@ -45,6 +50,9 @@ const statusConfig: Record<
   asignado: { label: "Asignado", icon: UserCheck, tono: ESTADO_ACTIVO_TONO.asignado },
   en_mantencion: { label: "Mantención", icon: Wrench, tono: ESTADO_ACTIVO_TONO.en_mantencion },
   no_devuelto: { label: "No devuelto", icon: UserX, tono: ESTADO_ACTIVO_TONO.no_devuelto },
+  en_transito: { label: "En tránsito", icon: Truck, tono: ESTADO_ACTIVO_TONO.en_transito },
+  // Vienen en camino a la sede (SPEC 2.108): todavia son de la sede de origen.
+  por_llegar: { label: "Por llegar", icon: PackageOpen, tono: "primary" },
   baja: { label: "Baja", icon: XCircle, tono: ESTADO_ACTIVO_TONO.baja },
   vendido: { label: "Vendido", icon: DollarSign, tono: ESTADO_ACTIVO_TONO.vendido },
 };
@@ -66,12 +74,19 @@ export function StatsBar({ data, isLoading, selectedStatus, onStatusClick }: Sta
     { key: "asignado", value: data.byStatus.asignado },
     { key: "en_mantencion", value: data.byStatus.en_mantencion },
     { key: "no_devuelto", value: data.byStatus.no_devuelto },
+    { key: "en_transito", value: data.byStatus.en_transito },
+    ...(data.porLlegar !== null ? [{ key: "por_llegar", value: data.porLlegar } as const] : []),
     { key: "baja", value: data.byStatus.baja },
     { key: "vendido", value: data.byStatus.vendido },
   ] as const;
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+    <div
+      className={cn(
+        "grid grid-cols-2 gap-3 sm:grid-cols-4",
+        statItems.length > 8 ? "lg:grid-cols-5 xl:grid-cols-9" : "lg:grid-cols-8"
+      )}
+    >
       {statItems.map(({ key, value }) => {
         const config = statusConfig[key];
         const Icon = config.icon;

@@ -12,6 +12,7 @@ import {
 } from '@/lib/auth/guard';
 import { logger } from '@/lib/logger';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
+import { vieneAMiSede } from '@/lib/queries/guias';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -50,7 +51,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
     }
 
-    assertSedeAccess(session, asset.sedeId, 'Activo no encontrado');
+    // La sede destino ve (solo lectura) un equipo que viene en camino a ella (SPEC 2.108).
+    if (!(await vieneAMiSede(session, asset.id))) {
+      assertSedeAccess(session, asset.sedeId, 'Activo no encontrado');
+    }
 
     return NextResponse.json(asset);
   } catch (error) {

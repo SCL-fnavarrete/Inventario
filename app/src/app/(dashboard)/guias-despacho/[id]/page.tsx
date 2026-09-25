@@ -4,71 +4,83 @@ import { useState, useEffect, useCallback, use } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
-  ArrowLeft,
   Loader2,
   Package,
   MapPin,
   User,
   Calendar,
   FileText,
+  CheckCircle,
+  XCircle,
+  Truck,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { parseApiError } from "@/lib/utils/apiErrors";
 import { especificacionesActivoTexto } from "@/lib/utils/assetSpecs";
 import {
   ESTADO_GUIA_LABELS,
   ESTADO_GUIA_COLORS,
+  ESTADO_ITEM_GUIA_LABELS,
+  ESTADO_ITEM_GUIA_COLORS,
   type DispatchGuideDetail,
+  type DispatchGuideItem,
 } from "@/types/guia-despacho";
-import { EstadoGuia } from "@prisma/client";
 import {
   ahoraParaInputFechaHora,
   formatearFechaLarga,
   formatearFechaHoraCorta,
   inputFechaHoraAISO,
 } from "@/lib/utils/fechas";
-import { CampoTexto, ResumenErrores } from "@/components/ui/CampoFormulario";
+import { AvisoSeccion, CampoTexto, ResumenErrores } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
-import { ETIQUETAS_GUIA } from "@/lib/validations/guia";
+import { ETIQUETAS_GUIA, validarRecepcion } from "@/lib/validations/guia";
+import { puedeAnularGuia, puedeConfirmarRecepcion } from "@/lib/auth/permisosGuia";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { buttonClasses } from "@/components/ui/buttonStyles";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Modal } from "@/components/ui/Modal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { VentanaMotivo } from "@/components/ui/VentanaMotivo";
 
-export default function GuiaDespachoDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+const BOTON_EXITO = "bg-success hover:bg-success-hover disabled:hover:bg-success";
+
+/**
+ * Detalle de una guia de despacho (SPEC 2.108). Los equipos viajan "En
+ * transito" hasta que la sede destino confirma cuales llegaron; los que
+ * faltan se resuelven despues uno a uno (llego / se perdio). La sede que
+ * despacho puede anularla mientras va en transito.
+ */
+export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data: session } = useSession();
   const [guide, setGuide] = useState<DispatchGuideDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  // Errors render in the shared ApiErrorSummary banner, consistent with
-  // other forms, instead of a blocking browser alert().
   const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  // La fecha parte con la hora de Chile (SPEC 2.104).
-  const [recepcionData, setRecepcionData] = useState({
+
+  // Ventanas: recepcion, anular, un faltante que llego o se perdio.
+  const [recibiendo, setRecibiendo] = useState(false);
+  const [anulando, setAnulando] = useState(false);
+  const [llego, setLlego] = useState<DispatchGuideItem | null>(null);
+  const [perdido, setPerdido] = useState<DispatchGuideItem | null>(null);
+
+  const [recepcion, setRecepcion] = useState({
     recibidoPor: "",
     fechaRecepcion: ahoraParaInputFechaHora(),
+    llegaron: [] as string[],
   });
-  // Validacion por campo, igual que el resto de los formularios (SPEC 2.95).
+  // Validacion por campo, con las mismas reglas que el servidor.
   const { errores, resumen, reportar, reportarServidor, limpiar } =
     useErroresFormulario(ETIQUETAS_GUIA);
 
   const fetchGuide = useCallback(async () => {
-    setLoading(true);
     try {
       const res = await fetch(`/api/guias-despacho/${id}`);
-      if (!res.ok) throw new Error("Error al cargar guía");
-      const data = await res.json();
-      setGuide(data);
+      if (!res.ok) throw new Error((await parseApiError(res, "Error al cargar la guía")).message);
+      setGuide(await res.json());
     } catch (err) {
-      // Surface the real error message instead of a generic "not found".
-      console.error("Error fetching guide:", err);
-      setError(err instanceof Error ? err.message : "Error al cargar guía");
+      setError(err instanceof Error ? err.message : "Error al cargar la guía");
     } finally {
       setLoading(false);
     }
@@ -78,227 +90,214 @@ export default function GuiaDespachoDetailPage({
     fetchGuide();
   }, [fetchGuide]);
 
-  async function handleConfirmarRecepcion() {
-    if (reportar(recepcionData.recibidoPor.trim() ? {} : { recibidoPor: "Escribe quién recibió" })) return;
+  /** Envia una accion y refresca la guia con lo que devuelve el servidor. */
+  async function enviar(url: string, method: string, body: unknown, fallback: string) {
     setUpdating(true);
     setError(null);
-    setFieldErrors({});
     try {
-      const res = await fetch(`/api/guias-despacho/${id}`, {
-        method: "PATCH",
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recibidoPor: recepcionData.recibidoPor,
-          // Instante exacto: el servidor no debe leerla en su propia zona horaria.
-          fechaRecepcion: inputFechaHoraAISO(recepcionData.fechaRecepcion),
-        }),
+        body: JSON.stringify(body),
       });
-
-      if (!res.ok) {
-        // Per-field errors are listed individually rather than flattened
-        // into one string; the modal stays open so the data can be fixed.
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar");
-        if (!reportarServidor(fe)) setError(message);
-        return;
-      }
-
-      await fetchGuide();
-      setShowConfirmModal(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al actualizar");
+      if (!res.ok) return { ok: false as const, ...(await parseApiError(res, fallback)) };
+      setGuide(await res.json());
+      return { ok: true as const };
+    } catch {
+      return { ok: false as const, message: fallback, fieldErrors: {} };
     } finally {
       setUpdating(false);
     }
   }
 
+  function abrirRecepcion() {
+    if (!guide) return;
+    // Parte con el receptor de la guia y todos los equipos marcados.
+    setRecepcion({
+      recibidoPor: guide.receptorNombre,
+      fechaRecepcion: ahoraParaInputFechaHora(),
+      llegaron: guide.items.map((i) => i.id),
+    });
+    reportar({});
+    setRecibiendo(true);
+  }
+
+  async function confirmarRecepcion() {
+    if (!guide) return;
+    const fechaISO = inputFechaHoraAISO(recepcion.fechaRecepcion);
+    const faltan = validarRecepcion(
+      { recibidoPor: recepcion.recibidoPor, fechaRecepcion: fechaISO },
+      guide.fechaDespacho
+    );
+    if (recepcion.llegaron.length === 0) faltan.llegaron = "Marca al menos un equipo que llegó";
+    if (reportar(faltan)) return;
+    const r = await enviar(
+      `/api/guias-despacho/${id}`,
+      "PATCH",
+      { recibidoPor: recepcion.recibidoPor, fechaRecepcion: fechaISO, llegaron: recepcion.llegaron },
+      "Error al confirmar la recepción"
+    );
+    if (r.ok) setRecibiendo(false);
+    else if (!reportarServidor(r.fieldErrors)) setError(r.message);
+  }
+
+  async function resolverItem(item: DispatchGuideItem, accion: "llego" | "perdido", motivo?: string) {
+    const r = await enviar(
+      `/api/guias-despacho/${id}/items/${item.id}`,
+      "POST",
+      { accion, motivo },
+      "Error al resolver el equipo"
+    );
+    setLlego(null);
+    setPerdido(null);
+    if (!r.ok) setError(r.message);
+  }
+
+  async function anular(motivo: string) {
+    const r = await enviar(`/api/guias-despacho/${id}/anular`, "POST", { motivo }, "Error al anular la guía");
+    setAnulando(false);
+    if (!r.ok) setError(r.message);
+  }
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-[400px] text-fg-muted">
         <Loader2 className="animate-spin mr-2" />
-        <span>Cargando guía...</span>
+        Cargando guía...
       </div>
     );
   }
 
   if (!guide) {
     return (
-      <div className="text-center py-12">
-        {error ? (
-          <div className="max-w-md mx-auto text-left">
-            <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
-          </div>
-        ) : (
-          <p className="text-fg-subtle">Guía de despacho no encontrada</p>
-        )}
-        <Link
-          href="/guias-despacho"
-          className="mt-4 inline-block text-primary-700 hover:text-primary-900"
-        >
-          Volver al listado
-        </Link>
+      <div className="space-y-6">
+        <PageHeader backHref="/guias-despacho" title="Guía de despacho" />
+        <ResumenErrores mensaje={error ?? "Guía de despacho no encontrada"} />
       </div>
     );
   }
 
-  // Confirmar recepción es una acción de la sede DESTINO: aunque la sede
-  // emisora también puede ver la guía (para saber que se despachó), no
-  // tiene sentido que confirme algo que le llegó a otra sede. El backend
-  // ya lo valida (403); esto solo evita mostrar un botón que va a fallar.
-  const esAdmin = session?.user?.role === "admin";
-  const puedeConfirmarRecepcion =
-    esAdmin || session?.user?.sedeId === guide.sedeDestino.id;
+  const sesion = session?.user ? { user: session.user } : null;
+  const puedeRecibir = !!sesion && puedeConfirmarRecepcion(sesion, guide);
+  const puedeAnular =
+    !!sesion &&
+    puedeAnularGuia(sesion, guide) &&
+    guide.estado === "en_transito" &&
+    guide.items.every((i) => i.estado === "en_transito");
+  const pendientes = guide.items.filter((i) => i.estado === "en_transito");
+  // Los faltantes se resuelven uno a uno despues de la recepcion; "se
+  // perdio" tambien antes (por ejemplo, un paquete extraviado).
+  const resolverFaltantes = puedeRecibir && (guide.estado === "en_transito" || guide.estado === "recibida_parcial");
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/guias-despacho"
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft size={24} />
-          </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-fg">{guide.numero}</h1>
-              <span
-                className={cn(
-                  "px-3 py-1 text-sm font-medium rounded-full",
-                  ESTADO_GUIA_COLORS[guide.estado]
-                )}
+      <PageHeader
+        backHref="/guias-despacho"
+        title={
+          <span className="flex flex-wrap items-center gap-3">
+            {guide.numero}
+            <span className={cn("px-3 py-1 text-sm font-medium rounded-full", ESTADO_GUIA_COLORS[guide.estado])}>
+              {ESTADO_GUIA_LABELS[guide.estado]}
+            </span>
+          </span>
+        }
+        description={`Creada el ${formatearFechaHoraCorta(guide.createdAt, "-")}`}
+        actions={
+          <>
+            {guide.estado === "en_transito" && puedeRecibir && (
+              <button onClick={abrirRecepcion} className={buttonClasses({ className: BOTON_EXITO })}>
+                <CheckCircle size={18} /> Confirmar recepción
+              </button>
+            )}
+            {puedeAnular && (
+              <button
+                onClick={() => setAnulando(true)}
+                className={buttonClasses({ variant: "outline", className: "text-red-600 border-red-300" })}
               >
-                {ESTADO_GUIA_LABELS[guide.estado]}
-              </span>
-            </div>
-            <p className="text-fg-muted">
-              Creada el {formatearFechaHoraCorta(guide.createdAt, "-")}
-            </p>
-          </div>
-        </div>
-      </div>
+                <XCircle size={18} /> Anular guía
+              </button>
+            )}
+          </>
+        }
+      />
 
-      {/* Error banner. When the reception modal is open, the error shows
-          inside it instead (it would be hidden behind the modal overlay). */}
-      {!showConfirmModal && (
-        <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
-      )}
+      <ResumenErrores mensaje={error ?? undefined} />
 
-      {/* Acción disponible: confirmar recepción. Es puramente informativo
-          -- los equipos ya quedaron disponibles en la sede destino al
-          crear la guía. La guía no se puede anular. */}
-      {guide.estado === EstadoGuia.despachado && (
-        <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
-          <p className="text-primary-900 mb-3">
-            ¿Ya llegó el paquete a {guide.sedeDestino.nombre}? Los equipos ya
-            están disponibles ahí; confirma la recepción cuando lo tengas en tus manos.
+      {/* Qué está pasando con la guía */}
+      {guide.estado === "en_transito" && (
+        <div className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sky-900 flex gap-3">
+          <Truck className="h-5 w-5 shrink-0 mt-0.5" />
+          <p className="text-sm">
+            Los equipos viajan hacia <strong>{guide.sedeDestino.nombre}</strong>. Siguen en{" "}
+            {guide.sede?.nombre ?? "la sede de origen"} hasta que {guide.sedeDestino.nombre} confirme cuáles
+            llegaron.
+            {!puedeRecibir && ` Solo ${guide.sedeDestino.nombre} puede confirmar la recepción.`}
           </p>
-          {puedeConfirmarRecepcion ? (
-            <button
-              onClick={() => setShowConfirmModal(true)}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-success-hover"
-            >
-              Confirmar Recepción
-            </button>
-          ) : (
-            <p className="text-sm text-primary-800 italic">
-              Solo un técnico de {guide.sedeDestino.nombre} puede confirmar la recepción.
-            </p>
-          )}
+        </div>
+      )}
+      {guide.estado === "recibida_parcial" && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 flex gap-3">
+          <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+          <p className="text-sm">
+            {pendientes.length === 1 ? "Falta 1 equipo" : `Faltan ${pendientes.length} equipos`}: siguen en
+            tránsito. {puedeRecibir ? "Resuélvelos abajo: llegó o se perdió." : `Los resuelve ${guide.sedeDestino.nombre}.`}
+          </p>
+        </div>
+      )}
+      {guide.estado === "anulada" && (
+        <div className="rounded-lg border border-line bg-surface-muted p-4 text-fg-muted flex gap-3">
+          <XCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <p className="text-sm">
+            Anulada el {formatearFechaHoraCorta(guide.fechaAnulacion, "-")} por {guide.anuladaPor ?? "-"}:{" "}
+            {guide.motivoAnulacion}. Los equipos volvieron a Disponible en {guide.sede?.nombre ?? "su sede"}.
+          </p>
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Datos del Despacho */}
         <div className="card p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <MapPin className="text-primary-700" size={20} />
             Datos del Despacho
           </h2>
           <dl className="space-y-3">
-            <div>
-              <dt className="text-sm text-fg-subtle">OT Chilexpress</dt>
-              <dd className="font-medium font-mono">{guide.otChilexpress}</dd>
-            </div>
-            {/* Sede origen, in addition to destino. */}
-            <div>
-              <dt className="text-sm text-fg-subtle">Sede origen</dt>
-              <dd className="font-medium">{guide.sede?.nombre || "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-fg-subtle">Sede destino</dt>
-              <dd className="font-medium">{guide.sedeDestino.nombre}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-fg-subtle">Emisor</dt>
-              <dd className="font-medium">{guide.despachadoPor}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-fg-subtle">Fecha de envío</dt>
-              <dd className="font-medium">{formatearFechaHoraCorta(guide.fechaDespacho, "-")}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-fg-subtle">Fecha estimada de llegada</dt>
-              <dd className="font-medium">{formatearFechaLarga(guide.fechaEstimadaLlegada, "-")}</dd>
-            </div>
+            <Dato label="OT Chilexpress"><span className="font-mono">{guide.otChilexpress}</span></Dato>
+            <Dato label="Sede origen">{guide.sede?.nombre || "—"}</Dato>
+            <Dato label="Sede destino">{guide.sedeDestino.nombre}</Dato>
+            <Dato label="Emisor">{guide.despachadoPor}</Dato>
+            <Dato label="Fecha de envío">{formatearFechaHoraCorta(guide.fechaDespacho, "-")}</Dato>
+            <Dato label="Fecha estimada de llegada">{formatearFechaLarga(guide.fechaEstimadaLlegada, "-")}</Dato>
           </dl>
         </div>
 
-        {/* Datos del Receptor */}
         <div className="card p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <User className="text-primary-700" size={20} />
             Receptor
           </h2>
           <dl className="space-y-3">
-            <div>
-              <dt className="text-sm text-fg-subtle">Nombre</dt>
-              <dd className="font-medium">{guide.receptorNombre}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-fg-subtle">RUT</dt>
-              <dd className="font-medium">{guide.receptorRut}</dd>
-            </div>
+            <Dato label="Nombre">{guide.receptorNombre}</Dato>
+            <Dato label="RUT">{guide.receptorRut}</Dato>
           </dl>
         </div>
 
-        {/* Estado y Recepción */}
         <div className="card p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Calendar className="text-primary-700" size={20} />
-            Estado y Recepción
+            Recepción
           </h2>
           <dl className="space-y-3">
-            <div>
-              <dt className="text-sm text-fg-subtle">Estado Actual</dt>
-              <dd>
-                <span
-                  className={cn(
-                    "inline-flex px-2 py-1 text-sm font-medium rounded-full",
-                    ESTADO_GUIA_COLORS[guide.estado]
-                  )}
-                >
-                  {ESTADO_GUIA_LABELS[guide.estado]}
-                </span>
-              </dd>
-            </div>
-            {guide.fechaRecepcion && (
-              <div>
-                <dt className="text-sm text-fg-subtle">Fecha de Recepción</dt>
-                <dd className="font-medium">{formatearFechaHoraCorta(guide.fechaRecepcion, "-")}</dd>
-              </div>
-            )}
-            {guide.recibidoPor && (
-              <div>
-                <dt className="text-sm text-fg-subtle">Recibido por</dt>
-                <dd className="font-medium">{guide.recibidoPor}</dd>
-              </div>
-            )}
+            <Dato label="Estado">
+              <span className={cn("inline-flex px-2 py-1 text-sm font-medium rounded-full", ESTADO_GUIA_COLORS[guide.estado])}>
+                {ESTADO_GUIA_LABELS[guide.estado]}
+              </span>
+            </Dato>
+            <Dato label="Fecha de recepción">{formatearFechaHoraCorta(guide.fechaRecepcion, "Aún no se recibe")}</Dato>
+            {guide.recibidoPor && <Dato label="Recibido por">{guide.recibidoPor}</Dato>}
           </dl>
         </div>
       </div>
 
-      {/* Observaciones */}
       {guide.observaciones && (
         <div className="card p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -309,7 +308,7 @@ export default function GuiaDespachoDetailPage({
         </div>
       )}
 
-      {/* Detalle de Equipos */}
+      {/* Equipos, cada uno con su estado */}
       <div className="card p-6">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <Package className="text-primary-700" size={20} />
@@ -319,55 +318,59 @@ export default function GuiaDespachoDetailPage({
           <table className="min-w-full divide-y divide-line">
             <thead className="bg-surface-muted">
               <tr>
-                <th className="table-th px-4">
-                  Tipo
-                </th>
-                <th className="table-th px-4">
-                  Marca / Modelo
-                </th>
-                <th className="table-th px-4">
-                  N° Serie
-                </th>
-                <th className="table-th px-4">
-                  IMEI
-                </th>
-                <th className="table-th px-4">
-                  Especificaciones
-                </th>
+                <th className="table-th px-4">Tipo</th>
+                <th className="table-th px-4">Marca / Modelo</th>
+                <th className="table-th px-4">N° Serie</th>
+                <th className="table-th px-4">Especificaciones</th>
+                <th className="table-th px-4">Estado</th>
+                {resolverFaltantes && <th className="table-th px-4 text-right">Acciones</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {guide.items.map((item) => {
                 const asset = item.asset;
-
-                // Shared helper builds specs for any category, not just
-                // Notebook/Celular, avoiding a duplicated list here.
-                const specs = especificacionesActivoTexto(asset) || "-";
-
                 return (
                   <tr key={item.id} className="hover:bg-surface-muted">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-gray-100 rounded">
-                          <CategoryIcon categoria={asset.categoria.nombre} className="h-5 w-5" />
-                        </div>
+                        <CategoryIcon categoria={asset.categoria.nombre} className="h-5 w-5 text-fg-subtle" />
                         <span className="text-sm">{asset.categoria.nombre}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-medium">
+                      <Link href={`/activos/${asset.id}`} className="font-medium hover:text-primary-700">
                         {asset.marca} {asset.modelo}
-                      </p>
+                      </Link>
                     </td>
-                    <td className="px-4 py-3 text-sm text-fg-muted">
-                      {asset.numeroSerie || "-"}
+                    <td className="px-4 py-3 text-sm text-fg-muted font-mono">{asset.numeroSerie || asset.imei || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-fg-muted">{especificacionesActivoTexto(asset) || "-"}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={cn("inline-flex px-2 py-1 text-xs font-medium rounded-full", ESTADO_ITEM_GUIA_COLORS[item.estado])}
+                        title={item.estado === "perdido" ? item.observaciones ?? undefined : undefined}
+                      >
+                        {ESTADO_ITEM_GUIA_LABELS[item.estado]}
+                      </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-fg-muted">
-                      {asset.imei || "-"}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-fg-muted">
-                      {specs}
-                    </td>
+                    {resolverFaltantes && (
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        {item.estado === "en_transito" && (
+                          <div className="flex justify-end gap-2">
+                            {guide.estado === "recibida_parcial" && (
+                              <button onClick={() => setLlego(item)} className={buttonClasses({ size: "sm", className: BOTON_EXITO })}>
+                                Llegó
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setPerdido(item)}
+                              className={buttonClasses({ size: "sm", variant: "outline", className: "text-red-600 border-red-300" })}
+                            >
+                              Se perdió
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -376,54 +379,130 @@ export default function GuiaDespachoDetailPage({
         </div>
       </div>
 
-      {/* Modal de Confirmación de Recepción */}
-      {showConfirmModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-surface rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Confirmar Recepción</h3>
-            {error && (
-              <div className="mb-4">
-                <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
-              </div>
-            )}
-            <div className="space-y-4 mb-6">
-              <ResumenErrores mensaje={resumen} />
-              <CampoTexto
-                label="Recibido por"
-                obligatorio
-                value={recepcionData.recibidoPor}
-                onChange={(v) => {
-                  setRecepcionData((prev) => ({ ...prev, recibidoPor: v }));
-                  limpiar("recibidoPor");
-                }}
-                placeholder="Nombre de quien recibe"
-                error={errores.recibidoPor}
-              />
-              <CampoTexto
-                label="Fecha de recepción"
-                type="datetime-local"
-                value={recepcionData.fechaRecepcion}
-                onChange={(v) => setRecepcionData((prev) => ({ ...prev, fechaRecepcion: v }))}
-              />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setShowConfirmModal(false)}
-                className={buttonClasses({ variant: "outline" })}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleConfirmarRecepcion}
-                disabled={updating}
-                className={buttonClasses({ className: "bg-success hover:bg-success-hover disabled:hover:bg-success" })}
-              >
-                {updating ? <Loader2 className="animate-spin" size={20} /> : "Confirmar"}
-              </button>
-            </div>
+      {/* Confirmar recepción: se marcan los equipos que llegaron */}
+      <Modal isOpen={recibiendo} onClose={() => setRecibiendo(false)} title="Confirmar recepción" size="lg">
+        <div className="space-y-4">
+          <ResumenErrores mensaje={resumen} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <CampoTexto
+              label="Recibido por"
+              obligatorio
+              value={recepcion.recibidoPor}
+              onChange={(v) => {
+                setRecepcion((prev) => ({ ...prev, recibidoPor: v }));
+                limpiar("recibidoPor");
+              }}
+              error={errores.recibidoPor}
+            />
+            <CampoTexto
+              label="Fecha de recepción"
+              type="datetime-local"
+              value={recepcion.fechaRecepcion}
+              onChange={(v) => {
+                setRecepcion((prev) => ({ ...prev, fechaRecepcion: v }));
+                limpiar("fechaRecepcion");
+              }}
+              error={errores.fechaRecepcion}
+            />
+          </div>
+          <div>
+            <p className="field-label">Marca los equipos que llegaron *</p>
+            <AvisoSeccion mensaje={errores.llegaron} className="mb-2" />
+            <ul className="border border-line rounded-lg divide-y divide-line max-h-72 overflow-y-auto">
+              {guide.items.map((item) => (
+                <li key={item.id}>
+                  <label className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-muted">
+                    <input
+                      type="checkbox"
+                      className="field-checkbox"
+                      checked={recepcion.llegaron.includes(item.id)}
+                      onChange={(e) => {
+                        limpiar("llegaron");
+                        setRecepcion((prev) => ({
+                          ...prev,
+                          llegaron: e.target.checked
+                            ? [...prev.llegaron, item.id]
+                            : prev.llegaron.filter((x) => x !== item.id),
+                        }));
+                      }}
+                    />
+                    <CategoryIcon categoria={item.asset.categoria.nombre} className="h-4 w-4 text-fg-subtle" />
+                    <span className="text-sm">
+                      <span className="font-medium">{item.asset.marca} {item.asset.modelo}</span>{" "}
+                      <span className="text-fg-subtle font-mono">{item.asset.numeroSerie ?? ""}</span>
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-fg-subtle mt-1">
+              Los que llegaron pasan a {guide.sedeDestino.nombre} como Disponibles. Los que no, siguen en tránsito y
+              se resuelven después.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setRecibiendo(false)} className={buttonClasses({ variant: "outline" })}>
+              Volver
+            </button>
+            <button onClick={confirmarRecepcion} disabled={updating} className={buttonClasses({ className: BOTON_EXITO })}>
+              {updating ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle size={18} />}
+              Confirmar {recepcion.llegaron.length} de {guide.items.length}
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
+
+      <ConfirmDialog
+        isOpen={llego !== null}
+        onClose={() => setLlego(null)}
+        onConfirm={() => {
+          if (llego) return resolverItem(llego, "llego");
+        }}
+        variant="info"
+        title="Confirmar que llegó"
+        message={llego ? `${llego.asset.marca} ${llego.asset.modelo} pasa a ${guide.sedeDestino.nombre} como Disponible.` : ""}
+        confirmLabel="Llegó"
+        cancelLabel="Volver"
+        loading={updating}
+      />
+      <VentanaMotivo
+        isOpen={perdido !== null}
+        onClose={() => setPerdido(null)}
+        onConfirm={(motivo) => {
+          if (perdido) return resolverItem(perdido, "perdido", motivo);
+        }}
+        titulo="Marcar como perdido"
+        descripcion={
+          perdido
+            ? `${perdido.asset.marca} ${perdido.asset.modelo} se da de baja por Extravío. Queda registrado como una mantención "Sin reparación".`
+            : undefined
+        }
+        etiqueta="Qué pasó"
+        placeholder="Ej: Chilexpress confirmó que el paquete se extravió..."
+        textoConfirmar="Dar de baja por extravío"
+        variante="danger"
+        cargando={updating}
+      />
+      <VentanaMotivo
+        isOpen={anulando}
+        onClose={() => setAnulando(false)}
+        onConfirm={anular}
+        titulo="Anular guía"
+        descripcion={`Los ${guide.items.length} equipos vuelven a Disponible en ${guide.sede?.nombre ?? "la sede de origen"}. La guía queda anulada.`}
+        placeholder="Ej: El paquete no salió, se envió a la sede equivocada..."
+        textoConfirmar="Anular guía"
+        variante="danger"
+        cargando={updating}
+      />
+    </div>
+  );
+}
+
+function Dato({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-sm text-fg-subtle">{label}</dt>
+      <dd className="font-medium">{children}</dd>
     </div>
   );
 }

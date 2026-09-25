@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { tipoCorrectivaPorDefecto } from '@/lib/services/mantencionActivoService';
 import type { CondicionCargador } from '@/lib/constants/condicionCargador';
 import { ConflictError, NotFoundError } from '@/lib/errors';
 import { etiquetaEstadoActivo, etiquetaEstadoDevolucion } from '@/lib/constants/estadosActivo';
@@ -352,9 +353,7 @@ async function enviarAMantencionPorDano(
   tx: PrismaTx,
   datos: { assetId: string; empleado: string; observaciones: string | null; usuario: string }
 ) {
-  const tipo =
-    (await tx.maintenanceType.findFirst({ where: { nombre: 'Correctiva', activo: true } })) ??
-    (await tx.maintenanceType.findFirst({ where: { activo: true }, orderBy: { nombre: 'asc' } }));
+  const tipo = await tipoCorrectivaPorDefecto(tx);
   if (!tipo) {
     throw new ConflictError(
       'No hay tipos de mantención activos para recibir un equipo dañado. Crea uno en Mantenciones > Tipos.'

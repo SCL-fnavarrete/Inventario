@@ -76,6 +76,7 @@ type Asset = {
 
 type StatsData = {
   total: number;
+  porLlegar: number | null;
   byStatus: {
     disponible: number;
     asignado: number;
@@ -83,6 +84,7 @@ type StatsData = {
     baja: number;
     vendido: number;
     no_devuelto: number;
+    en_transito: number;
   };
   byCategory: Array<{ id: string; nombre: string; count: number }>;
   byCondition: Record<string, number>;
@@ -224,7 +226,10 @@ function ActivosPageContent() {
           limit: limitParam.toString(),
         });
         if (searchQuery) params.append("search", searchQuery);
-        if (estadoFilter) params.append("estado", estadoFilter);
+        // "Por llegar" no es un estado: son los que vienen en camino a la
+        // sede (SPEC 2.108).
+        if (estadoFilter === "por_llegar") params.append("porLlegar", "1");
+        else if (estadoFilter) params.append("estado", estadoFilter);
         if (categoriaFilter) params.append("categoriaId", categoriaFilter);
         if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
 
@@ -359,6 +364,20 @@ function ActivosPageContent() {
   //vender un activo dado de baja: necesita comprador, monto y fecha
   if(currentStatus === "baja" && newStatus==="vendido"){
     router.push(`/activos/${assetId}/venta`);
+    return;
+  }
+
+  // Despachar a otra sede: con una guia de despacho (SPEC 2.108).
+  if (currentStatus === "disponible" && newStatus === "en_transito") {
+    router.push("/guias-despacho/nueva");
+    return;
+  }
+
+  // Un equipo en transito llega o se pierde en su guia, no desde el tablero.
+  if (currentStatus === "en_transito") {
+    setKanbanError(
+      "Este equipo viaja en una guía de despacho: cuando llegue, la sede destino confirma la recepción en la guía."
+    );
     return;
   }
 

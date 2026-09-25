@@ -401,7 +401,7 @@ export default function UsuariosPage() {
                 label="Sede"
                 obligatorio
                 error={errores.sedeId}
-                ayuda="Sede que se propone por defecto en sus formularios. No limita lo que puede ver: admin y técnico ven todas las sedes."
+                ayuda="El técnico ve y trabaja solo con los datos de su sede. El administrador ve todas."
               >
                 <select
                   value={formData.sedeId}

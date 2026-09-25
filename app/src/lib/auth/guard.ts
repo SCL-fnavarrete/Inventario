@@ -29,6 +29,7 @@ export {
   ConflictError,
   ValidationError,
   errorRepetido,
+  errorDeCampo,
 } from '@/lib/errors';
 
 /** Sesion autenticada, con el rol ya resuelto. */

@@ -10,7 +10,8 @@ import {
   XCircle,
   DollarSign,
   Loader2,
-  GripVertical
+  GripVertical,
+  Truck,
 } from "lucide-react";
 import { AssetCard } from "./AssetCard";
 import type { EstadoActivo, CondicionActivo } from "@prisma/client";
@@ -46,7 +47,7 @@ interface KanbanBoardProps {
   isUpdating?: boolean;
 }
 
-type StatusType = "disponible" | "asignado" | "en_mantencion" | "no_devuelto" | "baja" | "vendido";
+type StatusType = EstadoActivo;
 
 const columns: {
   id: StatusType;
@@ -89,6 +90,16 @@ const columns: {
     color: "text-orange-600",
     bgColor: "bg-orange-50",
     borderColor: "border-orange-200",
+    soloLectura: true,
+  },
+  {
+    // Viaja en una guia de despacho (SPEC 2.108): llega o se pierde en la guia.
+    id: "en_transito",
+    label: "En tránsito",
+    icon: Truck,
+    color: "text-sky-600",
+    bgColor: "bg-sky-50",
+    borderColor: "border-sky-200",
     soloLectura: true,
   },
   {
@@ -155,7 +166,7 @@ export function KanbanBoard({ assets, onStatusChange, isUpdating }: KanbanBoardP
       acc[col.id] = assets.filter((a) => a.estado === col.id);
       return acc;
     },
-    { disponible: [], asignado: [], en_mantencion: [], no_devuelto: [], baja: [], vendido: [] }
+    { disponible: [], asignado: [], en_mantencion: [], no_devuelto: [], en_transito: [], baja: [], vendido: [] }
   );
 
   return (

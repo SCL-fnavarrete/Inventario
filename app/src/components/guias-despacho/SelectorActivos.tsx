@@ -9,6 +9,7 @@ import {
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { etiquetaConectividad } from "@/lib/utils/assetSpecs";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { AssetConditionBadge } from "@/components/ui/Badge";
@@ -45,49 +46,59 @@ interface SelectorActivosProps {
   sedeId?: string;
 }
 
+// Cuantos equipos se muestran por busqueda: la lista es para elegir, y el
+// buscador busca en todo el inventario de la sede (SPEC 2.108).
+const LIMITE_RESULTADOS = 30;
+
 export function SelectorActivos({
   selectedAssets,
   onSelectionChange,
   sedeId,
 }: SelectorActivosProps) {
-  const [loading, setLoading] = useState(false);
   const [availableAssets, setAvailableAssets] = useState<Asset[]>([]);
+  const [totalDisponibles, setTotalDisponibles] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
+  const busqueda = useDebouncedValue(searchTerm, 350);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [categories, setCategories] = useState<{ id: string; nombre: string }[]>([]);
 
   useEffect(() => {
-    fetchAssets();
-    fetchCategories();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sedeId]);
+    fetch("/api/categorias")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setCategories(Array.isArray(data) ? data : []))
+      .catch(() => setCategories([]));
+  }, []);
 
-  async function fetchAssets() {
-    setLoading(true);
-    try {
-      // Solo "disponible": una guia de despacho exige que el activo este
-      // disponible al crearla. El filtro de sede solo tiene efecto para
-      // admin; para tecnico ya viene acotado por sesion.
-      const params = new URLSearchParams({ estado: "disponible", limit: "200" });
-      if (sedeId) params.set("sedeId", sedeId);
-      const disponibles = await fetch(`/api/activos?${params}`).then((r) => r.json());
-      setAvailableAssets(disponibles.data || []);
-    } catch (err) {
-      console.error("Error fetching assets:", err);
-    } finally {
-      setLoading(false);
-    }
-  }
+  // Busqueda en el servidor, con las mismas reglas que Activos (por palabras,
+  // en marca, modelo, serie...). Antes se traian hasta 200 y se filtraba en
+  // pantalla: con mas equipos, el resto no aparecia y no se avisaba.
+  // Solo "disponible": una guia exige que el equipo este disponible. El
+  // filtro de sede solo tiene efecto para admin; el tecnico ya viene
+  // acotado por sesion.
+  const params = new URLSearchParams({ estado: "disponible", limit: String(LIMITE_RESULTADOS) });
+  if (sedeId) params.set("sedeId", sedeId);
+  if (busqueda.trim()) params.set("search", busqueda.trim());
+  if (categoryFilter !== "all") params.set("categoriaId", categoryFilter);
+  const consulta = params.toString();
+  // Carga mientras la ultima respuesta no sea de la consulta actual.
+  const [cargada, setCargada] = useState<string | null>(null);
+  const loading = cargada !== consulta;
 
-  async function fetchCategories() {
-    try {
-      const res = await fetch("/api/categorias");
-      const data = await res.json();
-      setCategories(data || []);
-    } catch (err) {
-      console.error("Error fetching categories:", err);
-    }
-  }
+  useEffect(() => {
+    let vigente = true;
+    fetch(`/api/activos?${consulta}`)
+      .then((r) => (r.ok ? r.json() : { data: [], pagination: { total: 0 } }))
+      .catch(() => ({ data: [], pagination: { total: 0 } }))
+      .then((data) => {
+        if (!vigente) return;
+        setAvailableAssets(data.data || []);
+        setTotalDisponibles(data.pagination?.total ?? 0);
+        setCargada(consulta);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [consulta]);
 
   function toggleAsset(asset: Asset) {
     const isSelected = selectedAssets.some((a) => a.id === asset.id);
@@ -117,20 +128,8 @@ export function SelectorActivos({
     onSelectionChange(selectedAssets.filter((a) => !filteredIds.has(a.id)));
   }
 
-  const filteredAssets = availableAssets.filter((asset) => {
-    const matchesSearch =
-      !searchTerm ||
-      asset.marca.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      asset.modelo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      asset.numeroSerie?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      asset.imei?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      asset.numeroTelefono?.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesCategory =
-      categoryFilter === "all" || asset.categoria.id === categoryFilter;
-
-    return matchesSearch && matchesCategory;
-  });
+  // Ya vienen filtrados por el servidor.
+  const filteredAssets = availableAssets;
 
   const allFilteredSelected = filteredAssets.length > 0 &&
     filteredAssets.every((asset) => selectedAssets.some((a) => a.id === asset.id));
@@ -146,7 +145,7 @@ export function SelectorActivos({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" size={18} />
           <input
             type="text"
-            placeholder="Buscar por marca, modelo, serie, IMEI o teléfono..."
+            placeholder="Buscar por marca, modelo o serie..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="field-input pl-9 pr-3 text-sm outline-none"
@@ -177,6 +176,7 @@ export function SelectorActivos({
               {selectedAssets.length} equipo(s) seleccionado(s)
             </span>
             <button
+              type="button"
               onClick={() => onSelectionChange([])}
               className="text-xs text-primary-700 hover:text-primary-900 hover:underline"
             >
@@ -196,6 +196,8 @@ export function SelectorActivos({
                   <span className="text-primary-700">({asset.numeroSerie})</span>
                 )}
                 <button
+                  type="button"
+                  aria-label={`Quitar ${asset.marca} ${asset.modelo}`}
                   onClick={() => removeAsset(asset.id)}
                   className="ml-0.5 hover:text-primary-700"
                 >
@@ -223,6 +225,8 @@ export function SelectorActivos({
           <div className="bg-surface-muted border-b border-line px-3 py-2 flex items-center gap-3 text-xs font-medium text-fg-muted uppercase tracking-wide">
             <div className="w-6">
               <button
+                type="button"
+                aria-label={allFilteredSelected ? "Quitar los mostrados" : "Elegir los mostrados"}
                 onClick={allFilteredSelected ? deselectAll : selectAll}
                 className={cn(
                   "w-4 h-4 rounded border flex items-center justify-center transition-colors",
@@ -243,7 +247,7 @@ export function SelectorActivos({
             <div className="flex-1">Equipo</div>
             <div className="w-28 hidden sm:block">Serie/IMEI</div>
             <div className="w-20 hidden md:block">Info</div>
-            <div className="w-14 text-center">Estado</div>
+            <div className="w-14 text-center">Condición</div>
           </div>
 
           {/* Filas */}
@@ -334,7 +338,9 @@ export function SelectorActivos({
 
           {/* Footer con total */}
           <div className="bg-surface-muted border-t border-line px-3 py-2 text-xs text-fg-subtle">
-            Mostrando {filteredAssets.length} equipo(s) disponible(s)
+            {totalDisponibles > filteredAssets.length
+              ? `Mostrando ${filteredAssets.length} de ${totalDisponibles} disponibles: escribe para acotar la búsqueda`
+              : `${filteredAssets.length} equipo(s) disponible(s)`}
           </div>
         </div>
       )}

@@ -187,7 +187,8 @@ export default function NuevaGuiaDespachoPage() {
               Número de guía: <strong>{result.numero}</strong>
             </p>
             <p className="text-sm text-green-700 mb-2">
-              Los equipos ya quedaron disponibles en la sede destino.
+              Los equipos quedaron En tránsito: pasan a la sede destino cuando esta confirme que
+              llegaron.
             </p>
             <div className="mt-6 flex justify-center gap-4">
               <Link
@@ -398,9 +399,9 @@ export default function NuevaGuiaDespachoPage() {
         </h2>
 
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-          Al confirmar, los equipos seleccionados quedarán de inmediato
-          disponibles en <strong>{sedeDestinoNombre || "la sede destino"}</strong>.
-          Esta guía no se podrá anular después.
+          Los equipos quedarán <strong>En tránsito</strong>: siguen en la sede origen hasta que{" "}
+          <strong>{sedeDestinoNombre || "la sede destino"}</strong> confirme que llegaron. Mientras viajan,
+          puedes anular la guía.
         </div>
 
         <div className="flex justify-end gap-3">

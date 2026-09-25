@@ -59,8 +59,13 @@ describe('assetStateMachine — canTransitionAsset', () => {
 });
 
 describe('assetStateMachine — getValidTransitions', () => {
-  test('disponible puede ir a asignado, en_mantencion y baja', () => {
-    expect(getValidTransitions('disponible')).toEqual(['asignado', 'en_mantencion', 'baja']);
+  test('disponible puede ir a asignado, en_mantencion, baja y en_transito', () => {
+    expect(getValidTransitions('disponible')).toEqual(['asignado', 'en_mantencion', 'baja', 'en_transito']);
+  });
+
+  // SPEC 2.108: un equipo en transito llega (disponible) o se pierde (baja).
+  test('en_transito puede ir a disponible y baja', () => {
+    expect(getValidTransitions('en_transito')).toEqual(['disponible', 'baja']);
   });
 
   test('asignado puede ir a disponible, baja, en_mantencion y no_devuelto', () => {
@@ -188,6 +193,22 @@ describe('assetStateMachine — validateTransition', () => {
   test('en_mantencion→baja sin motivo es inválida', () => {
     const result = validateTransition('en_mantencion', 'baja', baseContext);
     expect(result.valid).toBe(false);
+  });
+
+  // SPEC 2.108: perdido en el despacho, baja por Extravio con motivo.
+  test('en_transito→baja sin motivo es inválida', () => {
+    expect(validateTransition('en_transito', 'baja', baseContext).valid).toBe(false);
+  });
+
+  test('en_transito→baja con motivo es válida', () => {
+    expect(
+      validateTransition('en_transito', 'baja', { ...baseContext, motivo: 'Extravío: no llegó' }).valid
+    ).toBe(true);
+  });
+
+  test('en_transito no puede asignarse ni ir a mantención', () => {
+    expect(validateTransition('en_transito', 'asignado', baseContext).valid).toBe(false);
+    expect(validateTransition('en_transito', 'en_mantencion', baseContext).valid).toBe(false);
   });
 
   test('en_mantencion→baja con motivo es válida', () => {

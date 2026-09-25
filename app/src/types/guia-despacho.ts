@@ -1,21 +1,4 @@
-import { EstadoGuia, CondicionActivo } from "@prisma/client";
-
-// Tipos para crear/confirmar guías
-export interface CreateDispatchGuideInput {
-  otChilexpress: string;
-  fechaDespacho: Date | string;
-  fechaEstimadaLlegada?: Date | string | null;
-  receptorNombre: string;
-  receptorRut: string;
-  observaciones?: string;
-  sedeDestinoId: string;
-  assetIds: string[];
-}
-
-export interface ConfirmarRecepcionInput {
-  recibidoPor: string;
-  fechaRecepcion?: Date | string;
-}
+import type { EstadoGuia, EstadoItemGuia, CondicionActivo } from "@prisma/client";
 
 // Tipos para mostrar en la UI
 export interface DispatchGuideAsset {
@@ -46,6 +29,9 @@ export interface DispatchGuideItem {
   id: string;
   assetId: string;
   observaciones: string | null;
+  estado: EstadoItemGuia;
+  fechaResolucion: Date | null;
+  resueltoPor: string | null;
   asset: DispatchGuideAsset;
 }
 
@@ -85,6 +71,11 @@ export interface DispatchGuideDetail {
   estado: EstadoGuia;
   fechaRecepcion: Date | null;
   recibidoPor: string | null;
+  fechaAnulacion: Date | null;
+  anuladaPor: string | null;
+  motivoAnulacion: string | null;
+  sedeId: string | null;
+  sedeDestinoId: string;
   createdAt: Date;
   updatedAt: Date;
   items: DispatchGuideItem[];
@@ -92,13 +83,29 @@ export interface DispatchGuideDetail {
   sedeDestino: DispatchGuideSede;
 }
 
-// Labels para mostrar en la UI
+// Nombres y colores para mostrar en la UI (SPEC 2.108).
 export const ESTADO_GUIA_LABELS: Record<EstadoGuia, string> = {
-  despachado: "Despachado",
-  realizado: "Realizado",
+  en_transito: "En tránsito",
+  recibida_parcial: "Recibida con faltantes",
+  recibida: "Recibida",
+  anulada: "Anulada",
 };
 
 export const ESTADO_GUIA_COLORS: Record<EstadoGuia, string> = {
-  despachado: "bg-blue-100 text-blue-800",
-  realizado: "bg-green-100 text-green-800",
+  en_transito: "bg-sky-50 text-sky-800 border border-sky-200",
+  recibida_parcial: "bg-amber-50 text-amber-800 border border-amber-200",
+  recibida: "bg-emerald-50 text-emerald-800 border border-emerald-200",
+  anulada: "bg-gray-100 text-fg-muted border border-line",
+};
+
+export const ESTADO_ITEM_GUIA_LABELS: Record<EstadoItemGuia, string> = {
+  en_transito: "En tránsito",
+  recibido: "Recibido",
+  perdido: "Perdido",
+};
+
+export const ESTADO_ITEM_GUIA_COLORS: Record<EstadoItemGuia, string> = {
+  en_transito: "bg-sky-50 text-sky-800 border border-sky-200",
+  recibido: "bg-emerald-50 text-emerald-800 border border-emerald-200",
+  perdido: "bg-red-50 text-red-800 border border-red-200",
 };

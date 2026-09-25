@@ -12,6 +12,7 @@ export const estadoActivoEnum = z.enum([
   "baja",
   "vendido",
   "no_devuelto",
+  "en_transito",
 ]);
 
 // Condiciones de activos validas

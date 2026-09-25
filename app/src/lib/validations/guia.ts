@@ -14,6 +14,9 @@ export const ETIQUETAS_GUIA: Record<string, string> = {
   receptorNombre: "Nombre del receptor",
   receptorRut: "RUT del receptor",
   recibidoPor: "Recibido por",
+  fechaRecepcion: "Fecha de recepción",
+  llegaron: "Equipos que llegaron",
+  motivo: "Motivo",
 };
 
 type DatosGuia = {
@@ -36,6 +39,23 @@ export function validarNuevaGuia(d: DatosGuia): Record<string, string> {
   if (!d.receptorRut?.trim()) e.receptorRut = "Escribe el RUT de quien recibe";
   else if (!validarDigitoVerificador(d.receptorRut.trim())) {
     e.receptorRut = "El RUT no es válido (revisa el dígito verificador)";
+  }
+  return e;
+}
+
+/**
+ * Confirmar la recepcion (SPEC 2.108): quien recibio es obligatorio y la
+ * fecha de recepcion no puede ser anterior al envio (un paquete no llega
+ * antes de salir). Las fechas son instantes exactos (ISO) o Date.
+ */
+export function validarRecepcion(
+  d: { recibidoPor?: string | null; fechaRecepcion?: string | Date | null },
+  fechaDespacho: string | Date
+): Record<string, string> {
+  const e: Record<string, string> = {};
+  if (!d.recibidoPor?.trim()) e.recibidoPor = "Escribe quién recibió";
+  if (d.fechaRecepcion && new Date(d.fechaRecepcion) < new Date(fechaDespacho)) {
+    e.fechaRecepcion = "La recepción no puede ser anterior a la fecha de envío";
   }
   return e;
 }

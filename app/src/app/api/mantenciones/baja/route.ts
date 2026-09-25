@@ -9,10 +9,8 @@ import {
   NotFoundError,
 } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
-import { assetHistoryService } from '@/lib/services/assetHistoryService';
-import { auditLogService } from '@/lib/services/auditLogService';
 import { validateTransition } from '@/lib/services/assetStateMachine';
-import { cancelarAbiertasPorBaja } from '@/lib/services/mantencionActivoService';
+import { darDeBajaEnTransaccion } from '@/lib/services/mantencionActivoService';
 import { etiquetaMotivoBaja, motivoSinBaja } from '@/lib/constants/estadosActivo';
 import { mantencionACerrar } from '@/lib/utils/mantenciones';
 
@@ -61,75 +59,25 @@ export async function POST(request: NextRequest) {
     });
     if (!transicion.valid) throw new ConflictError(transicion.errors[0]);
 
-    // Se cierra la en proceso o la pendiente mas antigua; su tipo manda. Las
-    // demas abiertas se cancelan.
-    const abierta = mantencionACerrar(asset.maintenances);
-    const tipo = abierta
-      ? abierta.tipo
-      : await prisma.maintenanceType.findUnique({ where: { id: data.tipoId } });
-    if (!tipo) throw new NotFoundError('Tipo de mantención no encontrado');
+    // Tipo de la mantencion nueva, si no hay una abierta que cerrar.
+    const tipo = await prisma.maintenanceType.findUnique({ where: { id: data.tipoId } });
+    if (!tipo && !mantencionACerrar(asset.maintenances)) {
+      throw new NotFoundError('Tipo de mantención no encontrado');
+    }
 
-    const cierre = {
-      estado: 'completada' as const,
-      fechaRealizada: data.fechaRealizada,
-      realizadoPor: data.realizadoPor,
-      resultado: data.observaciones?.trim() || motivoTexto,
-      resultadoTipo: 'no_reparable',
-      motivoBaja: motivoTexto,
-    };
-
-    const mantencion = await prisma.$transaction(async (tx) => {
-      const m = abierta
-        ? await tx.maintenance.update({ where: { id: abierta.id }, data: cierre })
-        : await tx.maintenance.create({
-            data: {
-              assetId: asset.id,
-              tipoId: tipo.id,
-              descripcion: `Dar de baja: ${motivoTexto}`,
-              fechaProgramada: data.fechaRealizada,
-              ...cierre,
-            },
-          });
-
-      // Un equipo de baja no queda con otras mantenciones pendientes.
-      await cancelarAbiertasPorBaja(tx, asset.id, m.id);
-
-      await tx.asset.update({
-        where: { id: asset.id },
-        data: { estado: 'baja', fechaBaja: data.fechaRealizada },
-      });
-
-      await assetHistoryService.registrarBaja(
-        asset.id,
-        `Mantención ${tipo.nombre}: ${motivoTexto}`,
-        asset.condicion,
+    // Los pasos de la baja son compartidos con el equipo perdido en una guia
+    // de despacho (darDeBajaEnTransaccion, SPEC 2.108).
+    const mantencion = await prisma.$transaction((tx) =>
+      darDeBajaEnTransaccion(tx, {
+        asset,
+        tipo: tipo ?? asset.maintenances[0].tipo,
+        motivoTexto,
+        resultado: data.observaciones?.trim() || motivoTexto,
+        fechaRealizada: data.fechaRealizada,
+        realizadoPor: data.realizadoPor,
         usuario,
-        tx
-      );
-
-      if (abierta) {
-        await auditLogService.registrarActualizacion(
-          'mantencion',
-          m.id,
-          `Mantención ${tipo.nombre} cerrada como Sin reparación: ${asset.marca} ${asset.modelo} dado de baja`,
-          { estado: abierta.estado },
-          { estado: 'completada', resultadoTipo: 'no_reparable', motivoBaja: motivoTexto },
-          usuario,
-          tx
-        );
-      } else {
-        await auditLogService.registrarCreacion(
-          'mantencion',
-          m.id,
-          `Mantención de baja: ${tipo.nombre} para ${asset.marca} ${asset.modelo}`,
-          { assetId: asset.id, tipoId: tipo.id, resultadoTipo: 'no_reparable', motivoBaja: motivoTexto },
-          usuario,
-          tx
-        );
-      }
-
-      return m;
-    });
+      })
+    );
 
     return NextResponse.json({ mantencion, assetId: asset.id }, { status: 201 });
   } catch (error) {

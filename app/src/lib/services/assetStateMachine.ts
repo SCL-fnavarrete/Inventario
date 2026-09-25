@@ -25,6 +25,7 @@ const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
     { to: 'asignado', description: 'Asignar a empleado' },
     { to: 'en_mantencion', description: 'Enviar a mantención' },
     { to: 'baja', description: 'Dar de baja sin uso previo' },
+    { to: 'en_transito', description: 'Despachar en una guía de despacho' },
   ],
   asignado: [
     // Devolver en buen estado deja el equipo en "disponible": ese es el
@@ -44,6 +45,12 @@ const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
   ],
   baja: [{ to: 'vendido', description: 'Registrar venta' }],
   vendido: [], // Estado terminal
+  // SPEC 2.108: llega (disponible en la sede destino), se anula la guia
+  // (disponible en origen) o se pierde (baja por Extravio).
+  en_transito: [
+    { to: 'disponible', description: 'Llegó a la sede destino, o se anuló la guía' },
+    { to: 'baja', description: 'Se perdió en el despacho' },
+  ],
   no_devuelto: [
     { to: 'disponible', description: 'Equipo recuperado en buen estado' },
     // SPEC 2.87: recuperado danado, pasa a evaluacion como cualquier
@@ -83,6 +90,13 @@ const TRANSITION_PRECONDITIONS: Record<string, (ctx: TransitionContext) => strin
     const errors: string[] = [];
     if (!ctx.motivo) {
       errors.push('Requiere motivo obligatorio (resultado no_reparable)');
+    }
+    return errors;
+  },
+  'en_transito→baja': (ctx) => {
+    const errors: string[] = [];
+    if (!ctx.motivo) {
+      errors.push('Requiere motivo obligatorio (equipo perdido en el despacho)');
     }
     return errors;
   },

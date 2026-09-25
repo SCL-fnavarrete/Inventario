@@ -1,46 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { EstadoGuia } from "@prisma/client";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import type { SesionAutenticada } from '@/lib/auth/guard';
-import { tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import {
+  requirePermission,
+  handleApiError,
+  respuestaErroresCampos,
+  ConflictError,
+} from '@/lib/auth/guard';
 import { NotFoundError, ForbiddenError } from '@/lib/errors';
+import { puedeConfirmarRecepcion } from '@/lib/queries/guias';
 import { auditLogService } from '@/lib/services/auditLogService';
+import {
+  INCLUDE_DETALLE_GUIA,
+  actualizarEstadoGuia,
+  buscarGuiaVisible,
+  recibirEquipos,
+} from '@/lib/services/guiaDespachoService';
+import { ETIQUETAS_GUIA, validarRecepcion } from '@/lib/validations/guia';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
-}
-
-/**
- * A una guia le importan DOS sedes (emisor y destino). Se repite aca en vez
- * de compartir con route.ts porque compara contra un registro ya cargado,
- * no arma un `where`.
- */
-function assertGuiaAccess(
-  session: SesionAutenticada,
-  guide: { sedeId: string | null; sedeDestinoId: string },
-  mensaje = 'Guía de despacho no encontrada'
-): void {
-  if (tieneVisibilidadTotal(session)) return;
-  const sedeId = session.user.sedeId;
-  if (!sedeId || (guide.sedeId !== sedeId && guide.sedeDestinoId !== sedeId)) {
-    throw new NotFoundError(mensaje);
-  }
-}
-
-/**
- * Confirmar recepción es una acción exclusiva de la sede destino; la sede
- * emisora tiene acceso de lectura/escritura via assertGuiaAccess pero no
- * puede confirmar por si misma.
- */
-function assertPuedeConfirmarRecepcion(
-  session: SesionAutenticada,
-  guide: { sedeDestinoId: string }
-): void {
-  if (tieneVisibilidadTotal(session)) return;
-  if (session.user.sedeId !== guide.sedeDestinoId) {
-    throw new ForbiddenError('Solo la sede destino puede confirmar la recepción de esta guía');
-  }
 }
 
 // GET /api/guias-despacho/[id] - Obtener detalle de guía
@@ -48,110 +26,67 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('guias', 'read');
     const { id } = await params;
-
-    const guide = await prisma.dispatchGuide.findUnique({
-      where: { id },
-      include: {
-        items: {
-          include: {
-            asset: {
-              include: {
-                categoria: true,
-              },
-            },
-          },
-        },
-        sede: true,
-        sedeDestino: true,
-      },
-    });
-
-    if (!guide) {
-      return NextResponse.json(
-        { error: "Guía de despacho no encontrada" },
-        { status: 404 }
-      );
-    }
-
-    assertGuiaAccess(session, guide);
-
-    return NextResponse.json(guide);
+    return NextResponse.json(await buscarGuiaVisible(session, id));
   } catch (error) {
     return handleApiError(error, 'Error al obtener guía de despacho');
   }
 }
 
-// PATCH /api/guias-despacho/[id] - Confirmar recepción.
-// Único cambio posible sobre una guía ya creada: es puramente informativo
-// y no toca datos de Activos (el traslado ya se aplicó al crearla).
+// PATCH /api/guias-despacho/[id] - Confirmar la recepción (SPEC 2.108).
+// La sede destino marca los equipos que llegaron: esos pasan a su inventario
+// como "Disponible". Los que no, siguen "En tránsito" y la guía queda "con
+// faltantes" hasta resolverlos uno a uno (llegó / se perdió).
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('guias', 'write');
     const { id } = await params;
-    const body = await request.json();
-    const { recibidoPor, fechaRecepcion } = body;
+    const { recibidoPor, fechaRecepcion, llegaron } = await request.json();
 
-    const existingGuide = await prisma.dispatchGuide.findUnique({
-      where: { id },
+    const guia = await buscarGuiaVisible(session, id);
+    if (!puedeConfirmarRecepcion(session, guia)) {
+      throw new ForbiddenError('Solo la sede destino puede confirmar la recepción de esta guía');
+    }
+    if (guia.estado !== 'en_transito') {
+      throw new ConflictError('Esta guía ya no está en tránsito: su recepción ya se confirmó o se anuló');
+    }
+
+    const errores = validarRecepcion({ recibidoPor, fechaRecepcion }, guia.fechaDespacho);
+    const idsLlegaron = Array.isArray(llegaron) ? (llegaron as string[]) : [];
+    if (idsLlegaron.length === 0) {
+      errores.llegaron = "Marca al menos un equipo que llegó";
+    }
+    const invalido = respuestaErroresCampos(errores, ETIQUETAS_GUIA);
+    if (invalido) return invalido;
+
+    const usuario = session.user?.email || recibidoPor;
+    const actualizada = await prisma.$transaction(async (tx) => {
+      const recibidos = await recibirEquipos(tx, guia, idsLlegaron, usuario);
+      if (recibidos === 0) throw new NotFoundError('Los equipos marcados no son de esta guía');
+
+      await tx.dispatchGuide.update({
+        where: { id },
+        data: {
+          recibidoPor,
+          fechaRecepcion: fechaRecepcion ? new Date(fechaRecepcion) : new Date(),
+        },
+      });
+      const estado = await actualizarEstadoGuia(tx, id, true);
+
+      await auditLogService.registrarActualizacion(
+        'guia_despacho',
+        id,
+        `Guía de despacho ${guia.numero}: recepción confirmada por ${recibidoPor} (${recibidos} de ${guia.items.length} equipos)`,
+        { estado: guia.estado },
+        { estado, recibidoPor, recibidos },
+        session.user?.email,
+        tx
+      );
+
+      return tx.dispatchGuide.findUniqueOrThrow({ where: { id }, include: INCLUDE_DETALLE_GUIA });
     });
 
-    if (!existingGuide) {
-      return NextResponse.json(
-        { error: "Guía de despacho no encontrada" },
-        { status: 404 }
-      );
-    }
-
-    assertGuiaAccess(session, existingGuide);
-    assertPuedeConfirmarRecepcion(session, existingGuide);
-
-    if (existingGuide.estado !== EstadoGuia.despachado) {
-      return NextResponse.json(
-        { error: "Esta guía ya fue marcada como realizada" },
-        { status: 400 }
-      );
-    }
-
-    if (!recibidoPor?.trim()) {
-      return NextResponse.json(
-        {
-          error: "Falta indicar quién recibió",
-          details: [{ field: "recibidoPor", message: "Escribe quién recibió" }],
-        },
-        { status: 400 }
-      );
-    }
-
-    const updatedGuide = await prisma.dispatchGuide.update({
-      where: { id },
-      data: {
-        estado: EstadoGuia.realizado,
-        recibidoPor,
-        fechaRecepcion: fechaRecepcion ? new Date(fechaRecepcion) : new Date(),
-      },
-      include: {
-        items: {
-          include: {
-            asset: { include: { categoria: true } },
-          },
-        },
-        sede: true,
-        sedeDestino: true,
-      },
-    });
-
-    // Auditoria generica: quien confirmo la recepcion.
-    await auditLogService.registrarActualizacion(
-      'guia_despacho',
-      updatedGuide.id,
-      `Guía de despacho ${updatedGuide.numero}: recepción confirmada por ${recibidoPor}`,
-      { estado: existingGuide.estado },
-      { estado: updatedGuide.estado, recibidoPor: updatedGuide.recibidoPor },
-      session.user?.email
-    );
-
-    return NextResponse.json(updatedGuide);
+    return NextResponse.json(actualizada);
   } catch (error) {
-    return handleApiError(error, 'Error al actualizar guía de despacho');
+    return handleApiError(error, 'Error al confirmar la recepción');
   }
 }

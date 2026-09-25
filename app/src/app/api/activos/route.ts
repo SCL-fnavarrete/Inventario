@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sedePropiaGuias, whereActivosPorLlegar } from '@/lib/queries/guias';
 import { prisma } from "@/lib/prisma";
 import { createAssetSchema, estadoActivoEnum } from "@/lib/validations/asset";
 import { assetHistoryService } from "@/lib/services/assetHistoryService";
@@ -34,9 +35,19 @@ export async function GET(request: NextRequest) {
     const categoriaId = searchParams.get("categoriaId") || "";
     const empleadoActualId = searchParams.get("empleadoActualId") || "";
 
+    // Filtro explicito de sede por query param: solo tiene efecto para
+    // admin, que puede acotar a una sede especifica. Para un tecnico se
+    // ignora, su propia sede ya viene forzada por sedeWhere().
+    const sedeIdFiltro = searchParams.get("sedeId") || "";
+    // "Por llegar" (SPEC 2.108): equipos que vienen en camino a mi sede.
+    // Todavia son de la sede de origen, por eso no pasan por sedeWhere.
+    const porLlegar = searchParams.get("porLlegar") === "1";
+
     // Los registros descartados no aparecen en el listado. Aislamiento por
     // sede: admin ve todo, el resto solo lo suyo.
-    const where: Record<string, unknown> = { ...ACTIVOS_VIGENTES, ...sedeWhere(session) };
+    const where: Record<string, unknown> = porLlegar
+      ? whereActivosPorLlegar(sedePropiaGuias(session, sedeIdFiltro))
+      : { ...ACTIVOS_VIGENTES, ...sedeWhere(session) };
 
     if (search) {
       // Por palabras: cada una debe aparecer en algun dato del activo o de
@@ -57,11 +68,7 @@ export async function GET(request: NextRequest) {
       where.empleadoActualId = empleadoActualId;
     }
 
-    // Filtro explicito de sede por query param: solo tiene efecto para
-    // admin, que puede acotar a una sede especifica. Para un tecnico se
-    // ignora, su propia sede ya viene forzada por sedeWhere().
-    const sedeIdFiltro = searchParams.get("sedeId") || "";
-    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
+    if (sedeIdFiltro && tieneVisibilidadTotal(session) && !porLlegar) {
       where.sedeId = sedeIdFiltro;
     }
 

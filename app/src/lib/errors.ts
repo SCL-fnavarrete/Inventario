@@ -48,13 +48,16 @@ export class ConflictError extends ApiError {
 }
 
 /**
- * Valor que ya existe en otro registro (nombre, codigo, email, RUT...). Lleva
- * el campo para que el formulario lo marque en rojo (SPEC 2.102), como los
- * errores que detecta la propia pantalla.
+ * Conflicto de un campo del formulario (409). Lleva el campo para que la
+ * pantalla lo marque en rojo (SPEC 2.102), como los errores que detecta ella
+ * misma.
  */
-export function errorRepetido(campo: string, mensaje: string): ConflictError {
+export function errorDeCampo(campo: string, mensaje: string): ConflictError {
   return new ConflictError(mensaje, [{ field: campo, message: mensaje }]);
 }
+
+/** Valor que ya existe en otro registro (nombre, codigo, email, RUT...). */
+export const errorRepetido = errorDeCampo;
 
 export class ValidationError extends ApiError {
   constructor(message = 'Datos inválidos', details?: unknown) {

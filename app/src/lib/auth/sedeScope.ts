@@ -16,7 +16,7 @@ import { NotFoundError, ValidationError } from '@/lib/errors';
  */
 
 /** ¿Este rol ve todas las sedes sin restriccion? Hoy: solo admin. */
-export function tieneVisibilidadTotal(session: SesionAutenticada): boolean {
+export function tieneVisibilidadTotal(session: Pick<SesionAutenticada, "user"> | { user: { role: string } }): boolean {
   return session.user.role === 'admin';
 }
 

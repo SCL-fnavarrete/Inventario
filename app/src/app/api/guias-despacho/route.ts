@@ -1,28 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { EstadoGuia } from "@prisma/client";
-import { requirePermission, handleApiError, respuestaErroresCampos } from '@/lib/auth/guard';
-import type { SesionAutenticada } from '@/lib/auth/guard';
+import { EstadoGuia, Prisma } from "@prisma/client";
+import {
+  requirePermission,
+  handleApiError,
+  respuestaErroresCampos,
+  errorDeCampo,
+} from '@/lib/auth/guard';
 import { tieneVisibilidadTotal, sedeIdParaCrear } from '@/lib/auth/sedeScope';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import {
+  VISTAS_GUIA,
+  sedePropiaGuias,
+  whereGuiaVisible,
+  type VistaGuia,
+} from '@/lib/queries/guias';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
-import { generarNumeroGuia } from '@/lib/services/guiaDespachoService';
+import { crearGuiaConNumero } from '@/lib/services/guiaDespachoService';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { formatearRut } from '@/lib/validations/rut';
 import { ETIQUETAS_GUIA, validarNuevaGuia } from '@/lib/validations/guia';
+import { etiquetaEstadoActivo } from '@/lib/constants/estadosActivo';
 import { coincideBusqueda } from '@/lib/utils/text';
-
-/**
- * Visibilidad de una guia de despacho: a diferencia del resto de modulos,
- * a una guia le importan DOS sedes -- la del emisor y la destino, porque
- * el tecnico receptor tambien necesita verla y confirmar su recepcion.
- * Admin ve todas.
- */
-function guiaWhereVisible(session: SesionAutenticada): Record<string, unknown> {
-  if (tieneVisibilidadTotal(session)) return {};
-  const sedeId = session.user.sedeId ?? '__sin_sede_asignada__';
-  return { OR: [{ sedeId }, { sedeDestinoId: sedeId }] };
-}
 
 // GET /api/guias-despacho - Listar guías de despacho
 export async function GET(request: NextRequest) {
@@ -34,7 +33,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
 
-    const condiciones: Record<string, unknown>[] = [guiaWhereVisible(session)];
+    const condiciones: Prisma.DispatchGuideWhereInput[] = [whereGuiaVisible(session)];
 
     if (estado) {
       condiciones.push({ estado });
@@ -43,6 +42,16 @@ export async function GET(request: NextRequest) {
     // Filtrar por AMBAS puntas: una guia interesa tanto a la sede que
     // despacha como a la que recibe.
     const sedeIdFiltro = searchParams.get("sedeId") || "";
+
+    // Tarjeta pulsada (SPEC 2.108): misma condicion que cuenta la tarjeta.
+    const vista = searchParams.get("vista") as VistaGuia | null;
+    if (vista && vista in VISTAS_GUIA) {
+      condiciones.push(
+        vista === "por_recibir"
+          ? VISTAS_GUIA.por_recibir(sedePropiaGuias(session, sedeIdFiltro))
+          : VISTAS_GUIA[vista]()
+      );
+    }
     if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
       condiciones.push({
         OR: [{ sedeId: sedeIdFiltro }, { sedeDestinoId: sedeIdFiltro }],
@@ -109,10 +118,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/guias-despacho - Crear nueva guía de despacho.
-// Crearla aplica de inmediato su efecto: cada activo pasa a la sede destino
-// y queda disponible ahi. No existe estado "pendiente" y la guia no se
-// puede anular; "Confirmar Recepción" despues es solo informativo.
+// POST /api/guias-despacho - Crear nueva guía de despacho (SPEC 2.108).
+// Los equipos quedan "En tránsito" en la sede de origen: pasan a la sede
+// destino recien cuando esta confirma que llegaron. Mientras tanto la sede de
+// origen puede anular la guia.
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('guias', 'write');
@@ -124,7 +133,6 @@ export async function POST(request: NextRequest) {
       receptorNombre,
       receptorRut,
       observaciones,
-      assetIds,
       sedeDestinoId,
     } = body;
 
@@ -132,36 +140,38 @@ export async function POST(request: NextRequest) {
     const invalido = respuestaErroresCampos(validarNuevaGuia(body), ETIQUETAS_GUIA);
     if (invalido) return invalido;
     const receptorRutFormateado = formatearRut(receptorRut);
+    // Un equipo repetido en la lista se despacha una sola vez.
+    const assetIds = [...new Set(body.assetIds as string[])];
 
     const sedeDestino = await prisma.sede.findUnique({ where: { id: sedeDestinoId } });
-    if (!sedeDestino) {
-      return NextResponse.json(
-        { error: "Sede destino no encontrada" },
-        { status: 400 }
-      );
+    if (!sedeDestino) throw errorDeCampo("sedeDestinoId", "La sede destino no existe");
+    // La pantalla solo ofrece sedes activas; el servidor tambien lo exige (SPEC 2.108).
+    if (!sedeDestino.activa) {
+      throw errorDeCampo("sedeDestinoId", `La sede ${sedeDestino.nombre} está inactiva`);
     }
-
-    // Generar número de guía usando la lógica compartida con GET /numero.
-    const numero = await generarNumeroGuia();
 
     // Verificar que los activos existen y están disponibles -- no se puede
     // despachar algo que ya esta asignado, en mantencion, de baja, etc.
     const assets = await prisma.asset.findMany({
       where: { ...ACTIVOS_VIGENTES, id: { in: assetIds } },
+      include: { sede: { select: { nombre: true } } },
     });
 
     if (assets.length !== assetIds.length) {
-      return NextResponse.json(
-        { error: "Algunos activos no fueron encontrados" },
-        { status: 400 }
+      throw errorDeCampo(
+        "assetIds",
+        "Uno o más equipos ya no existen en el inventario. Vuelve a elegirlos."
       );
     }
 
-    if (assets.some((a) => a.estado !== "disponible")) {
-      return NextResponse.json(
-        { error: "Algunos activos no están disponibles para despacho" },
-        { status: 400 }
-      );
+    // El mensaje dice cual y por que (SPEC 2.108): puede haber cambiado
+    // mientras se llenaba el formulario.
+    const noDisponibles = assets.filter((a) => a.estado !== "disponible");
+    if (noDisponibles.length > 0) {
+      const detalle = noDisponibles
+        .map((a) => `${a.marca} ${a.modelo} (${a.numeroSerie ?? "sin serie"}): ${etiquetaEstadoActivo(a.estado)}`)
+        .join("; ");
+      throw errorDeCampo("assetIds", `Ya no están disponibles para despacho: ${detalle}`);
     }
 
     // Defensa en profundidad: un no-admin no puede despachar activos que no
@@ -170,23 +180,23 @@ export async function POST(request: NextRequest) {
     const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId, {
       requerido: true,
     });
-    if (sedeId && assets.some((a) => a.sedeId !== sedeId)) {
-      return NextResponse.json(
-        { error: "Algunos activos no pertenecen a tu sede" },
-        { status: 400 }
-      );
+    const deOtraSede = assets.filter((a) => a.sedeId !== sedeId);
+    if (sedeId && deOtraSede.length > 0) {
+      const detalle = deOtraSede
+        .map((a) => `${a.marca} ${a.modelo} (${a.sede?.nombre ?? "sin sede"})`)
+        .join("; ");
+      throw errorDeCampo("assetIds", `No son de la sede origen: ${detalle}`);
     }
 
     if (sedeId && sedeDestinoId === sedeId) {
-      return NextResponse.json(
-        { error: "La sede destino debe ser distinta de tu propia sede" },
-        { status: 400 }
-      );
+      throw errorDeCampo("sedeDestinoId", "La sede destino debe ser distinta de la sede origen");
     }
 
     const emisor = session.user.name || session.user.email || "Técnico";
 
-    const guide = await prisma.$transaction(async (tx) => {
+    // El numero se toma dentro de la transaccion; si otra guia simultanea ya
+    // lo uso, se reintenta con el siguiente (SPEC 2.108).
+    const guide = await crearGuiaConNumero(async (numero, tx) => {
       const nuevaGuia = await tx.dispatchGuide.create({
         data: {
           numero,
@@ -197,11 +207,11 @@ export async function POST(request: NextRequest) {
           receptorNombre,
           receptorRut: receptorRutFormateado,
           observaciones: observaciones || null,
-          estado: EstadoGuia.despachado,
+          estado: EstadoGuia.en_transito,
           sedeId,
           sedeDestinoId,
           items: {
-            create: (assetIds as string[]).map((assetId) => ({ assetId })),
+            create: assetIds.map((assetId) => ({ assetId })),
           },
         },
         include: {
@@ -219,26 +229,28 @@ export async function POST(request: NextRequest) {
         'guia_despacho',
         nuevaGuia.id,
         `Guía de despacho creada: ${nuevaGuia.numero} (OT ${otChilexpress})`,
-        { sedeId, sedeDestinoId, cantidadEquipos: (assetIds as string[]).length },
+        { sedeId, sedeDestinoId, cantidadEquipos: assetIds.length },
         session.user?.email,
         tx
       );
 
-      for (const assetId of assetIds as string[]) {
+      for (const assetId of assetIds) {
         const sedeAnteriorId = assets.find((a) => a.id === assetId)?.sedeId ?? null;
 
+        // Sigue en su sede hasta que llegue (SPEC 2.108).
         await tx.asset.update({
           where: { id: assetId },
-          data: { sedeId: sedeDestinoId, estado: "disponible" },
+          data: { estado: "en_transito" },
         });
 
         await assetHistoryService.registrar(
           {
             assetId,
             tipoEvento: 'traslado',
-            descripcion: `Despachado a ${sedeDestino.nombre} vía guía ${nuevaGuia.numero} (OT Chilexpress ${otChilexpress})`,
-            datosAnteriores: { sedeId: sedeAnteriorId },
-            datosNuevos: { sedeId: sedeDestinoId, guideId: nuevaGuia.id },
+            descripcion: `Despachado a ${sedeDestino.nombre} vía guía ${nuevaGuia.numero} (OT Chilexpress ${otChilexpress}): en tránsito`,
+            datosAnteriores: { estado: "disponible", sedeId: sedeAnteriorId },
+            datosNuevos: { estado: "en_transito", guideId: nuevaGuia.id, sedeDestinoId },
+            usuarioSistema: session.user?.email,
           },
           tx
         );

@@ -38,4 +38,5 @@ export const ESTADO_ACTIVO_TONO: Record<EstadoActivo, Tono> = {
   no_devuelto: 'orange',
   baja: 'danger',
   vendido: 'neutral',
+  en_transito: 'primary',
 };

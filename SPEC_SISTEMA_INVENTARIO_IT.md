@@ -537,12 +537,15 @@ CREATE TABLE dispatch_guides (
     receptor_nombre VARCHAR(200) NOT NULL,     -- Receptor físico: texto libre (no es un Employee)
     receptor_rut VARCHAR(15) NOT NULL,
     observaciones TEXT,
-    -- Solo dos estados: nace 'despachado' (el efecto sobre los activos ya se
-    -- aplicó al crear la guía) y pasa a 'realizado' cuando alguien confirma la
-    -- llegada física (confirmación puramente informativa). No se puede anular.
-    estado ENUM('despachado', 'realizado') DEFAULT 'despachado',
+    -- Nace 'en_transito' (los equipos viajan, siguen siendo de la sede origen).
+    -- La sede destino confirma la recepción: 'recibida' o, si faltan equipos,
+    -- 'recibida_parcial'. La sede origen puede anularla mientras viaja (2.108).
+    estado ENUM('en_transito', 'recibida_parcial', 'recibida', 'anulada') DEFAULT 'en_transito',
     fecha_recepcion TIMESTAMP,
     recibido_por VARCHAR(100),
+    fecha_anulacion TIMESTAMP,
+    anulada_por VARCHAR(100),
+    motivo_anulacion TEXT,
     sede_destino_id UUID NOT NULL REFERENCES sedes(id) ON DELETE RESTRICT,  -- Obligatoria
     sede_id UUID REFERENCES sedes(id),         -- Sede del emisor: determina qué soporte ve el registro
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -557,6 +560,10 @@ CREATE TABLE dispatch_guide_items (
     guide_id UUID REFERENCES dispatch_guides(id) ON DELETE CASCADE NOT NULL,
     asset_id UUID REFERENCES assets(id) NOT NULL,
     observaciones TEXT,
+    -- Cada equipo se resuelve por separado (2.108): llegó o se perdió.
+    estado ENUM('en_transito', 'recibido', 'perdido') DEFAULT 'en_transito',
+    fecha_resolucion TIMESTAMP,
+    resuelto_por VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -730,6 +737,9 @@ Sincronización **read-only** de empleados desde el directorio corporativo Micro
 |-------|-------|----------------|--------|
 | `disponible` | `asignado` | Debe existir asignación creada | `empleadoActualId` se actualiza |
 | `disponible` | `en_mantencion` | Debe existir mantención programada | — |
+| `disponible` | `en_transito` | Se incluye en una guía de despacho (2.108) | Sigue en su sede de origen |
+| `en_transito` | `disponible` | La sede destino confirma que llegó, o la guía se anula (2.108) | Si llegó: `sedeId` = sede destino. Si se anuló: queda en su sede |
+| `en_transito` | `baja` | Se perdió en el despacho: motivo obligatorio (Extravío) (2.108) | Baja con una mantención "Sin reparación", como toda baja (2.88) |
 | `asignado` | `reutilizable` | Requiere devolución con estado `ok` o `incompleto` | `empleadoActualId` → null |
 | `asignado` | `baja` | Requiere devolución con estado `danado` | `empleadoActualId` → null, `fechaBaja` = hoy |
 | `asignado` | `en_mantencion` | Debe existir mantención programada | Asignación se pausa |
@@ -853,7 +863,9 @@ Aplica a: `activos`, `empleados`, `solicitudes`, `mantenciones`, `asignaciones`,
 
 ## 2.9 Guías de Despacho (`dispatch_guides`)
 
-Registro de que un lote de equipos fue despachado hacia otra sede, vía Chilexpress. **No es un flujo de aprobación**: crear la guía aplica de inmediato su efecto sobre los activos — la guía es el comprobante de una acción que el técnico ya ejecutó físicamente (llevó el paquete a Chilexpress), no una solicitud pendiente.
+Registro de que un lote de equipos fue despachado hacia otra sede, vía Chilexpress.
+
+> **Desde el 25-sep-2026 (2.108) los equipos viajan "En tránsito"** y pasan a la sede destino solo cuando esta confirma que llegaron. Lo que sigue en 2.9.2 y 2.9.3 sobre el efecto inmediato, los dos estados y la guía que no se anula quedó reemplazado por 2.108; se deja como historia.
 
 ### 2.9.1 Campos
 | Campo | Tipo | Descripción |
@@ -867,9 +879,10 @@ Registro de que un lote de equipos fue despachado hacia otra sede, vía Chilexpr
 | `sedeDestinoId` | UUID, obligatorio (FK `Sede`) | Sede a la que se despachan los equipos. Debe ser distinta de la sede del emisor |
 | `sedeId` | UUID, opcional (FK `Sede`) | Sede del emisor (heredada por `sedeIdParaCrear`, ver 2.8) |
 | `observaciones` | String, opcional | |
-| `estado` | Enum `EstadoGuia`: `despachado` \| `realizado` | Solo dos estados — ver 2.9.3 |
+| `estado` | Enum `EstadoGuia`: `en_transito` \| `recibida_parcial` \| `recibida` \| `anulada` | Ver 2.108 |
+| `fechaAnulacion`, `anuladaPor`, `motivoAnulacion` | DateTime / String / String, opcionales | Se completan al anular (2.108) |
 | `fechaRecepcion`, `recibidoPor` | DateTime / String, opcionales | Se completan al confirmar recepción |
-| `items` | `DispatchGuideItem[]` | Activos incluidos en la guía |
+| `items` | `DispatchGuideItem[]` | Activos incluidos en la guía. Cada uno con `estado` (`EstadoItemGuia`: `en_transito` \| `recibido` \| `perdido`), `fechaResolucion` y `resueltoPor` (2.108) |
 
 No existe campo "Tipo de Despacho" (se eliminó el enum `TipoDespacho` — `asignacion`/`traslado`/`prestamo`): toda guía se comporta igual, sin distinción de tipo.
 
@@ -899,7 +912,7 @@ La confirmación de recepción es **puramente informativa**: no modifica activos
 
 A diferencia del resto de los módulos con aislamiento por sede (2.8), una guía interesa a **dos** sedes: la del emisor y la sede destino, porque el técnico que recibe el despacho necesita verla para confirmar la recepción. Un técnico ve una guía si su sede coincide con `sedeId` **o** con `sedeDestinoId`; `admin` ve todas.
 
-### 2.9.5 Sin documento PDF
+### 2.9.5 Sin documento PDF (por ahora)
 
 La guía es solo un registro dentro del sistema (listado + detalle) — no genera ningún documento PDF descargable.
 
@@ -3372,7 +3385,55 @@ Pedido de Javier: *"que el filtro se active dependiendo la tarjeta que se apriet
   - el orden de agenda (2.98) usa las mismas condiciones.
 - **`StatCard`** suma `onClick` y `activa`: cualquier pantalla puede usar sus tarjetas como filtro.
 
+## 2.108 Guías de despacho: los equipos viajan "En tránsito" y los recibe la sede destino (25-sep-2026)
+
+Idea de Javier: *"que haya una sede destino y una de emisión… cuando se genere la guía la otra sede pueda ver que hay un despacho, pero solo el destinatario puede apretar el botón de que llegó, para que los equipos aparezcan en el inventario de esa sede"*. Reemplaza el efecto inmediato de 2.9.2 y los estados de 2.9.3.
+
+**Estados nuevos.**
+- El activo suma el estado `en_transito` ("En tránsito"): va en una guía. No se asigna, no va a mantención y no se edita su estado a mano (columna de solo lectura en el tablero).
+- La guía (`EstadoGuia`): `en_transito` → `recibida` o `recibida_parcial` ("Recibida con faltantes"); o `anulada`.
+- Cada equipo de la guía (`EstadoItemGuia`): `en_transito` → `recibido` o `perdido`.
+- Migración `20260925120000_guias_en_transito`: renombra `despachado` → `en_transito` y `realizado` → `recibida`. Las guías que ya existían quedan `recibida` y sus equipos `recibido` (con el modelo anterior ya estaban en la sede destino).
+
+**Crear la guía** (`POST /api/guias-despacho`).
+- Los equipos pasan a "En tránsito" y **siguen en la sede de origen**; se registra el traslado en su historial.
+- Si el número de guía choca con otra creada al mismo tiempo, se reintenta solo (hasta 3 veces, `crearGuiaConNumero`). El número usa el año de Chile.
+- Se rechaza, marcando el campo: una sede destino inactiva o inexistente; equipos que ya no están disponibles o que no son de la sede origen, **con sus nombres**. Un equipo repetido en la lista se cuenta una vez.
+- El selector de equipos busca en el servidor (como Activos), de a 30 resultados, y avisa "Mostrando X de Y" si hay más. La columna "Estado" se llama "Condición", que es lo que muestra.
+
+**Confirmar la recepción** (`PATCH /api/guias-despacho/[id]`, solo sede destino o admin, solo guías "En tránsito").
+- Se marca qué equipos llegaron (todos marcados de partida), quién recibió y cuándo. "Quién recibió" se propone con el receptor de la guía.
+- La recepción no puede ser anterior al envío (`validarRecepcion`, la misma regla en pantalla y servidor), y hay que marcar al menos un equipo.
+- Los que llegaron pasan a "Disponible" en la sede destino. Si faltan equipos, la guía queda "Recibida con faltantes".
+
+**Resolver un faltante** (`POST /api/guias-despacho/[id]/items/[itemId]`, sede destino o admin).
+- `{ accion: "llego" }`: llegó después. Solo en una guía con faltantes (antes se usa la recepción).
+- `{ accion: "perdido", motivo }`: se da de baja por **Extravío**, con una mantención "Sin reparación" como toda baja (2.88). Usa `darDeBajaEnTransaccion` y `tipoCorrectivaPorDefecto`, que ahora comparten la baja de Mantenciones y la devolución dañada de Solicitudes.
+- Cuando no queda ninguno en tránsito, la guía queda "Recibida".
+
+**Anular** (`POST /api/guias-despacho/[id]/anular`, sede origen o admin).
+- Solo una guía "En tránsito" que todavía no se recibe. Motivo obligatorio.
+- Los equipos vuelven a "Disponible" en su sede de origen; queda la fecha, quién y el motivo.
+
+**Quién ve y quién hace qué** (`lib/auth/permisosGuia.ts`, lo usan servidor y pantallas: un botón visible nunca lleva a un rechazo).
+- Ver: la sede origen, la sede destino y admin. Otra sede recibe 404.
+- Confirmar recepción y resolver faltantes: sede destino y admin. Anular: sede origen y admin.
+- El técnico ve y trabaja solo con los datos de su sede; se corrige el texto de ayuda de Usuarios, que decía que veía todas.
+
+**Pantallas.**
+- Lista de Guías: tarjetas que filtran la lista (como 2.107) — Total, "Por recibir en mi sede" (en camino o con faltantes hacia la sede propia; para admin, la elegida en el menú), En tránsito (con cuántos equipos viajan), Con faltantes, Recibidas y Anuladas. Se quita el filtro de estado, que repetía las tarjetas. La página vuelve a 1 al cambiar la búsqueda, la tarjeta o la sede.
+- Detalle: estado de la guía y de cada equipo, avisos según el estado, botones "Confirmar recepción" y "Anular guía", y "Llegó" / "Se perdió" por equipo.
+- Activos: tarjetas "En tránsito" y **"Por llegar"** (equipos que vienen en camino a mi sede, `whereActivosPorLlegar`; `/api/activos?porLlegar=1`). La sede destino puede abrir la ficha de un equipo que viene hacia ella, aunque todavía sea de la sede origen.
+
+**Código.**
+- Una sola regla para contar y filtrar: `VISTAS_GUIA`, `whereGuiaVisible` y `sedePropiaGuias` en `lib/queries/guias.ts`; `GET /api/guias-despacho/resumen` cuenta las tarjetas.
+- `recibirEquipos`, `actualizarEstadoGuia`, `buscarGuiaVisible` e `INCLUDE_DETALLE_GUIA` en `guiaDespachoService`, compartidos por las rutas de la guía.
+- Se elimina `GET /api/guias-despacho/numero`, que no usaba nadie.
+- `errorDeCampo(campo, mensaje)` generaliza `errorRepetido`: un 409 que la pantalla marca en el campo.
+
 ## Changelog SPEC
+- **v2.32 (2026-09-25):**
+  - Sección 2.108 (nueva): las guías de despacho dejan los equipos "En tránsito" hasta que la sede destino confirma qué llegó; faltantes que llegan después o se dan de baja por Extravío; anular mientras viaja; tarjetas que filtran y "Por llegar" en Activos. Se actualizan 2.7.2 (transiciones de `en_transito`), 2.9 y las tablas de guías.
 - **v2.31 (2026-09-25):**
   - Sección 2.107 (nueva): en Mantenciones, cada tarjeta de resumen filtra la lista y se agrega la tarjeta "Total"; tarjetas y lista usan las mismas condiciones.
 - **v2.30 (2026-09-25):**
