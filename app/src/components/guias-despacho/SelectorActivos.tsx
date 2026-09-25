@@ -247,7 +247,7 @@ export function SelectorActivos({
             <div className="flex-1">Equipo</div>
             <div className="w-28 hidden sm:block">Serie/IMEI</div>
             <div className="w-20 hidden md:block">Info</div>
-            <div className="w-14 text-center">Condición</div>
+            <div className="w-20 text-center">Condición</div>
           </div>
 
           {/* Filas */}
@@ -328,7 +328,7 @@ export function SelectorActivos({
                   </div>
 
                   {/* Condición */}
-                  <div className="w-14 text-center">
+                  <div className="w-20 text-center">
                     <AssetConditionBadge condicion={asset.condicion} />
                   </div>
                 </div>

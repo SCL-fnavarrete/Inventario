@@ -1,4 +1,8 @@
 import { Prisma } from '@prisma/client';
+import type { SesionAutenticada } from '@/lib/auth/guard';
+import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { estadoActivoEnum } from '@/lib/validations/asset';
+import { sedePropiaGuias, whereActivosPorLlegar } from '@/lib/queries/guias';
 
 /**
  * Filtro de activos vigentes.
@@ -17,6 +21,28 @@ import { Prisma } from '@prisma/client';
  * de la base que cuentan filas reales.
  */
 export const ACTIVOS_VIGENTES = { deletedAt: null } satisfies Prisma.AssetWhereInput;
+
+/**
+ * Filtros de la lista de Activos, que la exportacion a Excel repite tal cual
+ * (asi el archivo trae lo mismo que se ve en pantalla):
+ * - vigentes y de la sede de la sesion; o, con `porLlegar`, los que vienen
+ *   en camino a mi sede (SPEC 2.108), que todavia son de la sede de origen;
+ * - estado (uno desconocido, de una URL editada a mano, se ignora) y categoria;
+ * - sede elegida en el menu, solo para quien ve todas.
+ */
+export function whereFiltrosActivos(
+  session: SesionAutenticada,
+  f: { estado?: string; categoriaId?: string; sedeIdFiltro?: string; porLlegar?: boolean }
+): Prisma.AssetWhereInput {
+  const where: Prisma.AssetWhereInput = f.porLlegar
+    ? whereActivosPorLlegar(sedePropiaGuias(session, f.sedeIdFiltro))
+    : { ...ACTIVOS_VIGENTES, ...sedeWhere(session) };
+  const estado = estadoActivoEnum.safeParse(f.estado);
+  if (estado.success) where.estado = estado.data;
+  if (f.categoriaId) where.categoriaId = f.categoriaId;
+  if (f.sedeIdFiltro && tieneVisibilidadTotal(session) && !f.porLlegar) where.sedeId = f.sedeIdFiltro;
+  return where;
+}
 
 /** Palabras de un termino de busqueda, sin espacios de sobra. */
 export function palabrasDeBusqueda(termino: string): string[] {

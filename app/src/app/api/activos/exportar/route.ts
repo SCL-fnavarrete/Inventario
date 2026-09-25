@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
-import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { whereFiltrosActivos } from '@/lib/queries/activos';
 import { formatearFecha, hoyISO } from "@/lib/utils/fechas";
 import { CONDICION_ACTIVO_LABEL, ESTADO_ACTIVO_LABEL } from "@/lib/constants/estadosActivo";
 
@@ -165,25 +164,14 @@ export async function GET(request: NextRequest) {
     const session = await requirePermission('activos', 'read');
 
     const searchParams = request.nextUrl.searchParams;
-    const estado = searchParams.get("estado") || "";
-    const categoriaId = searchParams.get("categoriaId") || "";
-
-    // Los registros descartados no se exportan. Un tecnico solo exporta su
-    // propia sede.
-    const where: Record<string, unknown> = { ...ACTIVOS_VIGENTES, ...sedeWhere(session) };
-    if (estado) {
-      where.estado = estado;
-    }
-    if (categoriaId) {
-      where.categoriaId = categoriaId;
-    }
-
-    // Filtro de sede del selector global del nav; solo aplica para quien
-    // tiene visibilidad total.
-    const sedeIdFiltro = searchParams.get("sedeId") || "";
-    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
-      where.sedeId = sedeIdFiltro;
-    }
+    // Lo mismo que muestra la lista: sin descartados, un tecnico solo su
+    // sede, y los filtros elegidos (incluido "Por llegar").
+    const where = whereFiltrosActivos(session, {
+      estado: searchParams.get("estado") || "",
+      categoriaId: searchParams.get("categoriaId") || "",
+      sedeIdFiltro: searchParams.get("sedeId") || "",
+      porLlegar: searchParams.get("porLlegar") === "1",
+    });
 
     // Se agregan assignments (para la Fecha de Entrega vigente) y
     // maintenances (para la ultima realizada y la proxima programada).

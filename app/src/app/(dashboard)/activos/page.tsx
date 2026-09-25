@@ -420,7 +420,7 @@ function ActivosPageContent() {
       key: "estado",
       label: "Estado",
       value: estadoFilter,
-      displayValue: etiquetaEstadoActivo(estadoFilter),
+      displayValue: estadoFilter === "por_llegar" ? "Por llegar" : etiquetaEstadoActivo(estadoFilter),
     });
   }
   if (categoriaFilter && stats?.byCategory) {
@@ -448,7 +448,7 @@ function ActivosPageContent() {
         actions={
           <>
             <a
-              href={`/api/activos/exportar?estado=${estadoFilter}&categoriaId=${categoriaFilter}${sedeSeleccionada ? `&sedeId=${sedeSeleccionada}` : ""}`}
+              href={`/api/activos/exportar?${estadoFilter === "por_llegar" ? "porLlegar=1" : `estado=${estadoFilter}`}&categoriaId=${categoriaFilter}${sedeSeleccionada ? `&sedeId=${sedeSeleccionada}` : ""}`}
               className={buttonClasses({ variant: "secondary" })}
             >
               <Download size={18} />

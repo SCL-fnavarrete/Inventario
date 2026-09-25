@@ -478,6 +478,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
             : undefined
         }
         etiqueta="Qué pasó"
+        mensajeVacio="Escribe qué pasó con el equipo"
         placeholder="Ej: Chilexpress confirmó que el paquete se extravió..."
         textoConfirmar="Dar de baja por extravío"
         variante="danger"

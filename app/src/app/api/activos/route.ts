@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sedePropiaGuias, whereActivosPorLlegar } from '@/lib/queries/guias';
 import { prisma } from "@/lib/prisma";
-import { createAssetSchema, estadoActivoEnum } from "@/lib/validations/asset";
+import { createAssetSchema } from "@/lib/validations/asset";
 import { assetHistoryService } from "@/lib/services/assetHistoryService";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { sedeWhere, sedeIdParaCrear, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
-import { ACTIVOS_VIGENTES, busquedaActivo, palabrasDeBusqueda } from '@/lib/queries/activos';
+import { sedeIdParaCrear } from '@/lib/auth/sedeScope';
+import { busquedaActivo, palabrasDeBusqueda, whereFiltrosActivos } from '@/lib/queries/activos';
 
 /**
  * Tope de filas por pagina. Protege la base de un ?limit arbitrario;
- * 500 porque SelectorActivos pide limit=200 para llenar su lista de una vez.
+ * 500 alcanza para las pantallas que traen una lista completa de una vez.
  */
 const LIMITE_MAXIMO_PAGINA = 500;
 
@@ -31,23 +30,16 @@ export async function GET(request: NextRequest) {
     const page = enteroEnRango(searchParams.get("page"), 1, 1, Number.MAX_SAFE_INTEGER);
     const limit = enteroEnRango(searchParams.get("limit"), 10, 1, LIMITE_MAXIMO_PAGINA);
     const search = searchParams.get("search") || "";
-    const estado = searchParams.get("estado") || "";
-    const categoriaId = searchParams.get("categoriaId") || "";
     const empleadoActualId = searchParams.get("empleadoActualId") || "";
 
-    // Filtro explicito de sede por query param: solo tiene efecto para
-    // admin, que puede acotar a una sede especifica. Para un tecnico se
-    // ignora, su propia sede ya viene forzada por sedeWhere().
-    const sedeIdFiltro = searchParams.get("sedeId") || "";
-    // "Por llegar" (SPEC 2.108): equipos que vienen en camino a mi sede.
-    // Todavia son de la sede de origen, por eso no pasan por sedeWhere.
-    const porLlegar = searchParams.get("porLlegar") === "1";
-
-    // Los registros descartados no aparecen en el listado. Aislamiento por
-    // sede: admin ve todo, el resto solo lo suyo.
-    const where: Record<string, unknown> = porLlegar
-      ? whereActivosPorLlegar(sedePropiaGuias(session, sedeIdFiltro))
-      : { ...ACTIVOS_VIGENTES, ...sedeWhere(session) };
+    // Vigentes, sede de la sesion, estado, categoria, sede del menu y
+    // "Por llegar": los mismos filtros que la exportacion.
+    const where = whereFiltrosActivos(session, {
+      estado: searchParams.get("estado") || "",
+      categoriaId: searchParams.get("categoriaId") || "",
+      sedeIdFiltro: searchParams.get("sedeId") || "",
+      porLlegar: searchParams.get("porLlegar") === "1",
+    });
 
     if (search) {
       // Por palabras: cada una debe aparecer en algun dato del activo o de
@@ -55,21 +47,8 @@ export async function GET(request: NextRequest) {
       where.AND = palabrasDeBusqueda(search).map(busquedaActivo);
     }
 
-    // Un estado desconocido (URL editada a mano) se ignora en vez de romper.
-    if (estado && estadoActivoEnum.safeParse(estado).success) {
-      where.estado = estado;
-    }
-
-    if (categoriaId) {
-      where.categoriaId = categoriaId;
-    }
-
     if (empleadoActualId) {
       where.empleadoActualId = empleadoActualId;
-    }
-
-    if (sedeIdFiltro && tieneVisibilidadTotal(session) && !porLlegar) {
-      where.sedeId = sedeIdFiltro;
     }
 
     const [assets, total] = await Promise.all([

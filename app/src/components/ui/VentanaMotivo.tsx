@@ -13,6 +13,8 @@ type Props = {
   titulo: string;
   descripcion?: ReactNode;
   etiqueta?: string;
+  /** Aviso si se deja vacio. Por defecto "Escribe el <etiqueta>". */
+  mensajeVacio?: string;
   placeholder?: string;
   textoConfirmar?: string;
   variante?: "primary" | "danger";
@@ -39,6 +41,7 @@ function ContenidoMotivo({
   onConfirm,
   descripcion,
   etiqueta = "Motivo",
+  mensajeVacio,
   placeholder,
   textoConfirmar = "Confirmar",
   variante = "primary",
@@ -50,7 +53,7 @@ function ContenidoMotivo({
   function confirmar() {
     const limpio = motivo.trim();
     if (!limpio) {
-      setError(`Escribe el ${etiqueta.toLowerCase()}`);
+      setError(mensajeVacio ?? `Escribe el ${etiqueta.toLowerCase()}`);
       return;
     }
     onConfirm(limpio);

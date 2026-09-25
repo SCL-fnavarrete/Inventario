@@ -3431,9 +3431,17 @@ Idea de Javier: *"que haya una sede destino y una de emisión… cuando se gener
 - Se elimina `GET /api/guias-despacho/numero`, que no usaba nadie.
 - `errorDeCampo(campo, mensaje)` generaliza `errorRepetido`: un 409 que la pantalla marca en el campo.
 
+**Prueba en el navegador (25-sep-2026).** Con un técnico de cada sede se recorrió todo el flujo: crear, recibir con faltantes, "Llegó", "Se perdió", anular y la vista de admin. Se corrigió:
+- Exportar a Excel con el filtro "Por llegar" fallaba: mandaba `estado=por_llegar`, que no es un estado. La lista y la exportación ahora comparten sus filtros (`whereFiltrosActivos` en `lib/queries/activos.ts`), así el archivo trae lo mismo que la pantalla, y un estado desconocido se ignora también al exportar.
+- El filtro activo de Activos mostraba "por_llegar"; ahora dice "Por llegar".
+- "Se perdió" sin escribir nada decía "Escribe el qué pasó". `VentanaMotivo` acepta `mensajeVacio` y aquí dice "Escribe qué pasó con el equipo", igual que el servidor.
+- Faltar el motivo al anular o al marcar perdido respondía 409; ahora es 400 con el campo marcado (es un dato que falta, no un conflicto).
+- El encabezado "Condición" del selector de equipos salía cortado.
+- Un equipo perdido queda de baja en la sede de origen: nunca llegó a la destino.
+
 ## Changelog SPEC
 - **v2.32 (2026-09-25):**
-  - Sección 2.108 (nueva): las guías de despacho dejan los equipos "En tránsito" hasta que la sede destino confirma qué llegó; faltantes que llegan después o se dan de baja por Extravío; anular mientras viaja; tarjetas que filtran y "Por llegar" en Activos. Se actualizan 2.7.2 (transiciones de `en_transito`), 2.9 y las tablas de guías.
+  - Sección 2.108 (nueva, con su prueba en navegador): las guías de despacho dejan los equipos "En tránsito" hasta que la sede destino confirma qué llegó; faltantes que llegan después o se dan de baja por Extravío; anular mientras viaja; tarjetas que filtran y "Por llegar" en Activos. Se actualizan 2.7.2 (transiciones de `en_transito`), 2.9 y las tablas de guías.
 - **v2.31 (2026-09-25):**
   - Sección 2.107 (nueva): en Mantenciones, cada tarjeta de resumen filtra la lista y se agrega la tarjeta "Total"; tarjetas y lista usan las mismas condiciones.
 - **v2.30 (2026-09-25):**
