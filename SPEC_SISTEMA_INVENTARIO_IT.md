@@ -48,7 +48,7 @@ Lectura (R) · Escritura (W) · Borrado (D).
 | tiposMantencion | RWD | RWD |
 | desvinculaciones | RWD | RW |
 | guias | RWD | RW |
-| compras | RWD | RW |
+| compras | RWD | R (desde 2.111: registrar y repartir es solo de admin) |
 | categorias | RWD | R |
 | kitEpp | RWD | RW |
 | usuarios | RWD | — |
@@ -942,6 +942,8 @@ Se agrega en los dos: una columna "Sede origen" antes de "Sede destino" en la ta
 
 ## 2.10 Compras (`purchases`): acceso de técnico y modelo simplificado (11-sep-2026)
 
+> **Reemplazado por 2.111 (25-sep-2026).** La compra ya no es "de una sede": primero se compra y después se reparte a las sedes, y registrar y repartir es solo de admin. Lo que sigue queda como historia.
+
 Registrar una compra pasó de ser exclusivo de `admin` a ser trabajo operativo compartido con `tecnico` (matriz 1.3.1: `compras` es `RW` para técnico, no solo `R`). El caso de uso: llega un despacho de otra sede y el técnico necesita dejarlo registrado — con qué factura vino y para qué activos — igual que cualquier otro módulo con aislamiento por sede (2.8), sin depender de que el administrador lo cargue.
 
 **Aislamiento por sede.** Igual que el resto de 2.8: un técnico solo ve y crea compras de su propia sede (`sedeWhere`/`sedeIdParaCrear` en `GET`/`POST /api/compras`, `assertSedeAccess` en las rutas de detalle `[id]` y `[id]/activos`). La sede es obligatoria para admin (11-sep-2026, ver 2.8.2): `sedeIdParaCrear` se usa con `{ requerido: true }`, igual que en activos/empleados/solicitudes/guías -- el selector no ofrece "sin sede" y el backend rechaza la creación (y también el intento de vaciarla al editar) si de todos modos llega en blanco. Antes de este ajuste se permitía dejarla transversal; se corrigió por el mismo motivo que en los demás módulos (2.8.2): un registro sin sede sólo lo veía el admin que lo creó, ningún técnico.
@@ -1586,6 +1588,8 @@ Pedido explícito de Javier: *"elimina la tabla de proveedores, y otra sede Seri
 - Santiago y Concepción **no** se agregan al seed: ya existen en la base real (creadas a mano desde Configuración), y no se conoce con certeza el código exacto (`Sede.codigo`, campo único) con el que quedaron guardadas. Agregarlas acá adivinando el código arriesgaba crear una sede duplicada en vez de coincidir con la existente. Queda pendiente confirmar esos códigos con Javier si más adelante se quiere que el seed también las cree/actualice.
 
 ## 2.36 Compras: soporte para Kit de Bienvenida / EPP (14-sep-2026)
+
+> **Ajustado por 2.111 (25-sep-2026):** el Kit/EPP comprado ya no suma stock al registrar la compra; queda "por repartir" y el stock sube al repartirlo (en la sede de llegada) o al recibirlo por Despacho (en otra sede).
 
 Pedido explícito de Javier: *"no pero me doy cuenta que aveces el kit de bievenida o epp tambien lo compran y aqui al registrar una factura con sus productos solo funciona con los equipos pero no con el kitt de bievenida o epp"*. Antes, "Nueva Compra" solo permitía vincular la factura a Activos (equipos con serie); si una factura traía EPP o artículos del Kit de Bienvenida, no había forma de reflejarlo -- había que ir aparte a editar el stock a mano en Activos > Kit de Bienvenida.
 
@@ -3463,7 +3467,57 @@ Pedido de Javier: *"cambia el nombre guías por Despachos"*. Desde aquí, lo que
 - **Se mantiene igual por dentro**, para no migrar datos: la numeración `GD-<año>-NNNNN` (los números ya emitidos no cambian), las tablas `dispatch_guides` y `dispatch_guide_items`, los estados guardados (`recibida`, `anulada`…), la API `/api/guias-despacho` y el permiso `guias`.
 - Los eventos de historial ya registrados conservan su texto ("Guía de despacho …"); los nuevos dicen "Despacho …".
 
+## 2.111 Compras: primero se compra, después se reparte a las sedes (25-sep-2026)
+
+**Estado: regla aprobada; implementación pendiente, por partes.** Hasta que cada parte se implemente, el sistema sigue funcionando como describen 2.10 y 2.36.
+
+Javier: *"yo había entendido mal y lo documenté como no debía ser. El principio es este: primero se compran los artículos, y luego se ve en qué sede se reparten."* La regla de 2.10 daba la compra por "de una sede": sus equipos nacían en ella y el Kit/EPP sumaba stock ahí mismo, como si al comprar ya se supiera el destino. Hoy lo comprado llega a Santiago y desde ahí se reparte.
+
+### 2.111.1 Registrar la compra (solo admin)
+- Datos de la factura, como hoy: N°, fecha, RUT del proveedor y orden de compra.
+- **Sede de llegada, obligatoria y elegida explícitamente**, igual que en los demás procesos: donde llega físicamente el pedido. Hoy casi siempre es Santiago, pero el sistema no lo supone, por si cambia a futuro. Es la columna `purchases.sede_id` que ya existe, con este nuevo significado.
+- Lo que trajo: equipos (con el formulario de Activos) y cantidades de Kit/EPP.
+- La compra es **de la empresa**, no de una sede. El técnico ya no registra compras: `compras` pasa a solo lectura para técnico en la matriz 1.3.1.
+
+### 2.111.2 Lo comprado espera "Por repartir" en la sede de llegada
+- **Equipos:** nacen en la sede de llegada con el estado nuevo `por_repartir` ("Por repartir"). Están ahí físicamente, pero todavía no son del inventario de trabajo: no se asignan, no van a mantención ni se despachan a mano. Así nadie en la sede de llegada usa un equipo antes de que el administrador decida a dónde va.
+- **Kit/EPP:** queda como cantidad por repartir en su línea de la compra (ej. "10 cascos: 0 repartidos"). No suma al stock de ninguna sede todavía.
+- Vincular a una compra un equipo **que ya estaba en el inventario** (facturas de equipos antiguos) se mantiene: solo lo relaciona, no cambia su estado ni su sede.
+
+### 2.111.3 Repartir (solo admin, desde el detalle de la compra)
+- Se elige la sede destino de cada equipo y cuántas unidades de cada línea de Kit/EPP van a cada sede. Se puede repartir en partes.
+- **Destino = la sede de llegada:** el equipo pasa a "Disponible" y el Kit/EPP suma al stock de esa sede, en el momento.
+- **Destino = otra sede:** se crea automáticamente **un Despacho por sede destino** (2.108), desde la sede de llegada, con los equipos **y las cantidades de Kit/EPP** que van a esa sede. Para eso el reparto pide los datos de cada despacho: OT Chilexpress, fecha de envío y receptor (nombre y RUT). Los equipos viajan "En tránsito"; el Kit/EPP viaja como cantidad. Todo queda registrado en el despacho, igual que los equipos.
+- La compra muestra su avance: **Por repartir / Repartida en parte / Repartida**, con una tarjeta en Compras para encontrar lo pendiente, y en Activos una tarjeta "Por repartir" solo para el administrador.
+
+### 2.111.4 El Kit/EPP en un Despacho
+- Una línea de Kit/EPP en un despacho es un artículo y una cantidad.
+- Al confirmar la recepción, la sede destino indica cuántas unidades llegaron. Ese stock se suma al artículo **del mismo nombre y categoría en la sede destino**; si esa sede no lo tiene en su catálogo, se crea con ese stock.
+- Si llegan menos, el despacho queda "Recibido con faltantes" y lo que falta se resuelve después, igual que un equipo: "Llegó" (suma el stock) o "Se perdió" (queda registrado como perdido con su motivo; no hay baja porque el Kit/EPP es stock, no un equipo con ficha).
+
+### 2.111.5 Anular un despacho de reparto
+- Si se anula un despacho creado por un reparto, sus equipos vuelven a **"Por repartir"** en la sede de llegada, y sus cantidades de Kit/EPP vuelven a quedar por repartir en la compra: el reparto se deshace y se puede repartir de nuevo.
+
+### 2.111.6 Qué ve el técnico
+- Las compras que trajeron algo a su sede (llegada o reparto), en solo lectura.
+- Lo que viene en camino, con la tarjeta "Por llegar" de Activos y "Por recibir" de Despachos (2.108).
+
+### 2.111.7 Eliminar una compra
+- Solo mientras no se haya repartido nada. Una vez repartida (aunque sea en parte), los equipos y el stock ya están en uso o en camino, y la compra es su comprobante.
+
+### 2.111.8 Datos que ya existen
+- Las compras actuales: su sede pasa a ser la "sede de llegada" y todo se da por **ya repartido** (los equipos ya están en su sede y el stock ya se sumó). Nada se mueve.
+
+### 2.111.9 Plan por partes
+1. Modelo y migración: estado `por_repartir`, avance del reparto en las líneas de la compra, Kit/EPP en los despachos y el vínculo despacho ↔ compra; datos existentes como "ya repartidos".
+2. Registrar la compra: solo admin, sede de llegada, equipos "Por repartir", Kit/EPP sin sumar stock; matriz de permisos.
+3. Repartir: pantalla en el detalle de la compra, reparto a la sede de llegada y despachos automáticos; tarjetas de avance.
+4. Kit/EPP en Despachos: recepción por cantidad, faltantes y anulación que devuelve al reparto.
+5. Vista del técnico, pruebas y prueba en navegador.
+
 ## Changelog SPEC
+- **v2.35 (2026-09-25):**
+  - Sección 2.111 (nueva, regla aprobada, implementación pendiente): en Compras primero se compra y después se reparte. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
 - **v2.34 (2026-09-25):**
   - Sección 2.110 (nueva): "Guías de despacho" pasa a llamarse "Despachos" en pantallas, mensajes e historial; dirección `/despachos` con redirección desde la antigua; estados en masculino. Por dentro (datos, API, permiso, numeración GD) no cambia.
 - **v2.33 (2026-09-25):**
