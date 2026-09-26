@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { CampoFormulario, CampoTexto, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
-import { CAMPOS_COMUNES, TIPOS_FICHA, TIPO_FICHA_LABEL } from "@/lib/constants/categorias";
+import { camposComunes, TIPOS_FICHA, TIPO_FICHA_LABEL, type CampoFicha } from "@/lib/constants/categorias";
 
 /**
  * Catalogos de Activos > Categorias (SPEC 2.112.7). Un solo formulario para
@@ -33,6 +33,20 @@ const FORM_INICIAL = {
   stockMinimo: "3",
   tipoFicha: "generico" as TipoFicha,
 };
+
+/** Campos separados por coma; los obligatorios en negrita y con asterisco. */
+function ListaCampos({ campos }: { campos: CampoFicha[] }) {
+  return (
+    <>
+      {campos.map((c, i) => (
+        <span key={c.nombre}>
+          {i > 0 && ", "}
+          {c.obligatorio ? <span className="font-medium text-fg">{c.nombre} *</span> : c.nombre}
+        </span>
+      ))}
+    </>
+  );
+}
 
 const ETIQUETAS = { nombre: "Nombre", stockMinimo: "Stock mínimo", tipoFicha: "Qué campos pide" };
 
@@ -205,9 +219,16 @@ export function CategoriasCatalogo() {
                 <span className="font-medium text-fg">
                   {camposFicha.length ? `Propios de ${TIPO_FICHA_LABEL[form.tipoFicha]}:` : "Sin campos propios:"}
                 </span>{" "}
-                {camposFicha.length ? camposFicha.join(", ") : "solo los de todos los activos."}
+                {camposFicha.length ? <ListaCampos campos={camposFicha} /> : "solo los de todos los activos."}
               </p>
-              <p className="mt-1 text-xs text-fg-subtle">Todos los activos: {CAMPOS_COMUNES.join(", ")}.</p>
+              <p className="mt-1 text-fg-muted">
+                <span className="font-medium text-fg">Todos los activos:</span>{" "}
+                <ListaCampos campos={camposComunes(form.tipoFicha)} />
+              </p>
+              <p className="mt-2 text-xs text-fg-subtle">
+                * Obligatorio al crear el activo.
+                {form.tipoFicha === "celular" && " En los celulares el N° de serie es opcional: los identifica su IMEI."}
+              </p>
             </div>
           </div>
           <div className="mt-4 flex justify-end gap-3">
