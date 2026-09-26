@@ -16,8 +16,6 @@ export function snapshotCategoria(c: AssetCategory) {
   return {
     nombre: c.nombre,
     descripcion: c.descripcion,
-    requiereSerie: c.requiereSerie,
-    requiereImei: c.requiereImei,
     stockMinimo: c.stockMinimo,
     tipoFicha: c.tipoFicha,
   };

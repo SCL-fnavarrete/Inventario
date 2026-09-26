@@ -110,8 +110,8 @@ export async function POST(request: NextRequest) {
       requerido: true,
     });
 
-    // N° de serie unico e historial de creacion: las mismas reglas que usan
-    // las compras (crearActivo).
+    // N° de serie e IMEI (unicos; IMEI obligatorio en celulares) e historial
+    // de creacion: las mismas reglas que usan las compras (crearActivo).
     const asset = await prisma.$transaction((tx) =>
       crearActivo(tx, validatedData, { sedeId, usuario: session.user?.email || "sistema" })
     );

@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     // mismas reglas que la confirmacion real (ver procesarFila.ts), pero sin
     // tocar la base. Nada queda guardado hasta que el usuario revise los
     // errores y confirme desde /importar/batch.
-    if (!mapping.marca || !mapping.modelo || !mapping.numeroSerie) {
+    if (!mapping.marca || !mapping.modelo) {
       return NextResponse.json({ error: "Faltan campos requeridos en el mapeo" }, { status: 400 });
     }
 
@@ -108,8 +108,14 @@ export async function POST(request: NextRequest) {
     // categoria no existe todavia, se creara recien al confirmar.
     const categoryRecord = await prisma.assetCategory.findFirst({
       where: { nombre: { equals: categoria, mode: "insensitive" } },
-      select: { id: true, requiereImei: true },
+      select: { id: true, tipoFicha: true },
     });
+
+    // La columna que identifica al equipo: IMEI en celulares, N° de serie en
+    // los demas (SPEC 2.112.7).
+    if (categoryRecord?.tipoFicha === "celular" ? !mapping.imei : !mapping.numeroSerie) {
+      return NextResponse.json({ error: "Faltan campos requeridos en el mapeo" }, { status: 400 });
+    }
 
     const { headers, filas } = leerFilasExcel(buffer, sheetName, categoria, mapping);
 
@@ -124,6 +130,7 @@ export async function POST(request: NextRequest) {
     const ctx: ContextoFila = {
       session,
       categoriaId: categoryRecord?.id ?? "",
+      exigeImei: categoryRecord?.tipoFicha === "celular",
       tipoMantencionId: "",
       sedeIdExplicita,
       mapaSedes,
@@ -131,6 +138,9 @@ export async function POST(request: NextRequest) {
       mapaAntivirus,
       mapaLicenciasM365,
       existingSeriesSet,
+      existingImeiSet: new Set(
+        (await prisma.asset.findMany({ where: { imei: { not: null } }, select: { imei: true } })).map((a) => a.imei!)
+      ),
       employeeCache: new Map<string, string>(),
     };
 
@@ -155,19 +165,13 @@ export async function POST(request: NextRequest) {
           warnings: [],
         });
       } else {
-        // "Requiere IMEI" avisa sin impedir importar (SPEC 2.112.7). La
-        // serie ya es obligatoria para toda fila.
-        const warnings: ImportRowStatus["warnings"] =
-          categoryRecord?.requiereImei && !resultado.data.imei?.trim()
-            ? [{ type: "imei_faltante", field: "imei", message: "La categoría pide IMEI y esta fila no lo trae" }]
-            : [];
         rows.push({
           rowIndex: rows.length,
           excelRow: fila.rowNum,
           status: "valid",
           data: resultado.data,
           errors: [],
-          warnings,
+          warnings: [],
         });
       }
     }
@@ -178,7 +182,7 @@ export async function POST(request: NextRequest) {
       totalRows: rows.length,
       validCount: rows.filter((r) => r.status === "valid").length,
       errorCount: rows.filter((r) => r.status === "error").length,
-      warningCount: rows.filter((r) => r.warnings.length > 0).length,
+      warningCount: 0,
       duplicatesInFile: rows
         .filter((r) => r.errors.some((e) => e.type === "duplicate_in_file"))
         .map((r) => r.data.numeroSerie || ""),

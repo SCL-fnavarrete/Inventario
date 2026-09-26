@@ -26,6 +26,7 @@ import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard, StatGrid } from "@/components/ui/StatCard";
 import { Pagination } from "@/components/ui/Pagination";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 type TipoMantencion = {
   id: string;
@@ -417,7 +418,7 @@ export default function MantencionesPage() {
                           {m.asset.marca} {m.asset.modelo}
                         </span>
                         <span className="block text-xs text-fg-subtle truncate">
-                          {m.tipo.nombre} · {m.asset.numeroSerie || "Sin serie"}
+                          {m.tipo.nombre} · {identificadorActivo(m.asset, "Sin serie")}
                         </span>
                       </span>
                     </Link>
@@ -477,7 +478,7 @@ export default function MantencionesPage() {
                                 {maintenance.asset.marca} {maintenance.asset.modelo}
                               </p>
                               <p className="text-xs text-fg-subtle">
-                                {maintenance.asset.numeroSerie || "Sin serie"}
+                                {identificadorActivo(maintenance.asset, "Sin serie")}
                               </p>
                             </div>
                           </Link>

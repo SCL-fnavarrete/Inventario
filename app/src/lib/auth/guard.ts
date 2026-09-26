@@ -135,6 +135,7 @@ const ETIQUETA_CAMPO_UNICO: Record<string, string> = {
   nombre: 'nombre',
   email: 'correo',
   codigo: 'código',
+  imei: 'IMEI',
 };
 
 /**

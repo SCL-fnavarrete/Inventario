@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import type { TipoFicha } from "@prisma/client";
+import { normalizarImei, validarImei } from "@/lib/validations/imei";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Save } from "lucide-react";
@@ -149,21 +150,18 @@ export function payloadActivo(v: ActivoFormValues, modo: Modo) {
 
 type Opcion = { id: string; nombre: string };
 
-// La categoria dice que campos pide y si pide serie/IMEI (SPEC 2.112.7); el
-// formulario ya no la reconoce por su nombre.
-type CategoriaFormulario = Opcion & { tipoFicha: TipoFicha; requiereSerie: boolean; requiereImei: boolean };
+// La categoria dice que campos pide (SPEC 2.112.7); el formulario ya no la
+// reconoce por su nombre.
+type CategoriaFormulario = Opcion & { tipoFicha: TipoFicha };
 
 function Campo({
   label,
   hint,
-  aviso,
   error,
   children,
 }: {
   label: ReactNode;
   hint?: ReactNode;
-  // Advertencia que no impide guardar (ej. la categoria pide IMEI).
-  aviso?: string;
   error?: string;
   children: ReactNode;
 }) {
@@ -171,13 +169,7 @@ function Campo({
     <div>
       <label className={cn("field-label", error && "text-red-600")}>{label}</label>
       {children}
-      {error ? (
-        <MensajeCampo mensaje={error} />
-      ) : aviso ? (
-        <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{aviso}</p>
-      ) : (
-        hint && <p className="mt-1 text-xs text-fg-subtle">{hint}</p>
-      )}
+      {error ? <MensajeCampo mensaje={error} /> : hint && <p className="mt-1 text-xs text-fg-subtle">{hint}</p>}
     </div>
   );
 }
@@ -188,6 +180,7 @@ const ETIQUETAS_ACTIVO: Record<string, string> = {
   marca: "Marca",
   modelo: "Modelo",
   numeroSerie: "Número de serie",
+  imei: "IMEI",
   sedeId: "Sede",
 };
 
@@ -281,7 +274,12 @@ export function ActivoForm({
     if (!values.categoriaId) e.categoriaId = "Elige la categoría";
     if (!values.marca.trim()) e.marca = "Escribe la marca";
     if (!values.modelo.trim()) e.modelo = "Escribe el modelo";
-    if (crear && !values.numeroSerie.trim()) e.numeroSerie = "Escribe el número de serie";
+    // Lo que identifica al equipo (SPEC 2.112.7): el IMEI en los celulares
+    // (el N° de serie ahi es opcional) y el N° de serie en los demas.
+    const esCelular = categories.find((c) => c.id === values.categoriaId)?.tipoFicha === "celular";
+    if (crear && !esCelular && !values.numeroSerie.trim()) e.numeroSerie = "Escribe el número de serie";
+    if (esCelular && !normalizarImei(values.imei)) e.imei = "Escribe el IMEI del celular";
+    else if (values.imei.trim() && validarImei(values.imei)) e.imei = validarImei(values.imei)!;
     if (crear && !sedeId) e.sedeId = "Elige la sede";
     return e;
   }
@@ -299,21 +297,6 @@ export function ActivoForm({
 
   const categoriaElegida = categories.find((c) => c.id === values.categoriaId);
   const ficha = categoriaElegida?.tipoFicha;
-  // "Requiere N° de serie / IMEI": avisa si falta, sin impedir guardar
-  // (decision de Javier, SPEC 2.112.7). Al crear, la serie ya es obligatoria.
-  const avisoSerie =
-    categoriaElegida?.requiereSerie && !values.numeroSerie.trim()
-      ? "Esta categoría pide N° de serie. Puedes guardar igual."
-      : undefined;
-  const avisoImei =
-    categoriaElegida?.requiereImei && !values.imei.trim()
-      ? "Esta categoría pide IMEI. Puedes guardar igual."
-      : undefined;
-  const campoImei = (
-    <Campo label="IMEI" aviso={avisoImei}>
-      <input type="text" {...bind("imei")} />
-    </Campo>
-  );
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6" noValidate>
@@ -335,12 +318,8 @@ export function ActivoForm({
         <Campo label="Modelo *" error={error("modelo")}>
           <input type="text" {...bind("modelo")} required />
         </Campo>
-        <Campo
-          label={crear ? "Número de Serie *" : "Número de Serie"}
-          error={error("numeroSerie")}
-          aviso={crear ? undefined : avisoSerie}
-        >
-          <input type="text" {...bind("numeroSerie")} required={crear} />
+        <Campo label={crear && ficha !== "celular" ? "Número de Serie *" : "Número de Serie"} error={error("numeroSerie")}>
+          <input type="text" {...bind("numeroSerie")} required={crear && ficha !== "celular"} />
         </Campo>
         <Campo label="Estado">
           <p className="rounded-control border border-line bg-surface-muted px-3 py-2 text-fg-muted">
@@ -412,7 +391,7 @@ export function ActivoForm({
       </Seccion>
 
       {ficha === "computador" && (
-        <Seccion titulo="Especificaciones Técnicas - Notebook">
+        <Seccion titulo={`Especificaciones Técnicas - ${categoriaElegida?.nombre}`}>
           <Campo label="Procesador">
             <input type="text" {...bind("procesador")} placeholder="ej: Intel Core i7-1165G7" />
           </Campo>
@@ -455,8 +434,10 @@ export function ActivoForm({
       )}
 
       {ficha === "celular" && (
-        <Seccion titulo="Especificaciones Técnicas - Celular">
-          {campoImei}
+        <Seccion titulo={`Especificaciones Técnicas - ${categoriaElegida?.nombre}`}>
+          <Campo label="IMEI *" error={error("imei")} hint="15 números. Se ve marcando *#06# en el teléfono.">
+            <input type="text" inputMode="numeric" {...bind("imei")} required />
+          </Campo>
           <Campo label="Número de Teléfono">
             <input type="text" {...bind("numeroTelefono")} />
           </Campo>
@@ -466,16 +447,8 @@ export function ActivoForm({
         </Seccion>
       )}
 
-      {/* Una categoria que pide IMEI sin ser de celular (ej. un modem) lo
-          muestra igual. */}
-      {ficha !== "celular" && categoriaElegida?.requiereImei && (
-        <Seccion titulo="Identificación" cols={2}>
-          {campoImei}
-        </Seccion>
-      )}
-
       {ficha === "monitor" && (
-        <Seccion titulo="Especificaciones Técnicas - Monitor" cols={2}>
+        <Seccion titulo={`Especificaciones Técnicas - ${categoriaElegida?.nombre}`} cols={2}>
           <Campo label="Pulgadas">
             <input type="text" {...bind("pulgadas")} placeholder="ej: 24" />
           </Campo>

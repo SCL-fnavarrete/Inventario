@@ -47,6 +47,7 @@ import { cn } from "@/lib/utils";
 import { VentanaReparto } from "@/components/compras/VentanaReparto";
 import { ESTADO_GUIA_COLORS, ESTADO_GUIA_LABELS } from "@/types/guia-despacho";
 import type { EstadoGuia } from "@prisma/client";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 /**
  * Confirmacion en modal propio, en vez de confirm()/alert() del navegador:
@@ -762,7 +763,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                         {asset.marca} {asset.modelo}
                       </p>
                       <p className="text-xs text-fg-subtle">
-                        {asset.categoria.nombre} • {asset.numeroSerie || "Sin serie"}
+                        {asset.categoria.nombre} • {identificadorActivo(asset, "Sin serie")}
                       </p>
                     </div>
                     {addingAsset ? (
@@ -823,7 +824,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                         </div>
                       </td>
                       <td className="px-4 py-4 text-sm text-fg-subtle">
-                        {pa.asset.numeroSerie || "-"}
+                        {identificadorActivo(pa.asset, "-")}
                       </td>
                       <td className="px-4 py-4">
                         <AssetStatusBadge status={pa.asset.estado} size="sm" />

@@ -14,6 +14,7 @@ import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import { formatearFecha } from "@/lib/utils/fechas";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 type Assignment = {
   id: string;
@@ -152,7 +153,7 @@ export function AsignacionesTable() {
                         <p className="text-sm font-medium text-fg">
                           {a.asset.marca} {a.asset.modelo}
                         </p>
-                        <p className="text-xs text-fg-subtle font-mono">{a.asset.numeroSerie || "-"}</p>
+                        <p className="text-xs text-fg-subtle font-mono">{identificadorActivo(a.asset, "-")}</p>
                       </div>
                     </div>
                   </td>

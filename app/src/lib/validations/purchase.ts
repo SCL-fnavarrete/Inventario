@@ -61,11 +61,19 @@ export const equipoNuevoCompraSchema = createAssetSchema.omit({ estado: true });
 
 /** Un mismo N° de serie dos veces en la lista de equipos nuevos. */
 function revisarSeriesRepetidas(
-  equipos: { numeroSerie?: string | null }[],
+  equipos: { numeroSerie?: string | null; imei?: string | null }[],
   ctx: z.RefinementCtx
 ) {
   const vistas = new Set<string>();
+  const imeis = new Set<string>();
   for (const e of equipos) {
+    // El IMEI tampoco se repite dentro de la misma compra (SPEC 2.112.7).
+    if (e.imei) {
+      if (imeis.has(e.imei)) {
+        ctx.addIssue({ code: "custom", path: ["equiposNuevos"], message: `El IMEI ${e.imei} está dos veces en la lista` });
+      }
+      imeis.add(e.imei);
+    }
     const serie = e.numeroSerie?.trim().toUpperCase();
     if (!serie) continue;
     if (vistas.has(serie)) {

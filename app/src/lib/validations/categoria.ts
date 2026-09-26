@@ -14,8 +14,6 @@ export const categoriaSchema = z.object({
     .max(300, 'Máximo 300 caracteres')
     .nullish()
     .transform((v) => v || null),
-  requiereSerie: z.boolean({ error: 'Valor inválido' }).optional(),
-  requiereImei: z.boolean({ error: 'Valor inválido' }).optional(),
   // Vacio no se guarda como 0 sin avisar: es un error.
   stockMinimo: z
     .union([z.number(), z.string().trim().min(1, 'Escribe el stock mínimo')], { error: 'Escribe el stock mínimo' })

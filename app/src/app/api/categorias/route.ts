@@ -39,8 +39,6 @@ export async function POST(request: NextRequest) {
       data: {
         nombre: datos.nombre,
         descripcion: datos.descripcion,
-        requiereSerie: datos.requiereSerie ?? true,
-        requiereImei: datos.requiereImei ?? false,
         stockMinimo: datos.stockMinimo ?? 3,
         tipoFicha: datos.tipoFicha ?? "generico",
       },

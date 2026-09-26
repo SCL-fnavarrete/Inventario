@@ -122,8 +122,8 @@ CREATE TABLE asset_categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nombre VARCHAR(50) NOT NULL,               -- Ej: "Notebook", "Celular", "Monitor", "Impresora", "Mouse", "Teclado", "EPP"
     descripcion TEXT,
-    requiere_serie BOOLEAN DEFAULT true,
-    requiere_imei BOOLEAN DEFAULT false,
+    -- requiere_serie y requiere_imei se eliminaron (2.112.7): lo decide tipo_ficha.
+    tipo_ficha TEXT NOT NULL DEFAULT 'generico', -- "Qué campos pide" (2.112.7)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -2366,7 +2366,7 @@ const assignmentSchema = z.object({
 # PARTE 6: DATOS DE MIGRACIÓN INICIAL
 
 ## 6.1 Categorías de Activos (seed)
-Desde 2.112.7 cada categoría trae además `tipoFicha` ("Qué campos pide"): Notebook → computador, Celular → celular, Monitor → monitor, y Mouse, Teclado, Webcam y Audífonos → periférico (ver `prisma/seed.ts`).
+Desde 2.112.7 cada categoría trae `tipoFicha` ("Qué campos pide"): Notebook → computador, Celular → celular, Monitor → monitor, y Mouse, Teclado, Webcam y Audífonos → periférico (ver `prisma/seed.ts`). `requiere_serie` y `requiere_imei` del ejemplo de abajo ya no existen.
 ```typescript
 const categories = [
   { nombre: 'Notebook', requiere_serie: true, requiere_imei: false },
@@ -3692,10 +3692,16 @@ Salió de una revisión completa del módulo (seguridad, código, pantallas, ren
   - el texto de Sedes decía que el técnico ve todas las sedes: trabaja solo con la suya.
 
 ### 2.112.7 Catálogos de Activos (parte 4)
-Decisiones de Javier: una lista "Qué campos pide" en vez de reconocer la categoría por su nombre; "Requiere N° de serie / IMEI" avisa sin bloquear, en el formulario y en la importación; el técnico sigue pudiendo agregar opciones desde el formulario de activos, pero queda en la auditoría.
+Decisiones de Javier: una lista "Qué campos pide" en vez de reconocer la categoría por su nombre; se quitan "Requiere N° de serie / IMEI" y, en cambio, un celular exige IMEI; el técnico sigue pudiendo agregar opciones desde el formulario de activos, pero queda en la auditoría.
 - **Una sola pantalla:** Configuración > Catálogos de Activos (`/configuracion/catalogos`) con cuatro pestañas: Categorías, Sistemas operativos, Antivirus y Licencias Microsoft 365. La pestaña queda en la dirección (`?tab=`). `/configuracion/categorias` y `/configuracion/opciones-activos` redirigen (`next.config.ts`). En el menú de Configuración quedan 6 tarjetas.
 - **"Qué campos pide"** (`AssetCategory.tipoFicha`, enum `TipoFicha`: computador, celular, monitor, periférico, genérico; migración `20260926010000_categorias_tipo_ficha`, que completa las categorías actuales según su nombre). Decide los campos especiales en el formulario de activos, el detalle de asignación, la ficha del empleado, el selector de equipos del despacho y las columnas de la importación. Antes esos cinco lugares comparaban el nombre con "notebook", "celular", "monitor"... y renombrar la categoría hacía desaparecer sus campos. Ahora se puede renombrar, o crear por ejemplo "Tablet" con los campos de celular.
-- **"Pide N° de serie / Pide IMEI" avisan si falta, sin impedir guardar:** en el formulario de activos ("Esta categoría pide IMEI. Puedes guardar igual."); una categoría que pide IMEI sin ser de celular muestra el campo igual. En la importación, la fila sin IMEI queda válida con una advertencia (`imei_faltante`) y la pantalla lista las filas. El N° de serie ya era obligatorio al crear y al importar, así que ahí el aviso aplica al editar.
+- **Sin "Requiere N° de serie / IMEI":** primero se hicieron avisos, pero Javier los vio innecesarios, porque "Qué campos pide" ya decide qué muestra el formulario. Se eliminaron de la pantalla, la API y la base (migración `20260926020000_categorias_sin_pide_serie_imei`). El N° de serie sigue obligatorio al crear e importar cualquier activo.
+- **El IMEI identifica al celular** (Javier: *"es la propiedad que lo identifica como único, a diferencia del N° de serie de los otros equipos"*). Decisiones: en celulares el N° de serie es opcional; el IMEI se valida con 15 dígitos y su dígito verificador; se guarda solo el IMEI principal (no el segundo de los dual SIM).
+  - **Una sola regla** (`reglasIdentificacion`, `lib/services/activoService.ts`): celular → IMEI obligatorio y N° de serie opcional; los demás → N° de serie obligatorio al crear; ningún IMEI se repite. La usan crear en Activos y en Compras (`crearActivo`) y editar (`PUT /api/activos/[id]`); la importación aplica lo mismo por fila (`procesarFila`).
+  - **IMEI único en la base** (`assets.imei` único, migración `20260926030000_imei_unico`), guardado solo con dígitos (se aceptan espacios y guiones al escribirlo). Formato en `lib/validations/imei.ts` (`validarImei`, Luhn), usado por la pantalla y por el esquema del activo.
+  - **Compras usa el mismo formulario de activos** (`ActivoForm`), así que pide el IMEI igual que Activos; al anotar un equipo revisa que el N° de serie y el IMEI no estén ya en la lista ni en el inventario, y la compra no acepta el mismo IMEI dos veces.
+  - **Importación:** en celulares la columna obligatoria es IMEI (el N° de serie es opcional); una fila sin IMEI, con un IMEI inválido o repetido (en la base o en el mismo archivo) es un error marcado en su campo.
+  - **Búsqueda y listas:** Activos busca también por IMEI; donde un equipo no tiene N° de serie se muestra su IMEI (`identificadorActivo`, `lib/utils/identificador.ts`, en 11 pantallas que antes decían "Sin serie").
 - **Categorías con datos correctos** (`lib/validations/categoria.ts`): nombre obligatorio y no repetido (sin importar mayúsculas ni espacios), stock mínimo entero de 0 o más (antes aceptaba -5 y un campo vacío se guardaba como 0). Eliminar una con activos responde 409 con cuántos tiene (antes 400), y el botón deshabilitado lo explica. Se crea y edita en un formulario (antes dentro de la fila) y avisa "guardado".
 - **Todo queda en la auditoría:** los cambios de categoría guardan también "Pide serie/IMEI", stock mínimo y "Qué campos pide"; crear, reactivar, renombrar y eliminar opciones quedan con el módulo nuevo **Catálogo** (`AuditEntidad.catalogo`), con quién lo hizo (también un técnico que agrega una opción desde el formulario) y cuántos activos corrigió un renombre.
 - **Sin código repetido:** las seis rutas de opciones, que eran copias, llaman a un solo servicio (`lib/services/catalogoOpcionesService.ts`). Las direcciones de la API no cambian. Renombrar al nombre de otra opción responde 409 marcado en el campo.

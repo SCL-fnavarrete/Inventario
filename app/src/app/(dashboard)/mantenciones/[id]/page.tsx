@@ -43,6 +43,7 @@ import {
   ResumenErrores,
   claseCampo,
 } from "@/components/ui/CampoFormulario";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 type ResultadoTipo = ResultadoMantencion;
 
@@ -663,7 +664,7 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
             </div>
             <div className="space-y-3 text-sm">
               <Dato label="N° Serie">
-                <span className="font-mono">{maintenance.asset.numeroSerie || "-"}</span>
+                <span className="font-mono">{identificadorActivo(maintenance.asset, "-")}</span>
               </Dato>
               <Dato label="Estado actual">
                 <AssetStatusBadge status={maintenance.asset.estado} />

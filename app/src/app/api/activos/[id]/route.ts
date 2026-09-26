@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { updateAssetSchema } from '@/lib/validations/asset';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
-import { descartarActivo } from '@/lib/services/activoService';
+import { descartarActivo, reglasIdentificacion } from '@/lib/services/activoService';
 import {
   requirePermission,
   handleApiError,
@@ -85,6 +85,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     assertSedeAccess(session, existingAsset.sedeId, 'Activo no encontrado');
+    // IMEI obligatorio si queda en una categoria de celular, y que no se
+    // repita (SPEC 2.112.7).
+    await reglasIdentificacion(
+      prisma,
+      {
+        categoriaId: validatedData.categoriaId ?? existingAsset.categoriaId,
+        imei: validatedData.imei !== undefined ? validatedData.imei : existingAsset.imei,
+      },
+      { crear: false, exceptoId: id }
+    );
 
     // Verificar si el número de serie ya existe (si se cambió y se proporciona)
     if (validatedData.numeroSerie && validatedData.numeroSerie !== existingAsset.numeroSerie) {

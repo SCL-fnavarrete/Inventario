@@ -46,13 +46,13 @@ async function main() {
   // 2. Crear categorías de activos
   // tipoFicha decide los campos especiales del formulario (SPEC 2.112.7).
   const categorias = [
-    { nombre: "Notebook", descripcion: "Computadores portátiles", requiereSerie: true, requiereImei: false, tipoFicha: "computador" as const },
-    { nombre: "Celular", descripcion: "Teléfonos móviles corporativos", requiereSerie: true, requiereImei: true, tipoFicha: "celular" as const },
-    { nombre: "Monitor", descripcion: "Pantallas y monitores", requiereSerie: true, requiereImei: false, tipoFicha: "monitor" as const },
-    { nombre: "Mouse", descripcion: "Mouse y dispositivos de entrada", requiereSerie: false, requiereImei: false, tipoFicha: "periferico" as const },
-    { nombre: "Teclado", descripcion: "Teclados", requiereSerie: false, requiereImei: false, tipoFicha: "periferico" as const },
-    { nombre: "Webcam", descripcion: "Cámaras web", requiereSerie: true, requiereImei: false, tipoFicha: "periferico" as const },
-    { nombre: "Audífonos", descripcion: "Audífonos y headsets", requiereSerie: false, requiereImei: false, tipoFicha: "periferico" as const },
+    { nombre: "Notebook", descripcion: "Computadores portátiles", tipoFicha: "computador" as const },
+    { nombre: "Celular", descripcion: "Teléfonos móviles corporativos", tipoFicha: "celular" as const },
+    { nombre: "Monitor", descripcion: "Pantallas y monitores", tipoFicha: "monitor" as const },
+    { nombre: "Mouse", descripcion: "Mouse y dispositivos de entrada", tipoFicha: "periferico" as const },
+    { nombre: "Teclado", descripcion: "Teclados", tipoFicha: "periferico" as const },
+    { nombre: "Webcam", descripcion: "Cámaras web", tipoFicha: "periferico" as const },
+    { nombre: "Audífonos", descripcion: "Audífonos y headsets", tipoFicha: "periferico" as const },
   ];
 
   for (const cat of categorias) {

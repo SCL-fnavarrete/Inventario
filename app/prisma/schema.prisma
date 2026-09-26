@@ -184,8 +184,6 @@ model AssetCategory {
   id            String   @id @default(uuid())
   nombre        String   @unique
   descripcion   String?
-  requiereSerie Boolean  @default(true) @map("requiere_serie")
-  requiereImei  Boolean  @default(false) @map("requiere_imei")
   // Umbral de "stock bajo" para la alerta del Dashboard, igual concepto que
   // WelcomeKitItem.stockMinimo pero aplicado a activos DISPONIBLES de esta
   // categoria (no al total): un notebook "asignado" no cuenta como stock,
@@ -214,7 +212,9 @@ model Asset {
   id                  String              @id @default(uuid())
   categoriaId         String              @map("categoria_id")
   numeroSerie         String?             @unique @map("numero_serie")
-  imei                String?
+  // Identifica al celular como unico, igual que numeroSerie a los demas
+  // equipos (SPEC 2.112.7). Solo digitos: 15, con digito verificador.
+  imei                String?             @unique
   marca               String
   modelo              String
   procesador          String?

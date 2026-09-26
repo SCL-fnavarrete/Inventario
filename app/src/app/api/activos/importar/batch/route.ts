@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
     const ctx: ContextoFila = {
       session,
       categoriaId: categoryRecord.id,
+      exigeImei: categoryRecord.tipoFicha === "celular",
       tipoMantencionId: tipoMantencionImportada.id,
       sedeIdExplicita,
       mapaSedes,
@@ -90,6 +91,9 @@ export async function POST(request: NextRequest) {
       mapaAntivirus,
       mapaLicenciasM365,
       existingSeriesSet,
+      existingImeiSet: new Set(
+        (await prisma.asset.findMany({ where: { imei: { not: null } }, select: { imei: true } })).map((a) => a.imei!)
+      ),
       employeeCache: new Map<string, string>(),
     };
 

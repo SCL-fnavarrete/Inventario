@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 import { formatearFecha } from "@/lib/utils/fechas";
 import { buttonClasses } from "@/components/ui/buttonStyles";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 type NotebookAsignado = {
   asignacionId: string;
@@ -368,7 +369,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                   </div>
                   <div>
                     <p className="text-sm text-fg-subtle">N° Serie</p>
-                    <p className="font-medium font-mono">{notebook.numeroSerie || "-"}</p>
+                    <p className="font-medium font-mono">{identificadorActivo(notebook, "-")}</p>
                   </div>
                   <div>
                     <p className="text-sm text-fg-subtle">Procesador</p>
@@ -437,7 +438,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                   </div>
                   <div>
                     <p className="text-sm text-fg-subtle">N° Serie</p>
-                    <p className="font-medium font-mono">{celular.numeroSerie || "-"}</p>
+                    <p className="font-medium font-mono">{identificadorActivo(celular, "-")}</p>
                   </div>
                   <div>
                     <p className="text-sm text-fg-subtle">IMEI</p>
@@ -502,7 +503,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                   </div>
                   <div>
                     <p className="text-sm text-fg-subtle">N° Serie</p>
-                    <p className="font-medium font-mono">{monitor.numeroSerie || "-"}</p>
+                    <p className="font-medium font-mono">{identificadorActivo(monitor, "-")}</p>
                   </div>
                   <div>
                     <p className="text-sm text-fg-subtle">Pulgadas</p>
@@ -542,7 +543,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                     <tr key={equipo.asignacionId}>
                       <td className="px-4 py-2">{equipo.categoria}</td>
                       <td className="px-4 py-2">{equipo.marca} {equipo.modelo}</td>
-                      <td className="px-4 py-2 font-mono">{equipo.numeroSerie || "-"}</td>
+                      <td className="px-4 py-2 font-mono">{identificadorActivo(equipo, "-")}</td>
                       <td className="px-4 py-2">{formatearFecha(equipo.fechaEntrega, {}, "-")}</td>
                     </tr>
                   ))}

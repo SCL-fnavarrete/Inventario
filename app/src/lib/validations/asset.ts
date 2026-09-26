@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizarImei, validarImei } from "@/lib/validations/imei";
 import type {
   EstadoActivo as PrismaEstadoActivo,
   CondicionActivo as PrismaCondicionActivo,
@@ -25,7 +26,20 @@ export const assetSchema = z.object({
 
   // Identificacion
   numeroSerie: z.string().max(50, "Máximo 50 caracteres").optional().nullable(),
-  imei: z.string().max(20, "Máximo 20 caracteres").optional().nullable(),
+  // Se guarda solo con digitos; si viene, debe ser un IMEI valido (SPEC
+  // 2.112.7). Que un celular lo traiga lo exige la regla del servidor, que
+  // conoce la categoria (reglasIdentificacion).
+  imei: z.preprocess(
+    (v) => (typeof v === "string" ? normalizarImei(v) || null : v),
+    z
+      .string()
+      .max(40, "Máximo 40 caracteres")
+      .nullish()
+      .superRefine((v, ctx) => {
+        const error = v ? validarImei(v) : null;
+        if (error) ctx.addIssue({ code: "custom", message: error });
+      })
+  ),
 
   // Datos generales
   marca: z.string().min(1, "La marca es requerida").max(50, "Máximo 50 caracteres"),

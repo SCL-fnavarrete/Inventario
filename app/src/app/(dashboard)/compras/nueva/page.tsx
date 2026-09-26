@@ -28,6 +28,7 @@ import {
   payloadActivo,
   type ActivoFormValues,
 } from "@/components/activos/ActivoForm";
+import { normalizarImei } from "@/lib/validations/imei";
 import {
   AvisoSeccion,
   ResumenErrores,
@@ -36,6 +37,7 @@ import {
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 import { ETIQUETAS_FACTURA, validarDatosFactura } from "@/lib/validations/purchase";
 import { CamposFactura, type DatosFactura } from "@/components/compras/CamposFactura";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 type Sede = {
   id: string;
@@ -261,25 +263,30 @@ export default function NuevaCompraPage() {
     setSelectedAssets((prev) => prev.filter((a) => a.assetId !== assetId));
   }
 
-  // Anota el equipo; se crea al guardar la compra. El N° de serie se revisa
-  // ya (en la lista y en el inventario) para avisar en la misma ventana; el
-  // servidor lo vuelve a revisar al guardar.
+  // Anota el equipo; se crea al guardar la compra. El N° de serie y el IMEI
+  // (SPEC 2.112.7) se revisan ya, en la lista y en el inventario, para avisar
+  // en la misma ventana; el servidor los vuelve a revisar al guardar.
   async function anotarEquipo(values: ActivoFormValues) {
     setNewAssetError(null);
     setNewAssetFieldErrors({});
-    const serie = values.numeroSerie.trim();
-    if (serie) {
-      const repetido = (mensaje: string) => setNewAssetFieldErrors({ numeroSerie: mensaje });
-      if (equiposNuevos.some((e) => e.valores.numeroSerie.trim().toUpperCase() === serie.toUpperCase())) {
-        return repetido("Ya agregaste un equipo con este N° de serie");
+    const identificadores = [
+      { campo: "numeroSerie" as const, valor: values.numeroSerie.trim().toUpperCase(), nombre: "N° de serie" },
+      { campo: "imei" as const, valor: normalizarImei(values.imei), nombre: "IMEI" },
+    ];
+    for (const { campo, valor, nombre } of identificadores) {
+      if (!valor) continue;
+      const repetido = (mensaje: string) => setNewAssetFieldErrors({ [campo]: mensaje });
+      const mismo = (otro: string | null | undefined) =>
+        (campo === "imei" ? normalizarImei(otro) : (otro ?? "").trim().toUpperCase()) === valor;
+      if (equiposNuevos.some((e) => mismo(e.valores[campo]))) {
+        return repetido(`Ya agregaste un equipo con este ${nombre}`);
       }
       try {
-        const res = await fetch(`/api/activos?${new URLSearchParams({ search: serie, limit: "10" })}`);
+        const res = await fetch(`/api/activos?${new URLSearchParams({ search: valor, limit: "10" })}`);
         const data = res.ok ? await res.json() : { data: [] };
-        const existe = (data.data as { numeroSerie: string | null }[]).some(
-          (a) => a.numeroSerie?.toUpperCase() === serie.toUpperCase()
-        );
-        if (existe) return repetido("Ya existe un activo con este número de serie");
+        if ((data.data as Record<string, string | null>[]).some((a) => mismo(a[campo]))) {
+          return repetido(`Ya existe un activo con este ${nombre}`);
+        }
       } catch {
         // Sin conexion: lo revisa el servidor al guardar.
       }
@@ -493,7 +500,7 @@ export default function NuevaCompraPage() {
                           {asset.marca} {asset.modelo}
                         </p>
                         <p className="text-xs text-fg-subtle">
-                          {asset.categoria.nombre} • {asset.numeroSerie || "Sin serie"}
+                          {asset.categoria.nombre} • {identificadorActivo(asset, "Sin serie")}
                         </p>
                       </div>
                       <Plus size={18} className="text-primary-700" />
@@ -520,7 +527,7 @@ export default function NuevaCompraPage() {
                       {e.valores.marca} {e.valores.modelo}
                     </p>
                     <p className="text-xs text-fg-subtle">
-                      {e.categoria} • {e.valores.numeroSerie || "Sin serie"}
+                      {e.categoria} • {identificadorActivo(e.valores, "Sin serie")}
                     </p>
                   </div>
                   <span className="shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium bg-purple-50 text-purple-800 border-purple-200">
@@ -546,7 +553,7 @@ export default function NuevaCompraPage() {
                       {item.asset.marca} {item.asset.modelo}
                     </p>
                     <p className="text-xs text-fg-subtle">
-                      {item.asset.categoria.nombre} • {item.asset.numeroSerie || "Sin serie"}
+                      {item.asset.categoria.nombre} • {identificadorActivo(item.asset, "Sin serie")}
                     </p>
                   </div>
                   <span className="shrink-0 text-xs text-fg-subtle">Ya existía: solo se vincula</span>

@@ -1,9 +1,35 @@
 import type { EstadoActivo, Prisma } from '@prisma/client';
-import { errorRepetido } from '@/lib/errors';
+import { errorRepetido, ValidationError } from '@/lib/errors';
 import type { CreateAssetInput } from '@/lib/validations/asset';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 
 type Tx = Prisma.TransactionClient;
+
+/**
+ * Lo que identifica a un equipo como unico (SPEC 2.112.7): el IMEI en los
+ * celulares (obligatorio; el N° de serie ahi es opcional) y el N° de serie en
+ * los demas (obligatorio al crear). Ningun IMEI se repite. La usan crear
+ * (Activos y Compras, via crearActivo) y editar (PUT /api/activos/[id]); la
+ * importacion aplica la misma regla por fila (procesarFila).
+ */
+export async function reglasIdentificacion(
+  tx: Tx,
+  d: { categoriaId: string; numeroSerie?: string | null; imei?: string | null },
+  opciones: { crear: boolean; exceptoId?: string }
+) {
+  const categoria = await tx.assetCategory.findUnique({ where: { id: d.categoriaId }, select: { tipoFicha: true } });
+  const esCelular = categoria?.tipoFicha === 'celular';
+  const campo = (field: string, message: string) => new ValidationError(message, [{ field, message }]);
+  if (esCelular && !d.imei) throw campo('imei', 'Escribe el IMEI del celular');
+  if (!esCelular && opciones.crear && !d.numeroSerie?.trim()) throw campo('numeroSerie', 'Escribe el número de serie');
+  if (d.imei) {
+    const otro = await tx.asset.findFirst({
+      where: { imei: d.imei, ...(opciones.exceptoId && { NOT: { id: opciones.exceptoId } }) },
+      select: { id: true },
+    });
+    if (otro) throw errorRepetido('imei', `Ya existe un activo con el IMEI ${d.imei}`);
+  }
+}
 
 /**
  * Crea un equipo con las reglas de Activos > Nuevo: N° de serie unico y el
@@ -16,6 +42,7 @@ export async function crearActivo(
   datos: Omit<CreateAssetInput, 'estado'>,
   opciones: { sedeId: string | null; usuario: string; estado?: EstadoActivo }
 ) {
+  await reglasIdentificacion(tx, datos, { crear: true });
   if (datos.numeroSerie) {
     const existente = await tx.asset.findUnique({ where: { numeroSerie: datos.numeroSerie } });
     if (existente) {

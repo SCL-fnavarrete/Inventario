@@ -28,8 +28,6 @@ type Category = {
   id: number;
   nombre: string;
   descripcion: string | null;
-  requiereSerie: boolean;
-  requiereImei: boolean;
   tipoFicha: string;
 };
 
@@ -170,7 +168,10 @@ export default function ImportarActivosPage() {
   // Campos requeridos por categoría ("*" significa todas las categorías)
   const allRequiredFields = [
     // Campos básicos de activos (siempre requeridos para todas las categorías)
-    { key: "numeroSerie", label: "N° Serie", required: true, categories: ["*"] },
+    // Lo que identifica al equipo: el IMEI en celulares, el N° de serie en
+    // los demas (SPEC 2.112.7).
+    { key: "numeroSerie", label: "N° Serie", required: true, categories: ["computador", "monitor", "periferico", "generico"] },
+    { key: "imei", label: "IMEI", required: true, categories: ["celular"] },
     { key: "marca", label: "Marca", required: true, categories: ["*"] },
     { key: "modelo", label: "Modelo", required: true, categories: ["*"] },
   ];
@@ -254,7 +255,7 @@ export default function ImportarActivosPage() {
     // Campos para Monitor
     { key: "pulgadas", label: "Pulgadas", categories: ["monitor"] },
     // Campos para Celular
-    { key: "imei", label: "IMEI", categories: ["celular"] },
+    { key: "numeroSerie", label: "N° Serie", categories: ["celular"] },
     { key: "numeroActivacion", label: "Nro Activación", categories: ["celular"] },
     { key: "numeroTelefono", label: "Nro. Telefónico", categories: ["celular"] },
     { key: "tipoPlan", label: "Tipo Plan", categories: ["celular"] },
@@ -1050,24 +1051,6 @@ export default function ImportarActivosPage() {
             <StatCard variant="soft" tone="success" label="Válidas" value={validation.validCount} />
             <StatCard variant="soft" tone="danger" label="Con errores" value={validation.errorCount} />
           </StatGrid>
-
-          {/* Filas validas con advertencias: se importan igual (SPEC 2.112.7). */}
-          {validation.warningCount > 0 && (
-            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              <p className="font-medium">
-                {validation.warningCount} fila(s) sin IMEI, que esta categoría pide. Se importarán igual.
-              </p>
-              <p className="mt-1 text-xs">
-                Filas del Excel:{" "}
-                {validation.rows
-                  .filter((r) => r.warnings.length > 0)
-                  .slice(0, 30)
-                  .map((r) => r.excelRow)
-                  .join(", ")}
-                {validation.warningCount > 30 ? "…" : ""}
-              </p>
-            </div>
-          )}
 
           {validation.errorCount > 0 && (
             <button

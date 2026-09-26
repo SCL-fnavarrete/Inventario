@@ -69,8 +69,11 @@ describe('exigirSinReparto', () => {
 
 // Transaccion simulada
 const nuevaTx = () => ({
+  // Categoria de computador: exige N° de serie (reglasIdentificacion).
+  assetCategory: { findUnique: jest.fn().mockResolvedValue({ tipoFicha: 'computador' }) },
   asset: {
     findUnique: jest.fn().mockResolvedValue(null),
+    findFirst: jest.fn().mockResolvedValue(null),
     create: jest.fn(({ data }) => Promise.resolve({ id: `a-${data.numeroSerie}`, ...data })),
     update: jest.fn(),
   },

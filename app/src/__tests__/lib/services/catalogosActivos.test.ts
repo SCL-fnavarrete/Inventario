@@ -37,6 +37,9 @@ import { auditLogService } from '@/lib/services/auditLogService';
 import { crearOpcion, eliminarOpcion, listarOpciones, renombrarOpcion } from '@/lib/services/catalogoOpcionesService';
 import { categoriaSchema } from '@/lib/validations/categoria';
 import { DELETE as eliminarCategoria, PUT as editarCategoria } from '@/app/api/categorias/[id]/route';
+import { reglasIdentificacion } from '@/lib/services/activoService';
+import { validarImei } from '@/lib/validations/imei';
+import { procesarFila } from '@/lib/importacion/procesarFila';
 
 const db = prisma as unknown as Record<string, Record<string, jest.Mock>>;
 const audit = auditLogService as unknown as Record<string, jest.Mock>;
@@ -124,16 +127,63 @@ describe('categorías', () => {
     expect(categoriaSchema.safeParse({ nombre: 'A', tipoFicha: 'tostadora' }).success).toBe(false);
   });
 
-  test('cambiar "Pide IMEI" y "Qué campos pide" queda en la auditoría', async () => {
-    const antes = { id: 'c1', nombre: 'Tablet', descripcion: null, requiereSerie: true, requiereImei: false, stockMinimo: 3, tipoFicha: 'generico' };
+  test('cambiar "Qué campos pide" queda en la auditoría', async () => {
+    const antes = { id: 'c1', nombre: 'Tablet', descripcion: null, stockMinimo: 3, tipoFicha: 'generico' };
     db.assetCategory.findUnique.mockResolvedValue(antes);
     db.assetCategory.findFirst.mockResolvedValue(null);
-    db.assetCategory.update.mockResolvedValue({ ...antes, requiereImei: true, tipoFicha: 'celular' });
-    const res = await editarCategoria(pedir('PUT', { nombre: 'Tablet', requiereImei: true, tipoFicha: 'celular' }), ctx('c1'));
+    db.assetCategory.update.mockResolvedValue({ ...antes, tipoFicha: 'celular' });
+    const res = await editarCategoria(pedir('PUT', { nombre: 'Tablet', tipoFicha: 'celular' }), ctx('c1'));
     expect(res.status).toBe(200);
     const [, , , anteriores, nuevos] = audit.registrarActualizacion.mock.calls[0];
-    expect(anteriores).toMatchObject({ requiereImei: false, tipoFicha: 'generico' });
-    expect(nuevos).toMatchObject({ requiereImei: true, tipoFicha: 'celular' });
+    expect(anteriores).toMatchObject({ tipoFicha: 'generico' });
+    expect(nuevos).toMatchObject({ tipoFicha: 'celular' });
+  });
+
+  test('celular: IMEI obligatorio y el N° de serie opcional; los demás, N° de serie al crear', async () => {
+    const tx = { assetCategory: { findUnique: jest.fn() }, asset: { findFirst: jest.fn().mockResolvedValue(null) } };
+    const reglas = (d: object, crear = true) => reglasIdentificacion(tx as never, { categoriaId: 'c', ...d }, { crear });
+    tx.assetCategory.findUnique.mockResolvedValue({ tipoFicha: 'celular' });
+    await expect(reglas({ imei: null })).rejects.toMatchObject({
+      status: 400,
+      details: [{ field: 'imei', message: 'Escribe el IMEI del celular' }],
+    });
+    await expect(reglas({ imei: '356938035643809', numeroSerie: null })).resolves.toBeUndefined();
+    tx.assetCategory.findUnique.mockResolvedValue({ tipoFicha: 'computador' });
+    await expect(reglas({ numeroSerie: '' })).rejects.toMatchObject({ details: [{ field: 'numeroSerie' }] });
+    await expect(reglas({ numeroSerie: '' }, false)).resolves.toBeUndefined();
+  });
+
+  test('el IMEI no se repite', async () => {
+    const tx = {
+      assetCategory: { findUnique: jest.fn().mockResolvedValue({ tipoFicha: 'celular' }) },
+      asset: { findFirst: jest.fn().mockResolvedValue({ id: 'otro' }) },
+    };
+    await expect(
+      reglasIdentificacion(tx as never, { categoriaId: 'c', imei: '356938035643809' }, { crear: true })
+    ).rejects.toMatchObject({ status: 409, details: [{ field: 'imei', message: 'Ya existe un activo con el IMEI 356938035643809' }] });
+    // Al editar no choca consigo mismo.
+    await reglasIdentificacion(tx as never, { categoriaId: 'c', imei: '356938035643809' }, { crear: false, exceptoId: 'a1' }).catch(() => {});
+    expect(tx.asset.findFirst).toHaveBeenLastCalledWith({
+      where: { imei: '356938035643809', NOT: { id: 'a1' } },
+      select: { id: true },
+    });
+  });
+
+  test('formato del IMEI: 15 números con dígito verificador', () => {
+    expect(validarImei('35-693803-564380-9')).toBeNull();
+    expect(validarImei('356938035643808')).toMatch(/no es válido/);
+    expect(validarImei('12345')).toMatch(/15 números/);
+  });
+
+  test('celular: en la importación, una fila sin IMEI es un error marcado en su campo', async () => {
+    const ctxFila = { exigeImei: true, existingImeiSet: new Set(['356938035643809']) } as unknown as Parameters<typeof procesarFila>[1];
+    const sinImei = await procesarFila({ marca: 'Samsung', modelo: 'A15' }, ctxFila, {} as never, true);
+    expect(sinImei).toMatchObject({ status: 'error', campo: 'imei', mensaje: 'Campos faltantes: IMEI' });
+    const malo = await procesarFila({ marca: 'Samsung', modelo: 'A15', imei: '356938035643808' }, ctxFila, {} as never, true);
+    expect(malo).toMatchObject({ status: 'error', tipo: 'invalid_format', campo: 'imei' });
+    const enBase = { asset: { findFirst: jest.fn().mockResolvedValue({ id: 'x' }) } };
+    const repetido = await procesarFila({ marca: 'Samsung', modelo: 'A15', imei: '356938035643809' }, ctxFila, enBase as never, true);
+    expect(repetido).toMatchObject({ status: 'error', tipo: 'duplicate_in_database', campo: 'imei' });
   });
 
   test('una categoría con activos no se elimina (409)', async () => {

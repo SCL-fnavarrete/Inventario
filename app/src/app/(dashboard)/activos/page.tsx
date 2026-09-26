@@ -40,6 +40,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
 import { etiquetaEstadoActivo } from "@/lib/constants/estadosActivo";
 import { COLUMNA_FIJA_CELDA, COLUMNA_FIJA_ENCABEZADO } from "@/components/ui/tablaStyles";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 type Asset = {
   id: string;
@@ -690,7 +691,7 @@ function ActivosPageContent() {
                                 href={`/activos/${asset.id}`}
                                 className="text-sm font-medium text-fg hover:text-primary-700 hover:underline"
                               >
-                                {asset.numeroSerie || "-"}
+                                {identificadorActivo(asset, "-")}
                               </Link>
                               {asset.imei && (
                                 <p className="text-xs text-fg-subtle">IMEI: {asset.imei}</p>

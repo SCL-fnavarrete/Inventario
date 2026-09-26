@@ -23,6 +23,7 @@ import {
   CONDICION_CARGADOR_POR_DEFECTO,
   type CondicionCargador,
 } from "@/lib/constants/condicionCargador";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 type AsignacionActiva = {
   id: string;
@@ -276,7 +277,7 @@ export function SeleccionarCambioEquipo({
                   {categoria}: {a.asset.marca} {a.asset.modelo}
                 </span>
                 <span className="block text-xs text-fg-subtle">
-                  Serie: {a.asset.numeroSerie || "Sin serie"}
+                  Serie: {identificadorActivo(a.asset, "Sin serie")}
                 </span>
               </span>
             </label>

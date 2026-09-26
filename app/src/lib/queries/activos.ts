@@ -80,6 +80,7 @@ export function busquedaActivo(palabra: string): Prisma.AssetWhereInput {
   return {
     OR: [
       { numeroSerie: c },
+      { imei: c },
       { marca: c },
       { modelo: c },
       { nombreEquipo: c },

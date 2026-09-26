@@ -15,6 +15,7 @@ import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 import { parseApiError } from "@/lib/utils/apiErrors";
 import { ahoraParaInputFechaHora, inputFechaHoraAISO } from "@/lib/utils/fechas";
 import { ETIQUETAS_GUIA, validarDatosDespacho } from "@/lib/validations/guia";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 type EquipoPendiente = { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: string };
 type LineaPendiente = { id: string; nombre: string; porRepartir: number };
@@ -189,7 +190,7 @@ function ContenidoReparto({
                     {e.marca} {e.modelo}
                   </span>
                   <span className="block text-xs text-fg-subtle break-all">
-                    {e.categoria} • {e.numeroSerie || "Sin serie"}
+                    {e.categoria} • {identificadorActivo(e, "Sin serie")}
                   </span>
                 </span>
               </label>

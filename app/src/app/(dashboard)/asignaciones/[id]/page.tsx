@@ -22,6 +22,7 @@ import { etiquetaEstadoActivo } from "@/lib/constants/estadosActivo";
 import { cn } from "@/lib/utils";
 import { formatearFechaLarga, formatearFechaHoraCorta } from "@/lib/utils/fechas";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 type Assignment = {
   id: string;
@@ -285,7 +286,7 @@ export default function AsignacionDetailPage({
             <div className="grid grid-cols-2 gap-4 pt-4 border-t">
               <div>
                 <p className="text-xs text-fg-subtle uppercase">N° Serie</p>
-                <p className="font-mono">{assignment.asset.numeroSerie || "-"}</p>
+                <p className="font-mono">{identificadorActivo(assignment.asset, "-")}</p>
               </div>
               <div>
                 <p className="text-xs text-fg-subtle uppercase">Estado Actual</p>

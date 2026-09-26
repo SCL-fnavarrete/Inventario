@@ -43,15 +43,13 @@ export async function PUT(
       data: {
         nombre: datos.nombre,
         descripcion: datos.descripcion,
-        requiereSerie: datos.requiereSerie ?? existing.requiereSerie,
-        requiereImei: datos.requiereImei ?? existing.requiereImei,
         stockMinimo: datos.stockMinimo ?? existing.stockMinimo,
         tipoFicha: datos.tipoFicha ?? existing.tipoFicha,
       },
     });
 
-    // Todo lo que cambia queda en la auditoria, tambien "Requiere serie/IMEI"
-    // y "Que campos pide" (SPEC 2.112.7).
+    // Todo lo que cambia queda en la auditoria, tambien "Que campos pide"
+    // (SPEC 2.112.7).
     await auditLogService.registrarActualizacion(
       'categoria',
       category.id,

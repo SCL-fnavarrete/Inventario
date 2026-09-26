@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { CampoFormulario, CampoTexto, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
-import { TIPOS_FICHA, TIPO_FICHA_LABEL } from "@/lib/constants/categorias";
+import { CAMPOS_COMUNES, TIPOS_FICHA, TIPO_FICHA_LABEL } from "@/lib/constants/categorias";
 
 /**
  * Catalogos de Activos > Categorias (SPEC 2.112.7). Un solo formulario para
@@ -22,8 +22,6 @@ type Categoria = {
   id: string;
   nombre: string;
   descripcion: string | null;
-  requiereSerie: boolean;
-  requiereImei: boolean;
   stockMinimo: number;
   tipoFicha: TipoFicha;
   _count?: { assets: number };
@@ -32,23 +30,11 @@ type Categoria = {
 const FORM_INICIAL = {
   nombre: "",
   descripcion: "",
-  requiereSerie: true,
-  requiereImei: false,
   stockMinimo: "3",
   tipoFicha: "generico" as TipoFicha,
 };
 
 const ETIQUETAS = { nombre: "Nombre", stockMinimo: "Stock mínimo", tipoFicha: "Qué campos pide" };
-
-const Si = ({ si }: { si: boolean }) => (
-  <span
-    className={`inline-flex rounded-full px-2 py-0.5 text-xs ${
-      si ? "bg-green-100 text-green-800" : "bg-gray-100 text-fg-muted"
-    }`}
-  >
-    {si ? "Sí" : "No"}
-  </span>
-);
 
 export function CategoriasCatalogo() {
   const toast = useToast();
@@ -87,8 +73,6 @@ export function CategoriasCatalogo() {
         ? {
             nombre: categoria.nombre,
             descripcion: categoria.descripcion ?? "",
-            requiereSerie: categoria.requiereSerie,
-            requiereImei: categoria.requiereImei,
             stockMinimo: String(categoria.stockMinimo),
             tipoFicha: categoria.tipoFicha,
           }
@@ -152,7 +136,7 @@ export function CategoriasCatalogo() {
     }
   };
 
-  const detalleFicha = TIPOS_FICHA.find((t) => t.valor === form.tipoFicha)?.detalle;
+  const camposFicha = TIPOS_FICHA.find((t) => t.valor === form.tipoFicha)?.campos ?? [];
 
   return (
     <div className="space-y-4">
@@ -191,7 +175,7 @@ export function CategoriasCatalogo() {
               onChange={(v) => cambiar("descripcion", v)}
               placeholder="Descripción de la categoría"
             />
-            <CampoFormulario label="Qué campos pide" obligatorio error={errores.tipoFicha} ayuda={detalleFicha}>
+            <CampoFormulario label="Qué campos pide" obligatorio error={errores.tipoFicha}>
               <select
                 value={form.tipoFicha}
                 onChange={(e) => cambiar("tipoFicha", e.target.value as TipoFicha)}
@@ -214,31 +198,16 @@ export function CategoriasCatalogo() {
               error={errores.stockMinimo}
               ayuda="El Dashboard avisa cuando los activos disponibles de esta categoría llegan a este número o menos."
             />
-            <div className="md:col-span-2">
-              <div className="flex flex-wrap gap-6">
-                <label className="flex items-center gap-2 text-sm text-fg-muted">
-                  <input
-                    type="checkbox"
-                    checked={form.requiereSerie}
-                    onChange={(e) => cambiar("requiereSerie", e.target.checked)}
-                    className="field-checkbox"
-                  />
-                  Pide N° de serie
-                </label>
-                <label className="flex items-center gap-2 text-sm text-fg-muted">
-                  <input
-                    type="checkbox"
-                    checked={form.requiereImei}
-                    onChange={(e) => cambiar("requiereImei", e.target.checked)}
-                    className="field-checkbox"
-                  />
-                  Pide IMEI
-                </label>
-              </div>
-              <p className="mt-1 text-xs text-fg-subtle">
-                Si falta el dato, se avisa al crear, editar o importar un activo de esta categoría (no impide
-                guardar).
+            {/* Los campos que tendra cada activo de esta categoria. */}
+            <div className="rounded-lg border border-line bg-surface-muted p-4 text-sm md:col-span-2">
+              <p className="font-medium text-fg">Campos que tendrá cada activo de esta categoría</p>
+              <p className="mt-2 text-fg-muted">
+                <span className="font-medium text-fg">
+                  {camposFicha.length ? `Propios de ${TIPO_FICHA_LABEL[form.tipoFicha]}:` : "Sin campos propios:"}
+                </span>{" "}
+                {camposFicha.length ? camposFicha.join(", ") : "solo los de todos los activos."}
               </p>
+              <p className="mt-1 text-xs text-fg-subtle">Todos los activos: {CAMPOS_COMUNES.join(", ")}.</p>
             </div>
           </div>
           <div className="mt-4 flex justify-end gap-3">
@@ -259,8 +228,6 @@ export function CategoriasCatalogo() {
               <tr>
                 <th className="table-th">Nombre</th>
                 <th className="table-th">Qué campos pide</th>
-                <th className="table-th hidden text-center md:table-cell">Pide serie</th>
-                <th className="table-th hidden text-center md:table-cell">Pide IMEI</th>
                 <th className="table-th hidden text-center sm:table-cell">Stock mínimo</th>
                 <th className="table-th text-center">Activos</th>
                 <th className="table-th text-right">Acciones</th>
@@ -269,13 +236,13 @@ export function CategoriasCatalogo() {
             <tbody className="divide-y divide-line bg-surface">
               {cargando ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-fg-subtle">
+                  <td colSpan={5} className="px-6 py-8 text-center text-fg-subtle">
                     Cargando...
                   </td>
                 </tr>
               ) : categorias.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-fg-subtle">
+                  <td colSpan={5} className="px-6 py-8 text-center text-fg-subtle">
                     No hay categorías registradas
                   </td>
                 </tr>
@@ -289,12 +256,6 @@ export function CategoriasCatalogo() {
                         {c.descripcion && <p className="text-xs text-fg-subtle">{c.descripcion}</p>}
                       </td>
                       <td className="px-6 py-4 text-sm text-fg-muted">{TIPO_FICHA_LABEL[c.tipoFicha]}</td>
-                      <td className="hidden px-6 py-4 text-center md:table-cell">
-                        <Si si={c.requiereSerie} />
-                      </td>
-                      <td className="hidden px-6 py-4 text-center md:table-cell">
-                        <Si si={c.requiereImei} />
-                      </td>
                       <td className="hidden px-6 py-4 text-center text-fg-subtle sm:table-cell">{c.stockMinimo}</td>
                       <td className="px-6 py-4 text-center text-fg-subtle">{activos}</td>
                       <td className="px-6 py-4 text-right">

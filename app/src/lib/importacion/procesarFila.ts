@@ -13,6 +13,7 @@ import {
   tieneMicrosoft365,
 } from "@/lib/importacion/activos";
 import { limpiarRut } from "@/lib/validations/rut";
+import { normalizarImei, validarImei } from "@/lib/validations/imei";
 import { Prisma } from "@prisma/client";
 import type { SesionAutenticada } from "@/lib/auth/guard";
 import type { ValidationErrorType } from "@/types/import";
@@ -32,6 +33,9 @@ export interface ContextoFila {
   session: SesionAutenticada;
   /** Solo hace falta cuando dryRun es false -- en preview no se escribe nada. */
   categoriaId: string;
+  /** La categoria tiene campos de celular: cada fila se identifica por su
+   * IMEI, obligatorio, y el N° de serie es opcional (SPEC 2.112.7). */
+  exigeImei: boolean;
   tipoMantencionId: string;
   sedeIdExplicita: string | null;
   mapaSedes: Record<string, string>;
@@ -45,6 +49,8 @@ export interface ContextoFila {
    * una fila detecte que otra fila anterior del MISMO archivo ya "reservo"
    * un numero de serie o un RUT -- igual en preview que en la escritura real. */
   existingSeriesSet: Set<string>;
+  /** Igual que existingSeriesSet, para los IMEI (SPEC 2.112.7). */
+  existingImeiSet: Set<string>;
   employeeCache: Map<string, string>;
 }
 
@@ -94,25 +100,49 @@ export async function procesarFila(
   const numeroSerie = obtener("numeroSerie");
   const nombreEquipo = obtener("nombreEquipo") || null;
 
-  if (!marca || !modelo || !numeroSerie) {
+  const imeiFila = normalizarImei(obtener("imei"));
+  const faltaImei = ctx.exigeImei && !imeiFila;
+  const faltaSerie = !ctx.exigeImei && !numeroSerie;
+  if (!marca || !modelo || faltaSerie || faltaImei) {
     const faltantes: string[] = [];
     if (!marca) faltantes.push("Marca");
     if (!modelo) faltantes.push("Modelo");
-    if (!numeroSerie) faltantes.push("N° de Serie");
+    if (faltaSerie) faltantes.push("N° de Serie");
+    if (faltaImei) faltantes.push("IMEI");
     return {
       status: "error",
       tipo: "missing_required_field",
       mensaje: `Campos faltantes: ${faltantes.join(", ")}`,
       data: datosFila,
       // El primero que falta, para que la revision lo marque (SPEC 2.105).
-      campo: !marca ? "marca" : !modelo ? "modelo" : "numeroSerie",
+      campo: !marca ? "marca" : !modelo ? "modelo" : faltaSerie ? "numeroSerie" : "imei",
     };
+  }
+
+  // IMEI: formato valido y unico, en la base y en el mismo archivo.
+  if (imeiFila) {
+    const errorImei = validarImei(imeiFila);
+    if (errorImei) {
+      return { status: "error", tipo: "invalid_format", mensaje: errorImei, data: datosFila, campo: "imei" };
+    }
+    if (ctx.existingImeiSet.has(imeiFila)) {
+      const enBase = await prismaClient.asset.findFirst({ where: { imei: imeiFila }, select: { id: true } });
+      return {
+        status: "error",
+        tipo: enBase ? "duplicate_in_database" : "duplicate_in_file",
+        mensaje: enBase
+          ? `Ya existe un activo con el IMEI ${imeiFila}`
+          : `IMEI "${imeiFila}" aparece repetido en este mismo archivo (otra fila ya lo usa).`,
+        data: datosFila,
+        campo: "imei",
+      };
+    }
   }
 
   // Verificar duplicado -- puede ser un activo que ya existe en la base, o
   // uno que "ya existe" porque otra fila mas arriba en este mismo archivo
   // acaba de reservar el mismo numero de serie.
-  if (ctx.existingSeriesSet.has(numeroSerie.toUpperCase())) {
+  if (numeroSerie && ctx.existingSeriesSet.has(numeroSerie.toUpperCase())) {
     const existingAsset = await prismaClient.asset.findFirst({
       where: { numeroSerie: { equals: numeroSerie, mode: "insensitive" } },
       select: {
@@ -265,7 +295,7 @@ export async function procesarFila(
   const procesador = obtener("procesador") || null;
   const ram = obtener("ram") || null;
   const discoDuro = obtener("discoDuro") || obtener("almacenamiento") || null;
-  const imei = obtener("imei") || null;
+  const imei = imeiFila || null;
   const numeroTelefono = obtener("numeroTelefono") || null;
   const pulgadasStr = obtener("pulgadas");
   const pulgadas = pulgadasStr ? parseFloat(pulgadasStr) : null;
@@ -346,7 +376,8 @@ export async function procesarFila(
     // No se escribe nada: se reserva el numero de serie y, si corresponde,
     // el RUT del empleado nuevo, para que otra fila mas abajo en el MISMO
     // archivo se valide contra esto -- mismo criterio que la escritura real.
-    ctx.existingSeriesSet.add(numeroSerie.toUpperCase());
+    if (numeroSerie) ctx.existingSeriesSet.add(numeroSerie.toUpperCase());
+    if (imeiFila) ctx.existingImeiSet.add(imeiFila);
     if (rutEmpleado && !empleadoExistenteId) {
       ctx.employeeCache.set(rutEmpleado, PLACEHOLDER_EMPLEADO_PENDIENTE);
     }
@@ -375,7 +406,8 @@ export async function procesarFila(
         marca,
         modelo,
         nombreEquipo,
-        numeroSerie,
+        // En celulares la serie es opcional: vacia queda null (es unica).
+        numeroSerie: numeroSerie || null,
         estado,
         condicion,
         procesador,
@@ -567,7 +599,8 @@ export async function procesarFila(
   if (rutEmpleado && escrito.empleadoId) {
     ctx.employeeCache.set(rutEmpleado, escrito.empleadoId);
   }
-  ctx.existingSeriesSet.add(numeroSerie.toUpperCase());
+  if (numeroSerie) ctx.existingSeriesSet.add(numeroSerie.toUpperCase());
+  if (imeiFila) ctx.existingImeiSet.add(imeiFila);
 
   return { status: "imported", data: datosFila, assetId: escrito.assetId };
 }

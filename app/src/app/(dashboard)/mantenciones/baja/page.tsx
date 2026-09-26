@@ -23,6 +23,7 @@ import {
 import { PageHeader } from "@/components/ui/PageHeader";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { useToast } from "@/components/ui/Toast";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 type Activo = {
   id: string;
@@ -181,7 +182,7 @@ function DarDeBajaContenido() {
           </div>
           <div>
             <span className="text-fg-subtle">Serie:</span>{" "}
-            <span className="font-medium">{activo.numeroSerie || "-"}</span>
+            <span className="font-medium">{identificadorActivo(activo, "-")}</span>
           </div>
         </div>
       </div>
