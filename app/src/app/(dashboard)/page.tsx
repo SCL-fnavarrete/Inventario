@@ -302,7 +302,7 @@ function formatMonth(mes: string): string {
 }
 
 export default async function DashboardPage() {
-  // El middleware ya exige sesion para llegar aca (ver src/middleware.ts),
+  // El proxy ya exige sesion para llegar aca (ver src/proxy.ts),
   // asi que el cast es seguro -- ver requireSession() en guard.ts, que hace
   // lo mismo para las rutas de API.
   const session = (await getServerSession(authOptions)) as SesionAutenticada;

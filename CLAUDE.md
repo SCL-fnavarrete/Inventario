@@ -44,7 +44,7 @@ mas `api/` con los endpoints REST agrupados por feature.
 | `src/lib/validations/assetTransition.ts` | Zod schemas para transiciones de activos: baja, venta, mantención, reasignación |
 | `src/lib/validations/` | Zod schemas for all entities (asset, employee, assignment, workflow, etc.) |
 | `src/lib/utils/rut.ts` | Chilean RUT format validation |
-| `src/middleware.ts` | Auth enforcement: protects all routes except `/login`, `/api/auth` |
+| `src/proxy.ts` | Proxy de Next.js 16 (antes `middleware.ts`): exige sesión en todas las rutas salvo `/login` y `/api/auth` |
 | `prisma/schema.prisma` | 30 modelos y 24 enums (estados de activos, condiciones, contratos, workflow, accesos...) |
 
 ### API Route Pattern

@@ -44,7 +44,7 @@ const config: Config = {
   collectCoverageFrom: [
     'src/lib/**/*.{js,jsx,ts,tsx}',
     'src/hooks/**/*.{js,jsx,ts,tsx}',
-    'src/middleware.ts',
+    'src/proxy.ts',
     '!src/**/*.d.ts',
     // Plantillas PDF: markup declarativo, se cubren via los tests de
     // documentos de la Ola 2.

@@ -1,8 +1,10 @@
+// Proxy de Next.js 16 (antes middleware.ts, convencion obsoleta desde
+// Next 16): exige sesion en todas las rutas salvo /login y /api/auth.
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 
 export default withAuth(
-  function middleware(req) {
+  function proxy(req) {
     const token = req.nextauth.token;
     const path = req.nextUrl.pathname;
 
@@ -34,7 +36,7 @@ export default withAuth(
     // Sin esto, withAuth redirige al no autenticado a su pantalla generica
     // /api/auth/signin en vez del /login propio de la app (que si esta
     // declarado en authOptions.pages, pero ese archivo no lo importa este
-    // middleware). Hallazgo F-1 de la auditoria de seguridad, 2026-09-17.
+    // proxy). Hallazgo F-1 de la auditoria de seguridad, 2026-09-17.
     pages: {
       signIn: "/login",
     },
