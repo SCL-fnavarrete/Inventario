@@ -3634,7 +3634,7 @@ Todo el módulo es solo de admin (`layout.tsx`, recurso `configuracion`).
 | Catálogos de Activos | Una pantalla con pestañas: Categorías, Sistemas operativos, Antivirus y Licencias M365 (2.112.7) |
 | Seguridad | Antes "Parámetros Generales": duración de la sesión, intentos de inicio de sesión y minutos de bloqueo |
 | Registro de accesos | Inicios de sesión, intentos fallidos, bloqueos, cierres de sesión y sesiones cortadas (2.112.4) |
-| Auditoría | Quién hizo qué y cuándo |
+| Auditoría | Quién hizo qué y cuándo, con páginas exactas y el detalle de lo que cambió (2.112.8) |
 
 El catálogo de Kit/EPP sigue en Activos y los tipos de mantención en Mantenciones, porque el técnico también los maneja.
 
@@ -3700,13 +3700,22 @@ Decisiones de Javier: una lista "Qué campos pide" en vez de reconocer la catego
 - **Todo queda en la auditoría:** los cambios de categoría guardan también "Pide serie/IMEI", stock mínimo y "Qué campos pide"; crear, reactivar, renombrar y eliminar opciones quedan con el módulo nuevo **Catálogo** (`AuditEntidad.catalogo`), con quién lo hizo (también un técnico que agrega una opción desde el formulario) y cuántos activos corrigió un renombre.
 - **Sin código repetido:** las seis rutas de opciones, que eran copias, llaman a un solo servicio (`lib/services/catalogoOpcionesService.ts`). Las direcciones de la API no cambian. Renombrar al nombre de otra opción responde 409 marcado en el campo.
 
-### 2.112.8 Próximas partes
-5. Auditoría: una sola consulta con páginas exactas (sin el tope de 300 por fuente ni el aviso "Hay más eventos"), fechas en hora de Chile, textos claros, detalle legible y vista en celular.
-6. Pantallas: fila compacta en celular (Usuarios, Sedes, Categorías), avisos de guardado, encabezado común, pieza compartida para las listas, textos del menú y limpieza del resto de Proveedores.
+### 2.112.8 Auditoría (parte 5)
+Javier notaba que siempre salía el aviso "Hay más eventos de los que se muestran para este filtro". Decisiones: el detalle muestra solo lo que cambió; sin exportar a Excel por ahora.
+- **Una sola consulta con páginas exactas** (`lib/services/auditoriaService.ts`): los tres historiales (AuditLog, AssetHistory y WorkflowTransition) se juntan en la base con UNION ALL, se ordenan y se paginan ahí mismo, con el total real. Antes se traían las últimas 300 filas de cada uno y se mezclaban en memoria: el total era falso, los eventos antiguos no se podían ver y el aviso salía siempre. Se quitó el aviso.
+- **Fechas en hora de Chile:** "Desde" y "Hasta" filtran por días de Chile (`rangoDiasChile`); "Hasta" incluye todo ese día (antes lo excluía y con Desde = Hasta = hoy no salía nada).
+- **Textos claros:** la acción se lee "Creó", "Editó", "Eliminó", "Asignación", "Baja", "Traslado"... y en las solicitudes el cambio de estado con sus nombres ("Gestión TI → Equipos Entregados"). El usuario aparece con su nombre (el correo al pasar el mouse) y se puede buscar por nombre o correo. "Buscar" encuentra también por el equipo (N° de serie) o el número de solicitud.
+- **Detalle legible:** en vez del código (JSON), una tabla *Campo · Antes · Después* solo con lo que cambió; al crear o eliminar, los datos del registro. Los identificadores se muestran con su nombre (sede, persona, activo, tipo de mantención), los estados y roles en palabras, las fechas en hora de Chile, y se ocultan datos internos (numeración de la importación, identificadores de enlace).
+- **Enlace al registro** afectado cuando tiene pantalla propia (activo, solicitud, compra, despacho, mantención, empleado), salvo si se eliminó.
+- **Pantalla:** mismo encabezado que las demás, con flecha para volver; etiquetas unidas a los filtros; en celular, fila compacta con el detalle desplegable. Un módulo desconocido en el filtro responde 400.
+- Los módulos del filtro viven en `lib/constants/auditoria.ts` (antes repetidos en la pantalla y la ruta).
+
+### 2.112.9 Próximas partes
+6. Pantallas: fila compacta en celular (Usuarios, Sedes, Categorías), encabezado y avisos consistentes, pieza compartida para las listas, ícono de los diálogos de desactivar, mensaje de permisos en inglés ("no puede read sobre"), textos del menú y limpieza del resto de Proveedores.
 
 ## Changelog SPEC
 - **v2.36 (2026-09-25):**
-  - Sección 2.112 (nueva): Configuración se reduce a Sedes, Usuarios, Catálogos de Activos, Seguridad, Registro de accesos y Auditoría. Los usuarios no se eliminan, se desactivan, y la desactivación corta la sesión en la siguiente acción; nunca se queda el sistema sin administradores; nuevo Registro de accesos, base también del bloqueo por intentos. Las sesiones se anulan de verdad: lista negra al cerrar sesión y "sesiones válidas desde" al desactivar (2.112.5). Parte 3 (2.112.6): cambiar la contraseña cierra las sesiones, la sede desactivada deja fuera a sus técnicos, bloqueo también por equipo, registro de accesos de 1 año y validación con Zod en Sedes y Usuarios. Parte 4 (2.112.7): Catálogos de Activos en una pantalla con pestañas, "Qué campos pide" en cada categoría, avisos de serie/IMEI, auditoría de catálogos y un solo servicio para las opciones. Se eliminan Mantenimiento de Datos, la sincronización con Microsoft (2.6 queda como historia) y los datos de la empresa, con sus columnas en la base.
+  - Sección 2.112 (nueva): Configuración se reduce a Sedes, Usuarios, Catálogos de Activos, Seguridad, Registro de accesos y Auditoría. Los usuarios no se eliminan, se desactivan, y la desactivación corta la sesión en la siguiente acción; nunca se queda el sistema sin administradores; nuevo Registro de accesos, base también del bloqueo por intentos. Las sesiones se anulan de verdad: lista negra al cerrar sesión y "sesiones válidas desde" al desactivar (2.112.5). Parte 3 (2.112.6): cambiar la contraseña cierra las sesiones, la sede desactivada deja fuera a sus técnicos, bloqueo también por equipo, registro de accesos de 1 año y validación con Zod en Sedes y Usuarios. Parte 4 (2.112.7): Catálogos de Activos en una pantalla con pestañas, "Qué campos pide" en cada categoría, avisos de serie/IMEI, auditoría de catálogos y un solo servicio para las opciones. Parte 5 (2.112.8): Auditoría en una sola consulta con páginas exactas (sin el aviso "Hay más eventos"), fechas de Chile, textos claros y detalle Campo · Antes · Después. Se eliminan Mantenimiento de Datos, la sincronización con Microsoft (2.6 queda como historia) y los datos de la empresa, con sus columnas en la base.
 - **v2.35 (2026-09-25):**
   - Sección 2.111 (nueva, regla aprobada, se implementa por partes; implementada en cinco partes: modelo; registrar; repartir; Kit/EPP en despachos y "Apareció"; revisión final con 4 huecos corregidos y 66 casos probados): en Compras primero se compra y después se reparte. El técnico ve todas las compras y lo que hay por repartir, en solo lectura. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
 - **v2.34 (2026-09-25):**
