@@ -318,7 +318,7 @@ export default function NuevaSolicitudPage() {
   const [otChilexpressEntrega, setOtChilexpressEntrega] = useState('');
   const [ciudadEntrega, setCiudadEntrega] = useState('');
   // Kit de Bienvenida y EPP: aparte de Equipos Requeridos porque no son
-  // Activos (ver /configuracion/kit-epp). Igual que con los equipos, si hay
+  // Activos (ver /activos/kit-bienvenida). Igual que con los equipos, si hay
   // stock se puede elegir de una los articulos y cantidades especificas y
   // quedan reservados desde que se crea el ticket.
   const [kitBienvenidaSolicitado, setKitBienvenidaSolicitado] = useState(false);

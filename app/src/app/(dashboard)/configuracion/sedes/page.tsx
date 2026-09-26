@@ -1,16 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Edit, Save, X, MapPin, Power, PowerOff } from "lucide-react";
+import { Plus, Edit, Save, MapPin, Power, PowerOff } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { useToast } from "@/components/ui/Toast";
-import { buttonClasses } from "@/components/ui/buttonStyles";
+import { Button } from "@/components/ui/Button";
 import { ActiveBadge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
+import { TablaAdaptable } from "@/components/ui/TablaAdaptable";
+import { CampoTexto, ResumenErrores } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+
+/**
+ * Configuracion > Sedes. Un solo formulario para crear y editar (antes el
+ * nombre se editaba dentro de la fila, que en celular no cabia) y la lista
+ * adaptable (SPEC 2.112.9). Desactivar pide confirmacion y dice que tiene
+ * la sede (SPEC 2.112.6).
+ */
 
 type Sede = {
   id: string;
@@ -24,14 +32,15 @@ type Sede = {
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
 const ETIQUETAS = { codigo: "Código", nombre: "Nombre" };
+const FORM_INICIAL = { codigo: "", nombre: "" };
 
 export default function SedesPage() {
   const toast = useToast();
   const [sedes, setSedes] = useState<Sede[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [formData, setFormData] = useState({ codigo: "", nombre: "", activa: true });
+  const [cargando, setCargando] = useState(true);
+  // null = cerrado, "nueva" = creando, id = editando esa sede.
+  const [abierto, setAbierto] = useState<string | null>(null);
+  const [form, setForm] = useState(FORM_INICIAL);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   // Sede que se va a activar/desactivar, a la espera de confirmar.
@@ -39,89 +48,69 @@ export default function SedesPage() {
   // Validacion por campo, igual que el resto de los formularios (SPEC 2.95).
   const { errores, resumen, reportar, reportarServidor, limpiar } = useErroresFormulario(ETIQUETAS);
 
-  const cambiar = (campo: "codigo" | "nombre", valor: string) => {
-    setFormData((prev) => ({ ...prev, [campo]: valor }));
-    limpiar(campo);
+  const cargar = async () => {
+    try {
+      const res = await fetch("/api/sedes?conUso=true");
+      if (res.ok) setSedes(await res.json());
+    } finally {
+      setCargando(false);
+    }
   };
 
   useEffect(() => {
-    fetchSedes();
+    cargar();
   }, []);
 
-  const fetchSedes = async () => {
-    try {
-      const res = await fetch("/api/sedes?conUso=true");
-      if (res.ok) {
-        setSedes(await res.json());
-      }
-    } catch (err) {
-      console.error("Error fetching sedes:", err);
-    } finally {
-      setLoading(false);
-    }
+  const cambiar = (campo: keyof typeof FORM_INICIAL, valor: string) => {
+    setForm((prev) => ({ ...prev, [campo]: valor }));
+    limpiar(campo);
   };
 
-  const handleCreate = async () => {
-    if (
-      reportar({
-        ...(!formData.codigo.trim() && { codigo: "Escribe el código" }),
-        ...(!formData.nombre.trim() && { nombre: "Escribe el nombre" }),
-      })
-    )
-      return;
+  const limpiarErrores = () => {
+    setError("");
+    setFieldErrors({});
+    reportar({});
+  };
 
+  const abrir = (sede?: Sede) => {
+    setAbierto(sede?.id ?? "nueva");
+    setForm(sede ? { codigo: sede.codigo, nombre: sede.nombre } : FORM_INICIAL);
+    limpiarErrores();
+  };
+
+  const cerrar = () => {
+    setAbierto(null);
+    setForm(FORM_INICIAL);
+    limpiarErrores();
+  };
+
+  const guardar = async () => {
+    const nueva = abierto === "nueva";
+    const e: Record<string, string> = {};
+    if (nueva && !form.codigo.trim()) e.codigo = "Escribe el código";
+    if (!form.nombre.trim()) e.nombre = "Escribe el nombre";
+    if (reportar(e)) return;
     try {
-      const res = await fetch("/api/sedes", {
-        method: "POST",
+      const res = await fetch(nueva ? "/api/sedes" : `/api/sedes/${abierto}`, {
+        method: nueva ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        // El codigo no se edita: es la referencia estable de la sede.
+        body: JSON.stringify(nueva ? form : { nombre: form.nombre }),
       });
-
-      if (res.ok) {
-        await fetchSedes();
-        setIsCreating(false);
-        setFormData({ codigo: "", nombre: "", activa: true });
-        setError("");
-        setFieldErrors({});
-        toast.success("Sede creada exitosamente");
-      } else {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear sede");
+      if (!res.ok) {
+        const { message, fieldErrors: fe } = await parseApiError(res, "Error al guardar la sede");
         if (!reportarServidor(fe)) setError(message);
+        return;
       }
-    } catch (err) {
-      setError("Error al crear sede");
-      console.error(err);
+      await cargar();
+      cerrar();
+      toast.success(nueva ? "Sede creada" : "Sede guardada");
+    } catch {
+      setError("Error al guardar la sede");
     }
   };
 
-  const handleUpdate = async (id: string) => {
-    if (reportar(formData.nombre.trim() ? {} : { nombre: "Escribe el nombre" })) return;
-
-    try {
-      const res = await fetch(`/api/sedes/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: formData.nombre }),
-      });
-
-      if (res.ok) {
-        await fetchSedes();
-        setEditingId(null);
-        setFormData({ codigo: "", nombre: "", activa: true });
-        setError("");
-        setFieldErrors({});
-        toast.success("Sede actualizada exitosamente");
-      } else {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar sede");
-        if (!reportarServidor(fe)) setError(message);
-      }
-    } catch (err) {
-      setError("Error al actualizar sede");
-      console.error(err);
-    }
-  };
-
-  const toggleActiva = async (sede: Sede) => {
+  const cambiarEstado = async (sede: Sede) => {
     setCambioEstado(null);
     try {
       const res = await fetch(`/api/sedes/${sede.id}`, {
@@ -129,245 +118,149 @@ export default function SedesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ activa: !sede.activa }),
       });
-      if (res.ok) {
-        await fetchSedes();
-        toast.success(`Sede ${sede.activa ? "desactivada" : "activada"} exitosamente`);
-      } else {
+      if (!res.ok) {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al cambiar el estado de la sede");
         setError(message);
         setFieldErrors(fe);
+        return;
       }
-    } catch (err) {
+      await cargar();
+      toast.success(`Sede ${sede.activa ? "desactivada" : "activada"}`);
+    } catch {
       setError("Error al cambiar el estado de la sede");
-      console.error(err);
     }
   };
-
-  const startEdit = (sede: Sede) => {
-    setEditingId(sede.id);
-    setFormData({ codigo: sede.codigo, nombre: sede.nombre, activa: sede.activa });
-    setIsCreating(false);
-    setError("");
-    setFieldErrors({});
-    reportar({});
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setIsCreating(false);
-    setFormData({ codigo: "", nombre: "", activa: true });
-    setError("");
-    setFieldErrors({});
-    reportar({});
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
       <PageHeader
+        backHref="/configuracion"
         title="Sedes"
         description="Cada activo, empleado, solicitud y despacho pertenece a una sede. El técnico trabaja solo con los datos de la suya; el administrador ve todas y el selector del menú filtra lo que muestra. Si una sede se desactiva, sus técnicos no pueden entrar."
         actions={
-          <>
-            {!isCreating && !editingId && (
-              <button
-                onClick={() => {
-                  setIsCreating(true);
-                  setFormData({ codigo: "", nombre: "", activa: true });
-                  setError("");
-                  setFieldErrors({});
-                }}
-                className={buttonClasses()}
-              >
-                <Plus size={20} />
-                <span>Nueva Sede</span>
-              </button>
-            )}
-          </>
+          !abierto && (
+            <Button leftIcon={<Plus size={18} />} onClick={() => abrir()}>
+              Nueva sede
+            </Button>
+          )
         }
       />
 
       <ResumenErrores mensaje={resumen} />
       <ApiErrorSummary error={error || null} fieldErrors={fieldErrors} />
 
-      {/* Formulario de creación */}
-      {isCreating && (
+      {abierto && (
         <div className="card p-6">
-          <h2 className="text-lg font-semibold text-fg mb-4">Nueva Sede</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="field-label">Código *</label>
-              <input
-                type="text"
-                value={formData.codigo}
-                onChange={(e) => cambiar("codigo", e.target.value.toUpperCase())}
-                aria-invalid={!!errores.codigo}
-                className={claseCampo(errores.codigo)}
-                placeholder="Ej: STGO, CCP"
-                maxLength={10}
-              />
-              {errores.codigo ? (
-                <MensajeCampo mensaje={errores.codigo} />
-              ) : (
-                <p className="text-xs text-fg-subtle mt-1">
-                  Código corto y estable. No se puede editar después de creada.
-                </p>
-              )}
-            </div>
-            <div>
-              <label className="field-label">Nombre *</label>
-              <input
-                type="text"
-                value={formData.nombre}
-                onChange={(e) => cambiar("nombre", e.target.value)}
-                aria-invalid={!!errores.nombre}
-                className={claseCampo(errores.nombre)}
-                placeholder="Ej: Santiago, Concepción"
-              />
-              <MensajeCampo mensaje={errores.nombre} />
-            </div>
+          <h2 className="mb-4 text-lg font-semibold text-fg">{abierto === "nueva" ? "Nueva sede" : "Editar sede"}</h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <CampoTexto
+              label="Código"
+              obligatorio={abierto === "nueva"}
+              value={form.codigo}
+              onChange={(v) => cambiar("codigo", v.toUpperCase())}
+              error={errores.codigo}
+              placeholder="Ej: STGO, CCP"
+              maxLength={12}
+              disabled={abierto !== "nueva"}
+              ayuda="Código corto y estable: no se puede cambiar después de creada."
+            />
+            <CampoTexto
+              label="Nombre"
+              obligatorio
+              value={form.nombre}
+              onChange={(v) => cambiar("nombre", v)}
+              error={errores.nombre}
+              placeholder="Ej: Santiago, Concepción"
+            />
           </div>
-          <div className="flex justify-end gap-3 mt-4">
-            <button
-              onClick={cancelEdit}
-              className={buttonClasses({ variant: "outline" })}
-            >
+          <div className="mt-4 flex justify-end gap-3">
+            <Button variant="outline" onClick={cerrar}>
               Cancelar
-            </button>
-            <button
-              onClick={handleCreate}
-              className={buttonClasses()}
-            >
-              <Save size={18} />
+            </Button>
+            <Button leftIcon={<Save size={18} />} onClick={guardar}>
               Guardar
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
-      {/* Tabla de sedes */}
-      <div className="card overflow-hidden">
-        <table className="min-w-full divide-y divide-line">
-          <thead className="bg-surface-muted">
-            <tr>
-              <th className="table-th">
-                Código
-              </th>
-              <th className="table-th">
-                Nombre
-              </th>
-              <th className="table-th text-center">
-                Estado
-              </th>
-              <th className="table-th text-right">
-                Acciones
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-surface divide-y divide-line">
-            {sedes.map((sede) => (
-              <tr key={sede.id} className={!sede.activa ? "bg-surface-muted" : ""}>
-                {editingId === sede.id ? (
-                  <>
-                    <td className="px-6 py-4 text-fg-subtle">{sede.codigo}</td>
-                    <td className="px-6 py-4">
-                      <input
-                        type="text"
-                        value={formData.nombre}
-                        onChange={(e) => cambiar("nombre", e.target.value)}
-                        aria-invalid={!!errores.nombre}
-                        className={claseCampo(errores.nombre)}
-                      />
-                      <MensajeCampo mensaje={errores.nombre} />
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <ActiveBadge activo={sede.activa} labels={["Activa", "Inactiva"]} />
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => handleUpdate(sede.id)}
-                          className="p-1 text-green-600 hover:bg-green-50 rounded"
-                          title="Guardar"
-                        >
-                          <Save size={18} />
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          className="p-1 text-fg-muted hover:bg-gray-100 rounded"
-                          title="Cancelar"
-                        >
-                          <X size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td className="px-6 py-4 font-mono text-sm text-fg-muted">{sede.codigo}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 font-medium text-fg">
-                        <MapPin size={16} className="text-fg-subtle" />
-                        {sede.nombre}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <ActiveBadge activo={sede.activa} labels={["Activa", "Inactiva"]} />
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => startEdit(sede)}
-                          className="p-1 text-primary-700 hover:bg-primary-50 rounded"
-                          title="Editar"
-                          aria-label={`Editar ${sede.nombre}`}
-                        >
-                          <Edit size={18} />
-                        </button>
-                        {/* Activar/desactivar con confirmacion (SPEC 2.112.6). */}
-                        <button
-                          onClick={() => setCambioEstado(sede)}
-                          className={
-                            sede.activa
-                              ? "p-1 text-red-600 hover:bg-red-50 rounded"
-                              : "p-1 text-green-600 hover:bg-green-50 rounded"
-                          }
-                          title={sede.activa ? "Desactivar" : "Activar"}
-                          aria-label={`${sede.activa ? "Desactivar" : "Activar"} ${sede.nombre}`}
-                        >
-                          {sede.activa ? <PowerOff size={18} /> : <Power size={18} />}
-                        </button>
-                      </div>
-                    </td>
-                  </>
-                )}
-              </tr>
-            ))}
-            {sedes.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-fg-subtle">
-                  No hay sedes registradas
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {cargando ? (
+        <p className="card px-6 py-8 text-center text-fg-subtle">Cargando...</p>
+      ) : (
+        <TablaAdaptable
+          items={sedes}
+          clave={(s) => s.id}
+          vacio="No hay sedes registradas"
+          resaltada={(s) => !s.activa || abierto === s.id}
+          columnas={[
+            { titulo: "Código", celda: (s) => <span className="font-mono">{s.codigo}</span>, className: "text-fg-muted" },
+            {
+              titulo: "Nombre",
+              celda: (s) => (
+                <div className="flex items-center gap-2 font-medium text-fg">
+                  <MapPin size={16} className="text-fg-subtle" />
+                  {s.nombre}
+                </div>
+              ),
+            },
+            {
+              titulo: "Técnicos",
+              celda: (s) => s._count?.usuarios ?? 0,
+              className: "text-center text-fg-subtle",
+            },
+            { titulo: "Equipos", celda: (s) => s._count?.assets ?? 0, className: "text-center text-fg-subtle" },
+            {
+              titulo: "Estado",
+              celda: (s) => <ActiveBadge activo={s.activa} labels={["Activa", "Inactiva"]} />,
+              className: "text-center",
+            },
+          ]}
+          tarjeta={(s) => (
+            <>
+              <p className="flex items-center gap-2 font-medium text-fg">
+                <MapPin size={14} className="text-fg-subtle" />
+                {s.nombre} <span className="font-mono text-xs text-fg-subtle">{s.codigo}</span>
+              </p>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
+                <ActiveBadge activo={s.activa} labels={["Activa", "Inactiva"]} />
+                {plural(s._count?.usuarios ?? 0, "técnico", "técnicos")} · {plural(s._count?.assets ?? 0, "equipo", "equipos")}
+              </div>
+            </>
+          )}
+          acciones={(s) => (
+            <>
+              <button
+                onClick={() => abrir(s)}
+                className="rounded p-1 text-primary-700 hover:bg-primary-50"
+                title="Editar"
+                aria-label={`Editar ${s.nombre}`}
+              >
+                <Edit size={18} />
+              </button>
+              {/* Activar/desactivar con confirmacion (SPEC 2.112.6). */}
+              <button
+                onClick={() => setCambioEstado(s)}
+                className={
+                  s.activa ? "rounded p-1 text-red-600 hover:bg-red-50" : "rounded p-1 text-green-600 hover:bg-green-50"
+                }
+                title={s.activa ? "Desactivar" : "Activar"}
+                aria-label={`${s.activa ? "Desactivar" : "Activar"} ${s.nombre}`}
+              >
+                {s.activa ? <PowerOff size={18} /> : <Power size={18} />}
+              </button>
+            </>
+          )}
+        />
+      )}
 
       <ConfirmDialog
         isOpen={!!cambioEstado}
         onClose={() => setCambioEstado(null)}
         onConfirm={async () => {
-          if (cambioEstado) await toggleActiva(cambioEstado);
+          if (cambioEstado) await cambiarEstado(cambioEstado);
         }}
         variant={cambioEstado?.activa ? "danger" : "info"}
+        icon={cambioEstado?.activa ? PowerOff : Power}
         title={cambioEstado?.activa ? "Desactivar sede" : "Activar sede"}
         message={
           !cambioEstado

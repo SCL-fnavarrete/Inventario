@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
         destination: "/configuracion/catalogos?tab=sistemas-operativos",
         permanent: true,
       },
+      // Paginas retiradas: Proveedores (SPEC 2.35) y Kit/EPP, que vive en Activos.
+      { source: "/configuracion/proveedores", destination: "/configuracion", permanent: true },
+      { source: "/configuracion/kit-epp", destination: "/activos/kit-bienvenida", permanent: true },
     ];
   },
   async headers() {

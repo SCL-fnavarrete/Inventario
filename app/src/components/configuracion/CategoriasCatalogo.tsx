@@ -8,6 +8,7 @@ import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
+import { TablaAdaptable } from "@/components/ui/TablaAdaptable";
 import { CampoFormulario, CampoTexto, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 import { camposComunes, TIPOS_FICHA, TIPO_FICHA_LABEL, type CampoFicha } from "@/lib/constants/categorias";
@@ -228,6 +229,8 @@ export function CategoriasCatalogo() {
               <p className="mt-2 text-xs text-fg-subtle">
                 * Obligatorio al crear el activo.
                 {form.tipoFicha === "celular" && " En los celulares el N° de serie es opcional: los identifica su IMEI."}
+                {(form.tipoFicha === "computador" || form.tipoFicha === "celular") &&
+                  " Cargador viene en «Sí»: al entregar y devolver el equipo se pregunta su estado y se imprime en el acta."}
               </p>
             </div>
           </div>
@@ -242,76 +245,62 @@ export function CategoriasCatalogo() {
         </div>
       )}
 
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-line">
-            <thead className="bg-surface-muted">
-              <tr>
-                <th className="table-th">Nombre</th>
-                <th className="table-th">Qué campos pide</th>
-                <th className="table-th hidden text-center sm:table-cell">Stock mínimo</th>
-                <th className="table-th text-center">Activos</th>
-                <th className="table-th text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line bg-surface">
-              {cargando ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-fg-subtle">
-                    Cargando...
-                  </td>
-                </tr>
-              ) : categorias.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-fg-subtle">
-                    No hay categorías registradas
-                  </td>
-                </tr>
-              ) : (
-                categorias.map((c) => {
-                  const activos = c._count?.assets ?? 0;
-                  return (
-                    <tr key={c.id} className={abierto === c.id ? "bg-primary-50/40" : undefined}>
-                      <td className="px-6 py-4">
-                        <p className="font-medium text-fg">{c.nombre}</p>
-                        {c.descripcion && <p className="text-xs text-fg-subtle">{c.descripcion}</p>}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-fg-muted">{TIPO_FICHA_LABEL[c.tipoFicha]}</td>
-                      <td className="hidden px-6 py-4 text-center text-fg-subtle sm:table-cell">{c.stockMinimo}</td>
-                      <td className="px-6 py-4 text-center text-fg-subtle">{activos}</td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => abrir(c)}
-                            className="rounded p-1 text-primary-700 hover:bg-primary-50"
-                            title="Editar"
-                            aria-label={`Editar ${c.nombre}`}
-                          >
-                            <Edit size={18} />
-                          </button>
-                          <button
-                            onClick={() => setAEliminar(c)}
-                            disabled={activos > 0}
-                            className="rounded p-1 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
-                            title={
-                              activos > 0
-                                ? `No se puede eliminar: tiene ${activos} activo(s). Cambia su categoría primero.`
-                                : "Eliminar"
-                            }
-                            aria-label={`Eliminar ${c.nombre}`}
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {cargando ? (
+        <p className="card px-6 py-8 text-center text-fg-subtle">Cargando...</p>
+      ) : (
+        <TablaAdaptable
+          items={categorias}
+          clave={(c) => c.id}
+          vacio="No hay categorías registradas"
+          resaltada={(c) => abierto === c.id}
+          columnas={[
+            {
+              titulo: "Nombre",
+              celda: (c) => (
+                <>
+                  <p className="font-medium text-fg">{c.nombre}</p>
+                  {c.descripcion && <p className="text-xs text-fg-subtle">{c.descripcion}</p>}
+                </>
+              ),
+            },
+            { titulo: "Qué campos pide", celda: (c) => TIPO_FICHA_LABEL[c.tipoFicha], className: "text-fg-muted" },
+            { titulo: "Stock mínimo", celda: (c) => c.stockMinimo, className: "text-center text-fg-subtle" },
+            { titulo: "Activos", celda: (c) => c._count?.assets ?? 0, className: "text-center text-fg-subtle" },
+          ]}
+          tarjeta={(c) => (
+            <>
+              <p className="font-medium text-fg">{c.nombre}</p>
+              <p className="text-xs text-fg-muted">
+                {TIPO_FICHA_LABEL[c.tipoFicha]} · {c._count?.assets ?? 0} activo(s) · stock mínimo {c.stockMinimo}
+              </p>
+            </>
+          )}
+          acciones={(c) => {
+            const activos = c._count?.assets ?? 0;
+            return (
+              <>
+                <button
+                  onClick={() => abrir(c)}
+                  className="rounded p-1 text-primary-700 hover:bg-primary-50"
+                  title="Editar"
+                  aria-label={`Editar ${c.nombre}`}
+                >
+                  <Edit size={18} />
+                </button>
+                <button
+                  onClick={() => setAEliminar(c)}
+                  disabled={activos > 0}
+                  className="rounded p-1 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+                  title={activos > 0 ? `No se puede eliminar: tiene ${activos} activo(s). Cambia su categoría primero.` : "Eliminar"}
+                  aria-label={`Eliminar ${c.nombre}`}
+                >
+                  <Trash2 size={18} />
+                </button>
+              </>
+            );
+          }}
+        />
+      )}
 
       <ConfirmDialog
         isOpen={aEliminar !== null}

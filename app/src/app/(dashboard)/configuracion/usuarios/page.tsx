@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/Toast";
 import { formatearFechaHoraCorta } from "@/lib/utils/fechas";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { ActiveBadge } from "@/components/ui/Badge";
+import { TablaAdaptable } from "@/components/ui/TablaAdaptable";
 import { PageHeader } from "@/components/ui/PageHeader";
 import {
   CampoFormulario,
@@ -76,6 +77,23 @@ const roleDescriptions: Record<string, string> = {
   admin: "Todo el sistema, incluida la Configuración; ve todas las sedes",
   tecnico: "Trabajo operativo de soporte, solo en su propia sede; sin acceso a Configuración",
 };
+
+function RolBadge({ rol }: { rol: SystemUser["rol"] }) {
+  return <span className={`inline-flex px-2 py-1 text-xs rounded-full ${roleColors[rol]}`}>{roleLabels[rol]}</span>;
+}
+
+/** Sede del usuario; el admin ve todas. Avisa si su sede esta desactivada (SPEC 2.112.6). */
+function SedeUsuario({ user }: { user: SystemUser }) {
+  if (user.rol === "admin") return <span className="text-fg-subtle">Todas las sedes</span>;
+  return (
+    <>
+      {user.sede?.nombre || <span className="text-red-500">Sin asignar</span>}
+      {user.sede && !user.sede.activa && (
+        <span className="mt-0.5 block text-xs text-red-600">Sede desactivada: no puede entrar</span>
+      )}
+    </>
+  );
+}
 
 export default function UsuariosPage() {
   const toast = useToast();
@@ -302,8 +320,9 @@ export default function UsuariosPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        backHref="/configuracion"
         title="Usuarios del Sistema"
-        description="Administra los usuarios y sus roles de acceso"
+        description="Quién entra al sistema, con qué rol y de qué sede. Las cuentas no se eliminan: se desactivan"
         actions={
           <>
             {!isCreating && !editingId && (
@@ -447,109 +466,79 @@ export default function UsuariosPage() {
       )}
 
       {/* Tabla de usuarios */}
-      <div className="card overflow-hidden">
-        <table className="min-w-full divide-y divide-line">
-          <thead className="bg-surface-muted">
-            <tr>
-              <th className="table-th">
-                Usuario
-              </th>
-              <th className="table-th">
-                Rol
-              </th>
-              <th className="table-th">
-                Sede
-              </th>
-              <th className="table-th text-center">
-                Estado
-              </th>
-              <th className="table-th">
-                Último Acceso
-              </th>
-              <th className="table-th text-right">
-                Acciones
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-surface divide-y divide-line">
-            {users.map((user) => (
-              <tr key={user.id} className={!user.activo ? "bg-surface-muted" : ""}>
-                <td className="px-6 py-4">
-                  <div>
-                    <div className="font-medium text-fg">{user.nombre}</div>
-                    <div className="text-sm text-fg-subtle">{user.email}</div>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <span className={`inline-flex px-2 py-1 text-xs rounded-full ${roleColors[user.rol]}`}>
-                    {roleLabels[user.rol]}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm text-fg-muted">
-                  {user.rol === "admin" ? (
-                    <span className="text-fg-subtle">Todas</span>
-                  ) : (
-                    <>
-                      {user.sede?.nombre || <span className="text-red-500">Sin asignar</span>}
-                      {/* Su sede esta desactivada: no puede entrar (SPEC 2.112.6). */}
-                      {user.sede && !user.sede.activa && (
-                        <span className="mt-0.5 block text-xs text-red-600">Sede desactivada: no puede entrar</span>
-                      )}
-                    </>
-                  )}
-                </td>
-                <td className="px-6 py-4 text-center">
-                  <ActiveBadge activo={user.activo} />
-                </td>
-                <td className="px-6 py-4 text-sm text-fg-subtle">
-                  {formatearFechaHoraCorta(user.ultimoLogin, "Nunca")}
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => startEdit(user)}
-                      className="p-1 text-primary-700 hover:bg-primary-50 rounded"
-                      title="Editar"
-                    >
-                      <Edit size={18} />
-                    </button>
-                    <Link
-                      href={`/configuracion/accesos?usuario=${encodeURIComponent(user.email)}`}
-                      className="p-1 text-fg-muted hover:bg-surface-muted rounded"
-                      title="Ver sus accesos"
-                      aria-label={`Ver los accesos de ${user.nombre}`}
-                    >
-                      <KeyRound size={18} />
-                    </Link>
-                    {/* No te puedes desactivar a ti mismo (SPEC 2.112). */}
-                    {user.id !== miId && (
-                      <button
-                        onClick={() => pedirCambioEstado(user)}
-                        className={
-                          user.activo
-                            ? "p-1 text-red-600 hover:bg-red-50 rounded"
-                            : "p-1 text-green-600 hover:bg-green-50 rounded"
-                        }
-                        title={user.activo ? "Desactivar" : "Activar"}
-                        aria-label={`${user.activo ? "Desactivar" : "Activar"} a ${user.nombre}`}
-                      >
-                        {user.activo ? <UserX size={18} /> : <UserCheck size={18} />}
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {users.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-fg-subtle">
-                  No hay usuarios registrados
-                </td>
-              </tr>
+      <TablaAdaptable
+        items={users}
+        clave={(u) => u.id}
+        vacio="No hay usuarios registrados"
+        resaltada={(u) => !u.activo}
+        columnas={[
+          {
+            titulo: "Usuario",
+            celda: (u) => (
+              <>
+                <div className="font-medium text-fg">{u.nombre}</div>
+                <div className="text-fg-subtle">{u.email}</div>
+              </>
+            ),
+          },
+          { titulo: "Rol", celda: (u) => <RolBadge rol={u.rol} /> },
+          { titulo: "Sede", celda: (u) => <SedeUsuario user={u} />, className: "text-fg-muted" },
+          { titulo: "Estado", celda: (u) => <ActiveBadge activo={u.activo} />, className: "text-center" },
+          {
+            titulo: "Último acceso",
+            celda: (u) => formatearFechaHoraCorta(u.ultimoLogin, "Nunca"),
+            className: "text-fg-subtle",
+          },
+        ]}
+        tarjeta={(u) => (
+          <>
+            <p className="break-all font-medium text-fg">{u.nombre}</p>
+            <p className="break-all text-xs text-fg-subtle">{u.email}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <RolBadge rol={u.rol} />
+              <ActiveBadge activo={u.activo} />
+            </div>
+            <div className="text-xs text-fg-muted">
+              <SedeUsuario user={u} /> · Último acceso: {formatearFechaHoraCorta(u.ultimoLogin, "Nunca")}
+            </div>
+          </>
+        )}
+        acciones={(user) => (
+          <>
+            <button
+              onClick={() => startEdit(user)}
+              className="p-1 text-primary-700 hover:bg-primary-50 rounded"
+              title="Editar"
+              aria-label={`Editar a ${user.nombre}`}
+            >
+              <Edit size={18} />
+            </button>
+            <Link
+              href={`/configuracion/accesos?usuario=${encodeURIComponent(user.email)}`}
+              className="p-1 text-fg-muted hover:bg-surface-muted rounded"
+              title="Ver sus accesos"
+              aria-label={`Ver los accesos de ${user.nombre}`}
+            >
+              <KeyRound size={18} />
+            </Link>
+            {/* No te puedes desactivar a ti mismo (SPEC 2.112). */}
+            {user.id !== miId && (
+              <button
+                onClick={() => pedirCambioEstado(user)}
+                className={
+                  user.activo
+                    ? "p-1 text-red-600 hover:bg-red-50 rounded"
+                    : "p-1 text-green-600 hover:bg-green-50 rounded"
+                }
+                title={user.activo ? "Desactivar" : "Activar"}
+                aria-label={`${user.activo ? "Desactivar" : "Activar"} a ${user.nombre}`}
+              >
+                {user.activo ? <UserX size={18} /> : <UserCheck size={18} />}
+              </button>
             )}
-          </tbody>
-        </table>
-      </div>
+          </>
+        )}
+      />
 
       {/* Confirmacion con el componente compartido, en vez del confirm()
           del navegador. */}
@@ -558,6 +547,7 @@ export default function UsuariosPage() {
         onClose={() => setConfirmacion(null)}
         onConfirm={() => confirmacion?.onConfirm()}
         variant={confirmacion?.textoBoton === "Activar" ? "info" : "danger"}
+        icon={confirmacion?.textoBoton === "Activar" ? UserCheck : UserX}
         title={confirmacion?.titulo ?? ""}
         message={confirmacion?.mensaje ?? ""}
         confirmLabel={confirmacion?.textoBoton ?? "Confirmar"}

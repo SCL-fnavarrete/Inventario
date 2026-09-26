@@ -16,6 +16,9 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: ConfirmDialogVariant;
+  // Icono propio: por ejemplo "apagar" al desactivar, para no mostrar la
+  // papelera de danger cuando nada se borra.
+  icon?: typeof AlertTriangle;
   loading?: boolean;
 }
 
@@ -57,10 +60,11 @@ export function ConfirmDialog({
   confirmLabel = "Confirmar",
   cancelLabel = "Cancelar",
   variant = "danger",
+  icon,
   loading = false,
 }: ConfirmDialogProps) {
   const config = variantConfig[variant];
-  const Icon = config.icon;
+  const Icon = icon ?? config.icon;
 
   const handleConfirm = async () => {
     await onConfirm();

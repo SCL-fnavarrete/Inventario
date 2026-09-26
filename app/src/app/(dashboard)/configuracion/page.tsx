@@ -3,28 +3,25 @@ import {
   FolderTree,
   Users,
   Settings2,
-  ShieldAlert,
   MapPin,
   History,
   KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Badge } from "@/components/ui/Badge";
 import { LinkArrow } from "@/components/ui/Button";
 import { Tilt } from "@/components/ui/Tilt";
 import { TONO_ACENTO } from "@/lib/constants/tonos";
 
 // Secciones de Configuracion (SPEC 2.112). Todo el modulo es solo de admin
-// (layout.tsx). Se eliminaron Mantenimiento de Datos (borrado masivo),
+// (layout.tsx), por eso las tarjetas ya no llevan la marca "Admin". Se eliminaron Mantenimiento de Datos (borrado masivo),
 // la sincronizacion con Microsoft y Proveedores.
 const configSections = [
   {
     title: "Sedes",
-    description: "Administra las sedes (Santiago, Concepción, etc.) que aíslan los datos entre soporte",
+    description: "Santiago, Concepción, etc. Cada técnico trabaja solo con los datos de su sede",
     href: "/configuracion/sedes",
     icon: MapPin,
-    adminOnly: true,
   },
   {
     // Antes eran dos tarjetas: Categorias y Opciones de Activos (SPEC 2.112.7).
@@ -32,35 +29,30 @@ const configSections = [
     description: "Categorías y opciones de sistema operativo, antivirus y licencia Microsoft 365",
     href: "/configuracion/catalogos",
     icon: FolderTree,
-    adminOnly: false,
   },
   {
     title: "Usuarios del Sistema",
-    description: "Administra los usuarios y sus roles de acceso al sistema",
+    description: "Quién entra al sistema, con qué rol y de qué sede; activar y desactivar cuentas",
     href: "/configuracion/usuarios",
     icon: Users,
-    adminOnly: false,
   },
   {
     title: "Seguridad",
     description: "Duración de la sesión y bloqueo por intentos fallidos",
     href: "/configuracion/parametros",
     icon: Settings2,
-    adminOnly: false,
   },
   {
     title: "Registro de accesos",
     description: "Inicios de sesión, intentos fallidos, bloqueos y cierres de sesión",
     href: "/configuracion/accesos",
     icon: KeyRound,
-    adminOnly: true,
   },
   {
     title: "Auditoría",
     description: "Historial completo de todos los módulos: quién hizo qué y cuándo",
     href: "/configuracion/auditoria",
     icon: History,
-    adminOnly: true,
   },
 ];
 
@@ -69,7 +61,7 @@ export default function ConfiguracionPage() {
     <div className="space-y-6">
       <PageHeader
         title="Configuración"
-        description="Administra la configuración del sistema de inventario"
+        description="Solo para administradores: sedes, catálogos, usuarios, seguridad y registros del sistema"
       />
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -85,15 +77,7 @@ export default function ConfiguracionPage() {
                   <Icon size={24} />
                 </div>
                 <div className="flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold text-fg">{section.title}</h2>
-                    {section.adminOnly && (
-                      <Badge variant="warning" size="sm">
-                        <ShieldAlert size={12} />
-                        Admin
-                      </Badge>
-                    )}
-                  </div>
+                  <h2 className="text-lg font-semibold text-fg">{section.title}</h2>
                   <p className="mt-1 text-sm text-fg-muted">{section.description}</p>
                   <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-primary-700 group-hover:text-primary-900">
                     Abrir

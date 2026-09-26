@@ -46,6 +46,26 @@ export async function requireSession(): Promise<SesionAutenticada> {
   return session as SesionAutenticada;
 }
 
+/** Mensaje de permiso en palabras (antes: "El rol tecnico no puede read sobre usuarios"). */
+const ACCION_LABEL: Record<Accion, string> = { read: 'ver', write: 'crear ni modificar', delete: 'eliminar' };
+const RECURSO_LABEL: Record<Recurso, string> = {
+  activos: 'activos',
+  empleados: 'empleados',
+  asignaciones: 'asignaciones',
+  solicitudes: 'solicitudes',
+  mantenciones: 'mantenciones',
+  tiposMantencion: 'tipos de mantención',
+  desvinculaciones: 'desvinculaciones',
+  guias: 'despachos',
+  compras: 'compras',
+  categorias: 'categorías de activos',
+  kitEpp: 'Kit/EPP',
+  usuarios: 'usuarios del sistema',
+  sedes: 'sedes',
+  reportes: 'el Dashboard',
+  configuracion: 'la Configuración',
+};
+
 /**
  * Exige sesion y permiso sobre el recurso. Lanza 401 si no hay sesion,
  * 403 si el rol no alcanza.
@@ -57,7 +77,7 @@ export async function requirePermission(
   const session = await requireSession();
   if (!can(session.user.role, recurso, accion)) {
     throw new ForbiddenError(
-      `El rol "${session.user.role}" no puede ${accion} sobre ${recurso}`
+      `Tu rol no permite ${ACCION_LABEL[accion]} ${RECURSO_LABEL[recurso]}`
     );
   }
   return session;

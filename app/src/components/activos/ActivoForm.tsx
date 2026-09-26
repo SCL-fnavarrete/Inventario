@@ -48,7 +48,8 @@ export type ActivoFormValues = {
   numeroTelefono: string;
   numeroActivacion: string;
   tipoPlan: string;
-  // "si" | "no" | "" (sin indicar)
+  // "si" | "no"; "" al crear = el valor por defecto de su tipo (ver
+  // cargadorAlGuardar).
   tieneCargador: string;
   pulgadas: string;
   observaciones: string;
@@ -303,7 +304,8 @@ export function ActivoForm({
     if (reportar(validar())) return;
     setGuardando(true);
     try {
-      await onSubmit(crear ? { ...values, sedeId } : values);
+      const conCargador = { ...values, tieneCargador: cargadorAlGuardar(values.tieneCargador) };
+    await onSubmit(crear ? { ...conCargador, sedeId } : conCargador);
     } finally {
       setGuardando(false);
     }
@@ -311,6 +313,23 @@ export function ActivoForm({
 
   const categoriaElegida = categories.find((c) => c.id === values.categoriaId);
   const ficha = categoriaElegida?.tipoFicha;
+  // Computadores y celulares se entregan con cargador salvo que se diga lo
+  // contrario; con "Si", al entregarlo y devolverlo se pregunta su estado y
+  // va en el acta (SPEC 2.112.7). Los demas tipos no llevan cargador. Antes
+  // un computador creado a mano quedaba sin cargador y nunca se preguntaba.
+  const llevaCargador = ficha === "computador" || ficha === "celular";
+  function cargadorAlGuardar(valor: string) {
+    if (!llevaCargador) return crear ? "no" : valor;
+    return valor || "si";
+  }
+  const campoCargador = (
+    <Campo label="Cargador" hint="Con «Sí», al entregarlo y devolverlo se pregunta el estado del cargador y va en el acta.">
+      <select {...bind("tieneCargador")} value={values.tieneCargador || "si"}>
+        <option value="si">Sí, se entrega con cargador</option>
+        <option value="no">No</option>
+      </select>
+    </Campo>
+  );
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6" noValidate>
@@ -436,6 +455,7 @@ export function ActivoForm({
               <input type="text" {...bind("nombreEquipo")} placeholder="ej: NB-SCL-001" />
             </Campo>
           )}
+          {campoCargador}
           <Campo label="Licencia Microsoft 365">
             <CatalogSelect
               endpoint="/api/licencias-m365"
@@ -478,13 +498,7 @@ export function ActivoForm({
               placeholder="Selecciona un sistema operativo (ej: Android 14)"
             />
           </Campo>
-          <Campo label="Cargador">
-            <select {...bind("tieneCargador")}>
-              <option value="">Sin indicar</option>
-              <option value="si">Sí, se entrega con cargador</option>
-              <option value="no">No</option>
-            </select>
-          </Campo>
+          {campoCargador}
         </Seccion>
       )}
 

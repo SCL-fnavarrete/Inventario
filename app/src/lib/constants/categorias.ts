@@ -42,6 +42,7 @@ export const TIPOS_FICHA: { valor: TipoFicha; label: string; campos: CampoFicha[
       { nombre: "Antivirus" },
       { nombre: "Licencia Microsoft 365" },
       { nombre: "Nombre del equipo" },
+      { nombre: "Cargador" },
     ],
   },
   {

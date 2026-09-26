@@ -19,10 +19,6 @@ const API_DIR = path.join(process.cwd(), 'src', 'app', 'api');
 /** Única ruta pública: la maneja NextAuth. */
 const EXCLUIDAS = [
   path.join('auth', '[...nextauth]', 'route.ts'),
-  // Modulo Proveedores eliminado (SPEC 2.35): estos archivos quedan como
-  // stubs que solo devuelven 410 Gone, sin logica ni permisos que auditar.
-  path.join('proveedores', 'route.ts'),
-  path.join('proveedores', '[id]', 'route.ts'),
   // Acta por asignacion eliminada (SPEC 2.41): mismo caso, stub 410 sin
   // logica ni permisos que auditar. Los documentos los genera Solicitudes.
   path.join('asignaciones', '[id]', 'acta', 'route.ts'),
