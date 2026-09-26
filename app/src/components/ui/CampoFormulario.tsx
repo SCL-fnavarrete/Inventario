@@ -1,6 +1,6 @@
 "use client";
 
-import type { InputHTMLAttributes, ReactNode } from "react";
+import { cloneElement, isValidElement, useId, type InputHTMLAttributes, type ReactElement, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { InputClave } from "@/components/ui/InputClave";
 
@@ -50,13 +50,23 @@ export function AvisoSeccion({ mensaje, className }: { mensaje?: string; classNa
   );
 }
 
-/** Etiqueta + control + mensaje de error. El control va como children. */
+const CONTROLES_NATIVOS = ["input", "select", "textarea"];
+
+/**
+ * Etiqueta + control + mensaje de error. El control va como children.
+ *
+ * La etiqueta queda unida a su campo (SPEC 2.112.6): al tocar el texto se
+ * activa el campo y los lectores de pantalla lo anuncian. Si el control es un
+ * input/select/textarea nativo se le pone el id solo; si es un componente,
+ * quien lo usa pasa `htmlFor` con el id que le dio (ver CampoTexto).
+ */
 export function CampoFormulario({
   label,
   obligatorio,
   error,
   ayuda,
   className,
+  htmlFor,
   children,
 }: {
   label: ReactNode;
@@ -64,15 +74,24 @@ export function CampoFormulario({
   error?: string;
   ayuda?: ReactNode;
   className?: string;
+  htmlFor?: string;
   children: ReactNode;
 }) {
+  const idAuto = useId();
+  let control = children;
+  let idControl = htmlFor;
+  if (!idControl && isValidElement(children) && typeof children.type === "string" && CONTROLES_NATIVOS.includes(children.type)) {
+    const nativo = children as ReactElement<{ id?: string }>;
+    idControl = nativo.props.id ?? idAuto;
+    control = cloneElement(nativo, { id: idControl });
+  }
   return (
     <div className={className}>
-      <label className="field-label">
+      <label className="field-label" htmlFor={idControl}>
         {label}
         {obligatorio && " *"}
       </label>
-      {children}
+      {control}
       {error ? (
         <MensajeCampo mensaje={error} />
       ) : (
@@ -104,13 +123,24 @@ export function CampoTexto({
   value,
   onChange,
   type = "text",
+  id,
   ...rest
 }: PropsCampoTexto) {
+  const idAuto = useId();
+  const idCampo = id ?? idAuto;
   return (
-    <CampoFormulario label={label} obligatorio={obligatorio} error={error} ayuda={ayuda} className={className}>
+    <CampoFormulario
+      label={label}
+      obligatorio={obligatorio}
+      error={error}
+      ayuda={ayuda}
+      className={className}
+      htmlFor={idCampo}
+    >
       {type === "password" ? (
         <InputClave
           {...rest}
+          id={idCampo}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-invalid={!!error}
@@ -119,6 +149,7 @@ export function CampoTexto({
       ) : (
         <input
           {...rest}
+          id={idCampo}
           type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}

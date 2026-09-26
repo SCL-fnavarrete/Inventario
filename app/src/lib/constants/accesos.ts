@@ -9,6 +9,7 @@ export const RESULTADO_ACCESO_LABEL: Record<ResultadoAcceso, string> = {
   bloqueado: "Bloqueado por intentos",
   cierre_sesion: "Cerró sesión",
   sesion_revocada: "Sesión cortada",
+  sede_inactiva: "Sede desactivada",
 };
 
 export const RESULTADO_ACCESO_BADGE: Record<ResultadoAcceso, string> = {
@@ -19,7 +20,19 @@ export const RESULTADO_ACCESO_BADGE: Record<ResultadoAcceso, string> = {
   bloqueado: "bg-red-50 text-red-800 border-red-200",
   cierre_sesion: "bg-gray-100 text-fg-muted border-line",
   sesion_revocada: "bg-purple-50 text-purple-800 border-purple-200",
+  sede_inactiva: "bg-red-50 text-red-800 border-red-200",
 };
+
+/**
+ * Direccion de red en palabras: la del propio servidor (pruebas en local)
+ * como "Este equipo (local)", y la IPv4 escrita como IPv6 (::ffff:1.2.3.4)
+ * como IPv4.
+ */
+export function ipLegible(ip: string | null | undefined): string {
+  if (!ip) return "-";
+  if (ip === "::1" || ip === "127.0.0.1" || ip === "::ffff:127.0.0.1") return "Este equipo (local)";
+  return ip.replace(/^::ffff:/, "");
+}
 
 /**
  * Navegador y sistema en palabras, a partir del texto que envia el

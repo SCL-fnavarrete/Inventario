@@ -1,4 +1,4 @@
-import type { ResultadoAcceso } from '@prisma/client';
+import type { Prisma, ResultadoAcceso } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 
@@ -102,10 +102,31 @@ export function datosCliente(headers: Record<string, string | string[] | undefin
 }
 
 /**
+ * Minutos de bloqueo que quedan segun los intentos fallidos que cumplen
+ * `donde` desde `desde`: con `maxIntentos` o mas, queda bloqueado hasta
+ * que pase la ventana desde el ultimo fallo. 0 si puede intentar.
+ */
+async function minutosBloqueados(
+  donde: Prisma.AccessLogWhereInput,
+  desde: Date,
+  maxIntentos: number,
+  minutosBloqueo: number
+): Promise<number> {
+  const fallidos = await prisma.accessLog.findMany({
+    where: { ...donde, resultado: { in: RESULTADOS_FALLIDOS }, createdAt: { gte: desde } },
+    orderBy: { createdAt: 'desc' },
+    take: maxIntentos,
+    select: { createdAt: true },
+  });
+  if (fallidos.length < maxIntentos) return 0;
+  const libreEn = fallidos[0].createdAt.getTime() + minutosBloqueo * 60_000;
+  return Math.max(1, Math.ceil((libreEn - Date.now()) / 60_000));
+}
+
+/**
  * Minutos que le quedan de bloqueo a un correo, o 0 si puede intentar.
  * Cuenta los intentos fallidos desde su ultimo ingreso correcto y dentro de
- * la ventana de bloqueo; con `maxIntentos` o mas, queda bloqueado hasta
- * que pase la ventana desde el ultimo fallo.
+ * la ventana de bloqueo.
  */
 export async function minutosDeBloqueo(email: string, maxIntentos: number, minutosBloqueo: number): Promise<number> {
   const correo = email.toLowerCase().trim();
@@ -115,17 +136,35 @@ export async function minutosDeBloqueo(email: string, maxIntentos: number, minut
     orderBy: { createdAt: 'desc' },
     select: { createdAt: true },
   });
-  const fallidos = await prisma.accessLog.findMany({
-    where: {
-      email: correo,
-      resultado: { in: RESULTADOS_FALLIDOS },
-      createdAt: { gte: ultimoExito?.createdAt ?? desde },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: maxIntentos,
-    select: { createdAt: true },
-  });
-  if (fallidos.length < maxIntentos) return 0;
-  const libreEn = fallidos[0].createdAt.getTime() + minutosBloqueo * 60_000;
-  return Math.max(1, Math.ceil((libreEn - Date.now()) / 60_000));
+  return minutosBloqueados({ email: correo }, ultimoExito?.createdAt ?? desde, maxIntentos, minutosBloqueo);
+}
+
+/**
+ * Bloqueo por equipo (SPEC 2.112.6): los intentos fallidos desde una misma
+ * direccion de red dentro de la ventana, pruebe el correo que pruebe. Frena
+ * a quien prueba muchos correos. Un ingreso correcto de otra persona desde
+ * la misma red (una oficina) no lo reinicia.
+ */
+export async function minutosDeBloqueoEquipo(ip: string | null, maxIntentos: number, minutosBloqueo: number): Promise<number> {
+  if (!ip) return 0;
+  const desde = new Date(Date.now() - minutosBloqueo * 60_000);
+  return minutosBloqueados({ ip }, desde, maxIntentos, minutosBloqueo);
+}
+
+/** Cuanto se guarda el registro de accesos (decision de Javier, SPEC 2.112.6). */
+export const DIAS_REGISTRO_ACCESOS = 365;
+
+/**
+ * Borra los registros de mas de un año. Se llama al iniciar sesion, igual
+ * que la limpieza de la lista negra: no hace falta una tarea programada.
+ * Usa el indice por fecha, asi que es barato aunque no haya nada que borrar.
+ */
+export async function limpiarRegistroAntiguo() {
+  try {
+    await prisma.accessLog.deleteMany({
+      where: { createdAt: { lt: new Date(Date.now() - DIAS_REGISTRO_ACCESOS * 24 * 3600_000) } },
+    });
+  } catch (error) {
+    logger.error('No se pudo limpiar el registro de accesos', { error: String(error) });
+  }
 }

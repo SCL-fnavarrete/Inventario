@@ -59,7 +59,7 @@ type SystemUser = {
   ultimoLogin: string | null;
   createdAt: string;
   sedeId: string | null;
-  sede: { id: string; codigo: string; nombre: string } | null;
+  sede: { id: string; codigo: string; nombre: string; activa: boolean } | null;
 };
 
 const roleLabels: Record<string, string> = {
@@ -85,6 +85,10 @@ export default function UsuariosPage() {
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const editandoSedeInactiva = (() => {
+    const sede = users.find((u) => u.id === editingId)?.sede;
+    return sede && !sede.activa ? sede : null;
+  })();
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
@@ -374,7 +378,11 @@ export default function UsuariosPage() {
               onChange={(v) => cambiar("password", v)}
               error={errores.password}
               placeholder={isCreating ? "Contraseña" : "Nueva contraseña (opcional)"}
-              ayuda="Al menos 12 caracteres, con mayúscula, minúscula, número y símbolo."
+              ayuda={
+                isCreating || editingId === miId
+                  ? "Al menos 12 caracteres, con mayúscula, minúscula, número y símbolo."
+                  : "Al menos 12 caracteres, con mayúscula, minúscula, número y símbolo. Si la cambias, sus sesiones abiertas se cierran."
+              }
             />
             <CampoFormulario label="Rol" obligatorio>
               <select
@@ -409,6 +417,13 @@ export default function UsuariosPage() {
                       {sede.nombre}
                     </option>
                   ))}
+                  {/* La sede actual del usuario ya no esta activa: se muestra
+                      para que se vea, pero no se puede volver a elegir. */}
+                  {editandoSedeInactiva && (
+                    <option value={editandoSedeInactiva.id} disabled>
+                      {editandoSedeInactiva.nombre} (desactivada)
+                    </option>
+                  )}
                 </select>
               </CampoFormulario>
             )}
@@ -474,7 +489,13 @@ export default function UsuariosPage() {
                   {user.rol === "admin" ? (
                     <span className="text-fg-subtle">Todas</span>
                   ) : (
-                    user.sede?.nombre || <span className="text-red-500">Sin asignar</span>
+                    <>
+                      {user.sede?.nombre || <span className="text-red-500">Sin asignar</span>}
+                      {/* Su sede esta desactivada: no puede entrar (SPEC 2.112.6). */}
+                      {user.sede && !user.sede.activa && (
+                        <span className="mt-0.5 block text-xs text-red-600">Sede desactivada: no puede entrar</span>
+                      )}
+                    </>
                   )}
                 </td>
                 <td className="px-6 py-4 text-center">

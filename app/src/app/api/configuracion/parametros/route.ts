@@ -2,14 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError, respuestaErroresCampos } from "@/lib/auth/guard";
 import { auditLogService } from "@/lib/services/auditLogService";
-import { ETIQUETAS_PARAMETROS, validarParametros } from "@/lib/validations/parametros";
+import {
+  CAMPOS_SEGURIDAD,
+  ETIQUETAS_PARAMETROS,
+  SEGURIDAD_POR_DEFECTO,
+  validarParametros,
+  type CampoSeguridad,
+} from "@/lib/validations/parametros";
 
 // Configuracion > Seguridad (SPEC 2.112), guardada como fila unica
 // ("singleton"). GET siempre la devuelve (con los valores por defecto si aun
 // no se guardo nada) y PUT hace upsert sobre ese mismo id.
 const SINGLETON_ID = "singleton";
 
-const POR_DEFECTO = { duracionSesionHoras: 24, maxIntentosLogin: 5, minutosBloqueoLogin: 15 };
+/** Solo los campos de seguridad de una fila (sin id ni fechas). */
+const valoresDe = (fila: Record<CampoSeguridad, number>) =>
+  Object.fromEntries(CAMPOS_SEGURIDAD.map((c) => [c, fila[c]])) as Record<CampoSeguridad, number>;
 
 // GET /api/configuracion/parametros
 export async function GET() {
@@ -18,7 +26,7 @@ export async function GET() {
 
     const config = (await prisma.systemConfig.findUnique({ where: { id: SINGLETON_ID } })) ?? {
       id: SINGLETON_ID,
-      ...POR_DEFECTO,
+      ...SEGURIDAD_POR_DEFECTO,
       updatedAt: null,
       updatedPor: null,
     };
@@ -41,12 +49,11 @@ export async function PUT(request: NextRequest) {
     if (invalido) return invalido;
 
     const anterior = await prisma.systemConfig.findUnique({ where: { id: SINGLETON_ID } });
+    const base = anterior ?? SEGURIDAD_POR_DEFECTO;
     const datos = {
-      duracionSesionHoras: body.duracionSesionHoras ?? anterior?.duracionSesionHoras ?? POR_DEFECTO.duracionSesionHoras,
-      maxIntentosLogin: body.maxIntentosLogin ?? anterior?.maxIntentosLogin ?? POR_DEFECTO.maxIntentosLogin,
-      minutosBloqueoLogin: body.minutosBloqueoLogin ?? anterior?.minutosBloqueoLogin ?? POR_DEFECTO.minutosBloqueoLogin,
+      ...Object.fromEntries(CAMPOS_SEGURIDAD.map((c) => [c, body[c] ?? base[c]])),
       updatedPor: session.user?.email,
-    };
+    } as Record<CampoSeguridad, number> & { updatedPor?: string | null };
 
     const config = await prisma.systemConfig.upsert({
       where: { id: SINGLETON_ID },
@@ -59,18 +66,8 @@ export async function PUT(request: NextRequest) {
       "configuracion",
       SINGLETON_ID,
       "Seguridad del sistema actualizada",
-      anterior
-        ? {
-            duracionSesionHoras: anterior.duracionSesionHoras,
-            maxIntentosLogin: anterior.maxIntentosLogin,
-            minutosBloqueoLogin: anterior.minutosBloqueoLogin,
-          }
-        : POR_DEFECTO,
-      {
-        duracionSesionHoras: config.duracionSesionHoras,
-        maxIntentosLogin: config.maxIntentosLogin,
-        minutosBloqueoLogin: config.minutosBloqueoLogin,
-      },
+      valoresDe(base),
+      valoresDe(config),
       session.user?.email
     );
 

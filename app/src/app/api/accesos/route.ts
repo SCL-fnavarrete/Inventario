@@ -14,7 +14,7 @@ const VISTAS: Record<string, (hoy: Date) => Prisma.AccessLogWhereInput> = {
   ingresos_hoy: (hoy) => ({ resultado: "exito", createdAt: { gte: hoy } }),
   fallidos_hoy: (hoy) => ({ resultado: { in: RESULTADOS_FALLIDOS }, createdAt: { gte: hoy } }),
   bloqueos_hoy: (hoy) => ({ resultado: "bloqueado", createdAt: { gte: hoy } }),
-  desactivados_hoy: (hoy) => ({ resultado: "usuario_inactivo", createdAt: { gte: hoy } }),
+  desactivados_hoy: (hoy) => ({ resultado: { in: ["usuario_inactivo", "sede_inactiva"] }, createdAt: { gte: hoy } }),
 };
 
 const RESULTADOS: ResultadoAcceso[] = [
@@ -25,6 +25,7 @@ const RESULTADOS: ResultadoAcceso[] = [
   "bloqueado",
   "cierre_sesion",
   "sesion_revocada",
+  "sede_inactiva",
 ];
 
 // GET /api/accesos?usuario=&resultado=&fechaDesde=&fechaHasta=&vista=&page=&limit=

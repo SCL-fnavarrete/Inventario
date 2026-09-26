@@ -164,6 +164,20 @@ export function handleApiError(
     return respuestaDatosInvalidos(error);
   }
 
+  // Cuerpo que no es JSON (request.json() falla) o un valor que la base no
+  // acepta, como un modulo inexistente en un filtro: es un error de quien
+  // envia, no del servidor (SPEC 2.112.6).
+  // Por nombre y no con instanceof: request.json() puede lanzar el SyntaxError
+  // de otro contexto de ejecucion (undici), que no pasa el instanceof.
+  if ((error as { name?: unknown } | null)?.name === 'SyntaxError') {
+    return NextResponse.json({ error: 'El formato de los datos enviados no es válido' }, { status: 400 });
+  }
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    // Tambien puede ser un error de programacion: queda en el log.
+    logger.warn('[api] Dato rechazado por la base', error.message.slice(-300));
+    return NextResponse.json({ error: 'Algún dato enviado no es válido' }, { status: 400 });
+  }
+
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === 'P2002') {
       const camposArr = (error.meta?.target as string[] | undefined) ?? [];

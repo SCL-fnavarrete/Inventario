@@ -64,6 +64,7 @@ model AccessLog {
   @@index([createdAt])
   @@index([resultado])
   @@index([sesionId])
+  @@index([ip, createdAt])
   @@map("access_logs")
 }
 
@@ -93,6 +94,8 @@ enum ResultadoAcceso {
   bloqueado
   cierre_sesion
   sesion_revocada
+  // El tecnico pertenece a una sede desactivada (SPEC 2.112.6).
+  sede_inactiva
 }
 
 model Employee {
@@ -607,6 +610,10 @@ model SystemConfig {
   duracionSesionHoras  Int      @default(24) @map("duracion_sesion_horas")
   maxIntentosLogin     Int      @default(5) @map("max_intentos_login")
   minutosBloqueoLogin  Int      @default(15) @map("minutos_bloqueo_login")
+  // Bloqueo por equipo (direccion de red), SPEC 2.112.6: frena a quien prueba
+  // muchos correos desde el mismo equipo.
+  maxIntentosIp        Int      @default(20) @map("max_intentos_ip")
+  minutosBloqueoIp     Int      @default(15) @map("minutos_bloqueo_ip")
 
   updatedAt            DateTime @updatedAt @map("updated_at")
   updatedPor           String?  @map("updated_por")

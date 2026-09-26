@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Edit, Save, X, MapPin } from "lucide-react";
+import { Plus, Edit, Save, X, MapPin, Power, PowerOff } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { useToast } from "@/components/ui/Toast";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { ActiveBadge } from "@/components/ui/Badge";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
@@ -16,7 +17,11 @@ type Sede = {
   codigo: string;
   nombre: string;
   activa: boolean;
+  // Tecnicos activos y equipos vigentes, para avisar antes de desactivar.
+  _count?: { usuarios: number; assets: number };
 };
+
+const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
 const ETIQUETAS = { codigo: "Código", nombre: "Nombre" };
 
@@ -29,6 +34,8 @@ export default function SedesPage() {
   const [formData, setFormData] = useState({ codigo: "", nombre: "", activa: true });
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  // Sede que se va a activar/desactivar, a la espera de confirmar.
+  const [cambioEstado, setCambioEstado] = useState<Sede | null>(null);
   // Validacion por campo, igual que el resto de los formularios (SPEC 2.95).
   const { errores, resumen, reportar, reportarServidor, limpiar } = useErroresFormulario(ETIQUETAS);
 
@@ -43,7 +50,7 @@ export default function SedesPage() {
 
   const fetchSedes = async () => {
     try {
-      const res = await fetch("/api/sedes");
+      const res = await fetch("/api/sedes?conUso=true");
       if (res.ok) {
         setSedes(await res.json());
       }
@@ -94,7 +101,7 @@ export default function SedesPage() {
       const res = await fetch(`/api/sedes/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: formData.nombre, activa: formData.activa }),
+        body: JSON.stringify({ nombre: formData.nombre }),
       });
 
       if (res.ok) {
@@ -115,6 +122,7 @@ export default function SedesPage() {
   };
 
   const toggleActiva = async (sede: Sede) => {
+    setCambioEstado(null);
     try {
       const res = await fetch(`/api/sedes/${sede.id}`, {
         method: "PATCH",
@@ -165,7 +173,7 @@ export default function SedesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Sedes"
-        description="Cada activo, empleado, solicitud y despacho queda ligado a una sede, que se elige explícitamente al crearlo. Admin y técnico ven todas las sedes; el selector del menú filtra lo que se muestra en pantalla, no lo que cada usuario puede ver."
+        description="Cada activo, empleado, solicitud y despacho pertenece a una sede. El técnico trabaja solo con los datos de la suya; el administrador ve todas y el selector del menú filtra lo que muestra. Si una sede se desactiva, sus técnicos no pueden entrar."
         actions={
           <>
             {!isCreating && !editingId && (
@@ -280,15 +288,7 @@ export default function SedesPage() {
                       <MensajeCampo mensaje={errores.nombre} />
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <label className="inline-flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={formData.activa}
-                          onChange={(e) => setFormData({ ...formData, activa: e.target.checked })}
-                          className="field-checkbox"
-                        />
-                        <span className="text-sm text-fg-muted">Activa</span>
-                      </label>
+                      <ActiveBadge activo={sede.activa} labels={["Activa", "Inactiva"]} />
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
@@ -319,16 +319,32 @@ export default function SedesPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <ActiveBadge activo={sede.activa} labels={["Activa", "Inactiva"]} onToggle={() => toggleActiva(sede)} />
+                      <ActiveBadge activo={sede.activa} labels={["Activa", "Inactiva"]} />
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => startEdit(sede)}
-                        className="p-1 text-primary-700 hover:bg-primary-50 rounded"
-                        title="Editar"
-                      >
-                        <Edit size={18} />
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => startEdit(sede)}
+                          className="p-1 text-primary-700 hover:bg-primary-50 rounded"
+                          title="Editar"
+                          aria-label={`Editar ${sede.nombre}`}
+                        >
+                          <Edit size={18} />
+                        </button>
+                        {/* Activar/desactivar con confirmacion (SPEC 2.112.6). */}
+                        <button
+                          onClick={() => setCambioEstado(sede)}
+                          className={
+                            sede.activa
+                              ? "p-1 text-red-600 hover:bg-red-50 rounded"
+                              : "p-1 text-green-600 hover:bg-green-50 rounded"
+                          }
+                          title={sede.activa ? "Desactivar" : "Activar"}
+                          aria-label={`${sede.activa ? "Desactivar" : "Activar"} ${sede.nombre}`}
+                        >
+                          {sede.activa ? <PowerOff size={18} /> : <Power size={18} />}
+                        </button>
+                      </div>
                     </td>
                   </>
                 )}
@@ -344,6 +360,24 @@ export default function SedesPage() {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!cambioEstado}
+        onClose={() => setCambioEstado(null)}
+        onConfirm={async () => {
+          if (cambioEstado) await toggleActiva(cambioEstado);
+        }}
+        variant={cambioEstado?.activa ? "danger" : "info"}
+        title={cambioEstado?.activa ? "Desactivar sede" : "Activar sede"}
+        message={
+          !cambioEstado
+            ? ""
+            : cambioEstado.activa
+              ? `${cambioEstado.nombre} tiene ${plural(cambioEstado._count?.usuarios ?? 0, "técnico activo", "técnicos activos")} y ${plural(cambioEstado._count?.assets ?? 0, "equipo", "equipos")}. Sus técnicos no podrán iniciar sesión, y los que estén dentro saldrán en su siguiente acción, hasta que los cambies de sede o la reactives. No se podrán asignar usuarios nuevos a esta sede. Los equipos y datos no se tocan.`
+              : `${cambioEstado.nombre} vuelve a estar disponible y sus técnicos podrán iniciar sesión.`
+        }
+        confirmLabel={cambioEstado?.activa ? "Desactivar" : "Activar"}
+      />
     </div>
   );
 }

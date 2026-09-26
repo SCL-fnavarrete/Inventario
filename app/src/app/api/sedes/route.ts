@@ -2,27 +2,33 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError, errorRepetido } from '@/lib/auth/guard';
 import { auditLogService } from '@/lib/services/auditLogService';
+import { crearSedeSchema } from '@/lib/validations/sede';
+import { exigirNombreSedeLibre, USO_SEDE } from '@/lib/queries/sedes';
 
 /**
  * CRUD de sedes. Solo admin puede escribir, porque la sede define el
  * aislamiento de datos entre las distintas sedes.
  */
 
-// GET /api/sedes - Listar sedes
+// GET /api/sedes - Listar sedes. Con ?conUso=true (Configuracion > Sedes)
+// trae cuantos tecnicos activos y equipos tiene cada una, para avisar antes
+// de desactivarla (SPEC 2.112.6).
 export async function GET(request: NextRequest) {
   try {
     await requirePermission('sedes', 'read');
     const searchParams = request.nextUrl.searchParams;
     const soloActivas = searchParams.get('activas') === 'true';
+    const conUso = searchParams.get('conUso') === 'true';
 
     const sedes = await prisma.sede.findMany({
       where: soloActivas ? { activa: true } : undefined,
       orderBy: { nombre: 'asc' },
+      ...(conUso && { include: USO_SEDE }),
     });
 
     return NextResponse.json(sedes);
   } catch (error) {
-    return handleApiError(error, 'Error al obtener sedes');
+    return handleApiError(error, "Error al obtener sedes");
   }
 }
 
@@ -30,29 +36,16 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('sedes', 'write');
-    const body = await request.json();
-    const { codigo, nombre } = body;
+    const { codigo, nombre, activa } = crearSedeSchema.parse(await request.json());
 
-    if (!codigo || !codigo.trim()) {
-      return NextResponse.json({ error: 'El código es requerido' }, { status: 400 });
-    }
-    if (!nombre || !nombre.trim()) {
-      return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 });
-    }
-
-    const codigoNormalizado = codigo.trim().toUpperCase();
-
-    const existente = await prisma.sede.findUnique({ where: { codigo: codigoNormalizado } });
+    const existente = await prisma.sede.findUnique({ where: { codigo } });
     if (existente) {
       throw errorRepetido('codigo', 'Ya existe una sede con ese código');
     }
+    await exigirNombreSedeLibre(nombre);
 
     const sede = await prisma.sede.create({
-      data: {
-        codigo: codigoNormalizado,
-        nombre: nombre.trim(),
-        activa: body.activa ?? true,
-      },
+      data: { codigo, nombre, activa: activa ?? true },
     });
 
     // Registro de auditoria.

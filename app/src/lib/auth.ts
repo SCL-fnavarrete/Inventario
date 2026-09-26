@@ -3,7 +3,13 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "./prisma";
-import { datosCliente, minutosDeBloqueo, registrarAcceso } from "./services/accesoService";
+import {
+  datosCliente,
+  limpiarRegistroAntiguo,
+  minutosDeBloqueo,
+  minutosDeBloqueoEquipo,
+  registrarAcceso,
+} from "./services/accesoService";
 
 // Valores por defecto -- se usan mientras Configuracion > Seguridad no tenga
 // fila guardada, o si la consulta a la config falla: el login no se puede
@@ -11,6 +17,14 @@ import { datosCliente, minutosDeBloqueo, registrarAcceso } from "./services/acce
 const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_LOCKOUT_MINUTOS = 15;
 const DEFAULT_SESION_HORAS = 24;
+const DEFAULT_MAX_INTENTOS_IP = 20;
+const DEFAULT_LOCKOUT_IP_MINUTOS = 15;
+
+// Contrasena cifrada de relleno (no corresponde a ninguna cuenta). Cuando el
+// correo no existe se compara igual contra ella, para que la respuesta tarde
+// lo mismo que con una contrasena incorrecta y no se pueda adivinar que
+// correos existen midiendo el tiempo (SPEC 2.112.6).
+const HASH_RELLENO = "$2b$12$A1ssCqH/xtvgwitFuqmyWeE/6jkGpeTwRUFEzxU.a.n4RLRVH3F4.";
 
 // Tope del JWT. La duracion real la controla `expiraEn` (ver jwt()), que se
 // calcula al iniciar sesion con el valor de Configuracion > Seguridad; este
@@ -25,12 +39,16 @@ async function getConfigSeguridad() {
       maxIntentos: config?.maxIntentosLogin ?? DEFAULT_MAX_ATTEMPTS,
       minutosBloqueo: config?.minutosBloqueoLogin ?? DEFAULT_LOCKOUT_MINUTOS,
       horasSesion: config?.duracionSesionHoras ?? DEFAULT_SESION_HORAS,
+      maxIntentosIp: config?.maxIntentosIp ?? DEFAULT_MAX_INTENTOS_IP,
+      minutosBloqueoIp: config?.minutosBloqueoIp ?? DEFAULT_LOCKOUT_IP_MINUTOS,
     };
   } catch {
     return {
       maxIntentos: DEFAULT_MAX_ATTEMPTS,
       minutosBloqueo: DEFAULT_LOCKOUT_MINUTOS,
       horasSesion: DEFAULT_SESION_HORAS,
+      maxIntentosIp: DEFAULT_MAX_INTENTOS_IP,
+      minutosBloqueoIp: DEFAULT_LOCKOUT_IP_MINUTOS,
     };
   }
 }
@@ -50,17 +68,33 @@ export const authOptions: NextAuthOptions = {
 
         const email = credentials.email.toLowerCase().trim();
         const cliente = datosCliente(req?.headers);
-        const { maxIntentos, minutosBloqueo, horasSesion } = await getConfigSeguridad();
+        const { maxIntentos, minutosBloqueo, horasSesion, maxIntentosIp, minutosBloqueoIp } =
+          await getConfigSeguridad();
 
         // Bloqueo por intentos fallidos, contados en el registro de accesos
         // (SPEC 2.112): funciona aunque el servidor corra en varias copias.
-        const bloqueo = await minutosDeBloqueo(email, maxIntentos, minutosBloqueo);
+        // Por correo y tambien por equipo (SPEC 2.112.6), para frenar a quien
+        // prueba muchos correos desde el mismo lugar.
+        const bloqueoCorreo = await minutosDeBloqueo(email, maxIntentos, minutosBloqueo);
+        const bloqueoEquipo = await minutosDeBloqueoEquipo(cliente.ip, maxIntentosIp, minutosBloqueoIp);
+        const bloqueo = Math.max(bloqueoCorreo, bloqueoEquipo);
         if (bloqueo > 0) {
-          await registrarAcceso({ email, resultado: "bloqueado", ...cliente });
+          await registrarAcceso({
+            email,
+            resultado: "bloqueado",
+            detalle: bloqueoEquipo >= bloqueoCorreo ? "Demasiados intentos desde este equipo" : null,
+            ...cliente,
+          });
           throw new Error(`Demasiados intentos. Intente en ${bloqueo} minuto${bloqueo === 1 ? "" : "s"}`);
         }
 
-        const user = await prisma.systemUser.findUnique({ where: { email } });
+        const user = await prisma.systemUser.findUnique({
+          where: { email },
+          include: { sede: { select: { activa: true } } },
+        });
+        // Siempre se compara una contrasena, exista o no la cuenta: asi todas
+        // las respuestas tardan lo mismo (ver HASH_RELLENO).
+        const isPasswordValid = await compare(credentials.password, user?.passwordHash ?? HASH_RELLENO);
 
         // Mismo mensaje para "el correo no existe", "la cuenta esta
         // desactivada" y "la contrasena no coincide", para no permitir
@@ -77,10 +111,16 @@ export const authOptions: NextAuthOptions = {
           throw new Error(CREDENCIALES_INVALIDAS);
         }
 
-        const isPasswordValid = await compare(credentials.password, user.passwordHash);
         if (!isPasswordValid) {
           await registrarAcceso({ email, usuarioId: user.id, resultado: "clave_incorrecta", ...cliente });
           throw new Error(CREDENCIALES_INVALIDAS);
+        }
+
+        // Tecnico de una sede desactivada (SPEC 2.112.6). Aqui la contrasena
+        // ya es correcta, asi que se le dice el motivo.
+        if (user.rol !== "admin" && user.sede && !user.sede.activa) {
+          await registrarAcceso({ email, usuarioId: user.id, resultado: "sede_inactiva", ...cliente });
+          throw new Error("Tu sede está desactivada. Pide a un administrador que te cambie de sede.");
         }
 
         await prisma.systemUser.update({
@@ -92,6 +132,7 @@ export const authOptions: NextAuthOptions = {
         // al cerrar sesion.
         const sesionId = randomUUID();
         await registrarAcceso({ email, usuarioId: user.id, resultado: "exito", sesionId, ...cliente });
+        await limpiarRegistroAntiguo();
 
         return {
           id: user.id,
@@ -148,10 +189,15 @@ export const authOptions: NextAuthOptions = {
           nombre: true,
           sesionesDesde: true,
           sesionesCerradas: { where: { id: token.sesionId }, select: { id: true } },
+          sede: { select: { activa: true } },
         },
       });
       if (!actual || !actual.activo) {
         throw new Error("Cuenta desactivada");
+      }
+      // Su sede se desactivo (SPEC 2.112.6): sale en su siguiente accion.
+      if (actual.rol !== "admin" && actual.sede && !actual.sede.activa) {
+        throw new Error("Sede desactivada");
       }
       if (actual.sesionesCerradas.length > 0) {
         throw new Error("Sesión cerrada");

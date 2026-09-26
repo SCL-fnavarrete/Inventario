@@ -9,19 +9,19 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { AvisoSeccion, CampoTexto, ResumenErrores } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 import { formatearFechaHoraCorta } from "@/lib/utils/fechas";
-import { ETIQUETAS_PARAMETROS, LIMITES_SEGURIDAD, validarParametros } from "@/lib/validations/parametros";
+import {
+  ETIQUETAS_PARAMETROS,
+  LIMITES_SEGURIDAD,
+  SEGURIDAD_POR_DEFECTO,
+  validarParametros,
+  type CampoSeguridad,
+} from "@/lib/validations/parametros";
 
-// Configuracion > Seguridad (SPEC 2.112): duracion de la sesion e intentos de
-// inicio de sesion. Se guarda en SystemConfig (fila unica). Antes esta pagina
+// Configuracion > Seguridad (SPEC 2.112): duracion de la sesion y bloqueo por
+// intentos fallidos, por cuenta y por equipo (2.112.6). Se guarda en SystemConfig (fila unica). Antes esta pagina
 // tambien tenia "Datos de la empresa", que no se usaban en ninguna parte.
 
-type Seguridad = {
-  duracionSesionHoras: number;
-  maxIntentosLogin: number;
-  minutosBloqueoLogin: number;
-};
-
-type Campo = keyof Seguridad;
+type Campo = CampoSeguridad;
 
 const CAMPOS: { campo: Campo; ayuda: string }[] = [
   {
@@ -36,6 +36,14 @@ const CAMPOS: { campo: Campo; ayuda: string }[] = [
     campo: "minutosBloqueoLogin",
     ayuda: "Cuánto dura el bloqueo después de superar los intentos.",
   },
+  {
+    campo: "maxIntentosIp",
+    ayuda: "Intentos fallidos desde un mismo equipo, con cualquier correo, antes de bloquear ese equipo. Frena a quien prueba muchos correos. Una oficina comparte la misma dirección: no lo dejes muy bajo.",
+  },
+  {
+    campo: "minutosBloqueoIp",
+    ayuda: "Cuánto dura el bloqueo del equipo.",
+  },
 ];
 
 export default function SeguridadPage() {
@@ -44,11 +52,9 @@ export default function SeguridadPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const { errores, resumen, reportar, reportarServidor, limpiar } = useErroresFormulario(ETIQUETAS_PARAMETROS);
-  const [form, setForm] = useState<Record<Campo, string>>({
-    duracionSesionHoras: "24",
-    maxIntentosLogin: "5",
-    minutosBloqueoLogin: "15",
-  });
+  const [form, setForm] = useState<Record<Campo, string>>(
+    () => Object.fromEntries(CAMPOS.map(({ campo }) => [campo, String(SEGURIDAD_POR_DEFECTO[campo])])) as Record<Campo, string>
+  );
   const [ultimo, setUltimo] = useState<{ updatedAt: string | null; updatedPor: string | null }>({
     updatedAt: null,
     updatedPor: null,
@@ -58,11 +64,7 @@ export default function SeguridadPage() {
     fetch("/api/configuracion/parametros")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => {
-        setForm({
-          duracionSesionHoras: String(data.duracionSesionHoras),
-          maxIntentosLogin: String(data.maxIntentosLogin),
-          minutosBloqueoLogin: String(data.minutosBloqueoLogin),
-        });
+        setForm(Object.fromEntries(CAMPOS.map(({ campo }) => [campo, String(data[campo])])) as Record<Campo, string>);
         setUltimo({ updatedAt: data.updatedAt, updatedPor: data.updatedPor });
       })
       .catch(() => setError("No se pudo cargar la configuración"))
@@ -70,11 +72,7 @@ export default function SeguridadPage() {
   }, []);
 
   async function guardar() {
-    const valores: Seguridad = {
-      duracionSesionHoras: Number(form.duracionSesionHoras),
-      maxIntentosLogin: Number(form.maxIntentosLogin),
-      minutosBloqueoLogin: Number(form.minutosBloqueoLogin),
-    };
+    const valores = Object.fromEntries(CAMPOS.map(({ campo }) => [campo, Number(form[campo])])) as Record<Campo, number>;
     if (reportar(validarParametros(valores))) return;
     setSaving(true);
     setError("");
@@ -112,7 +110,7 @@ export default function SeguridadPage() {
       <PageHeader
         backHref="/configuracion"
         title="Seguridad"
-        description="Duración de la sesión e intentos de inicio de sesión"
+        description="Duración de la sesión y bloqueo por intentos fallidos, por cuenta y por equipo"
       />
 
       <ResumenErrores mensaje={resumen} />

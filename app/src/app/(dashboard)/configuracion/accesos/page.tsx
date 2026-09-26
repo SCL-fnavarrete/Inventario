@@ -13,6 +13,7 @@ import { formatearFechaHora } from "@/lib/utils/fechas";
 import {
   RESULTADO_ACCESO_BADGE,
   RESULTADO_ACCESO_LABEL,
+  ipLegible,
   navegadorLegible,
 } from "@/lib/constants/accesos";
 
@@ -43,7 +44,7 @@ const TARJETAS: { vista: keyof Resumen; label: string; hint: string; tone: "succ
   { vista: "ingresos_hoy", label: "Ingresos de hoy", hint: "Inicios de sesión correctos", tone: "success", icon: LogIn },
   { vista: "fallidos_hoy", label: "Intentos fallidos de hoy", hint: "Contraseña o usuario incorrecto", tone: "warning", icon: ShieldX },
   { vista: "bloqueos_hoy", label: "Bloqueos de hoy", hint: "Por superar los intentos", tone: "danger", icon: Lock },
-  { vista: "desactivados_hoy", label: "Cuentas desactivadas", hint: "Intentaron entrar hoy", tone: "purple", icon: UserX },
+  { vista: "desactivados_hoy", label: "Cuentas desactivadas", hint: "Cuenta o sede desactivada, hoy", tone: "purple", icon: UserX },
 ];
 
 /**
@@ -194,7 +195,7 @@ function Accesos() {
                       {r.usuario && <p className="break-all text-xs text-fg-subtle">{r.email}</p>}
                       <p className="text-xs text-fg-subtle md:hidden">
                         {navegadorLegible(r.navegador)}
-                        {r.ip ? ` • ${r.ip}` : ""}
+                        {r.ip ? ` • ${ipLegible(r.ip)}` : ""}
                       </p>
                     </td>
                     <td className="px-4 py-3">
@@ -208,7 +209,7 @@ function Accesos() {
                       </span>
                       {r.detalle && <p className="mt-1 text-xs text-fg-subtle">{r.detalle}</p>}
                     </td>
-                    <td className="hidden px-4 py-3 font-mono text-xs text-fg-muted md:table-cell">{r.ip ?? "-"}</td>
+                    <td className="hidden px-4 py-3 font-mono text-xs text-fg-muted md:table-cell">{ipLegible(r.ip)}</td>
                     <td className="hidden px-4 py-3 text-sm text-fg-muted md:table-cell" title={r.navegador ?? undefined}>
                       {navegadorLegible(r.navegador)}
                     </td>

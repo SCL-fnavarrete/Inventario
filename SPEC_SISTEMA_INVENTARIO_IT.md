@@ -3669,14 +3669,35 @@ En la prueba en el navegador de la parte 2 apareció un hueco: si se desactivaba
 - En celular, la tabla del registro se muestra en fila compacta (la fecha arriba del usuario) para que el resultado no quede fuera de la pantalla.
 - Pendiente para más adelante: anular también las sesiones de un usuario cuando se le cambia la contraseña (usa la misma fecha).
 
-### 2.112.6 Próximas partes
-3. Auditoría: filtros de fecha en hora de Chile, textos legibles y detalle entendible.
-4. Catálogos de Activos: unir Categorías y Opciones; "Requiere N° de serie" y "Requiere IMEI" pasan a funcionar (pensando en el futuro módulo de líneas telefónicas); avisos al renombrar.
-5. Usuarios, Sedes, celular, textos y limpieza de código.
+### 2.112.6 Seguridad y datos correctos (parte 3)
+Salió de una revisión completa del módulo (seguridad, código, pantallas, rendimiento), con pruebas en el navegador y por la API. Decisiones de Javier: sede desactivada = avisar y bloquear la entrada; bloqueo por correo y por equipo; registro de accesos 1 año.
+- **Cambiar la contraseña de otro usuario cierra sus sesiones abiertas** (misma fecha `sesionesDesde` de 2.112.5). Si se la robaron, el intruso queda fuera. Queda "Sesión cortada — Contraseña cambiada por …". La sesión de quien cambia su propia contraseña no se corta. El formulario lo avisa.
+- **Sede desactivada:**
+  - se desactiva con un botón y confirmación que dice cuántos técnicos activos y equipos tiene (`GET /api/sedes?conUso=true`, `USO_SEDE`); ya no con un clic en la etiqueta ni desde la edición;
+  - sus técnicos no pueden iniciar sesión (resultado nuevo `sede_inactiva`, "Sede desactivada"; como la contraseña ya es correcta, se les dice el motivo) y los que están dentro salen en su siguiente acción (`jwt` revisa la sede). El admin no tiene sede y no se ve afectado;
+  - no se puede asignar un usuario a una sede desactivada (`exigirSedeActiva`, `lib/queries/sedes.ts`); en Usuarios se marca "Sede desactivada: no puede entrar";
+  - los equipos y datos de la sede no se tocan.
+- **Bloqueo por equipo:** además del bloqueo por correo, los intentos fallidos desde una misma dirección de red, con cualquier correo, bloquean ese equipo (por defecto 20 en 15 minutos; `maxIntentosIp` y `minutosBloqueoIp` en Configuración > Seguridad). Frena a quien prueba muchos correos. Se cuenta en el registro de accesos (índice por dirección y fecha). Un ingreso correcto de otra persona desde la misma red no lo reinicia.
+- **El registro de accesos se guarda 1 año:** los registros más antiguos se borran al iniciar sesión (`limpiarRegistroAntiguo`), sin tarea programada.
+- **No revelar qué correos existen por el tiempo de respuesta:** con un correo inexistente se compara igual una contraseña de relleno, así todas las respuestas tardan lo mismo.
+- **Datos correctos con esquemas Zod** (`lib/validations/sede.ts`, `usuario.ts`):
+  - Sedes: código y nombre obligatorios, sin espacios de sobra, código en mayúsculas; no hay dos sedes con el mismo nombre; no se puede dejar el nombre vacío;
+  - Usuarios: correo con formato válido, nombre no vacío, contraseña fuerte (vacía al editar = mantenerla), rol válido, sede existente y activa;
+  - cada error se marca en su campo.
+- **Errores de quien envía no son 500:** un cuerpo que no es JSON o un valor que la base no acepta (por ejemplo un módulo inexistente en el filtro de Auditoría) responden 400 (`handleApiError`), en todo el sistema.
+- **Pantalla:**
+  - la dirección de red se muestra en palabras: "Este equipo (local)" para `::1` (pruebas en el propio computador) y sin el prefijo `::ffff:`;
+  - cada etiqueta de formulario queda unida a su campo (`CampoFormulario`): al tocarla se activa el campo y los lectores de pantalla lo anuncian. Aplica a todos los formularios que usan el componente;
+  - el texto de Sedes decía que el técnico ve todas las sedes: trabaja solo con la suya.
+
+### 2.112.7 Próximas partes
+4. Catálogos de Activos: unir Categorías y Opciones en una pantalla con pestañas y una sola ruta; auditar sus cambios; "Requiere N° de serie" y "Requiere IMEI" avisan si falta (sin bloquear, decisión de Javier); el formulario deja de reconocer las categorías por su nombre.
+5. Auditoría: una sola consulta con páginas exactas (sin el tope de 300 por fuente ni el aviso "Hay más eventos"), fechas en hora de Chile, textos claros, detalle legible y vista en celular.
+6. Pantallas: fila compacta en celular (Usuarios, Sedes, Categorías), avisos de guardado, encabezado común, pieza compartida para las listas, textos del menú y limpieza del resto de Proveedores.
 
 ## Changelog SPEC
 - **v2.36 (2026-09-25):**
-  - Sección 2.112 (nueva): Configuración se reduce a Sedes, Usuarios, Catálogos de Activos, Seguridad, Registro de accesos y Auditoría. Los usuarios no se eliminan, se desactivan, y la desactivación corta la sesión en la siguiente acción; nunca se queda el sistema sin administradores; nuevo Registro de accesos, base también del bloqueo por intentos. Las sesiones se anulan de verdad: lista negra al cerrar sesión y "sesiones válidas desde" al desactivar (2.112.5). Se eliminan Mantenimiento de Datos, la sincronización con Microsoft (2.6 queda como historia) y los datos de la empresa, con sus columnas en la base.
+  - Sección 2.112 (nueva): Configuración se reduce a Sedes, Usuarios, Catálogos de Activos, Seguridad, Registro de accesos y Auditoría. Los usuarios no se eliminan, se desactivan, y la desactivación corta la sesión en la siguiente acción; nunca se queda el sistema sin administradores; nuevo Registro de accesos, base también del bloqueo por intentos. Las sesiones se anulan de verdad: lista negra al cerrar sesión y "sesiones válidas desde" al desactivar (2.112.5). Parte 3 (2.112.6): cambiar la contraseña cierra las sesiones, la sede desactivada deja fuera a sus técnicos, bloqueo también por equipo, registro de accesos de 1 año y validación con Zod en Sedes y Usuarios. Se eliminan Mantenimiento de Datos, la sincronización con Microsoft (2.6 queda como historia) y los datos de la empresa, con sus columnas en la base.
 - **v2.35 (2026-09-25):**
   - Sección 2.111 (nueva, regla aprobada, se implementa por partes; implementada en cinco partes: modelo; registrar; repartir; Kit/EPP en despachos y "Apareció"; revisión final con 4 huecos corregidos y 66 casos probados): en Compras primero se compra y después se reparte. El técnico ve todas las compras y lo que hay por repartir, en solo lectura. Sede de llegada obligatoria, estado "Por repartir", reparto solo de admin con despachos automáticos que llevan equipos y Kit/EPP. Se marcan 2.10 y 2.36 como reemplazadas en lo que corresponde, y `compras` pasa a solo lectura para técnico en 1.3.1.
 - **v2.34 (2026-09-25):**

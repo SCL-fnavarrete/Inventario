@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { requirePermission, handleApiError, errorRepetido } from '@/lib/auth/guard';
-import { validarPasswordFuerte } from '@/lib/validations/password';
+import { requirePermission, handleApiError, errorRepetido, errorDeCampo } from '@/lib/auth/guard';
+import { crearUsuarioSchema } from '@/lib/validations/usuario';
+import { exigirSedeActiva } from '@/lib/queries/sedes';
 import { auditLogService } from '@/lib/services/auditLogService';
-
-// Roles válidos del sistema (solo dos: admin ve todo, tecnico es soporte
-// restringido a su sede -- ver sedeScope()).
-const VALID_ROLES = ["admin", "tecnico"] as const;
-type SystemRole = typeof VALID_ROLES[number];
+import { SELECT_USUARIO } from '@/lib/queries/usuarios';
 
 export async function GET() {
   try {
@@ -16,17 +13,7 @@ export async function GET() {
 
     const users = await prisma.systemUser.findMany({
       orderBy: { nombre: "asc" },
-      select: {
-        id: true,
-        email: true,
-        nombre: true,
-        rol: true,
-        activo: true,
-        ultimoLogin: true,
-        createdAt: true,
-        sedeId: true,
-        sede: { select: { id: true, codigo: true, nombre: true } },
-      },
+      select: SELECT_USUARIO,
     });
 
     return NextResponse.json(users);
@@ -38,77 +25,32 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('usuarios', 'write');
+    const { email, nombre, password, rol, sedeId, activo } = crearUsuarioSchema.parse(await request.json());
 
-    const body = await request.json();
-    const { email, nombre, rol, password, activo, sedeId } = body;
-
-    if (!email || !email.trim()) {
-      return NextResponse.json(
-        { error: "El email es requerido" },
-        { status: 400 }
-      );
-    }
-
-    if (!nombre || !nombre.trim()) {
-      return NextResponse.json(
-        { error: "El nombre es requerido" },
-        { status: 400 }
-      );
-    }
-
-    const errorPassword = validarPasswordFuerte(password);
-    if (errorPassword) {
-      return NextResponse.json({ error: errorPassword }, { status: 400 });
-    }
-
-    // Validar rol si se proporciona
-    if (rol && !VALID_ROLES.includes(rol as SystemRole)) {
-      return NextResponse.json(
-        { error: `Rol inválido. Roles permitidos: ${VALID_ROLES.join(", ")}` },
-        { status: 400 }
-      );
-    }
-
-    // Verificar si ya existe
-    const existing = await prisma.systemUser.findUnique({
-      where: { email: email.toLowerCase().trim() },
-    });
-
+    const existing = await prisma.systemUser.findUnique({ where: { email } });
     if (existing) {
       throw errorRepetido("email", "Ya existe un usuario con ese email");
     }
 
-    // Admin no tiene sede (ve todo); cualquier otro rol necesita una para
-    // que el aislamiento de datos por sede funcione.
-    const rolFinal = (rol as SystemRole) || "tecnico";
-    if (rolFinal !== "admin" && !sedeId) {
-      return NextResponse.json(
-        { error: "Este rol necesita una sede asignada" },
-        { status: 400 }
-      );
+    // Admin no tiene sede (ve todo); el tecnico necesita una sede activa
+    // para que el aislamiento de datos por sede funcione (SPEC 2.112.6).
+    if (rol !== "admin") {
+      if (!sedeId) throw errorDeCampo("sedeId", "Este rol necesita una sede asignada");
+      await exigirSedeActiva(sedeId);
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
 
     const user = await prisma.systemUser.create({
       data: {
-        email: email.toLowerCase().trim(),
-        nombre: nombre.trim(),
-        rol: rolFinal,
+        email,
+        nombre,
+        rol,
         passwordHash,
         activo: activo ?? true,
-        sedeId: rolFinal === "admin" ? null : sedeId,
+        sedeId: rol === "admin" ? null : sedeId,
       },
-      select: {
-        id: true,
-        email: true,
-        nombre: true,
-        rol: true,
-        activo: true,
-        createdAt: true,
-        sedeId: true,
-        sede: { select: { id: true, codigo: true, nombre: true } },
-      },
+      select: SELECT_USUARIO,
     });
 
     // Nunca incluir passwordHash ni password en el snapshot de auditoria.
