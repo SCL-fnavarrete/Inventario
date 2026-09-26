@@ -6,7 +6,6 @@ import {
   ShieldAlert,
   MapPin,
   History,
-  ListChecks,
   KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,17 +27,11 @@ const configSections = [
     adminOnly: true,
   },
   {
-    title: "Categorías de Activos",
-    description: "Gestiona las categorías para clasificar equipos (Notebook, Celular, Monitor, etc.)",
-    href: "/configuracion/categorias",
+    // Antes eran dos tarjetas: Categorias y Opciones de Activos (SPEC 2.112.7).
+    title: "Catálogos de Activos",
+    description: "Categorías y opciones de sistema operativo, antivirus y licencia Microsoft 365",
+    href: "/configuracion/catalogos",
     icon: FolderTree,
-    adminOnly: false,
-  },
-  {
-    title: "Opciones de Activos",
-    description: "Administra las opciones de Sistema Operativo, Antivirus y Licencia Microsoft 365",
-    href: "/configuracion/opciones-activos",
-    icon: ListChecks,
     adminOnly: false,
   },
   {
@@ -50,7 +43,7 @@ const configSections = [
   },
   {
     title: "Seguridad",
-    description: "Duración de la sesión e intentos de inicio de sesión",
+    description: "Duración de la sesión y bloqueo por intentos fallidos",
     href: "/configuracion/parametros",
     icon: Settings2,
     adminOnly: false,

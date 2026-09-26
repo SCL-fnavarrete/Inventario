@@ -7,6 +7,14 @@ const nextConfig: NextConfig = {
     return [
       { source: "/guias-despacho", destination: "/despachos", permanent: true },
       { source: "/guias-despacho/:path*", destination: "/despachos/:path*", permanent: true },
+      // Categorias y Opciones de Activos se unieron en Catalogos de Activos
+      // (SPEC 2.112.8).
+      { source: "/configuracion/categorias", destination: "/configuracion/catalogos", permanent: true },
+      {
+        source: "/configuracion/opciones-activos",
+        destination: "/configuracion/catalogos?tab=sistemas-operativos",
+        permanent: true,
+      },
     ];
   },
   async headers() {

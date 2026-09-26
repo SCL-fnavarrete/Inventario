@@ -70,21 +70,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // La consulta ya trae solo las asignaciones activas.
     const activeAssignments = employee.assignments;
 
-    // Separar por categoría - Soportar múltiples equipos por categoría
-    const notebooks = activeAssignments.filter(
-      (a) => a.asset.categoria.nombre.toLowerCase() === "notebook"
-    );
-    const celulares = activeAssignments.filter(
-      (a) => a.asset.categoria.nombre.toLowerCase() === "celular"
-    );
-    const monitores = activeAssignments.filter(
-      (a) => a.asset.categoria.nombre.toLowerCase() === "monitor"
-    );
+    // Separar por lo que pide cada categoria (SPEC 2.112.7), no por su
+    // nombre: soporta varios equipos por tipo.
+    const deFicha = (ficha: string) => activeAssignments.filter((a) => a.asset.categoria.tipoFicha === ficha);
+    const notebooks = deFicha("computador");
+    const celulares = deFicha("celular");
+    const monitores = deFicha("monitor");
     const otrosEquipos = activeAssignments.filter(
-      (a) =>
-        !["notebook", "celular", "monitor"].includes(
-          a.asset.categoria.nombre.toLowerCase()
-        )
+      (a) => !["computador", "celular", "monitor"].includes(a.asset.categoria.tipoFicha)
     );
 
     // Kit de bienvenida y EPP se deducen de lo que efectivamente se entrego

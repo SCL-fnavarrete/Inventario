@@ -191,10 +191,23 @@ model AssetCategory {
   // categoria (no al total): un notebook "asignado" no cuenta como stock,
   // es el que queda libre para entregar lo que le importa a soporte.
   stockMinimo   Int      @default(3) @map("stock_minimo")
+  // "Que campos pide" (SPEC 2.112.7): decide los campos especiales del
+  // formulario y de las fichas, en vez de reconocer la categoria por su
+  // nombre. Asi renombrarla no rompe nada.
+  tipoFicha     TipoFicha @default(generico) @map("tipo_ficha")
   createdAt     DateTime @default(now()) @map("created_at")
   assets        Asset[]
 
   @@map("asset_categories")
+}
+
+// Campos especiales que pide una categoria de activos (SPEC 2.112.7).
+enum TipoFicha {
+  computador // procesador, RAM, disco, sistema operativo, antivirus...
+  celular    // IMEI, numero de telefono, plan...
+  monitor    // pulgadas
+  periferico // solo lo basico (mouse, teclado, audifonos...)
+  generico   // lo basico mas los campos generales
 }
 
 model Asset {
@@ -1022,6 +1035,8 @@ enum AuditEntidad {
   // Cambios a datos de empresa o seguridad (duracion de sesion, intentos
   // de login) tambien quedan auditados.
   configuracion
+  // Opciones de sistema operativo, antivirus y licencia M365 (SPEC 2.112.7).
+  catalogo
 }
 
 enum AuditAccion {

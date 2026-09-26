@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError, errorRepetido } from '@/lib/auth/guard';
+import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { auditLogService } from '@/lib/services/auditLogService';
+import { categoriaSchema } from '@/lib/validations/categoria';
+import { exigirNombreCategoriaLibre, snapshotCategoria } from '@/lib/queries/categorias';
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,42 +32,25 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('categorias', 'write');
-
-    const body = await request.json();
-    const { nombre, descripcion, requiereSerie, requiereImei, stockMinimo } = body;
-
-    if (!nombre || !nombre.trim()) {
-      return NextResponse.json(
-        { error: "El nombre es requerido" },
-        { status: 400 }
-      );
-    }
-
-    // Verificar si ya existe
-    const existing = await prisma.assetCategory.findFirst({
-      where: { nombre: { equals: nombre, mode: "insensitive" } },
-    });
-
-    if (existing) {
-      throw errorRepetido("nombre", "Ya existe una categoría con ese nombre");
-    }
+    const datos = categoriaSchema.parse(await request.json());
+    await exigirNombreCategoriaLibre(datos.nombre);
 
     const category = await prisma.assetCategory.create({
       data: {
-        nombre: nombre.trim(),
-        descripcion: descripcion?.trim() || null,
-        requiereSerie: requiereSerie ?? true,
-        requiereImei: requiereImei ?? false,
-        stockMinimo: Number.isFinite(Number(stockMinimo)) ? Number(stockMinimo) : 3,
+        nombre: datos.nombre,
+        descripcion: datos.descripcion,
+        requiereSerie: datos.requiereSerie ?? true,
+        requiereImei: datos.requiereImei ?? false,
+        stockMinimo: datos.stockMinimo ?? 3,
+        tipoFicha: datos.tipoFicha ?? "generico",
       },
     });
 
-    // Auditoria generica.
     await auditLogService.registrarCreacion(
       'categoria',
       category.id,
       `Categoría creada: ${category.nombre}`,
-      { nombre: category.nombre, descripcion: category.descripcion },
+      snapshotCategoria(category),
       session.user?.email
     );
 

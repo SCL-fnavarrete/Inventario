@@ -33,6 +33,8 @@ type Asset = {
   categoria: {
     id: string;
     nombre: string;
+    // Que campos pide (SPEC 2.112.7): decide el dato extra de cada fila.
+    tipoFicha?: string;
   };
 };
 
@@ -254,16 +256,16 @@ export function SelectorActivos({
           <div className="max-h-[400px] overflow-y-auto divide-y divide-line">
             {filteredAssets.map((asset) => {
               const isSelected = selectedAssets.some((a) => a.id === asset.id);
-              const categoria = asset.categoria.nombre.toLowerCase();
+              const ficha = asset.categoria.tipoFicha;
 
               // Info adicional según categoría: cada tipo de activo muestra
               // su propio dato relevante en esta columna.
               let extraInfo = "";
-              if (categoria === "notebook" && asset.procesador) {
+              if (ficha === "computador" && asset.procesador) {
                 extraInfo = `${asset.ram || ""} ${asset.discoDuro || ""}`.trim();
-              } else if (categoria === "celular" && asset.numeroTelefono) {
+              } else if (ficha === "celular" && asset.numeroTelefono) {
                 extraInfo = asset.numeroTelefono;
-              } else if (categoria === "monitor" && asset.pulgadas) {
+              } else if (ficha === "monitor" && asset.pulgadas) {
                 extraInfo = `${asset.pulgadas}"`;
               } else if (asset.conectividad) {
                 extraInfo = etiquetaConectividad(asset.conectividad);

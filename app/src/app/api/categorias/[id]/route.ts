@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError, errorRepetido } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, NotFoundError, ConflictError } from '@/lib/auth/guard';
 import { auditLogService } from '@/lib/services/auditLogService';
+import { categoriaSchema } from '@/lib/validations/categoria';
+import { exigirNombreCategoriaLibre, snapshotCategoria } from '@/lib/queries/categorias';
 
 export async function GET(
   request: NextRequest,
@@ -9,24 +11,13 @@ export async function GET(
 ) {
   try {
     await requirePermission('categorias', 'read');
-
     const { id } = await params;
 
     const category = await prisma.assetCategory.findUnique({
       where: { id },
-      include: {
-        _count: {
-          select: { assets: true },
-        },
-      },
+      include: { _count: { select: { assets: true } } },
     });
-
-    if (!category) {
-      return NextResponse.json(
-        { error: "Categoría no encontrada" },
-        { status: 404 }
-      );
-    }
+    if (!category) throw new NotFoundError("Categoría no encontrada");
 
     return NextResponse.json(category);
   } catch (error) {
@@ -40,60 +31,33 @@ export async function PUT(
 ) {
   try {
     const session = await requirePermission('categorias', 'write');
-
     const { id } = await params;
-    const body = await request.json();
-    const { nombre, descripcion, requiereSerie, requiereImei, stockMinimo } = body;
+    const datos = categoriaSchema.parse(await request.json());
 
-    if (!nombre || !nombre.trim()) {
-      return NextResponse.json(
-        { error: "El nombre es requerido" },
-        { status: 400 }
-      );
-    }
-
-    // Verificar que existe
-    const existing = await prisma.assetCategory.findUnique({
-      where: { id },
-    });
-
-    if (!existing) {
-      return NextResponse.json(
-        { error: "Categoría no encontrada" },
-        { status: 404 }
-      );
-    }
-
-    // Verificar nombre duplicado (excepto la misma categoría)
-    const duplicate = await prisma.assetCategory.findFirst({
-      where: {
-        nombre: { equals: nombre, mode: "insensitive" },
-        NOT: { id },
-      },
-    });
-
-    if (duplicate) {
-      throw errorRepetido("nombre", "Ya existe una categoría con ese nombre");
-    }
+    const existing = await prisma.assetCategory.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundError("Categoría no encontrada");
+    await exigirNombreCategoriaLibre(datos.nombre, id);
 
     const category = await prisma.assetCategory.update({
       where: { id },
       data: {
-        nombre: nombre.trim(),
-        descripcion: descripcion?.trim() || null,
-        requiereSerie: requiereSerie ?? existing.requiereSerie,
-        requiereImei: requiereImei ?? existing.requiereImei,
-        stockMinimo: Number.isFinite(Number(stockMinimo)) ? Number(stockMinimo) : existing.stockMinimo,
+        nombre: datos.nombre,
+        descripcion: datos.descripcion,
+        requiereSerie: datos.requiereSerie ?? existing.requiereSerie,
+        requiereImei: datos.requiereImei ?? existing.requiereImei,
+        stockMinimo: datos.stockMinimo ?? existing.stockMinimo,
+        tipoFicha: datos.tipoFicha ?? existing.tipoFicha,
       },
     });
 
-    // Auditoria generica.
+    // Todo lo que cambia queda en la auditoria, tambien "Requiere serie/IMEI"
+    // y "Que campos pide" (SPEC 2.112.7).
     await auditLogService.registrarActualizacion(
       'categoria',
       category.id,
       `Categoría actualizada: ${category.nombre}`,
-      { nombre: existing.nombre, descripcion: existing.descripcion, stockMinimo: existing.stockMinimo },
-      { nombre: category.nombre, descripcion: category.descripcion, stockMinimo: category.stockMinimo },
+      snapshotCategoria(existing),
+      snapshotCategoria(category),
       session.user?.email
     );
 
@@ -109,44 +73,29 @@ export async function DELETE(
 ) {
   try {
     const session = await requirePermission('categorias', 'delete');
-
     const { id } = await params;
 
-    // Verificar que existe
     const existing = await prisma.assetCategory.findUnique({
       where: { id },
-      include: {
-        _count: {
-          select: { assets: true },
-        },
-      },
+      include: { _count: { select: { assets: true } } },
     });
+    if (!existing) throw new NotFoundError("Categoría no encontrada");
 
-    if (!existing) {
-      return NextResponse.json(
-        { error: "Categoría no encontrada" },
-        { status: 404 }
-      );
-    }
-
-    // No permitir eliminar si tiene activos
+    // Una categoria con activos no se elimina: esos activos quedarian sin
+    // categoria (409, regla de negocio).
     if (existing._count.assets > 0) {
-      return NextResponse.json(
-        { error: "No se puede eliminar una categoría con activos asociados" },
-        { status: 400 }
+      throw new ConflictError(
+        `No se puede eliminar: la categoría tiene ${existing._count.assets} activo(s). Cambia su categoría primero.`
       );
     }
 
-    await prisma.assetCategory.delete({
-      where: { id },
-    });
+    await prisma.assetCategory.delete({ where: { id } });
 
-    // Auditoria generica.
     await auditLogService.registrarEliminacion(
       'categoria',
       existing.id,
       `Categoría eliminada: ${existing.nombre}`,
-      { nombre: existing.nombre, descripcion: existing.descripcion },
+      snapshotCategoria(existing),
       session.user?.email
     );
 

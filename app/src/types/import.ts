@@ -10,6 +10,9 @@ export type ValidationErrorType =
   | "sede_no_reconocida"
   | "sede_ajena"
   | "catalogo_no_reconocido"
+  // Advertencia, no error: la categoria pide IMEI y la fila no lo trae
+  // (SPEC 2.112.7). La fila se importa igual.
+  | "imei_faltante"
   | "unknown_error";
 
 export interface ValidationError {

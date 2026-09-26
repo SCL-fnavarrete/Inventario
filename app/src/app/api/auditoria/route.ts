@@ -43,6 +43,7 @@ const MODULO_LABELS: Record<string, string> = {
   categoria: "Categoría",
   tipo_mantencion: "Tipo de Mantención",
   configuracion: "Configuración",
+  catalogo: "Catálogo",
   activo: "Activo",
   solicitud: "Solicitud",
 };

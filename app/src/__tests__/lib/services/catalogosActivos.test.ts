@@ -1,0 +1,146 @@
+/**
+ * @jest-environment node
+ */
+// Catalogos de Activos (SPEC 2.112.7): categorias y opciones.
+jest.mock('@/lib/prisma', () => {
+  const tabla = () => ({
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  });
+  const prisma = {
+    antivirus: tabla(),
+    sistemaOperativo: tabla(),
+    licenciaMicrosoft365: tabla(),
+    assetCategory: tabla(),
+    asset: { groupBy: jest.fn(), updateMany: jest.fn() },
+    $transaction: jest.fn(),
+  };
+  prisma.$transaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(prisma));
+  return { prisma };
+});
+jest.mock('@/lib/auth/guard', () => {
+  const real = jest.requireActual('@/lib/auth/guard');
+  return { ...real, requirePermission: jest.fn() };
+});
+jest.mock('@/lib/services/auditLogService', () => ({
+  auditLogService: { registrarCreacion: jest.fn(), registrarActualizacion: jest.fn(), registrarEliminacion: jest.fn() },
+}));
+
+import { NextRequest } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { requirePermission } from '@/lib/auth/guard';
+import { auditLogService } from '@/lib/services/auditLogService';
+import { crearOpcion, eliminarOpcion, listarOpciones, renombrarOpcion } from '@/lib/services/catalogoOpcionesService';
+import { categoriaSchema } from '@/lib/validations/categoria';
+import { DELETE as eliminarCategoria, PUT as editarCategoria } from '@/app/api/categorias/[id]/route';
+
+const db = prisma as unknown as Record<string, Record<string, jest.Mock>>;
+const audit = auditLogService as unknown as Record<string, jest.Mock>;
+const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
+const pedir = (method: string, body?: unknown) =>
+  new NextRequest('http://localhost/api/x', { method, body: body ? JSON.stringify(body) : undefined });
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  db.$transaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(prisma));
+  (requirePermission as jest.Mock).mockResolvedValue({ user: { id: 'yo', email: 'yo@x.cl', role: 'admin' } });
+});
+
+describe('opciones de catálogo (una sola lógica para los tres)', () => {
+  test('cada catálogo usa su propia tabla y su campo del activo', async () => {
+    db.licenciaMicrosoft365.findMany.mockResolvedValue([{ id: '1', nombre: 'E3', activo: true }]);
+    db.asset.groupBy.mockResolvedValue([{ tipoLicenciaMicrosoft365: 'E3', _count: 4 }]);
+    expect(await listarOpciones('licencias-m365', { conUso: true })).toEqual([
+      { id: '1', nombre: 'E3', activo: true, enUso: 4 },
+    ]);
+    expect(db.asset.groupBy).toHaveBeenCalledWith(expect.objectContaining({ by: ['tipoLicenciaMicrosoft365'] }));
+  });
+
+  test('crear queda en la auditoría con quién fue (también un técnico)', async () => {
+    db.antivirus.findFirst.mockResolvedValue(null);
+    db.antivirus.create.mockResolvedValue({ id: 'a1', nombre: 'ESET', activo: true });
+    const r = await crearOpcion('antivirus', 'ESET', 'tecnico@x.cl');
+    expect(r.creada).toBe(true);
+    expect(audit.registrarCreacion).toHaveBeenCalledWith(
+      'catalogo', 'a1', 'Antivirus: opción creada "ESET"', expect.anything(), 'tecnico@x.cl'
+    );
+  });
+
+  test('una opción que ya existe activa no se duplica ni se audita', async () => {
+    db.antivirus.findFirst.mockResolvedValue({ id: 'a1', nombre: 'ESET', activo: true });
+    const r = await crearOpcion('antivirus', 'eset', 'yo@x.cl');
+    expect(r).toEqual({ opcion: expect.objectContaining({ id: 'a1' }), creada: false });
+    expect(db.antivirus.create).not.toHaveBeenCalled();
+    expect(audit.registrarCreacion).not.toHaveBeenCalled();
+  });
+
+  test('renombrar al nombre de otra opción -> 409 en el campo', async () => {
+    db.sistemaOperativo.findUnique.mockResolvedValue({ id: 's1', nombre: 'Win 10' });
+    db.sistemaOperativo.findFirst.mockResolvedValue({ id: 's2', nombre: 'Windows 11' });
+    await expect(renombrarOpcion('sistemas-operativos', 's1', 'windows 11')).rejects.toMatchObject({
+      status: 409,
+      details: [{ field: 'nombre', message: expect.stringContaining('Windows 11') }],
+    });
+  });
+
+  test('renombrar corrige los activos y lo deja en la auditoría', async () => {
+    db.sistemaOperativo.findUnique.mockResolvedValue({ id: 's1', nombre: 'Win 10' });
+    db.sistemaOperativo.findFirst.mockResolvedValue(null);
+    db.sistemaOperativo.update.mockResolvedValue({ id: 's1', nombre: 'Windows 10' });
+    db.asset.updateMany.mockResolvedValue({ count: 7 });
+    await renombrarOpcion('sistemas-operativos', 's1', 'Windows 10', 'yo@x.cl');
+    expect(db.asset.updateMany).toHaveBeenCalledWith({
+      where: { sistemaOperativo: 'Win 10' },
+      data: { sistemaOperativo: 'Windows 10' },
+    });
+    expect(audit.registrarActualizacion.mock.calls[0][2]).toBe(
+      'Sistema operativo: opción renombrada "Win 10" → "Windows 10" (7 activo(s) corregidos)'
+    );
+  });
+
+  test('eliminar queda en la auditoría', async () => {
+    db.antivirus.findUnique.mockResolvedValue({ id: 'a1', nombre: 'ESET' });
+    await eliminarOpcion('antivirus', 'a1', 'yo@x.cl');
+    expect(db.antivirus.delete).toHaveBeenCalledWith({ where: { id: 'a1' } });
+    expect(audit.registrarEliminacion).toHaveBeenCalledWith(
+      'catalogo', 'a1', 'Antivirus: opción eliminada "ESET"', expect.anything(), 'yo@x.cl'
+    );
+  });
+});
+
+describe('categorías', () => {
+  test('stock mínimo vacío o negativo se rechaza (antes se guardaba 0 o -5)', () => {
+    expect(categoriaSchema.safeParse({ nombre: 'A', stockMinimo: '' }).success).toBe(false);
+    expect(categoriaSchema.safeParse({ nombre: 'A', stockMinimo: -5 }).success).toBe(false);
+    expect(categoriaSchema.parse({ nombre: ' A ', stockMinimo: '4' })).toMatchObject({ nombre: 'A', stockMinimo: 4 });
+  });
+
+  test('"Qué campos pide" solo acepta los tipos conocidos', () => {
+    expect(categoriaSchema.safeParse({ nombre: 'A', tipoFicha: 'computador' }).success).toBe(true);
+    expect(categoriaSchema.safeParse({ nombre: 'A', tipoFicha: 'tostadora' }).success).toBe(false);
+  });
+
+  test('cambiar "Pide IMEI" y "Qué campos pide" queda en la auditoría', async () => {
+    const antes = { id: 'c1', nombre: 'Tablet', descripcion: null, requiereSerie: true, requiereImei: false, stockMinimo: 3, tipoFicha: 'generico' };
+    db.assetCategory.findUnique.mockResolvedValue(antes);
+    db.assetCategory.findFirst.mockResolvedValue(null);
+    db.assetCategory.update.mockResolvedValue({ ...antes, requiereImei: true, tipoFicha: 'celular' });
+    const res = await editarCategoria(pedir('PUT', { nombre: 'Tablet', requiereImei: true, tipoFicha: 'celular' }), ctx('c1'));
+    expect(res.status).toBe(200);
+    const [, , , anteriores, nuevos] = audit.registrarActualizacion.mock.calls[0];
+    expect(anteriores).toMatchObject({ requiereImei: false, tipoFicha: 'generico' });
+    expect(nuevos).toMatchObject({ requiereImei: true, tipoFicha: 'celular' });
+  });
+
+  test('una categoría con activos no se elimina (409)', async () => {
+    db.assetCategory.findUnique.mockResolvedValue({ id: 'c1', nombre: 'Notebook', _count: { assets: 251 } });
+    const res = await eliminarCategoria(pedir('DELETE'), ctx('c1'));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/251 activo/);
+    expect(db.assetCategory.delete).not.toHaveBeenCalled();
+  });
+});

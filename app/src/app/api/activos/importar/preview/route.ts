@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     // categoria no existe todavia, se creara recien al confirmar.
     const categoryRecord = await prisma.assetCategory.findFirst({
       where: { nombre: { equals: categoria, mode: "insensitive" } },
-      select: { id: true },
+      select: { id: true, requiereImei: true },
     });
 
     const { headers, filas } = leerFilasExcel(buffer, sheetName, categoria, mapping);
@@ -155,13 +155,19 @@ export async function POST(request: NextRequest) {
           warnings: [],
         });
       } else {
+        // "Requiere IMEI" avisa sin impedir importar (SPEC 2.112.7). La
+        // serie ya es obligatoria para toda fila.
+        const warnings: ImportRowStatus["warnings"] =
+          categoryRecord?.requiereImei && !resultado.data.imei?.trim()
+            ? [{ type: "imei_faltante", field: "imei", message: "La categoría pide IMEI y esta fila no lo trae" }]
+            : [];
         rows.push({
           rowIndex: rows.length,
           excelRow: fila.rowNum,
           status: "valid",
           data: resultado.data,
           errors: [],
-          warnings: [],
+          warnings,
         });
       }
     }
@@ -172,7 +178,7 @@ export async function POST(request: NextRequest) {
       totalRows: rows.length,
       validCount: rows.filter((r) => r.status === "valid").length,
       errorCount: rows.filter((r) => r.status === "error").length,
-      warningCount: 0,
+      warningCount: rows.filter((r) => r.warnings.length > 0).length,
       duplicatesInFile: rows
         .filter((r) => r.errors.some((e) => e.type === "duplicate_in_file"))
         .map((r) => r.data.numeroSerie || ""),

@@ -30,6 +30,7 @@ type Category = {
   descripcion: string | null;
   requiereSerie: boolean;
   requiereImei: boolean;
+  tipoFicha: string;
 };
 
 type Sede = {
@@ -180,9 +181,13 @@ export default function ImportarActivosPage() {
     { key: "nombre", label: "Nombre", required: false, categories: ["*"] },
     { key: "apellidoP", label: "Apellido P.", required: false, categories: ["*"] },
     { key: "apellidoM", label: "Apellido M.", required: false, categories: ["*"] },
-    { key: "jefatura", label: "Jefatura", required: false, categories: ["notebook"] },
-    { key: "supervisor", label: "Supervisor", required: false, categories: ["notebook"] },
+    { key: "jefatura", label: "Jefatura", required: false, categories: ["computador"] },
+    { key: "supervisor", label: "Supervisor", required: false, categories: ["computador"] },
   ];
+
+  // Las columnas que se ofrecen dependen de que campos pide la categoria
+  // elegida (SPEC 2.112.7), no de su nombre.
+  const fichaElegida = categories.find((c) => c.nombre.toLowerCase() === categoria)?.tipoFicha ?? "";
 
   // Función para verificar si un campo aplica a la categoría seleccionada
   const fieldMatchesCategory = (fieldCategories: string[], selectedCategory: string) => {
@@ -192,7 +197,7 @@ export default function ImportarActivosPage() {
   };
 
   const requiredFields = allRequiredFields.filter(
-    (field) => fieldMatchesCategory(field.categories, categoria)
+    (field) => fieldMatchesCategory(field.categories, fichaElegida)
   );
 
   // Validacion por campo, igual que en Onboarding. Las columnas del paso 2 se
@@ -214,7 +219,7 @@ export default function ImportarActivosPage() {
   }
 
   const employeeFieldsFiltered = employeeFields.filter(
-    (field) => fieldMatchesCategory(field.categories, categoria)
+    (field) => fieldMatchesCategory(field.categories, fichaElegida)
   );
 
   const allOptionalFields = [
@@ -229,23 +234,23 @@ export default function ImportarActivosPage() {
     { key: "fechaEntrega", label: "Fecha de entrega", categories: ["*"] },
     { key: "fechaCompra", label: "Fecha de compra", categories: ["*"] },
     // Campos opcionales para Notebook
-    { key: "correoPersonal", label: "Correo Personal", categories: ["notebook"] },
-    { key: "correoEmpresa", label: "Correo Empresa", categories: ["notebook"] },
-    { key: "cargo", label: "Cargo", categories: ["notebook"] },
-    { key: "comuna", label: "Comuna", categories: ["notebook"] },
+    { key: "correoPersonal", label: "Correo Personal", categories: ["computador"] },
+    { key: "correoEmpresa", label: "Correo Empresa", categories: ["computador"] },
+    { key: "cargo", label: "Cargo", categories: ["computador"] },
+    { key: "comuna", label: "Comuna", categories: ["computador"] },
     // "equipo" (tipo: Notebook/Celular/etc.) se elimino del mapeo -- no se
     // usaba en ningun lado, el tipo de equipo ya se elige una vez para todo
     // el archivo con el selector de Categoria, no fila por fila.
-    { key: "nombreEquipo", label: "Nombre Equipo", categories: ["notebook"] },
-    { key: "historialAsignaciones", label: "Historial de asignaciones", categories: ["notebook"] },
-    { key: "procesador", label: "Procesador", categories: ["notebook"] },
-    { key: "discoDuro", label: "Disco Duro", categories: ["notebook"] },
-    { key: "ram", label: "RAM", categories: ["notebook"] },
-    { key: "sistemaOperativo", label: "O.S.", categories: ["notebook"] },
-    { key: "microsoft365", label: "Microsoft 365 Empresa", categories: ["notebook"] },
-    { key: "mantencion", label: "Mantención", categories: ["notebook"] },
-    { key: "proximaMantencion", label: "Próxima Mantención", categories: ["notebook"] },
-    { key: "antivirus", label: "Antivirus", categories: ["notebook"] },
+    { key: "nombreEquipo", label: "Nombre Equipo", categories: ["computador"] },
+    { key: "historialAsignaciones", label: "Historial de asignaciones", categories: ["computador"] },
+    { key: "procesador", label: "Procesador", categories: ["computador"] },
+    { key: "discoDuro", label: "Disco Duro", categories: ["computador"] },
+    { key: "ram", label: "RAM", categories: ["computador"] },
+    { key: "sistemaOperativo", label: "O.S.", categories: ["computador"] },
+    { key: "microsoft365", label: "Microsoft 365 Empresa", categories: ["computador"] },
+    { key: "mantencion", label: "Mantención", categories: ["computador"] },
+    { key: "proximaMantencion", label: "Próxima Mantención", categories: ["computador"] },
+    { key: "antivirus", label: "Antivirus", categories: ["computador"] },
     // Campos para Monitor
     { key: "pulgadas", label: "Pulgadas", categories: ["monitor"] },
     // Campos para Celular
@@ -261,7 +266,7 @@ export default function ImportarActivosPage() {
 
   // Filtrar campos opcionales según la categoría seleccionada
   const optionalFields = allOptionalFields.filter(
-    (field) => fieldMatchesCategory(field.categories, categoria)
+    (field) => fieldMatchesCategory(field.categories, fichaElegida)
   );
 
   const handleFileChange = useCallback(
@@ -1045,6 +1050,24 @@ export default function ImportarActivosPage() {
             <StatCard variant="soft" tone="success" label="Válidas" value={validation.validCount} />
             <StatCard variant="soft" tone="danger" label="Con errores" value={validation.errorCount} />
           </StatGrid>
+
+          {/* Filas validas con advertencias: se importan igual (SPEC 2.112.7). */}
+          {validation.warningCount > 0 && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <p className="font-medium">
+                {validation.warningCount} fila(s) sin IMEI, que esta categoría pide. Se importarán igual.
+              </p>
+              <p className="mt-1 text-xs">
+                Filas del Excel:{" "}
+                {validation.rows
+                  .filter((r) => r.warnings.length > 0)
+                  .slice(0, 30)
+                  .map((r) => r.excelRow)
+                  .join(", ")}
+                {validation.warningCount > 30 ? "…" : ""}
+              </p>
+            </div>
+          )}
 
           {validation.errorCount > 0 && (
             <button

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import type { TipoFicha } from "@prisma/client";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Save } from "lucide-react";
@@ -148,17 +149,21 @@ export function payloadActivo(v: ActivoFormValues, modo: Modo) {
 
 type Opcion = { id: string; nombre: string };
 
-// Perifericos simples: solo piden conectividad, no una seccion propia.
-const PERIFERICOS_SIMPLES = ["mouse", "teclado", "webcam", "audífonos"];
+// La categoria dice que campos pide y si pide serie/IMEI (SPEC 2.112.7); el
+// formulario ya no la reconoce por su nombre.
+type CategoriaFormulario = Opcion & { tipoFicha: TipoFicha; requiereSerie: boolean; requiereImei: boolean };
 
 function Campo({
   label,
   hint,
+  aviso,
   error,
   children,
 }: {
   label: ReactNode;
   hint?: ReactNode;
+  // Advertencia que no impide guardar (ej. la categoria pide IMEI).
+  aviso?: string;
   error?: string;
   children: ReactNode;
 }) {
@@ -166,7 +171,13 @@ function Campo({
     <div>
       <label className={cn("field-label", error && "text-red-600")}>{label}</label>
       {children}
-      {error ? <MensajeCampo mensaje={error} /> : hint && <p className="mt-1 text-xs text-fg-subtle">{hint}</p>}
+      {error ? (
+        <MensajeCampo mensaje={error} />
+      ) : aviso ? (
+        <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{aviso}</p>
+      ) : (
+        hint && <p className="mt-1 text-xs text-fg-subtle">{hint}</p>
+      )}
     </div>
   );
 }
@@ -232,7 +243,7 @@ export function ActivoForm({
   const esAdminSede = session?.user?.role === "admin";
 
   const [values, setValues] = useState<ActivoFormValues>(initialValues);
-  const [categories, setCategories] = useState<Opcion[]>([]);
+  const [categories, setCategories] = useState<CategoriaFormulario[]>([]);
   const [sedes, setSedes] = useState<Opcion[]>([]);
   const [guardando, setGuardando] = useState(false);
   // Validacion por campo, igual que en Onboarding.
@@ -286,8 +297,23 @@ export function ActivoForm({
     }
   }
 
-  const categoria = categories.find((c) => c.id === values.categoriaId)?.nombre.toLowerCase();
-  const esPerifericoSimple = categoria ? PERIFERICOS_SIMPLES.includes(categoria) : false;
+  const categoriaElegida = categories.find((c) => c.id === values.categoriaId);
+  const ficha = categoriaElegida?.tipoFicha;
+  // "Requiere N° de serie / IMEI": avisa si falta, sin impedir guardar
+  // (decision de Javier, SPEC 2.112.7). Al crear, la serie ya es obligatoria.
+  const avisoSerie =
+    categoriaElegida?.requiereSerie && !values.numeroSerie.trim()
+      ? "Esta categoría pide N° de serie. Puedes guardar igual."
+      : undefined;
+  const avisoImei =
+    categoriaElegida?.requiereImei && !values.imei.trim()
+      ? "Esta categoría pide IMEI. Puedes guardar igual."
+      : undefined;
+  const campoImei = (
+    <Campo label="IMEI" aviso={avisoImei}>
+      <input type="text" {...bind("imei")} />
+    </Campo>
+  );
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6" noValidate>
@@ -309,7 +335,11 @@ export function ActivoForm({
         <Campo label="Modelo *" error={error("modelo")}>
           <input type="text" {...bind("modelo")} required />
         </Campo>
-        <Campo label={crear ? "Número de Serie *" : "Número de Serie"} error={error("numeroSerie")}>
+        <Campo
+          label={crear ? "Número de Serie *" : "Número de Serie"}
+          error={error("numeroSerie")}
+          aviso={crear ? undefined : avisoSerie}
+        >
           <input type="text" {...bind("numeroSerie")} required={crear} />
         </Campo>
         <Campo label="Estado">
@@ -381,7 +411,7 @@ export function ActivoForm({
         )}
       </Seccion>
 
-      {categoria === "notebook" && (
+      {ficha === "computador" && (
         <Seccion titulo="Especificaciones Técnicas - Notebook">
           <Campo label="Procesador">
             <input type="text" {...bind("procesador")} placeholder="ej: Intel Core i7-1165G7" />
@@ -424,11 +454,9 @@ export function ActivoForm({
         </Seccion>
       )}
 
-      {categoria === "celular" && (
+      {ficha === "celular" && (
         <Seccion titulo="Especificaciones Técnicas - Celular">
-          <Campo label="IMEI">
-            <input type="text" {...bind("imei")} />
-          </Campo>
+          {campoImei}
           <Campo label="Número de Teléfono">
             <input type="text" {...bind("numeroTelefono")} />
           </Campo>
@@ -438,7 +466,15 @@ export function ActivoForm({
         </Seccion>
       )}
 
-      {categoria === "monitor" && (
+      {/* Una categoria que pide IMEI sin ser de celular (ej. un modem) lo
+          muestra igual. */}
+      {ficha !== "celular" && categoriaElegida?.requiereImei && (
+        <Seccion titulo="Identificación" cols={2}>
+          {campoImei}
+        </Seccion>
+      )}
+
+      {ficha === "monitor" && (
         <Seccion titulo="Especificaciones Técnicas - Monitor" cols={2}>
           <Campo label="Pulgadas">
             <input type="text" {...bind("pulgadas")} placeholder="ej: 24" />
@@ -446,8 +482,8 @@ export function ActivoForm({
         </Seccion>
       )}
 
-      {esPerifericoSimple && (
-        <Seccion titulo={`Especificaciones Técnicas - ${categories.find((c) => c.id === values.categoriaId)?.nombre}`}>
+      {ficha === "periferico" && (
+        <Seccion titulo={`Especificaciones Técnicas - ${categoriaElegida?.nombre}`}>
           <Campo label="Conectividad">
             <select {...bind("conectividad")}>
               <option value="">Seleccionar conectividad</option>

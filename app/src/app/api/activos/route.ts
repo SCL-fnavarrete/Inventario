@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           categoria: {
-            select: { id: true, nombre: true },
+            select: { id: true, nombre: true, tipoFicha: true },
           },
           empleadoActual: {
             select: {

@@ -49,6 +49,7 @@ const MODULOS = [
   { value: "categoria", label: "Categoría" },
   { value: "tipo_mantencion", label: "Tipo de Mantención" },
   { value: "configuracion", label: "Configuración" },
+  { value: "catalogo", label: "Catálogo" },
 ];
 
 const moduloColor: Record<string, string> = {
@@ -65,6 +66,7 @@ const moduloColor: Record<string, string> = {
   categoria: "bg-primary-100 text-primary-900",
   tipo_mantencion: "bg-fuchsia-100 text-fuchsia-800",
   configuracion: "bg-slate-100 text-slate-800",
+  catalogo: "bg-indigo-100 text-indigo-800",
 };
 
 function formatFecha(iso: string): string {
