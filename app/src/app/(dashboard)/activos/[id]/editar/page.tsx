@@ -11,6 +11,7 @@ import {
   valoresDesdeActivo,
   type ActivoFormValues,
 } from "@/components/activos/ActivoForm";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 export default function EditarActivoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -82,7 +83,7 @@ export default function EditarActivoPage({ params }: { params: Promise<{ id: str
         title="Editar Activo"
         description={
           initialValues
-            ? `${initialValues.marca} ${initialValues.modelo} - ${initialValues.numeroSerie}`
+            ? `${initialValues.marca} ${initialValues.modelo} - ${identificadorActivo(initialValues)}`
             : undefined
         }
       />

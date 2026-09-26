@@ -28,6 +28,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { CONDICION_ACTIVO_LABEL } from "@/lib/constants/estadosActivo";
 import { Can } from "@/components/auth/Can";
 import { motivoSinBaja, motivoSinMantencion } from "@/lib/constants/estadosActivo";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 // Covers the full TipoEvento enum so no event type renders as raw text
 // in the audit history.
@@ -144,7 +145,6 @@ export default async function DetalleActivoPage({
   if (asset.sistemaOperativo) especificaciones.sistemaOperativo = asset.sistemaOperativo;
   if (asset.antivirus) especificaciones.antivirus = asset.antivirus;
   if (asset.nombreEquipo) especificaciones.nombreEquipo = asset.nombreEquipo;
-  if (asset.imei) especificaciones.imei = asset.imei;
   if (asset.numeroTelefono) especificaciones.numeroTelefono = asset.numeroTelefono;
   if (asset.tipoPlan) especificaciones.tipoPlan = asset.tipoPlan;
   if (asset.conectividad) especificaciones.conectividad = asset.conectividad;
@@ -171,7 +171,7 @@ export default async function DetalleActivoPage({
           </div>
         }
         title={`${asset.marca} ${asset.modelo}`}
-        description={`${asset.categoria.nombre} • ${asset.numeroSerie ?? "Sin n° de serie"}`}
+        description={`${asset.categoria.nombre} • ${identificadorActivo(asset, "Sin n° de serie")}`}
         actions={
           soloLectura ? (
             <span className="text-sm text-fg-subtle">Solo lectura: el equipo es de {asset.sede?.nombre ?? "otra sede"}</span>
@@ -301,8 +301,15 @@ export default async function DetalleActivoPage({
             <dl className="grid grid-cols-2 gap-4">
               <div>
                 <dt className="text-sm text-fg-subtle">Número de Serie</dt>
-                <dd className="font-medium text-fg">{asset.numeroSerie}</dd>
+                <dd className="font-medium text-fg">{asset.numeroSerie || "—"}</dd>
               </div>
+              {/* El IMEI identifica al celular (SPEC 2.112.7): va junto a la serie. */}
+              {asset.imei && (
+                <div>
+                  <dt className="text-sm text-fg-subtle">IMEI</dt>
+                  <dd className="font-mono font-medium text-fg">{asset.imei}</dd>
+                </div>
+              )}
               <div>
                 <dt className="text-sm text-fg-subtle">Marca</dt>
                 <dd className="font-medium text-fg">{asset.marca}</dd>

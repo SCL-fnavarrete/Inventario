@@ -10,6 +10,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { formatearFechaConHora } from "@/lib/utils/fechas";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 interface Maintenance {
   id: string;
@@ -18,6 +19,7 @@ interface Maintenance {
   horaProgramada: string | null;
   asset: {
     numeroSerie: string | null;
+    imei?: string | null;
     marca: string;
     modelo: string;
     sede: { nombre: string } | null;
@@ -130,7 +132,7 @@ export function AlertsPanel({
                   Mantención Vencida
                 </p>
                 <p className="text-xs text-red-700 break-words">
-                  {m.asset.marca} {m.asset.modelo} ({m.asset.numeroSerie})
+                  {m.asset.marca} {m.asset.modelo} ({identificadorActivo(m.asset)})
                 </p>
                 <p className="text-xs text-red-700">{m.descripcion}</p>
                 <EtiquetaSede nombre={m.asset.sede?.nombre ?? null} />
@@ -154,7 +156,7 @@ export function AlertsPanel({
                   Mantención Próxima
                 </p>
                 <p className="text-xs text-yellow-700 break-words">
-                  {m.asset.marca} {m.asset.modelo} ({m.asset.numeroSerie})
+                  {m.asset.marca} {m.asset.modelo} ({identificadorActivo(m.asset)})
                 </p>
                 <p className="text-xs text-yellow-800">
                   {m.fechaProgramada

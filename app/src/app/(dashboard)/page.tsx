@@ -80,6 +80,7 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
         asset: {
           select: {
             numeroSerie: true,
+            imei: true,
             marca: true,
             modelo: true,
             sede: { select: { nombre: true } },

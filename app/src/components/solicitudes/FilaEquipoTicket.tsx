@@ -22,6 +22,7 @@ export type AsignacionFila = {
     marca: string;
     modelo: string;
     numeroSerie: string | null;
+    imei?: string | null;
     categoria: { nombre: string };
   };
 };
@@ -79,7 +80,10 @@ export function FilaEquipoTicket({
               : a.fechaDevolucion && `Devuelto el ${formatearFecha(a.fechaDevolucion)}`,
             a.recibidoPor && `Registrado por ${a.recibidoPor}`,
           ];
-  const partes = [a.asset.numeroSerie && `S/N: ${a.asset.numeroSerie}`, ...detalle].filter(Boolean);
+  const partes = [
+    a.asset.numeroSerie ? `S/N: ${a.asset.numeroSerie}` : a.asset.imei ? `IMEI: ${a.asset.imei}` : null,
+    ...detalle,
+  ].filter(Boolean);
 
   return (
     <div className={cn('text-sm p-3 rounded-lg', destacado ? 'bg-green-50' : 'bg-surface-muted')}>

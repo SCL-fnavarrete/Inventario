@@ -13,6 +13,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { etiquetaConectividad } from "@/lib/utils/assetSpecs";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { AssetConditionBadge } from "@/components/ui/Badge";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 type Asset = {
   id: string;
@@ -194,8 +195,8 @@ export function SelectorActivos({
                 <CategoryIcon categoria={asset.categoria.nombre} className="h-4 w-4" />
                 <span className="text-primary-700">{asset.categoria.nombre}</span>
                 <span className="font-medium">{asset.marca} {asset.modelo}</span>
-                {asset.numeroSerie && (
-                  <span className="text-primary-700">({asset.numeroSerie})</span>
+                {(asset.numeroSerie || asset.imei) && (
+                  <span className="text-primary-700">({identificadorActivo(asset)})</span>
                 )}
                 <button
                   type="button"
@@ -321,7 +322,7 @@ export function SelectorActivos({
 
                   {/* Serie/IMEI */}
                   <div className="w-28 hidden sm:block text-xs text-fg-muted font-mono truncate">
-                    {asset.numeroSerie || asset.imei || "-"}
+                    {identificadorActivo(asset, "-")}
                   </div>
 
                   {/* Info extra */}

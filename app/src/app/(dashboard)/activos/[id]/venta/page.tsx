@@ -24,12 +24,14 @@ const ETIQUETAS_VENTA: Record<string, string> = {
   fechaVenta: 'Fecha de venta',
 };
 import { hoyISO } from '@/lib/utils/fechas';
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 type Asset = {
   id: string;
   marca: string;
   modelo: string;
   numeroSerie: string | null;
+  imei?: string | null;
   estado: string;
   categoria: { nombre: string };
 };
@@ -116,7 +118,7 @@ export default function VentaActivoPage() {
       <PageHeader
         backHref={`/activos/${id}`}
         title="Registrar Venta"
-        description={<>{asset.marca} {asset.modelo} • {asset.numeroSerie}</>}
+        description={<>{asset.marca} {asset.modelo} • {identificadorActivo(asset)}</>}
       />
 
       {!canSell && (
@@ -136,7 +138,7 @@ export default function VentaActivoPage() {
           <div><span className="text-fg-subtle">Categoría:</span> <span className="font-medium">{asset.categoria.nombre}</span></div>
           <div><span className="text-fg-subtle">Estado:</span> <span className="font-medium">{etiquetaEstadoActivo(asset.estado)}</span></div>
           <div><span className="text-fg-subtle">Marca/Modelo:</span> <span className="font-medium">{asset.marca} {asset.modelo}</span></div>
-          <div><span className="text-fg-subtle">Serie:</span> <span className="font-medium">{asset.numeroSerie || '-'}</span></div>
+          <div><span className="text-fg-subtle">{asset.numeroSerie || !asset.imei ? 'Serie:' : 'Identificación:'}</span> <span className="font-medium">{identificadorActivo(asset, '-')}</span></div>
         </div>
       </div>
 

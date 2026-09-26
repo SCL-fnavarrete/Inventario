@@ -33,6 +33,7 @@ type AsignacionActiva = {
     marca: string;
     modelo: string;
     numeroSerie: string | null;
+    imei?: string | null;
     categoria: { nombre: string };
     tieneCargador: boolean;
   };
@@ -378,7 +379,7 @@ export function SeleccionarCambioEquipo({
                         <option value="">Seleccionar equipo nuevo...</option>
                         {opciones.map((d) => (
                           <option key={d.id} value={d.id}>
-                            {d.marca} {d.modelo} · {d.numeroSerie || "s/serie"}
+                            {d.marca} {d.modelo} · {identificadorActivo(d, "s/serie")}
                             {especificaciones(d) ? ` · ${especificaciones(d)}` : ""}
                           </option>
                         ))}

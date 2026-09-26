@@ -67,7 +67,7 @@ export function TablaEquipoActa({
         <View style={styles.tableHeaderRow}>
           <Text style={[styles.tableHeaderCell, celda, { width: ANCHO.equipo }]}>Equipo</Text>
           <Text style={[styles.tableHeaderCell, celda, { width: ANCHO.marca }]}>Marca</Text>
-          <Text style={[styles.tableHeaderCell, celda, { width: ANCHO.serie }]}>N° de Serie</Text>
+          <Text style={[styles.tableHeaderCell, celda, { width: ANCHO.serie }]}>N° de Serie / IMEI</Text>
           <Text
             style={[styles.tableHeaderCell, celda, { width: ANCHO.descripcion, textAlign: 'left' }]}
           >

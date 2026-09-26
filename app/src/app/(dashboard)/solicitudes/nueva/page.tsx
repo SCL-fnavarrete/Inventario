@@ -42,6 +42,7 @@ import {
 import { esCorreoValido } from '@/lib/utils/text';
 import { inputFechaHoraAISO } from '@/lib/utils/fechas';
 import { useCampoSede, useSedeSeleccionada } from '@/components/providers/SedeSeleccionadaProvider';
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 type Employee = {
   id: string;
@@ -72,6 +73,7 @@ type EmployeeAssignment = {
     marca: string;
     modelo: string;
     numeroSerie: string | null;
+    imei?: string | null;
     categoria: { nombre: string };
     tieneCargador: boolean;
   };
@@ -1500,7 +1502,7 @@ export default function NuevaSolicitudPage() {
                                   />
                                   <span>
                                     {item.marca} {item.modelo}
-                                    {item.numeroSerie ? ` — N° serie ${item.numeroSerie}` : ''}
+                                    {item.numeroSerie ? ` — N° serie ${item.numeroSerie}` : item.imei ? ` — IMEI ${item.imei}` : ''}
                                     {item.condicion === 'usado' && (
                                       <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700">
                                         Usado
@@ -2207,7 +2209,7 @@ export default function NuevaSolicitudPage() {
                                     {asset.categoria.nombre}: {asset.marca} {asset.modelo}
                                   </p>
                                   <p className="text-xs text-fg-subtle">
-                                    Serie: {asset.numeroSerie || 'Sin serie'}
+                                    {asset.numeroSerie || !asset.imei ? 'Serie: ' : ''}{identificadorActivo(asset, 'Sin serie')}
                                   </p>
                                 </div>
                               </div>

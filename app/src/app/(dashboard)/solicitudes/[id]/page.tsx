@@ -75,7 +75,7 @@ type WorkflowDetail = {
     apellidoMaterno: string | null;
     cargo: string | null;
     correoPersonal: string;
-    assignments: { id: string; activo: boolean; estadoDevolucion: string | null; asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: { nombre: string }; tieneCargador: boolean } }[];
+    assignments: { id: string; activo: boolean; estadoDevolucion: string | null; asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; imei?: string | null; categoria: { nombre: string }; tieneCargador: boolean } }[];
     // EPP entregado y aun no devuelto (offboarding). El Kit de Bienvenida
     // no aparece aca -- es consumible, no se devuelve.
     kitAssignments: { id: string; estado: string; item: { id: string; nombre: string; categoria: 'kit_bienvenida' | 'epp' } }[];
@@ -1280,7 +1280,7 @@ export default function SolicitudDetailPage() {
                     </span>
                     <span className="block text-xs text-fg-subtle">
                       {a.asset.categoria.nombre}
-                      {a.asset.numeroSerie && ` · S/N: ${a.asset.numeroSerie}`}
+                      {a.asset.numeroSerie ? ` · S/N: ${a.asset.numeroSerie}` : a.asset.imei ? ` · IMEI: ${a.asset.imei}` : ""}
                     </span>
                   </div>
                 ))}

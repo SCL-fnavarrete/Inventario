@@ -23,10 +23,12 @@ import {
   ResumenErrores,
   claseCampo,
 } from "@/components/ui/CampoFormulario";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 type Asset = {
   id: string;
   numeroSerie: string | null;
+  imei?: string | null;
   marca: string;
   modelo: string;
   estado: string;
@@ -244,7 +246,7 @@ export default function ProgramarMantencionPage() {
                     {equipo.marca} {equipo.modelo}
                   </p>
                   <p className="text-sm text-fg-subtle truncate">
-                    {equipo.numeroSerie || "Sin número de serie"}
+                    {identificadorActivo(equipo, "Sin número de serie")}
                     {equipo.empleadoActual &&
                       ` • ${equipo.empleadoActual.nombres} ${equipo.empleadoActual.apellidoPaterno}`}
                   </p>
@@ -332,7 +334,7 @@ export default function ProgramarMantencionPage() {
                                 {asset.marca} {asset.modelo}
                               </p>
                               <p className="text-sm text-fg-subtle truncate">
-                                {asset.categoria.nombre} • {asset.numeroSerie || "Sin número de serie"}
+                                {asset.categoria.nombre} • {identificadorActivo(asset, "Sin número de serie")}
                                 {asset.empleadoActual && (
                                   <>
                                     {" • "}

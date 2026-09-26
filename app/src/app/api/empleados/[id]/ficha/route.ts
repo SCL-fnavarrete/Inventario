@@ -171,6 +171,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         marca: a.asset.marca,
         modelo: a.asset.modelo,
         numeroSerie: a.asset.numeroSerie,
+        imei: a.asset.imei,
         estado: a.asset.estado,
         condicion: a.asset.condicion,
         fechaEntrega: a.fechaEntrega,

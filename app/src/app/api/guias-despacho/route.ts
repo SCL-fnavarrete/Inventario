@@ -19,6 +19,7 @@ import { crearDespacho, crearGuiaConNumero, sedeDestinoValida } from '@/lib/serv
 import { ETIQUETAS_GUIA, validarNuevaGuia } from '@/lib/validations/guia';
 import { etiquetaEstadoActivo } from '@/lib/constants/estadosActivo';
 import { coincideBusqueda } from '@/lib/utils/text';
+import { identificadorActivo } from '@/lib/utils/identificador';
 
 // GET /api/guias-despacho - Listar guías de despacho
 export async function GET(request: NextRequest) {
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest) {
     const noDisponibles = assets.filter((a) => a.estado !== "disponible");
     if (noDisponibles.length > 0) {
       const detalle = noDisponibles
-        .map((a) => `${a.marca} ${a.modelo} (${a.numeroSerie ?? "sin serie"}): ${etiquetaEstadoActivo(a.estado)}`)
+        .map((a) => `${a.marca} ${a.modelo} (${identificadorActivo(a, "sin serie")}): ${etiquetaEstadoActivo(a.estado)}`)
         .join("; ");
       throw errorDeCampo("assetIds", `Ya no están disponibles para despacho: ${detalle}`);
     }

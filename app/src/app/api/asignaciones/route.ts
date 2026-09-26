@@ -108,6 +108,7 @@ export async function GET(request: NextRequest) {
             a.employee.apellidoPaterno,
             a.employee.apellidoMaterno,
             a.asset.numeroSerie,
+            a.asset.imei,
             a.asset.marca,
             a.asset.modelo,
           ],

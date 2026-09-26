@@ -46,6 +46,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { VentanaMotivo } from "@/components/ui/VentanaMotivo";
 import { VentanaKitDespacho, type AccionKitDespacho } from "@/components/guias-despacho/VentanaKitDespacho";
+import { identificadorActivo } from "@/lib/utils/identificador";
 
 const BOTON_EXITO = "bg-success hover:bg-success-hover disabled:hover:bg-success";
 
@@ -452,12 +453,12 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
                         {asset.marca} {asset.modelo}
                       </Link>
                       <div className="md:hidden text-xs text-fg-muted font-mono break-all">
-                        {asset.numeroSerie || asset.imei || "-"}
+                        {identificadorActivo(asset, "-")}
                       </div>
                       {acciones("md:hidden mt-2 flex gap-2")}
                     </td>
                     <td className="px-4 py-3 text-sm text-fg-muted font-mono hidden md:table-cell">
-                      {asset.numeroSerie || asset.imei || "-"}
+                      {identificadorActivo(asset, "-")}
                     </td>
                     <td className="px-4 py-3 text-sm text-fg-muted hidden md:table-cell">
                       {especificacionesActivoTexto(asset) || "-"}
@@ -626,7 +627,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
                     <CategoryIcon categoria={item.asset.categoria.nombre} className="h-4 w-4 text-fg-subtle" />
                     <span className="text-sm">
                       <span className="font-medium">{item.asset.marca} {item.asset.modelo}</span>{" "}
-                      <span className="text-fg-subtle font-mono">{item.asset.numeroSerie ?? ""}</span>
+                      <span className="text-fg-subtle font-mono">{identificadorActivo(item.asset, "")}</span>
                     </span>
                   </label>
                 </li>

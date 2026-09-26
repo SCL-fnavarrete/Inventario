@@ -60,7 +60,7 @@ export const assetHistoryService = {
     return this.registrar({
       assetId: asset.id,
       tipoEvento: 'creacion',
-      descripcion: `Activo creado: ${asset.marca} ${asset.modelo}${asset.numeroSerie ? ` (S/N: ${asset.numeroSerie})` : ''}`,
+      descripcion: `Activo creado: ${asset.marca} ${asset.modelo}${asset.numeroSerie ? ` (S/N: ${asset.numeroSerie})` : asset.imei ? ` (IMEI: ${asset.imei})` : ''}`,
       datosNuevos: {
         marca: asset.marca,
         modelo: asset.modelo,

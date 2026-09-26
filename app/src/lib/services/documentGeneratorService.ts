@@ -52,7 +52,7 @@ function fechaDocumentoLarga(fecha: Date): string {
 // Fila de la tabla de equipos de un acta (TablaEquipoActa). El N° de serie y
 // las especificaciones van en columnas propias; la descripcion queda para el
 // modelo y la condicion del cargador, sin repetir lo anterior.
-function filaEquipo(
+export function filaEquipo(
   // pulgadas llega como Decimal de Prisma: se pasa a texto para assetSpecs.
   asset: Omit<ActivoParaSpecs, 'pulgadas'> & {
     pulgadas: { toString(): string } | null;
@@ -67,9 +67,13 @@ function filaEquipo(
   return {
     equipo: asset.categoria.nombre,
     marca: asset.marca,
-    numeroSerie: asset.numeroSerie,
+    numeroSerie: asset.numeroSerie || asset.imei || null,
     descripcion: asset.modelo,
-    especificaciones: especificacionesActivo({ ...asset, pulgadas: asset.pulgadas?.toString() ?? null })
+    especificaciones: especificacionesActivo({
+      ...asset,
+      imei: asset.numeroSerie ? asset.imei : null,
+      pulgadas: asset.pulgadas?.toString() ?? null,
+    })
       .map(({ etiqueta, valor }) => `${etiqueta}: ${valor}`)
       .join('\n'),
     estado,

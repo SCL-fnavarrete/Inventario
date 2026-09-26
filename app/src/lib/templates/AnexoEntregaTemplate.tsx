@@ -72,7 +72,7 @@ export function AnexoEntregaTemplate({
               <Text style={[styles.tableHeaderCell, { width: '15%' }]}>Tipo</Text>
               <Text style={[styles.tableHeaderCell, { width: '15%' }]}>Marca</Text>
               <Text style={[styles.tableHeaderCell, { width: '15%' }]}>Modelo</Text>
-              <Text style={[styles.tableHeaderCell, { width: '15%' }]}>N° Serie</Text>
+              <Text style={[styles.tableHeaderCell, { width: '15%' }]}>N° Serie / IMEI</Text>
               <Text style={[styles.tableHeaderCell, { width: '12%' }]}>Procesador</Text>
               <Text style={[styles.tableHeaderCell, { width: '10%' }]}>Disco</Text>
               <Text style={[styles.tableHeaderCell, { width: '8%' }]}>RAM</Text>
@@ -83,7 +83,7 @@ export function AnexoEntregaTemplate({
                 <Text style={[styles.tableCell, { width: '15%' }]}>{asset.tipo}</Text>
                 <Text style={[styles.tableCell, { width: '15%' }]}>{asset.marca}</Text>
                 <Text style={[styles.tableCell, { width: '15%' }]}>{asset.modelo}</Text>
-                <Text style={[styles.tableCell, { width: '15%' }]}>{asset.numeroSerie || '—'}</Text>
+                <Text style={[styles.tableCell, { width: '15%' }]}>{asset.numeroSerie || asset.imei || '—'}</Text>
                 <Text style={[styles.tableCell, { width: '12%' }]}>{asset.procesador || '—'}</Text>
                 <Text style={[styles.tableCell, { width: '10%' }]}>{asset.discoDuro || '—'}</Text>
                 <Text style={[styles.tableCell, { width: '8%' }]}>{asset.ram || '—'}</Text>

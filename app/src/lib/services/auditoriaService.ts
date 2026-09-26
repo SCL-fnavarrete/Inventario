@@ -4,6 +4,7 @@ import { ESTADO_ACTIVO_LABEL, CONDICION_ACTIVO_LABEL, etiquetaEstadoDevolucion }
 import { ESTADO_GUIA_LABELS } from '@/types/guia-despacho';
 import { STATE_LABELS } from '@/lib/services/workflowStateMachine';
 import { MODULOS_AUDITORIA } from '@/lib/constants/auditoria';
+import { identificadorActivo } from '@/lib/utils/identificador';
 
 /**
  * Configuracion > Auditoria (SPEC 2.112.8): junta los tres historiales
@@ -66,7 +67,7 @@ const EVENTOS = Prisma.sql`
   SELECT 'asset_history', h.id, 'activo', h.asset_id, h.tipo_evento::text,
          h.descripcion, h.usuario_sistema, u.nombre,
          h.datos_anteriores, h.datos_nuevos, h.created_at,
-         concat_ws(' ', s.marca, s.modelo, '(' || s.numero_serie || ')')
+         concat_ws(' ', s.marca, s.modelo, '(' || coalesce(s.numero_serie, 'IMEI ' || s.imei) || ')')
   FROM asset_history h LEFT JOIN assets s ON s.id = h.asset_id LEFT JOIN system_users u ON u.email = h.usuario_sistema
   UNION ALL
   SELECT 'workflow_transition', t.id, 'solicitud', t.request_id, t.estado_anterior::text || '>' || t.estado_nuevo::text,
@@ -208,14 +209,14 @@ async function nombresDeReferencias(filas: FilaAuditoria[]): Promise<Nombres> {
       ? prisma.employee.findMany({ where: { id: { in: [...ids.empleado] } }, select: { id: true, nombres: true, apellidoPaterno: true } })
       : [],
     ids.activo.size
-      ? prisma.asset.findMany({ where: { id: { in: [...ids.activo] } }, select: { id: true, marca: true, modelo: true, numeroSerie: true } })
+      ? prisma.asset.findMany({ where: { id: { in: [...ids.activo] } }, select: { id: true, marca: true, modelo: true, numeroSerie: true, imei: true } })
       : [],
     ids.tipo.size ? prisma.maintenanceType.findMany({ where: { id: { in: [...ids.tipo] } }, select: { id: true, nombre: true } }) : [],
   ]);
   return new Map<string, string>([
     ...sedes.map((s) => [s.id, s.nombre] as [string, string]),
     ...empleados.map((e) => [e.id, `${e.nombres} ${e.apellidoPaterno}`] as [string, string]),
-    ...activos.map((a) => [a.id, `${a.marca} ${a.modelo}${a.numeroSerie ? ` (${a.numeroSerie})` : ''}`] as [string, string]),
+    ...activos.map((a) => [a.id, `${a.marca} ${a.modelo} (${identificadorActivo(a)})`] as [string, string]),
     ...tipos.map((t) => [t.id, t.nombre] as [string, string]),
   ]);
 }
