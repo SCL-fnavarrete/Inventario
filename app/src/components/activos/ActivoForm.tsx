@@ -46,6 +46,10 @@ export type ActivoFormValues = {
   sistemaOperativo: string;
   imei: string;
   numeroTelefono: string;
+  numeroActivacion: string;
+  tipoPlan: string;
+  // "si" | "no" | "" (sin indicar)
+  tieneCargador: string;
   pulgadas: string;
   observaciones: string;
   antivirus: string;
@@ -71,6 +75,9 @@ export const ACTIVO_FORM_VACIO: ActivoFormValues = {
   sistemaOperativo: "",
   imei: "",
   numeroTelefono: "",
+  numeroActivacion: "",
+  tipoPlan: "",
+  tieneCargador: "",
   pulgadas: "",
   observaciones: "",
   antivirus: "",
@@ -105,6 +112,9 @@ export function valoresDesdeActivo(asset: Record<string, unknown>): ActivoFormVa
     sistemaOperativo: txt("sistemaOperativo"),
     imei: txt("imei"),
     numeroTelefono: txt("numeroTelefono"),
+    numeroActivacion: txt("numeroActivacion"),
+    tipoPlan: txt("tipoPlan"),
+    tieneCargador: asset.tieneCargador == null ? "" : asset.tieneCargador ? "si" : "no",
     pulgadas: txt("pulgadas"),
     observaciones: txt("observaciones"),
     antivirus: txt("antivirus"),
@@ -136,6 +146,10 @@ export function payloadActivo(v: ActivoFormValues, modo: Modo) {
     sistemaOperativo: v.sistemaOperativo || null,
     imei: v.imei || null,
     numeroTelefono: v.numeroTelefono || null,
+    numeroActivacion: v.numeroActivacion || null,
+    tipoPlan: v.tipoPlan || null,
+    // Sin indicar no se envia: no pisa lo que ya tenia.
+    ...(v.tieneCargador ? { tieneCargador: v.tieneCargador === "si" } : {}),
     pulgadas: v.pulgadas || null,
     observaciones: v.observaciones || null,
     antivirus: v.antivirus || null,
@@ -439,10 +453,37 @@ export function ActivoForm({
             <input type="text" inputMode="numeric" {...bind("imei")} required />
           </Campo>
           <Campo label="Número de Teléfono">
-            <input type="text" {...bind("numeroTelefono")} />
+            <input type="text" {...bind("numeroTelefono")} placeholder="ej: +56 9 1234 5678" />
+          </Campo>
+          <Campo label="N° de Activación">
+            <input type="text" {...bind("numeroActivacion")} />
+          </Campo>
+          <Campo label="Tipo de Plan">
+            <input type="text" {...bind("tipoPlan")} placeholder="ej: Empresa 30GB" />
+          </Campo>
+          <Campo label="Procesador">
+            <input type="text" {...bind("procesador")} placeholder="ej: Snapdragon 8 Gen 2" />
+          </Campo>
+          <Campo label="RAM">
+            <input type="text" {...bind("ram")} placeholder="ej: 8GB" />
           </Campo>
           <Campo label="Almacenamiento">
             <input type="text" {...bind("almacenamiento")} placeholder="ej: 128GB" />
+          </Campo>
+          <Campo label="Sistema Operativo">
+            <CatalogSelect
+              endpoint="/api/sistemas-operativos"
+              value={values.sistemaOperativo}
+              onChange={set("sistemaOperativo")}
+              placeholder="Selecciona un sistema operativo (ej: Android 14)"
+            />
+          </Campo>
+          <Campo label="Cargador">
+            <select {...bind("tieneCargador")}>
+              <option value="">Sin indicar</option>
+              <option value="si">Sí, se entrega con cargador</option>
+              <option value="no">No</option>
+            </select>
           </Campo>
         </Seccion>
       )}

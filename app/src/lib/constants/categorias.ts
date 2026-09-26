@@ -47,7 +47,17 @@ export const TIPOS_FICHA: { valor: TipoFicha; label: string; campos: CampoFicha[
   {
     valor: "celular",
     label: "Celular",
-    campos: [{ nombre: "IMEI", obligatorio: true }, { nombre: "Número de teléfono" }, { nombre: "Almacenamiento" }],
+    campos: [
+      { nombre: "IMEI", obligatorio: true },
+      { nombre: "Número de teléfono" },
+      { nombre: "N° de activación" },
+      { nombre: "Tipo de plan" },
+      { nombre: "Procesador" },
+      { nombre: "RAM" },
+      { nombre: "Almacenamiento" },
+      { nombre: "Sistema operativo" },
+      { nombre: "Cargador" },
+    ],
   },
   { valor: "monitor", label: "Monitor", campos: [{ nombre: "Pulgadas" }] },
   { valor: "periferico", label: "Periférico", campos: [{ nombre: "Conectividad (USB, Bluetooth o cable)" }] },
