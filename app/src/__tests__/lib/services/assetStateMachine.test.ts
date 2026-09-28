@@ -262,3 +262,26 @@ describe('assetStateMachine — validateTransition', () => {
     expect(result.valid).toBe(true);
   });
 });
+
+// Auditoria 27-sep-2026 (5.1-A): transiciones con precondicion de motivo que
+// no tenian test y dejaban el CI bajo el umbral de cobertura.
+describe('assetStateMachine — motivo obligatorio', () => {
+  const sinAsignacion = { hasActiveAssignment: false, hasActiveMaintenance: false };
+  const casos: [EstadoActivo, EstadoActivo, RegExp][] = [
+    ['disponible', 'baja', /motivo obligatorio para dar de baja/],
+    ['asignado', 'no_devuelto', /motivo/],
+    ['no_devuelto', 'disponible', /cómo se recuperó/],
+    ['no_devuelto', 'baja', /dar por perdido/],
+  ];
+
+  test.each(casos)('%s → %s sin motivo se rechaza', (de, a, mensaje) => {
+    const r = validateTransition(de, a, sinAsignacion);
+    expect(r.valid).toBe(false);
+    expect(r.errors.join(' ')).toMatch(mensaje);
+  });
+
+  test.each(casos)('%s → %s con motivo se acepta', (de, a) => {
+    const r = validateTransition(de, a, { ...sinAsignacion, motivo: 'motivo de prueba' });
+    expect(r.valid).toBe(true);
+  });
+});

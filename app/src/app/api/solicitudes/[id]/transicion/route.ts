@@ -10,8 +10,9 @@ import {
 import { SystemRole, EstadoSolicitud } from '@prisma/client';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
-import { ValidationError } from '@/lib/errors';
+import { ConflictError, ValidationError } from '@/lib/errors';
 import { condicionCargadorSchema, type CondicionCargador } from '@/lib/constants/condicionCargador';
+import { sinIdsDeUsuario } from '@/lib/utils/privacidad';
 
 // datosAccion llega sin schema propio: la condicion del cargador se valida
 // aca para responder 400 (y no un error de Prisma) ante un valor invalido,
@@ -192,6 +193,18 @@ export async function POST(
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      // Se "reclama" la solicitud en el estado que se valido arriba (R1,
+      // auditoria 27-sep-2026). Con un doble clic o dos pestañas, la segunda
+      // transicion espera el bloqueo de la fila y despues ya no la encuentra
+      // en ese estado: se rechaza en vez de repetir entregas y devoluciones.
+      const { count } = await tx.workflowRequest.updateMany({
+        where: { id, estado: workflowRequest.estado, updatedAt: workflowRequest.updatedAt },
+        data: { updatedAt: new Date() },
+      });
+      if (count !== 1) {
+        throw new ConflictError('La solicitud cambió mientras la procesabas. Recarga la página y revisa su estado.');
+      }
+
       const assignmentIds: string[] = [...workflowRequest.assignmentIds];
       const kitReturnIds: string[] = [...workflowRequest.kitReturnIds];
       // Por defecto la transicion avanza al estado pedido; el bloque de
@@ -218,6 +231,7 @@ export async function POST(
             observaciones: cargadorCrudo.observaciones,
           };
           const assignment = await executeAssignment(tx, {
+            sedeId: workflowRequest.sedeId,
             assetId,
             employeeId: workflowRequest.employeeId,
             fechaEntrega: new Date(),
@@ -319,6 +333,7 @@ export async function POST(
 
         if (newAssetId) {
           const assignment = await executeAssignment(tx, {
+            sedeId: workflowRequest.sedeId,
             assetId: newAssetId,
             employeeId: workflowRequest.employeeId,
             fechaEntrega: new Date(),
@@ -443,8 +458,8 @@ export async function POST(
         },
         include: {
           employee: true,
-          solicitante: { select: { id: true, nombre: true, rol: true } },
-          responsableActual: { select: { id: true, nombre: true, rol: true } },
+          solicitante: { select: { nombre: true, rol: true } },
+          responsableActual: { select: { nombre: true, rol: true } },
         },
       });
 
@@ -479,7 +494,7 @@ export async function POST(
       return updated;
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(sinIdsDeUsuario(result));
   } catch (error) {
     return handleApiError(error, 'Error al avanzar solicitud');
   }

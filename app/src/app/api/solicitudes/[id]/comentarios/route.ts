@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { createCommentSchema } from '@/lib/validations/workflow';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
+import { sinIdsDeUsuario } from '@/lib/utils/privacidad';
 
 // POST /api/solicitudes/[id]/comentarios - Add comment
 export async function POST(
@@ -45,11 +46,11 @@ export async function POST(
         esInterno: data.esInterno,
       },
       include: {
-        autor: { select: { id: true, nombre: true, rol: true } },
+        autor: { select: { nombre: true, rol: true } },
       },
     });
 
-    return NextResponse.json(comment, { status: 201 });
+    return NextResponse.json(sinIdsDeUsuario(comment), { status: 201 });
   } catch (error) {
     return handleApiError(error, 'Error al agregar comentario');
   }

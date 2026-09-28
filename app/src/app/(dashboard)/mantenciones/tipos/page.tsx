@@ -11,6 +11,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import { useEnvio } from "@/hooks/useEnvio";
+import { Button } from "@/components/ui/Button";
 
 // Maintenance types are an editable catalog (not a fixed enum), manageable
 // by both admin and technician roles, so this screen lives inside
@@ -46,6 +48,9 @@ const FORM_INICIAL = {
 export default function TiposMantencionPage() {
   const [tipos, setTipos] = useState<TipoMantencion[]>([]);
   const [loading, setLoading] = useState(true);
+  // Una accion a la vez: un doble clic ya no crea el tipo dos veces
+  // (auditoria 27-sep-2026, 6.2).
+  const { enviando, ejecutar } = useEnvio();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState(FORM_INICIAL);
@@ -159,7 +164,7 @@ export default function TiposMantencionPage() {
       titulo: "Eliminar tipo de mantención",
       mensaje: `El tipo "${tipo.nombre}" se borra del catálogo y deja de aparecer al programar una mantención. No se puede deshacer; si solo quieres dejar de usarlo, desactívalo y las mantenciones ya registradas lo conservan.`,
       textoBoton: "Eliminar",
-      onConfirm: () => handleDelete(tipo.id),
+      onConfirm: () => ejecutar(() => handleDelete(tipo.id)),
     });
   };
 
@@ -282,13 +287,9 @@ export default function TiposMantencionPage() {
             >
               Cancelar
             </button>
-            <button
-              onClick={handleCreate}
-              className={buttonClasses()}
-            >
-              <Save size={18} />
+            <Button loading={enviando} leftIcon={<Save size={18} />} onClick={() => ejecutar(handleCreate)}>
               Guardar
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -344,14 +345,15 @@ export default function TiposMantencionPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => handleUpdate(tipo.id)}
+                        <button aria-label="Guardar"
+                          onClick={() => ejecutar(() => handleUpdate(tipo.id))}
+                          disabled={enviando}
                           className="p-1 text-green-600 hover:bg-green-50 rounded"
                           title="Guardar"
                         >
                           <Save size={18} />
                         </button>
-                        <button
+                        <button aria-label="Cancelar"
                           onClick={cancelEdit}
                           className="p-1 text-fg-muted hover:bg-gray-100 rounded"
                           title="Cancelar"
@@ -368,21 +370,21 @@ export default function TiposMantencionPage() {
                     </td>
                     <td className="px-6 py-4 text-fg-subtle">{tipo.descripcion || "-"}</td>
                     <td className="px-6 py-4 text-center">
-                      <ActiveBadge activo={tipo.activo} onToggle={() => handleToggleActivo(tipo)} />
+                      <ActiveBadge activo={tipo.activo} onToggle={() => ejecutar(() => handleToggleActivo(tipo))} />
                     </td>
                     <td className="px-6 py-4 text-center text-fg-subtle">
                       {tipo._count?.maintenances || 0}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <button
+                        <button aria-label="Editar"
                           onClick={() => startEdit(tipo)}
                           className="p-1 text-primary-700 hover:bg-primary-50 rounded"
                           title="Editar"
                         >
                           <Edit size={18} />
                         </button>
-                        <button
+                        <button aria-label="Eliminar"
                           onClick={() => pedirEliminar(tipo)}
                           className="p-1 text-red-600 hover:bg-red-50 rounded"
                           title={

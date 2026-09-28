@@ -50,6 +50,7 @@ export async function POST(
       const entregas = [];
       for (const { itemId, cantidad } of validated.items) {
         const entrega = await executeKitDelivery(tx, {
+          sedeId: solicitud.sedeId,
           itemId,
           cantidad,
           employeeId: solicitud.employeeId,

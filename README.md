@@ -137,9 +137,7 @@ La aplicacion estara disponible en `http://localhost:3000`
 
 ### Usuario por Defecto
 
-Despues del seed:
-- **Email:** admin@inventario.cl
-- **Password:** admin123
+El seed crea el primer administrador con el correo y la clave de `SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD` (en `.env`, ver `.env.example`). La clave debe tener 12 caracteres o más, con mayúscula, minúscula, número y símbolo. No hay una clave por defecto.
 
 ## Variables de Entorno
 
@@ -150,7 +148,7 @@ DATABASE_URL_UNPOOLED="postgresql://..."   # Conexion directa (migraciones)
 
 # NextAuth
 NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="tu-secret-seguro"
+NEXTAUTH_SECRET="genera-uno-con: openssl rand -base64 32"
 
 # Microsoft Entra ID (opcional - sincronizacion de empleados)
 MICROSOFT_TENANT_ID=""

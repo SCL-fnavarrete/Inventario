@@ -95,7 +95,9 @@ export function ApiErrorSummary({
   const entries = Object.entries(fieldErrors || {});
 
   return (
-    <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+    // role="alert": el lector de pantalla anuncia el error apenas aparece
+    // (auditoria 27-sep-2026, 2.13).
+    <div role="alert" className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
       <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
       {entries.length > 0 ? (
         <div>

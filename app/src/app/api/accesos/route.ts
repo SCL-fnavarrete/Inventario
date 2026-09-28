@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma, type ResultadoAcceso } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { leerPaginacion } from "@/lib/utils/paginacion";
 import { requirePermission, handleApiError } from "@/lib/auth/guard";
 import { RESULTADOS_FALLIDOS } from "@/lib/services/accesoService";
 import { hoyISO, inicioDiaChile, rangoDiasChile } from "@/lib/utils/fechas";
@@ -33,8 +34,7 @@ export async function GET(request: NextRequest) {
   try {
     await requirePermission("configuracion", "read");
     const p = request.nextUrl.searchParams;
-    const page = Math.max(1, parseInt(p.get("page") || "1", 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(p.get("limit") || "25", 10) || 25));
+    const { page, limit } = leerPaginacion(p, { limitPorDefecto: 25 });
     const usuario = p.get("usuario")?.trim() || "";
     const resultado = p.get("resultado") as ResultadoAcceso | null;
     const vista = p.get("vista") || "";

@@ -729,7 +729,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                 autoFocus
                 className="field-input pl-10 pr-4"
               />
-              <button
+              <button aria-label="Cerrar búsqueda"
                 type="button"
                 onClick={() => {
                   setShowAssetSearch(false);
@@ -944,7 +944,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
               {addingKitItem ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus size={16} />}
               Agregar
             </button>
-            <button
+            <button aria-label="Cerrar selección de Kit/EPP"
               type="button"
               onClick={() => setShowKitItemPicker(false)}
               className="p-1.5 text-fg-subtle hover:text-fg-muted"

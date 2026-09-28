@@ -136,12 +136,26 @@ npm run start
 postgresql://postgres.[project-id]:[password]@aws-0-us-east-1.pooler.supabase.com:5432/postgres
 ```
 
-### Neon (Serverless PostgreSQL)
+### Neon (Serverless PostgreSQL) — el que usa el proyecto
 
-1. Crear cuenta en [neon.tech](https://neon.tech)
-2. Crear nuevo proyecto
-3. Copiar connection string desde Dashboard
-4. Agregar `?sslmode=require` al final si es necesario
+1. Crear cuenta en [neon.tech](https://neon.tech) y un proyecto.
+2. Copiar **dos** connection strings desde el Dashboard:
+   - La del **pooler** (host con `-pooler`) va en `DATABASE_URL`. La usa la app.
+   - La **directa** (sin `-pooler`) va en `DATABASE_URL_UNPOOLED`. La usan las migraciones (`directUrl` en `schema.prisma`).
+3. Parámetros obligatorios en `DATABASE_URL` (auditoría 27-sep-2026, P2):
+
+   ```
+   postgresql://USUARIO:CLAVE@HOST-pooler.REGION.aws.neon.tech/DB?sslmode=require&pgbouncer=true&connection_limit=3&pool_timeout=20
+   ```
+
+   | Parámetro | Por qué |
+   |---|---|
+   | `sslmode=require` | Cifra la conexión con la base. Sin él, las credenciales y los datos viajan en claro. |
+   | `pgbouncer=true` | El pooler de Neon es PgBouncer en modo transacción; esto desactiva los prepared statements de Prisma, que ese modo no siempre admite. |
+   | `connection_limit=3` | En Vercel cada instancia abre su propio pool. Sin tope, Prisma abre núcleos × 2 + 1 conexiones por instancia y varias instancias agotan el límite de Neon (error P2024). Con 3 por instancia, el pooler reparte. |
+   | `pool_timeout=20` | Segundos que una consulta espera una conexión libre antes de fallar. |
+
+4. `DATABASE_URL_UNPOOLED` lleva solo `?sslmode=require`.
 
 ### Amazon RDS
 

@@ -73,7 +73,7 @@ const onboardingFields = z.object({
     if (isNaN(date.getTime())) throw new Error('Fecha de ingreso inválida');
     return date;
   }),
-  cargoSolicitado: z.string().min(1, 'Cargo requerido').max(200),
+  cargoSolicitado: z.string().trim().min(1, 'Cargo requerido').max(200),
   ubicacionDestino: z.string().max(200).optional().nullable(),
   categoriasRequeridas: z.array(z.string().min(1)).default([]),
   // Si hay stock disponible al crear la solicitud, se pueden elegir equipos
@@ -136,7 +136,7 @@ const cambioEquipoFields = z.object({
   ...baseRequestFields,
   // A diferencia de onboarding, aca el empleado siempre existe de antes.
   employeeId: z.string().uuid('ID de empleado inválido'),
-  motivoCambio: z.string().min(1, 'Motivo de cambio requerido'),
+  motivoCambio: z.string().trim().min(1, 'Motivo de cambio requerido').max(1000),
   // Uno o varios equipos a cambiar (SPEC 2.84), cada uno con su reemplazo:
   // se ejecutan de inmediato al crear la solicitud (ver POST /api/solicitudes).
   cambios: z
@@ -251,19 +251,108 @@ export const createWorkflowRequestSchema = z
 // Solo permitido mientras la solicitud no ejecuto ningun efecto secundario
 // (assignmentIds/kitReturnIds vacios) -- eso lo valida la ruta, no aca.
 export const cancelWorkflowRequestSchema = z.object({
-  motivo: z.string().min(1, 'El motivo de cancelación es obligatorio').max(1000),
+  motivo: z.string().trim().min(1, 'El motivo de cancelación es obligatorio').max(1000),
 });
+
+// ---------------------------------------------------------------------------
+// datosAccion de una transicion (auditoria 27-sep-2026, A08 y B3). Antes era
+// un Record<string, unknown> que la ruta leia con `as string[]`: un tipo
+// inesperado terminaba en un 500 y una entrega "por Chilexpress" podia quedar
+// sin OT. Aqui se tipa cada clave que usa la ruta y se exige la coordinacion
+// completa segun el medio, con las mismas reglas que al crear la solicitud.
+// ---------------------------------------------------------------------------
+const textoOpcional = (max: number) => z.string().trim().max(max).optional().nullable();
+const fechaTexto = z
+  .string()
+  .refine((v) => !Number.isNaN(Date.parse(v)), 'Fecha inválida')
+  .optional()
+  .nullable();
+const medio = z.enum(['presencial', 'chilexpress']).optional().nullable();
+const estadoDevolucionAccion = z.enum(['ok', 'danado', 'incompleto', 'no_devuelto']);
+
+const datosAccionSchema = z
+  .object({
+    assetIds: z.array(z.string().uuid()).max(50).optional(),
+    newAssetId: z.string().uuid().optional().nullable(),
+    oldAssignmentId: z.string().uuid().optional().nullable(),
+    estadoDevolucion: estadoDevolucionAccion.optional().nullable(),
+    observacionesDevolucion: textoOpcional(1000),
+    // La condicion del cargador la valida leerCondicionCargador en la ruta.
+    condicionCargador: z.record(z.string(), z.unknown()).optional().nullable(),
+    condicionCargadorAnterior: z.unknown().optional(),
+    condicionCargadorNuevo: z.unknown().optional(),
+    observacionesCargadorAnterior: textoOpcional(500),
+    observacionesCargadorNuevo: textoOpcional(500),
+    devoluciones: z
+      .array(
+        z.object({
+          assignmentId: z.string().uuid(),
+          estadoDevolucion: estadoDevolucionAccion,
+          observaciones: textoOpcional(1000),
+          condicionCargador: z.unknown().optional(),
+          observacionesCargador: textoOpcional(500),
+        })
+      )
+      .max(50)
+      .optional(),
+    devolucionesEpp: z
+      .array(
+        z.object({
+          kitAssignmentId: z.string().uuid(),
+          estadoDevolucion: z.enum(['ok', 'danado', 'no_devuelto']),
+          observaciones: textoOpcional(1000),
+        })
+      )
+      .max(100)
+      .optional(),
+    // Coordinacion de entrega (onboarding), cambio y devolucion.
+    medioEntrega: medio,
+    fechaEntregaCoordinada: fechaTexto,
+    lugarEntrega: textoOpcional(200),
+    otChilexpressEntrega: textoOpcional(100),
+    ciudadEntrega: textoOpcional(100),
+    medioCambio: medio,
+    fechaCambioCoordinada: fechaTexto,
+    lugarCambio: textoOpcional(200),
+    otCambioChilexpress: textoOpcional(100),
+    ciudadCambio: textoOpcional(100),
+    medioDevolucion: medio,
+    fechaDevolucionCoordinada: fechaTexto,
+    lugarDevolucion: textoOpcional(200),
+    otChilexpress: textoOpcional(100),
+    ciudadDevolucion: textoOpcional(100),
+  })
+  .superRefine((d, ctx) => {
+    // Si se indica el medio, se exigen sus datos: presencial -> lugar;
+    // Chilexpress -> N° de OT y ciudad de destino.
+    const reglas = [
+      ['medioEntrega', 'lugarEntrega', 'otChilexpressEntrega', 'ciudadEntrega'],
+      ['medioCambio', 'lugarCambio', 'otCambioChilexpress', 'ciudadCambio'],
+      ['medioDevolucion', 'lugarDevolucion', 'otChilexpress', 'ciudadDevolucion'],
+    ] as const;
+    for (const [campoMedio, lugar, ot, ciudad] of reglas) {
+      if (d[campoMedio] === 'presencial' && !d[lugar]) {
+        ctx.addIssue({ code: 'custom', path: [lugar], message: 'Indica el lugar de la entrega presencial' });
+      }
+      if (d[campoMedio] === 'chilexpress') {
+        if (!d[ot]) ctx.addIssue({ code: 'custom', path: [ot], message: 'Indica el N° de OT de Chilexpress' });
+        if (!d[ciudad]) ctx.addIssue({ code: 'custom', path: [ciudad], message: 'Indica la ciudad de destino' });
+      }
+    }
+  });
+
+export type DatosAccionTransicion = z.infer<typeof datosAccionSchema>;
 
 // Schema for transitioning state
 export const transitionSchema = z.object({
   nuevoEstado: EstadoSolicitudEnum,
-  comentario: z.string().optional().nullable(),
-  datosAccion: z.record(z.string(), z.unknown()).optional().nullable(),
+  comentario: z.string().trim().max(2000).optional().nullable(),
+  datosAccion: datosAccionSchema.optional().nullable(),
 });
 
 // Schema for creating comments
 export const createCommentSchema = z.object({
-  mensaje: z.string().min(1, 'El mensaje es requerido').max(2000),
+  mensaje: z.string().trim().min(1, 'El mensaje es requerido').max(2000),
   esInterno: z.boolean().default(false),
 });
 

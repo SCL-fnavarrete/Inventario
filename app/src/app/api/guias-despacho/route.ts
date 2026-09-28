@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { leerPaginacion } from "@/lib/utils/paginacion";
 import { EstadoGuia, Prisma } from "@prisma/client";
 import {
   requirePermission,
@@ -28,8 +29,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const estado = searchParams.get("estado") as EstadoGuia | null;
     const busqueda = searchParams.get("busqueda");
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
+    const { page, limit } = leerPaginacion(searchParams);
 
     const condiciones: Prisma.DispatchGuideWhereInput[] = [whereGuiaVisible(session)];
 

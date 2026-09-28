@@ -3,13 +3,16 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 
+const esApi = (path: string) => path.startsWith("/api/");
+
 export default withAuth(
   function proxy(req) {
     const token = req.nextauth.token;
     const path = req.nextUrl.pathname;
 
-    // Si el usuario no está autenticado y no está en login, redirigir a login
-    if (!token && path !== "/login") {
+    // Si el usuario no está autenticado y no está en login, redirigir a login.
+    // La API no se redirige: responde 401 en cada ruta (requirePermission).
+    if (!token && path !== "/login" && !esApi(path)) {
       return NextResponse.redirect(new URL("/login", req.url));
     }
 
@@ -24,8 +27,10 @@ export default withAuth(
       authorized: ({ token, req }) => {
         const path = req.nextUrl.pathname;
 
-        // Permitir acceso a login sin autenticación
-        if (path === "/login") {
+        // Permitir acceso a login sin autenticación. La API tampoco pasa por
+        // aqui: cada ruta exige sesion con requirePermission y responde 401
+        // en JSON; antes el proxy la redirigia a la pantalla de login (HTML).
+        if (path === "/login" || esApi(path)) {
           return true;
         }
 

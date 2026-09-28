@@ -1,5 +1,6 @@
 import { PrismaClient, SystemRole } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
+import { validarPasswordFuerte } from "../src/lib/validations/password";
 
 const prisma = new PrismaClient();
 
@@ -24,24 +25,31 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("Iniciando seed de datos...");
 
-  // 1. Crear usuario administrador
-  const hashedPassword = await bcrypt.hash("admin123", 10);
+  // 1. Crear usuario administrador. Correo y clave salen de variables de
+  // entorno: antes la clave era "admin123" fija y publicada en el README
+  // (auditoria 27-sep-2026, F1-02). La clave debe cumplir la misma politica
+  // que Configuracion > Usuarios.
+  const email = (process.env.SEED_ADMIN_EMAIL || "admin@sclconsultores.com").toLowerCase().trim();
+  const clave = process.env.SEED_ADMIN_PASSWORD;
+  const errorClave = clave ? validarPasswordFuerte(clave) : "Falta la variable SEED_ADMIN_PASSWORD";
+  if (errorClave) {
+    throw new Error(`Seed: ${errorClave}. Defínela en .env antes de correr el seed.`);
+  }
+  const hashedPassword = await bcrypt.hash(clave!, 12);
 
+  // update: {} -- si el admin ya existe no se le cambia la clave.
   const adminUser = await prisma.systemUser.upsert({
-    where: { email: "admin@sclconsultores.com" },
+    where: { email },
     update: {},
     create: {
-      email: "admin@sclconsultores.com",
+      email,
       passwordHash: hashedPassword,
       nombre: "Administrador Sistema",
       rol: SystemRole.admin,
       activo: true,
     },
   });
-  console.log("Usuario admin creado:", adminUser.email);
-  console.log(
-    "  -> Cambia la contraseña por defecto ('admin123') apenas inicies sesión."
-  );
+  console.log("Usuario admin listo:", adminUser.email);
 
   // 2. Crear categorías de activos
   // tipoFicha decide los campos especiales del formulario (SPEC 2.112.7).

@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const CategoriaKitEnum = z.enum(['kit_bienvenida', 'epp']);
 
 export const createKitItemSchema = z.object({
-  nombre: z.string().min(1, 'El nombre es requerido').max(200),
+  nombre: z.string().trim().min(1, 'El nombre es requerido').max(200),
   categoria: CategoriaKitEnum,
   cantidad: z.coerce.number().int().min(0, 'La cantidad no puede ser negativa').default(0),
   // Umbral de "stock bajo" para la alerta del Dashboard (ver schema.prisma).
@@ -14,7 +14,7 @@ export const createKitItemSchema = z.object({
 });
 
 export const updateKitItemSchema = z.object({
-  nombre: z.string().min(1).max(200).optional(),
+  nombre: z.string().trim().min(1, 'El nombre es requerido').max(200).optional(),
   categoria: CategoriaKitEnum.optional(),
   cantidad: z.coerce.number().int().min(0, 'La cantidad no puede ser negativa').optional(),
   stockMinimo: z.coerce.number().int().min(0, 'El stock mínimo no puede ser negativo').optional(),
@@ -42,6 +42,6 @@ export const entregarKitItemsSchema = z.object({
 // solicitud.
 export const marcarKitItemNoAplicaSchema = z.object({
   requestKitItemId: z.string().uuid(),
-  motivo: z.string().min(1, 'Indica el motivo').max(500),
+  motivo: z.string().trim().min(1, 'Indica el motivo').max(500),
 });
 

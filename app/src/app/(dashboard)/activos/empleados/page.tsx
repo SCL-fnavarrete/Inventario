@@ -542,7 +542,7 @@ export default function PersonalPage() {
               {pagination.total} empleados
             </p>
             <div className="flex gap-2">
-              <button
+              <button aria-label="Página anterior"
                 onClick={() =>
                   setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
                 }
@@ -551,7 +551,7 @@ export default function PersonalPage() {
               >
                 <ChevronLeft size={20} />
               </button>
-              <button
+              <button aria-label="Página siguiente"
                 onClick={() =>
                   setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
                 }

@@ -144,7 +144,7 @@ export function TablaCargadorActa({
     >
       <View style={styles.tableHeaderRow}>
         <Text style={[styles.tableHeaderCell, celda, { width: ANCHO_CARGADOR.equipo }]}>
-          Cargador (N° de Serie)
+          Cargador (N° de Serie / IMEI)
         </Text>
         <Text style={[styles.tableHeaderCell, celda, { width: ANCHO_CARGADOR.condicion }]}>
           Condición

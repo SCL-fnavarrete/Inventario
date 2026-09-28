@@ -237,7 +237,8 @@ CREATE TABLE purchase_assets (
     purchase_id UUID REFERENCES purchases(id),
     asset_id UUID REFERENCES assets(id),
     llego_con_compra BOOLEAN NOT NULL DEFAULT false,  -- 2.111: comprado en esta compra (pasa por el reparto) o solo vinculado. Vinculos anteriores: false
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (purchase_id, asset_id)  -- 2.114: un equipo va una sola vez en cada compra
 );
 ```
 
@@ -3747,7 +3748,77 @@ Verificado: tipos, 1112 pruebas, la compilación de producción (`next build`) y
 
 **Limpieza:** se borra `app/_to_delete/`, una ruta vieja de "revalidar importación" que el desarrollador anterior dejó fuera de la aplicación; no la usaba nada, pero rompía la revisión de tipos de la compilación.
 
+## 2.114 Correcciones de la auditoría del 27-sep-2026
+Auditoría de seguridad, datos y concurrencia previa al paso a producción. El detalle hallazgo por hallazgo está en `AUDITORIA_CORRECCIONES_2026-09-27.md` (raíz del repositorio); aquí quedan las **reglas** que cambian. Complementa 2.5 (Solicitudes), 2.112 (Configuración y seguridad) y 2.113 (en 2.113 la API sin sesión se redirigía al inicio de sesión; desde aquí responde 401, ver 2.114.1).
+
+### 2.114.1 Sesión y secretos
+- `NEXTAUTH_SECRET` de **32 caracteres o más**: en producción la aplicación no arranca sin él (`secretoDeSesion()` en `lib/auth.ts`). El que estaba en los README se retiró y se rotó.
+- Las respuestas de la API **no incluyen el id interno de los usuarios del sistema** (`solicitanteId`, `responsableActualId`, `ejecutadoPorId`, `autorId`, `usuarioId`; `lib/utils/privacidad.ts`): con ese id y el secreto se podía fabricar una sesión. Las pantallas muestran nombre y rol.
+- El primer administrador lo crea el seed con `SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD` (misma política de contraseña que Usuarios). Ya no hay clave por defecto ni pista en el inicio de sesión. Nuevo `app/.env.example`.
+- La base local de `docker-compose.yml` escucha solo en `127.0.0.1` y toma su clave de `POSTGRES_PASSWORD`.
+- **La API sin sesión responde 401 en JSON** (el proxy ya no la redirige a la pantalla de inicio de sesión). En el navegador: si falla una **lectura**, la pantalla va al inicio de sesión; si falla un **guardado** (POST/PUT/PATCH/DELETE), no se recarga: el formulario muestra "Tu sesión terminó. Inicia sesión en otra pestaña y vuelve a guardar; lo que escribiste sigue aquí", con un aviso y un enlace a `/login` en otra pestaña. El aviso se va cuando la sesión vuelve.
+- **Borrador de Nueva Solicitud**: lo escrito se guarda en `sessionStorage` (solo esa pestaña, se borra al cerrarla) y al volver se ofrece "Recuperar / Descartar". Se borra al crear la solicitud.
+
+### 2.114.2 Inicio de sesión (reemplaza en parte 2.112.6)
+- El intento se **anota antes de revisar la clave** (como `clave_incorrecta`) y al final se corrige con su resultado real. Así los intentos simultáneos se cuentan entre sí; el propio intento no adelanta el bloqueo.
+- Bloqueo por **correo + equipo (IP)** con el límite configurado: quien se equivoca a propósito ya no deja fuera al dueño de la cuenta desde otro lugar. Además, un **tope global por correo de 4 veces el límite** desde cualquier lugar (ataques repartidos entre muchas IP); el registro de accesos lo anota como "Demasiados intentos contra esta cuenta desde distintos equipos". Sin IP conocida se cuentan todos los fallos del correo, como antes. El bloqueo por equipo de 2.112.6 no cambia.
+- La IP de `x-forwarded-for` solo se cree en Vercel (la primera de la lista) o con `TRUST_PROXY=true` (la última, la que agregó el proxy propio). En otro caso queda desconocida: esa cabecera la puede inventar cualquiera.
+- Una contraseña de **más de 200 caracteres** se rechaza sin buscar la cuenta y cuenta como intento fallido.
+
+### 2.114.3 Solicitudes y entregas (complementa 2.5)
+- **Sede obligatoria en toda entrega** de equipo o de Kit/EPP (`executeAssignment`, `executeKitDelivery`): un equipo o artículo de otra sede se trata como inexistente (404). Se traslada con un despacho, no se entrega directo.
+- **Doble envío = 409**: la entrega "reclama" el equipo solo si sigue `disponible`; el stock de Kit se descuenta solo si alcanza; una devolución cierra la asignación solo si sigue activa; la transición y la cancelación de una solicitud se aplican solo si la solicitud no cambió desde que se leyó (`updatedAt`). La segunda operación simultánea recibe 409 y no deja datos a medias.
+- `datosAccion` de una transición se valida con un esquema estricto (ids UUID, medio `presencial`/`chilexpress`, fechas reales, textos con largo máximo). Entrega, cambio y devolución exigen la coordinación completa según el medio: lugar si es presencial, OT y ciudad si es Chilexpress.
+- Número de solicitud: el mayor correlativo del año se calcula en la base como número (`lib/services/numeroSolicitud.ts`), así `WF-2026-10000` sigue a `WF-2026-9999`.
+
+### 2.114.4 Datos
+- Los textos obligatorios se guardan sin espacios al inicio o al final, y uno hecho solo de espacios se rechaza (marca y modelo; nombre, apellido paterno y correo personal; nombre de artículo de Kit y motivo de "No aplica"; motivo de cambio (máx. 1.000), motivo de cancelación, mensaje de comentario y cargo solicitado).
+- Orden de fechas: la fecha de término de un empleado no puede ser anterior a su ingreso, y el fin de garantía de un activo no puede ser anterior a su compra. Al editar se compara con la fecha ya guardada si solo llega una.
+- `fechaBaja` ya no se recibe al crear ni al editar un activo: la fija solo la baja en Mantenciones (2.88).
+
+### 2.114.5 Empleados y sedes
+- Editar un empleado **no lo traslada de sede si tiene equipos asignados** (primero se devuelven o se cambian) ni a una sede desactivada.
+- Un empleado **desvinculado no vuelve a "activo" desde Editar**: se reincorpora con una Solicitud de Onboarding (400 con `redirectTo: /solicitudes/nueva`). Sus demás datos se siguen pudiendo editar.
+- **Nada nuevo nace en una sede desactivada**: alta de activos, artículos de Kit, importación (la sede elegida y la de cada fila) y solicitudes de onboarding. Lo que saca cosas de ella sigue permitido (despachos, desvinculaciones, cambios de equipo), porque puede tener aún personas y equipos.
+- "Último administrador activo": la revisión y el cambio van en una transacción con candado (`pg_advisory_xact_lock`), así dos administradores que se desactivan uno al otro a la vez ya no dejan el sistema sin ninguno.
+- En el detalle de una compra, un técnico no ve quién tiene los equipos de otra sede (nombre y RUT vacíos); el administrador ve todo.
+
+### 2.114.6 Importación de activos
+- Archivo: obligatorio, no vacío, **5 MB como máximo**, extensión `.xlsx`/`.xls` **y** firma real de Excel (ZIP u OLE2). Se aplica en `sheets`, `preview` y `batch`.
+- **5.000 filas como máximo**: un archivo más largo se rechaza con un mensaje, no se corta sin avisar. La pantalla envía a `batch` en tandas de 200 con barra de avance; si una tanda falla, lo anterior ya quedó guardado y se informa cuántas filas no se enviaron.
+- Los empleados se buscan por RUT de una vez (de a 1.000 RUT por consulta), no una consulta por fila.
+- Si una fila deja un equipo **"asignado" a un empleado desvinculado**, la fila queda con error (`empleado_desvinculado`): "usa el estado No devuelto o quita el RUT".
+
+### 2.114.7 Base de datos (migración `20260928000000_indices_auditoria`)
+| Tabla | Cambio | Para qué |
+|---|---|---|
+| `purchase_assets` | `UNIQUE (purchase_id, asset_id)` e índice por `asset_id` | Un equipo va una sola vez en cada compra; buscar la compra de un equipo |
+| `kit_assignments` | Índices `(employee_id, estado)` y `(item_id)` | Kit entregado a una persona; uso de un artículo |
+| `assignments` | Índice `(employee_id, activo)`, reemplaza al de `employee_id` solo | Equipos activos de una persona |
+| `workflow_transitions` | Índice `(ejecutado_por_id)` | Transiciones de un usuario |
+| `access_logs` | Índice `(usuario_id)` | Accesos de un usuario |
+
+Antes de aplicar se verificó que no había equipos repetidos en una compra.
+
+### 2.114.8 API y pantallas
+- Listados con `page` y `limit` saneados (`lib/utils/paginacion.ts`): tope 100 en despachos, accesos y auditoría, y 500 en activos. Despachos no tenía tope.
+- Se borran dos rutas retiradas que respondían 410 sin pedir sesión: `GET /api/asignaciones/[id]/acta` y `DELETE /api/empleados/[id]`. Toda ruta de la API exige permiso, salvo NextAuth (el test de rutas protegidas ya no admite excepciones 410).
+- Registro de errores: `error` y `warn` se escriben siempre (en producción como una línea JSON con el error), `info` y `log` solo en desarrollo. Se registra si falla anotar un cierre de sesión en la lista negra.
+- Cabeceras: CSP en las páginas (solo recursos del propio sitio; no en `/api`, que responde JSON y PDF), HSTS en producción, `X-Frame-Options: DENY`, `X-XSS-Protection: 0`, sin `X-Powered-By` y sin el bloque CORS de `/api`.
+- Doble clic o Enter + clic ya no envían dos veces (`hooks/useEnvio.ts`) en Usuarios, Sedes, Tipos de mantención, Kit/EPP y Catálogos.
+- Pantallas de error, carga y "no encontrado" propias, en español, dentro y fuera del menú.
+- Accesibilidad: el cartel de error de la API se anuncia (`role="alert"`), cada campo queda unido a su mensaje (`aria-describedby`) y 28 botones de solo ícono tienen nombre.
+
+### 2.114.9 Pruebas y operación
+- Test de concurrencia contra Postgres real (`__tests__/integracion/concurrencia.int.test.ts`): solo corre si `DATABASE_URL` contiene `_test`.
+- Prueba de carga con Locust (`app/scripts/carga/locustfile.py`), perfiles normal, pico, estrés y resistencia.
+- Conexión a Neon con `sslmode=require&pgbouncer=true&connection_limit=3&pool_timeout=20` (ver `app/docs/DEPLOYMENT.md`).
+
 ## Changelog SPEC
+- **v2.38 (2026-09-28):**
+  - Sección 2.114 (nueva): correcciones de la auditoría del 27-sep-2026. Secreto de sesión de 32+ caracteres; sin ids de usuario en la API; seed por variables de entorno; API sin sesión responde 401 y un guardado sin sesión no borra el formulario; borrador de Nueva Solicitud. Login: intento anotado antes de revisar la clave, bloqueo por correo + equipo con tope global 4x, IP solo detrás de un proxy de confianza, clave de 200 caracteres como máximo. Sede obligatoria en entregas y Kit; doble envío responde 409; `datosAccion` validado; número de solicitud calculado en la base. Textos sin espacios de relleno y orden de fechas; `fechaBaja` solo por Mantenciones. Empleados: sin traslado con equipos ni a sede desactivada, sin reactivar desde Editar; nada nuevo nace en una sede desactivada; último administrador con candado; compras sin personas de otra sede para técnicos. Importación con límites de 5 MB y 5.000 filas, firma de Excel, tandas de 200 y error para equipos asignados a desvinculados. Migración `20260928000000_indices_auditoria` (único en `purchase_assets` e índices). Paginación con tope, rutas 410 borradas, logs en JSON, CSP y HSTS, accesibilidad, test de concurrencia y prueba de carga.
+- **v2.37 (2026-09-26):**
+  - Sección 2.113 (nueva): dependencias sin fallas de seguridad (`npm audit` en 0) y `middleware.ts` pasa a `proxy.ts` de Next.js 16. Entrada agregada el 28-sep-2026: la sección se publicó sin su línea en este changelog.
 - **v2.36 (2026-09-25):**
   - Sección 2.112 (nueva): Configuración se reduce a Sedes, Usuarios, Catálogos de Activos, Seguridad, Registro de accesos y Auditoría. Los usuarios no se eliminan, se desactivan, y la desactivación corta la sesión en la siguiente acción; nunca se queda el sistema sin administradores; nuevo Registro de accesos, base también del bloqueo por intentos. Las sesiones se anulan de verdad: lista negra al cerrar sesión y "sesiones válidas desde" al desactivar (2.112.5). Parte 3 (2.112.6): cambiar la contraseña cierra las sesiones, la sede desactivada deja fuera a sus técnicos, bloqueo también por equipo, registro de accesos de 1 año y validación con Zod en Sedes y Usuarios. Parte 4 (2.112.7): Catálogos de Activos en una pantalla con pestañas, "Qué campos pide" en cada categoría, avisos de serie/IMEI, auditoría de catálogos y un solo servicio para las opciones. Parte 6 (2.112.9): tablas que se adaptan al celular, Sedes con formulario, diálogos sin papelera, mensaje de permisos en palabras, limpieza de Proveedores y cargador en computadores y celulares. Parte 5 (2.112.8): Auditoría en una sola consulta con páginas exactas (sin el aviso "Hay más eventos"), fechas de Chile, textos claros y detalle Campo · Antes · Después. Se eliminan Mantenimiento de Datos, la sincronización con Microsoft (2.6 queda como historia) y los datos de la empresa, con sus columnas en la base.
 - **v2.35 (2026-09-25):**

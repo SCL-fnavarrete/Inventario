@@ -86,22 +86,12 @@ export async function PUT(
     // mismo.
     const dejaDeSerAdminActivo =
       existingUser.rol === "admin" && existingUser.activo && (rolFinal !== "admin" || !activoFinal);
-    if (dejaDeSerAdminActivo) {
-      if (esUnoMismo) {
-        throw new ConflictError(
-          activoFinal
-            ? "No puedes quitarte a ti mismo el rol de administrador"
-            : "No puedes desactivar tu propia cuenta"
-        );
-      }
-      const otrosAdmins = await prisma.systemUser.count({
-        where: { rol: "admin", activo: true, id: { not: id } },
-      });
-      if (otrosAdmins === 0) {
-        throw new ConflictError(
-          "Es el último administrador activo: activa o crea otro administrador antes de cambiarlo"
-        );
-      }
+    if (dejaDeSerAdminActivo && esUnoMismo) {
+      throw new ConflictError(
+        activoFinal
+          ? "No puedes quitarte a ti mismo el rol de administrador"
+          : "No puedes desactivar tu propia cuenta"
+      );
     }
 
     // Admin no tiene sede (ve todo); el tecnico necesita una, y al
@@ -117,10 +107,28 @@ export async function PUT(
       }
     }
 
-    const user = await prisma.systemUser.update({
-      where: { id },
-      data: updateData,
-      select: SELECT_USUARIO,
+    // "Queda otro administrador" y el cambio van en la misma transaccion, con
+    // un candado (auditoria 27-sep-2026, 2.9). Sin el, dos administradores
+    // que se desactivan uno al otro al mismo tiempo veian ambos "queda otro"
+    // y el sistema quedaba sin ninguno. El candado se suelta al terminar la
+    // transaccion: la segunda operacion espera y cuenta con el dato real.
+    const user = await prisma.$transaction(async (tx) => {
+      if (dejaDeSerAdminActivo) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('ultimo-admin'))`;
+        const otrosAdmins = await tx.systemUser.count({
+          where: { rol: "admin", activo: true, id: { not: id } },
+        });
+        if (otrosAdmins === 0) {
+          throw new ConflictError(
+            "Es el último administrador activo: activa o crea otro administrador antes de cambiarlo"
+          );
+        }
+      }
+      return tx.systemUser.update({
+        where: { id },
+        data: updateData,
+        select: SELECT_USUARIO,
+      });
     });
 
     // `existingUser` trae passwordHash (findUnique sin `select`), por lo

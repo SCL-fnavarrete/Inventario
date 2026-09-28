@@ -65,6 +65,7 @@ model AccessLog {
   @@index([resultado])
   @@index([sesionId])
   @@index([ip, createdAt])
+  @@index([usuarioId])
   @@map("access_logs")
 }
 
@@ -335,6 +336,9 @@ model PurchaseAsset {
   asset      Asset    @relation(fields: [assetId], references: [id])
   purchase   Purchase @relation(fields: [purchaseId], references: [id])
 
+  // Un equipo va una sola vez en cada compra (auditoria 27-sep-2026, 2.11).
+  @@unique([purchaseId, assetId])
+  @@index([assetId])
   @@map("purchase_assets")
 }
 
@@ -418,7 +422,8 @@ model Assignment {
   employee                Employee          @relation(fields: [employeeId], references: [id])
 
   @@index([assetId])
-  @@index([employeeId])
+  // "Equipos activos de un empleado" (ficha, traslado de sede, desvinculacion).
+  @@index([employeeId, activo])
   @@index([activo])
   @@index([fechaEntrega])
   @@index([tipoMovimiento])
@@ -474,6 +479,8 @@ model KitAssignment {
   request       WorkflowRequest? @relation(fields: [requestId], references: [id])
 
   @@index([requestId])
+  @@index([employeeId, estado])
+  @@index([itemId])
   @@map("kit_assignments")
 }
 
@@ -886,6 +893,7 @@ model WorkflowTransition {
 
   @@index([requestId])
   @@index([createdAt])
+  @@index([ejecutadoPorId])
   @@map("workflow_transitions")
 }
 

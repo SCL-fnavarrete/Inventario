@@ -113,13 +113,6 @@ export default function LoginPage() {
             {loading ? "Ingresando..." : "Ingresar"}
           </Button>
         </form>
-
-        {process.env.NODE_ENV === "development" && (
-          <div className="mt-6 text-center text-sm text-fg-subtle">
-            <p>Credenciales de prueba (solo desarrollo):</p>
-            <p className="font-mono text-xs mt-1">admin@sclconsultores.com / admin123</p>
-          </div>
-        )}
       </div>
     </div>
   );

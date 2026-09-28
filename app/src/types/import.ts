@@ -10,6 +10,7 @@ export type ValidationErrorType =
   | "sede_no_reconocida"
   | "sede_ajena"
   | "catalogo_no_reconocido"
+  | "empleado_desvinculado"
   | "unknown_error";
 
 export interface ValidationError {

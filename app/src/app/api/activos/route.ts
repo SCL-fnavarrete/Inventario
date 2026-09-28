@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { leerPaginacion } from "@/lib/utils/paginacion";
 import { createAssetSchema } from "@/lib/validations/asset";
 import { crearActivo } from "@/lib/services/activoService";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { sedeIdParaCrear } from '@/lib/auth/sedeScope';
+import { exigirSedeActiva } from "@/lib/queries/sedes";
 import { busquedaActivo, palabrasDeBusqueda, whereFiltrosActivos } from '@/lib/queries/activos';
 
 /**
@@ -18,17 +20,7 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
 
-    // Paginacion saneada: un valor invalido o fuera de rango se corrige al
-    // limite en vez de rechazar la peticion, para que el listado siempre
-    // responda algo utilizable.
-    const enteroEnRango = (valor: string | null, pordefecto: number, minimo: number, maximo: number) => {
-      const n = Number.parseInt(valor ?? "", 10);
-      if (!Number.isFinite(n)) return pordefecto;
-      return Math.min(Math.max(n, minimo), maximo);
-    };
-
-    const page = enteroEnRango(searchParams.get("page"), 1, 1, Number.MAX_SAFE_INTEGER);
-    const limit = enteroEnRango(searchParams.get("limit"), 10, 1, LIMITE_MAXIMO_PAGINA);
+    const { page, limit } = leerPaginacion(searchParams, { limitMaximo: LIMITE_MAXIMO_PAGINA });
     const search = searchParams.get("search") || "";
     const empleadoActualId = searchParams.get("empleadoActualId") || "";
 
@@ -109,6 +101,7 @@ export async function POST(request: NextRequest) {
     const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId, {
       requerido: true,
     });
+    if (sedeId) await exigirSedeActiva(sedeId);
 
     // N° de serie e IMEI (unicos; IMEI obligatorio en celulares) e historial
     // de creacion: las mismas reglas que usan las compras (crearActivo).

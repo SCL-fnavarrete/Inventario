@@ -23,6 +23,7 @@ import {
 } from '@/components/solicitudes/SeleccionarCambioEquipo';
 import { buttonClasses } from '@/components/ui/buttonStyles';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useBorrador } from '@/hooks/useBorrador';
 import { SelectCondicionCargador } from '@/components/solicitudes/SelectCondicionCargador';
 import {
   CONDICION_CARGADOR_POR_DEFECTO,
@@ -40,7 +41,7 @@ import {
   textoResumenErrores,
 } from '@/components/ui/CampoFormulario';
 import { esCorreoValido } from '@/lib/utils/text';
-import { inputFechaHoraAISO } from '@/lib/utils/fechas';
+import { formatearFechaHora, inputFechaHoraAISO } from '@/lib/utils/fechas';
 import { useCampoSede, useSedeSeleccionada } from '@/components/providers/SedeSeleccionadaProvider';
 import { identificadorActivo } from "@/lib/utils/identificador";
 
@@ -373,6 +374,82 @@ export default function NuevaSolicitudPage() {
   // creacion.
   const [fechaDevolucionCoordinada, setFechaDevolucionCoordinada] = useState('');
   const [lugarDevolucion, setLugarDevolucion] = useState('');
+
+  // Borrador en esta pestaña (auditoria 27-sep-2026, 2.8): si la sesion
+  // vence a mitad del formulario, lo escrito se recupera al volver. Solo lo
+  // que escribe o elige la persona; lo que viene de la base (stock,
+  // asignaciones del empleado, catalogos) se vuelve a consultar.
+  const datosBorrador = {
+    step, tipo, sedeId, selectedEmployee, employeeId, observaciones,
+    devolucionEstados, devolucionObservaciones, devolucionCargador, devolucionCargadorObservaciones,
+    devolucionEppEstados, devolucionEppObservaciones,
+    onboardingEmp, modoEmpleadoOnboarding, cargoSolicitadoReincorporacion, tipoContratoReincorporacion,
+    fechaIngreso, categoriasRequeridas, equipoSeleccionado, cargadorOnboarding,
+    fechaEntregaCoordinada, medioEntrega, lugarEntrega, otChilexpressEntrega, ciudadEntrega,
+    kitBienvenidaSolicitado, eppSolicitado, kitCantidadesSeleccionadas,
+    motivoCambio, fechaCambioCoordinada, medioCambio, lugarCambio, otCambioChilexpress, ciudadCambio, cambios,
+    fechaDesvinculacion, medioDevolucion, otChilexpress, ciudadDevolucion, fechaDevolucionCoordinada, lugarDevolucion,
+  };
+  const borrador = useBorrador({
+    clave: 'borrador:nueva-solicitud',
+    datos: datosBorrador,
+    activo: tipo !== '' && !submitting,
+  });
+
+  const recuperarBorrador = () => {
+    const d = borrador.recuperar() as Partial<typeof datosBorrador> | null;
+    if (!d) return;
+    // Cada campo se restaura solo si vino en el borrador: uno guardado por
+    // una version anterior de esta pantalla no rompe nada.
+    const poner = <K extends keyof typeof datosBorrador>(k: K, fijar: (v: (typeof datosBorrador)[K]) => void) => {
+      if (d[k] !== undefined) fijar(d[k] as (typeof datosBorrador)[K]);
+    };
+    poner('tipo', setTipo);
+    poner('step', setStep);
+    poner('sedeId', (v) => v && setSedeId(v));
+    poner('selectedEmployee', setSelectedEmployee);
+    poner('employeeId', setEmployeeId);
+    poner('observaciones', setObservaciones);
+    poner('devolucionEstados', setDevolucionEstados);
+    poner('devolucionObservaciones', setDevolucionObservaciones);
+    poner('devolucionCargador', setDevolucionCargador);
+    poner('devolucionCargadorObservaciones', setDevolucionCargadorObservaciones);
+    poner('devolucionEppEstados', setDevolucionEppEstados);
+    poner('devolucionEppObservaciones', setDevolucionEppObservaciones);
+    poner('onboardingEmp', setOnboardingEmp);
+    poner('modoEmpleadoOnboarding', setModoEmpleadoOnboarding);
+    poner('cargoSolicitadoReincorporacion', setCargoSolicitadoReincorporacion);
+    poner('tipoContratoReincorporacion', setTipoContratoReincorporacion);
+    poner('fechaIngreso', setFechaIngreso);
+    poner('categoriasRequeridas', setCategoriasRequeridas);
+    poner('equipoSeleccionado', setEquipoSeleccionado);
+    poner('cargadorOnboarding', setCargadorOnboarding);
+    poner('fechaEntregaCoordinada', setFechaEntregaCoordinada);
+    poner('medioEntrega', setMedioEntrega);
+    poner('lugarEntrega', setLugarEntrega);
+    poner('otChilexpressEntrega', setOtChilexpressEntrega);
+    poner('ciudadEntrega', setCiudadEntrega);
+    poner('kitBienvenidaSolicitado', setKitBienvenidaSolicitado);
+    poner('eppSolicitado', setEppSolicitado);
+    poner('kitCantidadesSeleccionadas', setKitCantidadesSeleccionadas);
+    poner('motivoCambio', setMotivoCambio);
+    poner('fechaCambioCoordinada', setFechaCambioCoordinada);
+    poner('medioCambio', setMedioCambio);
+    poner('lugarCambio', setLugarCambio);
+    poner('otCambioChilexpress', setOtCambioChilexpress);
+    poner('ciudadCambio', setCiudadCambio);
+    poner('cambios', setCambios);
+    poner('fechaDesvinculacion', setFechaDesvinculacion);
+    poner('medioDevolucion', setMedioDevolucion);
+    poner('otChilexpress', setOtChilexpress);
+    poner('ciudadDevolucion', setCiudadDevolucion);
+    poner('fechaDevolucionCoordinada', setFechaDevolucionCoordinada);
+    poner('lugarDevolucion', setLugarDevolucion);
+    // Las asignaciones del empleado vienen de la base: se vuelven a pedir.
+    if (d.selectedEmployee && (d.tipo === 'offboarding' || d.tipo === 'cambio_equipo')) {
+      fetchEmployeeAssignments(d.selectedEmployee.id);
+    }
+  };
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -992,6 +1069,7 @@ export default function NuevaSolicitudPage() {
       }
 
       const data = await res.json();
+      borrador.limpiar();
       router.push(`/solicitudes/${data.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al crear solicitud');
@@ -1013,6 +1091,33 @@ export default function NuevaSolicitudPage() {
         title="Nueva Solicitud"
         description={<>{stepDescriptions[step]}</>}
       />
+
+      {borrador.borradorDe && (
+        <div
+          role="status"
+          className="flex flex-col gap-3 rounded-lg border border-line bg-surface px-4 py-3 text-fg sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p className="text-sm">
+            Tienes un borrador sin enviar de las{' '}
+            <span className="font-medium">
+              {formatearFechaHora(borrador.borradorDe, { hour: '2-digit', minute: '2-digit' })}
+            </span>
+            .
+          </p>
+          <div className="flex gap-2">
+            <button type="button" onClick={recuperarBorrador} className={buttonClasses({ size: 'sm' })}>
+              Recuperar
+            </button>
+            <button
+              type="button"
+              onClick={borrador.descartar}
+              className={buttonClasses({ variant: 'outline', size: 'sm' })}
+            >
+              Descartar
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -1145,7 +1250,7 @@ export default function NuevaSolicitudPage() {
                         {selectedEmployee.cargo ? ` · ${selectedEmployee.cargo}` : ''}
                       </p>
                     </div>
-                    <button onClick={clearEmployee} className="text-fg-subtle hover:text-fg-muted p-1">
+                    <button aria-label="Quitar empleado elegido" onClick={clearEmployee} className="text-fg-subtle hover:text-fg-muted p-1">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -1881,7 +1986,7 @@ export default function NuevaSolicitudPage() {
                     {selectedEmployee.cargo ? ` · ${selectedEmployee.cargo}` : ''}
                   </p>
                 </div>
-                <button
+                <button aria-label="Quitar empleado elegido"
                   onClick={clearEmployee}
                   className="text-fg-subtle hover:text-fg-muted p-1"
                 >

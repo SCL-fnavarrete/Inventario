@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { updateAssetSchema } from '@/lib/validations/asset';
+import {
+  MENSAJE_GARANTIA_ANTES_DE_COMPRA,
+  terminaAntesDeEmpezar,
+} from '@/lib/validations/ordenFechas';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { descartarActivo, reglasIdentificacion } from '@/lib/services/activoService';
 import {
@@ -85,6 +89,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     assertSedeAccess(session, existingAsset.sedeId, 'Activo no encontrado');
+    // Si solo llega una de las dos fechas, se compara con la ya guardada.
+    if (
+      terminaAntesDeEmpezar(
+        validatedData.fechaCompra !== undefined ? validatedData.fechaCompra : existingAsset.fechaCompra,
+        validatedData.fechaGarantiaFin !== undefined
+          ? validatedData.fechaGarantiaFin
+          : existingAsset.fechaGarantiaFin
+      )
+    ) {
+      throw new ValidationError(MENSAJE_GARANTIA_ANTES_DE_COMPRA, [
+        { field: 'fechaGarantiaFin', message: MENSAJE_GARANTIA_ANTES_DE_COMPRA },
+      ]);
+    }
     // IMEI obligatorio si queda en una categoria de celular, y que no se
     // repita (SPEC 2.112.7).
     await reglasIdentificacion(
@@ -177,9 +194,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             fechaGarantiaFin: validatedData.fechaGarantiaFin
               ? new Date(validatedData.fechaGarantiaFin)
               : null,
-          }),
-          ...(validatedData.fechaBaja !== undefined && {
-            fechaBaja: validatedData.fechaBaja ? new Date(validatedData.fechaBaja) : null,
           }),
           ...(validatedData.procesador !== undefined && {
             procesador: validatedData.procesador || null,

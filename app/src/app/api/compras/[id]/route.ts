@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { updatePurchaseSchema } from "@/lib/validations/purchase";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { NotFoundError, ValidationError } from '@/lib/errors';
+import { tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
 import {
   INCLUDE_AVANCE_REPARTO,
@@ -21,7 +22,7 @@ interface RouteParams {
 // reparto. La ven admin y tecnico (SPEC 2.111.6).
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('compras', 'read');
+    const session = await requirePermission('compras', 'read');
 
     const { id } = await params;
 
@@ -84,7 +85,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Un equipo descartado (se quito antes de repartirlo) ya no es parte de
     // la compra que se muestra; su registro queda en el historial.
-    const purchaseAssets = purchase.purchaseAssets.filter((pa) => !pa.asset.deletedAt);
+    // Quien tiene un equipo de OTRA sede no es dato de este tecnico
+    // (auditoria 27-sep-2026, 2.12): la compra se ve completa, pero sin el
+    // nombre ni el RUT de personas que no son de su sede.
+    const verTodo = tieneVisibilidadTotal(session);
+    const purchaseAssets = purchase.purchaseAssets
+      .filter((pa) => !pa.asset.deletedAt)
+      .map((pa) =>
+        verTodo || pa.asset.sedeId === session.user.sedeId
+          ? pa
+          : { ...pa, asset: { ...pa.asset, empleadoActual: null } }
+      );
 
     return NextResponse.json({
       ...purchase,

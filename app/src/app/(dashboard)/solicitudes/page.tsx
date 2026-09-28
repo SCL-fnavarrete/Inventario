@@ -176,7 +176,7 @@ export default function SolicitudesPage() {
             Filtros
           </button>
           <div className="flex border border-line-strong rounded-lg overflow-hidden">
-            <button
+            <button aria-label="Vista de tabla"
               onClick={() => setViewMode('table')}
               className={cn(
                 'p-2 transition-colors',
@@ -185,7 +185,7 @@ export default function SolicitudesPage() {
             >
               <List className="h-4 w-4" />
             </button>
-            <button
+            <button aria-label="Vista de tarjetas"
               onClick={() => setViewMode('kanban')}
               className={cn(
                 'p-2 transition-colors',

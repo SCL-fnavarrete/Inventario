@@ -17,6 +17,7 @@ import type { ImportPreviewResult, ImportBatchResult, CorrectedRow } from "@/typ
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
 import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { ESTADOS_RECONOCIDOS } from "@/lib/importacion/activos";
+import { FILAS_POR_TANDA } from "@/lib/importacion/validarArchivo";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useCampoSede } from "@/components/providers/SedeSeleccionadaProvider";
@@ -61,6 +62,7 @@ export default function ImportarActivosPage() {
   const [parsing, setParsing] = useState(false);
   const [validating, setValidating] = useState(false);
   const [committing, setCommitting] = useState(false);
+  const [progreso, setProgreso] = useState<{ enviadas: number; total: number } | null>(null);
   const [preview, setPreview] = useState<PreviewData | null>(null);
   // Resultado de la vista previa CON mapeo: valida todas las filas contra
   // las mismas reglas que la escritura real (procesarFila en dryRun), pero
@@ -295,7 +297,8 @@ export default function ImportarActivosPage() {
         });
 
         if (!res.ok) {
-          throw new Error("Error al leer el archivo");
+          const { message } = await parseApiError(res, "Error al leer el archivo");
+          throw new Error(message);
         }
 
         const data = await res.json();
@@ -526,8 +529,11 @@ export default function ImportarActivosPage() {
   }
 
   // Unico punto de escritura: junta las filas ya validas de la vista previa
-  // con las corregidas en el panel de errores y las manda TODAS de una vez
-  // a /batch. Las filas con error que no se corrigieron quedan fuera.
+  // con las corregidas en el panel de errores y las manda a /batch en tandas
+  // de FILAS_POR_TANDA, para que ninguna peticion corra demasiado tiempo y el
+  // usuario vea el avance. Las filas con error que no se corrigieron quedan
+  // fuera. Si una tanda falla, las anteriores ya quedaron guardadas: se
+  // muestra lo importado hasta ahi junto con el error.
   async function handleConfirmImport() {
     if (!validation) return;
 
@@ -547,32 +553,64 @@ export default function ImportarActivosPage() {
     setCommitting(true);
     setError("");
     setFieldErrors({});
+    setProgreso({ enviadas: 0, total: rows.length });
+
+    const resultados: ImportBatchResult["results"] = [];
+    const mostrarResultado = () => {
+      if (resultados.length === 0) return;
+      const imported = resultados.filter((r) => r.status === "imported").length;
+      const failed = resultados.filter((r) => r.status === "error").length;
+      setBatchResult({
+        success: failed === 0 && resultados.length === rows.length,
+        imported,
+        skipped: 0,
+        failed,
+        results: resultados,
+      });
+      setShowErrorReview(false);
+    };
 
     try {
-      const res = await fetch("/api/activos/importar/batch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          categoria,
-          rows,
-          sedeId: sedeId || undefined,
-        }),
-      });
+      for (let i = 0; i < rows.length; i += FILAS_POR_TANDA) {
+        const tanda = rows.slice(i, i + FILAS_POR_TANDA);
+        const res = await fetch("/api/activos/importar/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            categoria,
+            rows: tanda,
+            sedeId: sedeId || undefined,
+          }),
+        });
 
-      if (!res.ok) {
-        const { message, fieldErrors: fe } = await parseApiError(res, "Error al importar");
-        setError(message);
-        setFieldErrors(fe);
-        return;
+        if (!res.ok) {
+          const { message, fieldErrors: fe } = await parseApiError(res, "Error al importar");
+          setError(
+            resultados.length > 0
+              ? `${message}. Se alcanzaron a procesar ${resultados.length} de ${rows.length} filas; las demás no se enviaron.`
+              : message
+          );
+          setFieldErrors(fe);
+          mostrarResultado();
+          return;
+        }
+
+        const data: ImportBatchResult = await res.json();
+        resultados.push(...data.results);
+        setProgreso({ enviadas: i + tanda.length, total: rows.length });
       }
-
-      const data: ImportBatchResult = await res.json();
-      setBatchResult(data);
-      setShowErrorReview(false);
+      mostrarResultado();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al importar");
+      const mensaje = err instanceof Error ? err.message : "Error al importar";
+      setError(
+        resultados.length > 0
+          ? `${mensaje}. Se alcanzaron a procesar ${resultados.length} de ${rows.length} filas; las demás no se enviaron.`
+          : mensaje
+      );
+      mostrarResultado();
     } finally {
       setCommitting(false);
+      setProgreso(null);
     }
   }
 
@@ -602,6 +640,31 @@ export default function ImportarActivosPage() {
         title="Importar Activos"
         description="Carga masiva de equipos desde archivo Excel"
       />
+
+      {/* Avance de la importacion (se envia en tandas) */}
+      {progreso && (
+        <div className="rounded-lg border border-line bg-surface p-4" aria-live="polite">
+          <div className="mb-2 flex justify-between text-sm text-fg">
+            <span>Importando activos...</span>
+            <span>
+              {progreso.enviadas} de {progreso.total} filas
+            </span>
+          </div>
+          <div
+            role="progressbar"
+            aria-label="Avance de la importación"
+            aria-valuemin={0}
+            aria-valuemax={progreso.total}
+            aria-valuenow={progreso.enviadas}
+            className="h-2 w-full overflow-hidden rounded-full bg-line"
+          >
+            <div
+              className="h-full bg-primary-600 transition-all"
+              style={{ width: `${(progreso.enviadas / progreso.total) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Panel de Revision de Errores (solo corrige, no escribe nada) */}
       {showErrorReview && validation && errorRows.length > 0 && (
@@ -679,6 +742,7 @@ export default function ImportarActivosPage() {
                 <button
                   type="button"
                   onClick={() => {
+                    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- recarga completa a proposito (ver comentario arriba)
                     window.location.href = "/activos";
                   }}
                   className="text-primary-700 hover:text-primary-900 font-medium"

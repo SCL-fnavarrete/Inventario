@@ -3,24 +3,17 @@ import { prisma } from "@/lib/prisma";
 import type { ImportPreviewResult, ImportRowStatus } from "@/types/import";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { sedeIdParaCrear } from '@/lib/auth/sedeScope';
+import { exigirSedeActiva } from "@/lib/queries/sedes";
 import { construirMapaCatalogo, construirMapaSedes } from "@/lib/importacion/activos";
 import { leerFilasExcel } from "@/lib/importacion/leerExcel";
-import { procesarFila, type ContextoFila } from "@/lib/importacion/procesarFila";
-
-// Constantes de seguridad para archivos
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ALLOWED_MIME_TYPES = [
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-excel",
-  "application/octet-stream", // Algunos navegadores envían este tipo
-];
+import { procesarFila, precargarEmpleadosPorRut, type ContextoFila } from "@/lib/importacion/procesarFila";
+import { validarArchivoExcel } from "@/lib/importacion/validarArchivo";
 
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('activos', 'write');
 
     const formData = await request.formData();
-    const file = formData.get("file") as File;
     const sheetName = formData.get("sheetName") as string;
     const categoria = formData.get("categoria") as string;
     const mappingStr = formData.get("mapping") as string;
@@ -32,7 +25,7 @@ export async function POST(request: NextRequest) {
     // nuevo.
     const correctionsStr = formData.get("corrections") as string | null;
 
-    if (!file || !sheetName) {
+    if (!sheetName) {
       return NextResponse.json({ error: "Faltan parámetros requeridos" }, { status: 400 });
     }
 
@@ -42,14 +35,7 @@ export async function POST(request: NextRequest) {
       ? JSON.parse(correctionsStr)
       : {};
 
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json({ error: "El archivo excede el tamaño máximo de 5MB" }, { status: 413 });
-    }
-    if (!ALLOWED_MIME_TYPES.includes(file.type) && !file.name.match(/\.xlsx?$/i)) {
-      return NextResponse.json({ error: "Solo se permiten archivos Excel (.xlsx, .xls)" }, { status: 400 });
-    }
-
-    const buffer = await file.arrayBuffer();
+    const buffer = await validarArchivoExcel(formData.get("file"));
 
     // Sin mapping todavia (recien se subio el archivo): solo se devuelven
     // los encabezados y una vista cruda de las primeras filas, para que el
@@ -85,8 +71,11 @@ export async function POST(request: NextRequest) {
     const sedeIdExplicita = sedeIdParaCrear(session, formData.get("sedeId") as string | null, {
       requerido: false,
     });
+    if (sedeIdExplicita) await exigirSedeActiva(sedeIdExplicita);
     const mapaSedes = construirMapaSedes(
-      await prisma.sede.findMany({ select: { id: true, nombre: true, codigo: true } })
+      // Solo sedes activas: una fila no puede traer equipos a una sede
+      // desactivada (auditoria 27-sep-2026, 2.9).
+      await prisma.sede.findMany({ where: { activa: true }, select: { id: true, nombre: true, codigo: true } })
     );
     // Catalogos administrables (Configuracion > Opciones de Activos): se
     // traen en vivo, una sola vez por importacion, para validar sistema
@@ -141,7 +130,10 @@ export async function POST(request: NextRequest) {
       existingImeiSet: new Set(
         (await prisma.asset.findMany({ where: { imei: { not: null } }, select: { imei: true } })).map((a) => a.imei!)
       ),
-      employeeCache: new Map<string, string>(),
+      ...(await precargarEmpleadosPorRut(
+        filas.map((fila, i) => corrections[i]?.rut ?? fila.data.rut ?? ""),
+        prisma
+      )),
     };
 
     const rows: ImportRowStatus[] = [];

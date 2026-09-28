@@ -220,3 +220,30 @@ describe('Asset Validation - updateAssetSchema', () => {
     expect(result.success).toBe(false)
   })
 })
+
+// Auditoria 27-sep-2026 (5.1-A): ramas del IMEI sin test.
+describe('Asset Validation - imei', () => {
+  const base = { categoriaId: '123e4567-e89b-12d3-a456-426614174000', marca: 'Samsung', modelo: 'A54' }
+
+  test('acepta un IMEI nulo (la regla por categoria vive en el servidor)', () => {
+    expect(createAssetSchema.safeParse({ ...base, imei: null }).success).toBe(true)
+  })
+
+  test('rechaza un IMEI que no es texto', () => {
+    expect(createAssetSchema.safeParse({ ...base, imei: 354964992749902 }).success).toBe(false)
+  })
+
+  test('rechaza un IMEI con digito verificador incorrecto', () => {
+    expect(createAssetSchema.safeParse({ ...base, imei: '354964992749903' }).success).toBe(false)
+  })
+})
+
+describe('Asset Validation - imei vacio', () => {
+  test('un IMEI que queda vacio al normalizarlo se guarda como nulo', () => {
+    const r = createAssetSchema.safeParse({
+      categoriaId: '123e4567-e89b-12d3-a456-426614174000', marca: 'Samsung', modelo: 'A54', imei: ' - ',
+    })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.imei).toBeNull()
+  })
+})

@@ -6,7 +6,13 @@ import {
   handleApiError,
   respuestaDatosInvalidos,
   errorRepetido,
+  errorDeCampo,
+  ValidationError,
 } from '@/lib/auth/guard';
+import {
+  MENSAJE_TERMINO_ANTES_DE_INGRESO,
+  terminaAntesDeEmpezar,
+} from "@/lib/validations/ordenFechas";
 import { assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
 
@@ -121,6 +127,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     assertSedeAccess(session, existingEmployee.sedeId, 'Empleado no encontrado');
 
+    // Si solo llega una de las dos fechas, se compara con la ya guardada.
+    if (
+      terminaAntesDeEmpezar(
+        data.fechaIngreso !== undefined ? data.fechaIngreso : existingEmployee.fechaIngreso,
+        data.fechaTermino !== undefined ? data.fechaTermino : existingEmployee.fechaTermino
+      )
+    ) {
+      throw new ValidationError(MENSAJE_TERMINO_ANTES_DE_INGRESO, [
+        { field: "fechaTermino", message: MENSAJE_TERMINO_ANTES_DE_INGRESO },
+      ]);
+    }
+
     // Si se está actualizando el RUT, verificar que no exista otro empleado con ese RUT
     if (data.rut && data.rut !== existingEmployee.rut) {
       const existingByRut = await prisma.employee.findUnique({
@@ -172,14 +190,40 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Lo inverso tampoco es una edicion (auditoria 27-sep-2026, 2.9): quien
+    // vuelve a la empresa entra por una Solicitud de Onboarding de
+    // reincorporacion, que registra la fecha, el cargo y sus equipos.
+    if (existingEmployee.estado === 'desvinculado' && data.estado && data.estado !== 'desvinculado') {
+      return NextResponse.json(
+        {
+          error:
+            'Para reincorporar a un empleado desvinculado hay que crear una Solicitud de Onboarding (reincorporación).',
+          redirectTo: '/solicitudes/nueva',
+        },
+        { status: 400 }
+      );
+    }
+
     // Reasignar sede (ej. el empleado se traslada de sede): solo admin
     // puede hacerlo. Si un tecnico envia sedeId, se ignora en silencio en
     // vez de rechazar toda la actualizacion.
     const puedeCambiarSede = tieneVisibilidadTotal(session);
-    if (puedeCambiarSede && data.sedeId) {
+    if (puedeCambiarSede && data.sedeId && data.sedeId !== existingEmployee.sedeId) {
       const sedeDestino = await prisma.sede.findUnique({ where: { id: data.sedeId } });
       if (!sedeDestino) {
         return NextResponse.json({ error: "Sede no encontrada" }, { status: 404 });
+      }
+      // Auditoria 27-sep-2026, 2.9: ni a una sede desactivada, ni con
+      // equipos en la mano (quedarian en una sede y la persona en otra).
+      if (!sedeDestino.activa) {
+        throw errorDeCampo("sedeId", "La sede elegida está desactivada");
+      }
+      const equiposAsignados = await prisma.assignment.count({ where: { employeeId: id, activo: true } });
+      if (equiposAsignados > 0) {
+        throw errorDeCampo(
+          "sedeId",
+          `Tiene ${equiposAsignados} equipo${equiposAsignados === 1 ? "" : "s"} asignado${equiposAsignados === 1 ? "" : "s"}: devuélvelos o cámbialos antes de trasladarlo de sede`
+        );
       }
     }
 
@@ -241,24 +285,3 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/empleados/[id] - Eliminar empleado (soft delete cambiando estado)
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  // Esta ruta hacia un "soft delete" que marcaba al empleado como
-  // desvinculado. Una desvinculacion no es una edicion de datos ni un
-  // borrado: ocurre dentro de una Solicitud de desvinculacion, que es
-  // donde queda la devolucion de los equipos y el motivo.
-  //
-  // Queda como stub en vez de borrarse: responder 410 explicito deja claro
-  // que se retiro a proposito, en vez de un 404 que parece un error de
-  // ruteo.
-  void request;
-  void params;
-  return NextResponse.json(
-    {
-      error:
-        'Desvincular a un empleado se hace creando una Solicitud de desvinculación, no desde la ficha del empleado.',
-      redirectTo: '/solicitudes/nueva',
-    },
-    { status: 410 }
-  );
-}

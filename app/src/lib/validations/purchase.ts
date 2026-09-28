@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { rutOptionalSchema } from "./rut";
-import { createAssetSchema } from "./asset";
+import { createAssetSchema, revisarOrdenGarantia } from "./asset";
 
 export const TipoCompraEnum = z.enum(["FACTURA", "GASTO_MENOR"]);
 
@@ -57,7 +57,11 @@ export const updatePurchaseSchema = z.object({
 // Equipo comprado (SPEC 2.111): los mismos datos y reglas que Activos >
 // Nuevo. La sede y el estado no se eligen: nace "Por repartir" en la sede
 // de llegada.
-export const equipoNuevoCompraSchema = createAssetSchema.omit({ estado: true });
+// `.omit()` descarta el refinamiento de fechas de createAssetSchema: se
+// vuelve a aplicar aqui.
+export const equipoNuevoCompraSchema = createAssetSchema
+  .omit({ estado: true })
+  .superRefine(revisarOrdenGarantia);
 
 /** Un mismo N° de serie dos veces en la lista de equipos nuevos. */
 function revisarSeriesRepetidas(

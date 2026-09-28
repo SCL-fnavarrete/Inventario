@@ -6,28 +6,12 @@ import { executeAssignment, executeKitDelivery, executeReturn, executeKitReturn 
 import { Prisma, Employee } from '@prisma/client';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { sedeWhere, sedeIdParaCrear, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { exigirSedeActiva } from "@/lib/queries/sedes";
+import { generarNumeroSolicitud } from '@/lib/services/numeroSolicitud';
 import { ValidationError } from '@/lib/errors';
 import { coincideBusqueda } from '@/lib/utils/text';
 import { desvinculacionesConActa } from '@/lib/queries/asignacionesTicket';
-
-/**
- * Siguiente numero del año (WF-2026-0001...), leido dentro de la misma
- * transaccion que crea el ticket. Antes era "cuantos hay + 1" fuera de la
- * transaccion: dos creaciones simultaneas obtenian el mismo numero y una
- * fallaba. Si aun asi chocan, POST reintenta (ver INTENTOS_NUMERO).
- */
-async function generateNumero(tx: Prisma.TransactionClient): Promise<string> {
-  const prefijo = `WF-${new Date().getFullYear()}-`;
-  const ultimos = await tx.workflowRequest.findMany({
-    where: { numero: { startsWith: prefijo } },
-    select: { numero: true },
-  });
-  const mayor = ultimos.reduce((max, { numero }) => {
-    const n = Number.parseInt(numero.slice(prefijo.length), 10);
-    return Number.isFinite(n) && n > max ? n : max;
-  }, 0);
-  return `${prefijo}${String(mayor + 1).padStart(4, '0')}`;
-}
+import { sinIdsDeUsuario } from '@/lib/utils/privacidad';
 
 /** Intentos de crear el ticket si el numero choca con otra creacion simultanea. */
 const INTENTOS_NUMERO = 3;
@@ -104,8 +88,8 @@ export async function GET(request: NextRequest) {
           correoPersonal: true,
         },
       },
-      solicitante: { select: { id: true, nombre: true, rol: true } },
-      responsableActual: { select: { id: true, nombre: true, rol: true } },
+      solicitante: { select: { nombre: true, rol: true } },
+      responsableActual: { select: { nombre: true, rol: true } },
       _count: { select: { comments: true, pendientes: true } },
     } as const;
 
@@ -158,7 +142,7 @@ export async function GET(request: NextRequest) {
     // descarga vacia en la lista (SPEC 2.87).
     const conActa = await desvinculacionesConActa(data);
 
-    return NextResponse.json({
+    return NextResponse.json(sinIdsDeUsuario({
       data: data.map((s) => ({ ...s, tieneActa: conActa.has(s.id) })),
       pagination: {
         page: filters.page,
@@ -166,7 +150,7 @@ export async function GET(request: NextRequest) {
         total,
         totalPages: Math.ceil(total / filters.limit),
       },
-    });
+    }));
   } catch (error) {
     return handleApiError(error, 'Error al obtener solicitudes');
   }
@@ -254,11 +238,13 @@ export async function POST(request: NextRequest) {
     const estadoInicial = getInitialState(data.tipo);
 
     // La sede se hereda de quien crea la solicitud; admin debe elegirla
-    // La sede se hereda de quien crea la solicitud; admin debe elegirla
     // explicitamente, o el ticket queda visible solo para el admin.
     const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId, {
       requerido: true,
     });
+    // Un ingreso nuevo no puede nacer en una sede desactivada (auditoria
+    // 27-sep-2026, 2.9). Desvincular o cambiar equipo si: la persona ya esta ahi.
+    if (data.tipo === 'onboarding' && sedeId) await exigirSedeActiva(sedeId);
 
     // Campos comunes a los tres tipos. "employee" y "numero" se agregan recien
     // dentro de la transaccion (el id puede ser de un empleado recien creado;
@@ -329,7 +315,7 @@ export async function POST(request: NextRequest) {
     }
 
     const crearTicket = () => prisma.$transaction(async (tx) => {
-      const numero = await generateNumero(tx);
+      const numero = await generarNumeroSolicitud(tx);
 
       // Empleado: si es un onboarding sin employeeId, se crea aca mismo, en
       // la misma transaccion que el ticket -- si algo falla despues (un
@@ -394,6 +380,7 @@ export async function POST(request: NextRequest) {
         for (const assetId of data.assetIdsSeleccionados) {
           const cargador = data.condicionCargadorPorAsset?.[assetId];
           const assignment = await executeAssignment(tx, {
+            sedeId: sedeId,
             assetId,
             employeeId: empId,
             fechaEntrega: new Date(),
@@ -555,6 +542,7 @@ export async function POST(request: NextRequest) {
             contexto: 'cambio',
           });
           const nuevaAsignacion = await executeAssignment(tx, {
+            sedeId: sedeId,
             assetId: cambio.newAssetId,
             employeeId: empId,
             fechaEntrega: new Date(),
@@ -584,8 +572,8 @@ export async function POST(request: NextRequest) {
         },
         include: {
           employee: true,
-          solicitante: { select: { id: true, nombre: true, rol: true } },
-          responsableActual: { select: { id: true, nombre: true, rol: true } },
+          solicitante: { select: { nombre: true, rol: true } },
+          responsableActual: { select: { nombre: true, rol: true } },
         },
       });
 
@@ -627,6 +615,7 @@ export async function POST(request: NextRequest) {
       ) {
         for (const { itemId, cantidad } of data.kitItemsSeleccionados) {
           await executeKitDelivery(tx, {
+            sedeId: sedeId,
             itemId,
             cantidad,
             employeeId: empId,
@@ -674,7 +663,7 @@ export async function POST(request: NextRequest) {
     for (let intento = 1; ; intento++) {
       try {
         const result = await crearTicket();
-        return NextResponse.json(result, { status: 201 });
+        return NextResponse.json(sinIdsDeUsuario(result), { status: 201 });
       } catch (error) {
         if (intento >= INTENTOS_NUMERO || !esChoqueDeNumero(error)) throw error;
       }

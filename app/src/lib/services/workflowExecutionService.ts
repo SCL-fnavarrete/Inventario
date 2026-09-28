@@ -26,6 +26,10 @@ export type ExecuteAssignmentParams = {
   // del Activo.
   condicionCargadorEntrega?: CondicionCargador | null;
   observacionesCargador?: string | null;
+  // Sede en que ocurre la entrega (la de la solicitud o la del empleado).
+  // Un equipo de otra sede se rechaza como inexistente: se traslada con un
+  // despacho, no se entrega directo (SPEC 2.8.3, 2.114).
+  sedeId: string | null;
 };
 
 export type ExecuteReturnParams = {
@@ -55,6 +59,8 @@ export type ExecuteKitDeliveryParams = {
   employeeId: string;
   requestId: string;
   entregadoPor?: string | null;
+  // Sede de la solicitud: el stock de Kit/EPP es por sede (SPEC 2.114).
+  sedeId: string | null;
 };
 
 export type ExecuteKitReturnParams = {
@@ -74,15 +80,26 @@ export type ExecuteKitReturnParams = {
  */
 export async function executeKitDelivery(tx: PrismaTx, params: ExecuteKitDeliveryParams) {
   const item = await tx.welcomeKitItem.findUnique({ where: { id: params.itemId } });
-  if (!item) throw new NotFoundError('Artículo de Kit/EPP no encontrado');
-  if (item.cantidad < params.cantidad) {
-    throw new ConflictError(
-      `Stock insuficiente de "${item.nombre}": quedan ${item.cantidad}, se pidieron ${params.cantidad}`
-    );
-  }
+  // Un articulo de otra sede se trata como inexistente (auditoria 27-sep-2026,
+  // A01-2): antes se podia vaciar el stock de otra sede llamando a la API.
+  if (!item || item.sedeId !== params.sedeId) throw new NotFoundError('Artículo de Kit/EPP no encontrado');
 
   const employee = await tx.employee.findUnique({ where: { id: params.employeeId } });
   if (!employee) throw new NotFoundError('Empleado no encontrado');
+
+  // Descuento condicionado: solo baja si todavia alcanza. Dos entregas
+  // simultaneas ya no pueden dejar el stock negativo (R3): la segunda no
+  // encuentra la fila con stock suficiente y se rechaza.
+  const { count } = await tx.welcomeKitItem.updateMany({
+    where: { id: params.itemId, sedeId: params.sedeId, cantidad: { gte: params.cantidad } },
+    data: { cantidad: { decrement: params.cantidad } },
+  });
+  if (count !== 1) {
+    const actual = await tx.welcomeKitItem.findUnique({ where: { id: params.itemId }, select: { cantidad: true } });
+    throw new ConflictError(
+      `Stock insuficiente de "${item.nombre}": quedan ${actual?.cantidad ?? 0}, se pidieron ${params.cantidad}`
+    );
+  }
 
   const kitAssignment = await tx.kitAssignment.create({
     data: {
@@ -95,11 +112,6 @@ export async function executeKitDelivery(tx: PrismaTx, params: ExecuteKitDeliver
       observaciones: params.entregadoPor ? `Entregado por ${params.entregadoPor}` : null,
     },
     include: { item: true },
-  });
-
-  await tx.welcomeKitItem.update({
-    where: { id: params.itemId },
-    data: { cantidad: { decrement: params.cantidad } },
   });
 
   // Si este articulo estaba en la lista de requeridos de la solicitud
@@ -132,7 +144,10 @@ export async function executeAssignment(
     include: { categoria: true },
   });
 
-  if (!asset) throw new NotFoundError('Activo no encontrado');
+  // Un equipo de otra sede se trata como inexistente (auditoria 27-sep-2026,
+  // A01-1): antes un tecnico podia entregar uno ajeno poniendo su id en la
+  // transicion de la solicitud.
+  if (!asset || asset.sedeId !== params.sedeId) throw new NotFoundError('Activo no encontrado');
   // "disponible" es el unico estado asignable.
   if (asset.estado !== 'disponible') {
     throw new ConflictError(`El activo no está disponible. Estado actual: ${etiquetaEstadoActivo(asset.estado)}`);
@@ -153,6 +168,24 @@ export async function executeAssignment(
   // se ignora en silencio en vez de dejar un dato sin sentido en el acta.
   const aplicaCargador = asset.tieneCargador;
 
+  // Se "reclama" el equipo con una condicion sobre su estado: si otra entrega
+  // simultanea ya lo tomo, esta no encuentra la fila y se rechaza. Antes se
+  // leia "disponible" y se escribia sin condicion, y dos entregas a la vez
+  // dejaban dos asignaciones activas del mismo equipo (R2).
+  const { count } = await tx.asset.updateMany({
+    where: { id: params.assetId, estado: 'disponible', deletedAt: null },
+    data: {
+      estado: 'asignado',
+      empleadoActualId: params.employeeId,
+      // Solo se pisa si la entrega trae un nombre: si el tecnico lo dejo en
+      // blanco, el equipo conserva el que ya tenia.
+      ...(params.nombreEquipo ? { nombreEquipo: params.nombreEquipo } : {}),
+    },
+  });
+  if (count !== 1) {
+    throw new ConflictError('El equipo ya fue entregado o cambió de estado. Recarga la lista y elige otro.');
+  }
+
   const assignment = await tx.assignment.create({
     data: {
       assetId: params.assetId,
@@ -171,17 +204,6 @@ export async function executeAssignment(
     include: {
       asset: { include: { categoria: true } },
       employee: true,
-    },
-  });
-
-  await tx.asset.update({
-    where: { id: params.assetId },
-    data: {
-      estado: 'asignado',
-      empleadoActualId: params.employeeId,
-      // Solo se pisa si la entrega trae un nombre: si el tecnico lo dejo en
-      // blanco, el equipo conserva el que ya tenia.
-      ...(params.nombreEquipo ? { nombreEquipo: params.nombreEquipo } : {}),
     },
   });
 
@@ -272,6 +294,15 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
 
     return actualizada;
   }
+
+  // Se cierra con una condicion sobre `activo`: si otra devolucion simultanea
+  // ya la cerro, esta no encuentra la fila y se rechaza (mismo patron que las
+  // entregas, auditoria 27-sep-2026).
+  const { count: cerradas } = await tx.assignment.updateMany({
+    where: { id: params.assignmentId, activo: true },
+    data: { activo: false },
+  });
+  if (cerradas !== 1) throw new ConflictError('Esta asignación ya fue devuelta');
 
   const actualizada = await tx.assignment.update({
     where: { id: params.assignmentId },
@@ -432,6 +463,14 @@ export async function executeKitReturn(tx: PrismaTx, params: ExecuteKitReturnPar
   const notaDevolucion = `Devuelto (${etiquetaEstado})${
     params.observaciones ? `: ${params.observaciones}` : ''
   }${params.recibidoPor ? ` — recibido por ${params.recibidoPor}` : ''}`;
+
+  // Condicion sobre el estado: dos devoluciones simultaneas del mismo
+  // articulo ya no suman el stock dos veces (auditoria 27-sep-2026).
+  const { count } = await tx.kitAssignment.updateMany({
+    where: { id: params.kitAssignmentId, estado: 'entregado' },
+    data: { estado: nuevoEstado },
+  });
+  if (count !== 1) throw new ConflictError(`El artículo "${kitAssignment.item.nombre}" ya fue devuelto`);
 
   const actualizado = await tx.kitAssignment.update({
     where: { id: params.kitAssignmentId },

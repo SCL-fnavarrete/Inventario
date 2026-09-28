@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { TablaAdaptable } from "@/components/ui/TablaAdaptable";
 import { CampoTexto, ResumenErrores } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import { useEnvio } from "@/hooks/useEnvio";
 
 /**
  * Configuracion > Sedes. Un solo formulario para crear y editar (antes el
@@ -38,6 +39,9 @@ export default function SedesPage() {
   const toast = useToast();
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [cargando, setCargando] = useState(true);
+  // Una accion de guardado a la vez: un doble clic ya no envia dos veces
+  // (auditoria 27-sep-2026, 6.2).
+  const { enviando, ejecutar } = useEnvio();
   // null = cerrado, "nueva" = creando, id = editando esa sede.
   const [abierto, setAbierto] = useState<string | null>(null);
   const [form, setForm] = useState(FORM_INICIAL);
@@ -177,7 +181,7 @@ export default function SedesPage() {
             <Button variant="outline" onClick={cerrar}>
               Cancelar
             </Button>
-            <Button leftIcon={<Save size={18} />} onClick={guardar}>
+            <Button loading={enviando} leftIcon={<Save size={18} />} onClick={() => ejecutar(guardar)}>
               Guardar
             </Button>
           </div>
@@ -257,7 +261,7 @@ export default function SedesPage() {
         isOpen={!!cambioEstado}
         onClose={() => setCambioEstado(null)}
         onConfirm={async () => {
-          if (cambioEstado) await cambiarEstado(cambioEstado);
+          if (cambioEstado) await ejecutar(() => cambiarEstado(cambioEstado));
         }}
         variant={cambioEstado?.activa ? "danger" : "info"}
         icon={cambioEstado?.activa ? PowerOff : Power}

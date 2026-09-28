@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { construirMapaCatalogo, construirMapaSedes } from "@/lib/importacion/activos";
-import { procesarFila, type ContextoFila } from "@/lib/importacion/procesarFila";
+import { procesarFila, precargarEmpleadosPorRut, type ContextoFila } from "@/lib/importacion/procesarFila";
+import { validarCantidadFilas } from "@/lib/importacion/validarArchivo";
 import type { CorrectedRow, ImportRowStatus, ImportBatchResult } from "@/types/import";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { sedeIdParaCrear } from '@/lib/auth/sedeScope';
+import { exigirSedeActiva } from "@/lib/queries/sedes";
 
 // Unico punto donde la importacion de Activos escribe en la base. Recibe
 // TODAS las filas a importar -las que ya estaban validas en la vista previa
@@ -26,17 +28,23 @@ export async function POST(request: NextRequest) {
       sedeId?: string;
     };
 
-    if (!categoria || !rows || rows.length === 0) {
+    if (!categoria || !Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json(
         { error: "Faltan parámetros requeridos" },
         { status: 400 }
       );
     }
+    // La pantalla manda tandas de FILAS_POR_TANDA; este tope protege la
+    // ruta de un POST armado a mano con un arreglo enorme.
+    validarCantidadFilas(rows.length);
 
     const sedeIdExplicita = sedeIdParaCrear(session, sedeIdSolicitada, { requerido: false });
+    if (sedeIdExplicita) await exigirSedeActiva(sedeIdExplicita);
 
     const mapaSedes = construirMapaSedes(
-      await prisma.sede.findMany({ select: { id: true, nombre: true, codigo: true } })
+      // Solo sedes activas: una fila no puede traer equipos a una sede
+      // desactivada (auditoria 27-sep-2026, 2.9).
+      await prisma.sede.findMany({ where: { activa: true }, select: { id: true, nombre: true, codigo: true } })
     );
     // Catalogos administrables (Configuracion > Opciones de Activos): se
     // traen en vivo, una sola vez por importacion, para validar sistema
@@ -94,7 +102,10 @@ export async function POST(request: NextRequest) {
       existingImeiSet: new Set(
         (await prisma.asset.findMany({ where: { imei: { not: null } }, select: { imei: true } })).map((a) => a.imei!)
       ),
-      employeeCache: new Map<string, string>(),
+      ...(await precargarEmpleadosPorRut(
+        rows.map((row) => row.data?.rut ?? ""),
+        prisma
+      )),
     };
 
     const results: ImportRowStatus[] = [];

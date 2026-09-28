@@ -2,14 +2,18 @@
  * @jest-environment node
  */
 // Configuracion parte 3: seguridad y datos correctos (SPEC 2.112.6).
-jest.mock('@/lib/prisma', () => ({
-  prisma: {
+jest.mock('@/lib/prisma', () => {
+  const prisma: Record<string, unknown> = {
     systemUser: { findUnique: jest.fn(), findFirst: jest.fn(), count: jest.fn(), update: jest.fn(), create: jest.fn() },
     systemConfig: { findUnique: jest.fn().mockResolvedValue(null) },
     accessLog: { findFirst: jest.fn(), findMany: jest.fn(), create: jest.fn(), deleteMany: jest.fn() },
     sede: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
-  },
-}));
+    $executeRaw: jest.fn(),
+  };
+  // Las transacciones corren sobre el mismo mock (ver PUT /api/usuarios/[id]).
+  prisma.$transaction = jest.fn((fn: (tx: unknown) => unknown) => fn(prisma));
+  return { prisma };
+});
 jest.mock('@/lib/auth/guard', () => {
   const real = jest.requireActual('@/lib/auth/guard');
   return { ...real, requirePermission: jest.fn() };
@@ -126,9 +130,9 @@ describe('cambiar la contraseña cierra las sesiones', () => {
     expect(db.systemUser.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ sesionesDesde: expect.any(Date) }) })
     );
-    expect(db.accessLog.create).toHaveBeenCalledWith({
+    expect(db.accessLog.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ resultado: 'sesion_revocada', detalle: 'Contraseña cambiada por yo@x.cl' }),
-    });
+    }));
   });
 
   test('la propia contraseña: no se corta la sesión de quien la cambia', async () => {
@@ -146,8 +150,13 @@ describe('inicio de sesión', () => {
   const req = { headers: { 'x-forwarded-for': '200.1.2.3', 'user-agent': 'X' } };
 
   beforeEach(() => {
+    // La direccion de x-forwarded-for solo se cree detras de un proxy conocido.
+    process.env.VERCEL = '1';
     db.accessLog.findFirst.mockResolvedValue(null);
     db.accessLog.findMany.mockResolvedValue([]);
+  });
+  afterEach(() => {
+    delete process.env.VERCEL;
   });
 
   test('con un correo que no existe igual se compara una contraseña (mismo tiempo)', async () => {
@@ -160,7 +169,7 @@ describe('inicio de sesión', () => {
     db.systemUser.findUnique.mockResolvedValue({ ...{ id: 'u1', email: 't@x.cl', nombre: 'T', rol: 'tecnico', activo: true, passwordHash: 'h' }, sede: { activa: false } });
     (compare as jest.Mock).mockResolvedValue(true);
     await expect(authorize({ email: 't@x.cl', password: CLAVE }, req)).rejects.toThrow(/sede está desactivada/);
-    expect(db.accessLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ resultado: 'sede_inactiva' }) });
+    expect(db.accessLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ resultado: 'sede_inactiva' }) }));
   });
 
   test('bloqueo por equipo: muchos fallos desde la misma dirección bloquean cualquier correo', async () => {
@@ -168,9 +177,9 @@ describe('inicio de sesión', () => {
       Promise.resolve(where.ip ? Array(20).fill({ createdAt: new Date() }) : [])
     );
     await expect(authorize({ email: 'otro@x.cl', password: 'x' }, req)).rejects.toThrow(/Demasiados intentos/);
-    expect(db.accessLog.create).toHaveBeenCalledWith({
+    expect(db.accessLog.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ resultado: 'bloqueado', detalle: 'Demasiados intentos desde este equipo', ip: '200.1.2.3' }),
-    });
+    }));
     expect(db.systemUser.findUnique).not.toHaveBeenCalled();
   });
 

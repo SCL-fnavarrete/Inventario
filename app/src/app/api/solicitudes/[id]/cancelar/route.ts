@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cancelWorkflowRequestSchema } from '@/lib/validations/workflow';
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, ConflictError } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
+import { sinIdsDeUsuario } from '@/lib/utils/privacidad';
 
 // POST /api/solicitudes/[id]/cancelar - Cancela una solicitud que todavia no
 // ejecuto ningun efecto secundario sobre el inventario (assignmentIds y
@@ -60,6 +61,16 @@ export async function POST(
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      // Misma condicion que se valido arriba: si otra persona la avanzo o le
+      // ejecuto acciones en el intertanto, no se cancela a ciegas (R1).
+      const { count } = await tx.workflowRequest.updateMany({
+        where: { id, updatedAt: workflowRequest.updatedAt, fechaCierre: null },
+        data: { updatedAt: new Date() },
+      });
+      if (count !== 1) {
+        throw new ConflictError('La solicitud cambió mientras la cancelabas. Recarga la página y revisa su estado.');
+      }
+
       const cancelada = await tx.workflowRequest.update({
         where: { id },
         data: {
@@ -68,8 +79,8 @@ export async function POST(
         },
         include: {
           employee: true,
-          solicitante: { select: { id: true, nombre: true, rol: true } },
-          responsableActual: { select: { id: true, nombre: true, rol: true } },
+          solicitante: { select: { nombre: true, rol: true } },
+          responsableActual: { select: { nombre: true, rol: true } },
         },
       });
 
@@ -86,7 +97,7 @@ export async function POST(
       return cancelada;
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(sinIdsDeUsuario(result));
   } catch (error) {
     return handleApiError(error, 'Error al cancelar solicitud');
   }

@@ -2,14 +2,18 @@
  * @jest-environment node
  */
 // Seguridad de usuarios y registro de accesos (SPEC 2.112).
-jest.mock('@/lib/prisma', () => ({
-  prisma: {
+jest.mock('@/lib/prisma', () => {
+  const prisma: Record<string, unknown> = {
     systemUser: { findUnique: jest.fn(), count: jest.fn(), update: jest.fn() },
     systemConfig: { findUnique: jest.fn().mockResolvedValue(null) },
-    accessLog: { findFirst: jest.fn(), findMany: jest.fn(), create: jest.fn() },
+    accessLog: { findFirst: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn() },
     sesionCerrada: { upsert: jest.fn(), deleteMany: jest.fn() },
-  },
-}));
+    $executeRaw: jest.fn(),
+  };
+  // Las transacciones corren sobre el mismo mock (ver PUT /api/usuarios/[id]).
+  prisma.$transaction = jest.fn((fn: (tx: unknown) => unknown) => fn(prisma));
+  return { prisma };
+});
 jest.mock('@/lib/auth/guard', () => {
   const real = jest.requireActual('@/lib/auth/guard');
   return { ...real, requirePermission: jest.fn() };
@@ -106,30 +110,142 @@ describe('bloqueo por intentos, contado en el registro de accesos', () => {
   test('con menos fallos que el maximo, puede intentar', async () => {
     db.accessLog.findFirst.mockResolvedValue(null);
     db.accessLog.findMany.mockResolvedValue([{ createdAt: new Date() }, { createdAt: new Date() }]);
-    expect(await minutosDeBloqueo('a@x.cl', 5, 15)).toBe(0);
+    expect(await minutosDeBloqueo('a@x.cl', '200.1.2.3', 5, 15)).toEqual({ minutos: 0, motivo: null });
   });
 
   test('con el maximo de fallos, queda bloqueado los minutos que faltan', async () => {
     db.accessLog.findFirst.mockResolvedValue(null);
     const hace2min = new Date(Date.now() - 2 * 60_000);
     db.accessLog.findMany.mockResolvedValue(Array(5).fill({ createdAt: hace2min }));
-    expect(await minutosDeBloqueo('a@x.cl', 5, 15)).toBe(13);
+    expect(await minutosDeBloqueo('a@x.cl', '200.1.2.3', 5, 15)).toEqual({ minutos: 13, motivo: 'equipo' });
   });
 
   test('solo cuenta los fallos despues del ultimo ingreso correcto', async () => {
     const ingreso = new Date(Date.now() - 60_000);
     db.accessLog.findFirst.mockResolvedValue({ createdAt: ingreso });
     db.accessLog.findMany.mockResolvedValue([]);
-    await minutosDeBloqueo('a@x.cl', 5, 15);
+    await minutosDeBloqueo('a@x.cl', '200.1.2.3', 5, 15);
     expect(db.accessLog.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ createdAt: { gte: ingreso } }) })
     );
   });
 
-  test('la direccion de red real es la primera de x-forwarded-for', () => {
-    expect(datosCliente({ 'x-forwarded-for': '200.1.2.3, 10.0.0.1', 'user-agent': 'X' })).toEqual({
-      ip: '200.1.2.3',
-      navegador: 'X',
+  // Auditoria 27-sep-2026, 2.6: correo + equipo, con un tope global mas alto.
+  describe('por correo y equipo, con tope global', () => {
+    const hace2min = new Date(Date.now() - 2 * 60_000);
+    const fallos = (desdeEsteEquipo: number, total: number) =>
+      db.accessLog.findMany.mockImplementation(({ where, take }) =>
+        Promise.resolve(Array(Math.min(take, where.ip ? desdeEsteEquipo : total)).fill({ createdAt: hace2min }))
+      );
+    beforeEach(() => db.accessLog.findFirst.mockResolvedValue(null));
+
+    test('los fallos de otro equipo no bloquean al dueño de la cuenta', async () => {
+      fallos(0, 5);
+      expect((await minutosDeBloqueo('a@x.cl', '10.0.0.9', 5, 15)).minutos).toBe(0);
+    });
+
+    test('los fallos desde este equipo si lo bloquean', async () => {
+      fallos(5, 5);
+      expect(await minutosDeBloqueo('a@x.cl', '10.0.0.9', 5, 15)).toEqual({ minutos: 13, motivo: 'equipo' });
+      expect(db.accessLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ email: 'a@x.cl', ip: '10.0.0.9' }) })
+      );
+    });
+
+    test('muchos fallos repartidos entre equipos llegan al tope global (4 veces el limite)', async () => {
+      fallos(1, 19);
+      expect((await minutosDeBloqueo('a@x.cl', '10.0.0.9', 5, 15)).minutos).toBe(0);
+      fallos(1, 20);
+      expect(await minutosDeBloqueo('a@x.cl', '10.0.0.9', 5, 15)).toEqual({ minutos: 13, motivo: 'global' });
+    });
+
+    test('sin direccion conocida cuenta todos los fallos del correo', async () => {
+      fallos(0, 5);
+      expect((await minutosDeBloqueo('a@x.cl', null, 5, 15)).minutos).toBe(13);
+    });
+
+    test('el intento en curso ya anotado no adelanta el bloqueo', async () => {
+      fallos(5, 5);
+      expect((await minutosDeBloqueo('a@x.cl', '10.0.0.9', 5, 15, 1)).minutos).toBe(0);
+      fallos(6, 6);
+      expect((await minutosDeBloqueo('a@x.cl', '10.0.0.9', 5, 15, 1)).minutos).toBe(13);
+    });
+  });
+
+  describe('direccion de red: solo detras de un proxy de confianza', () => {
+    const cabeceras = { 'x-forwarded-for': '200.1.2.3, 10.0.0.1', 'user-agent': 'X' };
+    afterEach(() => {
+      delete process.env.VERCEL;
+      delete process.env.TRUST_PROXY;
+    });
+
+    test('sin proxy conocido la cabecera se ignora: se puede inventar', () => {
+      expect(datosCliente(cabeceras)).toEqual({ ip: null, navegador: 'X' });
+    });
+
+    test('en Vercel es la primera de x-forwarded-for', () => {
+      process.env.VERCEL = '1';
+      expect(datosCliente(cabeceras)).toEqual({ ip: '200.1.2.3', navegador: 'X' });
+    });
+
+    test('con TRUST_PROXY es la ultima, la que agrego el proxy propio', () => {
+      process.env.TRUST_PROXY = 'true';
+      expect(datosCliente(cabeceras)).toEqual({ ip: '10.0.0.1', navegador: 'X' });
+    });
+  });
+});
+
+describe('inicio de sesion: el intento se anota antes de revisar la clave', () => {
+  const authorize = (authOptions.providers[0] as unknown as {
+    options: { authorize: (c: unknown, r: unknown) => Promise<unknown> };
+  }).options.authorize;
+  const req = { headers: { 'x-forwarded-for': '200.1.2.3', 'user-agent': 'X' } };
+
+  beforeEach(() => {
+    process.env.VERCEL = '1';
+    db.accessLog.create.mockResolvedValue({ id: 'intento-1' });
+    db.accessLog.findFirst.mockResolvedValue(null);
+    db.accessLog.findMany.mockResolvedValue([]);
+  });
+  afterEach(() => {
+    delete process.env.VERCEL;
+    db.accessLog.create.mockReset();
+    db.accessLog.findMany.mockReset();
+  });
+
+  test('se anota como fallido antes de buscar la cuenta y luego se corrige', async () => {
+    db.systemUser.findUnique.mockResolvedValue(null);
+    await expect(authorize({ email: 'nadie@x.cl', password: 'x' }, req)).rejects.toThrow(/incorrectos/);
+
+    expect(db.accessLog.create).toHaveBeenCalledTimes(1);
+    expect(db.accessLog.create.mock.calls[0][0].data).toMatchObject({ resultado: 'clave_incorrecta', ip: '200.1.2.3' });
+    expect(db.accessLog.create.mock.invocationCallOrder[0]).toBeLessThan(
+      db.systemUser.findUnique.mock.invocationCallOrder[0]
+    );
+    expect(db.accessLog.update).toHaveBeenCalledWith({
+      where: { id: 'intento-1' },
+      data: expect.objectContaining({ resultado: 'usuario_inexistente' }),
+    });
+  });
+
+  test('una contraseña de mas de 200 caracteres se rechaza sin buscar la cuenta', async () => {
+    await expect(authorize({ email: 'a@x.cl', password: 'x'.repeat(201) }, req)).rejects.toThrow(/incorrectos/);
+    expect(db.systemUser.findUnique).not.toHaveBeenCalled();
+    expect(db.accessLog.update).toHaveBeenCalledWith({
+      where: { id: 'intento-1' },
+      data: expect.objectContaining({ resultado: 'clave_incorrecta', detalle: 'Contraseña demasiado larga' }),
+    });
+  });
+
+  test('un bloqueo queda anotado en el mismo intento, sin revisar la clave', async () => {
+    db.accessLog.findMany.mockImplementation(({ take }) =>
+      Promise.resolve(Array(take).fill({ createdAt: new Date() }))
+    );
+    await expect(authorize({ email: 'a@x.cl', password: 'x' }, req)).rejects.toThrow(/Demasiados intentos/);
+    expect(db.systemUser.findUnique).not.toHaveBeenCalled();
+    expect(db.accessLog.update).toHaveBeenCalledWith({
+      where: { id: 'intento-1' },
+      data: expect.objectContaining({ resultado: 'bloqueado' }),
     });
   });
 });
@@ -147,7 +263,7 @@ describe('cerrar sesion: lista negra', () => {
       update: {},
     });
     expect(db.sesionCerrada.deleteMany).toHaveBeenCalledWith({ where: { expiraEn: { lt: expect.any(Date) } } });
-    expect(db.accessLog.create).toHaveBeenCalledWith({
+    expect(db.accessLog.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         resultado: 'cierre_sesion',
         sesionId: 'ses-1',
@@ -155,7 +271,7 @@ describe('cerrar sesion: lista negra', () => {
         navegador: 'X',
         detalle: 'Sesión de 2 h 5 min',
       }),
-    });
+    }));
   });
 
   test('duracion en palabras', () => {
@@ -224,6 +340,31 @@ describe('nunca quedarse sin administradores', () => {
     expect((await res.json()).error).toMatch(/último administrador/);
   });
 
+  // Auditoria 27-sep-2026, 2.9: la revision y el cambio van juntos, con candado.
+  test('cuenta a los demas administradores dentro de la transaccion, despues del candado', async () => {
+    const dbTx = db as unknown as Record<string, jest.Mock>;
+    db.systemUser.findUnique.mockResolvedValue(admin('otro'));
+    db.systemUser.count.mockResolvedValue(0);
+    await editarUsuario(pedir({ activo: false }), ctx('otro'));
+
+    expect(dbTx.$transaction).toHaveBeenCalledTimes(1);
+    const sql = (dbTx.$executeRaw.mock.calls[0][0] as TemplateStringsArray).join('');
+    expect(sql).toContain('pg_advisory_xact_lock');
+    expect(dbTx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      db.systemUser.count.mock.invocationCallOrder[0]
+    );
+    expect(db.systemUser.update).not.toHaveBeenCalled();
+  });
+
+  test('un cambio que no quita administradores no toma el candado', async () => {
+    const dbTx = db as unknown as Record<string, jest.Mock>;
+    db.systemUser.findUnique.mockResolvedValue(admin('otro'));
+    db.systemUser.update.mockResolvedValue(admin('otro'));
+    await editarUsuario(pedir({ nombre: 'Otro Nombre' }), ctx('otro'));
+    expect(dbTx.$executeRaw).not.toHaveBeenCalled();
+    expect(db.systemUser.update).toHaveBeenCalled();
+  });
+
   test('con otro administrador activo, se puede desactivar y queda en el registro', async () => {
     db.systemUser.findUnique.mockResolvedValue(admin('otro'));
     db.systemUser.count.mockResolvedValue(1);
@@ -234,8 +375,8 @@ describe('nunca quedarse sin administradores', () => {
     expect(db.systemUser.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ activo: false, sesionesDesde: expect.any(Date) }) })
     );
-    expect(db.accessLog.create).toHaveBeenCalledWith({
+    expect(db.accessLog.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ resultado: 'sesion_revocada', detalle: 'Cuenta desactivada por yo@x.cl' }),
-    });
+    }));
   });
 });

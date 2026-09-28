@@ -318,15 +318,54 @@ describe('transitionSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  test('acepta datosAccion como objeto libre', () => {
+  // Auditoria 27-sep-2026 (A08, B3): datosAccion deja de ser un objeto libre.
+  const uuid1 = '123e4567-e89b-12d3-a456-426614174000';
+  const uuid2 = '123e4567-e89b-12d3-a456-426614174001';
+
+  test('acepta datosAccion con ids validos y entrega presencial completa', () => {
     const result = transitionSchema.safeParse({
       nuevoEstado: 'equipos_entregados',
-      datosAccion: {
-        assetIds: ['uuid-1', 'uuid-2'],
-        lugarEntrega: 'Santiago',
-      },
+      datosAccion: { assetIds: [uuid1, uuid2], medioEntrega: 'presencial', lugarEntrega: 'Santiago' },
     });
     expect(result.success).toBe(true);
+  });
+
+  test('rechaza ids de equipo que no son UUID', () => {
+    const result = transitionSchema.safeParse({
+      nuevoEstado: 'equipos_entregados',
+      datosAccion: { assetIds: ['uuid-1'] },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('rechaza assetIds que no es una lista', () => {
+    const result = transitionSchema.safeParse({ nuevoEstado: 'equipos_entregados', datosAccion: { assetIds: 'abc' } });
+    expect(result.success).toBe(false);
+  });
+
+  test('entrega por Chilexpress exige N° de OT y ciudad', () => {
+    const result = transitionSchema.safeParse({
+      nuevoEstado: 'equipos_entregados',
+      datosAccion: { medioEntrega: 'chilexpress' },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const campos = result.error.issues.map((i) => i.path.join('.'));
+      expect(campos).toEqual(expect.arrayContaining(['datosAccion.otChilexpressEntrega', 'datosAccion.ciudadEntrega']));
+    }
+  });
+
+  test('rechaza un medio de entrega inexistente', () => {
+    const result = transitionSchema.safeParse({ nuevoEstado: 'equipos_entregados', datosAccion: { medioEntrega: 'en-bicicleta' } });
+    expect(result.success).toBe(false);
+  });
+
+  test('rechaza una fecha coordinada invalida', () => {
+    const result = transitionSchema.safeParse({
+      nuevoEstado: 'equipos_entregados',
+      datosAccion: { fechaEntregaCoordinada: 'mañana' },
+    });
+    expect(result.success).toBe(false);
   });
 });
 

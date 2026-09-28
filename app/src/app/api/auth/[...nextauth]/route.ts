@@ -3,6 +3,7 @@ import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
 import { authOptions } from "@/lib/auth";
 import { cerrarSesion, datosCliente } from "@/lib/services/accesoService";
+import { logger } from "@/lib/logger";
 
 // Fix for Next.js 16 + Turbopack: prevent static analysis of dynamic API route
 export const dynamic = 'force-dynamic';
@@ -22,8 +23,10 @@ async function POST(req: NextRequest, ctx: Contexto) {
     try {
       const token = await getToken({ req, secret: authOptions.secret });
       if (token) await cerrarSesion(token, datosCliente(req.headers));
-    } catch {
-      // El registro no puede impedir salir.
+    } catch (error) {
+      // El registro no puede impedir salir, pero una sesion que no llego a
+      // la lista negra sigue valida hasta vencer: tiene que quedar rastro.
+      logger.error("No se pudo anotar el cierre de sesión en la lista negra", error);
     }
   }
   return handler(req, ctx);

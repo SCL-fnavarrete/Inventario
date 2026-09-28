@@ -22,10 +22,13 @@ export type DatosAcceso = {
   sesionId?: string | null;
 };
 
-/** Registra un acceso. Nunca hace fallar el inicio de sesion por esto. */
-export async function registrarAcceso(d: DatosAcceso) {
+/**
+ * Registra un acceso y devuelve su id (null si no se pudo). Nunca hace
+ * fallar el inicio de sesion por esto.
+ */
+export async function registrarAcceso(d: DatosAcceso): Promise<string | null> {
   try {
-    await prisma.accessLog.create({
+    const fila = await prisma.accessLog.create({
       data: {
         email: d.email.toLowerCase().trim().slice(0, 200),
         usuarioId: d.usuarioId ?? null,
@@ -35,9 +38,37 @@ export async function registrarAcceso(d: DatosAcceso) {
         detalle: d.detalle?.slice(0, 300) ?? null,
         sesionId: d.sesionId ?? null,
       },
+      select: { id: true },
     });
+    return fila?.id ?? null;
   } catch (error) {
     logger.error('No se pudo registrar el acceso', { error: String(error) });
+    return null;
+  }
+}
+
+/**
+ * Cierra un intento de inicio de sesion que se anoto antes de revisar la
+ * clave (auditoria 27-sep-2026, 2.6): le pone su resultado real. Si el
+ * intento no alcanzo a anotarse (id null), lo registra ahora.
+ */
+export async function actualizarAcceso(id: string | null, d: DatosAcceso): Promise<void> {
+  if (!id) {
+    await registrarAcceso(d);
+    return;
+  }
+  try {
+    await prisma.accessLog.update({
+      where: { id },
+      data: {
+        resultado: d.resultado,
+        usuarioId: d.usuarioId ?? null,
+        detalle: d.detalle?.slice(0, 300) ?? null,
+        sesionId: d.sesionId ?? null,
+      },
+    });
+  } catch (error) {
+    logger.error('No se pudo actualizar el acceso', { error: String(error) });
   }
 }
 
@@ -87,8 +118,16 @@ export async function cerrarSesion(token: TokenSesion, cliente: { ip: string | n
 }
 
 /**
- * Direccion de red y navegador de quien hace la peticion. En Vercel la
- * direccion real viene en x-forwarded-for (la primera de la lista).
+ * Direccion de red y navegador de quien hace la peticion.
+ *
+ * x-forwarded-for lo puede escribir cualquiera: sin un proxy de confianza
+ * delante, basta con inventar una direccion distinta en cada intento para
+ * esquivar el bloqueo por equipo (auditoria 27-sep-2026, 2.6). Por eso solo
+ * se lee:
+ * - en Vercel, que reemplaza la cabecera con la direccion real (la primera);
+ * - con TRUST_PROXY=true (un proxy propio, ej. nginx), tomando la ultima
+ *   direccion de la lista, que es la que agrego ese proxy.
+ * En cualquier otro caso la direccion queda desconocida (null).
  */
 export function datosCliente(headers: Record<string, string | string[] | undefined> | Headers | undefined) {
   const leer = (nombre: string): string | undefined => {
@@ -97,7 +136,13 @@ export function datosCliente(headers: Record<string, string | string[] | undefin
     const valor = (headers as Record<string, string | string[] | undefined>)[nombre];
     return Array.isArray(valor) ? valor[0] : valor;
   };
-  const ip = leer('x-forwarded-for')?.split(',')[0]?.trim() || leer('x-real-ip') || null;
+  const lista = (leer('x-forwarded-for') ?? '')
+    .split(',')
+    .map((d) => d.trim())
+    .filter(Boolean);
+  let ip: string | null = null;
+  if (process.env.VERCEL) ip = lista[0] || leer('x-real-ip') || null;
+  else if (process.env.TRUST_PROXY === 'true') ip = lista[lista.length - 1] || leer('x-real-ip') || null;
   return { ip, navegador: leer('user-agent') ?? null };
 }
 
@@ -124,11 +169,34 @@ async function minutosBloqueados(
 }
 
 /**
+ * Tope global por correo, como multiplo del limite configurado (auditoria
+ * 27-sep-2026, 2.6): frena a quien reparte los intentos contra una misma
+ * cuenta entre muchas direcciones de red.
+ */
+export const FACTOR_TOPE_GLOBAL_CORREO = 4;
+
+export type BloqueoCorreo = { minutos: number; motivo: 'equipo' | 'global' | null };
+
+/**
  * Minutos que le quedan de bloqueo a un correo, o 0 si puede intentar.
  * Cuenta los intentos fallidos desde su ultimo ingreso correcto y dentro de
- * la ventana de bloqueo.
+ * la ventana de bloqueo, de dos formas:
+ * - desde esta direccion de red (`maxIntentos`): un tercero que se equivoca
+ *   a proposito ya no deja fuera al dueño de la cuenta desde otro lugar. Sin
+ *   direccion conocida cuenta todos los del correo, como antes;
+ * - desde cualquier lugar (`maxIntentos * FACTOR_TOPE_GLOBAL_CORREO`).
+ *
+ * `enCurso` son los intentos ya anotados que todavia no terminan (el propio,
+ * que se registra antes de revisar la clave): se suman al limite para que no
+ * adelanten el bloqueo.
  */
-export async function minutosDeBloqueo(email: string, maxIntentos: number, minutosBloqueo: number): Promise<number> {
+export async function minutosDeBloqueo(
+  email: string,
+  ip: string | null,
+  maxIntentos: number,
+  minutosBloqueo: number,
+  enCurso = 0
+): Promise<BloqueoCorreo> {
   const correo = email.toLowerCase().trim();
   const desde = new Date(Date.now() - minutosBloqueo * 60_000);
   const ultimoExito = await prisma.accessLog.findFirst({
@@ -136,7 +204,21 @@ export async function minutosDeBloqueo(email: string, maxIntentos: number, minut
     orderBy: { createdAt: 'desc' },
     select: { createdAt: true },
   });
-  return minutosBloqueados({ email: correo }, ultimoExito?.createdAt ?? desde, maxIntentos, minutosBloqueo);
+  const inicio = ultimoExito?.createdAt ?? desde;
+  const porEquipo = await minutosBloqueados(
+    ip ? { email: correo, ip } : { email: correo },
+    inicio,
+    maxIntentos + enCurso,
+    minutosBloqueo
+  );
+  const global = await minutosBloqueados(
+    { email: correo },
+    inicio,
+    maxIntentos * FACTOR_TOPE_GLOBAL_CORREO + enCurso,
+    minutosBloqueo
+  );
+  const minutos = Math.max(porEquipo, global);
+  return { minutos, motivo: minutos === 0 ? null : porEquipo >= global ? 'equipo' : 'global' };
 }
 
 /**
@@ -145,10 +227,15 @@ export async function minutosDeBloqueo(email: string, maxIntentos: number, minut
  * a quien prueba muchos correos. Un ingreso correcto de otra persona desde
  * la misma red (una oficina) no lo reinicia.
  */
-export async function minutosDeBloqueoEquipo(ip: string | null, maxIntentos: number, minutosBloqueo: number): Promise<number> {
+export async function minutosDeBloqueoEquipo(
+  ip: string | null,
+  maxIntentos: number,
+  minutosBloqueo: number,
+  enCurso = 0
+): Promise<number> {
   if (!ip) return 0;
   const desde = new Date(Date.now() - minutosBloqueo * 60_000);
-  return minutosBloqueados({ ip }, desde, maxIntentos, minutosBloqueo);
+  return minutosBloqueados({ ip }, desde, maxIntentos + enCurso, minutosBloqueo);
 }
 
 /** Cuanto se guarda el registro de accesos (decision de Javier, SPEC 2.112.6). */

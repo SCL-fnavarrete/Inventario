@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { rutSchema, rutOptionalSchema } from "./rut";
+import { rutOptionalSchema } from "./rut";
+import { MENSAJE_TERMINO_ANTES_DE_INGRESO, terminaAntesDeEmpezar } from "./ordenFechas";
 
 // Enums que coinciden con Prisma
 export const TipoContratoEnum = z.enum(["contrato", "boleta"]);
@@ -29,13 +30,13 @@ export const EstadoEmpleadoEnum = z.enum(["activo", "desvinculado", "licencia"])
 // Schema para crear un empleado
 export const createEmployeeSchema = z.object({
   rut: rutOptionalSchema,
-  nombres: z.string().min(1, "El nombre es requerido").max(100, "Máximo 100 caracteres"),
-  apellidoPaterno: z.string().min(1, "El apellido paterno es requerido").max(100, "Máximo 100 caracteres"),
+  nombres: z.string().trim().min(1, "El nombre es requerido").max(100, "Máximo 100 caracteres"),
+  apellidoPaterno: z.string().trim().min(1, "El apellido paterno es requerido").max(100, "Máximo 100 caracteres"),
   apellidoMaterno: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   // El obligatorio es el correo personal: es el unico que se exige y con
   // el que se identifica a la persona. El de empresa quedo opcional (se
   // conserva si viene del Excel, pero ya no es requisito).
-  correoPersonal: z.string().email("Email inválido").max(150, "Máximo 150 caracteres"),
+  correoPersonal: z.string().trim().email("Email inválido").max(150, "Máximo 150 caracteres"),
   correoEmpresa: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional().nullable(),
   cargo: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   jefatura: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
@@ -56,18 +57,27 @@ export const createEmployeeSchema = z.object({
   fechaEntregaKit: fechaOpcional,
   fechaEntregaEpp: fechaOpcional,
   proximaMantencionEpp: fechaOpcional,
+}).superRefine((datos, ctx) => {
+  if (terminaAntesDeEmpezar(datos.fechaIngreso, datos.fechaTermino)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["fechaTermino"],
+      message: MENSAJE_TERMINO_ANTES_DE_INGRESO,
+    });
+  }
 });
 
-// Schema para actualizar un empleado
+// Schema para actualizar un empleado. El orden ingreso/termino lo revisa la
+// ruta, que conoce la fecha ya guardada si solo llega una de las dos.
 export const updateEmployeeSchema = z.object({
   rut: rutOptionalSchema,
-  nombres: z.string().min(1, "El nombre es requerido").max(100, "Máximo 100 caracteres").optional(),
-  apellidoPaterno: z.string().min(1, "El apellido paterno es requerido").max(100, "Máximo 100 caracteres").optional(),
+  nombres: z.string().trim().min(1, "El nombre es requerido").max(100, "Máximo 100 caracteres").optional(),
+  apellidoPaterno: z.string().trim().min(1, "El apellido paterno es requerido").max(100, "Máximo 100 caracteres").optional(),
   apellidoMaterno: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   // Sigue siendo `.optional()` porque este schema permite actualizaciones
   // parciales (el campo puede no venir en la peticion), pero ya no acepta
   // null: un empleado no puede quedarse sin correo personal.
-  correoPersonal: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional(),
+  correoPersonal: z.string().trim().email("Email inválido").max(150, "Máximo 150 caracteres").optional(),
   correoEmpresa: z.string().email("Email inválido").max(150, "Máximo 150 caracteres").optional().nullable(),
   cargo: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   jefatura: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),

@@ -164,7 +164,11 @@ export function construirMapaSedes(sedes: SedeReferencia[]): Record<string, stri
  * Prioridad para quien tiene visibilidad total (admin):
  *   sede corregida a mano en esta fila > sede elegida para todo el archivo >
  *   deteccion automatica por la columna "Sede" de la fila. Si ninguna
- *   aplica, se informa el error -- nunca se adivina.
+ *   aplica, se informa el error -- nunca se adivina. La corregida y la
+ *   elegida para el archivo se validan contra las sedes reales antes de
+ *   usarse (pueden venir de una preferencia guardada que apunte a una
+ *   sede ya eliminada): si no existen, se informa el error igual que si
+ *   la columna del Excel no matcheara ninguna sede.
  *
  * Para un tecnico (amarrado a su sede sin excepcion): si la fila declara
  * explicitamente otra sede reconocida, se rechaza la fila en vez de
@@ -185,6 +189,12 @@ export function resolverSedeParaFila(
   | { error: "sede_ajena"; valorOriginal: string } {
   const valorNormalizado = clave(opts.valorSede ?? "");
   const sedeDetectada = valorNormalizado ? opts.mapaSedes[valorNormalizado] : undefined;
+  // Ids de sedes que existen HOY en la base (mapaSedes se arma en vivo por
+  // importacion). sedeIdExplicita/sedeIdCorregida pueden venir de una
+  // preferencia guardada (sede del navbar) que quedo apuntando a una sede
+  // ya eliminada; sin este chequeo llegaban intactos hasta el INSERT y
+  // reventaban con un error crudo de foreign key en vez de este mensaje.
+  const sedesVigentes = new Set(Object.values(opts.mapaSedes));
 
   if (!tieneVisibilidadTotal(session)) {
     if (sedeDetectada && sedeDetectada !== opts.sedeIdExplicita) {
@@ -195,8 +205,18 @@ export function resolverSedeParaFila(
     return { sedeId: opts.sedeIdExplicita! };
   }
 
-  if (opts.sedeIdCorregida) return { sedeId: opts.sedeIdCorregida };
-  if (opts.sedeIdExplicita) return { sedeId: opts.sedeIdExplicita };
+  if (opts.sedeIdCorregida) {
+    if (!sedesVigentes.has(opts.sedeIdCorregida)) {
+      return { error: "sede_no_reconocida", valorOriginal: "(sede corregida ya no existe)" };
+    }
+    return { sedeId: opts.sedeIdCorregida };
+  }
+  if (opts.sedeIdExplicita) {
+    if (!sedesVigentes.has(opts.sedeIdExplicita)) {
+      return { error: "sede_no_reconocida", valorOriginal: "(sede guardada ya no existe)" };
+    }
+    return { sedeId: opts.sedeIdExplicita };
+  }
 
   if (!sedeDetectada) {
     return { error: "sede_no_reconocida", valorOriginal: opts.valorSede ?? "" };

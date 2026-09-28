@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { convertExcelDateValue } from "@/lib/excel-utils";
+import { MAX_FILAS, validarCantidadFilas } from "@/lib/importacion/validarArchivo";
 
 // Filas de inicio conocidas por categoría. Todas usan fila 0 (primera fila)
 // como encabezado por defecto.
@@ -38,9 +39,16 @@ export function leerFilasExcel(
   // raw: true impide que SheetJS interprete por su cuenta las celdas que
   // "parecen" fecha. El parseo lo hace convertExcelDateValue, que conoce el
   // formato chileno dd-mm-aaaa y el serial numerico de Excel.
-  const workbook = XLSX.read(buffer, { type: "array", raw: true });
-  const worksheet = workbook.Sheets[sheetName];
   const headerRow = HEADER_ROWS[categoria?.toLowerCase()] ?? HEADER_ROWS.default;
+  // sheetRows corta la lectura en SheetJS: una hoja de cientos de miles de
+  // filas no se carga entera en memoria. Se lee una fila de mas para saber
+  // si el archivo se pasa del limite y rechazarlo, en vez de truncarlo.
+  const workbook = XLSX.read(buffer, {
+    type: "array",
+    raw: true,
+    sheetRows: headerRow + 1 + MAX_FILAS + 1,
+  });
+  const worksheet = workbook.Sheets[sheetName];
 
   const jsonData = XLSX.utils.sheet_to_json<string[]>(worksheet, {
     header: 1,
@@ -52,6 +60,7 @@ export function leerFilasExcel(
   const dataRows = jsonData.slice(headerRow + 1).filter((row) =>
     row.some((cell) => cell !== "" && cell !== null && cell !== undefined)
   );
+  validarCantidadFilas(dataRows.length);
 
   const columnIndex: Record<string, number> = {};
   Object.entries(mapping).forEach(([field, header]) => {

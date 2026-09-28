@@ -102,7 +102,7 @@ export function CatalogSelect({ endpoint, value, onChange, placeholder, classNam
             placeholder="Nombre de la opción nueva"
             className="field-input flex-1 text-sm"
           />
-          <button
+          <button aria-label="Guardar opción"
             type="button"
             onClick={handleAgregar}
             disabled={guardando || !nuevoNombre.trim()}
@@ -111,7 +111,7 @@ export function CatalogSelect({ endpoint, value, onChange, placeholder, classNam
           >
             <Check size={16} />
           </button>
-          <button
+          <button aria-label="Cancelar"
             type="button"
             onClick={() => {
               setAgregando(false);
@@ -143,7 +143,7 @@ export function CatalogSelect({ endpoint, value, onChange, placeholder, classNam
             </option>
           ))}
         </select>
-        <button
+        <button aria-label="Agregar opción nueva"
           type="button"
           onClick={() => {
             // Si el valor actual no calza con ninguna opcion del catalogo

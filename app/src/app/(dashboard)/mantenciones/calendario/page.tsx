@@ -208,7 +208,7 @@ export default function CalendarioMantencionesPage() {
         <div className="card lg:col-span-3 p-6">
           {/* Month Navigation */}
           <div className="flex items-center justify-between mb-6">
-            <button
+            <button aria-label="Mes anterior"
               onClick={prevMonth}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
@@ -217,7 +217,7 @@ export default function CalendarioMantencionesPage() {
             <h2 className="text-xl font-semibold">
               {MONTHS[month]} {year}
             </h2>
-            <button
+            <button aria-label="Mes siguiente"
               onClick={nextMonth}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >

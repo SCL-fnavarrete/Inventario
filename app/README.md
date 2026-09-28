@@ -60,7 +60,7 @@ DATABASE_URL="postgresql://usuario:password@localhost:5432/inventario_it?schema=
 
 # NextAuth
 NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="tu-secret-seguro-aqui"
+NEXTAUTH_SECRET="genera-uno-con: openssl rand -base64 32"
 
 # Microsoft Entra ID (opcional - para sincronizar empleados)
 MICROSOFT_TENANT_ID=""
@@ -87,11 +87,9 @@ La aplicación estará disponible en `http://localhost:3000`
 
 ## Usuario por Defecto
 
-Después de ejecutar el seed, podrás acceder con:
-- **Email**: admin@sclconsultores.com
-- **Password**: admin123
+El seed crea el primer administrador con el correo y la clave de `SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD` (en `.env`, ver `.env.example`). La clave debe tener 12 caracteres o más, con mayúscula, minúscula, número y símbolo. No hay una clave por defecto.
 
-Cambia la contraseña apenas inicies sesión. El seed (11-sep-2026) solo crea
+El seed (11-sep-2026) solo crea
 este usuario y el catálogo de categorías de activos -- ya no crea sedes,
 catálogo de Kit/EPP, empleados ni activos de ejemplo. El primer paso
 después de iniciar sesión es crear, desde Configuración, las sedes y el
@@ -254,7 +252,7 @@ El sistema valida automáticamente el formato y dígito verificador de RUTs chil
 ```env
 DATABASE_URL="postgresql://..."
 NEXTAUTH_URL="https://tu-dominio.com"
-NEXTAUTH_SECRET="secret-muy-seguro-de-produccion"
+NEXTAUTH_SECRET="genera-uno-con: openssl rand -base64 32"
 
 # Opcional - Microsoft Entra ID
 MICROSOFT_TENANT_ID="..."

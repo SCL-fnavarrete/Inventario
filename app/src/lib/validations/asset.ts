@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { normalizarImei, validarImei } from "@/lib/validations/imei";
+import {
+  MENSAJE_GARANTIA_ANTES_DE_COMPRA,
+  terminaAntesDeEmpezar,
+} from "@/lib/validations/ordenFechas";
 import type {
   EstadoActivo as PrismaEstadoActivo,
   CondicionActivo as PrismaCondicionActivo,
@@ -42,8 +46,8 @@ export const assetSchema = z.object({
   ),
 
   // Datos generales
-  marca: z.string().min(1, "La marca es requerida").max(50, "Máximo 50 caracteres"),
-  modelo: z.string().min(1, "El modelo es requerido").max(100, "Máximo 100 caracteres"),
+  marca: z.string().trim().min(1, "La marca es requerida").max(50, "Máximo 50 caracteres"),
+  modelo: z.string().trim().min(1, "El modelo es requerido").max(100, "Máximo 100 caracteres"),
 
   // Specs Notebook/PC
   procesador: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
@@ -84,29 +88,48 @@ export const assetSchema = z.object({
   intuneEnrolled: z.boolean().optional(),
   listaDistribucion: z.string().max(200, "Máximo 200 caracteres").optional().nullable(),
 
-  // Fechas (acepta YYYY-MM-DD o ISO 8601 completo)
+  // Fechas (acepta YYYY-MM-DD o ISO 8601 completo). fechaBaja no se recibe:
+  // la fija la baja en Mantenciones (SPEC 2.88), nunca una edicion.
   fechaCompra: z.string().optional().nullable(),
   fechaGarantiaFin: z.string().optional().nullable(),
-  fechaBaja: z.string().optional().nullable(),
 
   // Observaciones e incidencias
   observaciones: z.string().optional().nullable(),
   incidencia: z.string().optional().nullable(),
 });
 
+/**
+ * El fin de garantia no puede caer antes de la compra. Se exporta porque
+ * `.omit()` descarta los refinamientos: quien derive de createAssetSchema
+ * (ej. los equipos de una compra) debe volver a aplicarla.
+ */
+export function revisarOrdenGarantia(
+  datos: { fechaCompra?: string | null; fechaGarantiaFin?: string | null },
+  ctx: z.RefinementCtx
+): void {
+  if (terminaAntesDeEmpezar(datos.fechaCompra, datos.fechaGarantiaFin)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["fechaGarantiaFin"],
+      message: MENSAJE_GARANTIA_ANTES_DE_COMPRA,
+    });
+  }
+}
+
 // Schema para crear activo (campos requeridos)
 export const createAssetSchema = assetSchema.extend({
   categoriaId: z.string().uuid("ID de categoría inválido"),
-  marca: z.string().min(1, "La marca es requerida").max(50, "Máximo 50 caracteres"),
-  modelo: z.string().min(1, "El modelo es requerido").max(100, "Máximo 100 caracteres"),
+  marca: z.string().trim().min(1, "La marca es requerida").max(50, "Máximo 50 caracteres"),
+  modelo: z.string().trim().min(1, "El modelo es requerido").max(100, "Máximo 100 caracteres"),
   // Todo equipo que se registra nace disponible: es la unica posicion inicial
   // que el formulario puede respaldar con datos. 'asignado' exige empleado y
   // asignacion, eso lo hace la importacion, no el alta manual.
   // El desgaste fisico no va aqui: para eso esta el campo condicion.
   estado: z.literal("disponible").optional().default("disponible"),
-});
+}).superRefine(revisarOrdenGarantia);
 
-// Schema para actualizar activo (todos opcionales)
+// Schema para actualizar activo (todos opcionales). El orden compra/garantia
+// lo revisa la ruta, que conoce la fecha ya guardada si solo llega una.
 export const updateAssetSchema = assetSchema.partial();
 
 // Tipos TypeScript derivados

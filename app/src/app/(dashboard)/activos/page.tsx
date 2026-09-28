@@ -541,7 +541,7 @@ function ActivosPageContent() {
           <div className="flex items-center gap-2">
             <span className="text-sm text-fg-muted">Vista:</span>
             <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-              <button
+              <button aria-label="Vista de tabla"
                 onClick={() => setViewMode("table")}
                 className={cn(
                   "p-2 rounded transition-colors",
@@ -553,7 +553,7 @@ function ActivosPageContent() {
               >
                 <LayoutList size={18} />
               </button>
-              <button
+              <button aria-label="Vista de tarjetas"
                 onClick={() => setViewMode("cards")}
                 className={cn(
                   "p-2 rounded transition-colors",
@@ -565,7 +565,7 @@ function ActivosPageContent() {
               >
                 <LayoutGrid size={18} />
               </button>
-              <button
+              <button aria-label="Vista Kanban"
                 onClick={() => setViewMode("kanban")}
                 className={cn(
                   "p-2 rounded transition-colors",

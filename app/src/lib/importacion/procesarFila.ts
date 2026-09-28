@@ -52,6 +52,10 @@ export interface ContextoFila {
   /** Igual que existingSeriesSet, para los IMEI (SPEC 2.112.7). */
   existingImeiSet: Set<string>;
   employeeCache: Map<string, string>;
+  /** RUT de empleados ya existentes que estan desvinculados (ver
+   * precargarEmpleadosPorRut). Se completa tambien con los que se buscan
+   * fila por fila. */
+  empleadosDesvinculados: Set<string>;
 }
 
 export interface ResultadoFilaError {
@@ -80,6 +84,44 @@ export type ResultadoFila = ResultadoFilaError | ResultadoFilaValida | Resultado
  * nunca se usa como id real, asi que si por error llegara a la escritura se
  * trata explicitamente como si no hubiera cache (ver mas abajo). */
 const PLACEHOLDER_EMPLEADO_PENDIENTE = "(pendiente-en-esta-importacion)";
+
+/** Tamaño de cada `rut IN (...)` al precargar empleados. */
+const RUTS_POR_CONSULTA = 1000;
+
+/**
+ * Arma el `employeeCache` inicial con los empleados que ya existen para los
+ * RUT de la importacion (auditoria 27-sep-2026, 2.4). Antes cada fila hacia
+ * su propio `findUnique` por RUT: 5.000 filas eran 5.000 consultas. Ahora son
+ * unas pocas `IN`, de a mil RUT. Los RUT invalidos o vacios se ignoran: la
+ * fila los rechaza igual en procesarFila. Devuelve tambien que RUT estan
+ * desvinculados (2.9).
+ */
+export async function precargarEmpleadosPorRut(
+  valoresRut: string[],
+  prismaClient: Pick<typeof prismaSingleton, "employee">
+): Promise<Pick<ContextoFila, "employeeCache" | "empleadosDesvinculados">> {
+  const ruts = new Set<string>();
+  for (const valor of valoresRut) {
+    const lectura = interpretarRut(valor);
+    if (lectura.tipo === "valido") ruts.add(lectura.rut);
+  }
+
+  const employeeCache = new Map<string, string>();
+  const empleadosDesvinculados = new Set<string>();
+  const lista = [...ruts];
+  for (let i = 0; i < lista.length; i += RUTS_POR_CONSULTA) {
+    const encontrados = await prismaClient.employee.findMany({
+      where: { rut: { in: lista.slice(i, i + RUTS_POR_CONSULTA) } },
+      select: { id: true, rut: true, estado: true },
+    });
+    for (const e of encontrados) {
+      if (!e.rut) continue;
+      employeeCache.set(e.rut, e.id);
+      if (e.estado === "desvinculado") empleadosDesvinculados.add(e.rut);
+    }
+  }
+  return { employeeCache, empleadosDesvinculados };
+}
 
 /**
  * Reglas de negocio de UNA fila de importacion de Activos, compartidas entre
@@ -228,11 +270,12 @@ export async function procesarFila(
   if (debeAsignar && rutEmpleado && !empleadoExistenteId) {
     const encontrado = await prismaClient.employee.findUnique({
       where: { rut: rutEmpleado },
-      select: { id: true },
+      select: { id: true, estado: true },
     });
 
     if (encontrado) {
       empleadoExistenteId = encontrado.id;
+      if (encontrado.estado === "desvinculado") ctx.empleadosDesvinculados.add(rutEmpleado);
     } else {
       const nombres = obtener("nombre");
       const apellidoPaterno = obtener("apellidoP");
@@ -290,6 +333,20 @@ export async function procesarFila(
         sede: { connect: { id: sedeId } },
       };
     }
+  }
+
+  // Un equipo "asignado" a alguien que ya se desvinculo quedaria en manos de
+  // una persona que no esta en la empresa (auditoria 27-sep-2026, 2.9). No se
+  // decide por detras: si la planilla dice "No devuelto", pasa; si no, la
+  // fila queda para que alguien la corrija.
+  if (estado === "asignado" && rutEmpleado && ctx.empleadosDesvinculados.has(rutEmpleado)) {
+    return {
+      status: "error",
+      tipo: "empleado_desvinculado",
+      campo: "estado",
+      mensaje: `El empleado con RUT ${rutEmpleado} está desvinculado: usa el estado "No devuelto" o quita el RUT`,
+      data: datosFila,
+    };
   }
 
   const procesador = obtener("procesador") || null;

@@ -9,6 +9,7 @@ import {
   devueltasDespues,
   paresDeCambio,
 } from '@/lib/queries/asignacionesTicket';
+import { sinIdsDeUsuario } from '@/lib/utils/privacidad';
 
 // GET /api/solicitudes/[id] - Get full detail
 export async function GET(
@@ -38,17 +39,17 @@ export async function GET(
             },
           },
         },
-        solicitante: { select: { id: true, nombre: true, rol: true, email: true } },
-        responsableActual: { select: { id: true, nombre: true, rol: true, email: true } },
+        solicitante: { select: { nombre: true, rol: true, email: true } },
+        responsableActual: { select: { nombre: true, rol: true, email: true } },
         comments: {
           include: {
-            autor: { select: { id: true, nombre: true, rol: true } },
+            autor: { select: { nombre: true, rol: true } },
           },
           orderBy: { createdAt: 'desc' },
         },
         transitions: {
           include: {
-            ejecutadoPor: { select: { id: true, nombre: true, rol: true } },
+            ejecutadoPor: { select: { nombre: true, rol: true } },
           },
           orderBy: { createdAt: 'desc' },
         },
@@ -111,14 +112,14 @@ export async function GET(
           })
         : [];
 
-    return NextResponse.json({
+    return NextResponse.json(sinIdsDeUsuario({
       ...workflowRequest,
       equiposEntregados,
       equiposDevueltos,
       eppDevueltos,
       paresCambio,
       tieneActa,
-    });
+    }));
   } catch (error) {
     return handleApiError(error, 'Error al obtener solicitud');
   }
@@ -158,12 +159,12 @@ export async function PATCH(
       },
       include: {
         employee: true,
-        solicitante: { select: { id: true, nombre: true, rol: true } },
-        responsableActual: { select: { id: true, nombre: true, rol: true } },
+        solicitante: { select: { nombre: true, rol: true } },
+        responsableActual: { select: { nombre: true, rol: true } },
       },
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json(sinIdsDeUsuario(updated));
   } catch (error) {
     return handleApiError(error, 'Error al actualizar solicitud');
   }

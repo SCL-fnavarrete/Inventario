@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { CampoTexto, MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import { useEnvio } from "@/hooks/useEnvio";
 
 /**
  * Catalogos de Activos > Sistemas operativos / Antivirus / Licencias M365
@@ -37,6 +38,9 @@ export function OpcionesCatalogo({
   const toast = useToast();
   const [opciones, setOpciones] = useState<Opcion[]>([]);
   const [cargando, setCargando] = useState(true);
+  // Una accion de guardado a la vez: un doble clic ya no envia dos veces
+  // (auditoria 27-sep-2026, 6.2).
+  const { enviando, ejecutar } = useEnvio();
   const [creando, setCreando] = useState(false);
   const [nombre, setNombre] = useState("");
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -159,7 +163,7 @@ export function OpcionesCatalogo({
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  crear();
+                  ejecutar(crear);
                 }
               }}
               error={errores.nombre}
@@ -170,7 +174,7 @@ export function OpcionesCatalogo({
               <Button variant="outline" onClick={() => setCreando(false)}>
                 Cancelar
               </Button>
-              <Button leftIcon={<Save size={18} />} onClick={crear}>
+              <Button loading={enviando} leftIcon={<Save size={18} />} onClick={() => ejecutar(crear)}>
                 Guardar
               </Button>
             </div>
@@ -220,7 +224,7 @@ export function OpcionesCatalogo({
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
                                 e.preventDefault();
-                                renombrar(opcion);
+                                ejecutar(() => renombrar(opcion));
                               }
                               if (e.key === "Escape") setEditandoId(null);
                             }}
@@ -240,14 +244,15 @@ export function OpcionesCatalogo({
                       <div className="flex justify-end gap-2">
                         {editando ? (
                           <>
-                            <button
-                              onClick={() => renombrar(opcion)}
+                            <button aria-label="Guardar"
+                              onClick={() => ejecutar(() => renombrar(opcion))}
+                              disabled={enviando}
                               className="rounded p-1 text-green-600 hover:bg-green-50"
                               title="Guardar"
                             >
                               <Check size={18} />
                             </button>
-                            <button
+                            <button aria-label="Cancelar"
                               onClick={() => setEditandoId(null)}
                               className="rounded p-1 text-fg-subtle hover:bg-surface-muted"
                               title="Cancelar"

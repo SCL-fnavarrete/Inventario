@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { formatearFechaHoraCorta } from "@/lib/utils/fechas";
 import { buttonClasses } from "@/components/ui/buttonStyles";
+import { Button } from "@/components/ui/Button";
 import { ActiveBadge } from "@/components/ui/Badge";
 import { TablaAdaptable } from "@/components/ui/TablaAdaptable";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -20,6 +21,7 @@ import {
   claseCampo,
 } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import { useEnvio } from "@/hooks/useEnvio";
 import { validarPasswordFuerte } from "@/lib/validations/password";
 import { esCorreoValido } from "@/lib/utils/text";
 
@@ -102,6 +104,9 @@ export default function UsuariosPage() {
   const [users, setUsers] = useState<SystemUser[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [loading, setLoading] = useState(true);
+  // Bloquea "Crear" / "Guardar" mientras se envia: un doble clic ya no crea
+  // dos veces ni muestra "el correo ya existe" (auditoria 27-sep-2026, 6.2).
+  const { enviando: guardando, ejecutar } = useEnvio();
   const [editingId, setEditingId] = useState<string | null>(null);
   const editandoSedeInactiva = (() => {
     const sede = users.find((u) => u.id === editingId)?.sede;
@@ -283,6 +288,8 @@ export default function UsuariosPage() {
     }
   };
 
+  const guardar = () => ejecutar(() => (isCreating ? handleCreate() : handleUpdate(editingId!)));
+
   const startEdit = (user: SystemUser) => {
     setEditingId(user.id);
     setFormData({
@@ -454,13 +461,9 @@ export default function UsuariosPage() {
             >
               Cancelar
             </button>
-            <button
-              onClick={() => (isCreating ? handleCreate() : handleUpdate(editingId!))}
-              className={buttonClasses()}
-            >
-              <Save size={18} />
+            <Button loading={guardando} leftIcon={<Save size={18} />} onClick={guardar}>
               {isCreating ? "Crear Usuario" : "Guardar Cambios"}
-            </button>
+            </Button>
           </div>
         </div>
       )}

@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/Toast";
 import { TablaAdaptable } from "@/components/ui/TablaAdaptable";
 import { CampoFormulario, CampoTexto, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import { useEnvio } from "@/hooks/useEnvio";
 import { camposComunes, TIPOS_FICHA, TIPO_FICHA_LABEL, type CampoFicha } from "@/lib/constants/categorias";
 
 /**
@@ -55,6 +56,9 @@ export function CategoriasCatalogo() {
   const toast = useToast();
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [cargando, setCargando] = useState(true);
+  // Una accion de guardado a la vez: un doble clic ya no envia dos veces
+  // (auditoria 27-sep-2026, 6.2).
+  const { enviando, ejecutar } = useEnvio();
   // null = cerrado, "nueva" = creando, id = editando esa categoria.
   const [abierto, setAbierto] = useState<string | null>(null);
   const [form, setForm] = useState(FORM_INICIAL);
@@ -238,7 +242,7 @@ export function CategoriasCatalogo() {
             <Button variant="outline" onClick={cerrar}>
               Cancelar
             </Button>
-            <Button leftIcon={<Save size={18} />} onClick={guardar}>
+            <Button loading={enviando} leftIcon={<Save size={18} />} onClick={() => ejecutar(guardar)}>
               Guardar
             </Button>
           </div>
@@ -305,7 +309,8 @@ export function CategoriasCatalogo() {
       <ConfirmDialog
         isOpen={aEliminar !== null}
         onClose={() => setAEliminar(null)}
-        onConfirm={eliminar}
+        onConfirm={() => ejecutar(eliminar)}
+        loading={enviando}
         variant="danger"
         title="Eliminar categoría"
         message={`La categoría "${aEliminar?.nombre}" se borra del catálogo y deja de aparecer al crear activos. No tiene activos, así que no afecta a ninguno.`}

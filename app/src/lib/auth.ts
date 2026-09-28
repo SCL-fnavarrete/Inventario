@@ -4,11 +4,13 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "./prisma";
 import {
+  actualizarAcceso,
   datosCliente,
   limpiarRegistroAntiguo,
   minutosDeBloqueo,
   minutosDeBloqueoEquipo,
   registrarAcceso,
+  type DatosAcceso,
 } from "./services/accesoService";
 
 // Valores por defecto -- se usan mientras Configuracion > Seguridad no tenga
@@ -30,6 +32,25 @@ const HASH_RELLENO = "$2b$12$A1ssCqH/xtvgwitFuqmyWeE/6jkGpeTwRUFEzxU.a.n4RLRVH3F
 // calcula al iniciar sesion con el valor de Configuracion > Seguridad; este
 // tope solo tiene que ser mayor que el maximo permitido (720 horas).
 const TOPE_JWT_SEGUNDOS = 31 * 24 * 60 * 60;
+
+/** Largo maximo de una contrasena al iniciar sesion (auditoria 27-sep-2026, 2.6). */
+const LARGO_MAXIMO_CLAVE = 200;
+
+/**
+ * Secreto con que se cifran las sesiones. Con uno corto o conocido se pueden
+ * fabricar cookies de sesion validas (auditoria 27-sep-2026, F1-01), asi que
+ * en produccion la app no arranca sin uno de al menos 32 caracteres.
+ */
+const LARGO_MINIMO_SECRETO = 32;
+function secretoDeSesion(): string | undefined {
+  const secreto = process.env.NEXTAUTH_SECRET;
+  if (!secreto || secreto.length < LARGO_MINIMO_SECRETO) {
+    const mensaje = `NEXTAUTH_SECRET debe tener al menos ${LARGO_MINIMO_SECRETO} caracteres (genéralo con: openssl rand -base64 32)`;
+    if (process.env.NODE_ENV === "production") throw new Error(mensaje);
+    if (process.env.NODE_ENV === "development") console.warn(`[seguridad] ${mensaje}`);
+  }
+  return secreto;
+}
 
 /** Configuracion > Seguridad, leida en cada inicio de sesion (aplica de inmediato). */
 async function getConfigSeguridad() {
@@ -71,21 +92,48 @@ export const authOptions: NextAuthOptions = {
         const { maxIntentos, minutosBloqueo, horasSesion, maxIntentosIp, minutosBloqueoIp } =
           await getConfigSeguridad();
 
+        // El intento se anota ANTES de revisar nada, como fallido, y al final
+        // se corrige con su resultado real (auditoria 27-sep-2026, 2.6). Asi
+        // los intentos simultaneos se cuentan entre si: antes, 50 intentos a
+        // la vez pasaban todos la revision de bloqueo mientras bcrypt
+        // comparaba, porque ninguno se habia anotado todavia.
+        const intentoId = await registrarAcceso({ email, resultado: "clave_incorrecta", ...cliente });
+        const cerrarIntento = (d: Omit<DatosAcceso, "email" | "ip" | "navegador">) =>
+          actualizarAcceso(intentoId, { email, ...cliente, ...d });
+        // El propio intento ya esta en el registro: no debe adelantar el bloqueo.
+        const enCurso = intentoId ? 1 : 0;
+
         // Bloqueo por intentos fallidos, contados en el registro de accesos
         // (SPEC 2.112): funciona aunque el servidor corra en varias copias.
-        // Por correo y tambien por equipo (SPEC 2.112.6), para frenar a quien
-        // prueba muchos correos desde el mismo lugar.
-        const bloqueoCorreo = await minutosDeBloqueo(email, maxIntentos, minutosBloqueo);
-        const bloqueoEquipo = await minutosDeBloqueoEquipo(cliente.ip, maxIntentosIp, minutosBloqueoIp);
-        const bloqueo = Math.max(bloqueoCorreo, bloqueoEquipo);
+        // Por correo desde este equipo, por correo desde cualquier lugar (con
+        // un tope mas alto) y por equipo (SPEC 2.112.6 y 2.114).
+        const bloqueoCorreo = await minutosDeBloqueo(email, cliente.ip, maxIntentos, minutosBloqueo, enCurso);
+        const bloqueoEquipo = await minutosDeBloqueoEquipo(cliente.ip, maxIntentosIp, minutosBloqueoIp, enCurso);
+        const bloqueo = Math.max(bloqueoCorreo.minutos, bloqueoEquipo);
         if (bloqueo > 0) {
-          await registrarAcceso({
-            email,
+          await cerrarIntento({
             resultado: "bloqueado",
-            detalle: bloqueoEquipo >= bloqueoCorreo ? "Demasiados intentos desde este equipo" : null,
-            ...cliente,
+            detalle:
+              bloqueoEquipo >= bloqueoCorreo.minutos
+                ? "Demasiados intentos desde este equipo"
+                : bloqueoCorreo.motivo === "global"
+                  ? "Demasiados intentos contra esta cuenta desde distintos equipos"
+                  : null,
           });
           throw new Error(`Demasiados intentos. Intente en ${bloqueo} minuto${bloqueo === 1 ? "" : "s"}`);
+        }
+
+        // Mismo mensaje para "el correo no existe", "la cuenta esta
+        // desactivada" y "la contrasena no coincide", para no permitir
+        // enumerar cuentas reales probando correos uno por uno. El detalle
+        // real queda en el registro de accesos.
+        const CREDENCIALES_INVALIDAS = "Correo o contraseña incorrectos";
+
+        // Ninguna clave valida pasa de 200 caracteres (ver validarPasswordFuerte);
+        // una mas larga solo sirve para gastar CPU en bcrypt. Cuenta como fallo.
+        if (credentials.password.length > LARGO_MAXIMO_CLAVE) {
+          await cerrarIntento({ resultado: "clave_incorrecta", detalle: "Contraseña demasiado larga" });
+          throw new Error(CREDENCIALES_INVALIDAS);
         }
 
         const user = await prisma.systemUser.findUnique({
@@ -96,30 +144,24 @@ export const authOptions: NextAuthOptions = {
         // las respuestas tardan lo mismo (ver HASH_RELLENO).
         const isPasswordValid = await compare(credentials.password, user?.passwordHash ?? HASH_RELLENO);
 
-        // Mismo mensaje para "el correo no existe", "la cuenta esta
-        // desactivada" y "la contrasena no coincide", para no permitir
-        // enumerar cuentas reales probando correos uno por uno. El detalle
-        // real queda en el registro de accesos.
-        const CREDENCIALES_INVALIDAS = "Correo o contraseña incorrectos";
-
         if (!user) {
-          await registrarAcceso({ email, resultado: "usuario_inexistente", ...cliente });
+          await cerrarIntento({ resultado: "usuario_inexistente" });
           throw new Error(CREDENCIALES_INVALIDAS);
         }
         if (!user.activo) {
-          await registrarAcceso({ email, usuarioId: user.id, resultado: "usuario_inactivo", ...cliente });
+          await cerrarIntento({ usuarioId: user.id, resultado: "usuario_inactivo" });
           throw new Error(CREDENCIALES_INVALIDAS);
         }
 
         if (!isPasswordValid) {
-          await registrarAcceso({ email, usuarioId: user.id, resultado: "clave_incorrecta", ...cliente });
+          await cerrarIntento({ usuarioId: user.id, resultado: "clave_incorrecta" });
           throw new Error(CREDENCIALES_INVALIDAS);
         }
 
         // Tecnico de una sede desactivada (SPEC 2.112.6). Aqui la contrasena
         // ya es correcta, asi que se le dice el motivo.
         if (user.rol !== "admin" && user.sede && !user.sede.activa) {
-          await registrarAcceso({ email, usuarioId: user.id, resultado: "sede_inactiva", ...cliente });
+          await cerrarIntento({ usuarioId: user.id, resultado: "sede_inactiva" });
           throw new Error("Tu sede está desactivada. Pide a un administrador que te cambie de sede.");
         }
 
@@ -131,7 +173,7 @@ export const authOptions: NextAuthOptions = {
         // con su cierre en el registro y es lo que se anota en la lista negra
         // al cerrar sesion.
         const sesionId = randomUUID();
-        await registrarAcceso({ email, usuarioId: user.id, resultado: "exito", sesionId, ...cliente });
+        await cerrarIntento({ usuarioId: user.id, resultado: "exito", sesionId });
         await limpiarRegistroAntiguo();
 
         return {
@@ -231,5 +273,5 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
     maxAge: TOPE_JWT_SEGUNDOS,
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: secretoDeSesion(),
 };

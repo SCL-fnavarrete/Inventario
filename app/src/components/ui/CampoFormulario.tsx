@@ -25,10 +25,21 @@ export function claseInput(error?: string) {
 }
 
 /** Mensaje de error bajo un campo (no renderiza nada si no hay error). */
-export function MensajeCampo({ mensaje }: { mensaje?: string }) {
+export function MensajeCampo({ mensaje, id }: { mensaje?: string; id?: string }) {
   if (!mensaje) return null;
-  return <p className="mt-1 text-xs text-red-600">{mensaje}</p>;
+  return (
+    <p id={id} className="mt-1 text-xs text-red-600">
+      {mensaje}
+    </p>
+  );
 }
+
+/**
+ * Id del mensaje (error o ayuda) de un campo, para unirlo al control con
+ * aria-describedby: al entrar al campo el lector de pantalla lee el error
+ * (auditoria 27-sep-2026, 2.13).
+ */
+export const idDescripcion = (idCampo: string) => `${idCampo}-descripcion`;
 
 /**
  * Aviso de error de una seccion completa (ej. "elige al menos un equipo").
@@ -80,11 +91,18 @@ export function CampoFormulario({
   const idAuto = useId();
   let control = children;
   let idControl = htmlFor;
+  const hayDescripcion = !!error || !!ayuda;
   if (!idControl && isValidElement(children) && typeof children.type === "string" && CONTROLES_NATIVOS.includes(children.type)) {
-    const nativo = children as ReactElement<{ id?: string }>;
+    const nativo = children as ReactElement<{ id?: string; "aria-describedby"?: string }>;
     idControl = nativo.props.id ?? idAuto;
-    control = cloneElement(nativo, { id: idControl });
+    control = cloneElement(nativo, {
+      id: idControl,
+      "aria-describedby": hayDescripcion ? idDescripcion(idControl) : nativo.props["aria-describedby"],
+    });
   }
+  // Con un componente (htmlFor), el aria-describedby lo pone quien lo usa
+  // con el mismo idDescripcion(htmlFor) -- ver CampoTexto.
+  const idMensaje = idControl ? idDescripcion(idControl) : undefined;
   return (
     <div className={className}>
       <label className="field-label" htmlFor={idControl}>
@@ -93,9 +111,13 @@ export function CampoFormulario({
       </label>
       {control}
       {error ? (
-        <MensajeCampo mensaje={error} />
+        <MensajeCampo mensaje={error} id={idMensaje} />
       ) : (
-        ayuda && <p className="text-xs text-fg-subtle mt-1">{ayuda}</p>
+        ayuda && (
+          <p id={idMensaje} className="text-xs text-fg-subtle mt-1">
+            {ayuda}
+          </p>
+        )
       )}
     </div>
   );
@@ -144,6 +166,7 @@ export function CampoTexto({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-invalid={!!error}
+          aria-describedby={error || ayuda ? idDescripcion(idCampo) : undefined}
           className={claseInput(error)}
         />
       ) : (
@@ -154,6 +177,7 @@ export function CampoTexto({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-invalid={!!error}
+          aria-describedby={error || ayuda ? idDescripcion(idCampo) : undefined}
           className={claseInput(error)}
         />
       )}

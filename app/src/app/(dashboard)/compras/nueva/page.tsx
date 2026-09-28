@@ -467,7 +467,7 @@ export default function NuevaCompraPage() {
                   autoFocus
                   className="field-input pl-10 pr-4"
                 />
-                <button
+                <button aria-label="Cerrar búsqueda"
                   type="button"
                   onClick={() => {
                     setShowAssetSearch(false);
@@ -680,7 +680,7 @@ export default function NuevaCompraPage() {
                     onChange={(e) => updateKitItemCantidad(k.itemId, parseInt(e.target.value, 10) || 1)}
                     className="w-20 px-2 py-1 text-sm border border-line-strong rounded-lg text-center"
                   />
-                  <button
+                  <button aria-label="Quitar artículo"
                     type="button"
                     onClick={() => removeKitItem(k.itemId)}
                     className="p-1.5 text-red-500 hover:bg-red-50 rounded"

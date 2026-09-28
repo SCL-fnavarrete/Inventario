@@ -186,6 +186,7 @@ export async function POST(request: NextRequest) {
     // Crear asignación y actualizar activo en una transacción usando servicio compartido
     const result = await prisma.$transaction(async (tx) => {
       return executeAssignment(tx, {
+        sedeId: employeeParaAsignar.sedeId,
         assetId: data.assetId,
         employeeId: data.employeeId,
         fechaEntrega: data.fechaEntrega,

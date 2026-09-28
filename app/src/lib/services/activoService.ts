@@ -64,7 +64,6 @@ export async function crearActivo(
       condicion: datos.condicion || 'nuevo',
       fechaCompra: datos.fechaCompra ? new Date(datos.fechaCompra) : null,
       fechaGarantiaFin: datos.fechaGarantiaFin ? new Date(datos.fechaGarantiaFin) : null,
-      fechaBaja: datos.fechaBaja ? new Date(datos.fechaBaja) : null,
       procesador: datos.procesador || null,
       ram: datos.ram || null,
       discoDuro: datos.discoDuro || null,

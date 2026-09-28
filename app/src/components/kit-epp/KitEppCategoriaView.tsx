@@ -6,11 +6,13 @@ import { Plus, Edit, Trash2, Save, X } from "lucide-react";
 import { ActivosTabs } from "@/components/activos";
 import { useCampoSede, useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import { buttonClasses } from "@/components/ui/buttonStyles";
+import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { cn } from "@/lib/utils";
 import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import { useEnvio } from "@/hooks/useEnvio";
 
 // Nombre de cada campo en el resumen de errores.
 const ETIQUETAS_KIT: Record<string, string> = { nombre: "Nombre", sedeId: "Sede" };
@@ -76,6 +78,9 @@ export function KitEppCategoriaView({
   const [items, setItems] = useState<KitItem[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [loading, setLoading] = useState(true);
+  // Una accion de guardado a la vez: un doble clic ya no envia dos veces
+  // (auditoria 27-sep-2026, 6.2).
+  const { enviando, ejecutar } = useEnvio();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState(formInicial);
@@ -200,7 +205,7 @@ export function KitEppCategoriaView({
       titulo: "Eliminar artículo",
       mensaje: `"${item.nombre}" se borra del catálogo junto con su stock (${item.cantidad} unidad${item.cantidad === 1 ? "" : "es"}) y deja de poder asignarse en las solicitudes de onboarding. No se puede deshacer.`,
       textoBoton: "Eliminar",
-      onConfirm: () => handleDelete(item.id),
+      onConfirm: () => ejecutar(() => handleDelete(item.id)),
     });
   };
 
@@ -384,13 +389,9 @@ export function KitEppCategoriaView({
                 >
                   Cancelar
                 </button>
-                <button
-                  onClick={handleCreate}
-                  className={buttonClasses()}
-                >
-                  <Save size={18} />
+                <Button loading={enviando} leftIcon={<Save size={18} />} onClick={() => ejecutar(handleCreate)}>
                   Guardar
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -462,14 +463,15 @@ export function KitEppCategoriaView({
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => handleUpdate(item.id)}
+                            <button aria-label="Guardar"
+                              onClick={() => ejecutar(() => handleUpdate(item.id))}
+                              disabled={enviando}
                               className="p-1 text-green-600 hover:bg-green-50 rounded"
                               title="Guardar"
                             >
                               <Save size={18} />
                             </button>
-                            <button
+                            <button aria-label="Cancelar"
                               onClick={cancelEdit}
                               className="p-1 text-fg-muted hover:bg-gray-100 rounded"
                               title="Cancelar"
@@ -505,7 +507,7 @@ export function KitEppCategoriaView({
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-2">
-                            <button
+                            <button aria-label="Editar"
                               onClick={() => startEdit(item)}
                               className="p-1 text-primary-700 hover:bg-primary-50 rounded"
                               title="Editar"
@@ -517,7 +519,7 @@ export function KitEppCategoriaView({
                                 para tecnico en vez de dejar que el boton
                                 falle con un 403. */}
                             {isAdmin && (
-                              <button
+                              <button aria-label="Eliminar"
                                 onClick={() => pedirEliminar(item)}
                                 className="p-1 text-red-600 hover:bg-red-50 rounded"
                                 title="Eliminar"

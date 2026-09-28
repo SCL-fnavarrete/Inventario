@@ -7,7 +7,13 @@ import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
  * (SPEC 2.112.6).
  */
 
-/** Un usuario solo se asigna a una sede que existe y esta activa. */
+/**
+ * Un usuario solo se asigna a una sede que existe y esta activa. Desde la
+ * auditoria del 27-sep-2026 (2.9) tambien lo exige todo lo que NACE en una
+ * sede: alta de activos, articulos de Kit, importaciones y onboarding. Lo que
+ * saca cosas de una sede desactivada (guias, desvinculaciones, cambios de
+ * equipo) no pasa por aqui: la sede puede tener aun personas y equipos.
+ */
 export async function exigirSedeActiva(sedeId: string) {
   const sede = await prisma.sede.findUnique({ where: { id: sedeId }, select: { activa: true } });
   if (!sede) throw errorDeCampo('sedeId', 'La sede elegida no existe');

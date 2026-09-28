@@ -1,15 +1,21 @@
 version: '3.8'
 
+# Base de datos local de desarrollo.
+# - El puerto se publica solo en 127.0.0.1: antes quedaba en 0.0.0.0 y
+#   cualquier equipo de la misma red podia conectarse (auditoria 27-sep-2026,
+#   F1-03).
+# - La clave sale de POSTGRES_PASSWORD en .env (ver .env.example), en vez de
+#   estar escrita aqui y publicada en el repositorio.
 services:
   postgres:
     image: postgres:15-alpine
     container_name: inventario_postgres
     environment:
       POSTGRES_USER: inventario
-      POSTGRES_PASSWORD: inventario123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
       POSTGRES_DB: inventario_it_dev
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped

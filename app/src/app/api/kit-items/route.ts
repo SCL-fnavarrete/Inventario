@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError, errorRepetido } from '@/lib/auth/guard';
 import { sedeWhere, sedeIdParaCrear, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { exigirSedeActiva } from "@/lib/queries/sedes";
 import { createKitItemSchema } from '@/lib/validations/kitItem';
 import { auditLogService } from '@/lib/services/auditLogService';
 
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest) {
     const validated = createKitItemSchema.parse(body);
     // Obligatoria: un articulo sin sede no aparece al filtrar por sede.
     const sedeId = sedeIdParaCrear(session, validated.sedeId, { requerido: true });
+    if (sedeId) await exigirSedeActiva(sedeId);
 
     // El nombre no se duplica dentro de la misma sede/categoria, pero dos
     // sedes distintas si pueden tener un articulo con el mismo nombre --
