@@ -115,6 +115,8 @@ export async function darDeBajaEnTransaccion(
     };
     /** Tipo si no hay mantencion abierta que cerrar. */
     tipo: { id: string; nombre: string };
+    /** De motivoParaBaja: el motivo de la lista y su texto (SPEC 2.116.5). */
+    motivoBajaId: string;
     motivoTexto: string;
     resultado: string;
     fechaRealizada: Date;
@@ -133,6 +135,7 @@ export async function darDeBajaEnTransaccion(
     realizadoPor: datos.realizadoPor,
     resultado: datos.resultado,
     resultadoTipo: 'no_reparable',
+    motivoBajaId: datos.motivoBajaId,
     motivoBaja: motivoTexto,
   };
 

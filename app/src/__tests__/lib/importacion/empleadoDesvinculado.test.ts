@@ -1,6 +1,6 @@
 /** @jest-environment node */
 import { procesarFila, type ContextoFila } from "@/lib/importacion/procesarFila";
-import { interpretarRut } from "@/lib/importacion/activos";
+import { construirMapaCatalogo, interpretarRut } from "@/lib/importacion/activos";
 
 // Auditoria 27-sep-2026, 2.9: un equipo no queda "asignado" a alguien que ya
 // se desvinculo.
@@ -13,6 +13,7 @@ const ctx = (desvinculados: string[]): ContextoFila => ({
   tipoMantencionId: "",
   sedeIdExplicita: "s1",
   mapaSedes: { santiago: "s1" },
+  mapaMarcas: construirMapaCatalogo([{ nombre: "Dell" }]),
   mapaSistemasOperativos: {},
   mapaAntivirus: {},
   mapaLicenciasM365: {},
@@ -46,4 +47,15 @@ test("también lo detecta cuando el empleado se busca fila por fila", async () =
   const c = { ...ctx([]), employeeCache: new Map<string, string>() };
   const r = await procesarFila(fila("Asignado"), c, { employee: { findUnique } } as never, true);
   expect(r).toMatchObject({ status: "error", tipo: "empleado_desvinculado" });
+});
+
+// SPEC 2.116.4: la marca sale del catalogo.
+test("la marca se escribe como en el catálogo aunque venga en mayúsculas", async () => {
+  const r = await procesarFila({ ...fila("Disponible"), marca: "DELL" }, ctx([]), prismaFalso, true);
+  expect(r.status).toBe("valid");
+});
+
+test("una marca que no está en el catálogo queda en revisión", async () => {
+  const r = await procesarFila({ ...fila("Disponible"), marca: "Del" }, ctx([]), prismaFalso, true);
+  expect(r).toMatchObject({ status: "error", tipo: "catalogo_no_reconocido", campo: "marca" });
 });

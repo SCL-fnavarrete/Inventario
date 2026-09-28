@@ -287,7 +287,7 @@ export function ActivoForm({
   function validar(): Record<string, string> {
     const e: Record<string, string> = {};
     if (!values.categoriaId) e.categoriaId = "Elige la categoría";
-    if (!values.marca.trim()) e.marca = "Escribe la marca";
+    if (!values.marca.trim()) e.marca = "Elige la marca";
     if (!values.modelo.trim()) e.modelo = "Escribe el modelo";
     // Lo que identifica al equipo (SPEC 2.112.7): el IMEI en los celulares
     // (el N° de serie ahi es opcional) y el N° de serie en los demas.
@@ -346,7 +346,16 @@ export function ActivoForm({
           </select>
         </Campo>
         <Campo label="Marca *" error={error("marca")}>
-          <input type="text" {...bind("marca")} required />
+          {/* De una lista (SPEC 2.116.4): cada marca se escribe de una sola forma. */}
+          <CatalogSelect
+            endpoint="/api/marcas"
+            value={values.marca}
+            onChange={(v) => {
+              set("marca")(v);
+              limpiar("marca");
+            }}
+            placeholder="Selecciona una marca"
+          />
         </Campo>
         <Campo label="Modelo *" error={error("modelo")}>
           <input type="text" {...bind("modelo")} required />

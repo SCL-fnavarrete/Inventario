@@ -90,7 +90,7 @@ type Ficha = {
     jefatura: string | null;
     supervisor: string | null;
     ubicacion: string | null;
-    tipoContrato: TipoContrato;
+    tipoContrato: TipoContrato | null; // null: importado, aun sin definir
     fechaIngreso: string | null;
     fechaTermino: string | null;
     estado: EstadoEmpleado;
@@ -282,7 +282,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
           <div className="flex items-center gap-2">
             <Calendar size={18} className="text-primary-300" />
             <span>
-              {tipoContratoLabels[ficha.empleado.tipoContrato]} desde{" "}
+              {ficha.empleado.tipoContrato ? tipoContratoLabels[ficha.empleado.tipoContrato] : "Contrato sin definir,"} desde{" "}
               {formatearFecha(ficha.empleado.fechaIngreso, {}, "-")}
             </span>
           </div>

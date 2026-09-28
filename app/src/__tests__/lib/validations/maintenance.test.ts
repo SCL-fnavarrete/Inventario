@@ -321,20 +321,22 @@ describe('Maintenance Validation - completeMaintenanceSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  test('should reject resultadoTipo no_reparable with empty motivoBaja', () => {
+  // SPEC 2.116.5: el motivo se elige de la lista; el detalle es aparte.
+  test('should reject resultadoTipo no_reparable with only a detail', () => {
     const result = completeMaintenanceSchema.safeParse({
       ...validCompletion,
       resultadoTipo: 'no_reparable',
-      motivoBaja: '',
+      motivoDetalle: 'Placa madre dañada',
     })
     expect(result.success).toBe(false)
   })
 
-  test('should accept resultadoTipo no_reparable with motivoBaja', () => {
+  test('should accept resultadoTipo no_reparable with a motive from the list', () => {
     const result = completeMaintenanceSchema.safeParse({
       ...validCompletion,
       resultadoTipo: 'no_reparable',
-      motivoBaja: 'Placa madre dañada, sin reparación posible',
+      motivoBajaId: '3f2504e0-4f89-41d3-9a0c-0305e82c3309',
+      motivoDetalle: 'Placa madre dañada, sin reparación posible',
     })
     expect(result.success).toBe(true)
   })
@@ -433,7 +435,7 @@ describe('bajaPorMantencionSchema', () => {
   const valida = {
     assetId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
     tipoId: '3f2504e0-4f89-41d3-9a0c-0305e82c3302',
-    motivo: 'falla_irreparable',
+    motivoBajaId: '3f2504e0-4f89-41d3-9a0c-0305e82c3309',
     fechaRealizada: '2026-09-23',
     realizadoPor: 'Técnico',
   }
@@ -444,15 +446,10 @@ describe('bajaPorMantencionSchema', () => {
     if (r.success) expect(r.data.fechaRealizada).toBeInstanceOf(Date)
   })
 
-  test('"Otro" exige describir el motivo', () => {
-    expect(bajaPorMantencionSchema.safeParse({ ...valida, motivo: 'otro' }).success).toBe(false)
-    expect(
-      bajaPorMantencionSchema.safeParse({ ...valida, motivo: 'otro', motivoDetalle: 'Se mojó' }).success
-    ).toBe(true)
-  })
-
-  test('rechaza un motivo que no existe y una fecha invalida', () => {
-    expect(bajaPorMantencionSchema.safeParse({ ...valida, motivo: 'aburrimiento' }).success).toBe(false)
+  // Que "Otro" pida detalle lo revisa motivoParaBaja (conoce la lista).
+  test('exige el motivo de la lista y una fecha valida', () => {
+    expect(bajaPorMantencionSchema.safeParse({ ...valida, motivoBajaId: undefined }).success).toBe(false)
+    expect(bajaPorMantencionSchema.safeParse({ ...valida, motivoBajaId: 'robo' }).success).toBe(false)
     expect(bajaPorMantencionSchema.safeParse({ ...valida, fechaRealizada: 'ayer' }).success).toBe(false)
   })
 })

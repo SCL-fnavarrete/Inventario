@@ -1,6 +1,5 @@
 import {
   assetVentaSchema,
-  motivoBajaEnum,
   resultadoMantencionEnum,
 } from '@/lib/validations/assetTransition';
 
@@ -68,14 +67,6 @@ describe('assetVentaSchema', () => {
 // pruebas de ese enum mas abajo).
 
 // Enums
-describe('motivoBajaEnum', () => {
-  test('acepta los 5 motivos válidos', () => {
-    ['obsolescencia', 'falla_irreparable', 'robo', 'extravio', 'otro'].forEach((m) => {
-      expect(motivoBajaEnum.safeParse(m).success).toBe(true);
-    });
-  });
-});
-
 describe('resultadoMantencionEnum', () => {
   test('acepta los 3 resultados válidos', () => {
     ['reparado', 'no_reparable', 'pendiente_repuestos'].forEach((r) => {

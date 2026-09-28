@@ -58,9 +58,21 @@ describe('opciones de catálogo (una sola lógica para los tres)', () => {
     db.licenciaMicrosoft365.findMany.mockResolvedValue([{ id: '1', nombre: 'E3', activo: true }]);
     db.asset.groupBy.mockResolvedValue([{ tipoLicenciaMicrosoft365: 'E3', _count: 4 }]);
     expect(await listarOpciones('licencias-m365', { conUso: true })).toEqual([
-      { id: '1', nombre: 'E3', activo: true, enUso: 4 },
+      { id: '1', nombre: 'E3', activo: true, enUso: 4, enSede: 4 },
     ]);
     expect(db.asset.groupBy).toHaveBeenCalledWith(expect.objectContaining({ by: ['tipoLicenciaMicrosoft365'] }));
+  });
+
+  test('enUso cuenta todas las sedes; enSede, solo los vigentes de la sede del navbar', async () => {
+    db.antivirus.findMany.mockResolvedValue([{ id: '1', nombre: 'Defender', activo: true }]);
+    db.asset.groupBy
+      .mockResolvedValueOnce([{ antivirus: 'Defender', _count: 9 }])
+      .mockResolvedValueOnce([{ antivirus: 'Defender', _count: 2 }]);
+    const [opcion] = await listarOpciones('antivirus', { conUso: true, whereSede: { sedeId: 's1' } });
+    expect(opcion).toMatchObject({ enUso: 9, enSede: 2 });
+    expect(db.asset.groupBy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ sedeId: 's1', deletedAt: null }) })
+    );
   });
 
   test('crear queda en la auditoría con quién fue (también un técnico)', async () => {
@@ -176,7 +188,7 @@ describe('categorías', () => {
   });
 
   test('celular: en la importación, una fila sin IMEI es un error marcado en su campo', async () => {
-    const ctxFila = { exigeImei: true, existingImeiSet: new Set(['356938035643809']) } as unknown as Parameters<typeof procesarFila>[1];
+    const ctxFila = { exigeImei: true, mapaMarcas: { samsung: 'Samsung' }, existingImeiSet: new Set(['356938035643809']) } as unknown as Parameters<typeof procesarFila>[1];
     const sinImei = await procesarFila({ marca: 'Samsung', modelo: 'A15' }, ctxFila, {} as never, true);
     expect(sinImei).toMatchObject({ status: 'error', campo: 'imei', mensaje: 'Campos faltantes: IMEI' });
     const malo = await procesarFila({ marca: 'Samsung', modelo: 'A15', imei: '356938035643808' }, ctxFila, {} as never, true);

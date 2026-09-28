@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission, handleApiError } from "@/lib/auth/guard";
+import { sedeWhereConFiltro } from "@/lib/auth/sedeScope";
 import { opcionCatalogoSchema } from "@/lib/validations/categoria";
 import { crearOpcion, listarOpciones } from "@/lib/services/catalogoOpcionesService";
 
@@ -7,13 +8,18 @@ import { crearOpcion, listarOpciones } from "@/lib/services/catalogoOpcionesServ
 // misma para los tres catalogos y vive en catalogoOpcionesService.
 
 // GET: opciones para los selectores; ?activas=true solo las activas y
-// ?conUso=true cuantos activos tienen cada una (para avisar antes de eliminar).
+// ?conUso=true cuantos activos tienen cada una: en todas las sedes y en la
+// del navbar (?sedeId=, SPEC 2.116.3).
 export async function GET(request: NextRequest) {
   try {
-    await requirePermission("activos", "read");
+    const session = await requirePermission("activos", "read");
     const p = request.nextUrl.searchParams;
     return NextResponse.json(
-      await listarOpciones("antivirus", { soloActivas: p.get("activas") === "true", conUso: p.get("conUso") === "true" })
+      await listarOpciones("antivirus", {
+        soloActivas: p.get("activas") === "true",
+        conUso: p.get("conUso") === "true",
+        whereSede: sedeWhereConFiltro(session, p.get("sedeId")),
+      })
     );
   } catch (error) {
     return handleApiError(error, "Error al obtener opciones");

@@ -8,15 +8,6 @@ export const assetTransitionSchema = z.object({
   motivo: textoLibre(1000),
 });
 
-// Proceso de baja de un activo
-export const motivoBajaEnum = z.enum([
-  'obsolescencia',
-  'falla_irreparable',
-  'robo',
-  'extravio',
-  'otro',
-]);
-
 // Proceso de venta de un activo
 export const assetVentaSchema = z.object({
   comprador: z.string().min(1, 'El comprador es requerido').max(200),
@@ -36,5 +27,4 @@ export const resultadoMantencionEnum = z.enum(['reparado', 'no_reparable', 'pend
 // Tipos inferidos
 export type AssetTransitionInput = z.infer<typeof assetTransitionSchema>;
 export type AssetVentaInput = z.infer<typeof assetVentaSchema>;
-export type MotivoBaja = z.infer<typeof motivoBajaEnum>;
 export type ResultadoMantencion = z.infer<typeof resultadoMantencionEnum>;

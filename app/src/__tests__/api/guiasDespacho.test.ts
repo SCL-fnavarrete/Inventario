@@ -5,6 +5,8 @@
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     dispatchGuide: { findUnique: jest.fn() },
+    // El equipo perdido usa el motivo "Extravío" de la lista (SPEC 2.116.5).
+    motivoBaja: { findFirst: jest.fn().mockResolvedValue({ id: 'mb-extravio', nombre: 'Extravío', clave: 'extravio' }) },
     $transaction: jest.fn(),
   },
 }));
@@ -208,7 +210,10 @@ describe('POST /api/guias-despacho/[id]/items/[itemId] (resolver faltante)', () 
     expect(res.status).toBe(200);
     expect(darDeBajaEnTransaccion).toHaveBeenCalledWith(
       tx,
-      expect.objectContaining({ motivoTexto: expect.stringMatching(/^Extravío: No venía en la caja/) })
+      expect.objectContaining({
+        motivoBajaId: 'mb-extravio',
+        motivoTexto: expect.stringMatching(/^Extravío: No venía en la caja/),
+      })
     );
     expect(tx.dispatchGuideItem.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'i1' }, data: expect.objectContaining({ estado: 'perdido' }) })

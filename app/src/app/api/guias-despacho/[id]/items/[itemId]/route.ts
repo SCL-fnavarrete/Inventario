@@ -15,7 +15,7 @@ import {
   buscarGuiaVisible,
   recibirEquipos,
 } from '@/lib/services/guiaDespachoService';
-import { etiquetaMotivoBaja } from '@/lib/constants/estadosActivo';
+import { motivoParaBaja } from '@/lib/services/motivoBajaService';
 
 interface RouteParams {
   params: Promise<{ id: string; itemId: string }>;
@@ -131,7 +131,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       // Toda baja pasa por una mantencion "Sin reparación" (SPEC 2.88), con la
       // misma logica que la baja de Mantenciones.
-      const motivoTexto = `${etiquetaMotivoBaja('extravio')}: ${detalle}`;
+      // Siempre el motivo "Extravío" de la lista (SPEC 2.116.5), con lo que se escribió como detalle.
+      const { motivoBajaId, motivoTexto } = await motivoParaBaja(prisma, { clave: 'extravio' }, detalle);
       const transicion = validateTransition('en_transito', 'baja', {
         hasActiveAssignment: false,
         hasActiveMaintenance: false,
@@ -159,6 +160,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         await darDeBajaEnTransaccion(tx, {
           asset,
           tipo,
+          motivoBajaId,
           motivoTexto,
           resultado: `Perdido en el despacho (despacho ${guia.numero}): ${detalle}`,
           fechaRealizada: new Date(),

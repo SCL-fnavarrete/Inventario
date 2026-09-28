@@ -244,6 +244,14 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
   const resolverFaltantes = puedeRecibir && (guide.estado === "en_transito" || guide.estado === "recibida_parcial");
   // "Aparecio" tambien en un despacho ya recibido (SPEC 2.111.4).
   const mostrarAcciones = puedeRecibir && guide.estado !== "anulada";
+  // Una fila tiene boton si el equipo se perdio ("Apareció") o sigue en
+  // camino ("Llegó" / "Se perdió"). La columna solo sale si alguna fila lo tiene.
+  const accionEquipo = (i: (typeof guide.items)[number]) =>
+    mostrarAcciones && (i.estado === "perdido" || (resolverFaltantes && i.estado === "en_transito"));
+  const accionKit = (k: (typeof guide.kitItems)[number]) =>
+    mostrarAcciones && (k.cantidadPerdida > 0 || (resolverFaltantes && pendienteKit(k) > 0));
+  const columnaEquipos = guide.items.some(accionEquipo);
+  const columnaKit = guide.kitItems.some(accionKit);
   const deReparto = !!guide.purchaseId;
   const faltantesTexto = [
     pendientes.length > 0 && (pendientes.length === 1 ? "1 equipo" : `${pendientes.length} equipos`),
@@ -400,7 +408,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
                 <th className="table-th px-4 hidden md:table-cell">N° Serie</th>
                 <th className="table-th px-4 hidden md:table-cell">Especificaciones</th>
                 <th className="table-th px-4">Estado</th>
-                {mostrarAcciones && <th className="table-th px-4 text-right hidden md:table-cell">Acciones</th>}
+                {columnaEquipos && <th className="table-th px-4 text-right hidden md:table-cell">Acciones</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -471,7 +479,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
                         {ESTADO_ITEM_GUIA_LABELS[item.estado]}
                       </span>
                     </td>
-                    {mostrarAcciones && (
+                    {columnaEquipos && (
                       <td className="px-4 py-3 text-right whitespace-nowrap hidden md:table-cell">
                         {acciones("flex justify-end gap-2")}
                       </td>
@@ -501,7 +509,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
                   <th className="table-th px-4 text-center hidden sm:table-cell">Recibido</th>
                   <th className="table-th px-4 text-center hidden sm:table-cell">Perdido</th>
                   <th className="table-th px-4 text-center">Pendiente</th>
-                  {mostrarAcciones && <th className="table-th px-4 text-right">Acciones</th>}
+                  {columnaKit && <th className="table-th px-4 text-right">Acciones</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -533,7 +541,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
                       <td className="px-4 py-3 text-center text-sm">
                         <span className={pendiente > 0 ? "font-medium text-sky-700" : "text-fg-subtle"}>{pendiente}</span>
                       </td>
-                      {mostrarAcciones && (
+                      {columnaKit && (
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap justify-end gap-2">
                             {pendiente > 0 && guide.estado === "recibida_parcial" && (

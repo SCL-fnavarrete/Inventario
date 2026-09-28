@@ -42,6 +42,7 @@ export interface ContextoFila {
   /** Igual que mapaSedes, pero para las opciones de cada catalogo
    * administrable (Configuracion > Opciones de Activos): texto normalizado
    * -> nombre canonico. Se arman una sola vez por importacion. */
+  mapaMarcas: Record<string, string>;
   mapaSistemasOperativos: Record<string, string>;
   mapaAntivirus: Record<string, string>;
   mapaLicenciasM365: Record<string, string>;
@@ -160,6 +161,20 @@ export async function procesarFila(
       campo: !marca ? "marca" : !modelo ? "modelo" : faltaSerie ? "numeroSerie" : "imei",
     };
   }
+
+  // Marca: debe calzar con el catalogo (SPEC 2.116.4). "DELL" o "dell"
+  // quedan como "Dell"; una que no existe va a revision, donde se elige o se crea.
+  const resolucionMarca = resolverValorCatalogo(marca, ctx.mapaMarcas);
+  if ("error" in resolucionMarca) {
+    return {
+      status: "error",
+      tipo: resolucionMarca.error,
+      campo: "marca",
+      mensaje: `Marca no reconocida: "${resolucionMarca.valorOriginal}". Selecciona una opción del catálogo o créala.`,
+      data: datosFila,
+    };
+  }
+  const marcaCatalogo = resolucionMarca.valor ?? marca;
 
   // IMEI: formato valido y unico, en la base y en el mismo archivo.
   if (imeiFila) {
@@ -328,7 +343,9 @@ export async function procesarFila(
         jefatura: obtener("jefatura") || null,
         supervisor: obtener("supervisor") || null,
         ubicacion: obtener("comuna") || null,
-        tipoContrato: "contrato",
+        // El Excel no dice si es contrato u honorarios: queda sin definir
+        // y se elige al editar el empleado.
+        tipoContrato: null,
         estado: "activo",
         sede: { connect: { id: sedeId } },
       };
@@ -460,7 +477,7 @@ export async function procesarFila(
       data: {
         categoriaId: ctx.categoriaId,
         sedeId,
-        marca,
+        marca: marcaCatalogo,
         modelo,
         nombreEquipo,
         // En celulares la serie es opcional: vacia queda null (es unica).

@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/Toast";
 import { CampoTexto, MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 import { useEnvio } from "@/hooks/useEnvio";
+import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 
 /**
  * Catalogos de Activos > Sistemas operativos / Antivirus / Licencias M365
@@ -21,19 +22,49 @@ import { useEnvio } from "@/hooks/useEnvio";
  * tenian el nombre anterior (lo hace el backend); eliminar no los toca.
  */
 
-type Opcion = { id: string; nombre: string; activo: boolean; enUso: number };
+// enUso: todas las sedes (avisos); enSede: la sede del navbar (SPEC 2.116.3).
+// protegido: lo usa el sistema y no se elimina (motivos de baja, 2.116.5).
+type Opcion = {
+  id: string;
+  nombre: string;
+  activo: boolean;
+  enUso: number;
+  enSede: number;
+  protegido?: boolean;
+};
 
 const ETIQUETAS = { nombre: "Nombre" };
 const activos = (n: number) => `${n} activo${n === 1 ? "" : "s"}`;
+
+/** Textos que cambian segun el catalogo. Por defecto, los de las opciones del activo. */
+export type TextosCatalogo = {
+  unidad: (n: number) => string;
+  ayuda: string;
+  renombrada: (n: number) => string;
+  avisoEliminar: (nombre: string, n: number) => string;
+};
+
+const TEXTOS_ACTIVO: TextosCatalogo = {
+  unidad: activos,
+  ayuda:
+    "Renombrar corrige también los activos que ya la tenían. Eliminar no modifica los activos existentes, solo deja de ofrecerla para los nuevos.",
+  renombrada: (n) => (n ? `Opción renombrada y ${activos(n)} corregidos` : "Opción renombrada"),
+  avisoEliminar: (nombre, n) =>
+    n > 0
+      ? `"${nombre}" está guardada en ${activos(n)} (todas las sedes). Esos activos conservan el dato tal cual, pero la opción dejará de estar disponible para activos nuevos. ¿Eliminar de todas formas?`
+      : `¿Eliminar la opción "${nombre}"?`,
+};
 
 export function OpcionesCatalogo({
   endpoint,
   titulo,
   placeholder,
+  textos = TEXTOS_ACTIVO,
 }: {
   endpoint: string;
   titulo: string;
   placeholder: string;
+  textos?: TextosCatalogo;
 }) {
   const toast = useToast();
   const [opciones, setOpciones] = useState<Opcion[]>([]);
@@ -53,14 +84,17 @@ export function OpcionesCatalogo({
   // la vez.
   const { errores, resumen, reportar, reportarServidor, limpiar } = useErroresFormulario(ETIQUETAS);
 
+  const { sedeSeleccionada } = useSedeSeleccionada();
+
   const cargar = useCallback(async () => {
     try {
-      const res = await fetch(`${endpoint}?conUso=true`);
+      const sede = sedeSeleccionada ? `&sedeId=${sedeSeleccionada}` : "";
+      const res = await fetch(`${endpoint}?conUso=true${sede}`);
       if (res.ok) setOpciones(await res.json());
     } finally {
       setCargando(false);
     }
-  }, [endpoint]);
+  }, [endpoint, sedeSeleccionada]);
 
   useEffect(() => {
     cargar();
@@ -72,7 +106,7 @@ export function OpcionesCatalogo({
     reportar({});
   };
 
-  /** Envia y maneja la respuesta; true si salio bien. */
+  /** Envia y maneja la respuesta; la respuesta del servidor si salio bien, si no false. */
   const enviar = async (url: string, method: string, body: unknown, mensajeError: string) => {
     try {
       const res = await fetch(url, {
@@ -81,8 +115,9 @@ export function OpcionesCatalogo({
         body: body ? JSON.stringify(body) : undefined,
       });
       if (res.ok) {
+        const respuesta: unknown = await res.json().catch(() => ({}));
         await cargar();
-        return true;
+        return respuesta ?? {};
       }
       const { message, fieldErrors: fe } = await parseApiError(res, mensajeError);
       if (!reportarServidor(fe)) setError(message);
@@ -108,26 +143,27 @@ export function OpcionesCatalogo({
     if (nuevo === opcion.nombre) return setEditandoId(null);
     if (await enviar(`${endpoint}/${opcion.id}`, "PATCH", { nombre: nuevo }, "Error al renombrar la opción")) {
       setEditandoId(null);
-      toast.success(opcion.enUso ? `Opción renombrada y ${activos(opcion.enUso)} corregidos` : "Opción renombrada");
+      toast.success(textos.renombrada(opcion.enUso));
     }
   };
 
   const eliminar = async () => {
     if (!aEliminar) return;
     setEliminando(true);
-    const ok = await enviar(`${endpoint}/${aEliminar.id}`, "DELETE", null, "Error al eliminar la opción");
+    const r = await enviar(`${endpoint}/${aEliminar.id}`, "DELETE", null, "Error al eliminar la opción");
     setEliminando(false);
     setAEliminar(null);
-    if (ok) toast.success("Opción eliminada");
+    // Un motivo de baja ya usado no se borra: queda desactivado (SPEC 2.116.5).
+    if (r)
+      toast.success(
+        (r as { desactivado?: boolean }).desactivado ? "Opción desactivada: ya tiene registros" : "Opción eliminada"
+      );
   };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-fg-subtle">
-          Renombrar corrige también los activos que ya la tenían. Eliminar no modifica los activos existentes,
-          solo deja de ofrecerla para los nuevos.
-        </p>
+        <p className="text-sm text-fg-subtle">{textos.ayuda}</p>
         {!creando && (
           <Button
             leftIcon={<Plus size={18} />}
@@ -234,17 +270,23 @@ export function OpcionesCatalogo({
                           <MensajeCampo mensaje={errores.nombre} />
                         </>
                       ) : (
-                        opcion.nombre
+                        <>
+                          {opcion.nombre}
+                          {!opcion.activo && (
+                            <span className="ml-2 text-xs font-normal text-fg-subtle">(desactivada)</span>
+                          )}
+                        </>
                       )}
                     </td>
                     <td className="px-6 py-4 text-center text-sm text-fg-muted">
-                      {opcion.enUso > 0 ? activos(opcion.enUso) : "—"}
+                      {opcion.enSede > 0 ? textos.unidad(opcion.enSede) : "—"}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
                         {editando ? (
                           <>
-                            <button aria-label="Guardar"
+                            <button
+                              aria-label="Guardar"
                               onClick={() => ejecutar(() => renombrar(opcion))}
                               disabled={enviando}
                               className="rounded p-1 text-green-600 hover:bg-green-50"
@@ -252,7 +294,8 @@ export function OpcionesCatalogo({
                             >
                               <Check size={18} />
                             </button>
-                            <button aria-label="Cancelar"
+                            <button
+                              aria-label="Cancelar"
                               onClick={() => setEditandoId(null)}
                               className="rounded p-1 text-fg-subtle hover:bg-surface-muted"
                               title="Cancelar"
@@ -275,14 +318,16 @@ export function OpcionesCatalogo({
                             >
                               <Pencil size={18} />
                             </button>
-                            <button
-                              onClick={() => setAEliminar(opcion)}
-                              className="rounded p-1 text-red-600 hover:bg-red-50"
-                              title="Eliminar"
-                              aria-label={`Eliminar ${opcion.nombre}`}
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            {!opcion.protegido && opcion.activo && (
+                              <button
+                                onClick={() => setAEliminar(opcion)}
+                                className="rounded p-1 text-red-600 hover:bg-red-50"
+                                title="Eliminar"
+                                aria-label={`Eliminar ${opcion.nombre}`}
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -302,11 +347,7 @@ export function OpcionesCatalogo({
         loading={eliminando}
         variant="danger"
         title={`Eliminar opción — ${titulo}`}
-        message={
-          aEliminar && aEliminar.enUso > 0
-            ? `"${aEliminar.nombre}" está guardada en ${activos(aEliminar.enUso)}. Esos activos conservan el dato tal cual, pero la opción dejará de estar disponible para activos nuevos. ¿Eliminar de todas formas?`
-            : `¿Eliminar la opción "${aEliminar?.nombre}"?`
-        }
+        message={aEliminar ? textos.avisoEliminar(aEliminar.nombre, aEliminar.enUso) : ""}
         confirmLabel="Eliminar"
       />
     </div>

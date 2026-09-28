@@ -19,6 +19,7 @@ import { formatearFechaCorta } from '@/lib/utils/fechas';
 import { etiquetaResultadoMantencion } from '@/lib/constants/resultadosMantencion';
 import { motivoSinBaja } from '@/lib/constants/estadosActivo';
 import { siSigueIgual } from '@/lib/utils/concurrencia';
+import { motivoParaBaja } from '@/lib/services/motivoBajaService';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -116,13 +117,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // "Sin reparación" da de baja: misma regla y misma transicion que
     // POST /api/mantenciones/baja (SPEC 2.106), en vez de escribir el estado
     // directo. Antes esta ruta no revisaba si el equipo seguia asignado.
+    let baja: { motivoBajaId: string | null; motivoTexto: string | null } = { motivoBajaId: null, motivoTexto: null };
     if (data.resultadoTipo === "no_reparable") {
       const bloqueo = motivoSinBaja(maintenance.asset);
       if (bloqueo) throw new ConflictError(bloqueo);
+      // Motivo de la lista (SPEC 2.116.5): "Robo" o "Otro: detalle".
+      baja = await motivoParaBaja(prisma, { id: data.motivoBajaId! }, data.motivoDetalle);
       const transitionResult = validateTransition(maintenance.asset.estado, "baja", {
         hasActiveAssignment: !!maintenance.asset.empleadoActualId,
         hasActiveMaintenance: false,
-        motivo: data.motivoBaja ?? undefined,
+        motivo: baja.motivoTexto ?? undefined,
       });
       if (!transitionResult.valid) throw new ConflictError(transitionResult.errors[0]);
     }
@@ -139,7 +143,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           realizadoPor: data.realizadoPor,
           resultado: data.resultado,
           resultadoTipo: data.resultadoTipo,
-          motivoBaja: data.resultadoTipo === "no_reparable" ? data.motivoBaja : null,
+          motivoBajaId: baja.motivoBajaId,
+          motivoBaja: baja.motivoTexto,
           costo: data.costo,
           proximaMantencion: data.proximaMantencion,
         },
@@ -164,7 +169,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
         await assetHistoryService.registrarBaja(
           maintenance.assetId,
-          `Mantención ${maintenance.tipo.nombre}: ${data.motivoBaja}`,
+          `Mantención ${maintenance.tipo.nombre}: ${baja.motivoTexto}`,
           maintenance.asset.condicion,
           usuario,
           tx

@@ -54,7 +54,8 @@ type FormData = {
   jefatura: string;
   supervisor: string;
   ubicacion: string;
-  tipoContrato: "contrato" | "boleta";
+  // "" = sin definir: solo llega asi desde la importacion y obliga a elegir.
+  tipoContrato: "contrato" | "boleta" | "";
   estado: "activo" | "desvinculado" | "licencia";
   fechaIngreso: string;
   fechaTermino: string;
@@ -123,7 +124,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
         jefatura: employee.jefatura || "",
         supervisor: employee.supervisor || "",
         ubicacion: employee.ubicacion || "",
-        tipoContrato: employee.tipoContrato || "contrato",
+        tipoContrato: employee.tipoContrato || "",
         estado: employee.estado || "activo",
         fechaIngreso: employee.fechaIngreso
           ? new Date(employee.fechaIngreso).toISOString().split("T")[0]
@@ -163,6 +164,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
       faltan.correoPersonal = "El correo personal no es válido";
     if (formData.correoEmpresa && !esCorreoValido(formData.correoEmpresa))
       faltan.correoEmpresa = "El correo de empresa no es válido";
+    if (!formData.tipoContrato) faltan.tipoContrato = "Elige el tipo de contrato";
     if (esAdmin && !formData.sedeId) faltan.sedeId = "Elige la sede";
     if (reportar(faltan)) return;
     setSaving(true);
@@ -406,6 +408,9 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               className={claseCampo(errorDe("tipoContrato"))}
               aria-invalid={!!errorDe("tipoContrato")}
             >
+              <option value="" disabled>
+                Elige el tipo de contrato
+              </option>
               <option value="contrato">Contrato</option>
               <option value="boleta">Boleta</option>
             </select>

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { motivoBajaEnum, resultadoMantencionEnum } from "./assetTransition";
+import { resultadoMantencionEnum } from "./assetTransition";
 
 // El tipo de mantencion es una fila de MaintenanceType, referenciada por id
 // (ver prisma/schema.prisma y src/app/api/mantenciones/tipos).
@@ -101,6 +101,13 @@ export const updateMaintenanceSchema = z.object({
   resultado: z.string().max(1000, "Máximo 1000 caracteres").optional().nullable(),
 });
 
+// Motivo de una baja (SPEC 2.116.5): el de la lista y un detalle libre. Que
+// "Otro" pida el detalle lo revisa motivoParaBaja, que conoce la lista.
+const motivoBajaCampos = {
+  motivoBajaId: z.string().uuid("Elige el motivo de la baja").optional().nullable(),
+  motivoDetalle: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
+};
+
 // Schema para completar una mantención: "resultado" es descripción libre,
 // "resultadoTipo" es el valor estructurado (reparado / no_reparable /
 // pendiente_repuestos) que determina si el activo se da de baja.
@@ -110,17 +117,14 @@ export const completeMaintenanceSchema = z
     realizadoPor: z.string().min(1, "Requerido").max(100, "Máximo 100 caracteres"),
     resultado: z.string().min(1, "El resultado es requerido").max(1000, "Máximo 1000 caracteres"),
     resultadoTipo: resultadoMantencionEnum,
-    motivoBaja: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
+    ...motivoBajaCampos,
     costo: costoSchema,
     proximaMantencion: fechaOpcional,
   })
-  .refine(
-    (data) => data.resultadoTipo !== "no_reparable" || (data.motivoBaja && data.motivoBaja.length > 0),
-    {
-      message: 'Escribe el motivo de la baja cuando el resultado es "Sin reparación"',
-      path: ["motivoBaja"],
-    }
-  );
+  .refine((data) => data.resultadoTipo !== "no_reparable" || !!data.motivoBajaId, {
+    message: 'Elige el motivo de la baja cuando el resultado es "Sin reparación"',
+    path: ["motivoBajaId"],
+  });
 
 // Dar de baja un equipo por mantencion (SPEC 2.88): cierra su mantencion
 // abierta, o registra una ya cerrada, como "Sin reparación".
@@ -129,15 +133,11 @@ export const bajaPorMantencionSchema = z
     assetId: z.string().uuid("Equipo inválido"),
     // Se usa solo si el equipo no tiene una mantencion abierta.
     tipoId: tipoIdSchema,
-    motivo: motivoBajaEnum,
-    motivoDetalle: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
+    ...motivoBajaCampos,
+    motivoBajaId: z.string({ error: "Elige el motivo de la baja" }).uuid("Elige el motivo de la baja"),
     observaciones: z.string().max(1000, "Máximo 1000 caracteres").optional().nullable(),
     fechaRealizada: fechaRequerida("Fecha requerida"),
     realizadoPor: z.string().min(1, "Requerido").max(100, "Máximo 100 caracteres"),
-  })
-  .refine((d) => d.motivo !== "otro" || !!d.motivoDetalle?.trim(), {
-    message: 'Describe el motivo cuando eliges "Otro"',
-    path: ["motivoDetalle"],
   });
 
 // Schema para filtros de búsqueda

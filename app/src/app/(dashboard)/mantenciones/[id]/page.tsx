@@ -32,6 +32,7 @@ import {
 } from "@/lib/constants/resultadosMantencion";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { configEstadoMantencion } from "@/components/mantenciones";
+import { CamposMotivoBaja, erroresMotivoBaja, useMotivosBaja } from "@/components/mantenciones/CamposMotivoBaja";
 import { Can } from "@/components/auth/Can";
 import { AssetStatusBadge } from "@/components/ui/Badge";
 import { buttonClasses } from "@/components/ui/buttonStyles";
@@ -91,7 +92,8 @@ const ETIQUETAS_EDITAR = {
 const ETIQUETAS_COMPLETAR = {
   fechaRealizada: "Fecha realizada",
   resultado: "Resultado",
-  motivoBaja: "Motivo de la baja",
+  motivoBajaId: "Motivo de la baja",
+  motivoDetalle: "Detalle del motivo",
 };
 
 // Cada resultado dice como queda el equipo y que hace el sistema (SPEC 2.99).
@@ -164,10 +166,12 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
     fechaRealizada: hoyISO(),
     resultado: "",
     resultadoTipo: "reparado" as ResultadoTipo,
-    motivoBaja: "",
+    motivoBajaId: "",
+    motivoDetalle: "",
     proximaMantencion: "",
   });
   const erroresCompletar = useErroresFormulario(ETIQUETAS_COMPLETAR);
+  const motivos = useMotivosBaja();
 
   const fetchMaintenance = useCallback(async () => {
     try {
@@ -178,7 +182,8 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
         fechaRealizada: hoyISO(),
         resultado: "",
         resultadoTipo: "reparado",
-        motivoBaja: "",
+        motivoBajaId: "",
+        motivoDetalle: "",
         proximaMantencion: "",
       });
     } catch (err) {
@@ -294,8 +299,8 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
         completeForm.resultadoTipo === "pendiente_repuestos"
           ? "Anota qué repuesto falta"
           : "Describe qué se hizo";
-    if (completeForm.resultadoTipo === "no_reparable" && !completeForm.motivoBaja.trim())
-      faltan.motivoBaja = "Escribe por qué no se puede reparar";
+    if (completeForm.resultadoTipo === "no_reparable")
+      Object.assign(faltan, erroresMotivoBaja(motivos, completeForm.motivoBajaId, completeForm.motivoDetalle));
     if (erroresCompletar.reportar(faltan)) return;
 
     const r = await enviar(
@@ -306,7 +311,10 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
         realizadoPor: session?.user?.name || session?.user?.email || "",
         resultado: completeForm.resultado,
         resultadoTipo: completeForm.resultadoTipo,
-        motivoBaja: completeForm.resultadoTipo === "no_reparable" ? completeForm.motivoBaja : null,
+        ...(completeForm.resultadoTipo === "no_reparable" && {
+          motivoBajaId: completeForm.motivoBajaId,
+          motivoDetalle: completeForm.motivoDetalle.trim() || null,
+        }),
         proximaMantencion:
           completeForm.resultadoTipo === "reparado" ? completeForm.proximaMantencion || null : null,
       },
@@ -527,7 +535,8 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
                           title={bloqueo ?? undefined}
                           onClick={() => {
                             cambiarCompletar("resultadoTipo", o.valor);
-                            erroresCompletar.limpiar("motivoBaja");
+                            erroresCompletar.limpiar("motivoBajaId");
+                            erroresCompletar.limpiar("motivoDetalle");
                           }}
                           className={cn(
                             "p-3 rounded-lg border-2 text-left transition-colors",
@@ -585,16 +594,17 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
                 </CampoFormulario>
 
                 {completeForm.resultadoTipo === "no_reparable" && (
-                  <CampoFormulario label="Motivo de la baja" obligatorio error={erroresCompletar.errores.motivoBaja}>
-                    <textarea
-                      rows={2}
-                      placeholder="Por qué no se puede reparar..."
-                      value={completeForm.motivoBaja}
-                      onChange={(e) => cambiarCompletar("motivoBaja", e.target.value)}
-                      aria-invalid={!!erroresCompletar.errores.motivoBaja}
-                      className={claseCampo(erroresCompletar.errores.motivoBaja)}
-                    />
-                  </CampoFormulario>
+                  <CamposMotivoBaja
+                    motivos={motivos}
+                    motivoBajaId={completeForm.motivoBajaId}
+                    detalle={completeForm.motivoDetalle}
+                    onMotivo={(v) => {
+                      cambiarCompletar("motivoBajaId", v);
+                      erroresCompletar.limpiar("motivoDetalle");
+                    }}
+                    onDetalle={(v) => cambiarCompletar("motivoDetalle", v)}
+                    errores={erroresCompletar.errores}
+                  />
                 )}
 
                 {completeForm.resultadoTipo === "reparado" && (

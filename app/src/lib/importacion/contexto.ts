@@ -25,10 +25,11 @@ export async function armarContextoImportacion(datos: {
   if (sedeIdExplicita) await exigirSedeActiva(sedeIdExplicita);
 
   // Todo lo que no depende de las filas, en paralelo.
-  const [sedes, sistemas, antivirus, licencias, existentes, empleados] = await Promise.all([
+  const [sedes, marcas, sistemas, antivirus, licencias, existentes, empleados] = await Promise.all([
     // Solo sedes activas: una fila no trae equipos a una sede desactivada (2.9).
     prisma.sede.findMany({ where: { activa: true }, select: { id: true, nombre: true, codigo: true } }),
     // Catalogos administrables: se validan fila por fila sin texto fijo.
+    prisma.marca.findMany({ select: { nombre: true } }),
     prisma.sistemaOperativo.findMany({ select: { nombre: true } }),
     prisma.antivirus.findMany({ select: { nombre: true } }),
     prisma.licenciaMicrosoft365.findMany({ select: { nombre: true } }),
@@ -43,6 +44,7 @@ export async function armarContextoImportacion(datos: {
     tipoMantencionId: datos.tipoMantencionId,
     sedeIdExplicita,
     mapaSedes: construirMapaSedes(sedes),
+    mapaMarcas: construirMapaCatalogo(marcas),
     mapaSistemasOperativos: construirMapaCatalogo(sistemas),
     mapaAntivirus: construirMapaCatalogo(antivirus),
     mapaLicenciasM365: construirMapaCatalogo(licencias),

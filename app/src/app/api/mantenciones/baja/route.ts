@@ -11,7 +11,8 @@ import {
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { darDeBajaEnTransaccion } from '@/lib/services/mantencionActivoService';
-import { etiquetaMotivoBaja, motivoSinBaja } from '@/lib/constants/estadosActivo';
+import { motivoSinBaja } from '@/lib/constants/estadosActivo';
+import { motivoParaBaja } from '@/lib/services/motivoBajaService';
 import { mantencionACerrar } from '@/lib/utils/mantenciones';
 
 // POST /api/mantenciones/baja - Dar de baja un equipo por mantencion (SPEC 2.88).
@@ -47,10 +48,8 @@ export async function POST(request: NextRequest) {
     const bloqueo = motivoSinBaja(asset);
     if (bloqueo) throw new ConflictError(bloqueo);
 
-    const motivoTexto =
-      data.motivo === 'otro'
-        ? `${etiquetaMotivoBaja(data.motivo)}: ${data.motivoDetalle?.trim()}`
-        : etiquetaMotivoBaja(data.motivo);
+    // Motivo de la lista (SPEC 2.116.5): "Robo" o "Otro: detalle".
+    const { motivoBajaId, motivoTexto } = await motivoParaBaja(prisma, { id: data.motivoBajaId }, data.motivoDetalle);
 
     const transicion = validateTransition(asset.estado, 'baja', {
       hasActiveAssignment: !!asset.empleadoActualId,
@@ -71,6 +70,7 @@ export async function POST(request: NextRequest) {
       darDeBajaEnTransaccion(tx, {
         asset,
         tipo: tipo ?? asset.maintenances[0].tipo,
+        motivoBajaId,
         motivoTexto,
         resultado: data.observaciones?.trim() || motivoTexto,
         fechaRealizada: data.fechaRealizada,

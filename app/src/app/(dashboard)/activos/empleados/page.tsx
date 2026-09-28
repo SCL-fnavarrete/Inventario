@@ -39,7 +39,7 @@ type Employee = {
   supervisor: string | null;
   ubicacion: string | null;
   sede: { id: string; nombre: string } | null;
-  tipoContrato: TipoContrato;
+  tipoContrato: TipoContrato | null; // null: importado, aun sin definir
   estado: EstadoEmpleado;
   fechaIngreso: string | null;
   _count: {
@@ -487,10 +487,10 @@ export default function PersonalPage() {
                       <span
                         className={cn(
                           "px-2 py-1 text-xs font-medium rounded-full",
-                          tipoContratoColors[employee.tipoContrato]
+                          employee.tipoContrato ? tipoContratoColors[employee.tipoContrato] : "bg-surface-muted text-fg-muted"
                         )}
                       >
-                        {tipoContratoLabels[employee.tipoContrato]}
+                        {employee.tipoContrato ? tipoContratoLabels[employee.tipoContrato] : "Sin definir"}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

@@ -4,10 +4,12 @@ import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { categoriaSchema } from '@/lib/validations/categoria';
 import { exigirNombreCategoriaLibre, snapshotCategoria } from '@/lib/queries/categorias';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { sedeWhereConFiltro } from '@/lib/auth/sedeScope';
 
 export async function GET(request: NextRequest) {
   try {
-    await requirePermission('categorias', 'read');
+    const session = await requirePermission('categorias', 'read');
 
     const searchParams = request.nextUrl.searchParams;
     const includeCount = searchParams.get("includeCount") === "true";
@@ -23,7 +25,17 @@ export async function GET(request: NextRequest) {
       }),
     });
 
-    return NextResponse.json(categories);
+    if (!includeCount) return NextResponse.json(categories);
+
+    // _count.assets es el total de todas las sedes (decide si se puede
+    // eliminar); activosSede, los vigentes de la sede del navbar (SPEC 2.116.3).
+    const porSede = await prisma.asset.groupBy({
+      by: ["categoriaId"],
+      where: { ...ACTIVOS_VIGENTES, ...sedeWhereConFiltro(session, searchParams.get("sedeId")) },
+      _count: true,
+    });
+    const enSede = new Map(porSede.map((c) => [c.categoriaId, c._count]));
+    return NextResponse.json(categories.map((c) => ({ ...c, activosSede: enSede.get(c.id) ?? 0 })));
   } catch (error) {
     return handleApiError(error, 'Error al obtener categorías');
   }

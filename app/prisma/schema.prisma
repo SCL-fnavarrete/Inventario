@@ -181,6 +181,31 @@ model LicenciaMicrosoft365 {
   @@map("licencias_microsoft365")
 }
 
+// Motivos de baja (SPEC 2.116.5): lista administrable en Catalogos de
+// Activos. `clave` marca los que usa el sistema ("extravio" para el equipo
+// perdido en un despacho, "otro" que pide detalle): no se desactivan.
+model MotivoBaja {
+  id           String        @id @default(uuid())
+  nombre       String        @unique
+  activo       Boolean       @default(true)
+  clave        String?       @unique
+  createdAt    DateTime      @default(now()) @map("created_at")
+  maintenances Maintenance[]
+
+  @@map("motivos_baja")
+}
+
+// Catalogo de marcas (SPEC 2.116.4). El activo guarda la marca como texto;
+// esta tabla solo decide que nombres se pueden elegir.
+model Marca {
+  id        String   @id @default(uuid())
+  nombre    String   @unique
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("marcas")
+}
+
 model AssetCategory {
   id            String   @id @default(uuid())
   nombre        String   @unique
@@ -549,14 +574,19 @@ model Maintenance {
   // arriba sigue siendo la descripcion libre; esto decide que pasa con el
   // activo al completar. Nullable por mantenciones antiguas sin este dato.
   resultadoTipo     String?          @map("resultado_tipo")
-  // Motivo de la baja, obligatorio solo cuando resultadoTipo=no_reparable.
+  // Motivo de la baja, obligatorio solo cuando resultadoTipo=no_reparable:
+  // motivoBajaId es la categoria de la lista (para contar bajas por motivo,
+  // SPEC 2.116.5) y motivoBaja el texto que se muestra ("Robo: detalle").
+  motivoBajaId      String?          @map("motivo_baja_id")
   motivoBaja        String?          @map("motivo_baja")
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
   asset             Asset            @relation(fields: [assetId], references: [id])
   tipo              MaintenanceType  @relation(fields: [tipoId], references: [id])
+  motivoBajaOpcion  MotivoBaja?      @relation(fields: [motivoBajaId], references: [id], onDelete: Restrict)
 
   @@index([assetId])
+  @@index([motivoBajaId])
   @@index([estado])
   @@index([tipoId])
   @@index([fechaProgramada])

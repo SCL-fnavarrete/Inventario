@@ -2,10 +2,11 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { NotFoundError, errorRepetido } from '@/lib/errors';
 import { auditLogService } from '@/lib/services/auditLogService';
+import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 
 /**
- * Catalogos de opciones de los activos: sistema operativo, antivirus y
- * licencia Microsoft 365 (SPEC 2.112.7). Antes eran seis rutas copiadas; la
+ * Catalogos de opciones de los activos: marca (SPEC 2.116.4), sistema
+ * operativo, antivirus y licencia Microsoft 365 (SPEC 2.112.7). Antes eran seis rutas copiadas; la
  * logica vive aqui y cada ruta solo abre con su permiso y llama a esto.
  *
  * El campo del activo es texto plano (no una relacion): renombrar una opcion
@@ -13,6 +14,7 @@ import { auditLogService } from '@/lib/services/auditLogService';
  * los toca (solo deja de ofrecerse para activos nuevos).
  */
 export const CATALOGOS = {
+  marcas: { modelo: 'marca', campo: 'marca', etiqueta: 'Marca' },
   'sistemas-operativos': { modelo: 'sistemaOperativo', campo: 'sistemaOperativo', etiqueta: 'Sistema operativo' },
   antivirus: { modelo: 'antivirus', campo: 'antivirus', etiqueta: 'Antivirus' },
   'licencias-m365': {
@@ -39,8 +41,15 @@ interface TablaOpciones {
 const tabla = (cliente: Prisma.TransactionClient, clave: ClaveCatalogo) =>
   cliente[CATALOGOS[clave].modelo] as unknown as TablaOpciones;
 
-/** Opciones del catalogo; con `conUso`, cuantos activos tienen cada una. */
-export async function listarOpciones(clave: ClaveCatalogo, { soloActivas = false, conUso = false } = {}) {
+/**
+ * Opciones del catalogo. Con `conUso`, cuantos activos tienen cada una:
+ * `enUso` en todas las sedes (avisos de renombrar y eliminar) y `enSede`
+ * los vigentes que deja ver `whereSede`, la sede del navbar (SPEC 2.116.3).
+ */
+export async function listarOpciones(
+  clave: ClaveCatalogo,
+  { soloActivas = false, conUso = false, whereSede = {} as Prisma.AssetWhereInput } = {}
+) {
   const { campo } = CATALOGOS[clave];
   const opciones = await tabla(prisma, clave).findMany({
     where: soloActivas ? { activo: true } : undefined,
@@ -48,13 +57,18 @@ export async function listarOpciones(clave: ClaveCatalogo, { soloActivas = false
   });
   if (!conUso || opciones.length === 0) return opciones;
 
-  const conteos = (await prisma.asset.groupBy({
-    by: [campo],
-    where: { [campo]: { in: opciones.map((o) => o.nombre) } } as Prisma.AssetWhereInput,
-    _count: true,
-  })) as unknown as Array<Record<string, string> & { _count: number }>;
-  const usoPorNombre = new Map(conteos.map((c) => [c[campo], c._count]));
-  return opciones.map((o) => ({ ...o, enUso: usoPorNombre.get(o.nombre) ?? 0 }));
+  const deEstas = { [campo]: { in: opciones.map((o) => o.nombre) } } as Prisma.AssetWhereInput;
+  const contar = async (where: Prisma.AssetWhereInput) => {
+    const filas = (await prisma.asset.groupBy({ by: [campo], where, _count: true })) as unknown as Array<
+      Record<string, string> & { _count: number }
+    >;
+    return new Map(filas.map((c) => [c[campo], c._count]));
+  };
+  const [total, sede] = await Promise.all([
+    contar(deEstas),
+    contar({ ...deEstas, ...ACTIVOS_VIGENTES, ...whereSede }),
+  ]);
+  return opciones.map((o) => ({ ...o, enUso: total.get(o.nombre) ?? 0, enSede: sede.get(o.nombre) ?? 0 }));
 }
 
 /**

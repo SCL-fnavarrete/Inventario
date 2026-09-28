@@ -5,11 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Wrench, XCircle } from "lucide-react";
-import {
-  MOTIVO_BAJA_LABEL,
-  etiquetaEstadoActivo,
-  motivoSinBaja,
-} from "@/lib/constants/estadosActivo";
+import { etiquetaEstadoActivo, motivoSinBaja } from "@/lib/constants/estadosActivo";
+import { CamposMotivoBaja, erroresMotivoBaja, useMotivosBaja } from "@/components/mantenciones/CamposMotivoBaja";
 import { hoyISO } from "@/lib/utils/fechas";
 import { parseApiError } from "@/lib/utils/apiErrors";
 import { mantencionACerrar } from "@/lib/utils/mantenciones";
@@ -40,7 +37,7 @@ type TipoMantencion = { id: string; nombre: string };
 
 const ETIQUETAS = {
   tipoId: "Tipo de mantención",
-  motivo: "Motivo de la baja",
+  motivoBajaId: "Motivo de la baja",
   motivoDetalle: "Detalle del motivo",
   fechaRealizada: "Fecha",
   realizadoPor: "Realizado por",
@@ -68,7 +65,8 @@ function DarDeBajaContenido() {
   const { errores, resumen, reportar, limpiar } = useErroresFormulario(ETIQUETAS);
 
   const [tipoId, setTipoId] = useState("");
-  const [motivo, setMotivo] = useState("");
+  const motivos = useMotivosBaja();
+  const [motivoBajaId, setMotivoBajaId] = useState("");
   const [motivoDetalle, setMotivoDetalle] = useState("");
   const [observaciones, setObservaciones] = useState("");
   const [fechaRealizada, setFechaRealizada] = useState(hoyISO);
@@ -118,8 +116,7 @@ function DarDeBajaContenido() {
     setError("");
     const faltan: Record<string, string> = {};
     if (!abierta && !tipoId) faltan.tipoId = "Elige el tipo de mantención";
-    if (!motivo) faltan.motivo = "Elige el motivo de la baja";
-    if (motivo === "otro" && !motivoDetalle.trim()) faltan.motivoDetalle = "Describe el motivo";
+    Object.assign(faltan, erroresMotivoBaja(motivos, motivoBajaId, motivoDetalle));
     if (!fechaRealizada) faltan.fechaRealizada = "Elige la fecha";
     if (!realizadoPor.trim()) faltan.realizadoPor = "Indica quién la realiza";
     if (reportar(faltan)) return;
@@ -132,8 +129,8 @@ function DarDeBajaContenido() {
         body: JSON.stringify({
           assetId: activo.id,
           tipoId: tipoId || undefined,
-          motivo,
-          motivoDetalle: motivo === "otro" ? motivoDetalle : undefined,
+          motivoBajaId,
+          motivoDetalle: motivoDetalle.trim() || undefined,
           observaciones: observaciones || undefined,
           fechaRealizada,
           realizadoPor,
@@ -227,38 +224,21 @@ function DarDeBajaContenido() {
             </CampoFormulario>
           )}
 
-          <CampoFormulario label="Motivo de la baja" obligatorio error={errores.motivo}>
-            <select
-              value={motivo}
-              onChange={(e) => {
-                setMotivo(e.target.value);
-                limpiar("motivo");
-              }}
-              aria-invalid={!!errores.motivo}
-              className={claseInput(errores.motivo)}
-            >
-              <option value="">Selecciona un motivo</option>
-              {Object.entries(MOTIVO_BAJA_LABEL).map(([valor, etiqueta]) => (
-                <option key={valor} value={valor}>
-                  {etiqueta}
-                </option>
-              ))}
-            </select>
-          </CampoFormulario>
-
-          {motivo === "otro" && (
-            <CampoTexto
-              label="Detalle del motivo"
-              obligatorio
-              value={motivoDetalle}
-              onChange={(v) => {
-                setMotivoDetalle(v);
-                limpiar("motivoDetalle");
-              }}
-              error={errores.motivoDetalle}
-              placeholder="Describe por qué se da de baja"
-            />
-          )}
+          <CamposMotivoBaja
+            motivos={motivos}
+            motivoBajaId={motivoBajaId}
+            detalle={motivoDetalle}
+            onMotivo={(id) => {
+              setMotivoBajaId(id);
+              limpiar("motivoBajaId");
+              limpiar("motivoDetalle");
+            }}
+            onDetalle={(v) => {
+              setMotivoDetalle(v);
+              limpiar("motivoDetalle");
+            }}
+            errores={errores}
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <CampoTexto

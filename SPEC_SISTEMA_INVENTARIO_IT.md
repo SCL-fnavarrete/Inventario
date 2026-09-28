@@ -810,9 +810,9 @@ Dar de baja un activo es una operación irreversible (solo puede ir a `vendido` 
    - El activo NO tiene asignación activa (si tiene, debe devolverse primero)
    - El activo NO está en mantención activa (si está, debe cerrarse primero)
 2. **Datos obligatorios:**
-   - `motivo`: `obsolescencia` | `falla_irreparable` | `robo` | `extravio` | `otro`
+   - `motivoBajaId`: un motivo activo de la lista administrable `MotivoBaja` (desde 2.116.5; antes, el enum fijo `obsolescencia` | `falla_irreparable` | `robo` | `extravio` | `otro`)
    - `condicionFinal`: `danado` | `usado`
-   - Si motivo = `otro`, se requiere `motivoDetalle` (texto libre)
+   - `motivoDetalle` (texto libre), opcional salvo con el motivo del sistema "Otro"
 3. **Efectos automáticos:**
    - `fechaBaja` = fecha actual
    - `estado` → `baja`
@@ -3155,7 +3155,7 @@ Pedido de Javier: *"la idea sería que para dar de baja deba ir a mantención y 
 
 **Regla.** Un equipo se da de baja solo con una mantención cerrada como "No reparable", y solo desde `disponible` o `en_mantencion`. Un equipo `asignado` primero se devuelve con una solicitud; uno `no_devuelto`, primero se recupera (SPEC 2.87). La regla vive en `motivoSinBaja()` (`lib/constants/estadosActivo.ts`), que usan la API y los botones.
 
-**Página "Dar de baja equipo"** (`/mantenciones/baja?activoId=`). Llega con el equipo elegido y los datos ya llenos: tipo de mantención (Correctiva por defecto), fecha de hoy y el usuario como "Realizado por". Solo se elige el motivo (Obsolescencia, Falla irreparable, Robo, Extravío u Otro con detalle) y, opcionalmente, observaciones. Si el equipo ya tiene una mantención abierta (por ejemplo, la que se crea al devolverlo dañado, SPEC 2.87), se cierra esa misma en vez de crear otra, y la página lo avisa.
+**Página "Dar de baja equipo"** (`/mantenciones/baja?activoId=`). Llega con el equipo elegido y los datos ya llenos: tipo de mantención (Correctiva por defecto), fecha de hoy y el usuario como "Realizado por". Solo se elige el motivo (de la lista administrable, 2.116.5; Otro pide detalle) y, opcionalmente, observaciones. Si el equipo ya tiene una mantención abierta (por ejemplo, la que se crea al devolverlo dañado, SPEC 2.87), se cierra esa misma en vez de crear otra, y la página lo avisa.
 
 **`POST /api/mantenciones/baja`** (permiso `mantenciones/write`, schema `bajaPorMantencionSchema`). En una transacción: cierra la mantención abierta más antigua, o crea una ya cerrada, con `resultadoTipo = no_reparable` y el motivo; cancela las demás mantenciones abiertas del equipo; pasa el activo a `baja` con `fechaBaja`; registra la baja en el historial ("Mantención Correctiva: Falla irreparable") y en la auditoría. Rechaza con 409 los estados que no admiten baja.
 
@@ -3870,7 +3870,37 @@ La pantalla pasa de 2.698 a 1.684 líneas. Sin cambiar reglas ni lo que se enví
 - `datos.ts`: tipos, constantes y funciones auxiliares.
 Probado en el navegador: onboarding, reincorporación, cambio de equipo y una desvinculación creada de punta a punta.
 
+## 2.116 Ajustes pedidos el 28-sep-2026
+
+### 2.116.1 Columna "Acciones" del despacho solo con botones
+En el detalle de un despacho, la columna "Acciones" de la tabla de equipos y la de Kit/EPP se muestran solo si alguna de sus filas tiene un botón ("Llegó", "Se perdió" o "Apareció"). Antes salía siempre que la sede podía recibir, y en un despacho recibido completo quedaba vacía. Cada tabla lo decide por su cuenta.
+
+### 2.116.2 Tipo de contrato: sin definir solo en la importación
+Completa 2.39: la importación crea a los empleados nuevos **sin tipo de contrato** (antes les ponía "Contrato"), porque el Excel no dice si es contrato u honorarios. En la app el contrato **siempre se elige**: Onboarding lo exige y Editar empleado, si lo recibe vacío, muestra "Elige el tipo de contrato" y no guarda hasta elegir uno (antes ponía "Contrato" solo). La lista de empleados y la ficha muestran "Sin definir" mientras esté vacío. Vacío no bloquea Kit/EPP; solo Boleta lo bloquea.
+
+### 2.116.3 Catálogos de Activos: conteo por sede
+En Configuración > Catálogos de Activos, la columna "Activos" de Categorías y la de uso de Sistemas operativos, Antivirus y Licencias M365 cuentan los activos vigentes (sin los descartados) de la sede elegida en el navbar; con "Todas las sedes", todas. Un técnico ve siempre la suya (`sedeWhereConFiltro`). Los dados de baja y vendidos se cuentan: siguen siendo de esa categoría u opción.
+- La API entrega los dos números: `GET /api/categorias?includeCount=true&sedeId=` suma `activosSede` a `_count.assets`, y `?conUso=true&sedeId=` en los tres catálogos de opciones suma `enSede` a `enUso`.
+- **Las reglas siguen mirando el total de todas las sedes:** una categoría con activos en cualquier sede no se elimina (409), y el aviso al eliminar o renombrar una opción cuenta todos los activos que la tienen. El botón bloqueado lo dice: "tiene N activo(s) en todas las sedes".
+
+### 2.116.4 Catálogo de marcas
+Pedido de Javier: *"al catálogo la idea es también agregar marca como categoría para futuros análisis"*. La marca deja de ser texto libre al elegirla, con el mismo patrón que sistema operativo, antivirus y licencia M365 (2.112.7):
+- **Modelo `Marca`** (tabla `marcas`: nombre único, activo). `Asset.marca` sigue siendo texto: el catálogo solo decide qué nombres se pueden elegir, así que fichas, actas, reportes, búsqueda y exportación no cambian. Migración `20260928100000_catalogo_marcas`: carga Acer, Asus, Dell, HP, Huawei, Lenovo y Samsung; pasa a esa escritura los activos que la tenían con otras mayúsculas ("Hp" → "HP"), y suma al catálogo cualquier otra marca ya usada.
+- **API** `/api/marcas` y `/api/marcas/[id]`, con los mismos permisos y la misma lógica (`catalogoOpcionesService`) que los otros catálogos: crear (también el técnico, desde el formulario), renombrar corrigiendo los activos que la tienen y eliminar (solo admin; los activos conservan su marca).
+- **Configuración > Catálogos de Activos:** pestaña "Marcas", con el conteo por sede de 2.116.3.
+- **Formulario de activos** (Nuevo, Editar y alta en Compras): la marca se elige de la lista, con "+ Agregar opción"; sigue siendo obligatoria.
+- **Importación:** la marca del Excel se busca en el catálogo sin distinguir mayúsculas ni tildes ("DELL" queda "Dell"). Si no existe, la fila queda en revisión con "Marca no reconocida", donde se elige o se crea.
+
+### 2.116.5 Motivos de baja como lista administrable
+Pedido de Javier: *"agregar categorías en bajas de equipo para futuros análisis"*, como *"lista administrable como en mantenciones pero en activos"*. Antes eran cinco motivos fijos guardados como texto, "Completar sin reparación" solo pedía texto libre y el equipo perdido en un despacho armaba su propio texto: no se podía contar cuántas bajas hubo por cada motivo.
+- **Modelo `MotivoBaja`** (tabla `motivos_baja`: nombre único, activo, `clave` única y opcional) y **`Maintenance.motivoBajaId`**, que apunta a él con `ON DELETE RESTRICT`, como el tipo de mantención. `Maintenance.motivoBaja` sigue siendo el texto que se muestra ("Robo" o "Robo: detalle"), así que historial, actas y pantallas no cambian. Migración `20260928110000_motivos_baja`: carga Obsolescencia, Falla irreparable, Robo, Extravío y Otro, y enlaza las bajas que ya existieran por el nombre al inicio de su texto.
+- **Configuración > Catálogos de Activos > Motivos de baja** (`/api/motivos-baja`, lectura con `mantenciones/read`, cambios solo admin): crear (un nombre desactivado se reactiva), renombrar (las bajas apuntan por id: toman el nombre nuevo) y eliminar. **Uno que ya se usó no se borra: se desactiva** (deja de ofrecerse; sus bajas son evidencia). La columna cuenta las bajas de la sede del navbar (2.116.3).
+- **"Extravío" y "Otro" los usa el sistema** (`clave` `extravio` y `otro`): se pueden renombrar, pero no desactivar ni eliminar (409).
+- **Las tres formas de dar de baja usan la lista** (`motivoParaBaja`, un solo punto): *Dar de baja* y *Completar mantención* "Sin reparación" piden el motivo (`motivoBajaId`, solo activos) y un detalle opcional, obligatorio con "Otro"; el equipo perdido en un despacho queda siempre con "Extravío" y lo escrito como detalle. Se retiran `motivoBajaEnum` y `MOTIVO_BAJA_LABEL`.
+
 ## Changelog SPEC
+- **v2.40 (2026-09-28):**
+  - Sección 2.116 (nueva): columna "Acciones" del despacho solo cuando hay botones (2.116.1); empleados importados sin tipo de contrato, que se elige obligatoriamente al editar (2.116.2); Catálogos de Activos cuentan por la sede del navbar y las reglas de eliminar siguen mirando todas las sedes (2.116.3); catálogo de marcas, con migración `20260928100000_catalogo_marcas` y validación en la importación (2.116.4); motivos de baja como lista administrable con `Maintenance.motivoBajaId`, migración `20260928110000_motivos_baja` (2.116.5).
 - **v2.39 (2026-09-28):**
   - Sección 2.115 (nueva): correcciones de la auditoría de 7 fases. 409 ante cambios simultáneos en venta, baja y mantenciones; límite de uso por usuario en exportar, PDF e importar (429) y `maxDuration` de 60 s; fecha inválida de empleado como error (ya no borra), fechas de activo reales, topes en cantidades, pulgadas, costo y textos, formato de teléfono; Compras sin estado ni asignación de sus equipos (2.111.6); búsqueda de Despachos y Solicitudes que trae completa solo la página; importación que busca solo las series e IMEI de las filas; Dashboard con solo las mantenciones que muestra; sesión revisada cada 5 minutos; CSP con nonce por visita (sin 'unsafe-inline' en scripts); conexión local a 127.0.0.1 y base de pruebas con `npm run test:integracion`; etiquetas unidas a sus campos y tablas desplazables; dependencias y componentes sin uso retirados; `npm audit` en el CI. Importación con `exceljs` (se retira `xlsx`, solo `.xlsx`) y Nueva Solicitud dividida en componentes (2.115.10 y 2.115.11).
 - **v2.38 (2026-09-28):**

@@ -45,7 +45,7 @@ mas `api/` con los endpoints REST agrupados por feature.
 | `src/lib/validations/` | Zod schemas for all entities (asset, employee, assignment, workflow, etc.) |
 | `src/lib/utils/rut.ts` | Chilean RUT format validation |
 | `src/proxy.ts` | Proxy de Next.js 16 (antes `middleware.ts`): exige sesión en todas las rutas salvo `/login` y `/api/auth` |
-| `prisma/schema.prisma` | 30 modelos y 24 enums (estados de activos, condiciones, contratos, workflow, accesos...) |
+| `prisma/schema.prisma` | 32 modelos y 24 enums (estados de activos, condiciones, contratos, workflow, accesos...) |
 
 ### API Route Pattern
 
@@ -58,7 +58,7 @@ Every API route follows this sequence:
 
 ### Modelos y enums
 
-Los 30 modelos y los 24 enums viven en `app/prisma/schema.prisma`, y el SPEC
+Los 32 modelos y los 24 enums viven en `app/prisma/schema.prisma`, y el SPEC
 documenta el proposito de cada uno. No se duplican aqui: la copia se desactualiza.
 
 ### Database Connections

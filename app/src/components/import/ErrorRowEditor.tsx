@@ -19,7 +19,7 @@ type Sede = { id: string; nombre: string };
 
 // Sin estos tres la fila no se puede importar (ver procesarFila).
 const CAMPOS_OBLIGATORIOS: Record<string, string> = {
-  marca: "Escribe la marca",
+  marca: "Elige la marca",
   modelo: "Escribe el modelo",
   numeroSerie: "Escribe el número de serie",
 };
@@ -34,6 +34,7 @@ interface ErrorRowEditorProps {
 // Campos importados que alimentan directamente un catalogo administrable
 // (CatalogSelect), en vez de dominio fijo o texto libre.
 const CATALOG_FIELD_ENDPOINTS: Record<string, string> = {
+  marca: "/api/marcas",
   sistemaOperativo: "/api/sistemas-operativos",
   antivirus: "/api/antivirus",
   // La columna de importacion "microsoft365" alimenta el campo

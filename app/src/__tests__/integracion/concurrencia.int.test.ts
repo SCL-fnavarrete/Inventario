@@ -197,11 +197,13 @@ describir('concurrencia real en Postgres', () => {
 
   test('dos bajas del mismo equipo a la vez: queda una sola mantención de baja', async () => {
     const assetId = await nuevoActivo();
+    // Motivo de la lista que carga la migracion (SPEC 2.116.5).
+    const motivo = await prisma.motivoBaja.findUniqueOrThrow({ where: { nombre: 'Obsolescencia' } });
     const baja = {
-      assetId, tipoId: ids.tipoId, motivo: 'obsolescencia', fechaRealizada: '2026-09-28', realizadoPor: 'Técnico',
+      assetId, tipoId: ids.tipoId, motivoBajaId: motivo.id, fechaRealizada: '2026-09-28', realizadoPor: 'Técnico',
     };
     unaGanaOtra409(await Promise.all([post(darDeBaja, baja), post(darDeBaja, baja)]));
-    expect(await prisma.maintenance.count({ where: { assetId, resultadoTipo: 'no_reparable' } })).toBe(1);
+    expect(await prisma.maintenance.count({ where: { assetId, resultadoTipo: 'no_reparable', motivoBajaId: motivo.id } })).toBe(1);
   });
 
   test('completar la misma mantención dos veces a la vez: se completa una vez', async () => {

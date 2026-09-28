@@ -2,7 +2,6 @@
 import {
   etiquetaEstadoActivo,
   etiquetaEstadoDevolucion,
-  etiquetaMotivoBaja,
   motivoSinBaja,
   motivoSinMantencion,
 } from '@/lib/constants/estadosActivo';
@@ -14,14 +13,12 @@ describe('etiquetas legibles', () => {
     expect(etiquetaEstadoDevolucion('no_devuelto')).toBe('No devuelto');
   });
 
-  test('estado del activo y motivo de baja', () => {
+  test('estado del activo', () => {
     expect(etiquetaEstadoActivo('en_mantencion')).toBe('En Mantención');
-    expect(etiquetaMotivoBaja('falla_irreparable')).toBe('Falla irreparable');
   });
 
   test('un valor desconocido se devuelve tal cual', () => {
     expect(etiquetaEstadoDevolucion('otro')).toBe('otro');
-    expect(etiquetaMotivoBaja('otro_valor')).toBe('otro_valor');
   });
 });
 

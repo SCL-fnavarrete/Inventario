@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Plus, Edit, Trash2, Save } from "lucide-react";
 import type { TipoFicha } from "@prisma/client";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
@@ -12,6 +12,7 @@ import { TablaAdaptable } from "@/components/ui/TablaAdaptable";
 import { CampoFormulario, CampoTexto, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 import { useEnvio } from "@/hooks/useEnvio";
+import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
 import { camposComunes, TIPOS_FICHA, TIPO_FICHA_LABEL, type CampoFicha } from "@/lib/constants/categorias";
 
 /**
@@ -26,7 +27,8 @@ type Categoria = {
   descripcion: string | null;
   stockMinimo: number;
   tipoFicha: TipoFicha;
-  _count?: { assets: number };
+  _count?: { assets: number }; // todas las sedes: decide si se puede eliminar
+  activosSede?: number; // vigentes de la sede del navbar (SPEC 2.116.3)
 };
 
 const FORM_INICIAL = {
@@ -67,18 +69,21 @@ export function CategoriasCatalogo() {
   const [aEliminar, setAEliminar] = useState<Categoria | null>(null);
   const { errores, resumen, reportar, reportarServidor, limpiar } = useErroresFormulario(ETIQUETAS);
 
-  const cargar = async () => {
+  const { sedeSeleccionada } = useSedeSeleccionada();
+
+  const cargar = useCallback(async () => {
     try {
-      const res = await fetch("/api/categorias?includeCount=true");
+      const sede = sedeSeleccionada ? `&sedeId=${sedeSeleccionada}` : "";
+      const res = await fetch(`/api/categorias?includeCount=true${sede}`);
       if (res.ok) setCategorias(await res.json());
     } finally {
       setCargando(false);
     }
-  };
+  }, [sedeSeleccionada]);
 
   useEffect(() => {
     cargar();
-  }, []);
+  }, [cargar]);
 
   const cambiar = <K extends keyof typeof FORM_INICIAL>(campo: K, valor: (typeof FORM_INICIAL)[K]) => {
     setForm((prev) => ({ ...prev, [campo]: valor }));
@@ -269,13 +274,13 @@ export function CategoriasCatalogo() {
             },
             { titulo: "Qué campos pide", celda: (c) => TIPO_FICHA_LABEL[c.tipoFicha], className: "text-fg-muted" },
             { titulo: "Stock mínimo", celda: (c) => c.stockMinimo, className: "text-center text-fg-subtle" },
-            { titulo: "Activos", celda: (c) => c._count?.assets ?? 0, className: "text-center text-fg-subtle" },
+            { titulo: "Activos", celda: (c) => c.activosSede ?? 0, className: "text-center text-fg-subtle" },
           ]}
           tarjeta={(c) => (
             <>
               <p className="font-medium text-fg">{c.nombre}</p>
               <p className="text-xs text-fg-muted">
-                {TIPO_FICHA_LABEL[c.tipoFicha]} · {c._count?.assets ?? 0} activo(s) · stock mínimo {c.stockMinimo}
+                {TIPO_FICHA_LABEL[c.tipoFicha]} · {c.activosSede ?? 0} activo(s) · stock mínimo {c.stockMinimo}
               </p>
             </>
           )}
@@ -295,7 +300,7 @@ export function CategoriasCatalogo() {
                   onClick={() => setAEliminar(c)}
                   disabled={activos > 0}
                   className="rounded p-1 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
-                  title={activos > 0 ? `No se puede eliminar: tiene ${activos} activo(s). Cambia su categoría primero.` : "Eliminar"}
+                  title={activos > 0 ? `No se puede eliminar: tiene ${activos} activo(s) en todas las sedes. Cambia su categoría primero.` : "Eliminar"}
                   aria-label={`Eliminar ${c.nombre}`}
                 >
                   <Trash2 size={18} />
