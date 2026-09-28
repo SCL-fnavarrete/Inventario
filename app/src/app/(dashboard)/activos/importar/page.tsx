@@ -769,7 +769,7 @@ export default function ImportarActivosPage() {
           >
             <input
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx"
               onChange={handleFileChange}
               className="hidden"
               id="file-upload"
@@ -785,6 +785,7 @@ export default function ImportarActivosPage() {
                     </p>
                   </div>
                   <button
+                    aria-label="Quitar archivo"
                     onClick={(e) => {
                       e.preventDefault();
                       setFile(null);
@@ -810,7 +811,7 @@ export default function ImportarActivosPage() {
                     </span>
                   </p>
                   <p className="text-sm text-fg-subtle mt-1">
-                    Formatos soportados: .xlsx, .xls
+                    Formato: .xlsx. Si tienes un .xls antiguo, ábrelo en Excel y guárdalo como .xlsx.
                   </p>
                 </>
               )}
@@ -820,10 +821,11 @@ export default function ImportarActivosPage() {
           {availableSheets.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="field-label">
+                <label htmlFor="importar-hoja" className="field-label">
                   Hoja del Excel *
                 </label>
                 <select
+                  id="importar-hoja"
                   value={sheetName}
                   onChange={(e) => {
                     setSheetName(e.target.value);
@@ -842,10 +844,11 @@ export default function ImportarActivosPage() {
                 <MensajeCampo mensaje={errores.sheetName} />
               </div>
               <div>
-                <label className="field-label">
+                <label htmlFor="importar-categoria" className="field-label">
                   Categoría de Activos *
                 </label>
                 <select
+                  id="importar-categoria"
                   value={categoria}
                   onChange={(e) => {
                     setCategoria(e.target.value);
@@ -867,10 +870,11 @@ export default function ImportarActivosPage() {
                 <MensajeCampo mensaje={errores.categoria} />
               </div>
               <div>
-                <label className="field-label">
+                <label htmlFor="importar-sede" className="field-label">
                   Sede {esAdminSede ? "(opcional)" : "*"}
                 </label>
                 <select
+                  id="importar-sede"
                   value={sedeId}
                   onChange={(e) => {
                     setSedeId(e.target.value);

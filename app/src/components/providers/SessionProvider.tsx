@@ -47,14 +47,15 @@ if (typeof window !== "undefined" && !(window as { __salidaPor401?: boolean })._
 }
 
 /**
- * Sesion en el navegador. Se vuelve a consultar cada 30 segundos (y al
+ * Sesion en el navegador. Se vuelve a consultar cada 5 minutos (y al
  * volver a la pestaña): si la cuenta se desactivo o la sesion vencio, el
  * servidor ya no la reconoce (SPEC 2.112) y la pantalla va al inicio de
- * sesion, en vez de quedarse mostrando datos con acciones que fallan.
+ * sesion. Antes era cada 30 s; no hace falta tan seguido porque la API ya
+ * revisa la cuenta en cada accion y responde 401 (auditoria 28-sep-2026, 1.5).
  */
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   return (
-    <NextAuthSessionProvider refetchInterval={30} refetchOnWindowFocus>
+    <NextAuthSessionProvider refetchInterval={300} refetchOnWindowFocus>
       <SalirSiNoHaySesion />
       {children}
     </NextAuthSessionProvider>

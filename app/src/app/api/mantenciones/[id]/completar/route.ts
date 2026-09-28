@@ -18,6 +18,7 @@ import { validateTransition } from '@/lib/services/assetStateMachine';
 import { formatearFechaCorta } from '@/lib/utils/fechas';
 import { etiquetaResultadoMantencion } from '@/lib/constants/resultadosMantencion';
 import { motivoSinBaja } from '@/lib/constants/estadosActivo';
+import { siSigueIgual } from '@/lib/utils/concurrencia';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -77,16 +78,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // reparable.
     if (data.resultadoTipo === "pendiente_repuestos") {
       const enEspera = await prisma.$transaction(async (tx) => {
-        const actualizada = await tx.maintenance.update({
-          where: { id },
-          data: {
-            realizadoPor: data.realizadoPor,
-            resultado: data.resultado,
-            resultadoTipo: data.resultadoTipo,
-            costo: data.costo,
-          },
-          include: { tipo: true, asset: { include: { categoria: true } } },
-        });
+        const actualizada = await siSigueIgual(
+          tx.maintenance.update({
+            where: { id, estado: "en_proceso" },
+            data: {
+              realizadoPor: data.realizadoPor,
+              resultado: data.resultado,
+              resultadoTipo: data.resultadoTipo,
+              costo: data.costo,
+            },
+            include: { tipo: true, asset: { include: { categoria: true } } },
+          })
+        );
         await tx.assetHistory.create({
           data: {
             assetId: maintenance.assetId,
@@ -126,9 +129,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Completar en transacción
     const result = await prisma.$transaction(async (tx) => {
-      // Actualizar mantención
-      const updatedMaintenance = await tx.maintenance.update({
-        where: { id },
+      // Solo si sigue en proceso: un doble envio desde dos pestañas ya no
+      // la completa dos veces (auditoria 28-sep-2026, 7.A-1).
+      const updatedMaintenance = await siSigueIgual(tx.maintenance.update({
+        where: { id, estado: "en_proceso" },
         data: {
           estado: "completada",
           fechaRealizada: data.fechaRealizada,
@@ -145,16 +149,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             include: { categoria: true },
           },
         },
-      });
+      }));
 
       // Que pasa con el activo depende del resultado estructurado
       // (resultadoTipo), no solo de si tiene dueño.
       if (data.resultadoTipo === "no_reparable") {
         // No reparable: da de baja el activo dentro de la misma transaccion.
-        await tx.asset.update({
-          where: { id: maintenance.assetId },
-          data: { estado: "baja", fechaBaja: data.fechaRealizada },
-        });
+        await siSigueIgual(
+          tx.asset.update({
+            where: { id: maintenance.assetId, estado: maintenance.asset.estado, empleadoActualId: null },
+            data: { estado: "baja", fechaBaja: data.fechaRealizada },
+          })
+        );
 
         await assetHistoryService.registrarBaja(
           maintenance.assetId,

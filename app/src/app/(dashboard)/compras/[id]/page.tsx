@@ -25,7 +25,6 @@ import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
 import { formatearFechaLarga } from "@/lib/utils/fechas";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { buttonClasses } from "@/components/ui/buttonStyles";
-import { AssetStatusBadge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
@@ -71,12 +70,6 @@ type Asset = {
     nombre: string;
   };
   sede?: { id: string; nombre: string } | null;
-  empleadoActual: {
-    id: string;
-    rut: string;
-    nombres: string;
-    apellidoPaterno: string;
-  } | null;
 };
 
 type PurchaseAsset = {
@@ -790,13 +783,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                     Serie
                   </th>
                   <th className="table-th px-4">
-                    Estado
-                  </th>
-                  <th className="table-th px-4">
                     Sede
-                  </th>
-                  <th className="table-th px-4">
-                    Asignado a
                   </th>
                   <th className="table-th px-4 text-right">
                     Acciones
@@ -826,23 +813,11 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                       <td className="px-4 py-4 text-sm text-fg-subtle">
                         {identificadorActivo(pa.asset, "-")}
                       </td>
-                      <td className="px-4 py-4">
-                        <AssetStatusBadge status={pa.asset.estado} size="sm" />
-                      </td>
+                      {/* Compras muestra a qué sede se repartió cada equipo;
+                          ni su estado ni a quién está asignado (SPEC 2.111.6):
+                          eso se ve en la ficha del activo. */}
                       <td className="px-4 py-4 text-sm text-fg-subtle">
                         {pa.asset.sede?.nombre ?? "-"}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-fg-subtle">
-                        {pa.asset.empleadoActual ? (
-                          <Link
-                            href={`/empleados/${pa.asset.empleadoActual.id}`}
-                            className="text-primary-700 hover:text-primary-900"
-                          >
-                            {pa.asset.empleadoActual.nombres} {pa.asset.empleadoActual.apellidoPaterno}
-                          </Link>
-                        ) : (
-                          "-"
-                        )}
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">

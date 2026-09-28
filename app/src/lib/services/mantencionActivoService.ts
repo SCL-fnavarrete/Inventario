@@ -1,4 +1,5 @@
-import type { EstadoActivo, Prisma } from '@prisma/client';
+import type { EstadoActivo, EstadoMantencion, Prisma } from '@prisma/client';
+import { siSigueIgual } from '@/lib/utils/concurrencia';
 import { estadoTrasMantencion } from '@/lib/constants/estadosActivo';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { auditLogService } from '@/lib/services/auditLogService';
@@ -41,7 +42,9 @@ export async function registrarSalidaDeMantencion(
     datos.devolverEquipo && asset.estado === 'en_mantencion' ? estadoTrasMantencion(asset) : null;
 
   if (nuevoEstado) {
-    await tx.asset.update({ where: { id: asset.id }, data: { estado: nuevoEstado } });
+    await siSigueIgual(
+      tx.asset.update({ where: { id: asset.id, estado: 'en_mantencion' }, data: { estado: nuevoEstado } })
+    );
   }
 
   await tx.assetHistory.create({
@@ -89,7 +92,7 @@ export async function tipoCorrectivaPorDefecto(tx: PrismaTx) {
   );
 }
 
-type MantencionAbierta = { id: string; estado: string; tipo: { id: string; nombre: string } };
+type MantencionAbierta = { id: string; estado: EstadoMantencion; tipo: { id: string; nombre: string } };
 
 /**
  * Los pasos de dar de baja un equipo (SPEC 2.88), dentro de una transaccion
@@ -102,7 +105,14 @@ type MantencionAbierta = { id: string; estado: string; tipo: { id: string; nombr
 export async function darDeBajaEnTransaccion(
   tx: PrismaTx,
   datos: {
-    asset: { id: string; marca: string; modelo: string; condicion: string; maintenances: MantencionAbierta[] };
+    asset: {
+      id: string;
+      estado: EstadoActivo;
+      marca: string;
+      modelo: string;
+      condicion: string;
+      maintenances: MantencionAbierta[];
+    };
     /** Tipo si no hay mantencion abierta que cerrar. */
     tipo: { id: string; nombre: string };
     motivoTexto: string;
@@ -126,8 +136,12 @@ export async function darDeBajaEnTransaccion(
     motivoBaja: motivoTexto,
   };
 
+  // Cada escritura exige el estado que se leyo (siSigueIgual): una baja
+  // simultanea con una entrega u otra baja responde 409 (7.A-1).
   const m = abierta
-    ? await tx.maintenance.update({ where: { id: abierta.id }, data: cierre })
+    ? await siSigueIgual(
+        tx.maintenance.update({ where: { id: abierta.id, estado: abierta.estado }, data: cierre })
+      )
     : await tx.maintenance.create({
         data: {
           assetId: asset.id,
@@ -141,10 +155,12 @@ export async function darDeBajaEnTransaccion(
   // Un equipo de baja no queda con otras mantenciones pendientes.
   await cancelarAbiertasPorBaja(tx, asset.id, m.id);
 
-  await tx.asset.update({
-    where: { id: asset.id },
-    data: { estado: 'baja', fechaBaja: datos.fechaRealizada },
-  });
+  await siSigueIgual(
+    tx.asset.update({
+      where: { id: asset.id, estado: asset.estado, empleadoActualId: null },
+      data: { estado: 'baja', fechaBaja: datos.fechaRealizada },
+    })
+  );
 
   await assetHistoryService.registrarBaja(
     asset.id,

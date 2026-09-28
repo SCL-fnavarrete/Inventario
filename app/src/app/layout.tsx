@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Montserrat } from "next/font/google";
 import { temaInitScript } from "@/lib/tema";
 import "./globals.css";
@@ -17,17 +18,20 @@ export const metadata: Metadata = {
   description: "Sistema de Control de Inventario de Activos IT",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Nonce de esta visita (lo genera proxy.ts): sin el, la CSP bloquea el
+  // script del tema (lib/seguridad/csp.ts).
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     // suppressHydrationWarning: temaInitScript pone data-theme en <html>
     // antes de hidratar, y el servidor no lo conoce.
     <html lang="es" className={montserrat.variable} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: temaInitScript }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: temaInitScript }} />
       </head>
       <body className="font-sans antialiased" suppressHydrationWarning>
         {children}

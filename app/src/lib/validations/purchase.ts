@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { cantidad } from "./comunes";
 import { rutOptionalSchema } from "./rut";
 import { createAssetSchema, revisarOrdenGarantia } from "./asset";
 
@@ -114,7 +115,7 @@ export const purchaseAssetSchema = z.object({
 // se referencia una unidad individual sino una cantidad que suma al stock.
 export const purchaseKitItemSchema = z.object({
   itemId: z.string().uuid("ID de artículo inválido"),
-  cantidad: z.coerce.number().int().min(1, "La cantidad debe ser al menos 1"),
+  cantidad: cantidad(1, "La cantidad debe ser al menos 1"),
 });
 
 // Schema para vincular articulos de Kit/EPP a una compra
@@ -226,7 +227,7 @@ export const repartoCompraSchema = z
       .array(
         z.object({
           lineaId: z.string().uuid("Línea inválida"),
-          cantidad: z.coerce.number().int().min(1, "La cantidad debe ser al menos 1"),
+          cantidad: cantidad(1, "La cantidad debe ser al menos 1"),
         })
       )
       .default([]),

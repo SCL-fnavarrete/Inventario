@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { textoLibre, fechaTextoOpcional } from "./comunes";
 import { normalizarImei, validarImei } from "@/lib/validations/imei";
 import {
   MENSAJE_GARANTIA_ANTES_DE_COMPRA,
@@ -58,8 +59,8 @@ export const assetSchema = z.object({
       z
         .string()
         .transform((v) => parseFloat(v))
-        .pipe(z.number().positive('Las pulgadas deben ser un valor positivo')),
-      z.number().positive('Las pulgadas deben ser un valor positivo'),
+        .pipe(z.number().positive('Las pulgadas deben ser un valor positivo').max(999, 'Máximo 999')),
+      z.number().positive('Las pulgadas deben ser un valor positivo').max(999, 'Máximo 999'),
     ])
     .optional()
     .nullable(),
@@ -90,12 +91,12 @@ export const assetSchema = z.object({
 
   // Fechas (acepta YYYY-MM-DD o ISO 8601 completo). fechaBaja no se recibe:
   // la fija la baja en Mantenciones (SPEC 2.88), nunca una edicion.
-  fechaCompra: z.string().optional().nullable(),
-  fechaGarantiaFin: z.string().optional().nullable(),
+  fechaCompra: fechaTextoOpcional,
+  fechaGarantiaFin: fechaTextoOpcional,
 
   // Observaciones e incidencias
-  observaciones: z.string().optional().nullable(),
-  incidencia: z.string().optional().nullable(),
+  observaciones: textoLibre(),
+  incidencia: textoLibre(),
 });
 
 /**

@@ -4,20 +4,22 @@ import { ApiError } from "@/lib/errors";
  * Limites de la importacion de activos (auditoria 27-sep-2026, 2.4). Antes
  * /sheets leia cualquier archivo sin revisar nada y /preview lo aceptaba si
  * el tipo MIME *o* el nombre parecian Excel; un archivo grande o disfrazado
- * llegaba igual a SheetJS y podia dejar la funcion sin memoria.
+ * llegaba igual a la lectura y podia dejar la funcion sin memoria.
  */
 export const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 export const MAX_FILAS = 5000;
 /** Filas que la pantalla manda en cada POST a /batch. */
 export const FILAS_POR_TANDA = 200;
 
-const EXTENSION_EXCEL = /\.xlsx?$/i;
+const EXTENSION_XLSX = /\.xlsx$/i;
+const EXTENSION_XLS = /\.xls$/i;
 
-// Primeros bytes de cada formato: .xlsx es un ZIP ("PK\x03\x04") y .xls un
-// documento OLE2 (D0 CF 11 E0). La extension la elige quien sube el archivo;
-// la firma no.
+// Primeros bytes de un .xlsx: es un ZIP ("PK\x03\x04"). La extension la
+// elige quien sube el archivo; la firma no.
 const FIRMA_XLSX = [0x50, 0x4b, 0x03, 0x04];
-const FIRMA_XLS = [0xd0, 0xcf, 0x11, 0xe0];
+
+export const MENSAJE_XLS =
+  "El formato .xls (Excel 97-2003) no se acepta: ábrelo en Excel y guárdalo como .xlsx.";
 
 function empiezaCon(bytes: Uint8Array, firma: number[]): boolean {
   return firma.every((b, i) => bytes[i] === b);
@@ -37,13 +39,16 @@ export async function validarArchivoExcel(archivo: FormDataEntryValue | null): P
   if (archivo.size > MAX_BYTES) {
     throw new ApiError(413, "El archivo excede el tamaño máximo de 5 MB");
   }
-  if (!EXTENSION_EXCEL.test(archivo.name)) {
-    throw new ApiError(400, "Solo se permiten archivos Excel (.xlsx, .xls)");
+  // Solo .xlsx: la lectura usa exceljs, que no lee el formato antiguo .xls
+  // (auditoria 28-sep-2026, 3.4).
+  if (EXTENSION_XLS.test(archivo.name)) throw new ApiError(400, MENSAJE_XLS);
+  if (!EXTENSION_XLSX.test(archivo.name)) {
+    throw new ApiError(400, "Solo se permiten archivos Excel (.xlsx)");
   }
 
   const buffer = await archivo.arrayBuffer();
   const inicio = new Uint8Array(buffer, 0, Math.min(4, buffer.byteLength));
-  if (!empiezaCon(inicio, FIRMA_XLSX) && !empiezaCon(inicio, FIRMA_XLS)) {
+  if (!empiezaCon(inicio, FIRMA_XLSX)) {
     throw new ApiError(400, "El archivo no es un Excel válido");
   }
   return buffer;

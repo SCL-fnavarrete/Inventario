@@ -68,6 +68,18 @@ export const WHERE_COMPRA_POR_REPARTIR: Prisma.PurchaseWhereInput = {
 };
 
 /** Lo que necesitan avanceReparto y las reglas de eliminar/editar. */
+/**
+ * Compras muestra los equipos comprados y a que sede se repartieron, no a
+ * quien estan asignados (SPEC 2.111.6, decision de Javier del 28-sep-2026):
+ * se quita tambien el id del empleado, que delataria la asignacion.
+ */
+export function sinAsignacion<T extends { empleadoActualId?: string | null }>(
+  asset: T
+): Omit<T, 'empleadoActualId'> {
+  const { empleadoActualId, ...resto } = asset;
+  return resto;
+}
+
 export const INCLUDE_AVANCE_REPARTO = {
   purchaseAssets: { select: { llegoConCompra: true, asset: { select: { estado: true, deletedAt: true } } } },
   purchaseKitItems: { select: { cantidad: true, cantidadPorRepartir: true } },

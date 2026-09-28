@@ -1,12 +1,15 @@
 // Proxy de Next.js 16 (antes middleware.ts, convencion obsoleta desde
-// Next 16): exige sesion en todas las rutas salvo /login y /api/auth.
-import { withAuth } from "next-auth/middleware";
-import { NextResponse } from "next/server";
+// Next 16): exige sesion en todas las rutas salvo /login y /api/auth, y
+// agrega la CSP con nonce a las paginas.
+import { withAuth, type NextRequestWithAuth } from "next-auth/middleware";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
+import { seguirConCsp } from "@/lib/seguridad/csp";
 
 const esApi = (path: string) => path.startsWith("/api/");
 
-export default withAuth(
-  function proxy(req) {
+/** Quien pasa y a donde se redirige al que no tiene sesion. */
+const conSesion = withAuth(
+  function exigirSesion(req) {
     const token = req.nextauth.token;
     const path = req.nextUrl.pathname;
 
@@ -47,6 +50,22 @@ export default withAuth(
     },
   }
 );
+
+/**
+ * Primero la sesion; despues, a toda pagina que sigue, su CSP con un nonce
+ * nuevo (lib/seguridad/csp.ts). La CSP va aqui afuera y no dentro de
+ * withAuth porque withAuth no llama a su funcion en /login: el login quedaba
+ * sin CSP (auditoria 28-sep-2026, 1.3).
+ */
+export default async function proxy(req: NextRequest, event: NextFetchEvent) {
+  const respuesta = await conSesion(req as NextRequestWithAuth, event);
+
+  // Una redireccion (al login) u otra respuesta propia sale tal cual.
+  if (respuesta && !respuesta.headers.get("x-middleware-next")) return respuesta;
+  // La API responde JSON y PDF: no lleva CSP (en un PDF bloquea el visor).
+  if (esApi(req.nextUrl.pathname)) return respuesta ?? NextResponse.next();
+  return seguirConCsp(req);
+}
 
 export const config = {
   matcher: [

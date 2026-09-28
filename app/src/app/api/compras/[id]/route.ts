@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { updatePurchaseSchema } from "@/lib/validations/purchase";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { NotFoundError, ValidationError } from '@/lib/errors';
-import { tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
 import {
   INCLUDE_AVANCE_REPARTO,
@@ -12,6 +11,7 @@ import {
   exigirSinReparto,
   moverSedeDeLlegada,
   quitarEquipo,
+  sinAsignacion,
 } from '@/lib/services/compraService';
 
 interface RouteParams {
@@ -22,7 +22,7 @@ interface RouteParams {
 // reparto. La ven admin y tecnico (SPEC 2.111.6).
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await requirePermission('compras', 'read');
+    await requirePermission('compras', 'read');
 
     const { id } = await params;
 
@@ -38,14 +38,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
               include: {
                 categoria: true,
                 sede: { select: { id: true, nombre: true } },
-                empleadoActual: {
-                  select: {
-                    id: true,
-                    rut: true,
-                    nombres: true,
-                    apellidoPaterno: true,
-                  },
-                },
               },
             },
           },
@@ -85,17 +77,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Un equipo descartado (se quito antes de repartirlo) ya no es parte de
     // la compra que se muestra; su registro queda en el historial.
-    // Quien tiene un equipo de OTRA sede no es dato de este tecnico
-    // (auditoria 27-sep-2026, 2.12): la compra se ve completa, pero sin el
-    // nombre ni el RUT de personas que no son de su sede.
-    const verTodo = tieneVisibilidadTotal(session);
+    // Compras muestra los equipos comprados y a que sede se repartieron, no
+    // a quien estan asignados (SPEC 2.111.6): ni a admin ni a tecnico.
     const purchaseAssets = purchase.purchaseAssets
       .filter((pa) => !pa.asset.deletedAt)
-      .map((pa) =>
-        verTodo || pa.asset.sedeId === session.user.sedeId
-          ? pa
-          : { ...pa, asset: { ...pa.asset, empleadoActual: null } }
-      );
+      .map((pa) => ({ ...pa, asset: sinAsignacion(pa.asset) }));
 
     return NextResponse.json({
       ...purchase,

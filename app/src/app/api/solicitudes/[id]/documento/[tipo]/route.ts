@@ -7,7 +7,11 @@ import {
   generateActaDevolucion,
 } from '@/lib/services/documentGeneratorService';
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { exigirCupo } from "@/lib/utils/limiteUso";
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
+
+// Operacion pesada: hasta 60 s (Vercel corta antes por defecto).
+export const maxDuration = 60;
 
 const VALID_TIPOS = [
   'anexo-entrega',
@@ -33,6 +37,7 @@ export async function GET(
 
   try {
     const session = await requirePermission('solicitudes', 'read');
+    exigirCupo(session.user.id, "documento");
     const { id, tipo } = await params;
 
     if (!VALID_TIPOS.includes(tipo as DocTipo)) {

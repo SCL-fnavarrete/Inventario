@@ -2,27 +2,8 @@ import type { NextConfig } from "next";
 
 const esDesarrollo = process.env.NODE_ENV === "development";
 
-/**
- * Politica de contenido: todo desde el propio sitio. La tipografia la sirve
- * next/font desde el mismo dominio y los PDF se generan en el servidor, asi
- * que no hay origenes externos que permitir.
- * - script 'unsafe-inline': el script del tema (temaInitScript, en el <head>
- *   para evitar el parpadeo) y los datos que Next incrusta en la pagina.
- * - style 'unsafe-inline': estilos en linea de React y de los graficos.
- * - En desarrollo, 'unsafe-eval' y ws: los necesita la recarga en caliente.
- */
-const CSP = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${esDesarrollo ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self'",
-  `connect-src 'self'${esDesarrollo ? " ws:" : ""}`,
-  "object-src 'none'",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-].join("; ");
+// La CSP (politica de contenido) la pone proxy.ts con un nonce nuevo en cada
+// visita: ver lib/seguridad/csp.ts.
 
 const nextConfig: NextConfig = {
   // "Guias de despacho" se llama "Despachos" desde el 25-sep-2026 (SPEC
@@ -63,15 +44,7 @@ const nextConfig: NextConfig = {
       // Solo sobre HTTPS: en localhost no aplica.
       headers.push({ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" });
     }
-    return [
-      { source: "/:path*", headers },
-      // La CSP va solo en las paginas: la API responde JSON y PDF, y una CSP
-      // con object-src 'none' sobre un PDF bloquea el visor del navegador.
-      {
-        source: "/((?!api/).*)",
-        headers: [{ key: "Content-Security-Policy", value: CSP }],
-      },
-    ];
+    return [{ source: "/:path*", headers }];
   },
 };
 

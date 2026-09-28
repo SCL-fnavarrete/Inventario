@@ -39,6 +39,12 @@ jobs:
       - name: Generar cliente Prisma
         run: npx prisma generate
 
+      # Una dependencia de la aplicacion con una falla alta o critica frena el
+      # merge (auditoria 28-sep-2026, A03). Las de desarrollo no llegan a
+      # produccion, por eso --omit=dev.
+      - name: Dependencias sin fallas de seguridad
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Typecheck
         run: npm run typecheck
 

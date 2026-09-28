@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSession, type Session } from 'next-auth';
-import { Prisma } from '@prisma/client';
+import { Prisma, type SystemRole } from '@prisma/client';
 import { ZodError } from 'zod';
 import { authOptions } from '@/lib/auth';
 import { logger } from '@/lib/logger';
@@ -35,6 +35,20 @@ export {
 /** Sesion autenticada, con el rol ya resuelto. */
 export interface SesionAutenticada extends Session {
   user: Session['user'] & { id: string; role: string; sedeId: string | null };
+}
+
+/**
+ * Quien hace la peticion, tomado de la sesion. El callback `jwt` de
+ * lib/auth.ts ya relee id, nombre y rol de la base en cada peticion (y corta
+ * la sesion si la cuenta se desactivo), asi que no hace falta volver a
+ * buscarlo por correo en cada ruta (auditoria 28-sep-2026, 3.5).
+ */
+export function usuarioDeSesion(session: SesionAutenticada) {
+  return {
+    id: session.user.id,
+    nombre: session.user.name ?? session.user.email ?? 'Sistema',
+    rol: session.user.role as SystemRole,
+  };
 }
 
 /** Exige sesion. Lanza 401 si no hay. */

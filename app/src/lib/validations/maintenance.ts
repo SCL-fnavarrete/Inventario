@@ -15,7 +15,8 @@ export const EstadoMantencionEnum = z.enum([
 
 // Campo de costo reutilizable: acepta 0 o positivo, opcional y nullable.
 // Usado por las tres schemas de mantención para que la regla no se desincronice entre ellas.
-const costoSchema = z.number().nonnegative("El costo debe ser 0 o positivo").optional().nullable();
+// Tope de la columna Decimal(10, 2): un costo mayor terminaba en 500 (7.B).
+const costoSchema = z.number().nonnegative("El costo debe ser 0 o positivo").max(99_999_999, "Máximo 99.999.999").optional().nullable();
 
 
 

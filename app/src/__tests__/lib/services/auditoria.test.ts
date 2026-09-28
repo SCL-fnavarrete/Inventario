@@ -20,7 +20,7 @@ import { NextRequest } from 'next/server';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requirePermission } from '@/lib/auth/guard';
-import { cambiosLegibles, consultarAuditoria, valorLegible } from '@/lib/services/auditoriaService';
+import { cambiosLegibles, consultarAuditoria, contiene, valorLegible } from '@/lib/services/auditoriaService';
 import { GET } from '@/app/api/auditoria/route';
 
 const db = prisma as unknown as Record<string, jest.Mock & Record<string, jest.Mock>>;
@@ -111,4 +111,12 @@ describe('una sola consulta con páginas exactas', () => {
     expect(res.status).toBe(400);
     expect(db.$queryRaw).not.toHaveBeenCalled();
   });
+});
+
+// Auditoria 28-sep-2026: lo que escribe el usuario no actua como comodin.
+test('la búsqueda escapa %, _ y la barra invertida', () => {
+  expect(contiene('ana')).toBe('%ana%');
+  expect(contiene('100%')).toBe('%100\\%%');
+  expect(contiene('a_b')).toBe('%a\\_b%');
+  expect(contiene('c:\\x')).toBe('%c:\\\\x%');
 });

@@ -34,7 +34,8 @@ describe('registrarSalidaDeMantencion', () => {
       devolverEquipo: true,
     });
     expect(nuevo).toBe('disponible');
-    expect(tx.asset.update).toHaveBeenCalledWith({ where: { id: 'a1' }, data: { estado: 'disponible' } });
+    // Solo si sigue en mantencion (7.A-1): no pisa un cambio simultaneo.
+    expect(tx.asset.update).toHaveBeenCalledWith({ where: { id: 'a1', estado: 'en_mantencion' }, data: { estado: 'disponible' } });
     expect(tx.assetHistory.create.mock.calls[0][0].data.datosNuevos).toEqual({
       estado: 'disponible',
       maintenanceId: 'm1',

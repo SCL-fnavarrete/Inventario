@@ -1,33 +1,31 @@
 /** @jest-environment node */
-import * as XLSX from "xlsx";
 import {
   MAX_BYTES,
   MAX_FILAS,
+  MENSAJE_XLS,
   validarArchivoExcel,
   validarCantidadFilas,
 } from "@/lib/importacion/validarArchivo";
 import { leerFilasExcel } from "@/lib/importacion/leerExcel";
 import { precargarEmpleadosPorRut } from "@/lib/importacion/procesarFila";
 import { interpretarRut } from "@/lib/importacion/activos";
-
-function excelCon(filas: unknown[][]): ArrayBuffer {
-  const libro = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet(filas), "Hoja1");
-  const bytes = XLSX.write(libro, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
-  return bytes;
-}
+import { crearExcel } from "@/test-utils/excel";
 
 const archivo = (contenido: BlobPart[], nombre: string) => new File(contenido, nombre);
 
 describe("validarArchivoExcel", () => {
   it("devuelve el contenido de un .xlsx real", async () => {
-    const buffer = await validarArchivoExcel(archivo([excelCon([["Marca"], ["Dell"]])], "inv.xlsx"));
+    const buffer = await validarArchivoExcel(archivo([await crearExcel([["Marca"], ["Dell"]])], "inv.xlsx"));
     expect(buffer.byteLength).toBeGreaterThan(0);
   });
 
-  it("acepta la firma de un .xls antiguo", async () => {
+  // Auditoria 28-sep-2026 (3.4): la lectura usa exceljs, que no lee .xls.
+  it("rechaza el formato antiguo .xls con un mensaje que dice cómo convertirlo", async () => {
     const ole = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
-    await expect(validarArchivoExcel(archivo([ole], "viejo.XLS"))).resolves.toBeInstanceOf(ArrayBuffer);
+    await expect(validarArchivoExcel(archivo([ole], "viejo.XLS"))).rejects.toMatchObject({
+      status: 400,
+      message: MENSAJE_XLS,
+    });
   });
 
   it("rechaza cuando no llega archivo", async () => {
@@ -51,7 +49,7 @@ describe("validarArchivoExcel", () => {
 
   it("rechaza otra extensión aunque el contenido sea Excel", async () => {
     await expect(
-      validarArchivoExcel(archivo([excelCon([["Marca"]])], "inv.csv"))
+      validarArchivoExcel(archivo([await crearExcel([["Marca"]])], "inv.csv"))
     ).rejects.toMatchObject({ status: 400, message: expect.stringContaining(".xlsx") });
   });
 
@@ -73,17 +71,15 @@ describe("leerFilasExcel con tope de filas", () => {
   const encabezado = ["Marca", "Modelo"];
   const filas = (n: number) => Array.from({ length: n }, (_, i) => ["Dell", `M${i}`]);
 
-  it("lee un archivo justo en el límite", () => {
-    const buffer = excelCon([encabezado, ...filas(MAX_FILAS)]);
-    const { filas: leidas } = leerFilasExcel(buffer, "Hoja1", "notebook", { marca: "Marca" });
+  it("lee un archivo justo en el límite", async () => {
+    const buffer = await crearExcel([encabezado, ...filas(MAX_FILAS)]);
+    const { filas: leidas } = await leerFilasExcel(buffer, "Hoja1", { marca: "Marca" });
     expect(leidas).toHaveLength(MAX_FILAS);
   });
 
-  it("rechaza un archivo que se pasa del límite en vez de truncarlo", () => {
-    const buffer = excelCon([encabezado, ...filas(MAX_FILAS + 10)]);
-    expect(() => leerFilasExcel(buffer, "Hoja1", "notebook", { marca: "Marca" })).toThrow(
-      expect.objectContaining({ status: 400 })
-    );
+  it("rechaza un archivo que se pasa del límite en vez de truncarlo", async () => {
+    const buffer = await crearExcel([encabezado, ...filas(MAX_FILAS + 10)]);
+    await expect(leerFilasExcel(buffer, "Hoja1", { marca: "Marca" })).rejects.toMatchObject({ status: 400 });
   });
 });
 

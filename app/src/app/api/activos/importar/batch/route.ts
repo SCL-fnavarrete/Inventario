@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { construirMapaCatalogo, construirMapaSedes } from "@/lib/importacion/activos";
-import { procesarFila, precargarEmpleadosPorRut, type ContextoFila } from "@/lib/importacion/procesarFila";
+import { procesarFila } from "@/lib/importacion/procesarFila";
+import { armarContextoImportacion } from "@/lib/importacion/contexto";
 import { validarCantidadFilas } from "@/lib/importacion/validarArchivo";
 import type { CorrectedRow, ImportRowStatus, ImportBatchResult } from "@/types/import";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { sedeIdParaCrear } from '@/lib/auth/sedeScope';
-import { exigirSedeActiva } from "@/lib/queries/sedes";
+import { exigirCupo } from "@/lib/utils/limiteUso";
+
+// Operacion pesada: hasta 60 s (Vercel corta antes por defecto).
+export const maxDuration = 60;
 
 // Unico punto donde la importacion de Activos escribe en la base. Recibe
 // TODAS las filas a importar -las que ya estaban validas en la vista previa
@@ -20,6 +22,7 @@ import { exigirSedeActiva } from "@/lib/queries/sedes";
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('activos', 'write');
+    exigirCupo(session.user.id, "importarTanda");
 
     const body = await request.json();
     const { categoria, rows, sedeId: sedeIdSolicitada } = body as {
@@ -37,27 +40,6 @@ export async function POST(request: NextRequest) {
     // La pantalla manda tandas de FILAS_POR_TANDA; este tope protege la
     // ruta de un POST armado a mano con un arreglo enorme.
     validarCantidadFilas(rows.length);
-
-    const sedeIdExplicita = sedeIdParaCrear(session, sedeIdSolicitada, { requerido: false });
-    if (sedeIdExplicita) await exigirSedeActiva(sedeIdExplicita);
-
-    const mapaSedes = construirMapaSedes(
-      // Solo sedes activas: una fila no puede traer equipos a una sede
-      // desactivada (auditoria 27-sep-2026, 2.9).
-      await prisma.sede.findMany({ where: { activa: true }, select: { id: true, nombre: true, codigo: true } })
-    );
-    // Catalogos administrables (Configuracion > Opciones de Activos): se
-    // traen en vivo, una sola vez por importacion, para validar sistema
-    // operativo/antivirus/licencia M365 fila por fila sin texto fijo.
-    const mapaSistemasOperativos = construirMapaCatalogo(
-      await prisma.sistemaOperativo.findMany({ select: { nombre: true } })
-    );
-    const mapaAntivirus = construirMapaCatalogo(
-      await prisma.antivirus.findMany({ select: { nombre: true } })
-    );
-    const mapaLicenciasM365 = construirMapaCatalogo(
-      await prisma.licenciaMicrosoft365.findMany({ select: { nombre: true } })
-    );
 
     let categoryRecord = await prisma.assetCategory.findFirst({
       where: { nombre: { equals: categoria, mode: "insensitive" } },
@@ -80,33 +62,14 @@ export async function POST(request: NextRequest) {
       select: { id: true },
     });
 
-    const existingSeries = await prisma.asset.findMany({
-      where: { numeroSerie: { not: null } },
-      select: { numeroSerie: true },
-    });
-    const existingSeriesSet = new Set(
-      existingSeries.filter((a) => a.numeroSerie).map((a) => a.numeroSerie!.toUpperCase())
-    );
-
-    const ctx: ContextoFila = {
+    const ctx = await armarContextoImportacion({
       session,
+      sedeIdSolicitada,
+      filas: rows.map((row) => row.data ?? {}),
       categoriaId: categoryRecord.id,
       exigeImei: categoryRecord.tipoFicha === "celular",
       tipoMantencionId: tipoMantencionImportada.id,
-      sedeIdExplicita,
-      mapaSedes,
-      mapaSistemasOperativos,
-      mapaAntivirus,
-      mapaLicenciasM365,
-      existingSeriesSet,
-      existingImeiSet: new Set(
-        (await prisma.asset.findMany({ where: { imei: { not: null } }, select: { imei: true } })).map((a) => a.imei!)
-      ),
-      ...(await precargarEmpleadosPorRut(
-        rows.map((row) => row.data?.rut ?? ""),
-        prisma
-      )),
-    };
+    });
 
     const results: ImportRowStatus[] = [];
 

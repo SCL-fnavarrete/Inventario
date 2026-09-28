@@ -18,12 +18,27 @@ export const TipoContratoEnum = z.enum(["contrato", "boleta"]);
 const fechaOpcional = z
   .union([z.string(), z.null()])
   .optional()
-  .transform((val) => {
+  .transform((val, ctx) => {
     if (val === undefined) return undefined;
     if (val === null || val === "") return null;
     const fecha = new Date(val);
-    return isNaN(fecha.getTime()) ? null : fecha;
+    // Una fecha invalida es un error, no un "borrar": antes se guardaba
+    // null y se perdia la fecha que habia (auditoria 28-sep-2026, 7.A-2).
+    if (isNaN(fecha.getTime())) {
+      ctx.addIssue({ code: "custom", message: "Fecha inválida" });
+      return z.NEVER;
+    }
+    return fecha;
   });
+
+/** Telefono opcional: solo numeros, espacios, +, - y parentesis (7.B). */
+const telefono = z
+  .string()
+  .trim()
+  .max(20, "Máximo 20 caracteres")
+  .regex(/^[+\d\s()-]*$/, "Solo números, espacios, +, - o paréntesis")
+  .optional()
+  .nullable();
 
 export const EstadoEmpleadoEnum = z.enum(["activo", "desvinculado", "licencia"]);
 
@@ -53,7 +68,7 @@ export const createEmployeeSchema = z.object({
   fechaIngreso: fechaOpcional,
   fechaTermino: fechaOpcional,
   estado: EstadoEmpleadoEnum.default("activo"),
-  telefonoContacto: z.string().max(20, "Máximo 20 caracteres").optional().nullable(),
+  telefonoContacto: telefono,
   fechaEntregaKit: fechaOpcional,
   fechaEntregaEpp: fechaOpcional,
   proximaMantencionEpp: fechaOpcional,
@@ -92,7 +107,7 @@ export const updateEmployeeSchema = z.object({
   fechaIngreso: fechaOpcional,
   fechaTermino: fechaOpcional,
   estado: EstadoEmpleadoEnum.optional(),
-  telefonoContacto: z.string().max(20, "Máximo 20 caracteres").optional().nullable(),
+  telefonoContacto: telefono,
   fechaEntregaKit: fechaOpcional,
   fechaEntregaEpp: fechaOpcional,
   proximaMantencionEpp: fechaOpcional,

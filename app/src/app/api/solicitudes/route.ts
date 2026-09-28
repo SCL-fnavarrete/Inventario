@@ -4,12 +4,13 @@ import { createWorkflowRequestSchema, workflowFiltersSchema } from '@/lib/valida
 import { getInitialState } from '@/lib/services/workflowStateMachine';
 import { executeAssignment, executeKitDelivery, executeReturn, executeKitReturn } from '@/lib/services/workflowExecutionService';
 import { Prisma, Employee } from '@prisma/client';
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, usuarioDeSesion } from '@/lib/auth/guard';
 import { sedeWhere, sedeIdParaCrear, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { exigirSedeActiva } from "@/lib/queries/sedes";
 import { generarNumeroSolicitud } from '@/lib/services/numeroSolicitud';
 import { ValidationError } from '@/lib/errors';
 import { coincideBusqueda } from '@/lib/utils/text';
+import { ordenarComo, paginarCoincidencias } from "@/lib/utils/busquedaEnMemoria";
 import { desvinculacionesConActa } from '@/lib/queries/asignacionesTicket';
 import { sinIdsDeUsuario } from '@/lib/utils/privacidad';
 
@@ -104,27 +105,33 @@ export async function GET(request: NextRequest) {
     let total;
 
     if (terminoBusqueda) {
-      const todas = await prisma.workflowRequest.findMany({
+      // Solo las columnas de busqueda; el detalle, solo de la pagina.
+      const candidatas = await prisma.workflowRequest.findMany({
         where,
         orderBy: { [filters.sortBy]: filters.sortOrder },
-        include: includeSolicitud,
+        select: {
+          id: true,
+          numero: true,
+          observaciones: true,
+          employee: { select: { rut: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true } },
+        },
       });
-
-      const filtradas = todas.filter((s) =>
-        coincideBusqueda(terminoBusqueda, {
-          rut: s.employee.rut,
-          campos: [
-            s.numero,
-            s.observaciones,
-            s.employee.nombres,
-            s.employee.apellidoPaterno,
-            s.employee.apellidoMaterno,
-          ],
-        })
+      const pagina = paginarCoincidencias(
+        candidatas,
+        (s) =>
+          coincideBusqueda(terminoBusqueda, {
+            rut: s.employee.rut,
+            campos: [s.numero, s.observaciones, s.employee.nombres, s.employee.apellidoPaterno, s.employee.apellidoMaterno],
+          }),
+        skip,
+        filters.limit
       );
 
-      total = filtradas.length;
-      data = filtradas.slice(skip, skip + filters.limit);
+      total = pagina.total;
+      data = ordenarComo(
+        pagina.ids,
+        await prisma.workflowRequest.findMany({ where: { id: { in: pagina.ids } }, include: includeSolicitud })
+      );
     } else {
       [data, total] = await Promise.all([
         prisma.workflowRequest.findMany({
@@ -178,12 +185,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the system user by session email
-    const systemUser = await prisma.systemUser.findUnique({
-      where: { email: session.user?.email || '' },
-    });
-    if (!systemUser) {
-      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
-    }
+    const systemUser = usuarioDeSesion(session);
 
     // El empleado de un onboarding puede venir por id (ya existe, p.ej. se
     // recontrata) o entero en "nuevoEmpleado" (caso normal: recien entra).

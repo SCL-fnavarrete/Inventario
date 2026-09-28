@@ -2,16 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { ImportPreviewResult, ImportRowStatus } from "@/types/import";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { sedeIdParaCrear } from '@/lib/auth/sedeScope';
-import { exigirSedeActiva } from "@/lib/queries/sedes";
-import { construirMapaCatalogo, construirMapaSedes } from "@/lib/importacion/activos";
-import { leerFilasExcel } from "@/lib/importacion/leerExcel";
-import { procesarFila, precargarEmpleadosPorRut, type ContextoFila } from "@/lib/importacion/procesarFila";
+import { exigirCupo } from "@/lib/utils/limiteUso";
+import { leerFilasExcel, leerHoja, mapearFilas } from "@/lib/importacion/leerExcel";
+import { procesarFila } from "@/lib/importacion/procesarFila";
+import { armarContextoImportacion } from "@/lib/importacion/contexto";
 import { validarArchivoExcel } from "@/lib/importacion/validarArchivo";
+
+// Operacion pesada: hasta 60 s (Vercel corta antes por defecto).
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('activos', 'write');
+    exigirCupo(session.user.id, "importarArchivo");
 
     const formData = await request.formData();
     const sheetName = formData.get("sheetName") as string;
@@ -42,20 +45,16 @@ export async function POST(request: NextRequest) {
     // usuario arme el mapeo de columnas. Ninguna validacion de negocio
     // ocurre en este punto -- no hace falta, todavia no hay mapeo.
     if (!mapping) {
-      const { headers, filas } = leerFilasExcel(buffer, sheetName, categoria, {});
-      // Sin mapping, leerFilasExcel no puede armar `data`; se re-lee crudo
-      // usando cada columna como su propio campo, solo para la vista previa
-      // de estructura (encabezados + primeras filas), igual que antes.
+      // La hoja se lee una sola vez (antes, dos). Sin mapping aun, cada
+      // columna se usa como su propio campo, solo para mostrar la estructura
+      // (encabezados + primeras 100 filas).
+      const hoja = await leerHoja(buffer, sheetName);
       const mappingIdentidad: Record<string, string> = {};
-      headers.forEach((h) => { if (h) mappingIdentidad[h] = h; });
-      const { filas: filasCrudas } = leerFilasExcel(buffer, sheetName, categoria, mappingIdentidad);
-      const rows = filasCrudas.slice(0, 100).map((f) => headers.map((h) => f.data[h] ?? ""));
+      hoja.headers.forEach((h) => { if (h) mappingIdentidad[h] = h; });
+      const primeras = mapearFilas({ ...hoja, filas: hoja.filas.slice(0, 100) }, mappingIdentidad);
+      const rows = primeras.map((f) => hoja.headers.map((h) => f.data[h] ?? ""));
 
-      return NextResponse.json({
-        headers,
-        rows,
-        totalRows: filas.length || filasCrudas.length,
-      });
+      return NextResponse.json({ headers: hoja.headers, rows, totalRows: hoja.filas.length });
     }
 
     // --- VALIDACION COMPLETA, SIN ESCRIBIR NADA -----------------------------
@@ -67,28 +66,6 @@ export async function POST(request: NextRequest) {
     if (!mapping.marca || !mapping.modelo) {
       return NextResponse.json({ error: "Faltan campos requeridos en el mapeo" }, { status: 400 });
     }
-
-    const sedeIdExplicita = sedeIdParaCrear(session, formData.get("sedeId") as string | null, {
-      requerido: false,
-    });
-    if (sedeIdExplicita) await exigirSedeActiva(sedeIdExplicita);
-    const mapaSedes = construirMapaSedes(
-      // Solo sedes activas: una fila no puede traer equipos a una sede
-      // desactivada (auditoria 27-sep-2026, 2.9).
-      await prisma.sede.findMany({ where: { activa: true }, select: { id: true, nombre: true, codigo: true } })
-    );
-    // Catalogos administrables (Configuracion > Opciones de Activos): se
-    // traen en vivo, una sola vez por importacion, para validar sistema
-    // operativo/antivirus/licencia M365 fila por fila sin texto fijo.
-    const mapaSistemasOperativos = construirMapaCatalogo(
-      await prisma.sistemaOperativo.findMany({ select: { nombre: true } })
-    );
-    const mapaAntivirus = construirMapaCatalogo(
-      await prisma.antivirus.findMany({ select: { nombre: true } })
-    );
-    const mapaLicenciasM365 = construirMapaCatalogo(
-      await prisma.licenciaMicrosoft365.findMany({ select: { nombre: true } })
-    );
 
     // La categoria y el tipo de mantencion son datos que la confirmacion
     // real necesita para escribir, pero la vista previa no los usa (nunca
@@ -106,45 +83,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Faltan campos requeridos en el mapeo" }, { status: 400 });
     }
 
-    const { headers, filas } = leerFilasExcel(buffer, sheetName, categoria, mapping);
+    const { headers, filas } = await leerFilasExcel(buffer, sheetName, mapping);
 
-    const existingSeries = await prisma.asset.findMany({
-      where: { numeroSerie: { not: null } },
-      select: { numeroSerie: true },
-    });
-    const existingSeriesSet = new Set(
-      existingSeries.filter((a) => a.numeroSerie).map((a) => a.numeroSerie!.toUpperCase())
-    );
+    // Si una fila ya se corrigio a mano (ej. la Marca), esa correccion pisa
+    // el dato crudo del Excel antes de revalidar -- ver `corrections` arriba.
+    const datosFilas = filas.map((fila, i) => (corrections[i] ? { ...fila.data, ...corrections[i] } : fila.data));
 
-    const ctx: ContextoFila = {
+    const ctx = await armarContextoImportacion({
       session,
+      sedeIdSolicitada: formData.get("sedeId") as string | null,
+      filas: datosFilas,
       categoriaId: categoryRecord?.id ?? "",
       exigeImei: categoryRecord?.tipoFicha === "celular",
       tipoMantencionId: "",
-      sedeIdExplicita,
-      mapaSedes,
-      mapaSistemasOperativos,
-      mapaAntivirus,
-      mapaLicenciasM365,
-      existingSeriesSet,
-      existingImeiSet: new Set(
-        (await prisma.asset.findMany({ where: { imei: { not: null } }, select: { imei: true } })).map((a) => a.imei!)
-      ),
-      ...(await precargarEmpleadosPorRut(
-        filas.map((fila, i) => corrections[i]?.rut ?? fila.data.rut ?? ""),
-        prisma
-      )),
-    };
+    });
 
     const rows: ImportRowStatus[] = [];
     for (const fila of filas) {
-      const indiceFila = rows.length;
-      // Si esta fila ya se corrigio a mano (ej. la Marca), esa correccion
-      // pisa el dato crudo del Excel antes de revalidar -- ver comentario
-      // de `corrections` mas arriba.
-      const datosFila = corrections[indiceFila]
-        ? { ...fila.data, ...corrections[indiceFila] }
-        : fila.data;
+      const datosFila = datosFilas[rows.length];
       const resultado = await procesarFila(datosFila, ctx, prisma, true);
 
       if (resultado.status === "error") {

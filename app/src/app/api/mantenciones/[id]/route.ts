@@ -12,6 +12,7 @@ import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { registrarSalidaDeMantencion } from '@/lib/services/mantencionActivoService';
+import { siSigueIgual } from '@/lib/utils/concurrencia';
 import { motivoSinMantencion } from '@/lib/constants/estadosActivo';
 import { formatearFechaConHora } from '@/lib/utils/fechas';
 
@@ -135,14 +136,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
 
       const result = await prisma.$transaction(async (tx) => {
-        const actualizada = await tx.maintenance.update({
-          where: { id },
-          data: { estado: "en_proceso" },
-          include: { tipo: true, asset: { include: { categoria: true } } },
-        });
+        // Mantencion y equipo solo si siguen como se leyeron: iniciar dos
+        // veces, o a la vez que una entrega, responde 409 (7.A-1).
+        const actualizada = await siSigueIgual(
+          tx.maintenance.update({
+            where: { id, estado: "pendiente" },
+            data: { estado: "en_proceso" },
+            include: { tipo: true, asset: { include: { categoria: true } } },
+          })
+        );
 
         if (cambiaEstado) {
-          await tx.asset.update({ where: { id: asset.id }, data: { estado: "en_mantencion" } });
+          await siSigueIgual(
+            tx.asset.update({ where: { id: asset.id, estado: asset.estado }, data: { estado: "en_mantencion" } })
+          );
         }
         await tx.assetHistory.create({
           data: {
@@ -174,11 +181,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (data.estado === "cancelada") {
       const motivo = data.resultado?.trim();
       const result = await prisma.$transaction(async (tx) => {
-        const actualizada = await tx.maintenance.update({
-          where: { id },
-          data: { estado: "cancelada", ...(motivo ? { resultado: motivo } : {}) },
-          include: { tipo: true, asset: { include: { categoria: true } } },
-        });
+        const actualizada = await siSigueIgual(
+          tx.maintenance.update({
+            where: { id, estado: existente.estado },
+            data: { estado: "cancelada", ...(motivo ? { resultado: motivo } : {}) },
+            include: { tipo: true, asset: { include: { categoria: true } } },
+          })
+        );
 
         await registrarSalidaDeMantencion(tx, {
           asset,
@@ -226,11 +235,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     };
 
     const result = await prisma.$transaction(async (tx) => {
-      const actualizada = await tx.maintenance.update({
-        where: { id },
-        data: cambios,
-        include: { tipo: true, asset: { include: { categoria: true } } },
-      });
+      // Solo se edita si sigue pendiente (otra persona pudo iniciarla).
+      const actualizada = await siSigueIgual(
+        tx.maintenance.update({
+          where: { id, estado: "pendiente" },
+          data: cambios,
+          include: { tipo: true, asset: { include: { categoria: true } } },
+        })
+      );
 
       // Cambiar la fecha queda en el historial del equipo: es lo que se
       // mira para saber cuando le toca.

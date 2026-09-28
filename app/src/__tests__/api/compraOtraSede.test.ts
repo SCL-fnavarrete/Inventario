@@ -1,54 +1,64 @@
 /** @jest-environment node */
-// Auditoria 27-sep-2026, 2.12: un tecnico ve la compra completa, pero no
-// quien tiene los equipos de otra sede.
-jest.mock('@/lib/prisma', () => ({ prisma: { purchase: { findUnique: jest.fn() } } }));
+// SPEC 2.111.6 (decision del 28-sep-2026): Compras muestra los equipos
+// comprados y a que sede se repartieron, no a quien estan asignados. Ni a
+// admin ni a tecnico.
+jest.mock('@/lib/prisma', () => ({
+  prisma: {
+    purchase: { findUnique: jest.fn() },
+    purchaseAsset: { findMany: jest.fn() },
+  },
+}));
 jest.mock('@/lib/auth/guard', () => {
   const real = jest.requireActual('@/lib/auth/guard');
   return { ...real, requirePermission: jest.fn() };
 });
 jest.mock('@/lib/services/compraService', () => ({
-  INCLUDE_AVANCE_REPARTO: {},
+  ...jest.requireActual('@/lib/services/compraService'),
   avanceReparto: jest.fn(() => ({})),
-  exigirSinReparto: jest.fn(),
-  moverSedeDeLlegada: jest.fn(),
-  quitarEquipo: jest.fn(),
 }));
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission } from '@/lib/auth/guard';
-import { GET } from '@/app/api/compras/[id]/route';
+import { GET as detalleCompra } from '@/app/api/compras/[id]/route';
+import { GET as equiposCompra } from '@/app/api/compras/[id]/activos/route';
 
-const persona = { id: 'e1', rut: '11.111.111-1', nombres: 'Ana', apellidoPaterno: 'Rojas' };
 const equipo = (id: string, sedeId: string) => ({
-  asset: { id, sedeId, deletedAt: null, empleadoActual: persona },
+  asset: { id, sedeId, deletedAt: null, empleadoActualId: 'e1', sede: { id: sedeId, nombre: sedeId } },
 });
+const ctx = { params: Promise.resolve({ id: 'c1' }) };
+const SESIONES = {
+  tecnico: { user: { id: 'u', role: 'tecnico', sedeId: 's1' } },
+  admin: { user: { id: 'u', role: 'admin', sedeId: null } },
+};
 
-const pedir = async (sesion: unknown) => {
-  (requirePermission as jest.Mock).mockResolvedValue(sesion);
+beforeEach(() => {
   (prisma.purchase.findUnique as jest.Mock).mockResolvedValue({
     id: 'c1',
     purchaseAssets: [equipo('a1', 's1'), equipo('a2', 's2')],
     purchaseKitItems: [],
   });
-  const res = await GET(new NextRequest('http://localhost/api/compras/c1'), {
-    params: Promise.resolve({ id: 'c1' }),
-  });
-  const cuerpo = await res.json();
-  return Object.fromEntries(
-    cuerpo.purchaseAssets.map((pa: { asset: { id: string; empleadoActual: unknown } }) => [
-      pa.asset.id,
-      pa.asset.empleadoActual,
-    ])
-  );
-};
-
-test('técnico: ve a la persona solo en los equipos de su sede', async () => {
-  const personas = await pedir({ user: { id: 'u', role: 'tecnico', sedeId: 's1' } });
-  expect(personas).toEqual({ a1: persona, a2: null });
+  (prisma.purchaseAsset.findMany as jest.Mock).mockResolvedValue([equipo('a1', 's1'), equipo('a2', 's2')]);
 });
 
-test('admin: ve a todas las personas', async () => {
-  const personas = await pedir({ user: { id: 'u', role: 'admin', sedeId: null } });
-  expect(personas).toEqual({ a1: persona, a2: persona });
+describe.each(Object.entries(SESIONES))('%s', (_rol, sesion) => {
+  beforeEach(() => (requirePermission as jest.Mock).mockResolvedValue(sesion));
+
+  test('el detalle muestra la sede de cada equipo, sin su asignación', async () => {
+    const cuerpo = await (await detalleCompra(new NextRequest('http://localhost/api/compras/c1'), ctx)).json();
+    for (const pa of cuerpo.purchaseAssets) {
+      expect(pa.asset.sede).toBeDefined();
+      expect(pa.asset).not.toHaveProperty('empleadoActualId');
+      expect(pa.asset).not.toHaveProperty('empleadoActual');
+    }
+  });
+
+  test('la lista de equipos de la compra tampoco trae la asignación', async () => {
+    const cuerpo = await (await equiposCompra(new NextRequest('http://localhost/api/compras/c1/activos'), ctx)).json();
+    expect(cuerpo.data).toHaveLength(2);
+    for (const pa of cuerpo.data) {
+      expect(pa.asset).not.toHaveProperty('empleadoActualId');
+      expect(pa.asset).not.toHaveProperty('empleadoActual');
+    }
+  });
 });

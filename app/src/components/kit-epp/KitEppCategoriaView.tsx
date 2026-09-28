@@ -396,7 +396,7 @@ export function KitEppCategoriaView({
             </div>
           )}
 
-          <div className="card overflow-hidden">
+          <div className="card overflow-x-auto">
             <table className="min-w-full divide-y divide-line">
               <thead className="bg-surface-muted">
                 <tr>

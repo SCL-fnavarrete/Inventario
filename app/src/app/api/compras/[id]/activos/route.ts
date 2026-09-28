@@ -8,6 +8,7 @@ import {
   agregarEquiposNuevos,
   quitarEquipo,
   vincularEquiposExistentes,
+  sinAsignacion,
 } from '@/lib/services/compraService';
 
 interface RouteParams {
@@ -25,9 +26,6 @@ const INCLUDE_EQUIPO = {
     include: {
       categoria: true,
       sede: { select: { id: true, nombre: true } },
-      empleadoActual: {
-        select: { id: true, rut: true, nombres: true, apellidoPaterno: true },
-      },
     },
   },
 } as const;
@@ -47,7 +45,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     });
 
     return NextResponse.json({
-      data: purchaseAssets,
+      data: purchaseAssets.map((pa) => ({ ...pa, asset: sinAsignacion(pa.asset) })),
       stats: {
         totalActivos: purchaseAssets.length,
       },
@@ -86,7 +84,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       });
     });
 
-    return NextResponse.json(result, { status: 201 });
+    return NextResponse.json(
+      result.map((pa) => ({ ...pa, asset: sinAsignacion(pa.asset) })),
+      { status: 201 }
+    );
   } catch (error) {
     return handleApiError(error, 'Error al agregar equipos a la compra');
   }

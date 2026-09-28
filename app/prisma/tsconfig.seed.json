@@ -1,0 +1,9 @@
+{
+  "//": "Opciones para correr prisma/seed.ts con ts-node. Van en un archivo y no en la linea de comandos: en Windows cmd quitaba las comillas de {\"module\":\"CommonJS\"} y el seed no arrancaba.",
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "node"
+  },
+  "include": ["seed.ts"]
+}

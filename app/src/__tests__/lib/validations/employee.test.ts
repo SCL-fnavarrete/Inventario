@@ -193,15 +193,15 @@ describe('Employee Validation - createEmployeeSchema', () => {
     }
   })
 
-  test('should handle invalid date strings gracefully', () => {
+  // Auditoria 28-sep-2026 (7.A-2): antes una fecha invalida se aceptaba como
+  // vacia y borraba la guardada; ahora es un error en ese campo.
+  test('rejects invalid date strings instead of clearing the date', () => {
     const result = createEmployeeSchema.safeParse({
       ...validEmployee,
       fechaIngreso: 'not-a-date',
     })
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.fechaIngreso).toBeNull()
-    }
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]).toMatchObject({ path: ['fechaIngreso'], message: 'Fecha inválida' })
   })
 
   test('should accept null for optional fields', () => {

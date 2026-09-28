@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { exigirCupo } from "@/lib/utils/limiteUso";
 import { whereFiltrosActivos } from '@/lib/queries/activos';
 import { formatearFecha, hoyISO } from "@/lib/utils/fechas";
-import { CONDICION_ACTIVO_LABEL, ESTADO_ACTIVO_LABEL } from "@/lib/constants/estadosActivo";
+import { CONDICION_ACTIVO_LABEL, ESTADO_ACTIVO_LABEL } from "@/lib/constants/estadosActivo";
+
+// Operacion pesada: hasta 60 s (Vercel corta antes por defecto).
+export const maxDuration = 60;
 
 // Grupos de columnas y su color de encabezado. Se usa exceljs en vez de
 // xlsx (SheetJS CE) porque esta ultima no persiste estilos de celda.
@@ -162,6 +166,7 @@ function nombreDeHoja(nombre: string): string {
 export async function GET(request: NextRequest) {
   try {
     const session = await requirePermission('activos', 'read');
+    exigirCupo(session.user.id, "exportar");
 
     const searchParams = request.nextUrl.searchParams;
     // Lo mismo que muestra la lista: sin descartados, un tecnico solo su

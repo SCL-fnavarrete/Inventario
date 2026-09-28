@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, usuarioDeSesion } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { entregarKitItemsSchema, marcarKitItemNoAplicaSchema } from '@/lib/validations/kitItem';
 import { executeKitDelivery } from '@/lib/services/workflowExecutionService';
@@ -22,12 +22,7 @@ export async function POST(
     const body = await request.json();
     const validated = entregarKitItemsSchema.parse(body);
 
-    const systemUser = await prisma.systemUser.findUnique({
-      where: { email: session.user?.email || '' },
-    });
-    if (!systemUser) {
-      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
-    }
+    const systemUser = usuarioDeSesion(session);
 
     const solicitud = await prisma.workflowRequest.findUnique({ where: { id } });
     if (!solicitud) {
@@ -83,12 +78,7 @@ export async function PATCH(
     const body = await request.json();
     const validated = marcarKitItemNoAplicaSchema.parse(body);
 
-    const systemUser = await prisma.systemUser.findUnique({
-      where: { email: session.user?.email || '' },
-    });
-    if (!systemUser) {
-      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
-    }
+    const systemUser = usuarioDeSesion(session);
 
     const solicitud = await prisma.workflowRequest.findUnique({ where: { id } });
     if (!solicitud) {

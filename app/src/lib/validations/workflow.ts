@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { cantidad, textoLibre } from "./comunes";
 import { createEmployeeSchema, TipoContratoEnum } from './employee';
 import { condicionCargadorSchema } from '@/lib/constants/condicionCargador';
 
@@ -42,7 +43,7 @@ const baseRequestFields = {
   // Opcional porque un onboarding puede traer "nuevoEmpleado" en su lugar.
   // Cada tipo valida abajo (superRefine) que venga uno de los dos.
   employeeId: z.string().uuid('ID de empleado inválido').optional(),
-  observaciones: z.string().optional().nullable(),
+  observaciones: textoLibre(),
   responsableActualId: z
     .union([z.string().uuid(), z.literal(''), z.null()])
     .optional()
@@ -51,7 +52,7 @@ const baseRequestFields = {
     .array(
       z.object({
         tipo: TipoPendienteEnum,
-        descripcion: z.string().optional().nullable(),
+        descripcion: textoLibre(500),
       })
     )
     .optional(),
@@ -88,7 +89,7 @@ const onboardingFields = z.object({
       z.string().uuid(),
       z.object({
         condicion: condicionCargadorSchema,
-        observaciones: z.string().optional(),
+        observaciones: z.string().trim().max(500, "Máximo 500 caracteres").optional(),
       })
     )
     .optional()
@@ -111,7 +112,7 @@ const onboardingFields = z.object({
     .array(
       z.object({
         itemId: z.string().uuid(),
-        cantidad: z.coerce.number().int().min(1),
+        cantidad: cantidad(1, "La cantidad debe ser al menos 1"),
       })
     )
     .optional()
@@ -123,7 +124,7 @@ const onboardingFields = z.object({
     .array(
       z.object({
         itemId: z.string().uuid(),
-        cantidad: z.coerce.number().int().min(1).default(1),
+        cantidad: cantidad(1, "La cantidad debe ser al menos 1").default(1),
       })
     )
     .optional()
@@ -261,7 +262,7 @@ export const cancelWorkflowRequestSchema = z.object({
 // sin OT. Aqui se tipa cada clave que usa la ruta y se exige la coordinacion
 // completa segun el medio, con las mismas reglas que al crear la solicitud.
 // ---------------------------------------------------------------------------
-const textoOpcional = (max: number) => z.string().trim().max(max).optional().nullable();
+const textoOpcional = textoLibre;
 const fechaTexto = z
   .string()
   .refine((v) => !Number.isNaN(Date.parse(v)), 'Fecha inválida')
@@ -365,7 +366,7 @@ export const updatePendienteSchema = z.object({
 // Schema for updating request metadata
 export const updateWorkflowRequestSchema = z.object({
   responsableActualId: z.string().uuid().optional().nullable(),
-  observaciones: z.string().optional().nullable(),
+  observaciones: textoLibre(),
 });
 
 // Schema for list filters

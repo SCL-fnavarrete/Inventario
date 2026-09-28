@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createCommentSchema } from '@/lib/validations/workflow';
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, usuarioDeSesion } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { sinIdsDeUsuario } from '@/lib/utils/privacidad';
 
@@ -22,12 +22,7 @@ export async function POST(
     }
 
     // Find the system user
-    const systemUser = await prisma.systemUser.findUnique({
-      where: { email: session.user?.email || '' },
-    });
-    if (!systemUser) {
-      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
-    }
+    const systemUser = usuarioDeSesion(session);
 
     // Verify request exists
     const existing = await prisma.workflowRequest.findUnique({ where: { id } });

@@ -3557,6 +3557,7 @@ Javier: *"yo había entendido mal y lo documenté como no debía ser. El princip
 ### 2.111.6 Qué ve el técnico
 Javier: *"la idea es que también los técnicos puedan ver lo que hay por repartir, pero no puedan realizar las funciones del admin"*.
 - **Ve todas las compras, de todas las sedes, en solo lectura**: como la compra es de la empresa y lo pendiente todavía no tiene sede destino, acotarla a su sede le escondería justo lo que se está por repartir. Ve el detalle de cada compra, qué tiene por repartir y a dónde se repartió lo demás.
+- **Qué muestra una compra (decisión de Javier, 28-sep-2026):** *"solo debería mostrar los equipos que se compraron, a quién se repartieron y solo eso, la asignación no debe salir"*. La tabla de equipos muestra el equipo, su serie y la **sede** a la que se repartió; **no** muestra su estado ni a qué persona está asignado, para nadie (admin ni técnico). La API de Compras (`GET /api/compras/[id]` y `/activos`) tampoco devuelve la asignación (ni el id del empleado). Quién tiene un equipo se ve en la ficha del activo, que respeta el aislamiento por sede.
 - En Activos ve la tarjeta y la lista **"Por repartir"** de todas las sedes, y puede abrir la ficha de esos equipos, en solo lectura.
 - **No puede** registrar, editar ni eliminar compras, ni repartir: esos botones no se le muestran (`<Can>` con la matriz 1.3.1) y las rutas se lo rechazan con 403.
 - Lo que viene hacia su sede lo sigue viendo con "Por llegar" (Activos) y "Por recibir" (Despachos), y confirma su recepción como en 2.108.
@@ -3781,10 +3782,10 @@ Auditoría de seguridad, datos y concurrencia previa al paso a producción. El d
 - Un empleado **desvinculado no vuelve a "activo" desde Editar**: se reincorpora con una Solicitud de Onboarding (400 con `redirectTo: /solicitudes/nueva`). Sus demás datos se siguen pudiendo editar.
 - **Nada nuevo nace en una sede desactivada**: alta de activos, artículos de Kit, importación (la sede elegida y la de cada fila) y solicitudes de onboarding. Lo que saca cosas de ella sigue permitido (despachos, desvinculaciones, cambios de equipo), porque puede tener aún personas y equipos.
 - "Último administrador activo": la revisión y el cambio van en una transacción con candado (`pg_advisory_xact_lock`), así dos administradores que se desactivan uno al otro a la vez ya no dejan el sistema sin ninguno.
-- En el detalle de una compra, un técnico no ve quién tiene los equipos de otra sede (nombre y RUT vacíos); el administrador ve todo.
+- Compras muestra los equipos comprados y la sede a la que se repartieron, sin su estado ni a quién están asignados, para todos (ver 2.111.6).
 
 ### 2.114.6 Importación de activos
-- Archivo: obligatorio, no vacío, **5 MB como máximo**, extensión `.xlsx`/`.xls` **y** firma real de Excel (ZIP u OLE2). Se aplica en `sheets`, `preview` y `batch`.
+- Archivo: obligatorio, no vacío, **5 MB como máximo**, extensión `.xlsx`/`.xls` **y** firma real de Excel (ZIP u OLE2). Se aplica en `sheets`, `preview` y `batch`. *(Desde 2.115.10 solo `.xlsx`.)*
 - **5.000 filas como máximo**: un archivo más largo se rechaza con un mensaje, no se corta sin avisar. La pantalla envía a `batch` en tandas de 200 con barra de avance; si una tanda falla, lo anterior ya quedó guardado y se informa cuántas filas no se enviaron.
 - Los empleados se buscan por RUT de una vez (de a 1.000 RUT por consulta), no una consulta por fila.
 - Si una fila deja un equipo **"asignado" a un empleado desvinculado**, la fila queda con error (`empleado_desvinculado`): "usa el estado No devuelto o quita el RUT".
@@ -3814,9 +3815,66 @@ Antes de aplicar se verificó que no había equipos repetidos en una compra.
 - Prueba de carga con Locust (`app/scripts/carga/locustfile.py`), perfiles normal, pico, estrés y resistencia.
 - Conexión a Neon con `sslmode=require&pgbouncer=true&connection_limit=3&pool_timeout=20` (ver `app/docs/DEPLOYMENT.md`).
 
+## 2.115 Correcciones de la auditoría de 7 fases del 28-sep-2026
+Detalle por hallazgo en `AUDITORIA_2026-09-28.md` (raíz). Aquí las reglas que cambian.
+
+### 2.115.1 Cambios simultáneos: 409 en vez de pisar
+Completa lo de 2.114.3. **Vender, dar de baja, iniciar, editar, cancelar y completar una mantención** solo se aplican si el registro sigue como se leyó (el equipo en su estado y sin empleado; la mantención en su estado). Si otra persona o pestaña lo cambió en el intertanto, la operación responde **409** ("El registro cambió mientras se guardaba… Vuelve a cargar la página") y no se escribe nada. Así un equipo ya no puede quedar vendido o de baja con una asignación activa, ni una mantención completarse dos veces. Se implementa con `siSigueIgual` (`lib/utils/concurrencia.ts`).
+
+### 2.115.2 Límite de uso de las operaciones pesadas
+Por usuario, en una ventana de 1 minuto: **exportar activos 5**, **documentos PDF 30**, **subir un Excel para importar 20** y **tandas de importación 60** (5.000 filas son 25 tandas). Al pasarse responde **429** "Demasiadas solicitudes seguidas. Espera un minuto". El conteo es en memoria por instancia del servidor (tope exacto en un servidor propio; en Vercel frena a quien repite, pero no es global). Esas rutas pueden durar hasta 60 s (`maxDuration`).
+
+### 2.115.3 Datos
+- **Fechas:** una fecha inválida en un empleado es un error del campo, ya no se guarda como vacía (antes borraba la fecha que había). `fechaCompra` y `fechaGarantiaFin` de un activo tienen que ser fechas reales.
+- **Números:** cantidades y stock de Kit/EPP y de compras, entre su mínimo y **1.000.000**; pulgadas hasta **999**; costo de mantención hasta **99.999.999** (tope de su columna).
+- **Textos:** observaciones e incidencia de un activo hasta 2.000 caracteres; motivos de asignación, devolución y transición hasta 1.000; observaciones de solicitudes hasta 2.000 y descripción de pendientes hasta 500. La pantalla de Nueva solicitud ya no deja escribir más de eso.
+- **Teléfono** de un empleado: solo números, espacios, `+`, `-` y paréntesis, hasta 20 caracteres.
+- La búsqueda de Auditoría toma `%`, `_` y `\` como texto, no como comodines.
+
+### 2.115.4 Compras (ver 2.111.6)
+La tabla de equipos de una compra muestra el equipo, su serie y la sede a la que se repartió; no su estado ni a quién está asignado, para nadie. La API de Compras no devuelve la asignación.
+
+### 2.115.5 Rendimiento
+- La búsqueda de Despachos y Solicitudes filtra en memoria solo las columnas de búsqueda (conserva que "jose" encuentre "José" y el RUT sin formato) y trae completas solo las filas de la página.
+- La importación busca solo las series e IMEI de las filas que llegan (antes leía toda la tabla en cada tanda); el contexto de la vista previa y de la escritura se arma en un solo lugar (`lib/importacion/contexto.ts`).
+- El Dashboard trae solo las mantenciones pendientes que muestra (vencidas y de la próxima semana) y cuenta el total en la base.
+- El navegador revisa la sesión cada 5 minutos (antes cada 30 s); la API sigue revisando la cuenta en cada acción.
+- Las rutas de Solicitudes toman al usuario de la sesión en vez de buscarlo por correo en cada petición.
+
+### 2.115.6 Accesibilidad y pantallas
+- En Editar empleado y Nueva solicitud cada etiqueta queda unida a su campo, y los grupos "Medio" se anuncian como grupo de opciones.
+- Las tablas de Tipos de mantención, Catálogos y Kit/EPP se desplazan de lado en el celular en vez de cortarse.
+
+### 2.115.7 CSP con nonce (reemplaza la de 2.114.8)
+La política de contenido la pone `proxy.ts` en cada visita a una página, con un **nonce** (código al azar) nuevo: `script-src 'self' 'nonce-…' 'strict-dynamic'`, sin `'unsafe-inline'` para scripts. Next le pone el nonce a sus scripts y el layout al script del tema; un script inyectado en el HTML no lo conoce y el navegador lo bloquea (probado en el navegador con la app compilada). Los estilos mantienen `'unsafe-inline'` (React y los gráficos usan estilos en línea). La API no lleva CSP. Se agrega fuera de `withAuth` porque NextAuth no llama a su función en `/login`. Ver `lib/seguridad/csp.ts`.
+
+### 2.115.8 Entorno local
+La base local se conecta a `127.0.0.1:5433` y no a `localhost`: Docker escucha solo en IPv4 y en Windows `localhost` prueba IPv6 primero, con lo que cada conexión nueva tardaba ~2 s y las transacciones simultáneas fallaban. Base de pruebas `inventario_it_test` en el mismo contenedor: `npm run db:test:migrate` y `npm run test:integracion` (`scripts/con-base-test.mjs` se niega a correr contra otra base). `npm run db:seed` lee sus opciones de TypeScript de `prisma/tsconfig.seed.json` (en Windows, las comillas de la línea de comandos se perdían y el seed no arrancaba).
+
+### 2.115.9 Limpieza y CI
+Se quitan dependencias sin uso (`@tanstack/react-query`, `class-variance-authority`, `date-fns`, `qrcode`, `qrcode.react`, `@types/qrcode`), 4 componentes sin importar (`ui/Card`, `EmptyState`, `Skeleton`, `ui/index.ts`) y 5 íconos de ejemplo de `public/`. El CI corre `npm audit --omit=dev --audit-level=high`.
+
+### 2.115.10 Una sola librería de Excel
+La importación lee el Excel con `exceljs`, la misma librería que ya usaba la exportación; se desinstala `xlsx` (SheetJS), que además había que instalar desde el CDN del autor porque la versión de npm está abandonada (2.113). Consecuencias:
+- **Solo se importan archivos `.xlsx`.** `exceljs` no lee el formato antiguo `.xls` (Excel 97-2003); un `.xls` se rechaza con "El formato .xls (Excel 97-2003) no se acepta: ábrelo en Excel y guárdalo como .xlsx" (reemplaza lo dicho en 2.114.6). Los 19 Excel del proyecto ya eran `.xlsx`.
+- La lectura entrega lo mismo que antes: las fechas vuelven a su número de serie de Excel antes de convertirse a dd-mm-aaaa, y las fórmulas, textos con formato e hipervínculos quedan como su valor visible.
+- Una hoja que no existe o un archivo ilegible responden 400 con un mensaje claro (antes, 500).
+- El número de fila que se muestra es el real de Excel, también cuando hay filas vacías entre medio.
+- Se borra `scripts/migrate_excel_feb2026.js`, una migración de febrero de 2026 que borraba todos los datos y cargaba un Excel fijo; la reemplazó la pantalla de importación.
+
+### 2.115.11 Nueva Solicitud dividida en piezas
+La pantalla pasa de 2.698 a 1.684 líneas. Sin cambiar reglas ni lo que se envía al servidor, se separa en `components/solicitudes/nueva/`:
+- `coordinacion.ts` y `SeccionCoordinacion`: la coordinación (fecha, medio, lugar u OT y destino) de entrega, cambio y devolución, antes copiada tres veces con 15 estados; ahora un objeto por tipo. En la devolución la fecha pasa a pedirse antes que el medio, como en las otras dos, y en las tres al cambiar de medio se limpian los errores del otro.
+- `BuscadorEmpleado` y `useBuscarEmpleado`: la búsqueda de empleado, antes copiada en la reincorporación y en cambio/desvinculación.
+- `SeccionKitEpp`, `FormEmpleadoNuevo` (sus filas pasan a una columna en el celular) y `ElegirEstadoDevolucion` (Buen estado / Dañado / No devolvió, antes escrito seis veces).
+- `datos.ts`: tipos, constantes y funciones auxiliares.
+Probado en el navegador: onboarding, reincorporación, cambio de equipo y una desvinculación creada de punta a punta.
+
 ## Changelog SPEC
+- **v2.39 (2026-09-28):**
+  - Sección 2.115 (nueva): correcciones de la auditoría de 7 fases. 409 ante cambios simultáneos en venta, baja y mantenciones; límite de uso por usuario en exportar, PDF e importar (429) y `maxDuration` de 60 s; fecha inválida de empleado como error (ya no borra), fechas de activo reales, topes en cantidades, pulgadas, costo y textos, formato de teléfono; Compras sin estado ni asignación de sus equipos (2.111.6); búsqueda de Despachos y Solicitudes que trae completa solo la página; importación que busca solo las series e IMEI de las filas; Dashboard con solo las mantenciones que muestra; sesión revisada cada 5 minutos; CSP con nonce por visita (sin 'unsafe-inline' en scripts); conexión local a 127.0.0.1 y base de pruebas con `npm run test:integracion`; etiquetas unidas a sus campos y tablas desplazables; dependencias y componentes sin uso retirados; `npm audit` en el CI. Importación con `exceljs` (se retira `xlsx`, solo `.xlsx`) y Nueva Solicitud dividida en componentes (2.115.10 y 2.115.11).
 - **v2.38 (2026-09-28):**
-  - Sección 2.114 (nueva): correcciones de la auditoría del 27-sep-2026. Secreto de sesión de 32+ caracteres; sin ids de usuario en la API; seed por variables de entorno; API sin sesión responde 401 y un guardado sin sesión no borra el formulario; borrador de Nueva Solicitud. Login: intento anotado antes de revisar la clave, bloqueo por correo + equipo con tope global 4x, IP solo detrás de un proxy de confianza, clave de 200 caracteres como máximo. Sede obligatoria en entregas y Kit; doble envío responde 409; `datosAccion` validado; número de solicitud calculado en la base. Textos sin espacios de relleno y orden de fechas; `fechaBaja` solo por Mantenciones. Empleados: sin traslado con equipos ni a sede desactivada, sin reactivar desde Editar; nada nuevo nace en una sede desactivada; último administrador con candado; compras sin personas de otra sede para técnicos. Importación con límites de 5 MB y 5.000 filas, firma de Excel, tandas de 200 y error para equipos asignados a desvinculados. Migración `20260928000000_indices_auditoria` (único en `purchase_assets` e índices). Paginación con tope, rutas 410 borradas, logs en JSON, CSP y HSTS, accesibilidad, test de concurrencia y prueba de carga.
+  - Sección 2.114 (nueva): correcciones de la auditoría del 27-sep-2026. Secreto de sesión de 32+ caracteres; sin ids de usuario en la API; seed por variables de entorno; API sin sesión responde 401 y un guardado sin sesión no borra el formulario; borrador de Nueva Solicitud. Login: intento anotado antes de revisar la clave, bloqueo por correo + equipo con tope global 4x, IP solo detrás de un proxy de confianza, clave de 200 caracteres como máximo. Sede obligatoria en entregas y Kit; doble envío responde 409; `datosAccion` validado; número de solicitud calculado en la base. Textos sin espacios de relleno y orden de fechas; `fechaBaja` solo por Mantenciones. Empleados: sin traslado con equipos ni a sede desactivada, sin reactivar desde Editar; nada nuevo nace en una sede desactivada; último administrador con candado; compras sin personas de otra sede para técnicos. Compras deja de mostrar el estado y la asignación de sus equipos, para todos (2.111.6). Importación con límites de 5 MB y 5.000 filas, firma de Excel, tandas de 200 y error para equipos asignados a desvinculados. Migración `20260928000000_indices_auditoria` (único en `purchase_assets` e índices). Paginación con tope, rutas 410 borradas, logs en JSON, CSP y HSTS, accesibilidad, test de concurrencia y prueba de carga.
 - **v2.37 (2026-09-26):**
   - Sección 2.113 (nueva): dependencias sin fallas de seguridad (`npm audit` en 0) y `middleware.ts` pasa a `proxy.ts` de Next.js 16. Entrada agregada el 28-sep-2026: la sección se publicó sin su línea en este changelog.
 - **v2.36 (2026-09-25):**

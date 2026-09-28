@@ -76,15 +76,18 @@ const EVENTOS = Prisma.sql`
   FROM workflow_transitions t JOIN system_users u ON u.id = t.ejecutado_por_id JOIN workflow_requests r ON r.id = t.request_id
 `;
 
+/** "Contiene" para ILIKE: `%`, `_` y `\` del usuario se buscan tal cual, no como comodines. */
+export const contiene = (texto: string) => `%${texto.replace(/[\\%_]/g, "\\$&")}%`;
+
 function condiciones(f: FiltrosAuditoria): Prisma.Sql {
   const y: Prisma.Sql[] = [];
   if (f.modulo) y.push(Prisma.sql`e.modulo = ${f.modulo}`);
   if (f.usuario) {
-    const patron = `%${f.usuario}%`;
+    const patron = contiene(f.usuario);
     y.push(Prisma.sql`(e.usuario_email ILIKE ${patron} OR e.usuario_nombre ILIKE ${patron})`);
   }
   if (f.search) {
-    const patron = `%${f.search}%`;
+    const patron = contiene(f.search);
     y.push(Prisma.sql`(e.descripcion ILIKE ${patron} OR e.contexto ILIKE ${patron})`);
   }
   if (f.rango?.gte) y.push(Prisma.sql`e.created_at >= ${f.rango.gte}`);

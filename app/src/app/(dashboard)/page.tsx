@@ -58,6 +58,7 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
     assetsPorCategoriaYEstado,
     categoriesRaw,
     maintenancesPendientes,
+    totalMantencionesPendientes,
     assignmentsUltimos6Meses,
     solicitudesAbiertas,
     kitItems,
@@ -71,8 +72,10 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
     prisma.assetCategory.findMany({
       select: { id: true, nombre: true, stockMinimo: true },
     }),
+    // Solo las que el panel muestra (vencidas y de aqui a una semana); las
+    // demas solo se cuentan abajo (auditoria 28-sep-2026, 4.1).
     prisma.maintenance.findMany({
-      where: { estado: "pendiente", ...swAsset },
+      where: { estado: "pendiente", fechaProgramada: { lte: nextWeek }, ...swAsset },
       // Orden ascendente por fecha programada: la vencida mas antigua y
       // la proxima mas cercana aparecen primero.
       orderBy: [{ fechaProgramada: "asc" }, { horaProgramada: "asc" }],
@@ -88,6 +91,7 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
         },
       },
     }),
+    prisma.maintenance.count({ where: { estado: "pendiente", ...swAsset } }),
     // Entregas O devoluciones de los ultimos 6 meses: una devolucion cuenta
     // en su mes aunque el equipo se haya entregado antes de ese periodo.
     prisma.assignment.findMany({
@@ -179,10 +183,9 @@ async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string
     { estado: "vendido", cantidad: vendidoAssets, color: ESTADO_ACTIVO_COLOR.vendido },
   ].filter((e) => e.cantidad > 0);
 
-  // Mantenciones pendientes: se piden todas una sola vez y vencidas/
-  // proximas/total se derivan en memoria del mismo resultado, sin limite
-  // de cantidad (el panel es scrolleable).
-  const pendingMaintenance = maintenancesPendientes.length;
+  // Mantenciones: el total se cuenta en la base; vencidas y proximas salen
+  // de la lista, sin limite de cantidad (el panel es scrolleable).
+  const pendingMaintenance = totalMantencionesPendientes;
   const mantencionesVencidas = maintenancesPendientes.filter(
     (m) => m.fechaProgramada && m.fechaProgramada < today
   );

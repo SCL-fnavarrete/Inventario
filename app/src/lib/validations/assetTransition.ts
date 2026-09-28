@@ -1,10 +1,11 @@
 import { z } from 'zod';
+import { textoLibre } from "./comunes";
 import { estadoActivoEnum } from './asset';
 
 // Transiciones válidas del ciclo de vida de activos
 export const assetTransitionSchema = z.object({
   estadoNuevo: estadoActivoEnum,
-  motivo: z.string().optional().nullable(),
+  motivo: textoLibre(1000),
 });
 
 // Proceso de baja de un activo

@@ -18,34 +18,30 @@
     "db:migrate:prod": "prisma migrate deploy",
     "db:push": "node scripts/db-push-disabled.js",
     "db:status": "prisma migrate status",
-    "db:seed": "npx ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts",
+    "db:seed": "npx ts-node --project prisma/tsconfig.seed.json prisma/seed.ts",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
-    "test:aislamiento": "node scripts/probar-aislamiento-sede.mjs"
+    "test:aislamiento": "node scripts/probar-aislamiento-sede.mjs",
+    "db:test:migrate": "node --env-file=.env scripts/con-base-test.mjs npx prisma migrate deploy",
+    "test:integracion": "node --env-file=.env scripts/con-base-test.mjs npx jest src/__tests__/integracion"
   },
   "prisma": {
-    "seed": "npx ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+    "seed": "npx ts-node --project prisma/tsconfig.seed.json prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "5.22.0",
     "@react-pdf/renderer": "^4.3.2",
-    "@tanstack/react-query": "^5.90.11",
     "bcryptjs": "^3.0.3",
-    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "date-fns": "^4.1.0",
     "exceljs": "^4.4.0",
     "lucide-react": "^0.554.0",
     "next": "^16.3.6",
     "next-auth": "^4.24.15",
-    "qrcode": "^1.5.4",
-    "qrcode.react": "^4.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^3.5.0",
     "tailwind-merge": "^3.4.0",
     "vanilla-tilt": "^1.8.1",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.1.13"
   },
   "devDependencies": {
@@ -56,7 +52,6 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^20",
-    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

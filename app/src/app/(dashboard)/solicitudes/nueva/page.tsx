@@ -1,19 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import {
-  UserPlus,
-  ArrowLeftRight,
-  Undo2,
-  X,
-  Search,
-  Loader2,
-  AlertCircle,
-  ChevronDown,
-  ChevronUp,
-} from 'lucide-react';
+import { Loader2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CategoryIcon } from '@/components/activos/CategoryIcon';
 import {
@@ -24,6 +14,21 @@ import {
 import { buttonClasses } from '@/components/ui/buttonStyles';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useBorrador } from '@/hooks/useBorrador';
+import { SeccionCoordinacion } from '@/components/solicitudes/nueva/SeccionCoordinacion';
+import { BuscadorEmpleado, useBuscarEmpleado } from '@/components/solicitudes/nueva/BuscadorEmpleado';
+import { SeccionKitEpp, type ArticuloKit } from '@/components/solicitudes/nueva/SeccionKitEpp';
+import { FormEmpleadoNuevo } from '@/components/solicitudes/nueva/FormEmpleadoNuevo';
+import {
+  ElegirEstadoDevolucion,
+  type EstadoDevolucion,
+} from '@/components/solicitudes/nueva/ElegirEstadoDevolucion';
+import {
+  CLAVES,
+  COORDINACION_VACIA,
+  cuerpoCoordinacion,
+  erroresCoordinacion,
+  type Coordinacion,
+} from '@/components/solicitudes/nueva/coordinacion';
 import { SelectCondicionCargador } from '@/components/solicitudes/SelectCondicionCargador';
 import {
   CONDICION_CARGADOR_POR_DEFECTO,
@@ -41,184 +46,23 @@ import {
   textoResumenErrores,
 } from '@/components/ui/CampoFormulario';
 import { esCorreoValido } from '@/lib/utils/text';
-import { formatearFechaHora, inputFechaHoraAISO } from '@/lib/utils/fechas';
+import { formatearFechaHora } from '@/lib/utils/fechas';
 import { useCampoSede, useSedeSeleccionada } from '@/components/providers/SedeSeleccionadaProvider';
 import { identificadorActivo } from "@/lib/utils/identificador";
 
-type Employee = {
-  id: string;
-  rut: string | null;
-  nombres: string;
-  apellidoPaterno: string;
-  apellidoMaterno: string | null;
-  cargo: string | null;
-  // El correo de empresa es obligatorio; el personal queda opcional.
-  correoEmpresa: string;
-  correoPersonal: string | null;
-  estado?: string;
-  // Se usa para fijar la Sede de la solicitud a la del empleado en Cambio
-  // de Equipo/Desvinculacion.
-  sedeId?: string | null;
-};
-
-// Asignacion activa del empleado (con su id propio, distinto del id del
-// Activo) -- se necesita el id de la asignacion para poder calificarla y
-// devolverla de una al crear el ticket de offboarding.
-type EmployeeAssignment = {
-  id: string;
-  activo: boolean;
-  // "no_devuelto" si quedo pendiente en una desvinculacion anterior.
-  estadoDevolucion?: string | null;
-  asset: {
-    id: string;
-    marca: string;
-    modelo: string;
-    numeroSerie: string | null;
-    imei?: string | null;
-    categoria: { nombre: string };
-    tieneCargador: boolean;
-  };
-};
-
-// EPP entregado al empleado y aun no devuelto -- el Kit de Bienvenida no
-// entra aca porque es consumible, no se devuelve al desvincularse.
-type EmployeeKitAssignment = {
-  id: string;
-  estado: string;
-  item: { id: string; nombre: string; categoria: 'kit_bienvenida' | 'epp' };
-};
-
-function toggleCategoriaRequerida(
-  lista: string[],
-  nombre: string,
-  marcado: boolean
-): string[] {
-  if (marcado) return lista.includes(nombre) ? lista : [...lista, nombre];
-  return lista.filter((c) => c !== nombre);
-}
-
-// Equipo disponible para elegir en "Equipos Requeridos", con sus specs --
-// antes solo se traian/mostraban marca/modelo/numeroSerie, sin procesador,
-// RAM, etc., asi que habia que ir a Activos a revisarlas por separado.
-type EquipoDisponible = {
-  id: string;
-  marca: string;
-  modelo: string;
-  numeroSerie: string | null;
-  procesador: string | null;
-  ram: string | null;
-  discoDuro: string | null;
-  sistemaOperativo: string | null;
-  imei: string | null;
-  numeroTelefono: string | null;
-  tipoPlan: string | null;
-  operador: string | null;
-  pulgadas: string | number | null;
-  // Si el equipo es nuevo o usado; sale del campo `condicion`.
-  condicion: 'nuevo' | 'usado' | 'danado';
-  tieneCargador: boolean;
-};
-
-function especificacionesEquipo(a: EquipoDisponible): string {
-  const partes: string[] = [];
-  if (a.procesador) partes.push(a.procesador);
-  if (a.ram) partes.push(a.ram);
-  if (a.discoDuro) partes.push(a.discoDuro);
-  if (a.sistemaOperativo) partes.push(a.sistemaOperativo);
-  if (a.imei) partes.push(`IMEI ${a.imei}`);
-  if (a.numeroTelefono) partes.push(a.numeroTelefono);
-  if (a.tipoPlan) partes.push(a.tipoPlan);
-  if (a.operador) partes.push(a.operador);
-  if (a.pulgadas) partes.push(`${a.pulgadas}"`);
-  return partes.join(' · ');
-}
-
-const TIPOS = [
-  {
-    value: 'onboarding',
-    label: 'Onboarding',
-    description: 'Solicitar equipos para un nuevo empleado',
-    icon: UserPlus,
-    color: 'border-green-500 bg-green-50',
-  },
-  {
-    value: 'cambio_equipo',
-    label: 'Cambio de Equipo',
-    description: 'Reemplazar un equipo por falla o incidencia',
-    icon: ArrowLeftRight,
-    color: 'border-primary-500 bg-primary-50',
-  },
-  {
-    value: 'offboarding',
-    label: 'Offboarding',
-    description: 'Coordinar devolución de equipos por desvinculación',
-    icon: Undo2,
-    color: 'border-orange-500 bg-orange-50',
-  },
-];
-
-const NEW_EMPLOYEE_INITIAL = {
-  nombres: '',
-  apellidoPaterno: '',
-  apellidoMaterno: '',
-  correoPersonal: '',
-  correoEmpresa: '',
-  rut: '',
-  cargo: '',
-  supervisor: '',
-  telefonoContacto: '',
-  division: '',
-  area: '',
-  subArea: '',
-  direccionParticular: '',
-  listasDistribucion: '',
-  ubicacion: '',
-  tipoContrato: 'contrato' as string,
-};
-
-// Datos obligatorios del empleado nuevo en un onboarding (campo -> nombre
-// visible en el mensaje de error).
-const CAMPOS_OBLIGATORIOS_ONBOARDING = [
-  ['nombres', 'Nombres'],
-  ['apellidoPaterno', 'Apellido paterno'],
-  ['apellidoMaterno', 'Apellido materno'],
-  ['rut', 'RUT'],
-  ['correoPersonal', 'Correo personal'],
-  ['cargo', 'Cargo'],
-  ['supervisor', 'Supervisor'],
-  ['telefonoContacto', 'Celular de contacto'],
-  ['direccionParticular', 'Dirección particular'],
-] as const;
-
-// Nombre visible de cada campo validado, para el resumen de errores.
-const ETIQUETAS_ERROR: Record<string, string> = {
-  ...Object.fromEntries(CAMPOS_OBLIGATORIOS_ONBOARDING),
-  employeeId: 'Empleado',
-  cargoSolicitado: 'Cargo solicitado',
-  fechaIngreso: 'Fecha de ingreso',
-  equipos: 'Equipos',
-  fechaEntregaCoordinada: 'Fecha de entrega',
-  lugarEntrega: 'Lugar de entrega',
-  otChilexpressEntrega: 'N° de OT Chilexpress',
-  ciudadEntrega: 'Ubicación de destino',
-  kitEpp: 'Kit de Bienvenida / EPP',
-  sedeId: 'Sede',
-  motivoCambio: 'Motivo del cambio',
-  cambioSeleccion: 'Equipos a cambiar',
-  fechaCambioCoordinada: 'Fecha del cambio',
-  lugarCambio: 'Lugar del cambio',
-  otCambioChilexpress: 'N° de OT Chilexpress',
-  ciudadCambio: 'Ubicación de destino',
-  fechaDesvinculacion: 'Fecha de desvinculación',
-  devoluciones: 'Equipos a devolver',
-  devolucionesEpp: 'EPP a devolver',
-  fechaDevolucionCoordinada: 'Fecha de devolución',
-  lugarDevolucion: 'Lugar de devolución',
-  otChilexpress: 'N° de OT Chilexpress',
-  ciudadDevolucion: 'Ubicación de destino',
-};
-
-const DATO_OBLIGATORIO = 'Este dato es obligatorio';
+import {
+  CAMPOS_OBLIGATORIOS_ONBOARDING,
+  DATO_OBLIGATORIO,
+  ETIQUETAS_ERROR,
+  NEW_EMPLOYEE_INITIAL,
+  TIPOS,
+  especificacionesEquipo,
+  toggleCategoriaRequerida,
+  type Employee,
+  type EmployeeAssignment,
+  type EmployeeKitAssignment,
+  type EquipoDisponible,
+} from '@/components/solicitudes/nueva/datos';
 
 export default function NuevaSolicitudPage() {
   const router = useRouter();
@@ -237,11 +81,9 @@ export default function NuevaSolicitudPage() {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  // Employee search state (cambio_equipo / offboarding)
-  const [searchEmployee, setSearchEmployee] = useState('');
-  const [searchResults, setSearchResults] = useState<Employee[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [showResults, setShowResults] = useState(false);
+  // Busqueda de empleado (reincorporacion, cambio de equipo y desvinculacion):
+  // su estado y logica viven en useBuscarEmpleado.
+  const buscador = useBuscarEmpleado(sedeSeleccionada);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   // Desvinculacion de alguien ya desvinculado: solo sirve para recuperar sus
   // equipos "No devuelto" (SPEC 2.87). Usa la fecha de la desvinculacion
@@ -252,7 +94,7 @@ export default function NuevaSolicitudPage() {
   // (equipo viejo a cambiar) comparten esta misma carga.
   const [employeeAssignments, setEmployeeAssignments] = useState<EmployeeAssignment[]>([]);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
-  const [devolucionEstados, setDevolucionEstados] = useState<Record<string, 'ok' | 'danado' | 'no_devuelto'>>({});
+  const [devolucionEstados, setDevolucionEstados] = useState<Record<string, EstadoDevolucion>>({});
   const [devolucionObservaciones, setDevolucionObservaciones] = useState<Record<string, string>>({});
   // Condicion del cargador al devolver, solo si el equipo es un notebook
   // con tieneCargador.
@@ -260,10 +102,8 @@ export default function NuevaSolicitudPage() {
   const [devolucionCargadorObservaciones, setDevolucionCargadorObservaciones] = useState<Record<string, string>>({});
   // EPP entregado y pendiente de devolver (offboarding)
   const [employeeEppAssignments, setEmployeeEppAssignments] = useState<EmployeeKitAssignment[]>([]);
-  const [devolucionEppEstados, setDevolucionEppEstados] = useState<Record<string, 'ok' | 'danado' | 'no_devuelto'>>({});
+  const [devolucionEppEstados, setDevolucionEppEstados] = useState<Record<string, EstadoDevolucion>>({});
   const [devolucionEppObservaciones, setDevolucionEppObservaciones] = useState<Record<string, string>>({});
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   // Onboarding: nuevo empleado (paso 2), sin persistir hasta el submit final
   const [onboardingEmp, setOnboardingEmp] = useState({ ...NEW_EMPLOYEE_INITIAL });
@@ -313,25 +153,19 @@ export default function NuevaSolicitudPage() {
   const [cargadorOnboarding, setCargadorOnboarding] = useState<
     Record<string, { condicion: CondicionCargador; observaciones: string }>
   >({});
-  // Coordinacion de entrega: se pide junto con la eleccion de equipos, en
-  // vez de en un paso aparte despues.
-  const [fechaEntregaCoordinada, setFechaEntregaCoordinada] = useState('');
-  const [medioEntrega, setMedioEntrega] = useState<'presencial' | 'chilexpress'>('presencial');
-  const [lugarEntrega, setLugarEntrega] = useState('');
-  const [otChilexpressEntrega, setOtChilexpressEntrega] = useState('');
-  const [ciudadEntrega, setCiudadEntrega] = useState('');
+  // Coordinacion de entrega, cambio y devolucion: un objeto por tipo (fecha,
+  // medio, lugar, OT, destino) en vez de 5 estados sueltos cada una; ver
+  // components/solicitudes/nueva/coordinacion.ts.
+  const [coordEntrega, setCoordEntrega] = useState<Coordinacion>(COORDINACION_VACIA);
+  const [coordCambio, setCoordCambio] = useState<Coordinacion>(COORDINACION_VACIA);
+  const [coordDevolucion, setCoordDevolucion] = useState<Coordinacion>(COORDINACION_VACIA);
   // Kit de Bienvenida y EPP: aparte de Equipos Requeridos porque no son
   // Activos (ver /activos/kit-bienvenida). Igual que con los equipos, si hay
   // stock se puede elegir de una los articulos y cantidades especificas y
   // quedan reservados desde que se crea el ticket.
   const [kitBienvenidaSolicitado, setKitBienvenidaSolicitado] = useState(false);
   const [eppSolicitado, setEppSolicitado] = useState(false);
-  const [kitCatalog, setKitCatalog] = useState<
-    { id: string; nombre: string; categoria: 'kit_bienvenida' | 'epp'; cantidad: number }[]
-  >([]);
-  const [kitCategoriaExpandida, setKitCategoriaExpandida] = useState<'kit_bienvenida' | 'epp' | null>(
-    null
-  );
+  const [kitCatalog, setKitCatalog] = useState<ArticuloKit[]>([]);
   const [kitCantidadesSeleccionadas, setKitCantidadesSeleccionadas] = useState<Record<string, number>>(
     {}
   );
@@ -350,13 +184,6 @@ export default function NuevaSolicitudPage() {
 
   // Cambio equipo fields
   const [motivoCambio, setMotivoCambio] = useState('');
-  // Coordinacion de cambio: igual patron, junto con la seleccion del
-  // equipo de reemplazo.
-  const [fechaCambioCoordinada, setFechaCambioCoordinada] = useState('');
-  const [medioCambio, setMedioCambio] = useState<'presencial' | 'chilexpress'>('presencial');
-  const [lugarCambio, setLugarCambio] = useState('');
-  const [otCambioChilexpress, setOtCambioChilexpress] = useState('');
-  const [ciudadCambio, setCiudadCambio] = useState('');
   // Equipos marcados para cambiar (uno o varios, SPEC 2.84), cada uno con su
   // estado de devolucion y su reemplazo; se ejecutan al crear el ticket.
   const [cambios, setCambios] = useState<ItemCambioEquipo[]>([]);
@@ -365,15 +192,6 @@ export default function NuevaSolicitudPage() {
 
   // Offboarding fields
   const [fechaDesvinculacion, setFechaDesvinculacion] = useState('');
-  // Solo dos medios -- Presencial o Chilexpress -- igual que en
-  // Onboarding/Cambio de Equipo.
-  const [medioDevolucion, setMedioDevolucion] = useState<'presencial' | 'chilexpress'>('presencial');
-  const [otChilexpress, setOtChilexpress] = useState('');
-  const [ciudadDevolucion, setCiudadDevolucion] = useState('');
-  // Coordinacion de devolucion: fecha/lugar en el mismo formulario de
-  // creacion.
-  const [fechaDevolucionCoordinada, setFechaDevolucionCoordinada] = useState('');
-  const [lugarDevolucion, setLugarDevolucion] = useState('');
 
   // Borrador en esta pestaña (auditoria 27-sep-2026, 2.8): si la sesion
   // vence a mitad del formulario, lo escrito se recupera al volver. Solo lo
@@ -385,10 +203,9 @@ export default function NuevaSolicitudPage() {
     devolucionEppEstados, devolucionEppObservaciones,
     onboardingEmp, modoEmpleadoOnboarding, cargoSolicitadoReincorporacion, tipoContratoReincorporacion,
     fechaIngreso, categoriasRequeridas, equipoSeleccionado, cargadorOnboarding,
-    fechaEntregaCoordinada, medioEntrega, lugarEntrega, otChilexpressEntrega, ciudadEntrega,
     kitBienvenidaSolicitado, eppSolicitado, kitCantidadesSeleccionadas,
-    motivoCambio, fechaCambioCoordinada, medioCambio, lugarCambio, otCambioChilexpress, ciudadCambio, cambios,
-    fechaDesvinculacion, medioDevolucion, otChilexpress, ciudadDevolucion, fechaDevolucionCoordinada, lugarDevolucion,
+    motivoCambio, cambios, fechaDesvinculacion,
+    coordEntrega, coordCambio, coordDevolucion,
   };
   const borrador = useBorrador({
     clave: 'borrador:nueva-solicitud',
@@ -424,80 +241,19 @@ export default function NuevaSolicitudPage() {
     poner('categoriasRequeridas', setCategoriasRequeridas);
     poner('equipoSeleccionado', setEquipoSeleccionado);
     poner('cargadorOnboarding', setCargadorOnboarding);
-    poner('fechaEntregaCoordinada', setFechaEntregaCoordinada);
-    poner('medioEntrega', setMedioEntrega);
-    poner('lugarEntrega', setLugarEntrega);
-    poner('otChilexpressEntrega', setOtChilexpressEntrega);
-    poner('ciudadEntrega', setCiudadEntrega);
     poner('kitBienvenidaSolicitado', setKitBienvenidaSolicitado);
     poner('eppSolicitado', setEppSolicitado);
     poner('kitCantidadesSeleccionadas', setKitCantidadesSeleccionadas);
     poner('motivoCambio', setMotivoCambio);
-    poner('fechaCambioCoordinada', setFechaCambioCoordinada);
-    poner('medioCambio', setMedioCambio);
-    poner('lugarCambio', setLugarCambio);
-    poner('otCambioChilexpress', setOtCambioChilexpress);
-    poner('ciudadCambio', setCiudadCambio);
     poner('cambios', setCambios);
     poner('fechaDesvinculacion', setFechaDesvinculacion);
-    poner('medioDevolucion', setMedioDevolucion);
-    poner('otChilexpress', setOtChilexpress);
-    poner('ciudadDevolucion', setCiudadDevolucion);
-    poner('fechaDevolucionCoordinada', setFechaDevolucionCoordinada);
-    poner('lugarDevolucion', setLugarDevolucion);
+    poner('coordEntrega', setCoordEntrega);
+    poner('coordCambio', setCoordCambio);
+    poner('coordDevolucion', setCoordDevolucion);
     // Las asignaciones del empleado vienen de la base: se vuelven a pedir.
     if (d.selectedEmployee && (d.tipo === 'offboarding' || d.tipo === 'cambio_equipo')) {
       fetchEmployeeAssignments(d.selectedEmployee.id);
     }
-  };
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
-        setShowResults(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Debounced employee search via API
-  const searchEmployees = useCallback(async (query: string) => {
-    if (query.length < 2) {
-      setSearchResults([]);
-      setShowResults(false);
-      return;
-    }
-
-    setSearchLoading(true);
-    try {
-      const params = new URLSearchParams({
-        search: query,
-        limit: '15',
-        sortBy: 'nombres',
-        sortOrder: 'asc',
-      });
-      // Acota a la sede del navbar si hay una elegida; la API solo lo
-      // aplica a quien ve todas las sedes (el resto ya ve solo la suya).
-      if (sedeSeleccionada) params.set('sedeId', sedeSeleccionada);
-      const res = await fetch(`/api/empleados?${params}`);
-      if (res.ok) {
-        const json = await res.json();
-        setSearchResults(json.data || []);
-        setShowResults(true);
-      }
-    } catch (err) {
-      console.error('Error searching employees:', err);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, [sedeSeleccionada]);
-
-  const handleSearchChange = (value: string) => {
-    setSearchEmployee(value);
-    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-    searchTimeoutRef.current = setTimeout(() => searchEmployees(value), 300);
   };
 
   // Trae las asignaciones activas del empleado (con id de asignacion, no
@@ -527,8 +283,7 @@ export default function NuevaSolicitudPage() {
     setSelectedEmployee(emp);
     setFieldErrors((prev) => sinErrores(prev, 'employeeId'));
     setEmployeeId(emp.id);
-    setSearchEmployee('');
-    setShowResults(false);
+    buscador.reiniciar();
     if (tipo === 'offboarding' || tipo === 'cambio_equipo') fetchEmployeeAssignments(emp.id);
     // Desvinculacion y Cambio de Equipo son sobre un empleado que ya
     // pertenece a una sede, asi que se fija sola al elegirlo.
@@ -704,13 +459,7 @@ export default function NuevaSolicitudPage() {
 
     // Coordinacion de entrega: obligatoria si se reservo al menos un equipo.
     if (Object.values(equipoSeleccionado).length > 0) {
-      if (!fechaEntregaCoordinada) errores.fechaEntregaCoordinada = DATO_OBLIGATORIO;
-      if (medioEntrega === 'presencial') {
-        if (!lugarEntrega.trim()) errores.lugarEntrega = DATO_OBLIGATORIO;
-      } else {
-        if (!otChilexpressEntrega.trim()) errores.otChilexpressEntrega = DATO_OBLIGATORIO;
-        if (!ciudadEntrega.trim()) errores.ciudadEntrega = DATO_OBLIGATORIO;
-      }
+      Object.assign(errores, erroresCoordinacion(coordEntrega, CLAVES.entrega, DATO_OBLIGATORIO));
     }
 
     // Kit/EPP: solo cuentan los articulos que quedaron marcados.
@@ -736,22 +485,6 @@ export default function NuevaSolicitudPage() {
     return errores;
   };
 
-  // Coordinacion presencial (fecha + lugar) o por Chilexpress (fecha + OT +
-  // destino): mismo patron en cambio de equipo y offboarding.
-  const validarCoordinacion = (
-    errores: Record<string, string>,
-    medio: 'presencial' | 'chilexpress',
-    campos: { fecha: [string, string]; lugar: [string, string]; ot: [string, string]; destino: [string, string] }
-  ) => {
-    if (!campos.fecha[1]) errores[campos.fecha[0]] = DATO_OBLIGATORIO;
-    if (medio === 'presencial') {
-      if (!campos.lugar[1].trim()) errores[campos.lugar[0]] = DATO_OBLIGATORIO;
-    } else {
-      if (!campos.ot[1].trim()) errores[campos.ot[0]] = DATO_OBLIGATORIO;
-      if (!campos.destino[1].trim()) errores[campos.destino[0]] = DATO_OBLIGATORIO;
-    }
-  };
-
   // Todos los obligatorios del cambio de equipo, juntos (igual que onboarding).
   const validarCambio = (): Record<string, string> => {
     const errores: Record<string, string> = {};
@@ -763,12 +496,7 @@ export default function NuevaSolicitudPage() {
       } else if (!cambios.every(itemCambioCompleto)) {
         errores.cambioSeleccion = 'Completa el estado de devolución y el reemplazo de cada equipo marcado';
       }
-      validarCoordinacion(errores, medioCambio, {
-        fecha: ['fechaCambioCoordinada', fechaCambioCoordinada],
-        lugar: ['lugarCambio', lugarCambio],
-        ot: ['otCambioChilexpress', otCambioChilexpress],
-        destino: ['ciudadCambio', ciudadCambio],
-      });
+      Object.assign(errores, erroresCoordinacion(coordCambio, CLAVES.cambio, DATO_OBLIGATORIO));
     }
     // La sede sale del empleado: sin empleado, lo que falta es elegirlo.
     if (selectedEmployee && !sedeId) errores.sedeId = 'Debes seleccionar una sede';
@@ -801,12 +529,7 @@ export default function NuevaSolicitudPage() {
         errores.devolucionesEpp = 'Califica cada artículo de EPP';
       }
       if (employeeAssignments.length + employeeEppAssignments.length > 0) {
-        validarCoordinacion(errores, medioDevolucion, {
-          fecha: ['fechaDevolucionCoordinada', fechaDevolucionCoordinada],
-          lugar: ['lugarDevolucion', lugarDevolucion],
-          ot: ['otChilexpress', otChilexpress],
-          destino: ['ciudadDevolucion', ciudadDevolucion],
-        });
+        Object.assign(errores, erroresCoordinacion(coordDevolucion, CLAVES.devolucion, DATO_OBLIGATORIO));
       }
     }
     if (selectedEmployee && !sedeId) errores.sedeId = 'Debes seleccionar una sede';
@@ -892,6 +615,25 @@ export default function NuevaSolicitudPage() {
         };
       }
 
+      // Onboarding (nuevo o reincorporacion): la coordinacion solo viaja si se
+      // reservo algun equipo, y los articulos de Kit/EPP elegidos con cantidad.
+      // Cada articulo elegido se entrega de inmediato Y queda registrado como
+      // requerido individualmente (RequestKitItem): asi el cierre del ticket
+      // puede exigir ese articulo puntual y no solo un booleano por categoria.
+      const kitElegidos = Object.entries(kitCantidadesSeleccionadas)
+        .filter(([, cantidad]) => cantidad > 0)
+        .map(([itemId, cantidad]) => ({ itemId, cantidad }));
+      const entregaOnboarding = {
+        categoriasRequeridas,
+        assetIdsSeleccionados: Object.values(equipoSeleccionado),
+        condicionCargadorPorAsset,
+        ...(Object.values(equipoSeleccionado).length > 0 && cuerpoCoordinacion(coordEntrega, CLAVES.entrega)),
+        kitBienvenidaSolicitado,
+        eppSolicitado,
+        kitItemsSeleccionados: kitElegidos,
+        kitItemsRequeridos: kitElegidos,
+      };
+
       if (tipo === 'onboarding' && modoEmpleadoOnboarding === 'existente') {
         // Reincorporacion: se manda el employeeId del registro ya existente
         // (no nuevoEmpleado) -- el backend lo detecta, lo reactiva
@@ -904,25 +646,7 @@ export default function NuevaSolicitudPage() {
           fechaIngreso,
           cargoSolicitado: cargoSolicitadoReincorporacion,
           ubicacionDestino: null,
-          categoriasRequeridas,
-          assetIdsSeleccionados: Object.values(equipoSeleccionado),
-          condicionCargadorPorAsset,
-          ...(Object.values(equipoSeleccionado).length > 0 && {
-            fechaEntregaCoordinada: inputFechaHoraAISO(fechaEntregaCoordinada),
-            medioEntrega,
-            lugarEntrega: medioEntrega === 'presencial' ? lugarEntrega || undefined : undefined,
-            otChilexpressEntrega:
-              medioEntrega === 'chilexpress' ? otChilexpressEntrega || undefined : undefined,
-            ciudadEntrega: medioEntrega === 'chilexpress' ? ciudadEntrega || undefined : undefined,
-          }),
-          kitBienvenidaSolicitado,
-          eppSolicitado,
-          kitItemsSeleccionados: Object.entries(kitCantidadesSeleccionadas)
-            .filter(([, cantidad]) => cantidad > 0)
-            .map(([itemId, cantidad]) => ({ itemId, cantidad })),
-          kitItemsRequeridos: Object.entries(kitCantidadesSeleccionadas)
-            .filter(([, cantidad]) => cantidad > 0)
-            .map(([itemId, cantidad]) => ({ itemId, cantidad })),
+          ...entregaOnboarding,
         };
       } else if (tipo === 'onboarding') {
         // El empleado nuevo se manda dentro del mismo envio (nuevoEmpleado)
@@ -953,29 +677,7 @@ export default function NuevaSolicitudPage() {
           fechaIngreso,
           cargoSolicitado: onboardingEmp.cargo,
           ubicacionDestino: onboardingEmp.direccionParticular || null,
-          categoriasRequeridas,
-          assetIdsSeleccionados: Object.values(equipoSeleccionado),
-          condicionCargadorPorAsset,
-          ...(Object.values(equipoSeleccionado).length > 0 && {
-            fechaEntregaCoordinada: inputFechaHoraAISO(fechaEntregaCoordinada),
-            medioEntrega,
-            lugarEntrega: medioEntrega === 'presencial' ? lugarEntrega || undefined : undefined,
-            otChilexpressEntrega:
-              medioEntrega === 'chilexpress' ? otChilexpressEntrega || undefined : undefined,
-            ciudadEntrega: medioEntrega === 'chilexpress' ? ciudadEntrega || undefined : undefined,
-          }),
-          kitBienvenidaSolicitado,
-          eppSolicitado,
-          // Cada articulo elegido aca (con su cantidad) se entrega de
-          // inmediato Y queda registrado como requerido individualmente
-          // (RequestKitItem) -- asi el cierre del ticket puede exigir ese
-          // articulo puntual en vez de solo un booleano por categoria.
-          kitItemsSeleccionados: Object.entries(kitCantidadesSeleccionadas)
-            .filter(([, cantidad]) => cantidad > 0)
-            .map(([itemId, cantidad]) => ({ itemId, cantidad })),
-          kitItemsRequeridos: Object.entries(kitCantidadesSeleccionadas)
-            .filter(([, cantidad]) => cantidad > 0)
-            .map(([itemId, cantidad]) => ({ itemId, cantidad })),
+          ...entregaOnboarding,
         };
       } else if (tipo === 'cambio_equipo') {
         body = {
@@ -994,23 +696,14 @@ export default function NuevaSolicitudPage() {
             observacionesCargadorNuevo: c.observacionesCargadorNuevo || undefined,
           })),
           // Coordinacion de la entrega de los reemplazos, en el mismo formulario.
-          fechaCambioCoordinada: inputFechaHoraAISO(fechaCambioCoordinada),
-          medioCambio,
-          lugarCambio: medioCambio === 'presencial' ? lugarCambio || undefined : undefined,
-          otCambioChilexpress:
-            medioCambio === 'chilexpress' ? otCambioChilexpress || undefined : undefined,
-          ciudadCambio: medioCambio === 'chilexpress' ? ciudadCambio || undefined : undefined,
+          ...cuerpoCoordinacion(coordCambio, CLAVES.cambio),
         };
       } else if (tipo === 'offboarding') {
         body = {
           ...base,
           employeeId,
           fechaDesvinculacion: esRecuperacion ? undefined : fechaDesvinculacion,
-          medioDevolucion,
-          otChilexpress: medioDevolucion === 'chilexpress' ? otChilexpress || undefined : undefined,
-          ciudadDevolucion: medioDevolucion === 'chilexpress' ? ciudadDevolucion || undefined : undefined,
-          fechaDevolucionCoordinada: inputFechaHoraAISO(fechaDevolucionCoordinada),
-          lugarDevolucion: medioDevolucion === 'presencial' ? lugarDevolucion || undefined : undefined,
+          ...cuerpoCoordinacion(coordDevolucion, CLAVES.devolucion),
           // Solo se envian los equipos que efectivamente se calificaron; si
           // se dejaron sin calificar, el ticket nace igual (solicitud_emitida)
           // y se completan despues desde el detalle.
@@ -1226,103 +919,17 @@ export default function NuevaSolicitudPage() {
           {modoEmpleadoOnboarding === 'existente' && (
             <div className="space-y-4">
               <div>
-                <label className="field-label mb-2">Empleado *</label>
-
-                {selectedEmployee ? (
-                  <div className="flex items-center justify-between bg-primary-50 border border-primary-200 rounded-lg p-3">
-                    <div>
-                      <p className="font-medium text-fg flex items-center gap-2">
-                        {selectedEmployee.nombres} {selectedEmployee.apellidoPaterno}
-                        {selectedEmployee.apellidoMaterno ? ` ${selectedEmployee.apellidoMaterno}` : ''}
-                        {selectedEmployee.estado === 'desvinculado' && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700">
-                            Desvinculado — se reactivará
-                          </span>
-                        )}
-                        {selectedEmployee.estado === 'activo' && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-fg-subtle">
-                            Ya está activo
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-sm text-fg-subtle">
-                        {selectedEmployee.rut || '—'} · {selectedEmployee.correoPersonal ?? selectedEmployee.correoEmpresa ?? ''}
-                        {selectedEmployee.cargo ? ` · ${selectedEmployee.cargo}` : ''}
-                      </p>
-                    </div>
-                    <button aria-label="Quitar empleado elegido" onClick={clearEmployee} className="text-fg-subtle hover:text-fg-muted p-1">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div ref={searchContainerRef} className="relative">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle" />
-                      <input
-                        type="text"
-                        placeholder="Buscar por nombre, RUT o correo (mín. 2 caracteres)..."
-                        value={searchEmployee}
-                        onChange={(e) => handleSearchChange(e.target.value)}
-                        onFocus={() => {
-                          if (searchResults.length > 0) setShowResults(true);
-                        }}
-                        aria-invalid={!!fieldErrors.employeeId}
-                        className={cn(
-                          'field-input pl-10 pr-10',
-                          fieldErrors.employeeId && 'border-red-500 bg-red-50'
-                        )}
-                      />
-                      {searchLoading && (
-                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle animate-spin" />
-                      )}
-                    </div>
-                    {showResults && (
-                      <div className="absolute z-10 mt-1 w-full bg-surface border border-line rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                        {searchResults.length > 0 ? (
-                          searchResults.map((emp) => (
-                            <button
-                              key={emp.id}
-                              onClick={() => selectEmployee(emp)}
-                              className="w-full text-left px-4 py-3 hover:bg-primary-50 border-b last:border-b-0 transition-colors"
-                            >
-                              <span className="text-sm font-medium text-fg flex items-center gap-2">
-                                {emp.nombres} {emp.apellidoPaterno}
-                                {emp.apellidoMaterno ? ` ${emp.apellidoMaterno}` : ''}
-                                {emp.estado === 'desvinculado' && (
-                                  <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700">
-                                    Desvinculado
-                                  </span>
-                                )}
-                              </span>
-                              <span className="flex items-center gap-2 text-xs text-fg-subtle mt-0.5">
-                                <span>{emp.rut || 'Sin RUT'}</span>
-                                <span>·</span>
-                                <span>{emp.correoPersonal ?? emp.correoEmpresa ?? ''}</span>
-                                {emp.cargo && (
-                                  <>
-                                    <span>·</span>
-                                    <span>{emp.cargo}</span>
-                                  </>
-                                )}
-                              </span>
-                            </button>
-                          ))
-                        ) : (
-                          <p className="px-4 py-6 text-center text-sm text-fg-subtle">
-                            No se encontraron empleados para &quot;{searchEmployee}&quot;. Si no existe, usa
-                            &quot;Empleado nuevo&quot; arriba.
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    <MensajeCampo mensaje={fieldErrors.employeeId} />
-                    {!fieldErrors.employeeId && !showResults && searchEmployee.length === 0 && (
-                      <p className="text-xs text-fg-subtle mt-1">
-                        Escribe al menos 2 caracteres para buscar.
-                      </p>
-                    )}
-                  </div>
-                )}
+                <p className="field-label mb-2">Empleado *</p>
+                <BuscadorEmpleado
+                  buscador={buscador}
+                  seleccionado={selectedEmployee}
+                  onElegir={selectEmployee}
+                  onQuitar={clearEmployee}
+                  error={fieldErrors.employeeId}
+                  mostrarEstado
+                  sinResultados="Si no existe, usa &quot;Empleado nuevo&quot; arriba."
+                  ayuda="Escribe al menos 2 caracteres para buscar."
+                />
               </div>
 
               <div className="grid grid-cols-3 gap-4">
@@ -1367,145 +974,22 @@ export default function NuevaSolicitudPage() {
           )}
 
           {modoEmpleadoOnboarding === 'nuevo' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <CampoTexto
-                  label="Nombres"
-                  obligatorio
-                  error={fieldErrors.nombres}
-                  value={onboardingEmp.nombres}
-                  onChange={(v) => actualizarOnboardingEmp('nombres', v)}
-                />
-                <CampoTexto
-                  label="Apellido Paterno"
-                  obligatorio
-                  error={fieldErrors.apellidoPaterno}
-                  value={onboardingEmp.apellidoPaterno}
-                  onChange={(v) => actualizarOnboardingEmp('apellidoPaterno', v)}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <CampoTexto
-                  label="Apellido Materno"
-                  obligatorio
-                  error={fieldErrors.apellidoMaterno}
-                  value={onboardingEmp.apellidoMaterno}
-                  onChange={(v) => actualizarOnboardingEmp('apellidoMaterno', v)}
-                />
-                <CampoTexto
-                  label="RUT"
-                  obligatorio
-                  error={fieldErrors.rut}
-                  value={onboardingEmp.rut}
-                  onChange={(v) => actualizarOnboardingEmp('rut', v)}
-                  placeholder="12.345.678-9"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <CampoTexto
-                  label="Correo Personal"
-                  obligatorio
-                  type="email"
-                  error={fieldErrors.correoPersonal}
-                  value={onboardingEmp.correoPersonal}
-                  onChange={(v) => actualizarOnboardingEmp('correoPersonal', v)}
-                  placeholder="nombre.personal@gmail.com"
-                />
-                <CampoTexto
-                  label="Correo Empresa"
-                  type="email"
-                  value={onboardingEmp.correoEmpresa}
-                  onChange={(v) => actualizarOnboardingEmp('correoEmpresa', v)}
-                  placeholder="nombre@sclconsultores.com (opcional)"
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <CampoTexto
-                  label="Cargo"
-                  obligatorio
-                  error={fieldErrors.cargo}
-                  value={onboardingEmp.cargo}
-                  onChange={(v) => actualizarOnboardingEmp('cargo', v)}
-                />
-                <CampoFormulario label="Tipo Contrato" obligatorio>
-                  <select
-                    value={onboardingEmp.tipoContrato}
-                    onChange={(e) => actualizarOnboardingEmp('tipoContrato', e.target.value)}
-                    className={claseInput()}
-                  >
-                    <option value="contrato">Contrato</option>
-                    <option value="boleta">Boleta</option>
-                  </select>
-                </CampoFormulario>
-                <CampoTexto
-                  label="Fecha de Ingreso"
-                  obligatorio
-                  type="date"
-                  error={fieldErrors.fechaIngreso}
-                  value={fechaIngreso}
-                  onChange={(v) => {
-                    setFechaIngreso(v);
-                    limpiarError('fechaIngreso');
-                  }}
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <CampoTexto
-                  label="División"
-                  value={onboardingEmp.division}
-                  onChange={(v) => actualizarOnboardingEmp('division', v)}
-                  placeholder="Ej: SCL"
-                />
-                <CampoTexto
-                  label="Área"
-                  value={onboardingEmp.area}
-                  onChange={(v) => actualizarOnboardingEmp('area', v)}
-                  placeholder="Ej: RPA y Soporte IT"
-                />
-                <CampoTexto
-                  label="Sub-Área"
-                  value={onboardingEmp.subArea}
-                  onChange={(v) => actualizarOnboardingEmp('subArea', v)}
-                  placeholder="Ej: RPA"
-                />
-              </div>
-              <CampoTexto
-                label="Supervisor"
-                obligatorio
-                error={fieldErrors.supervisor}
-                value={onboardingEmp.supervisor}
-                onChange={(v) => actualizarOnboardingEmp('supervisor', v)}
-                placeholder="Nombre del supervisor directo"
-              />
-              <CampoTexto
-                label="Celular Contacto"
-                obligatorio
-                error={fieldErrors.telefonoContacto}
-                value={onboardingEmp.telefonoContacto}
-                onChange={(v) => actualizarOnboardingEmp('telefonoContacto', v)}
-                placeholder="+56 9 1234 5678"
-              />
-              <CampoTexto
-                label="Dirección Particular"
-                obligatorio
-                error={fieldErrors.direccionParticular}
-                value={onboardingEmp.direccionParticular}
-                onChange={(v) => actualizarOnboardingEmp('direccionParticular', v)}
-                placeholder="Incluir comuna y región"
-              />
-              <CampoTexto
-                label="Listas de Distribución"
-                value={onboardingEmp.listasDistribucion}
-                onChange={(v) => actualizarOnboardingEmp('listasDistribucion', v)}
-                placeholder="Ej: SCL Masivo, Corporativo..."
-              />
-            </div>
+            <FormEmpleadoNuevo
+              valor={onboardingEmp}
+              onCambiar={actualizarOnboardingEmp}
+              errores={fieldErrors}
+              fechaIngreso={fechaIngreso}
+              onFechaIngreso={(v) => {
+                setFechaIngreso(v);
+                limpiarError('fechaIngreso');
+              }}
+            />
           )}
 
           {/* Responsable de la solicitud (solo lectura) */}
           <div className="border-t pt-4">
-            <label className="field-label">Responsable</label>
-            <input
+            <label htmlFor="solicitud-responsable" className="field-label">Responsable</label>
+            <input id="solicitud-responsable"
               type="text"
               value={
                 session?.user?.name
@@ -1679,224 +1163,45 @@ export default function NuevaSolicitudPage() {
               sentido si ya se reservo al menos un equipo. */}
           {Object.values(equipoSeleccionado).length > 0 && (
             <div className="border-t pt-4">
-              <h3 className="font-medium text-fg mb-1">Coordinar Entrega</h3>
-              <p className="text-xs text-fg-subtle mb-3">
-                Define cuándo y cómo se le hará llegar el equipo reservado.
-              </p>
-              <div className="space-y-3">
-                <CampoTexto
-                  label={medioEntrega === 'presencial' ? 'Fecha y hora de entrega' : 'Fecha y hora de entrega estimada'}
-                  obligatorio
-                  type="datetime-local"
-                  error={fieldErrors.fechaEntregaCoordinada}
-                  value={fechaEntregaCoordinada}
-                  onChange={(v) => {
-                    setFechaEntregaCoordinada(v);
-                    limpiarError('fechaEntregaCoordinada');
-                  }}
-                />
-                <div>
-                  <label className="field-label">Medio</label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="radio"
-                        name="medioEntregaNueva"
-                        checked={medioEntrega === 'presencial'}
-                        onChange={() => {
-                          setMedioEntrega('presencial');
-                          limpiarError('otChilexpressEntrega', 'ciudadEntrega');
-                        }}
-                      />
-                      Presencial
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="radio"
-                        name="medioEntregaNueva"
-                        checked={medioEntrega === 'chilexpress'}
-                        onChange={() => {
-                          setMedioEntrega('chilexpress');
-                          limpiarError('lugarEntrega');
-                        }}
-                      />
-                      Despacho (Chilexpress)
-                    </label>
-                  </div>
-                </div>
-                {medioEntrega === 'presencial' ? (
-                  <CampoTexto
-                    label="Lugar de entrega"
-                    obligatorio
-                    error={fieldErrors.lugarEntrega}
-                    value={lugarEntrega}
-                    onChange={(v) => {
-                      setLugarEntrega(v);
-                      limpiarError('lugarEntrega');
-                    }}
-                    placeholder="ej: Oficina Santiago, piso 4"
-                  />
-                ) : (
-                  <>
-                    <CampoTexto
-                      label="N° de OT Chilexpress"
-                      obligatorio
-                      error={fieldErrors.otChilexpressEntrega}
-                      value={otChilexpressEntrega}
-                      onChange={(v) => {
-                        setOtChilexpressEntrega(v);
-                        limpiarError('otChilexpressEntrega');
-                      }}
-                      placeholder="ej: CH-2026-004567"
-                    />
-                    <CampoTexto
-                      label="Ubicación de destino"
-                      obligatorio
-                      error={fieldErrors.ciudadEntrega}
-                      value={ciudadEntrega}
-                      onChange={(v) => {
-                        setCiudadEntrega(v);
-                        limpiarError('ciudadEntrega');
-                      }}
-                      placeholder="ej: Hotel HD Express, Concepción"
-                    />
-                  </>
-                )}
-              </div>
+              <SeccionCoordinacion
+                titulo="Coordinar Entrega"
+                descripcion="Define cuándo y cómo se le hará llegar el equipo reservado."
+                valor={coordEntrega}
+                onChange={setCoordEntrega}
+                claves={CLAVES.entrega}
+                errores={fieldErrors}
+                limpiarError={limpiarError}
+                etiquetas={{
+                  fechaPresencial: 'Fecha y hora de entrega',
+                  fechaDespacho: 'Fecha y hora de entrega estimada',
+                  lugar: 'Lugar de entrega',
+                }}
+              />
             </div>
           )}
 
           {/* Kit de Bienvenida / EPP: aparte de Equipos Requeridos, no son Activos */}
-          <div className="border-t pt-4">
-            <h3 className="font-medium text-fg mb-1">Kit de Bienvenida y EPP</h3>
-            <p className="text-xs text-fg-subtle mb-3">
-              {kitEppBloqueadoPorContrato
-                ? 'No aplica para boleta de honorarios: solo se entrega a personal con contrato.'
-                : 'Al marcar una opción se seleccionan todos sus artículos (1 de cada uno); puedes quitar los que no correspondan. No se puede crear la solicitud con artículos sin stock marcados.'}
-            </p>
-            <AvisoSeccion mensaje={fieldErrors.kitEpp} className="mb-3" />
-            <div className="flex flex-col gap-2">
-              {(['kit_bienvenida', 'epp'] as const).map((categoria) => {
-                const items = kitCatalog.filter((it) => it.categoria === categoria);
-                const total = items.reduce((sum, it) => sum + it.cantidad, 0);
-                const expandida = kitCategoriaExpandida === categoria;
-                const requerida = categoria === 'kit_bienvenida' ? kitBienvenidaSolicitado : eppSolicitado;
-                const setRequerida = categoria === 'kit_bienvenida' ? setKitBienvenidaSolicitado : setEppSolicitado;
-                const label = categoria === 'kit_bienvenida' ? 'Kit de Bienvenida' : 'EPP';
-                const seleccionCount = items.filter((it) => (kitCantidadesSeleccionadas[it.id] || 0) > 0).length;
-                return (
-                  <div key={categoria} className="flex flex-col">
-                    <div className="flex items-center gap-2">
-                      <label
-                        className={cn(
-                          'flex items-center gap-2 flex-1',
-                          kitEppBloqueadoPorContrato && 'opacity-50 cursor-not-allowed'
-                        )}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={requerida}
-                          disabled={kitEppBloqueadoPorContrato}
-                          onChange={(e) => {
-                            const marcado = e.target.checked;
-                            setRequerida(marcado);
-                            limpiarError('kitEpp', 'equipos');
-                            // El stock de Kit/EPP es por sede: fija la sede.
-                            if (marcado) setSedeId(sedeId);
-                            // Al marcar se seleccionan todos los articulos (1
-                            // de cada uno); despues se pueden quitar uno a uno.
-                            setKitCantidadesSeleccionadas((prev) => {
-                              const next = { ...prev };
-                              items.forEach((it) => {
-                                if (marcado) next[it.id] = 1;
-                                else delete next[it.id];
-                              });
-                              return next;
-                            });
-                            if (marcado) setKitCategoriaExpandida(categoria);
-                          }}
-                          className="rounded border-line-strong"
-                        />
-                        <span className="text-sm">{label}</span>
-                      </label>
-                      {seleccionCount > 0 && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-primary-50 text-primary-800 border border-primary-200">
-                          Reservado
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setKitCategoriaExpandida(expandida ? null : categoria)}
-                        className={cn(
-                          'flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border',
-                          total > 0
-                            ? 'bg-green-50 text-green-700 border-green-200'
-                            : 'bg-red-50 text-red-700 border-red-200'
-                        )}
-                      >
-                        {total} disponible{total === 1 ? '' : 's'}
-                        {total > 0 && (expandida ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
-                      </button>
-                    </div>
-                    {expandida && items.length > 0 && (
-                      <div className="ml-6 mt-1 mb-1 space-y-1">
-                        <p className="text-xs text-fg-subtle">
-                          {requerida
-                            ? 'Se reserva 1 de cada artículo marcado. Quita los que no correspondan:'
-                            : `Incluye (1 de cada uno al marcar "${label}"):`}
-                        </p>
-                        {items.map((it) => {
-                          const elegido = (kitCantidadesSeleccionadas[it.id] || 0) > 0;
-                          return (
-                            <label
-                              key={it.id}
-                              className={cn(
-                                'flex items-center justify-between gap-3 text-xs',
-                                !requerida && 'opacity-60 cursor-not-allowed'
-                              )}
-                            >
-                              <span className="flex items-center gap-2 text-fg-muted">
-                                <input
-                                  type="checkbox"
-                                  checked={elegido}
-                                  disabled={!requerida}
-                                  onChange={(e) => {
-                                    const marcarItem = e.target.checked;
-                                    setKitCantidadesSeleccionadas((prev) => {
-                                      const next = { ...prev };
-                                      if (marcarItem) next[it.id] = 1;
-                                      else delete next[it.id];
-                                      return next;
-                                    });
-                                    limpiarError('kitEpp');
-                                  }}
-                                  className="rounded border-line-strong"
-                                />
-                                {it.nombre} <span className="text-fg-subtle">({it.cantidad} disp.)</span>
-                              </span>
-                              {it.cantidad < 1 ? (
-                                <span className={elegido ? 'text-red-600 font-medium' : 'text-fg-subtle'}>
-                                  Sin stock
-                                </span>
-                              ) : (
-                                elegido && <span className="text-fg">1 unidad</span>
-                              )}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <SeccionKitEpp
+            catalogo={kitCatalog}
+            bloqueado={kitEppBloqueadoPorContrato}
+            error={fieldErrors.kitEpp}
+            solicitado={{ kit_bienvenida: kitBienvenidaSolicitado, epp: eppSolicitado }}
+            onSolicitar={(categoria, marcado) => {
+              if (categoria === 'kit_bienvenida') setKitBienvenidaSolicitado(marcado);
+              else setEppSolicitado(marcado);
+              // El stock de Kit/EPP es por sede: fija la sede.
+              if (marcado) setSedeId(sedeId);
+            }}
+            cantidades={kitCantidadesSeleccionadas}
+            onCantidades={setKitCantidadesSeleccionadas}
+            limpiarError={limpiarError}
+          />
 
           <div>
-            <label className="field-label">
+            <label htmlFor="solicitud-sede" className="field-label">
               Sede <span className="text-red-500">*</span>
             </label>
-            <select
+            <select id="solicitud-sede"
               value={sedeId}
               onChange={(e) => {
                 setSedeId(e.target.value);
@@ -1929,9 +1234,10 @@ export default function NuevaSolicitudPage() {
 
           {/* Observaciones */}
           <div>
-            <label className="field-label">Observaciones</label>
-            <textarea
+            <label htmlFor="solicitud-observaciones" className="field-label">Observaciones</label>
+            <textarea id="solicitud-observaciones"
               value={observaciones}
+              maxLength={2000}
               onChange={(e) => setObservaciones(e.target.value)}
               rows={3}
               className="w-full px-3 py-2 border border-line-strong rounded-lg"
@@ -1964,114 +1270,22 @@ export default function NuevaSolicitudPage() {
 
           {/* Employee Selection */}
           <div>
-            <label className={cn(
-              'block text-sm font-medium mb-2',
-              fieldErrors.employeeId ? 'text-red-600' : 'text-fg-muted'
-            )}>
-              Empleado *
-              {fieldErrors.employeeId && (
-                <span className="ml-2 text-xs font-normal">({fieldErrors.employeeId})</span>
-              )}
-            </label>
-
-            {selectedEmployee ? (
-              <div className="flex items-center justify-between bg-primary-50 border border-primary-200 rounded-lg p-3">
-                <div>
-                  <p className="font-medium text-fg">
-                    {selectedEmployee.nombres} {selectedEmployee.apellidoPaterno}
-                    {selectedEmployee.apellidoMaterno ? ` ${selectedEmployee.apellidoMaterno}` : ''}
-                  </p>
-                  <p className="text-sm text-fg-subtle">
-                    {selectedEmployee.rut || '—'} · {selectedEmployee.correoPersonal ?? selectedEmployee.correoEmpresa ?? ''}
-                    {selectedEmployee.cargo ? ` · ${selectedEmployee.cargo}` : ''}
-                  </p>
-                </div>
-                <button aria-label="Quitar empleado elegido"
-                  onClick={clearEmployee}
-                  className="text-fg-subtle hover:text-fg-muted p-1"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ) : (
-              <div ref={searchContainerRef} className="relative">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle" />
-                  <input
-                    type="text"
-                    placeholder="Buscar por nombre, RUT o correo (mín. 2 caracteres)..."
-                    value={searchEmployee}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    onFocus={() => {
-                      if (searchResults.length > 0) setShowResults(true);
-                    }}
-                    aria-invalid={!!fieldErrors.employeeId}
-                    className={cn(
-                      'field-input pl-10 pr-10',
-                      fieldErrors.employeeId && 'border-red-500 bg-red-50'
-                    )}
-                  />
-                  {searchLoading && (
-                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle animate-spin" />
-                  )}
-                </div>
-
-                {/* Search Results Dropdown */}
-                {showResults && (
-                  <div className="absolute z-10 mt-1 w-full bg-surface border border-line rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                    {searchResults.length > 0 ? (
-                      searchResults.map((emp) => (
-                        <button
-                          key={emp.id}
-                          onClick={() => selectEmployee(emp)}
-                          className="w-full text-left px-4 py-3 hover:bg-primary-50 border-b last:border-b-0 transition-colors"
-                        >
-                          <span className="text-sm font-medium text-fg">
-                            {emp.nombres} {emp.apellidoPaterno}
-                            {emp.apellidoMaterno ? ` ${emp.apellidoMaterno}` : ''}
-                          </span>
-                          <span className="flex items-center gap-2 text-xs text-fg-subtle mt-0.5">
-                            <span>{emp.rut || 'Sin RUT'}</span>
-                            <span>·</span>
-                            <span>{emp.correoPersonal ?? emp.correoEmpresa ?? ''}</span>
-                            {emp.cargo && (
-                              <>
-                                <span>·</span>
-                                <span>{emp.cargo}</span>
-                              </>
-                            )}
-                          </span>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-4 py-6 text-center">
-                        <p className="text-sm text-fg-subtle mb-3">
-                          No se encontraron empleados para &quot;{searchEmployee}&quot;
-                        </p>
-                        <p className="text-xs text-fg-subtle">
-                          Si es una persona nueva, se registra con una solicitud de Onboarding.
-                        </p>
-                      </div>
-                    )}
-
-                  </div>
-                )}
-
-                {/* Hint text */}
-                {!showResults && searchEmployee.length === 0 && (
-                  <p className="text-xs text-fg-subtle mt-1">
-                    Escribe al menos 2 caracteres para buscar. Una persona nueva se
-                    registra con una solicitud de Onboarding.
-                  </p>
-                )}
-              </div>
-            )}
+            <p className="field-label mb-2">Empleado *</p>
+            <BuscadorEmpleado
+              buscador={buscador}
+              seleccionado={selectedEmployee}
+              onElegir={selectEmployee}
+              onQuitar={clearEmployee}
+              error={fieldErrors.employeeId}
+              sinResultados="Si es una persona nueva, se registra con una solicitud de Onboarding."
+              ayuda="Escribe al menos 2 caracteres para buscar. Una persona nueva se registra con una solicitud de Onboarding."
+            />
           </div>
 
           {/* Responsable de la solicitud (solo lectura) */}
           <div>
-            <label className="field-label">Responsable</label>
-            <input
+            <label htmlFor="solicitud-responsable-2" className="field-label">Responsable</label>
+            <input id="solicitud-responsable-2"
               type="text"
               value={
                 session?.user?.name
@@ -2096,6 +1310,7 @@ export default function NuevaSolicitudPage() {
                 </label>
                 <textarea
                   value={motivoCambio}
+                  maxLength={1000}
                   onChange={(e) => {
                     setMotivoCambio(e.target.value);
                     limpiarError('motivoCambio');
@@ -2149,104 +1364,19 @@ export default function NuevaSolicitudPage() {
               {selectedEmployee && (
                 <>
                   <hr className="border-line" />
-                  <div>
-                    <h4 className="font-medium text-fg mb-1">Coordinar Entrega del Reemplazo</h4>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="field-label">
-                        {medioCambio === 'presencial' ? 'Fecha y hora del cambio' : 'Fecha estimada de llegada'}
-                      </label>
-                      <input
-                        type="datetime-local"
-                        value={fechaCambioCoordinada}
-                        onChange={(e) => {
-                          setFechaCambioCoordinada(e.target.value);
-                          limpiarError('fechaCambioCoordinada');
-                        }}
-                        aria-invalid={!!fieldErrors.fechaCambioCoordinada}
-                        className={cn(claseInput(fieldErrors.fechaCambioCoordinada), 'text-sm')}
-                      />
-                      <MensajeCampo mensaje={fieldErrors.fechaCambioCoordinada} />
-                    </div>
-                    <div>
-                      <label className="field-label">Medio</label>
-                      <div className="flex gap-4">
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="radio"
-                            name="medioCambioNueva"
-                            checked={medioCambio === 'presencial'}
-                            onChange={() => setMedioCambio('presencial')}
-                          />
-                          Presencial
-                        </label>
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="radio"
-                            name="medioCambioNueva"
-                            checked={medioCambio === 'chilexpress'}
-                            onChange={() => setMedioCambio('chilexpress')}
-                          />
-                          Despacho (Chilexpress)
-                        </label>
-                      </div>
-                    </div>
-                    {medioCambio === 'presencial' ? (
-                      <div>
-                        <label className="field-label">Lugar</label>
-                        <input
-                          type="text"
-                          value={lugarCambio}
-                          onChange={(e) => {
-                            setLugarCambio(e.target.value);
-                            limpiarError('lugarCambio');
-                          }}
-                          placeholder="ej: Oficina Santiago, piso 4"
-                          aria-invalid={!!fieldErrors.lugarCambio}
-                          className={cn(claseInput(fieldErrors.lugarCambio), 'text-sm')}
-                        />
-                        <MensajeCampo mensaje={fieldErrors.lugarCambio} />
-                      </div>
-                    ) : (
-                      <>
-                        <div>
-                          <label className="field-label">
-                            N° de OT Chilexpress
-                          </label>
-                          <input
-                            type="text"
-                            value={otCambioChilexpress}
-                            onChange={(e) => {
-                              setOtCambioChilexpress(e.target.value);
-                              limpiarError('otCambioChilexpress');
-                            }}
-                            placeholder="ej: CH-2026-004567"
-                            aria-invalid={!!fieldErrors.otCambioChilexpress}
-                            className={cn(claseInput(fieldErrors.otCambioChilexpress), 'text-sm')}
-                          />
-                          <MensajeCampo mensaje={fieldErrors.otCambioChilexpress} />
-                        </div>
-                        <div>
-                          <label className="field-label">
-                            Ubicación de destino
-                          </label>
-                          <input
-                            type="text"
-                            value={ciudadCambio}
-                            onChange={(e) => {
-                              setCiudadCambio(e.target.value);
-                              limpiarError('ciudadCambio');
-                            }}
-                            placeholder="ej: Hotel HD Express, Concepción"
-                            aria-invalid={!!fieldErrors.ciudadCambio}
-                            className={cn(claseInput(fieldErrors.ciudadCambio), 'text-sm')}
-                          />
-                          <MensajeCampo mensaje={fieldErrors.ciudadCambio} />
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  </div>
+                  <SeccionCoordinacion
+                    titulo="Coordinar Entrega del Reemplazo"
+                    valor={coordCambio}
+                    onChange={setCoordCambio}
+                    claves={CLAVES.cambio}
+                    errores={fieldErrors}
+                    limpiarError={limpiarError}
+                    etiquetas={{
+                      fechaPresencial: 'Fecha y hora del cambio',
+                      fechaDespacho: 'Fecha estimada de llegada',
+                      lugar: 'Lugar',
+                    }}
+                  />
                 </>
               )}
             </div>
@@ -2319,46 +1449,20 @@ export default function NuevaSolicitudPage() {
                                 </div>
                               </div>
                               <div className="mt-3 pl-1 space-y-2">
-                                  <div className="flex gap-4 text-sm text-fg-muted">
-                                    <label className="flex items-center gap-1.5">
-                                      <input
-                                        type="radio"
-                                        name={`devolucion-${a.id}`}
-                                        checked={devolucionEstados[a.id] === 'ok'}
-                                        onChange={() => {
-                                          limpiarError('devoluciones');
-                                          setDevolucionEstados((prev) => ({ ...prev, [a.id]: 'ok' }));
-                                        }}
-                                      />
-                                      Buen estado
-                                    </label>
-                                    <label className="flex items-center gap-1.5">
-                                      <input
-                                        type="radio"
-                                        name={`devolucion-${a.id}`}
-                                        checked={devolucionEstados[a.id] === 'danado'}
-                                        onChange={() => {
-                                          limpiarError('devoluciones');
-                                          setDevolucionEstados((prev) => ({ ...prev, [a.id]: 'danado' }));
-                                        }}
-                                      />
-                                      Dañado
-                                    </label>
-                                    <label className="flex items-center gap-1.5">
-                                      <input
-                                        type="radio"
-                                        name={`devolucion-${a.id}`}
-                                        checked={devolucionEstados[a.id] === 'no_devuelto'}
-                                        onChange={() => {
-                                          limpiarError('devoluciones');
-                                          setDevolucionEstados((prev) => ({ ...prev, [a.id]: 'no_devuelto' }));
-                                        }}
-                                      />
-                                      {esRecuperacion ? 'Sigue sin devolver' : 'No devolvió'}
-                                    </label>
-                                  </div>
+                                  <ElegirEstadoDevolucion
+                                    nombre={`devolucion-${a.id}`}
+                                    etiqueta={`${asset.marca} ${asset.modelo}`}
+                                    valor={devolucionEstados[a.id]}
+                                    onElegir={(estado) => {
+                                      limpiarError('devoluciones');
+                                      setDevolucionEstados((prev) => ({ ...prev, [a.id]: estado }));
+                                    }}
+                                    textoNoDevuelto={esRecuperacion ? 'Sigue sin devolver' : 'No devolvió'}
+                                  />
                                   <input
                                     type="text"
+                                    aria-label={`Observaciones de ${asset.marca} ${asset.modelo}`}
+                                    maxLength={1000}
                                     value={devolucionObservaciones[a.id] || ''}
                                     onChange={(e) =>
                                       setDevolucionObservaciones((prev) => ({
@@ -2435,46 +1539,20 @@ export default function NuevaSolicitudPage() {
                         )}
                       >
                         <p className="text-sm font-medium text-fg mb-2">{k.item.nombre}</p>
-                        <div className="flex gap-4 text-sm text-fg-muted mb-2">
-                          <label className="flex items-center gap-1.5">
-                            <input
-                              type="radio"
-                              name={`devolucion-epp-${k.id}`}
-                              checked={devolucionEppEstados[k.id] === 'ok'}
-                              onChange={() => {
-                                limpiarError('devolucionesEpp');
-                                setDevolucionEppEstados((prev) => ({ ...prev, [k.id]: 'ok' }));
-                              }}
-                            />
-                            Buen estado
-                          </label>
-                          <label className="flex items-center gap-1.5">
-                            <input
-                              type="radio"
-                              name={`devolucion-epp-${k.id}`}
-                              checked={devolucionEppEstados[k.id] === 'danado'}
-                              onChange={() => {
-                                limpiarError('devolucionesEpp');
-                                setDevolucionEppEstados((prev) => ({ ...prev, [k.id]: 'danado' }));
-                              }}
-                            />
-                            Dañado
-                          </label>
-                          <label className="flex items-center gap-1.5">
-                            <input
-                              type="radio"
-                              name={`devolucion-epp-${k.id}`}
-                              checked={devolucionEppEstados[k.id] === 'no_devuelto'}
-                              onChange={() => {
-                                limpiarError('devolucionesEpp');
-                                setDevolucionEppEstados((prev) => ({ ...prev, [k.id]: 'no_devuelto' }));
-                              }}
-                            />
-                            No devolvió
-                          </label>
-                        </div>
+                        <ElegirEstadoDevolucion
+                          nombre={`devolucion-epp-${k.id}`}
+                          etiqueta={k.item.nombre}
+                          valor={devolucionEppEstados[k.id]}
+                          onElegir={(estado) => {
+                            limpiarError('devolucionesEpp');
+                            setDevolucionEppEstados((prev) => ({ ...prev, [k.id]: estado }));
+                          }}
+                          className="flex gap-4 text-sm text-fg-muted mb-2"
+                        />
                         <input
                           type="text"
+                          aria-label={`Observaciones de ${k.item.nombre}`}
+                          maxLength={1000}
                           value={devolucionEppObservaciones[k.id] || ''}
                           onChange={(e) =>
                             setDevolucionEppObservaciones((prev) => ({
@@ -2492,149 +1570,56 @@ export default function NuevaSolicitudPage() {
               )}
 
               {!esRecuperacion && (
-              <div>
-                <label className={cn(
-                  'block text-sm font-medium mb-1',
-                  fieldErrors.fechaDesvinculacion ? 'text-red-600' : 'text-fg-muted'
-                )}>
-                  Fecha Desvinculación *
-                </label>
-                <input
+                <CampoTexto
+                  label="Fecha Desvinculación"
+                  obligatorio
                   type="date"
+                  className="max-w-xs"
+                  error={fieldErrors.fechaDesvinculacion}
                   value={fechaDesvinculacion}
-                  onChange={(e) => { setFechaDesvinculacion(e.target.value); setFieldErrors((prev) => { const { fechaDesvinculacion: _, ...rest } = prev; return rest; }); }}
-                  aria-invalid={!!fieldErrors.fechaDesvinculacion}
-                  className={cn(claseInput(fieldErrors.fechaDesvinculacion), 'max-w-xs')}
+                  onChange={(v) => {
+                    setFechaDesvinculacion(v);
+                    limpiarError('fechaDesvinculacion');
+                  }}
                 />
-                <MensajeCampo mensaje={fieldErrors.fechaDesvinculacion} />
-              </div>
               )}
 
               {/* Coordinacion de devolucion en su propia tarjeta, separada de
                   los datos de la desvinculacion. Mismo patron
                   presencial/chilexpress que Onboarding y Cambio de Equipo. */}
               <hr className="border-line" />
-              <div>
-                <h4 className="font-medium text-fg mb-1">Coordinar Devolución</h4>
-                <div className="space-y-3">
-                  <div>
-                    <label className="field-label">Medio</label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="radio"
-                          name="medioDevolucionNueva"
-                          checked={medioDevolucion === 'presencial'}
-                          onChange={() => setMedioDevolucion('presencial')}
-                        />
-                        Presencial
-                      </label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="radio"
-                          name="medioDevolucionNueva"
-                          checked={medioDevolucion === 'chilexpress'}
-                          onChange={() => setMedioDevolucion('chilexpress')}
-                        />
-                        Despacho (Chilexpress)
-                      </label>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="field-label">
-                      {medioDevolucion === 'presencial'
-                        ? 'Fecha y hora de la devolución'
-                        : 'Fecha estimada de llegada'}
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={fechaDevolucionCoordinada}
-                      onChange={(e) => {
-                        setFechaDevolucionCoordinada(e.target.value);
-                        limpiarError('fechaDevolucionCoordinada');
-                      }}
-                      aria-invalid={!!fieldErrors.fechaDevolucionCoordinada}
-                      className={cn(claseInput(fieldErrors.fechaDevolucionCoordinada), 'text-sm')}
-                    />
-                    <MensajeCampo mensaje={fieldErrors.fechaDevolucionCoordinada} />
-                  </div>
-                  {medioDevolucion === 'presencial' ? (
-                    <div>
-                      <label className="field-label">
-                        Lugar de devolución
-                      </label>
-                      <input
-                        type="text"
-                        value={lugarDevolucion}
-                        onChange={(e) => {
-                          setLugarDevolucion(e.target.value);
-                          limpiarError('lugarDevolucion');
-                        }}
-                        placeholder="ej: Oficina Santiago, piso 4"
-                        aria-invalid={!!fieldErrors.lugarDevolucion}
-                        className={cn(claseInput(fieldErrors.lugarDevolucion), 'text-sm')}
-                      />
-                      <MensajeCampo mensaje={fieldErrors.lugarDevolucion} />
-                    </div>
-                  ) : (
-                    <>
-                      <div>
-                        <label className="field-label">
-                          N° de OT Chilexpress
-                        </label>
-                        <input
-                          type="text"
-                          value={otChilexpress}
-                          onChange={(e) => {
-                            setOtChilexpress(e.target.value);
-                            limpiarError('otChilexpress');
-                          }}
-                          placeholder="ej: CH-2026-004567"
-                          aria-invalid={!!fieldErrors.otChilexpress}
-                          className={cn(claseInput(fieldErrors.otChilexpress), 'text-sm')}
-                        />
-                        <MensajeCampo mensaje={fieldErrors.otChilexpress} />
-                      </div>
-                      <div>
-                        <label className="field-label">
-                          Ubicación de destino
-                        </label>
-                        <input
-                          type="text"
-                          value={ciudadDevolucion}
-                          onChange={(e) => {
-                            setCiudadDevolucion(e.target.value);
-                            limpiarError('ciudadDevolucion');
-                          }}
-                          placeholder="ej: Hotel HD Express, Concepción"
-                          aria-invalid={!!fieldErrors.ciudadDevolucion}
-                          className={cn(claseInput(fieldErrors.ciudadDevolucion), 'text-sm')}
-                        />
-                        <MensajeCampo mensaje={fieldErrors.ciudadDevolucion} />
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
+              <SeccionCoordinacion
+                titulo="Coordinar Devolución"
+                valor={coordDevolucion}
+                onChange={setCoordDevolucion}
+                claves={CLAVES.devolucion}
+                errores={fieldErrors}
+                limpiarError={limpiarError}
+                etiquetas={{
+                  fechaPresencial: 'Fecha y hora de la devolución',
+                  fechaDespacho: 'Fecha estimada de llegada',
+                  lugar: 'Lugar de devolución',
+                }}
+              />
             </div>
           )}
 
           {/* En Desvinculacion y Cambio de Equipo la sede ya no se elige: el
               empleado ya pertenece a una y se fija sola al elegirlo. */}
           <div>
-            <label className="field-label">
+            <label htmlFor="solicitud-sede-ticket" className="field-label">
               Sede <span className="text-red-500">*</span>
             </label>
             {((tipo === 'offboarding' || tipo === 'cambio_equipo') && selectedEmployee) ||
             !esAdminSede ? (
-              <input
+              <input id="solicitud-sede-ticket"
                 type="text"
                 value={sedes.find((s) => s.id === sedeId)?.nombre || 'Cargando...'}
                 disabled
                 className="w-full px-3 py-2 border border-line rounded-lg bg-surface-muted text-fg-muted"
               />
             ) : (
-              <select
+              <select id="solicitud-sede-ticket"
                 value={sedeId}
                 onChange={(e) => {
                   setSedeId(e.target.value);
@@ -2665,9 +1650,10 @@ export default function NuevaSolicitudPage() {
 
           {/* Observaciones */}
           <div>
-            <label className="field-label">Observaciones</label>
-            <textarea
+            <label htmlFor="solicitud-observaciones-2" className="field-label">Observaciones</label>
+            <textarea id="solicitud-observaciones-2"
               value={observaciones}
+              maxLength={2000}
               onChange={(e) => setObservaciones(e.target.value)}
               rows={3}
               className="w-full px-3 py-2 border border-line-strong rounded-lg"

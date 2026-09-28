@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { textoLibre } from "./comunes";
 
 // Enums que coinciden con Prisma
 export const TipoMovimientoEnum = z.enum(["ingreso", "cambio", "reemplazo", "temporal"]);
@@ -32,7 +33,7 @@ export const createAssignmentSchema = z.object({
   nombreEquipo: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   entregadoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   tipoMovimiento: TipoMovimientoEnum,
-  motivo: z.string().optional().nullable(),
+  motivo: textoLibre(1000),
 });
 
 // Schema para asignación múltiple (varios activos a un empleado)
@@ -43,7 +44,7 @@ export const createMultipleAssignmentsSchema = z.object({
   lugarEntrega: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   entregadoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   tipoMovimiento: TipoMovimientoEnum,
-  motivo: z.string().optional().nullable(),
+  motivo: textoLibre(1000),
 });
 
 // Schema para registrar devolución
@@ -51,7 +52,7 @@ export const returnAssignmentSchema = z.object({
   fechaDevolucion: fechaObligatoria,
   recibidoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
   estadoDevolucion: EstadoDevolucionEnum,
-  observacionesDevolucion: z.string().optional().nullable(),
+  observacionesDevolucion: textoLibre(1000),
 });
 
 // Schema para filtros de búsqueda

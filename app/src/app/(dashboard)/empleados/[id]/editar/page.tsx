@@ -243,10 +243,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="field-label">
+            <label htmlFor="empleado-rut" className="field-label">
               RUT
             </label>
-            <input
+            <input id="empleado-rut"
               type="text"
               name="rut"
               value={formData.rut}
@@ -258,10 +258,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="field-label">
+            <label htmlFor="empleado-correo-personal" className="field-label">
               Correo Personal <span className="text-red-500">*</span>
             </label>
-            <input
+            <input id="empleado-correo-personal"
               type="email"
               name="correoPersonal"
               value={formData.correoPersonal}
@@ -274,10 +274,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="field-label">
+            <label htmlFor="empleado-correo-empresa" className="field-label">
               Correo Empresa
             </label>
-            <input
+            <input id="empleado-correo-empresa"
               type="email"
               name="correoEmpresa"
               value={formData.correoEmpresa}
@@ -289,10 +289,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="field-label">
+            <label htmlFor="empleado-nombres" className="field-label">
               Nombres <span className="text-red-500">*</span>
             </label>
-            <input
+            <input id="empleado-nombres"
               type="text"
               name="nombres"
               value={formData.nombres}
@@ -305,10 +305,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="field-label">
+            <label htmlFor="empleado-apellido-paterno" className="field-label">
               Apellido Paterno <span className="text-red-500">*</span>
             </label>
-            <input
+            <input id="empleado-apellido-paterno"
               type="text"
               name="apellidoPaterno"
               value={formData.apellidoPaterno}
@@ -321,10 +321,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="field-label">
+            <label htmlFor="empleado-apellido-materno" className="field-label">
               Apellido Materno
             </label>
-            <input
+            <input id="empleado-apellido-materno"
               type="text"
               name="apellidoMaterno"
               value={formData.apellidoMaterno}
@@ -336,10 +336,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="field-label">
+            <label htmlFor="empleado-telefono-de-contacto" className="field-label">
               Teléfono de Contacto
             </label>
-            <input
+            <input id="empleado-telefono-de-contacto"
               type="tel"
               name="telefonoContacto"
               value={formData.telefonoContacto}
@@ -364,12 +364,12 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
               contrario, guardar cualquier otro cambio lo devolveria a
               "activo" sin que nadie lo pidiera. */}
           <div>
-            <label className="field-label">
+            <label htmlFor="empleado-estado" className="field-label">
               Estado <span className="text-red-500">*</span>
             </label>
             {formData.estado === "desvinculado" ? (
               <>
-                <input
+                <input id="empleado-estado"
                   type="text"
                   value="Desvinculado"
                   disabled
@@ -381,7 +381,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
                 </p>
               </>
             ) : (
-              <select
+              <select id="empleado-estado"
                 name="estado"
                 value={formData.estado}
                 onChange={handleChange}
@@ -395,10 +395,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="field-label">
+            <label htmlFor="empleado-tipo-de-contrato" className="field-label">
               Tipo de Contrato <span className="text-red-500">*</span>
             </label>
-            <select
+            <select id="empleado-tipo-de-contrato"
               name="tipoContrato"
               value={formData.tipoContrato}
               onChange={handleChange}
@@ -413,10 +413,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="field-label">
+            <label htmlFor="empleado-cargo" className="field-label">
               Cargo
             </label>
-            <input
+            <input id="empleado-cargo"
               type="text"
               name="cargo"
               value={formData.cargo}
@@ -428,10 +428,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="field-label">
+            <label htmlFor="empleado-jefatura" className="field-label">
               Jefatura
             </label>
-            <input
+            <input id="empleado-jefatura"
               type="text"
               name="jefatura"
               value={formData.jefatura}
@@ -443,10 +443,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="field-label">
+            <label htmlFor="empleado-supervisor" className="field-label">
               Supervisor
             </label>
-            <input
+            <input id="empleado-supervisor"
               type="text"
               name="supervisor"
               value={formData.supervisor}
@@ -458,10 +458,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="field-label">
+            <label htmlFor="empleado-ubicacion" className="field-label">
               Ubicación
             </label>
-            <input
+            <input id="empleado-ubicacion"
               type="text"
               name="ubicacion"
               value={formData.ubicacion}
@@ -473,10 +473,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="field-label">
+            <label htmlFor="empleado-fecha-de-ingreso" className="field-label">
               Fecha de Ingreso
             </label>
-            <input
+            <input id="empleado-fecha-de-ingreso"
               type="date"
               name="fechaIngreso"
               value={formData.fechaIngreso}
@@ -488,10 +488,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div>
-            <label className="field-label">
+            <label htmlFor="empleado-fecha-de-termino" className="field-label">
               Fecha de Término
             </label>
-            <input
+            <input id="empleado-fecha-de-termino"
               type="date"
               name="fechaTermino"
               value={formData.fechaTermino}
@@ -504,10 +504,10 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
 
           {esAdmin && (
             <div>
-              <label className="field-label">
+              <label htmlFor="empleado-sede" className="field-label">
                 Sede <span className="text-red-500">*</span>
               </label>
-              <select
+              <select id="empleado-sede"
                 name="sedeId"
                 value={formData.sedeId}
                 onChange={handleChange}

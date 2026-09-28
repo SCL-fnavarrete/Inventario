@@ -20,6 +20,7 @@ import { crearDespacho, crearGuiaConNumero, sedeDestinoValida } from '@/lib/serv
 import { ETIQUETAS_GUIA, validarNuevaGuia } from '@/lib/validations/guia';
 import { etiquetaEstadoActivo } from '@/lib/constants/estadosActivo';
 import { coincideBusqueda } from '@/lib/utils/text';
+import { ordenarComo, paginarCoincidencias } from "@/lib/utils/busquedaEnMemoria";
 import { identificadorActivo } from '@/lib/utils/identificador';
 
 // GET /api/guias-despacho - Listar guías de despacho
@@ -73,22 +74,29 @@ export async function GET(request: NextRequest) {
     let total;
 
     if (terminoBusqueda) {
-      const todas = await prisma.dispatchGuide.findMany({
+      // Solo las columnas de busqueda; el detalle, solo de la pagina.
+      const candidatas = await prisma.dispatchGuide.findMany({
         where,
         orderBy: { createdAt: "desc" },
-        include: includeGuia,
+        select: { id: true, numero: true, otChilexpress: true, receptorNombre: true, receptorRut: true },
       });
-
       // RUT del receptor sin formato, o palabra por palabra (coincideBusqueda).
-      const filtradas = todas.filter((g) =>
-        coincideBusqueda(terminoBusqueda, {
-          rut: g.receptorRut,
-          campos: [g.numero, g.otChilexpress, g.receptorNombre],
-        })
+      const pagina = paginarCoincidencias(
+        candidatas,
+        (g) =>
+          coincideBusqueda(terminoBusqueda, {
+            rut: g.receptorRut,
+            campos: [g.numero, g.otChilexpress, g.receptorNombre],
+          }),
+        (page - 1) * limit,
+        limit
       );
 
-      total = filtradas.length;
-      guides = filtradas.slice((page - 1) * limit, (page - 1) * limit + limit);
+      total = pagina.total;
+      guides = ordenarComo(
+        pagina.ids,
+        await prisma.dispatchGuide.findMany({ where: { id: { in: pagina.ids } }, include: includeGuia })
+      );
     } else {
       [guides, total] = await Promise.all([
         prisma.dispatchGuide.findMany({

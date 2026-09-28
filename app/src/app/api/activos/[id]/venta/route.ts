@@ -6,6 +6,7 @@ import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { requirePermission, handleApiError, ConflictError, respuestaDatosInvalidos } from '@/lib/auth/guard';
 import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { etiquetaEstadoActivo } from '@/lib/constants/estadosActivo';
+import { siSigueIgual } from '@/lib/utils/concurrencia';
 
 // Proceso de venta de un activo.
 export async function POST(
@@ -81,15 +82,19 @@ export async function POST(
 
     // Ejecutar venta en transacción
     const result = await prisma.$transaction(async (tx) => {
-      const updated = await tx.asset.update({
-        where: { id },
-        data: {
-          estado: 'vendido',
-          // Persistir la fecha de venta ingresada por el usuario.
-          fechaVenta: data.fechaVenta,
-        },
-        include: { categoria: true },
-      });
+      // Solo si sigue de baja y sin empleado: dos ventas a la vez no se
+      // registran dos veces (auditoria 28-sep-2026, 7.A-1).
+      const updated = await siSigueIgual(
+        tx.asset.update({
+          where: { id, estado: 'baja', empleadoActualId: null },
+          data: {
+            estado: 'vendido',
+            // Persistir la fecha de venta ingresada por el usuario.
+            fechaVenta: data.fechaVenta,
+          },
+          include: { categoria: true },
+        })
+      );
 
       // Registrar en historial (reutiliza assetHistoryService)
       await assetHistoryService.registrarVenta(
