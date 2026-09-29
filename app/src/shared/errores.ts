@@ -59,6 +59,21 @@ export function errorDeCampo(campo: string, mensaje: string): ConflictError {
 /** Valor que ya existe en otro registro (nombre, codigo, email, RUT...). */
 export const errorRepetido = errorDeCampo;
 
+/**
+ * Errores por campo de una regla compartida con la pantalla (validarNuevaGuia,
+ * validarRecepcion...): si hay alguno, 400 con el primero en el mensaje
+ * (con su etiqueta legible) y todos en details, para marcarlos. Es la version
+ * que lanza de respuestaErroresCampos, para usarla en los servicios.
+ */
+export function exigirSinErroresCampos(errores: Record<string, string>, etiquetas: Record<string, string>) {
+  const [primero] = Object.keys(errores);
+  if (!primero) return;
+  throw new ValidationError(
+    `${etiquetas[primero] ?? primero}: ${errores[primero]}`,
+    Object.entries(errores).map(([field, message]) => ({ field, message }))
+  );
+}
+
 export class ValidationError extends ApiError {
   constructor(message = 'Datos inválidos', details?: unknown) {
     super(400, message, details);
