@@ -9,3 +9,6 @@ node_modules/
 nul
 Claude outputs/
 excel/
+
+# configuracion personal de Claude Code (cada uno la suya)
+.claude/settings.local.json

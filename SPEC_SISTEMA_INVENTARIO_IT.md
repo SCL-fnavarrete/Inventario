@@ -3013,7 +3013,7 @@ Pedido de Javier: rediseño exclusivamente visual (sin tocar lógica, API, valid
 
 **Modo oscuro (nuevo).** La app era solo clara. El tema vive en `<html data-theme>`; un script en `<head>` (`lib/tema.ts`) lo aplica antes de pintar, según la preferencia guardada o la del sistema operativo, y `ThemeToggle` lo cambia. Estrategia:
 - Tokens semánticos en `globals.css` (`canvas`, `surface`, `surface-muted`, `fg`, `fg-muted`, `fg-subtle`, `line`, `line-strong`) con valores por tema.
-- Migración de los colores fijos de todas las pantallas a esos tokens con `app/scripts/migrar-tokens-tema.mjs` (1.513 reemplazos en 84 archivos; idempotente).
+- Migración de los colores fijos de todas las pantallas a esos tokens con `app/scripts/migrar-tokens-tema.mjs` (1.513 reemplazos en 84 archivos; idempotente; retirado el 29-sep-2026 por estar ya aplicado).
 - En oscuro, las escalas de Tailwind se ajustan solas: 50–300 pasan a tintes translúcidos y 700–950 a tonos claros; así badges y avisos siguen legibles sin `dark:` por componente.
 - Tokens fijos para rellenos sólidos con texto blanco (`brand`, `navy`, `danger`, `success`), que no se invierten.
 - Borde por defecto al token `line` (Tailwind v4 usa `currentColor`, que dejaba líneas oscuras); ejes, grilla y tooltip de Recharts siguen el tema desde `globals.css`.
@@ -3752,7 +3752,7 @@ Verificado: tipos, 1112 pruebas, la compilación de producción (`next build`) y
 **Limpieza:** se borra `app/_to_delete/`, una ruta vieja de "revalidar importación" que el desarrollador anterior dejó fuera de la aplicación; no la usaba nada, pero rompía la revisión de tipos de la compilación.
 
 ## 2.114 Correcciones de la auditoría del 27-sep-2026
-Auditoría de seguridad, datos y concurrencia previa al paso a producción. El detalle hallazgo por hallazgo está en `AUDITORIA_CORRECCIONES_2026-09-27.md` (raíz del repositorio); aquí quedan las **reglas** que cambian. Complementa 2.5 (Solicitudes), 2.112 (Configuración y seguridad) y 2.113 (en 2.113 la API sin sesión se redirigía al inicio de sesión; desde aquí responde 401, ver 2.114.1).
+Auditoría de seguridad, datos y concurrencia previa al paso a producción. El detalle hallazgo por hallazgo estaba en `AUDITORIA_CORRECCIONES_2026-09-27.md` (retirado del repositorio el 29-sep-2026; queda en el historial de git, commit `f41baad`); aquí quedan las **reglas** que cambian. Complementa 2.5 (Solicitudes), 2.112 (Configuración y seguridad) y 2.113 (en 2.113 la API sin sesión se redirigía al inicio de sesión; desde aquí responde 401, ver 2.114.1).
 
 ### 2.114.1 Sesión y secretos
 - `NEXTAUTH_SECRET` de **32 caracteres o más**: en producción la aplicación no arranca sin él (`secretoDeSesion()` en `lib/auth.ts`). El que estaba en los README se retiró y se rotó.
@@ -3818,7 +3818,7 @@ Antes de aplicar se verificó que no había equipos repetidos en una compra.
 - Conexión a Neon con `sslmode=require&pgbouncer=true&connection_limit=3&pool_timeout=20` (ver `app/docs/DEPLOYMENT.md`).
 
 ## 2.115 Correcciones de la auditoría de 7 fases del 28-sep-2026
-Detalle por hallazgo en `AUDITORIA_2026-09-28.md` (raíz). Aquí las reglas que cambian.
+Detalle por hallazgo en `AUDITORIA_2026-09-28.md` (retirado del repositorio el 29-sep-2026; queda en el historial de git, commit `f41baad`). Aquí las reglas que cambian.
 
 ### 2.115.1 Cambios simultáneos: 409 en vez de pisar
 Completa lo de 2.114.3. **Vender, dar de baja, iniciar, editar, cancelar y completar una mantención** solo se aplican si el registro sigue como se leyó (el equipo en su estado y sin empleado; la mantención en su estado). Si otra persona o pestaña lo cambió en el intertanto, la operación responde **409** ("El registro cambió mientras se guardaba… Vuelve a cargar la página") y no se escribe nada. Así un equipo ya no puede quedar vendido o de baja con una asignación activa, ni una mantención completarse dos veces. Se implementa con `siSigueIgual` (`lib/utils/concurrencia.ts`).
@@ -3938,6 +3938,7 @@ Pedido de Javier: *"el técnico sí pueda interactuar con los equipos de otras s
 ## Changelog SPEC
 - **v2.41 (2026-09-29):**
   - Sección 2.117 (nueva): la sede deja de restringir el acceso; todos trabajan con todas las sedes y la sede queda como dato (dónde está cada cosa y a qué sede pertenece cada usuario). `sedeScope.ts` queda en `filtroSede` y `sedeIdParaCrear`; despachos los recibe y anula cualquier sede; campo Sede abierto en los formularios; navbar libre que parte en la sede del usuario. Reemplaza 2.8 en lo que restringía.
+  - Limpieza del repositorio: se retiran archivos que no se usan (plan de la sincronización con Microsoft, informes de auditoría, logo duplicado, configuración personal de editor y de Claude Code, scripts ya aplicados u obsoletos como la prueba de aislamiento por sede y su comando `test:aislamiento`, y el README duplicado de `app/`).
 - **v2.40 (2026-09-28):**
   - Sección 2.116 (nueva): columna "Acciones" del despacho solo cuando hay botones (2.116.1); empleados importados sin tipo de contrato, que se elige obligatoriamente al editar (2.116.2); Catálogos de Activos cuentan por la sede del navbar y las reglas de eliminar siguen mirando todas las sedes (2.116.3); catálogo de marcas, con migración `20260928100000_catalogo_marcas` y validación en la importación (2.116.4); motivos de baja como lista administrable en Mantenciones > Motivos de baja, con "+" al dar de baja, recurso `motivosBaja` (RWD para admin y técnico, 1.3.1) y `Maintenance.motivoBajaId`, migración `20260928110000_motivos_baja` (2.116.5); filtros combinables de Activos por marca, sistema operativo, antivirus, licencia y motivo de baja, con tarjetas que cuentan según los filtros y Excel que respeta la búsqueda (2.116.6); Importar pasa a Configuración y queda solo para admin (2.116.7); errores visibles al agregar una opción con "+" (2.116.8).
 - **v2.39 (2026-09-28):**
