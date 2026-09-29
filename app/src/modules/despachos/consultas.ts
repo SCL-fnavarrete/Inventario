@@ -16,24 +16,3 @@ export const VISTAS_GUIA = {
 } as const;
 
 export type VistaGuia = keyof typeof VISTAS_GUIA;
-
-/**
- * Equipos que vienen en camino a una sede (tarjeta "Por llegar" de Activos,
- * SPEC 2.108): en transito en una guia que la tiene como destino y que aun
- * no se resuelve. Todavia son de la sede de origen; la destino solo los ve.
- */
-export function whereActivosPorLlegar(sedeDestinoId: string | null): Prisma.AssetWhereInput {
-  return {
-    deletedAt: null,
-    estado: 'en_transito',
-    dispatchItems: {
-      some: {
-        estado: 'en_transito',
-        guide: {
-          sedeDestinoId: sedeDestinoId ?? '__sin_sede__',
-          estado: { in: ['en_transito', 'recibida_parcial'] },
-        },
-      },
-    },
-  };
-}

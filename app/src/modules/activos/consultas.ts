@@ -1,6 +1,5 @@
 import { Prisma } from '@prisma/client';
 import { estadoActivoEnum } from '@/modules/activos/validaciones';
-import { whereActivosPorLlegar } from '@/modules/despachos';
 import { filtroSede } from '@/shared/sedes/filtro';
 import { FILTROS_DATO, SIN_DATO, type FiltrosDato, type ParamFiltroDato } from '@/modules/activos/filtros';
 
@@ -126,5 +125,26 @@ export function busquedaActivo(palabra: string): Prisma.AssetWhereInput {
       { empleadoActual: { rut: c } },
       { empleadoActual: { correoEmpresa: c } },
     ],
+  };
+}
+
+/**
+ * Equipos que vienen en camino a una sede (tarjeta "Por llegar" de Activos,
+ * SPEC 2.108): en transito en una guia que la tiene como destino y que aun
+ * no se resuelve. Todavia son de la sede de origen; la destino solo los ve.
+ */
+export function whereActivosPorLlegar(sedeDestinoId: string | null): Prisma.AssetWhereInput {
+  return {
+    deletedAt: null,
+    estado: 'en_transito',
+    dispatchItems: {
+      some: {
+        estado: 'en_transito',
+        guide: {
+          sedeDestinoId: sedeDestinoId ?? '__sin_sede__',
+          estado: { in: ['en_transito', 'recibida_parcial'] },
+        },
+      },
+    },
   };
 }

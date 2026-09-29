@@ -4,7 +4,7 @@ import { NotFoundError } from '@/shared/errores';
 import { filtroSede } from '@/shared/sedes/filtro';
 import { inicioDeHoy } from '@/shared/utilidades/fechas';
 import { busquedaActivo, palabrasDeBusqueda } from '@/modules/activos';
-import type { MaintenanceFilters } from '@/modules/mantenciones/validaciones';
+import type { MaintenanceFilters, VistaMantencion } from '@/modules/mantenciones/validaciones';
 
 /**
  * Mantenciones de la sede elegida en el nav, o de todas (SPEC 2.117): via la
@@ -56,9 +56,7 @@ export const VISTAS_MANTENCION = {
     estado: 'completada',
     ...(v.inicioCompletadas ? { fechaRealizada: { gte: v.inicioCompletadas } } : {}),
   }),
-} as const;
-
-export type VistaMantencion = keyof typeof VISTAS_MANTENCION;
+} as const satisfies Record<VistaMantencion, (v: Ventana) => Prisma.MaintenanceWhereInput>;
 
 /**
  * Lo que cuenta dentro del periodo elegido (la lista sin filtros y la tarjeta

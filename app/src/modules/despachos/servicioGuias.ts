@@ -5,7 +5,6 @@ import { auditLogService } from '@/shared/auditoria';
 import { sedeIdParaCrear } from '@/shared/sedes/filtro';
 import { ACTIVOS_VIGENTES, etiquetaEstadoActivo, identificadorActivo, validateTransition } from '@/modules/activos';
 import { cambiarEstado } from '@/modules/activos/servidor';
-import { devolverKitDeRepartoAnulado } from '@/modules/compras/servidor';
 import { darDeBajaEnTransaccion, motivoParaBaja, tipoCorrectivaPorDefecto } from '@/modules/mantenciones/servidor';
 import { ETIQUETAS_GUIA, validarNuevaGuia, validarRecepcion } from '@/modules/despachos/validaciones';
 import {
@@ -144,9 +143,16 @@ export async function confirmarRecepcion(
  * Anular un despacho en transito que todavia no se recibe: el paquete no
  * salio, se envio mal o se devolvio. Los equipos vuelven a "Disponible" en la
  * sede de origen; los de un reparto (SPEC 2.111.5) vuelven a "Por repartir" y
- * su Kit/EPP a lo pendiente de la compra, para repartirlo de nuevo.
+ * su Kit/EPP a lo pendiente de la compra, para repartirlo de nuevo: eso lo
+ * hace Compras, que es su dueno, con `devolverKitDeReparto` (quien llama la
+ * pasa, asi Despachos no depende de Compras).
  */
-export async function anularDespacho(id: string, motivo: unknown, quien: Quien) {
+export async function anularDespacho(
+  id: string,
+  motivo: unknown,
+  quien: Quien,
+  devolverKitDeReparto: (tx: Prisma.TransactionClient, guideId: string) => Promise<void>
+) {
   const guia = await buscarGuia(id);
   const kitTocado = guia.kitItems.some((k) => k.cantidadRecibida > 0 || k.cantidadPerdida > 0);
   if (guia.estado !== 'en_transito' || guia.items.some((i) => i.estado !== 'en_transito') || kitTocado) {
@@ -176,7 +182,7 @@ export async function anularDespacho(id: string, motivo: unknown, quien: Quien) 
       });
     }
     // Kit/EPP del reparto: Compras lo devuelve a lo pendiente de la compra.
-    await devolverKitDeRepartoAnulado(tx, guia.id);
+    if (guia.purchaseId) await devolverKitDeReparto(tx, guia.id);
     await tx.dispatchGuide.update({
       where: { id },
       data: { estado: 'anulada', fechaAnulacion: new Date(), anuladaPor: quien.nombre || usuario, motivoAnulacion: detalle },

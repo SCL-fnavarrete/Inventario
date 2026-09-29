@@ -172,3 +172,5 @@ export type CompleteMaintenanceInput = z.infer<typeof completeMaintenanceSchema>
 export type BajaPorMantencionInput = z.input<typeof bajaPorMantencionSchema>;
 export type BajaPorMantencionDatos = z.infer<typeof bajaPorMantencionSchema>;
 export type MaintenanceFilters = z.infer<typeof maintenanceFiltersSchema>;
+/** Tarjeta de resumen pulsada en Mantenciones (SPEC 2.107). */
+export type VistaMantencion = NonNullable<MaintenanceFilters["vista"]>;

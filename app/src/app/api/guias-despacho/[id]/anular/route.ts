@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission, handleApiError } from '@/shared/auth/guard';
 import { anularDespacho } from '@/modules/despachos/servidor';
+import { devolverKitDeRepartoAnulado } from '@/modules/compras/servidor';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -12,7 +13,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const session = await requirePermission('guias', 'write');
     const { id } = await params;
     const { motivo } = await request.json();
-    const guia = await anularDespacho(id, motivo, { email: session.user?.email, nombre: session.user?.name });
+    // Si era un reparto, Compras devuelve su Kit/EPP a lo pendiente de la compra.
+    const guia = await anularDespacho(
+      id,
+      motivo,
+      { email: session.user?.email, nombre: session.user?.name },
+      devolverKitDeRepartoAnulado
+    );
     return NextResponse.json(guia);
   } catch (error) {
     return handleApiError(error, 'Error al anular el despacho');

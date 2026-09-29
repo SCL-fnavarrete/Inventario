@@ -12,7 +12,7 @@ import {
   Loader2,
   ListChecks,
 } from "lucide-react";
-import type { VistaMantencion } from "@/modules/mantenciones/servidor";
+import type { VistaMantencion } from "@/modules/mantenciones";
 import { cn } from "@/shared/cn";
 import { Can } from "@/shared/ui/Can";
 import { EstadoMantencionBadge, MantencionesTabs } from "@/modules/mantenciones/componentes";
