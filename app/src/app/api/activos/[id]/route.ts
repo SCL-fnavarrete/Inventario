@@ -16,12 +16,10 @@ import {
   ValidationError,
 } from '@/lib/auth/guard';
 import { logger } from '@/lib/logger';
-import { assertSedeAccess } from '@/lib/auth/sedeScope';
-import { puedeVerActivo } from '@/lib/queries/activos';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await requirePermission('activos', 'read');
+    await requirePermission('activos', 'read');
 
     const { id } = await params;
 
@@ -56,12 +54,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
     }
 
-    // Su sede, uno que viene en camino a ella (SPEC 2.108) o uno "Por
-    // repartir" de cualquier sede (SPEC 2.111.6).
-    if (!(await puedeVerActivo(session, asset))) {
-      throw new NotFoundError('Activo no encontrado');
-    }
-
     return NextResponse.json(asset);
   } catch (error) {
     return handleApiError(error, 'Error al obtener activo');
@@ -88,7 +80,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
     }
 
-    assertSedeAccess(session, existingAsset.sedeId, 'Activo no encontrado');
     // Si solo llega una de las dos fechas, se compara con la ya guardada.
     if (
       terminaAntesDeEmpezar(
@@ -288,8 +279,6 @@ export async function DELETE(
     if (!existingAsset) {
       throw new NotFoundError('Activo no encontrado');
     }
-
-    assertSedeAccess(session, existingAsset.sedeId, 'Activo no encontrado');
 
     if (existingAsset.deletedAt) {
       throw new ConflictError('Este activo ya estaba descartado');

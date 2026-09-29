@@ -42,10 +42,8 @@ type Asset = {
 interface SelectorActivosProps {
   selectedAssets: Asset[];
   onSelectionChange: (assets: Asset[]) => void;
-  // Acota el inventario a una sede especifica -- lo usa el admin al elegir
-  // la sede origen en Nueva Guia de Despacho, para no mezclar en un mismo
-  // despacho equipos de sedes distintas. Un tecnico no necesita pasarlo:
-  // /api/activos ya lo acota solo a lo suyo.
+  // Acota el inventario a la sede origen de Nueva Guia de Despacho, para no
+  // mezclar en un mismo despacho equipos de sedes distintas.
   sedeId?: string;
 }
 
@@ -75,9 +73,7 @@ export function SelectorActivos({
   // Busqueda en el servidor, con las mismas reglas que Activos (por palabras,
   // en marca, modelo, serie...). Antes se traian hasta 200 y se filtraba en
   // pantalla: con mas equipos, el resto no aparecia y no se avisaba.
-  // Solo "disponible": una guia exige que el equipo este disponible. El
-  // filtro de sede solo tiene efecto para admin; el tecnico ya viene
-  // acotado por sesion.
+  // Solo "disponible": una guia exige que el equipo este disponible.
   const params = new URLSearchParams({ estado: "disponible", limit: String(LIMITE_RESULTADOS) });
   if (sedeId) params.set("sedeId", sedeId);
   if (busqueda.trim()) params.set("search", busqueda.trim());

@@ -16,17 +16,17 @@ const LIMITE_MAXIMO_PAGINA = 500;
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await requirePermission('activos', 'read');
+    await requirePermission('activos', 'read');
 
     const searchParams = request.nextUrl.searchParams;
 
     const { page, limit } = leerPaginacion(searchParams, { limitMaximo: LIMITE_MAXIMO_PAGINA });
     const empleadoActualId = searchParams.get("empleadoActualId") || "";
 
-    // Vigentes, sede de la sesion, estado, categoria, sede del menu, "Por
+    // Vigentes, estado, categoria, sede del menu, "Por
     // llegar", busqueda y datos de catalogo: los mismos filtros que la
     // exportacion y las tarjetas (SPEC 2.116.6).
-    const where = whereFiltrosActivos(session, leerFiltrosActivos(searchParams));
+    const where = whereFiltrosActivos(leerFiltrosActivos(searchParams));
 
     if (empleadoActualId) {
       where.empleadoActualId = empleadoActualId;
@@ -85,9 +85,8 @@ export async function POST(request: NextRequest) {
     // Validar datos con Zod
     const validatedData = createAssetSchema.parse(body);
 
-    // La sede se hereda de quien crea el activo; admin debe elegirla
-    // explicitamente, igual que un tecnico con la suya.
-    const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId, {
+    // La sede elegida en el formulario, obligatoria (SPEC 2.117).
+    const sedeId = sedeIdParaCrear((body as { sedeId?: string }).sedeId, {
       requerido: true,
     });
     if (sedeId) await exigirSedeActiva(sedeId);

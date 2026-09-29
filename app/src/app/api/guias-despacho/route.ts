@@ -8,12 +8,10 @@ import {
   respuestaErroresCampos,
   errorDeCampo,
 } from '@/lib/auth/guard';
-import { tieneVisibilidadTotal, sedeIdParaCrear } from '@/lib/auth/sedeScope';
+import { sedeIdParaCrear } from '@/lib/auth/sedeScope';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
 import {
   VISTAS_GUIA,
-  sedePropiaGuias,
-  whereGuiaVisible,
   type VistaGuia,
 } from '@/lib/queries/guias';
 import { crearDespacho, crearGuiaConNumero, sedeDestinoValida } from '@/lib/services/guiaDespachoService';
@@ -26,13 +24,13 @@ import { identificadorActivo } from '@/lib/utils/identificador';
 // GET /api/guias-despacho - Listar guías de despacho
 export async function GET(request: NextRequest) {
   try {
-    const session = await requirePermission('guias', 'read');
+    await requirePermission('guias', 'read');
     const searchParams = request.nextUrl.searchParams;
     const estado = searchParams.get("estado") as EstadoGuia | null;
     const busqueda = searchParams.get("busqueda");
     const { page, limit } = leerPaginacion(searchParams);
 
-    const condiciones: Prisma.DispatchGuideWhereInput[] = [whereGuiaVisible(session)];
+    const condiciones: Prisma.DispatchGuideWhereInput[] = [];
 
     if (estado) {
       condiciones.push({ estado });
@@ -47,11 +45,11 @@ export async function GET(request: NextRequest) {
     if (vista && vista in VISTAS_GUIA) {
       condiciones.push(
         vista === "por_recibir"
-          ? VISTAS_GUIA.por_recibir(sedePropiaGuias(session, sedeIdFiltro))
+          ? VISTAS_GUIA.por_recibir(sedeIdFiltro || null)
           : VISTAS_GUIA[vista]()
       );
     }
-    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
+    if (sedeIdFiltro) {
       condiciones.push({
         OR: [{ sedeId: sedeIdFiltro }, { sedeDestinoId: sedeIdFiltro }],
       });
@@ -165,10 +163,9 @@ export async function POST(request: NextRequest) {
       throw errorDeCampo("assetIds", `Ya no están disponibles para despacho: ${detalle}`);
     }
 
-    // Defensa en profundidad: un no-admin no puede despachar activos que no
-    // sean de su propia sede. Para admin la sede origen es obligatoria, para
-    // evitar una guia sin sede emisora que mezcle equipos de sedes distintas.
-    const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId, {
+    // La sede origen es obligatoria y todos los equipos deben ser de ella:
+    // una guia no mezcla equipos de sedes distintas.
+    const sedeId = sedeIdParaCrear((body as { sedeId?: string }).sedeId, {
       requerido: true,
     });
     const deOtraSede = assets.filter((a) => a.sedeId !== sedeId);

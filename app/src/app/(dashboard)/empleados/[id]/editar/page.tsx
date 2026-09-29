@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Save, Loader2 } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
@@ -66,8 +65,6 @@ type FormData = {
 export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { data: session } = useSession();
-  const esAdmin = session?.user?.role === "admin";
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,15 +93,13 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
     sedeId: "",
   });
 
-  // La sede solo la puede reasignar admin (ver PUT /api/empleados/[id]);
-  // el tecnico ni siquiera necesita ver el select.
+  // Cualquiera puede trasladar a una persona de sede (SPEC 2.117).
   useEffect(() => {
-    if (!esAdmin) return;
     fetch("/api/sedes?activas=true")
       .then((res) => res.json())
       .then((data) => setSedes(Array.isArray(data) ? data : []))
       .catch(() => setSedes([]));
-  }, [esAdmin]);
+  }, []);
 
   const fetchEmployee = useCallback(async () => {
     try {
@@ -165,7 +160,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
     if (formData.correoEmpresa && !esCorreoValido(formData.correoEmpresa))
       faltan.correoEmpresa = "El correo de empresa no es válido";
     if (!formData.tipoContrato) faltan.tipoContrato = "Elige el tipo de contrato";
-    if (esAdmin && !formData.sedeId) faltan.sedeId = "Elige la sede";
+    if (!formData.sedeId) faltan.sedeId = "Elige la sede";
     if (reportar(faltan)) return;
     setSaving(true);
     setError(null);
@@ -186,10 +181,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
           fechaIngreso: formData.fechaIngreso || null,
           fechaTermino: formData.fechaTermino || null,
           telefonoContacto: formData.telefonoContacto || null,
-          // El backend ignora este campo si quien edita no es admin. Para
-          // admin es obligatorio (select sin opcion "Sin sede") -- ya no se
-          // manda null a proposito, para no dejar empleados sin sede; el
-          // spread de formData ya incluye sedeId con el valor real elegido.
+          // sedeId va en el spread de formData: obligatorio, nunca null.
         }),
       });
 
@@ -507,40 +499,33 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
             <MensajeCampo mensaje={errorDe("fechaTermino")} />
           </div>
 
-          {esAdmin && (
-            <div>
-              <label htmlFor="empleado-sede" className="field-label">
-                Sede <span className="text-red-500">*</span>
-              </label>
-              <select id="empleado-sede"
-                name="sedeId"
-                value={formData.sedeId}
-                onChange={handleChange}
-                required
-                /* Mover un empleado de sede es solo de admin: el PUT ya
-                   ignora el sedeId que mande un tecnico, esto evita que
-                   parezca editable. */
-                disabled={!esAdmin}
-                className={claseCampo(errorDe("sedeId"))}
-              aria-invalid={!!errorDe("sedeId")}
-              >
-                <option value="" disabled>
-                  Selecciona una sede...
+          <div>
+            <label htmlFor="empleado-sede" className="field-label">
+              Sede <span className="text-red-500">*</span>
+            </label>
+            <select id="empleado-sede"
+              name="sedeId"
+              value={formData.sedeId}
+              onChange={handleChange}
+              required
+              className={claseCampo(errorDe("sedeId"))}
+            aria-invalid={!!errorDe("sedeId")}
+            >
+              <option value="" disabled>
+                Selecciona una sede...
+              </option>
+              {sedes.map((sede) => (
+                <option key={sede.id} value={sede.id}>
+                  {sede.nombre}
                 </option>
-                {sedes.map((sede) => (
-                  <option key={sede.id} value={sede.id}>
-                    {sede.nombre}
-                  </option>
-                ))}
-              </select>
-            <MensajeCampo mensaje={errorDe("sedeId")} />
-              <p className="mt-1 text-xs text-fg-subtle">
-                Reasigna a qué sede pertenece este empleado (ej. si se traslada
-                de Concepción a Santiago). Solo administradores pueden
-                cambiarlo, y siempre debe quedar asignada a alguna.
-              </p>
-            </div>
-          )}
+              ))}
+            </select>
+          <MensajeCampo mensaje={errorDe("sedeId")} />
+            <p className="mt-1 text-xs text-fg-subtle">
+              Reasigna a qué sede pertenece este empleado (ej. si se traslada
+              de Concepción a Santiago). Siempre debe quedar asignada a alguna.
+            </p>
+          </div>
 
         </div>
 

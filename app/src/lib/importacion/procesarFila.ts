@@ -214,7 +214,7 @@ export async function procesarFila(
       return {
         status: "error",
         tipo: "duplicate_in_database",
-        mensaje: mensajeSerieDuplicada(ctx.session, numeroSerie, existingAsset),
+        mensaje: mensajeSerieDuplicada(numeroSerie, existingAsset),
         data: datosFila,
       };
     }
@@ -228,7 +228,7 @@ export async function procesarFila(
   }
 
   // --- Sede de la fila ----------------------------------------------------
-  const resolucionSede = resolverSedeParaFila(ctx.session, {
+  const resolucionSede = resolverSedeParaFila({
     sedeIdExplicita: ctx.sedeIdExplicita,
     mapaSedes: ctx.mapaSedes,
     valorSede: obtener("sede"),
@@ -237,10 +237,7 @@ export async function procesarFila(
     return {
       status: "error",
       tipo: resolucionSede.error,
-      mensaje:
-        resolucionSede.error === "sede_ajena"
-          ? `Esta fila pertenece a la sede "${resolucionSede.valorOriginal}", distinta de la tuya. No se importó.`
-          : `Sede no reconocida: "${resolucionSede.valorOriginal || "(vacío)"}". Corrige la columna Sede o selecciona la sede manualmente.`,
+      mensaje: `Sede no reconocida: "${resolucionSede.valorOriginal || "(vacío)"}". Corrige la columna Sede o selecciona la sede manualmente.`,
       data: datosFila,
     };
   }

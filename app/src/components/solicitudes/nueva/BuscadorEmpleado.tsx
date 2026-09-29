@@ -40,8 +40,7 @@ export function useBuscarEmpleado(sedeId: string | null | undefined) {
       setCargando(true);
       try {
         const params = new URLSearchParams({ search: consulta, limit: "15", sortBy: "nombres", sortOrder: "asc" });
-        // Acota a la sede del navbar si hay una elegida; la API solo lo
-        // aplica a quien ve todas las sedes (el resto ya ve solo la suya).
+        // Acota a la sede del navbar si hay una elegida.
         if (sedeId) params.set("sedeId", sedeId);
         const res = await fetch(`/api/empleados?${params}`);
         if (res.ok) {

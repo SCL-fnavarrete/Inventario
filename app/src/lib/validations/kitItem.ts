@@ -9,8 +9,7 @@ export const createKitItemSchema = z.object({
   cantidad: cantidad(0, 'La cantidad no puede ser negativa').default(0),
   // Umbral de "stock bajo" para la alerta del Dashboard (ver schema.prisma).
   stockMinimo: cantidad(0, 'El stock mínimo no puede ser negativo').default(5),
-  // Solo tiene efecto si quien crea es admin -- el backend ignora este
-  // campo para un tecnico y usa siempre su propia sede (sedeIdParaCrear).
+  // Obligatoria al crear (sedeIdParaCrear); la elige cualquier usuario.
   sedeId: z.string().uuid().optional().nullable(),
 });
 

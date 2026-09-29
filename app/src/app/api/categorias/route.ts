@@ -5,11 +5,11 @@ import { auditLogService } from '@/lib/services/auditLogService';
 import { categoriaSchema } from '@/lib/validations/categoria';
 import { exigirNombreCategoriaLibre, snapshotCategoria } from '@/lib/queries/categorias';
 import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
-import { sedeWhereConFiltro } from '@/lib/auth/sedeScope';
+import { filtroSede } from '@/lib/auth/sedeScope';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await requirePermission('categorias', 'read');
+    await requirePermission('categorias', 'read');
 
     const searchParams = request.nextUrl.searchParams;
     const includeCount = searchParams.get("includeCount") === "true";
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     // eliminar); activosSede, los vigentes de la sede del navbar (SPEC 2.116.3).
     const porSede = await prisma.asset.groupBy({
       by: ["categoriaId"],
-      where: { ...ACTIVOS_VIGENTES, ...sedeWhereConFiltro(session, searchParams.get("sedeId")) },
+      where: { ...ACTIVOS_VIGENTES, ...filtroSede(searchParams.get("sedeId")) },
       _count: true,
     });
     const enSede = new Map(porSede.map((c) => [c.categoriaId, c._count]));

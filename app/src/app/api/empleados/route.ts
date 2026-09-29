@@ -4,12 +4,12 @@ import { employeeFiltersSchema } from "@/lib/validations/employee";
 import { Prisma } from "@prisma/client";
 import { coincideBusqueda } from "@/lib/utils/text";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { filtroSede } from '@/lib/auth/sedeScope';
 
 // GET /api/empleados - Listar empleados con filtros y paginación
 export async function GET(request: NextRequest) {
   try {
-    const session = await requirePermission('empleados', 'read');
+    await requirePermission('empleados', 'read');
 
     const searchParams = request.nextUrl.searchParams;
 
@@ -33,14 +33,9 @@ export async function GET(request: NextRequest) {
     const filters = filtersResult.data;
     const skip = (filters.page - 1) * filters.limit;
 
-    // Aislamiento por sede: admin ve todo, el resto solo lo suyo.
-    const where: Prisma.EmployeeWhereInput = { ...sedeWhere(session) };
-
-    // Solo quien tiene visibilidad total puede acotar por una sede especifica.
+    // Todas las sedes; la del navbar filtra (SPEC 2.117).
     const sedeIdFiltro = searchParams.get("sedeId") || "";
-    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
-      where.sedeId = sedeIdFiltro;
-    }
+    const where: Prisma.EmployeeWhereInput = filtroSede(sedeIdFiltro);
 
     // Un termino de solo espacios no es una busqueda: se ignora en vez de
     // filtrar por vacio, que no devolveria nada util.
@@ -70,8 +65,7 @@ export async function GET(request: NextRequest) {
     if (terminoBusqueda) {
       const allEmployees = await prisma.employee.findMany({
         where: {
-          ...sedeWhere(session),
-          ...(sedeIdFiltro && tieneVisibilidadTotal(session) ? { sedeId: sedeIdFiltro } : {}),
+          ...filtroSede(sedeIdFiltro),
           // Aplicar filtros no-search (estado, tipoContrato, etc.)
           ...(filters.estado && { estado: filters.estado }),
           ...(filters.tipoContrato && { tipoContrato: filters.tipoContrato }),

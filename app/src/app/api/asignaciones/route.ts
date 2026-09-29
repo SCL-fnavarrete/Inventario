@@ -4,16 +4,15 @@ import { createAssignmentSchema, assignmentFiltersSchema } from "@/lib/validatio
 import { executeAssignment } from "@/lib/services/workflowExecutionService";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { sedeWhere, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { filtroSede } from '@/lib/auth/sedeScope';
 import { coincideBusqueda } from '@/lib/utils/text';
 
 export const dynamic = 'force-dynamic';
 
-
 // GET /api/asignaciones - Listar asignaciones con filtros
 export async function GET(request: NextRequest) {
   try {
-    const session = await requirePermission('asignaciones', 'read');
+    await requirePermission('asignaciones', 'read');
 
     const searchParams = request.nextUrl.searchParams;
 
@@ -38,17 +37,10 @@ export async function GET(request: NextRequest) {
     const filters = filtersResult.data;
     const skip = (filters.page - 1) * filters.limit;
 
-    // Assignment no tiene sedeId propio: se filtra via la sede del activo.
+    // Assignment no tiene sedeId propio: la sede del navbar filtra por la del activo.
     const where: Prisma.AssignmentWhereInput = {
-      asset: sedeWhere(session),
+      asset: filtroSede(searchParams.get("sedeId")),
     };
-
-    // Solo usuarios con visibilidad total pueden acotar por una sede especifica;
-    // el resto ya queda fijo en la suya via sedeWhere.
-    const sedeIdFiltro = searchParams.get("sedeId") || "";
-    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
-      where.asset = { ...(where.asset as Prisma.AssetWhereInput), sedeId: sedeIdFiltro };
-    }
 
     if (filters.employeeId) {
       where.employeeId = filters.employeeId;
@@ -156,7 +148,7 @@ export async function GET(request: NextRequest) {
 // POST /api/asignaciones - Crear nueva asignacion
 export async function POST(request: NextRequest) {
   try {
-    const session = await requirePermission('asignaciones', 'write');
+    await requirePermission('asignaciones', 'write');
 
     const body = await request.json();
 
@@ -180,8 +172,6 @@ export async function POST(request: NextRequest) {
     if (!employeeParaAsignar) {
       return NextResponse.json({ error: "Empleado no encontrado" }, { status: 404 });
     }
-    assertSedeAccess(session, assetParaAsignar.sedeId, 'Activo no encontrado');
-    assertSedeAccess(session, employeeParaAsignar.sedeId, 'Empleado no encontrado');
 
     // Crear asignación y actualizar activo en una transacción usando servicio compartido
     const result = await prisma.$transaction(async (tx) => {

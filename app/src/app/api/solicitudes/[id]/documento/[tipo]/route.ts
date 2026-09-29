@@ -8,7 +8,6 @@ import {
 } from '@/lib/services/documentGeneratorService';
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { exigirCupo } from "@/lib/utils/limiteUso";
-import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // Operacion pesada: hasta 60 s (Vercel corta antes por defecto).
 export const maxDuration = 60;
@@ -56,8 +55,6 @@ export async function GET(
     if (!solicitud) {
       return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
     }
-
-    assertSedeAccess(session, solicitud.sedeId, 'Solicitud no encontrada');
 
     let pdfBuffer: Buffer;
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   Search,
@@ -90,12 +89,8 @@ const tipoContratoColors: Record<TipoContrato, string> = {
 };
 
 export default function PersonalPage() {
-  const { data: session } = useSession();
   // Selecting a sede in the nav also filters this screen.
   const { sedeSeleccionada } = useSedeSeleccionada();
-  // Sede filter (local to this screen) is admin-only, like the legacy
-  // ubicacion filter it replaces.
-  const esAdmin = session?.user?.role === "admin";
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -123,14 +118,12 @@ export default function PersonalPage() {
   }, [pagination.page, debouncedSearch, estadoFilter, tipoContratoFilter, sedeFilter, sedeSeleccionada]);
 
   useEffect(() => {
-    if (esAdmin) {
-      fetchSedes();
-    }
+    fetchSedes();
     fetchStats();
     // Recompute stat cards when the sede filter changes so they don't stay
     // stuck on the global total while the table below is already filtered.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [esAdmin, sedeSeleccionada]);
+  }, [sedeSeleccionada]);
 
   async function fetchSedes() {
     try {
@@ -248,7 +241,7 @@ export default function PersonalPage() {
       <ActivosTabs />
 
       {/* Stats - Interactive Cards */}
-      <div className={cn("grid grid-cols-1 gap-4", esAdmin ? "md:grid-cols-4" : "md:grid-cols-3")}>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {/* Total Empleados - Reset Filter */}
         <Tilt>
           <button
@@ -367,23 +360,22 @@ export default function PersonalPage() {
                 </option>
               ))}
             </select>
-            {esAdmin && (
-              <select
-                value={sedeFilter}
-                onChange={(e) => {
-                  setSedeFilter(e.target.value);
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="px-4 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="">Todas las sedes</option>
-                {sedes.map((sede) => (
-                  <option key={sede.id} value={sede.id}>
-                    {sede.nombre}
-                  </option>
-                ))}
-              </select>
-            )}
+            {/* Filtro por sede, para todos (SPEC 2.117). */}
+            <select
+              value={sedeFilter}
+              onChange={(e) => {
+                setSedeFilter(e.target.value);
+                setPagination((prev) => ({ ...prev, page: 1 }));
+              }}
+              className="px-4 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="">Todas las sedes</option>
+              {sedes.map((sede) => (
+                <option key={sede.id} value={sede.id}>
+                  {sede.nombre}
+                </option>
+              ))}
+            </select>
           </div>
         </form>
       </div>

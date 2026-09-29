@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission, handleApiError } from "@/lib/auth/guard";
-import { sedeWhereConFiltro } from "@/lib/auth/sedeScope";
+import { filtroSede } from "@/lib/auth/sedeScope";
 import { opcionCatalogoSchema } from "@/lib/validations/categoria";
 import { crearMotivoBaja, listarMotivosBaja } from "@/lib/services/motivoBajaService";
 
@@ -10,13 +10,13 @@ import { crearMotivoBaja, listarMotivosBaja } from "@/lib/services/motivoBajaSer
 // cuantas bajas tiene cada uno, en todas las sedes y en la del navbar (?sedeId=).
 export async function GET(request: NextRequest) {
   try {
-    const session = await requirePermission("motivosBaja", "read");
+    await requirePermission("motivosBaja", "read");
     const p = request.nextUrl.searchParams;
     return NextResponse.json(
       await listarMotivosBaja({
         soloActivos: p.get("activas") === "true",
         conUso: p.get("conUso") === "true",
-        whereSede: sedeWhereConFiltro(session, p.get("sedeId")),
+        whereSede: filtroSede(p.get("sedeId")),
       })
     );
   } catch (error) {

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, handleApiError, usuarioDeSesion } from '@/lib/auth/guard';
-import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { entregarKitItemsSchema, marcarKitItemNoAplicaSchema } from '@/lib/validations/kitItem';
 import { executeKitDelivery } from '@/lib/services/workflowExecutionService';
 
@@ -28,8 +27,6 @@ export async function POST(
     if (!solicitud) {
       return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
     }
-
-    assertSedeAccess(session, solicitud.sedeId, 'Solicitud no encontrada');
 
     if (solicitud.tipo !== 'onboarding') {
       return NextResponse.json(
@@ -84,8 +81,6 @@ export async function PATCH(
     if (!solicitud) {
       return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
     }
-
-    assertSedeAccess(session, solicitud.sedeId, 'Solicitud no encontrada');
 
     if (solicitud.estado === 'registro_rrhh') {
       return NextResponse.json({ error: 'La solicitud ya está cerrada' }, { status: 400 });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission, handleApiError } from "@/lib/auth/guard";
-import { sedeWhereConFiltro } from "@/lib/auth/sedeScope";
+import { filtroSede } from "@/lib/auth/sedeScope";
 import { opcionCatalogoSchema } from "@/lib/validations/categoria";
 import { crearOpcion, listarOpciones } from "@/lib/services/catalogoOpcionesService";
 
@@ -12,13 +12,13 @@ import { crearOpcion, listarOpciones } from "@/lib/services/catalogoOpcionesServ
 // del navbar (?sedeId=, SPEC 2.116.3).
 export async function GET(request: NextRequest) {
   try {
-    const session = await requirePermission("activos", "read");
+    await requirePermission("activos", "read");
     const p = request.nextUrl.searchParams;
     return NextResponse.json(
       await listarOpciones("sistemas-operativos", {
         soloActivas: p.get("activas") === "true",
         conUso: p.get("conUso") === "true",
-        whereSede: sedeWhereConFiltro(session, p.get("sedeId")),
+        whereSede: filtroSede(p.get("sedeId")),
       })
     );
   } catch (error) {

@@ -2,9 +2,8 @@
  * @jest-environment node
  */
 /**
- * Transicion de solicitudes (auditoria 27-sep-2026, 5.2-C). A diferencia de
- * otros tests de API, aqui NO se simula sedeScope: se usa el aislamiento por
- * sede real, para que el test pueda detectar si se rompe.
+ * Transicion de solicitudes (auditoria 27-sep-2026, 5.2-C). Desde SPEC 2.117
+ * la sede no restringe: un tecnico mueve solicitudes de cualquier sede.
  */
 jest.mock('@/lib/auth/guard', () => {
   const real = jest.requireActual('@/lib/auth/guard');
@@ -38,12 +37,15 @@ beforeEach(() => {
   (prisma.systemUser.findUnique as jest.Mock).mockResolvedValue({ id: 't1', nombre: 'Téc', rol: 'tecnico' });
 });
 
-it('un técnico no puede mover una solicitud de otra sede: 404 y sin transacción', async () => {
+it('un técnico de otra sede también mueve la solicitud (llega a la transacción)', async () => {
   (requirePermission as jest.Mock).mockResolvedValue(tecnico('conce'));
-  (prisma.workflowRequest.findUnique as jest.Mock).mockResolvedValue(solicitud);
-  const res = await POST(pedir({ nuevoEstado: 'registro_rrhh' }), ctx);
-  expect(res.status).toBe(404);
-  expect(prisma.$transaction).not.toHaveBeenCalled();
+  (prisma.workflowRequest.findUnique as jest.Mock).mockResolvedValue({ ...solicitud, estado: 'solicitud_recibida' });
+  (prisma.$transaction as jest.Mock).mockImplementation((fn: (tx: unknown) => unknown) =>
+    fn({ workflowRequest: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) } })
+  );
+  const res = await POST(pedir({ nuevoEstado: 'gestion_ti' }), ctx);
+  expect(res.status).not.toBe(404);
+  expect(prisma.$transaction).toHaveBeenCalled();
 });
 
 it('rechaza datosAccion mal formados con 400 antes de tocar la base', async () => {

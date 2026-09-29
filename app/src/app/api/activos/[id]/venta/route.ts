@@ -4,7 +4,6 @@ import { assetVentaSchema } from '@/lib/validations/assetTransition';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { requirePermission, handleApiError, ConflictError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { etiquetaEstadoActivo } from '@/lib/constants/estadosActivo';
 import { siSigueIgual } from '@/lib/utils/concurrencia';
 
@@ -39,9 +38,6 @@ export async function POST(
     if (!asset) {
       return NextResponse.json({ error: 'Activo no encontrado' }, { status: 404 });
     }
-
-    // Enforce sede access even though the caller supplies the asset id directly.
-    assertSedeAccess(session, asset.sedeId, 'Activo no encontrado');
 
     // Un registro descartado es basura de importacion: no genera movimientos.
     if (asset.deletedAt) {

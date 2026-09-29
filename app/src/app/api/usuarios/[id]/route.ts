@@ -94,7 +94,7 @@ export async function PUT(
       );
     }
 
-    // Admin no tiene sede (ve todo); el tecnico necesita una, y al
+    // Admin no tiene sede; el tecnico pertenece a una, y al
     // asignarla o cambiarla debe estar activa (SPEC 2.112.6).
     if (rolFinal === "admin") {
       updateData.sede = { disconnect: true };

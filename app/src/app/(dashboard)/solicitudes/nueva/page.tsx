@@ -73,8 +73,6 @@ export default function NuevaSolicitudPage() {
   // empleado elegido (ver selectEmployee).
   const [sedeId, setSedeId] = useCampoSede();
   const { sedeSeleccionada } = useSedeSeleccionada();
-  // Solo admin elige sede.
-  const esAdminSede = session?.user?.role === 'admin';
   const [step, setStep] = useState(1);
   const [tipo, setTipo] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -1208,12 +1206,8 @@ export default function NuevaSolicitudPage() {
                 limpiarError('sedeId');
               }}
               required
-              disabled={!esAdminSede}
               aria-invalid={!!fieldErrors.sedeId}
-              className={cn(
-                claseInput(fieldErrors.sedeId),
-                'disabled:bg-surface-muted disabled:text-fg-muted disabled:cursor-not-allowed'
-              )}
+              className={claseInput(fieldErrors.sedeId)}
             >
               <option value="" disabled>
                 Selecciona una sede...
@@ -1226,9 +1220,7 @@ export default function NuevaSolicitudPage() {
             </select>
             <MensajeCampo mensaje={fieldErrors.sedeId} />
             <p className="text-xs text-fg-subtle mt-1">
-              {esAdminSede
-                ? 'Obligatorio: a qué sede pertenece esta solicitud.'
-                : 'Es tu sede: la solicitud queda registrada en ella.'}
+              Obligatorio: a qué sede pertenece esta solicitud.
             </p>
           </div>
 
@@ -1610,8 +1602,7 @@ export default function NuevaSolicitudPage() {
             <label htmlFor="solicitud-sede-ticket" className="field-label">
               Sede <span className="text-red-500">*</span>
             </label>
-            {((tipo === 'offboarding' || tipo === 'cambio_equipo') && selectedEmployee) ||
-            !esAdminSede ? (
+            {(tipo === 'offboarding' || tipo === 'cambio_equipo') && selectedEmployee ? (
               <input id="solicitud-sede-ticket"
                 type="text"
                 value={sedes.find((s) => s.id === sedeId)?.nombre || 'Cargando...'}
@@ -1642,8 +1633,6 @@ export default function NuevaSolicitudPage() {
             <p className="text-xs text-fg-subtle mt-1">
               {(tipo === 'offboarding' || tipo === 'cambio_equipo') && selectedEmployee
                 ? 'Es la sede del empleado.'
-                : !esAdminSede
-                ? 'Es tu sede: la solicitud queda registrada en ella.'
                 : 'Obligatorio: a qué sede pertenece esta solicitud.'}
             </p>
           </div>

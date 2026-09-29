@@ -172,7 +172,7 @@ export async function GET(request: NextRequest) {
     // Lo mismo que muestra la lista: sin descartados, un tecnico solo su
     // sede, y los filtros elegidos (incluidos "Por llegar", la busqueda y
     // los datos de catalogo, SPEC 2.116.6).
-    const where = whereFiltrosActivos(session, leerFiltrosActivos(searchParams));
+    const where = whereFiltrosActivos(leerFiltrosActivos(searchParams));
 
     // Se agregan assignments (para la Fecha de Entrega vigente) y
     // maintenances (para la ultima realizada y la proxima programada).

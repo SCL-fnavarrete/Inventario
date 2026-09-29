@@ -7,10 +7,9 @@ import type { SystemRole } from '@prisma/client';
  *
  * Solo existen dos roles reales (ver SystemRole en el schema):
  *
- *   | Admin   | CRUD completo, reportes, configuracion, ve todas las sedes |
+ *   | Admin   | CRUD completo, reportes, configuracion |
  *   | Tecnico | Trabajo operativo de soporte (activos, empleados, solicitudes,
- *   |         | mantenciones, guias), restringido a su propia sede (ver
- *   |         | sedeScope()) |
+ *   |         | mantenciones, guias), en todas las sedes (SPEC 2.117) |
  *
  * Cualquier cambio de permisos se hace aqui, nunca en una ruta suelta.
  */
@@ -123,8 +122,7 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
 
   // Catalogo y stock de Kit de Bienvenida / EPP: a diferencia de
   // Categorias, aca el tecnico si puede escribir -- entrega estos
-  // articulos en terreno y necesita ajustar el stock de su propia sede
-  // (ver sedeScope en las rutas de /api/kit-items). Eliminar del catalogo
+  // articulos en terreno y necesita ajustar el stock. Eliminar del catalogo
   // queda solo para admin.
   kitEpp: {
     read: AMBOS,
@@ -139,8 +137,7 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
   },
 
   // Datos maestros de sedes. Tecnico necesita leer la lista (ej. para
-  // mostrar el nombre de su sede); solo admin crea/edita/desactiva sedes,
-  // ya que definen el aislamiento de datos.
+  // elegir la sede en los formularios); solo admin crea/edita/desactiva sedes.
   sedes: {
     read: AMBOS,
     write: ADMIN,

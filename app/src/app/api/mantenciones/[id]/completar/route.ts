@@ -11,7 +11,6 @@ import {
   cancelarAbiertasPorBaja,
   registrarSalidaDeMantencion,
 } from '@/lib/services/mantencionActivoService';
-import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { validateTransition } from '@/lib/services/assetStateMachine';
@@ -55,8 +54,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
-
-    assertSedeAccess(session, maintenance.asset.sedeId, 'Mantención no encontrada');
 
     // Solo se completa la mantencion en proceso (SPEC 2.96): una pendiente
     // primero se inicia, que es cuando el equipo entra a mantencion.

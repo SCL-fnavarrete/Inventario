@@ -8,7 +8,6 @@ export type ValidationErrorType =
   | "invalid_format"
   | "invalid_assignment_date"
   | "sede_no_reconocida"
-  | "sede_ajena"
   | "catalogo_no_reconocido"
   | "empleado_desvinculado"
   | "unknown_error";

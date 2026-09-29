@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError, ConflictError } from '@/lib/auth/guard';
-import { ForbiddenError, NotFoundError, ValidationError } from '@/lib/errors';
-import { puedeConfirmarRecepcion } from '@/lib/queries/guias';
+import { NotFoundError, ValidationError } from '@/lib/errors';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import {
@@ -12,7 +11,7 @@ import {
 import {
   INCLUDE_DETALLE_GUIA,
   actualizarEstadoGuia,
-  buscarGuiaVisible,
+  buscarGuia,
   recibirEquipos,
 } from '@/lib/services/guiaDespachoService';
 import { motivoParaBaja } from '@/lib/services/motivoBajaService';
@@ -32,10 +31,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { id, itemId } = await params;
     const { accion, motivo } = await request.json();
 
-    const guia = await buscarGuiaVisible(session, id);
-    if (!puedeConfirmarRecepcion(session, guia)) {
-      throw new ForbiddenError('Solo la sede destino puede resolver los equipos de este despacho');
-    }
+    const guia = await buscarGuia(id);
     const item = guia.items.find((i) => i.id === itemId);
     if (!item) throw new NotFoundError('Ese equipo no es de este despacho');
 

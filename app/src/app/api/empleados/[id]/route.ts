@@ -13,7 +13,6 @@ import {
   MENSAJE_TERMINO_ANTES_DE_INGRESO,
   terminaAntesDeEmpezar,
 } from "@/lib/validations/ordenFechas";
-import { assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
 
 interface RouteParams {
@@ -23,7 +22,7 @@ interface RouteParams {
 // GET /api/empleados/[id] - Obtener empleado por ID o RUT
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await requirePermission('empleados', 'read');
+    await requirePermission('empleados', 'read');
     const { id } = await params;
 
     // Intentar buscar por UUID primero, luego por RUT
@@ -89,8 +88,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    assertSedeAccess(session, employee.sedeId, 'Empleado no encontrado');
-
     return NextResponse.json(employee);
   } catch (error) {
     return handleApiError(error, 'Error al obtener empleado');
@@ -124,8 +121,6 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
-
-    assertSedeAccess(session, existingEmployee.sedeId, 'Empleado no encontrado');
 
     // Si solo llega una de las dos fechas, se compara con la ya guardada.
     if (
@@ -204,11 +199,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Reasignar sede (ej. el empleado se traslada de sede): solo admin
-    // puede hacerlo. Si un tecnico envia sedeId, se ignora en silencio en
-    // vez de rechazar toda la actualizacion.
-    const puedeCambiarSede = tieneVisibilidadTotal(session);
-    if (puedeCambiarSede && data.sedeId && data.sedeId !== existingEmployee.sedeId) {
+    // Reasignar sede (ej. el empleado se traslada de sede): cualquiera puede
+    // (SPEC 2.117), con las reglas de abajo.
+    if (data.sedeId && data.sedeId !== existingEmployee.sedeId) {
       const sedeDestino = await prisma.sede.findUnique({ where: { id: data.sedeId } });
       if (!sedeDestino) {
         return NextResponse.json({ error: "Sede no encontrada" }, { status: 404 });
@@ -251,7 +244,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         ...(data.fechaTermino !== undefined && { fechaTermino: data.fechaTermino }),
         ...(data.estado && { estado: data.estado }),
         ...(data.telefonoContacto !== undefined && { telefonoContacto: data.telefonoContacto }),
-        ...(puedeCambiarSede && data.sedeId !== undefined && { sedeId: data.sedeId }),
+        ...(data.sedeId !== undefined && { sedeId: data.sedeId }),
       },
     });
 

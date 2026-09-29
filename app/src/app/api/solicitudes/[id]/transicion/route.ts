@@ -9,7 +9,6 @@ import {
 } from '@/lib/services/workflowExecutionService';
 import { SystemRole, EstadoSolicitud } from '@prisma/client';
 import { requirePermission, handleApiError, respuestaDatosInvalidos, usuarioDeSesion } from '@/lib/auth/guard';
-import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { ConflictError, ValidationError } from '@/lib/errors';
 import { condicionCargadorSchema, type CondicionCargador } from '@/lib/constants/condicionCargador';
 import { sinIdsDeUsuario } from '@/lib/utils/privacidad';
@@ -53,8 +52,6 @@ export async function POST(
     if (!workflowRequest) {
       return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
     }
-
-    assertSedeAccess(session, workflowRequest.sedeId, 'Solicitud no encontrada');
 
     // La entrega parcial de equipos en onboarding no es una transicion de estado
     // real: la solicitud se queda en gestion_ti hasta cubrir todas las categorias
@@ -139,7 +136,6 @@ export async function POST(
         );
       }
     }
-
 
     // Tampoco se puede cerrar un offboarding si todavia queda equipo activo
     // o EPP entregado sin calificar -- se dejaria a alguien "desvinculado"

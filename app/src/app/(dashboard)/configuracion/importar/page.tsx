@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { useSession } from "next-auth/react";
 import {
   Upload,
   FileSpreadsheet,
@@ -45,13 +44,10 @@ type PreviewData = {
 };
 
 export default function ImportarActivosPage() {
-  const { data: session } = useSession();
-  // Sede a la que se importan los equipos, precargada con la del navbar o
-  // la propia (useCampoSede, SPEC 2.80). Para admin, vacio significa
-  // "detectar por la columna Sede" del archivo.
+  // Sede a la que se importan los equipos, precargada con la del navbar
+  // (useCampoSede, SPEC 2.80). Vacio significa "detectar por la columna
+  // Sede" del archivo. La pantalla es solo de admin (SPEC 2.116.7).
   const [sedeId, setSedeId] = useCampoSede();
-// Solo admin puede elegir la sede.
-  const esAdminSede = session?.user?.role === "admin";
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [sheetName, setSheetName] = useState("");
@@ -212,12 +208,11 @@ export default function ImportarActivosPage() {
     ...Object.fromEntries(allRequiredFields.map((f) => [`map.${f.key}`, `Columna ${f.label}`])),
   });
 
-  // Datos del paso 1 que faltan (hoja, categoria y, para un tecnico, sede).
+  // Datos del paso 1 que faltan (hoja y categoria).
   function faltanPaso1(): Record<string, string> {
     const e: Record<string, string> = {};
     if (!sheetName) e.sheetName = "Elige la hoja del Excel";
     if (!categoria) e.categoria = "Elige la categoría";
-    if (!esAdminSede && !sedeId) e.sedeId = "Elige la sede de destino";
     return e;
   }
 
@@ -872,7 +867,7 @@ export default function ImportarActivosPage() {
               </div>
               <div>
                 <label htmlFor="importar-sede" className="field-label">
-                  Sede {esAdminSede ? "(opcional)" : "*"}
+                  Sede (opcional)
                 </label>
                 <select
                   id="importar-sede"
@@ -881,12 +876,11 @@ export default function ImportarActivosPage() {
                     setSedeId(e.target.value);
                     limpiar("sedeId");
                   }}
-                  disabled={!esAdminSede}
                   className={claseCampo(errores.sedeId)}
                   aria-invalid={!!errores.sedeId}
                 >
                   <option value="">
-                    {esAdminSede ? "Detectar automáticamente por columna Sede" : "Seleccionar sede"}
+                    Detectar automáticamente por columna Sede
                   </option>
                   {sedes.map((sede) => (
                     <option key={sede.id} value={sede.id}>
@@ -896,11 +890,9 @@ export default function ImportarActivosPage() {
                 </select>
                 <MensajeCampo mensaje={errores.sedeId} />
                 <p className="mt-1 text-xs text-fg-subtle">
-                  {esAdminSede
-                    ? sedeId
-                      ? "Todos los equipos de este archivo quedarán en esta sede. Si el archivo trae equipos de varias sedes, elige \"Detectar automáticamente por columna Sede\"."
-                      : "Sin sede fija, cada fila se asigna según su columna \"Sede\" (debe coincidir con el nombre real de una sede). Las filas sin match quedarán marcadas para corregir a mano."
-                    : "Es tu sede: los equipos de este archivo quedarán en ella. Si una fila declara otra sede, no se importa."}
+                  {sedeId
+                    ? "Todos los equipos de este archivo quedarán en esta sede. Si el archivo trae equipos de varias sedes, elige \"Detectar automáticamente por columna Sede\"."
+                    : "Sin sede fija, cada fila se asigna según su columna \"Sede\" (debe coincidir con el nombre real de una sede). Las filas sin match quedarán marcadas para corregir a mano."}
                 </p>
               </div>
             </div>
@@ -1098,8 +1090,7 @@ export default function ImportarActivosPage() {
           </button>
           <button
             onClick={handleValidate}
-            disabled={validating || (!esAdminSede && !sedeId)}
-            title={!esAdminSede && !sedeId ? "Primero elige la sede de destino" : undefined}
+            disabled={validating}
             className={buttonClasses({ className: "px-6" })}
           >
             <ClipboardCheck size={20} />

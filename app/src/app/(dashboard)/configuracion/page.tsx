@@ -20,7 +20,7 @@ import { TONO_ACENTO } from "@/lib/constants/tonos";
 const configSections = [
   {
     title: "Sedes",
-    description: "Santiago, Concepción, etc. Cada técnico trabaja solo con los datos de su sede",
+    description: "Santiago, Concepción, etc. Dicen dónde está cada equipo y a qué sede pertenece cada persona",
     href: "/configuracion/sedes",
     icon: MapPin,
   },

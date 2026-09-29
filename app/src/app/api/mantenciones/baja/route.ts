@@ -8,7 +8,6 @@ import {
   ConflictError,
   NotFoundError,
 } from '@/lib/auth/guard';
-import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { darDeBajaEnTransaccion } from '@/lib/services/mantencionActivoService';
 import { motivoSinBaja } from '@/lib/constants/estadosActivo';
@@ -40,7 +39,6 @@ export async function POST(request: NextRequest) {
       },
     });
     if (!asset) throw new NotFoundError('Activo no encontrado');
-    assertSedeAccess(session, asset.sedeId, 'Activo no encontrado');
     if (asset.deletedAt) {
       throw new ConflictError('Este activo esta descartado y no admite movimientos');
     }

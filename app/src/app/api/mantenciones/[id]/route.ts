@@ -8,7 +8,6 @@ import {
   ConflictError,
   NotFoundError,
 } from '@/lib/auth/guard';
-import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { validateTransition } from '@/lib/services/assetStateMachine';
 import { registrarSalidaDeMantencion } from '@/lib/services/mantencionActivoService';
@@ -23,7 +22,7 @@ interface RouteParams {
 // GET /api/mantenciones/[id] - Obtener detalle de mantención
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await requirePermission('mantenciones', 'read');
+    await requirePermission('mantenciones', 'read');
     const { id } = await params;
 
     const maintenance = await prisma.maintenance.findUnique({
@@ -58,9 +57,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Maintenance no tiene sedeId propio -- se valida via la sede del activo.
-    assertSedeAccess(session, maintenance.asset.sedeId, 'Mantención no encontrada');
-
     return NextResponse.json(maintenance);
   } catch (error) {
     return handleApiError(error, 'Error al obtener mantención');
@@ -89,8 +85,6 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     });
 
     if (!existente) throw new NotFoundError("Mantención no encontrada");
-
-    assertSedeAccess(session, existente.asset.sedeId, 'Mantención no encontrada');
 
     if (existente.estado === "completada" || existente.estado === "cancelada") {
       throw new ConflictError("No se puede modificar una mantención completada o cancelada");
@@ -305,8 +299,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     });
 
     if (!maintenance) throw new NotFoundError("Mantención no encontrada");
-
-    assertSedeAccess(session, maintenance.asset.sedeId, 'Mantención no encontrada');
 
     if (maintenance.estado !== "pendiente") {
       throw new ConflictError("Solo se pueden eliminar mantenciones pendientes");

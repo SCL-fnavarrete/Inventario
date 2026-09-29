@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createCommentSchema } from '@/lib/validations/workflow';
 import { requirePermission, handleApiError, respuestaDatosInvalidos, usuarioDeSesion } from '@/lib/auth/guard';
-import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { sinIdsDeUsuario } from '@/lib/utils/privacidad';
 
 // POST /api/solicitudes/[id]/comentarios - Add comment
@@ -29,8 +28,6 @@ export async function POST(
     if (!existing) {
       return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
     }
-
-    assertSedeAccess(session, existing.sedeId, 'Solicitud no encontrada');
 
     const data = validationResult.data;
     const comment = await prisma.workflowComment.create({

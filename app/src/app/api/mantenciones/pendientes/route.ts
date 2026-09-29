@@ -15,7 +15,7 @@ import {
 // periodo sin mas filtros.
 export async function GET(request: NextRequest) {
   try {
-    const session = await requirePermission('mantenciones', 'read');
+    await requirePermission('mantenciones', 'read');
     const searchParams = request.nextUrl.searchParams;
     // dias=0 / diasCompletadas=0 es "sin limite de fecha", distinto de no
     // mandar el parametro (que usa el default de 30).
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const diasCompletadas = parseInt(searchParams.get("diasCompletadas") || "30", 10);
 
     const ventana = ventanaPeriodo(inicioDeHoy(), dias, diasCompletadas);
-    const sede = whereSedeMantencion(session, searchParams.get("sedeId"));
+    const sede = whereSedeMantencion(searchParams.get("sedeId"));
     const contar = (condicion: object | null) =>
       prisma.maintenance.count({ where: { AND: [sede, condicion ?? {}] } });
 

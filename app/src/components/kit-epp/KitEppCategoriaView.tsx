@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Plus, Edit, Trash2, Save, X } from "lucide-react";
 import { ActivosTabs } from "@/components/activos";
 import { useCampoSede, useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
@@ -48,11 +48,8 @@ type KitItem = {
  * vive dentro de Activos (ver ActivosTabs), separada por categoria en vez
  * de mostrar ambas mezcladas.
  *
- * Aislamiento por sede: el backend (`/api/kit-items`, via
- * sedeWhere/sedeIdParaCrear/assertSedeAccess) ya filtra todo por sede;
- * aca solo se decide que campos mostrar -- admin ve/elige la sede de cada
- * articulo (ve varias sedes mezcladas), tecnico no ve el campo porque
- * siempre es la suya.
+ * Cada articulo es de una sede; cualquier usuario la elige al crearlo y la
+ * lista muestra varias sedes mezcladas (SPEC 2.117).
  */
 export function KitEppCategoriaView({
   categoria,
@@ -61,8 +58,8 @@ export function KitEppCategoriaView({
   categoria: CategoriaKit;
   titulo: string;
 }) {
-  const { data: session } = useSession();
-  const isAdmin = session?.user?.role === "admin";
+  // Borrar es de admin (kitEpp.delete); la sede la elige cualquiera (SPEC 2.117).
+  const puedeEliminar = usePermissions().can("kitEpp", "delete");
 
   // formData.sedeId solo lo usa la edicion (la sede que ya tiene el
   // articulo). Al crear, la sede sale de useCampoSede (SPEC 2.80).
@@ -360,7 +357,6 @@ export function KitEppCategoriaView({
                       setSedeNueva(e.target.value);
                       limpiar("sedeId");
                     }}
-                    disabled={!isAdmin}
                     required
                     className={claseCampo(errores.sedeId)}
                     aria-invalid={!!errores.sedeId}
@@ -376,9 +372,7 @@ export function KitEppCategoriaView({
                   </select>
                   <MensajeCampo mensaje={errores.sedeId} />
                   <p className="text-xs text-fg-subtle mt-1">
-                    {isAdmin
-                      ? "Obligatorio: sede a la que pertenece este stock."
-                      : "Es tu sede: el stock que crees queda registrado en ella."}
+                    Obligatorio: sede a la que pertenece este stock.
                   </p>
                 </div>
               </div>
@@ -403,8 +397,7 @@ export function KitEppCategoriaView({
                   <th className="table-th">
                     Nombre
                   </th>
-                  {/* Sede visible para cualquier rol, para que el tecnico vea en
-                      que sede quedo cada articulo. */}
+                  {/* En que sede quedo cada articulo. */}
                   <th className="table-th">
                     Sede
                   </th>
@@ -514,11 +507,8 @@ export function KitEppCategoriaView({
                             >
                               <Edit size={18} />
                             </button>
-                            {/* Eliminar sigue siendo solo admin (ver
-                                permissions.ts, kitEpp.delete) -- se oculta
-                                para tecnico en vez de dejar que el boton
-                                falle con un 403. */}
-                            {isAdmin && (
+                            {/* Oculto sin permiso, en vez de un 403. */}
+                            {puedeEliminar && (
                               <button aria-label="Eliminar"
                                 onClick={() => pedirEliminar(item)}
                                 className="p-1 text-red-600 hover:bg-red-50 rounded"

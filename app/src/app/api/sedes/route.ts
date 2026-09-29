@@ -6,8 +6,7 @@ import { crearSedeSchema } from '@/lib/validations/sede';
 import { exigirNombreSedeLibre, USO_SEDE } from '@/lib/queries/sedes';
 
 /**
- * CRUD de sedes. Solo admin puede escribir, porque la sede define el
- * aislamiento de datos entre las distintas sedes.
+ * CRUD de sedes. Solo admin puede escribir: son datos maestros.
  */
 
 // GET /api/sedes - Listar sedes. Con ?conUso=true (Configuracion > Sedes)

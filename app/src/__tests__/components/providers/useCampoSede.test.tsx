@@ -72,13 +72,21 @@ describe("useSedePorDefecto", () => {
     expect(result.current.lista).toBe(false);
   });
 
-  test("un tecnico siempre queda en su sede, aunque haya otra guardada", () => {
+  // SPEC 2.117: la sede no se impone. La primera vez parte en la del
+  // usuario; despues manda lo que el haya elegido.
+  test("un tecnico parte en su sede la primera vez", () => {
+    mockSesion = sesion("tecnico", "sede-tecnico");
+    const { result } = renderHook(() => useSedeSeleccionada(), { wrapper: SedeSeleccionadaProvider });
+    expect(result.current.sedeSeleccionada).toBe("sede-tecnico");
+  });
+
+  test("un tecnico puede elegir otra sede o todas, y se respeta", () => {
     mockSesion = sesion("tecnico", "sede-tecnico");
     window.localStorage.setItem(CLAVE_STORAGE, "sede-otra");
-    const { result } = renderHook(() => useSedePorDefecto(), {
-      wrapper: SedeSeleccionadaProvider,
-    });
-    expect(result.current.sedeId).toBe("sede-tecnico");
+    const { result } = renderHook(() => useSedeSeleccionada(), { wrapper: SedeSeleccionadaProvider });
+    expect(result.current.sedeSeleccionada).toBe("sede-otra");
+    act(() => result.current.setSedeSeleccionada(null));
+    expect(result.current.sedeSeleccionada).toBeNull();
   });
 });
 

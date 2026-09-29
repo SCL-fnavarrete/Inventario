@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
       throw errorRepetido("email", "Ya existe un usuario con ese email");
     }
 
-    // Admin no tiene sede (ve todo); el tecnico necesita una sede activa
-    // para que el aislamiento de datos por sede funcione (SPEC 2.112.6).
+    // Admin no tiene sede; el tecnico pertenece a una, activa (SPEC 2.112.6).
+    // No lo limita: trabaja con todas (SPEC 2.117).
     if (rol !== "admin") {
       if (!sedeId) throw errorDeCampo("sedeId", "Este rol necesita una sede asignada");
       await exigirSedeActiva(sedeId);

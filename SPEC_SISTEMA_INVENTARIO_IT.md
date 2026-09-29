@@ -23,8 +23,8 @@ El sistema tiene exactamente dos roles de login (enum `SystemRole`):
 
 | Rol | Permisos |
 |-----|----------|
-| Admin IT (`admin`) | CRUD completo, usuarios, configuración; ve todas las sedes |
-| Técnico IT (`tecnico`) | Trabajo operativo de soporte (activos, empleados, solicitudes, mantenciones, compras, guías, Kit/EPP), solo en su propia sede (ver 2.8) |
+| Admin IT (`admin`) | CRUD completo, usuarios, configuración |
+| Técnico IT (`tecnico`) | Trabajo operativo de soporte (activos, empleados, solicitudes, mantenciones, compras, guías, Kit/EPP), en todas las sedes (ver 2.117) |
 
 Los roles `supervisor`, `rrhh` y `auditor` del diseño original se eliminaron (migración `20260909180000_solo_roles_admin_tecnico`): el sistema lo usa solo soporte. RRHH sigue apareciendo como departamento externo que recibe las actas, y en el nombre histórico de algunos estados de solicitud (`registro_rrhh`, `confirmacion_rrhh`), pero no es un usuario del sistema.
 
@@ -79,9 +79,8 @@ Lectura (R) · Escritura (W) · Borrado (D).
    solicitudes (sección 2.5) y es la única fuente de esa decisión: la ruta de
    transición sólo exige poder **leer** la solicitud y delega la autorización
    real en la máquina de estados.
-5. **El aislamiento por sede no es parte de la matriz**: lo aplica
-   `sedeScope.ts` sobre los datos (ver 2.8). La matriz dice qué puede hacer
-   cada rol; la sede, sobre qué registros.
+5. **La sede no restringe el acceso** (desde 2.117): es un dato que dice
+   dónde está cada cosa. Lo que un rol puede hacer lo decide solo esta matriz.
 
 ---
 
@@ -882,6 +881,8 @@ Efectos: `empleadoActualId` → null, assignment → `activo = false`.
 ---
 
 ## 2.8 Aislamiento por Sede (Multi-Sede)
+
+> **Reemplazado por 2.117 (29-sep-2026):** la sede ya no restringe qué ve ni qué hace un usuario; todos trabajan con todas las sedes. Se mantienen el modelo `Sede` (2.8.1), que cada registro guarde su sede, y que un activo cambie de sede solo con un despacho (2.8.3). Lo demás de esta sección es historia.
 
 El sistema opera sobre varias sedes físicas (ej. Santiago, Concepción, Rancagua). Un usuario `tecnico` solo debe ver y operar sobre los registros de **su propia sede**; `admin` ve y puede crear en cualquier sede sin restricción.
 
@@ -3914,7 +3915,29 @@ Pedido de Javier: *"importación se movería a configuración, no es necesario t
 ### 2.116.8 Errores visibles al agregar una opción
 El "+" de los selectores de catálogo (marca, sistema operativo, antivirus, licencia y motivo de baja) muestra bajo el campo por qué no se pudo agregar (por ejemplo "Máximo 100 caracteres" o un error del servidor) y deja la ventanita abierta; antes se cerraba sin avisar. El campo no admite más de 100 caracteres. En Activos, si el conteo de las tarjetas falla, se conservan los números anteriores en vez de romper la página.
 
+### 2.117 La sede es un dato, no un candado
+Pedido de Javier: *"el técnico sí pueda interactuar con los equipos de otras sedes... imagínate si un técnico se va de vacaciones, su sede queda tirada... pero que el dato sede se siga guardando y usando como ahora"*.
+
+**Regla:** cualquier usuario ve y trabaja con los registros de **todas las sedes** (activos, empleados, solicitudes, mantenciones, asignaciones, despachos, compras y Kit/EPP). La sede deja de ser un candado y queda como dato: **dónde está cada cosa** y **a qué sede pertenece cada usuario**. Lo que solo puede el admin lo decide el rol en la matriz (1.3.1), no la sede.
+
+**Lo que se mantiene:**
+- Cada registro guarda su sede; el historial y la auditoría guardan quién hizo cada cosa.
+- Un equipo cambia de sede solo con un despacho (2.8.3, 2.108); una solicitud usa equipos y Kit/EPP de su propia sede (un equipo de otra sede se despacha primero); una compra reparte desde su sede de llegada.
+- Reglas de sede como dato: origen distinto de destino, nada nuevo en una sede desactivada, no trasladar a una persona con equipos asignados.
+- El usuario técnico sigue teniendo una sede obligatoria (a cuál pertenece) y, si se desactiva, no entra (2.112.6).
+
+**Lo que cambia:**
+- `src/lib/auth/sedeScope.ts` queda en dos funciones: `filtroSede(sedeId)` (filtro opcional por la sede del navbar) y `sedeIdParaCrear(sedeId, { requerido })` (la sede elegida en el formulario). Se retiran `tieneVisibilidadTotal`, `sedeWhere`, `sedeWhereConFiltro` y `assertSedeAccess`, y `lib/auth/permisosGuia.ts` completo.
+- **Despachos:** cualquier sede ve, recibe, resuelve faltantes y anula (antes, solo destino u origen); lo decide el permiso `guias/write`. "Por recibir" y "Por llegar" usan la sede elegida en el navbar.
+- **Fichas:** la del activo se abre para todos, sin "solo lectura" por ser de otra sede (reemplaza 2.111.6 en eso).
+- **Formularios:** el campo Sede está abierto para todos (activos, despachos, solicitudes, Kit/EPP, editar empleado), precargado con la del navbar (2.80). Cualquiera traslada a una persona de sede.
+- **Navbar:** todos eligen sede o "Todas"; la primera vez parte en la sede del usuario y después recuerda lo elegido (`""` guardado = "Todas").
+- **Importación** (solo admin, 2.116.7): sin reglas de técnico; se retira el error `sede_ajena`.
+- Reemplaza, en lo que restringía por sede: 2.8, 2.24.1, 2.108 (quién ve, recibe y anula una guía), 2.111.6 (solo lectura del técnico) y 2.114 (compras sin personas de otra sede para técnicos).
+
 ## Changelog SPEC
+- **v2.41 (2026-09-29):**
+  - Sección 2.117 (nueva): la sede deja de restringir el acceso; todos trabajan con todas las sedes y la sede queda como dato (dónde está cada cosa y a qué sede pertenece cada usuario). `sedeScope.ts` queda en `filtroSede` y `sedeIdParaCrear`; despachos los recibe y anula cualquier sede; campo Sede abierto en los formularios; navbar libre que parte en la sede del usuario. Reemplaza 2.8 en lo que restringía.
 - **v2.40 (2026-09-28):**
   - Sección 2.116 (nueva): columna "Acciones" del despacho solo cuando hay botones (2.116.1); empleados importados sin tipo de contrato, que se elige obligatoriamente al editar (2.116.2); Catálogos de Activos cuentan por la sede del navbar y las reglas de eliminar siguen mirando todas las sedes (2.116.3); catálogo de marcas, con migración `20260928100000_catalogo_marcas` y validación en la importación (2.116.4); motivos de baja como lista administrable en Mantenciones > Motivos de baja, con "+" al dar de baja, recurso `motivosBaja` (RWD para admin y técnico, 1.3.1) y `Maintenance.motivoBajaId`, migración `20260928110000_motivos_baja` (2.116.5); filtros combinables de Activos por marca, sistema operativo, antivirus, licencia y motivo de baja, con tarjetas que cuentan según los filtros y Excel que respeta la búsqueda (2.116.6); Importar pasa a Configuración y queda solo para admin (2.116.7); errores visibles al agregar una opción con "+" (2.116.8).
 - **v2.39 (2026-09-28):**

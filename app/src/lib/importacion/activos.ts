@@ -11,8 +11,6 @@
  */
 import type { CondicionActivo, EstadoActivo } from "@prisma/client";
 import { formatearRut, limpiarRut, validarDigitoVerificador } from "@/lib/validations/rut";
-import { tieneVisibilidadTotal } from "@/lib/auth/sedeScope";
-import type { SesionAutenticada } from "@/lib/auth/guard";
 
 import {
   clave,
@@ -90,7 +88,6 @@ export function interpretarRut(valor: string | null | undefined): LecturaRut {
   return { tipo: "valido", rut: formatearRut(limpio) };
 }
 
-
 /**
  * Activo existente minimo necesario para armar el mensaje de "numero de
  * serie duplicado" durante la importacion.
@@ -106,24 +103,11 @@ export interface ActivoDuplicado {
  * Mensaje de "numero de serie duplicado" para la importacion de activos.
  *
  * numeroSerie es unico a nivel global, no por sede, asi que el chequeo mira
- * todas las sedes. El nivel de detalle del mensaje (nombre/RUT del empleado
- * asignado) se limita segun visibilidad del usuario, para no filtrar datos
- * de otra sede.
+ * todas las sedes.
  */
-export function mensajeSerieDuplicada(
-  session: SesionAutenticada,
-  numeroSerie: string,
-  existingAsset: ActivoDuplicado | null
-): string {
+export function mensajeSerieDuplicada(numeroSerie: string, existingAsset: ActivoDuplicado | null): string {
   if (!existingAsset) {
     return `N° de serie "${numeroSerie}" ya existe`;
-  }
-
-  const puedeVerDetalle =
-    tieneVisibilidadTotal(session) || existingAsset.sedeId === session.user.sedeId;
-
-  if (!puedeVerDetalle) {
-    return `N° de serie "${numeroSerie}" ya existe en el sistema (registrado en otra sede)`;
   }
 
   const asignadoA = existingAsset.empleadoActual
@@ -161,7 +145,7 @@ export function construirMapaSedes(sedes: SedeReferencia[]): Record<string, stri
  * columna "Sede". La resolucion compara directo contra las sedes reales
  * (ver construirMapaSedes), sin geografia hardcodeada.
  *
- * Prioridad para quien tiene visibilidad total (admin):
+ * Prioridad:
  *   sede corregida a mano en esta fila > sede elegida para todo el archivo >
  *   deteccion automatica por la columna "Sede" de la fila. Si ninguna
  *   aplica, se informa el error -- nunca se adivina. La corregida y la
@@ -169,14 +153,8 @@ export function construirMapaSedes(sedes: SedeReferencia[]): Record<string, stri
  *   usarse (pueden venir de una preferencia guardada que apunte a una
  *   sede ya eliminada): si no existen, se informa el error igual que si
  *   la columna del Excel no matcheara ninguna sede.
- *
- * Para un tecnico (amarrado a su sede sin excepcion): si la fila declara
- * explicitamente otra sede reconocida, se rechaza la fila en vez de
- * reetiquetarla en silencio. Si la columna viene vacia, no mapeada, o no
- * matchea ninguna sede real, se asume la sede propia del tecnico.
  */
 export function resolverSedeParaFila(
-  session: SesionAutenticada,
   opts: {
     sedeIdExplicita: string | null;
     mapaSedes: Record<string, string>;
@@ -185,8 +163,7 @@ export function resolverSedeParaFila(
   }
 ):
   | { sedeId: string }
-  | { error: "sede_no_reconocida"; valorOriginal: string }
-  | { error: "sede_ajena"; valorOriginal: string } {
+  | { error: "sede_no_reconocida"; valorOriginal: string } {
   const valorNormalizado = clave(opts.valorSede ?? "");
   const sedeDetectada = valorNormalizado ? opts.mapaSedes[valorNormalizado] : undefined;
   // Ids de sedes que existen HOY en la base (mapaSedes se arma en vivo por
@@ -195,15 +172,6 @@ export function resolverSedeParaFila(
   // ya eliminada; sin este chequeo llegaban intactos hasta el INSERT y
   // reventaban con un error crudo de foreign key en vez de este mensaje.
   const sedesVigentes = new Set(Object.values(opts.mapaSedes));
-
-  if (!tieneVisibilidadTotal(session)) {
-    if (sedeDetectada && sedeDetectada !== opts.sedeIdExplicita) {
-      return { error: "sede_ajena", valorOriginal: opts.valorSede ?? "" };
-    }
-    // La sede propia del tecnico ya fue resuelta antes (o lanzo si no
-    // tiene una asignada), nunca llega null aqui.
-    return { sedeId: opts.sedeIdExplicita! };
-  }
 
   if (opts.sedeIdCorregida) {
     if (!sedesVigentes.has(opts.sedeIdCorregida)) {

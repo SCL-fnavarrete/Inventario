@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { updateKitItemSchema } from '@/lib/validations/kitItem';
 import { auditLogService } from '@/lib/services/auditLogService';
 
@@ -20,7 +19,6 @@ export async function PUT(
     if (!item) {
       return NextResponse.json({ error: 'Artículo no encontrado' }, { status: 404 });
     }
-    assertSedeAccess(session, item.sedeId, 'Artículo no encontrado');
 
     const updated = await prisma.welcomeKitItem.update({
       where: { id },
@@ -63,7 +61,6 @@ export async function DELETE(
     if (!item) {
       return NextResponse.json({ error: 'Artículo no encontrado' }, { status: 404 });
     }
-    assertSedeAccess(session, item.sedeId, 'Artículo no encontrado');
     if (item._count.kitAssignments > 0) {
       return NextResponse.json(
         { error: 'No se puede eliminar: este artículo ya tiene entregas registradas. Puedes dejar la cantidad en 0 en vez de eliminarlo.' },

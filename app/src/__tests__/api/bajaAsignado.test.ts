@@ -18,7 +18,6 @@ jest.mock('@/lib/auth/guard', () => {
     requirePermission: jest.fn().mockResolvedValue({ user: { id: 'u1', email: 'qa@scl.cl', role: 'admin', sedeId: null } }),
   };
 });
-jest.mock('@/lib/auth/sedeScope', () => ({ assertSedeAccess: jest.fn() }));
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';

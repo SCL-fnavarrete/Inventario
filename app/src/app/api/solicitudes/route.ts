@@ -5,7 +5,7 @@ import { getInitialState } from '@/lib/services/workflowStateMachine';
 import { executeAssignment, executeKitDelivery, executeReturn, executeKitReturn } from '@/lib/services/workflowExecutionService';
 import { Prisma, Employee } from '@prisma/client';
 import { requirePermission, handleApiError, respuestaDatosInvalidos, usuarioDeSesion } from '@/lib/auth/guard';
-import { sedeWhere, sedeIdParaCrear, assertSedeAccess, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { filtroSede, sedeIdParaCrear } from '@/lib/auth/sedeScope';
 import { exigirSedeActiva } from "@/lib/queries/sedes";
 import { generarNumeroSolicitud } from '@/lib/services/numeroSolicitud';
 import { ValidationError } from '@/lib/errors';
@@ -29,7 +29,7 @@ function esChoqueDeNumero(error: unknown): boolean {
 export async function GET(request: NextRequest) {
 
   try {
-    const session = await requirePermission('solicitudes', 'read');
+    await requirePermission('solicitudes', 'read');
     const searchParams = request.nextUrl.searchParams;
     const filtersResult = workflowFiltersSchema.safeParse({
       search: searchParams.get('search') || undefined,
@@ -51,15 +51,8 @@ export async function GET(request: NextRequest) {
     const filters = filtersResult.data;
     const skip = (filters.page - 1) * filters.limit;
 
-    // Aislamiento por sede: admin ve todo, el resto solo lo suyo.
-    const where: Prisma.WorkflowRequestWhereInput = { ...sedeWhere(session) };
-
-    // Selector de sede del nav (Etapa 2): solo quien ya tiene visibilidad
-    // total (admin/tecnico) puede acotar por una sede especifica.
-    const sedeIdFiltro = searchParams.get("sedeId") || "";
-    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
-      where.sedeId = sedeIdFiltro;
-    }
+    // Todas las sedes; la del navbar filtra (SPEC 2.117).
+    const where: Prisma.WorkflowRequestWhereInput = filtroSede(searchParams.get("sedeId"));
 
     if (filters.tipo) where.tipo = filters.tipo;
     // 'abierto'/'cerrado' en vez del estado interno detallado: un ticket
@@ -229,19 +222,14 @@ export async function POST(request: NextRequest) {
         }
         esRecuperacion = true;
       }
-      // Defensa en profundidad: aunque el selector de empleados ya viene
-      // filtrado por sede, un no-admin no puede crear una solicitud para un
-      // empleado de otra sede.
-      assertSedeAccess(session, empleadoExistente.sedeId, 'Empleado no encontrado');
     }
     const esReincorporacion =
       data.tipo === 'onboarding' && empleadoExistente?.estado === 'desvinculado';
 
     const estadoInicial = getInitialState(data.tipo);
 
-    // La sede se hereda de quien crea la solicitud; admin debe elegirla
-    // explicitamente, o el ticket queda visible solo para el admin.
-    const sedeId = sedeIdParaCrear(session, (body as { sedeId?: string }).sedeId, {
+    // La sede elegida en el formulario, obligatoria (SPEC 2.117).
+    const sedeId = sedeIdParaCrear((body as { sedeId?: string }).sedeId, {
       requerido: true,
     });
     // Un ingreso nuevo no puede nacer en una sede desactivada (auditoria

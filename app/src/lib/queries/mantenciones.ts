@@ -1,18 +1,14 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { errorRepetido } from '@/lib/errors';
-import { sedeWhereConFiltro } from '@/lib/auth/sedeScope';
-import type { SesionAutenticada } from '@/lib/auth/guard';
+import { filtroSede } from '@/lib/auth/sedeScope';
 
 /**
- * Mantenciones visibles para la sesion: via la sede del activo (Maintenance
- * no tiene sedeId propio) y, para quien ve todas, la sede elegida en el nav.
+ * Mantenciones de la sede elegida en el nav, o de todas (SPEC 2.117): via la
+ * sede del activo, porque Maintenance no tiene sedeId propio.
  */
-export function whereSedeMantencion(
-  session: SesionAutenticada,
-  sedeIdFiltro?: string | null
-): Prisma.MaintenanceWhereInput {
-  return { asset: sedeWhereConFiltro(session, sedeIdFiltro) as Prisma.AssetWhereInput };
+export function whereSedeMantencion(sedeIdFiltro?: string | null): Prisma.MaintenanceWhereInput {
+  return { asset: filtroSede(sedeIdFiltro) as Prisma.AssetWhereInput };
 }
 
 /**

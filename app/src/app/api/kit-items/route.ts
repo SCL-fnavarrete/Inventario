@@ -1,31 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError, errorRepetido } from '@/lib/auth/guard';
-import { sedeWhere, sedeIdParaCrear, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
+import { filtroSede, sedeIdParaCrear } from '@/lib/auth/sedeScope';
 import { exigirSedeActiva } from "@/lib/queries/sedes";
 import { createKitItemSchema } from '@/lib/validations/kitItem';
 import { auditLogService } from '@/lib/services/auditLogService';
 
 // GET /api/kit-items?categoria=kit_bienvenida|epp
 // Catalogo de articulos de Kit de Bienvenida y EPP, con su stock actual.
-// Separado de /api/activos porque no son equipos. Catalogo por sede:
-// admin ve todo, tecnico solo el de su sede.
+// Separado de /api/activos porque no son equipos. Catalogo por sede; la
+// sede del navbar filtra (SPEC 2.117).
 export async function GET(request: NextRequest) {
   try {
-    const session = await requirePermission('kitEpp', 'read');
+    await requirePermission('kitEpp', 'read');
 
     const categoria = request.nextUrl.searchParams.get('categoria');
-    // Solo quien tiene visibilidad total puede acotar por una sede especifica.
     const sedeIdFiltro = request.nextUrl.searchParams.get("sedeId") || "";
 
     const items = await prisma.welcomeKitItem.findMany({
       where: {
-        ...sedeWhere(session),
         ...(categoria ? { categoria: categoria as 'kit_bienvenida' | 'epp' } : {}),
-        ...(sedeIdFiltro && tieneVisibilidadTotal(session) ? { sedeId: sedeIdFiltro } : {}),
+        ...filtroSede(sedeIdFiltro),
       },
-      // El nombre de la sede solo lo necesita la UI de admin (que ve varias
-      // sedes mezcladas); para tecnico es siempre la suya.
+      // El nombre de la sede, para la lista con varias sedes mezcladas.
       include: { sede: { select: { nombre: true } } },
       orderBy: { nombre: 'asc' },
     });
@@ -43,7 +40,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = createKitItemSchema.parse(body);
     // Obligatoria: un articulo sin sede no aparece al filtrar por sede.
-    const sedeId = sedeIdParaCrear(session, validated.sedeId, { requerido: true });
+    const sedeId = sedeIdParaCrear(validated.sedeId, { requerido: true });
     if (sedeId) await exigirSedeActiva(sedeId);
 
     // El nombre no se duplica dentro de la misma sede/categoria, pero dos

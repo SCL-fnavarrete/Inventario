@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -38,7 +37,7 @@ const RELACIONES_FICHA = {
 // GET /api/empleados/[id]/ficha - Obtener ficha completa del empleado (la ficha azul)
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await requirePermission('empleados', 'read');
+    await requirePermission('empleados', 'read');
     const { id } = await params;
 
     // Intentar buscar por UUID primero, luego por RUT
@@ -53,11 +52,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         where: { rut: id },
         include: RELACIONES_FICHA,
       });
-    }
-
-    // Aislamiento por sede: valida el permiso junto con la sede del empleado.
-    if (employee) {
-      assertSedeAccess(session, employee.sedeId, 'Empleado no encontrado');
     }
 
     if (!employee) {

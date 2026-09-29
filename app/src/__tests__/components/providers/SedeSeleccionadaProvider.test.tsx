@@ -48,7 +48,9 @@ describe("useSedeSeleccionada", () => {
     expect(window.localStorage.getItem(CLAVE_STORAGE)).toBe("sede-santiago");
   });
 
-  test('elegir "todas las sedes" (null) limpia el localStorage', () => {
+  // Se guarda "" (y no se borra) para que al volver no parta de nuevo en la
+  // sede del usuario: eligio "todas" a proposito (SPEC 2.117).
+  test('elegir "todas las sedes" (null) lo recuerda como ""', () => {
     window.localStorage.setItem(CLAVE_STORAGE, "sede-santiago");
     const { result } = renderHook(() => useSedeSeleccionada(), {
       wrapper: SedeSeleccionadaProvider,
@@ -59,7 +61,7 @@ describe("useSedeSeleccionada", () => {
     });
 
     expect(result.current.sedeSeleccionada).toBeNull();
-    expect(window.localStorage.getItem(CLAVE_STORAGE)).toBeNull();
+    expect(window.localStorage.getItem(CLAVE_STORAGE)).toBe("");
   });
 
   test("al montar, hidrata la sede que ya estaba guardada en localStorage", async () => {

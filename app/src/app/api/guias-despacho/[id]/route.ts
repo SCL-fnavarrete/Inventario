@@ -6,13 +6,12 @@ import {
   respuestaErroresCampos,
   ConflictError,
 } from '@/lib/auth/guard';
-import { NotFoundError, ForbiddenError } from '@/lib/errors';
-import { puedeConfirmarRecepcion } from '@/lib/queries/guias';
+import { NotFoundError } from '@/lib/errors';
 import { auditLogService } from '@/lib/services/auditLogService';
 import {
   INCLUDE_DETALLE_GUIA,
   actualizarEstadoGuia,
-  buscarGuiaVisible,
+  buscarGuia,
   recibirEquipos,
   resolverKit,
 } from '@/lib/services/guiaDespachoService';
@@ -25,9 +24,9 @@ interface RouteParams {
 // GET /api/guias-despacho/[id] - Obtener detalle de guía
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await requirePermission('guias', 'read');
+    await requirePermission('guias', 'read');
     const { id } = await params;
-    return NextResponse.json(await buscarGuiaVisible(session, id));
+    return NextResponse.json(await buscarGuia(id));
   } catch (error) {
     return handleApiError(error, 'Error al obtener el despacho');
   }
@@ -43,10 +42,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const { recibidoPor, fechaRecepcion, llegaron, kitRecibido } = await request.json();
 
-    const guia = await buscarGuiaVisible(session, id);
-    if (!puedeConfirmarRecepcion(session, guia)) {
-      throw new ForbiddenError('Solo la sede destino puede confirmar la recepción de este despacho');
-    }
+    const guia = await buscarGuia(id);
     if (guia.estado !== 'en_transito') {
       throw new ConflictError('Este despacho ya no está en tránsito: su recepción ya se confirmó o se anuló');
     }

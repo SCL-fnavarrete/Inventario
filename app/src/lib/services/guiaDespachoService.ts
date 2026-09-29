@@ -7,8 +7,6 @@ import { assetHistoryService } from '@/lib/services/assetHistoryService';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { formatearRut } from '@/lib/validations/rut';
 import { articuloKitEnSede, estadoLineaKit, sumarStockKit } from '@/lib/services/kitService';
-import { puedeVerGuia } from '@/lib/queries/guias';
-import type { SesionAutenticada } from '@/lib/auth/guard';
 
 type PrismaOCliente = typeof prisma | Prisma.TransactionClient;
 
@@ -155,12 +153,12 @@ export const INCLUDE_DETALLE_GUIA = {
 } satisfies Prisma.DispatchGuideInclude;
 
 /**
- * La guia con su detalle, o 404 si no existe o la sesion no la puede ver
- * (regla puedeVerGuia). Punto de entrada de todas las rutas de una guia.
+ * La guia con su detalle, o 404 si no existe. Punto de entrada de todas las
+ * rutas de una guia.
  */
-export async function buscarGuiaVisible(session: SesionAutenticada, id: string) {
+export async function buscarGuia(id: string) {
   const guia = await prisma.dispatchGuide.findUnique({ where: { id }, include: INCLUDE_DETALLE_GUIA });
-  if (!guia || !puedeVerGuia(session, guia)) throw new NotFoundError('Despacho no encontrado');
+  if (!guia) throw new NotFoundError('Despacho no encontrado');
   return guia;
 }
 

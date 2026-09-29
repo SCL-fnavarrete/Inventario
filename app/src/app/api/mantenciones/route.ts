@@ -4,7 +4,6 @@ import { createMaintenanceSchema, maintenanceFiltersSchema } from "@/lib/validat
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError, respuestaDatosInvalidos, ConflictError } from '@/lib/auth/guard';
 import { motivoSinMantencion } from '@/lib/constants/estadosActivo';
-import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { auditLogService } from '@/lib/services/auditLogService';
 import { formatearFechaConHora, inicioDeHoy } from '@/lib/utils/fechas';
 import { busquedaActivo, palabrasDeBusqueda } from "@/lib/queries/activos";
@@ -21,7 +20,7 @@ import {
 // GET /api/mantenciones - Listar mantenciones con filtros
 export async function GET(request: NextRequest) {
   try {
-    const session = await requirePermission('mantenciones', 'read');
+    await requirePermission('mantenciones', 'read');
     const searchParams = request.nextUrl.searchParams;
 
     const filtersResult = maintenanceFiltersSchema.safeParse({
@@ -49,11 +48,8 @@ export async function GET(request: NextRequest) {
     const filters = filtersResult.data;
     const skip = (filters.page - 1) * filters.limit;
 
-    // Sede del activo y, para quien ve todas, la del nav.
-    const where: Prisma.MaintenanceWhereInput = whereSedeMantencion(
-      session,
-      searchParams.get("sedeId")
-    );
+    // La sede elegida en el nav, por la del activo.
+    const where: Prisma.MaintenanceWhereInput = whereSedeMantencion(searchParams.get("sedeId"));
 
     if (filters.assetId) {
       where.assetId = filters.assetId;
@@ -179,11 +175,6 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
-
-    // Un tecnico no debe poder programar una mantencion para un activo de
-    // otra sede aunque conozca el id -- el selector de la UI ya filtra por
-    // sede, pero la API no lo bloqueaba.
-    assertSedeAccess(session, asset.sedeId, 'Activo no encontrado');
 
     // Verificar que el tipo de mantencion existe (catalogo dinamico, ver
     // MaintenanceType / /api/mantenciones/tipos).

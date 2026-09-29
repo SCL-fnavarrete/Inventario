@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError, ConflictError } from '@/lib/auth/guard';
-import { ForbiddenError, ValidationError } from '@/lib/errors';
+import { ValidationError } from '@/lib/errors';
 import { validateTransition } from '@/lib/services/assetStateMachine';
-import { puedeAnularGuia } from '@/lib/queries/guias';
 import { auditLogService } from '@/lib/services/auditLogService';
-import { INCLUDE_DETALLE_GUIA, buscarGuiaVisible } from '@/lib/services/guiaDespachoService';
+import { INCLUDE_DETALLE_GUIA, buscarGuia } from '@/lib/services/guiaDespachoService';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -21,10 +20,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const { motivo } = await request.json();
 
-    const guia = await buscarGuiaVisible(session, id);
-    if (!puedeAnularGuia(session, guia)) {
-      throw new ForbiddenError('Solo la sede que despachó puede anular este despacho');
-    }
+    const guia = await buscarGuia(id);
     const kitTocado = guia.kitItems.some((k) => k.cantidadRecibida > 0 || k.cantidadPerdida > 0);
     if (guia.estado !== 'en_transito' || guia.items.some((i) => i.estado !== 'en_transito') || kitTocado) {
       throw new ConflictError('Solo se anula un despacho en tránsito que todavía no se recibe');

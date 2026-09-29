@@ -140,7 +140,7 @@ export default function SedesPage() {
       <PageHeader
         backHref="/configuracion"
         title="Sedes"
-        description="Cada activo, empleado, solicitud y despacho pertenece a una sede. El técnico trabaja solo con los datos de la suya; el administrador ve todas y el selector del menú filtra lo que muestra. Si una sede se desactiva, sus técnicos no pueden entrar."
+        description="Cada activo, empleado, solicitud y despacho pertenece a una sede. Todos trabajan con todas las sedes: el selector del menú filtra lo que se muestra. Si una sede se desactiva, sus técnicos no pueden entrar."
         actions={
           !abierto && (
             <Button leftIcon={<Plus size={18} />} onClick={() => abrir()}>

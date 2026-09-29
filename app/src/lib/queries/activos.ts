@@ -1,8 +1,7 @@
 import { Prisma } from '@prisma/client';
-import type { SesionAutenticada } from '@/lib/auth/guard';
-import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { estadoActivoEnum } from '@/lib/validations/asset';
-import { sedePropiaGuias, vieneAMiSede, whereActivosPorLlegar } from '@/lib/queries/guias';
+import { whereActivosPorLlegar } from '@/lib/queries/guias';
+import { filtroSede } from '@/lib/auth/sedeScope';
 import { FILTROS_DATO, SIN_DATO, type FiltrosDato, type ParamFiltroDato } from '@/lib/constants/filtrosActivos';
 
 /**
@@ -26,12 +25,10 @@ export const ACTIVOS_VIGENTES = { deletedAt: null } satisfies Prisma.AssetWhereI
 /**
  * Filtros de la lista de Activos, que la exportacion a Excel repite tal cual
  * (asi el archivo trae lo mismo que se ve en pantalla):
- * - vigentes y de la sede de la sesion; o, con `porLlegar`, los que vienen
- *   en camino a mi sede (SPEC 2.108), que todavia son de la sede de origen;
- *   o, en "Por repartir", los de todas las sedes: el tecnico tambien ve lo
- *   que se esta por repartir (SPEC 2.111.6);
+ * - vigentes de la sede elegida en el menu, o de todas (SPEC 2.117); o, con
+ *   `porLlegar`, los que vienen en camino a esa sede (SPEC 2.108), que
+ *   todavia son de la sede de origen;
  * - estado (uno desconocido, de una URL editada a mano, se ignora) y categoria;
- * - sede elegida en el menu, solo para quien ve todas;
  * - busqueda por palabras y datos de catalogo (marca, sistema operativo,
  *   antivirus, licencia, motivo de baja; SPEC 2.116.6), todos con AND.
  */
@@ -44,16 +41,13 @@ export type FiltrosActivos = {
   datos?: FiltrosDato;
 };
 
-export function whereFiltrosActivos(session: SesionAutenticada, f: FiltrosActivos): Prisma.AssetWhereInput {
+export function whereFiltrosActivos(f: FiltrosActivos): Prisma.AssetWhereInput {
   const where: Prisma.AssetWhereInput = f.porLlegar
-    ? whereActivosPorLlegar(sedePropiaGuias(session, f.sedeIdFiltro))
-    : f.estado === 'por_repartir'
-      ? { ...ACTIVOS_VIGENTES }
-      : { ...ACTIVOS_VIGENTES, ...sedeWhere(session) };
+    ? whereActivosPorLlegar(f.sedeIdFiltro || null)
+    : { ...ACTIVOS_VIGENTES, ...filtroSede(f.sedeIdFiltro) };
   const estado = estadoActivoEnum.safeParse(f.estado);
   if (estado.success) where.estado = estado.data;
   if (f.categoriaId) where.categoriaId = f.categoriaId;
-  if (f.sedeIdFiltro && tieneVisibilidadTotal(session) && !f.porLlegar) where.sedeId = f.sedeIdFiltro;
 
   const y = [
     ...palabrasDeBusqueda(f.search ?? '').map(busquedaActivo),
@@ -100,21 +94,6 @@ export function leerFiltrosActivos(sp: URLSearchParams): FiltrosActivos {
     search: (sp.get('search') || '').slice(0, 200),
     datos,
   };
-}
-
-/**
- * ¿La sesion puede abrir la ficha de este equipo? La de su sede; la de uno
- * que viene en camino a su sede (SPEC 2.108); y la de uno "Por repartir" de
- * cualquier sede (SPEC 2.111.6). Admin, todas. La usan la API y la pagina.
- */
-export async function puedeVerActivo(
-  session: SesionAutenticada,
-  asset: { id: string; sedeId: string | null; estado: string }
-): Promise<boolean> {
-  if (tieneVisibilidadTotal(session)) return true;
-  if (asset.sedeId && asset.sedeId === session.user.sedeId) return true;
-  if (asset.estado === 'por_repartir') return true;
-  return vieneAMiSede(session, asset.id);
 }
 
 /** Palabras de un termino de busqueda, sin espacios de sobra. */

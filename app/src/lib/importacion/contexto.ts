@@ -21,7 +21,7 @@ export async function armarContextoImportacion(datos: {
   exigeImei: boolean;
   tipoMantencionId: string;
 }): Promise<ContextoFila> {
-  const sedeIdExplicita = sedeIdParaCrear(datos.session, datos.sedeIdSolicitada, { requerido: false });
+  const sedeIdExplicita = sedeIdParaCrear(datos.sedeIdSolicitada, { requerido: false });
   if (sedeIdExplicita) await exigirSedeActiva(sedeIdExplicita);
 
   // Todo lo que no depende de las filas, en paralelo.

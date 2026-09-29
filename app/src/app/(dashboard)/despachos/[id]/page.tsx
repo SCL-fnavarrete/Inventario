@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
-import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   Loader2,
@@ -38,7 +37,7 @@ import {
 import { AvisoSeccion, CampoTexto, ResumenErrores } from "@/components/ui/CampoFormulario";
 import { useErroresFormulario } from "@/hooks/useErroresFormulario";
 import { ETIQUETAS_GUIA, validarRecepcion } from "@/lib/validations/guia";
-import { puedeAnularGuia, puedeConfirmarRecepcion } from "@/lib/auth/permisosGuia";
+import { usePermissions } from "@/hooks/usePermissions";
 import { CategoryIcon } from "@/components/activos/CategoryIcon";
 import { buttonClasses } from "@/components/ui/buttonStyles";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -58,7 +57,7 @@ const BOTON_EXITO = "bg-success hover:bg-success-hover disabled:hover:bg-success
  */
 export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { data: session } = useSession();
+  const { can } = usePermissions();
   const [guide, setGuide] = useState<DispatchGuideDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -229,11 +228,10 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
     );
   }
 
-  const sesion = session?.user ? { user: session.user } : null;
-  const puedeRecibir = !!sesion && puedeConfirmarRecepcion(sesion, guide);
+  // Cualquier sede recibe y anula (SPEC 2.117): lo decide el permiso, no la sede.
+  const puedeRecibir = can("guias", "write");
   const puedeAnular =
-    !!sesion &&
-    puedeAnularGuia(sesion, guide) &&
+    puedeRecibir &&
     guide.estado === "en_transito" &&
     guide.items.every((i) => i.estado === "en_transito") &&
     guide.kitItems.every((k) => k.cantidadRecibida === 0 && k.cantidadPerdida === 0);
@@ -302,7 +300,6 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
             Lo despachado viaja hacia <strong>{guide.sedeDestino.nombre}</strong>. Sigue en{" "}
             {guide.sede?.nombre ?? "la sede de origen"} hasta que {guide.sedeDestino.nombre} confirme qué
             llegó.
-            {!puedeRecibir && ` Solo ${guide.sedeDestino.nombre} puede confirmar la recepción.`}
           </p>
         </div>
       )}
@@ -311,7 +308,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
           <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
           <p className="text-sm">
             Falta: {faltantesTexto}, en tránsito.{" "}
-            {puedeRecibir ? "Resuélvelo abajo: llegó o se perdió." : `Lo resuelve ${guide.sedeDestino.nombre}.`}
+            {puedeRecibir && "Resuélvelo abajo: llegó o se perdió."}
           </p>
         </div>
       )}

@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import type { SesionAutenticada } from "@/lib/auth/guard";
-import { sedeWhereConFiltro } from "@/lib/auth/sedeScope";
+import { filtroSede } from "@/lib/auth/sedeScope";
 import { leerSedeFiltroDesdeCookie } from "@/lib/auth/sedeFiltroCookie";
 import { prisma } from "@/lib/prisma";
 import {
@@ -30,15 +30,12 @@ import { inicioDeHoy } from "@/lib/utils/fechas";
  * Trae todos los datos del Resumen del Dashboard en un unico batch de
  * consultas paralelas para evitar round-trips secuenciales y duplicados.
  */
-async function getDashboardData(session: SesionAutenticada, sedeIdFiltro: string | null) {
-  // Aislamiento por sede: admin ve todo el inventario, tecnico solo lo de
-  // su sede. `sw` es el filtro directo; Maintenance y Assignment no tienen
-  // sedeId propio y se filtran via su relacion a Asset. `swAsset` tambien
-  // excluye activos con `deletedAt` (ACTIVOS_VIGENTES).
-  //
-  // La sede del navbar solo se respeta para quien ve todas las sedes (ver
-  // sedeWhereConFiltro); para el resto manda su propia sede.
-  const sw = sedeWhereConFiltro(session, sedeIdFiltro);
+async function getDashboardData(sedeIdFiltro: string | null) {
+  // Todo el inventario, o la sede elegida en el navbar (SPEC 2.117). `sw` es
+  // el filtro directo; Maintenance y Assignment no tienen sedeId propio y se
+  // filtran via su relacion a Asset. `swAsset` tambien excluye activos con
+  // `deletedAt` (ACTIVOS_VIGENTES).
+  const sw = filtroSede(sedeIdFiltro);
   const swAsset = { asset: { ...sw, ...ACTIVOS_VIGENTES } };
 
   // Las fechas de mantencion son de calendario: se comparan contra el dia de
@@ -310,7 +307,7 @@ export default async function DashboardPage() {
   // lo mismo para las rutas de API.
   const session = (await getServerSession(authOptions)) as SesionAutenticada;
   const sedeIdFiltro = await leerSedeFiltroDesdeCookie();
-  const data = await getDashboardData(session, sedeIdFiltro);
+  const data = await getDashboardData(sedeIdFiltro);
 
   return (
     <div className="space-y-6">

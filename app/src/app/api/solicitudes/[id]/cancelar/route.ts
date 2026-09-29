@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cancelWorkflowRequestSchema } from '@/lib/validations/workflow';
 import { requirePermission, handleApiError, respuestaDatosInvalidos, ConflictError, usuarioDeSesion } from '@/lib/auth/guard';
-import { assertSedeAccess } from '@/lib/auth/sedeScope';
 import { sinIdsDeUsuario } from '@/lib/utils/privacidad';
 
 // POST /api/solicitudes/[id]/cancelar - Cancela una solicitud que todavia no
@@ -31,8 +30,6 @@ export async function POST(
     if (!workflowRequest) {
       return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
     }
-
-    assertSedeAccess(session, workflowRequest.sedeId, 'Solicitud no encontrada');
 
     if (workflowRequest.fechaCierre) {
       return NextResponse.json(

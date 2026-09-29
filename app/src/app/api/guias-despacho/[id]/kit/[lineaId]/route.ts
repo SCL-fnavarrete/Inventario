@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError, ConflictError } from '@/lib/auth/guard';
-import { ForbiddenError, ValidationError } from '@/lib/errors';
-import { puedeConfirmarRecepcion } from '@/lib/queries/guias';
+import { ValidationError } from '@/lib/errors';
 import { auditLogService } from '@/lib/services/auditLogService';
 import {
   INCLUDE_DETALLE_GUIA,
   actualizarEstadoGuia,
-  buscarGuiaVisible,
+  buscarGuia,
   resolverKit,
   type AccionKit,
 } from '@/lib/services/guiaDespachoService';
@@ -31,10 +30,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { accion, cantidad, motivo } = await request.json();
 
     if (!ACCIONES.includes(accion)) throw new ValidationError('Acción desconocida');
-    const guia = await buscarGuiaVisible(session, id);
-    if (!puedeConfirmarRecepcion(session, guia)) {
-      throw new ForbiddenError('Solo la sede destino puede resolver el Kit/EPP de este despacho');
-    }
+    const guia = await buscarGuia(id);
     if (guia.estado === 'anulada') throw new ConflictError('El despacho está anulado');
     // Antes de la recepcion, lo que llega se confirma con ella, no por linea.
     if (accion === 'llego' && guia.estado !== 'recibida_parcial') {

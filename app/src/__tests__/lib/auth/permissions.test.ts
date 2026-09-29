@@ -11,8 +11,8 @@ import {
 } from '@/lib/auth/permissions';
 import { canTransition } from '@/lib/services/workflowStateMachine';
 
-// Solo dos roles reales: admin (ve y administra todo) y tecnico (soporte
-// operativo, restringido a su sede -- ver sedeScope()).
+// Solo dos roles reales: admin (administra todo) y tecnico (soporte
+// operativo, en todas las sedes -- SPEC 2.117).
 
 const TODOS_LOS_ROLES: SystemRole[] = ['admin', 'tecnico'];
 

@@ -76,17 +76,17 @@ const roleColors: Record<string, string> = {
 };
 
 const roleDescriptions: Record<string, string> = {
-  admin: "Todo el sistema, incluida la Configuración; ve todas las sedes",
-  tecnico: "Trabajo operativo de soporte, solo en su propia sede; sin acceso a Configuración",
+  admin: "Todo el sistema, incluida la Configuración",
+  tecnico: "Trabajo operativo de soporte en todas las sedes; sin acceso a Configuración",
 };
 
 function RolBadge({ rol }: { rol: SystemUser["rol"] }) {
   return <span className={`inline-flex px-2 py-1 text-xs rounded-full ${roleColors[rol]}`}>{roleLabels[rol]}</span>;
 }
 
-/** Sede del usuario; el admin ve todas. Avisa si su sede esta desactivada (SPEC 2.112.6). */
+/** Sede a la que pertenece el usuario. Avisa si esta desactivada (SPEC 2.112.6). */
 function SedeUsuario({ user }: { user: SystemUser }) {
-  if (user.rol === "admin") return <span className="text-fg-subtle">Todas las sedes</span>;
+  if (user.rol === "admin") return <span className="text-fg-subtle">—</span>;
   return (
     <>
       {user.sede?.nombre || <span className="text-red-500">Sin asignar</span>}
@@ -422,14 +422,14 @@ export default function UsuariosPage() {
             </CampoFormulario>
             {formData.rol === "admin" ? (
               <div className="flex items-center text-sm text-fg-subtle">
-                Administrador ve todas las sedes -- no se le asigna una.
+                Al administrador no se le asigna una sede.
               </div>
             ) : (
               <CampoFormulario
                 label="Sede"
                 obligatorio
                 error={errores.sedeId}
-                ayuda="El técnico ve y trabaja solo con los datos de su sede. El administrador ve todas."
+                ayuda="La sede a la que pertenece. Trabaja con todas; su selector del menú parte en esta."
               >
                 <select
                   value={formData.sedeId}

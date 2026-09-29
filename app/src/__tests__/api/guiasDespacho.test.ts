@@ -150,18 +150,12 @@ describe('PATCH /api/guias-despacho/[id] (confirmar recepcion)', () => {
     });
   });
 
-  test('la sede que despacho no puede confirmar la recepcion', async () => {
-    comoOrigen();
-    buscarGuia(guia('en_transito'));
-    const res = await recibir(pedir('PATCH', body), ctx);
-    expect(res.status).toBe(403);
-    expect(prisma.$transaction).not.toHaveBeenCalled();
-  });
-
-  test('otra sede ni siquiera ve la guia: 404', async () => {
+  // SPEC 2.117: la sede no restringe. Un tecnico de otra sede cubre la destino.
+  test('un tecnico de otra sede tambien confirma la recepcion', async () => {
     (requirePermission as jest.Mock).mockResolvedValue(sesion('tecnico', 'arica'));
     buscarGuia(guia('en_transito'));
-    expect((await recibir(pedir('PATCH', body), ctx)).status).toBe(404);
+    expect((await recibir(pedir('PATCH', body), ctx)).status).toBe(200);
+    expect(prisma.$transaction).toHaveBeenCalled();
   });
 
   test('recepcion anterior al envio o sin equipos marcados: 400 por campo', async () => {
@@ -234,10 +228,10 @@ describe('POST /api/guias-despacho/[id]/items/[itemId] (resolver faltante)', () 
     expect((await resolverItem(pedir('POST', { accion: 'llego' }), ctxItem)).status).toBe(409);
   });
 
-  test('la sede que despacho no resuelve faltantes: 403', async () => {
+  test('la sede que despacho tambien resuelve faltantes (SPEC 2.117)', async () => {
     comoOrigen();
     buscarGuia(guia('recibida_parcial'));
-    expect((await resolverItem(pedir('POST', { accion: 'llego' }), ctxItem)).status).toBe(403);
+    expect((await resolverItem(pedir('POST', { accion: 'llego' }), ctxItem)).status).toBe(200);
   });
 });
 
@@ -253,10 +247,10 @@ describe('POST /api/guias-despacho/[id]/anular', () => {
     );
   });
 
-  test('la sede destino no puede anular: 403', async () => {
+  test('la sede destino tambien puede anular (SPEC 2.117)', async () => {
     comoDestino();
     buscarGuia(guia('en_transito'));
-    expect((await anular(pedir('POST', { motivo: 'x' }), ctx)).status).toBe(403);
+    expect((await anular(pedir('POST', { motivo: 'x' }), ctx)).status).toBe(200);
   });
 
   test('una guia ya recibida (aunque sea en parte) no se anula: 409', async () => {
@@ -355,10 +349,11 @@ describe('POST /api/guias-despacho/[id]/kit/[lineaId]', () => {
     );
   });
 
-  test('la sede que despachó no resuelve Kit/EPP: 403', async () => {
+  test('la sede que despachó también resuelve Kit/EPP (SPEC 2.117)', async () => {
     comoOrigen();
     buscarGuia(guia('recibida_parcial', [], [lineaKit(4, 3)]));
-    expect((await resolverKitRuta(pedir('POST', { accion: 'llego', cantidad: 1 }), ctxKit)).status).toBe(403);
+    tx.dispatchGuideKitItem.findFirst.mockResolvedValue(lineaKit(4, 3));
+    expect((await resolverKitRuta(pedir('POST', { accion: 'llego', cantidad: 1 }), ctxKit)).status).toBe(200);
   });
 });
 

@@ -36,6 +36,7 @@ mas `api/` con los endpoints REST agrupados por feature.
 |------|---------|
 | `src/lib/auth.ts` | NextAuth config: Credentials provider, JWT sessions (duración de Configuración > Seguridad), revisa la cuenta en cada consulta (una desactivada queda fuera), lista negra de sesiones cerradas y "sesiones válidas desde" al desactivar (SPEC 2.112.5), bloqueo por intentos contado en el registro de accesos (SPEC 2.112) |
 | `src/lib/prisma.ts` | Prisma singleton (prevents connection pool exhaustion) |
+| `src/lib/auth/sedeScope.ts` | La sede es un dato, no un candado (SPEC 2.117): todos trabajan con todas las sedes. `filtroSede` (filtro del navbar) y `sedeIdParaCrear`. No agregar reglas de acceso por sede: lo que es solo de admin lo decide la matriz de permisos |
 | `src/lib/services/assetHistoryService.ts` | Audit trail — logs all asset events with old/new values |
 | `src/lib/services/workflowExecutionService.ts` | Ejecuta acciones de workflow: asignaciones, desvinculaciones, guias al hacer transiciones |
 | `src/lib/services/workflowStateMachine.ts` | Define estados válidos y transiciones permitidas por tipo de solicitud |

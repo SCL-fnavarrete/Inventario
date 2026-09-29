@@ -68,8 +68,6 @@ export default function NuevaGuiaDespachoPage() {
   // precargada con la sede del navbar o la propia (useCampoSede, SPEC 2.80).
   // La destino no se precarga: nunca puede ser la misma que el origen.
   const [sedeOrigenId, setSedeOrigenId] = useCampoSede();
-  // Solo admin puede elegir la sede.
-  const esAdminSede = session?.user?.role === "admin";
 
   const [selectedAssets, setSelectedAssets] = useState<Asset[]>([]);
 
@@ -231,15 +229,10 @@ export default function NuevaGuiaDespachoPage() {
           label="Sede origen"
           obligatorio
           error={errores.sedeId}
-          ayuda={
-            esAdminSede
-              ? "Obligatorio: desde cuál sede sale este despacho, para no mezclar equipos de sedes distintas en un mismo despacho."
-              : "Es tu sede: el despacho sale desde ella."
-          }
+          ayuda="Obligatorio: desde cuál sede sale este despacho, para no mezclar equipos de sedes distintas en un mismo despacho."
         >
           <select
             value={sedeOrigenId}
-            disabled={!esAdminSede}
             onChange={(e) => {
               setSedeOrigenId(e.target.value);
               limpiar("sedeId");

@@ -4,7 +4,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { TipoFicha } from "@prisma/client";
 import { normalizarImei, validarImei } from "@/lib/validations/imei";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
 import { Save } from "lucide-react";
 import { CatalogSelect } from "@/components/ui/CatalogSelect";
 import { Button } from "@/components/ui/Button";
@@ -243,12 +242,10 @@ export function ActivoForm({
   erroresServidor = {},
 }: ActivoFormProps) {
   const crear = modo === "crear";
-  const { data: session } = useSession();
   // Sede al crear: precargada con la del navbar o la propia (useCampoSede,
   // SPEC 2.80). Al editar no se muestra: el activo conserva la suya.
   const [sedeElegida, setSedeId] = useCampoSede();
   const sedeId = sedeFija ?? sedeElegida;
-  const esAdminSede = session?.user?.role === "admin";
 
   const [values, setValues] = useState<ActivoFormValues>(initialValues);
   const [categories, setCategories] = useState<CategoriaFormulario[]>([]);
@@ -400,11 +397,7 @@ export function ActivoForm({
                 Sede <span className="text-red-500">*</span>
               </>
             }
-            hint={
-              esAdminSede
-                ? "Obligatorio: a qué sede pertenece este equipo."
-                : "Es tu sede: los equipos que crees quedan registrados en ella."
-            }
+            hint="Obligatorio: a qué sede pertenece este equipo."
             error={error("sedeId")}
           >
             <select
@@ -417,7 +410,6 @@ export function ActivoForm({
               className={claseCampo(error("sedeId"))}
               aria-invalid={!!error("sedeId")}
               required
-              disabled={!esAdminSede}
             >
               <option value="" disabled>
                 Selecciona una sede...

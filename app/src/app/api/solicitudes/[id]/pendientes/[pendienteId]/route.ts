@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { updatePendienteSchema } from '@/lib/validations/workflow';
 import { requirePermission, handleApiError, usuarioDeSesion } from '@/lib/auth/guard';
-import { assertSedeAccess } from '@/lib/auth/sedeScope';
 
 // PATCH /api/solicitudes/[id]/pendientes/[pendienteId] - Update pendiente status
 export async function PATCH(
@@ -31,8 +30,6 @@ export async function PATCH(
     if (!pendiente) {
       return NextResponse.json({ error: 'Pendiente no encontrado' }, { status: 404 });
     }
-
-    assertSedeAccess(session, pendiente.request.sedeId, 'Pendiente no encontrado');
 
     const systemUser = usuarioDeSesion(session);
 

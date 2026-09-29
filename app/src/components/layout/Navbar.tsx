@@ -84,7 +84,7 @@ export function Navbar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { puedeVer } = usePermissions();
-  const { sedeSeleccionada, setSedeSeleccionada, sedeBloqueada } = useSedeSeleccionada();
+  const { sedeSeleccionada, setSedeSeleccionada } = useSedeSeleccionada();
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
   const [menuUsuarioAbierto, setMenuUsuarioAbierto] = useState(false);
@@ -121,49 +121,33 @@ export function Navbar() {
     };
   }, [menuUsuarioAbierto]);
 
-  const nombreSedeFija =
-    sedes.find((s) => s.id === sedeSeleccionada)?.nombre || "Sin sede asignada";
-
-  // Solo admin elige sede; el resto ve la suya fija (el backend la impone igual).
-  const selectorSede = (id: string, className?: string) =>
-    sedeBloqueada ? (
-      <div
+  // Todos eligen sede o "Todas" (SPEC 2.117): es solo un filtro.
+  const selectorSede = (id: string, className?: string) => (
+    <div className={cn("relative", className)}>
+      <MapPin
+        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary-600"
+        aria-hidden="true"
+      />
+      <select
         id={id}
-        title="Tu usuario trabaja en esta sede"
-        className={cn(
-          "flex items-center gap-1.5 rounded-full border border-line bg-surface-muted px-3 py-1.5 text-sm text-fg-muted",
-          className
-        )}
+        aria-label="Sede"
+        value={sedeSeleccionada ?? ""}
+        onChange={(e) => setSedeSeleccionada(e.target.value || null)}
+        className="w-full appearance-none rounded-full border border-line bg-surface py-1.5 pl-9 pr-8 text-sm font-medium text-fg transition-colors hover:border-line-strong focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/25"
       >
-        <MapPin className="h-4 w-4 shrink-0 text-primary-600" aria-hidden="true" />
-        <span className="truncate">{nombreSedeFija}</span>
-      </div>
-    ) : (
-      <div className={cn("relative", className)}>
-        <MapPin
-          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary-600"
-          aria-hidden="true"
-        />
-        <select
-          id={id}
-          aria-label="Sede"
-          value={sedeSeleccionada ?? ""}
-          onChange={(e) => setSedeSeleccionada(e.target.value || null)}
-          className="w-full appearance-none rounded-full border border-line bg-surface py-1.5 pl-9 pr-8 text-sm font-medium text-fg transition-colors hover:border-line-strong focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/25"
-        >
-          <option value="">Todas las sedes</option>
-          {sedes.map((sede) => (
-            <option key={sede.id} value={sede.id}>
-              {sede.nombre}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle"
-          aria-hidden="true"
-        />
-      </div>
-    );
+        <option value="">Todas las sedes</option>
+        {sedes.map((sede) => (
+          <option key={sede.id} value={sede.id}>
+            {sede.nombre}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle"
+        aria-hidden="true"
+      />
+    </div>
+  );
 
   return (
     <header

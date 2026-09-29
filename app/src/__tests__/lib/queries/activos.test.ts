@@ -29,22 +29,19 @@ describe('busquedaActivo', () => {
 
 // Filtros compartidos por la lista de Activos y su exportacion (SPEC 2.108).
 describe('whereFiltrosActivos', () => {
-  const admin = { user: { id: 'a', email: 'a@x', role: 'admin', sedeId: null } } as never;
-  const tecnico = { user: { id: 't', email: 't@x', role: 'tecnico', sedeId: 'conce' } } as never;
-
   test('un estado que no existe (como "por_llegar") se ignora en vez de romper', () => {
-    expect(whereFiltrosActivos(admin, { estado: 'por_llegar' })).not.toHaveProperty('estado');
-    expect(whereFiltrosActivos(admin, { estado: 'disponible' }).estado).toBe('disponible');
+    expect(whereFiltrosActivos({ estado: 'por_llegar' })).not.toHaveProperty('estado');
+    expect(whereFiltrosActivos({ estado: 'disponible' }).estado).toBe('disponible');
   });
 
-  test('el tecnico ve solo su sede aunque pida otra', () => {
-    const where = whereFiltrosActivos(tecnico, { sedeIdFiltro: 'stgo' });
-    expect(JSON.stringify(where)).toContain('conce');
-    expect(JSON.stringify(where)).not.toContain('stgo');
+  // SPEC 2.117: la sede no restringe; la elegida en el navbar solo filtra.
+  test('filtra por la sede elegida; sin sede, trae todas', () => {
+    expect(whereFiltrosActivos({ sedeIdFiltro: 'stgo' }).sedeId).toBe('stgo');
+    expect(whereFiltrosActivos({})).not.toHaveProperty('sedeId');
   });
 
   test('"Por llegar" trae lo que viene a mi sede, sin filtrar por la sede del equipo', () => {
-    const where = whereFiltrosActivos(admin, { porLlegar: true, sedeIdFiltro: 'conce' });
+    const where = whereFiltrosActivos({ porLlegar: true, sedeIdFiltro: 'conce' });
     expect(where.estado).toBe('en_transito');
     expect(where).not.toHaveProperty('sedeId');
     expect(JSON.stringify(where.dispatchItems)).toContain('conce');
@@ -53,10 +50,9 @@ describe('whereFiltrosActivos', () => {
 
 // Filtros por datos de catalogo, combinables (SPEC 2.116.6).
 describe('filtros por marca, sistema operativo, antivirus, licencia y motivo de baja', () => {
-  const admin = { user: { id: 'a', email: 'a@x', role: 'admin', sedeId: null } } as never;
 
   test('varios filtros se suman con la categoria, el estado y la busqueda', () => {
-    const where = whereFiltrosActivos(admin, {
+    const where = whereFiltrosActivos({
       estado: 'disponible',
       categoriaId: 'c1',
       search: 'probook',
@@ -68,15 +64,15 @@ describe('filtros por marca, sistema operativo, antivirus, licencia y motivo de 
   });
 
   test('"Sin ..." busca los que no tienen el dato', () => {
-    const where = whereFiltrosActivos(admin, { datos: { antivirus: SIN_DATO } });
+    const where = whereFiltrosActivos({ datos: { antivirus: SIN_DATO } });
     expect(where.AND).toEqual([{ OR: [{ antivirus: null }, { antivirus: '' }] }]);
   });
 
   test('motivo de baja: por la mantencion de baja, o bajas sin motivo', () => {
-    expect(whereFiltrosActivos(admin, { datos: { motivoBaja: 'm1' } }).AND).toEqual([
+    expect(whereFiltrosActivos({ datos: { motivoBaja: 'm1' } }).AND).toEqual([
       { maintenances: { some: { motivoBajaId: 'm1' } } },
     ]);
-    expect(whereFiltrosActivos(admin, { datos: { motivoBaja: SIN_DATO } }).AND).toEqual([
+    expect(whereFiltrosActivos({ datos: { motivoBaja: SIN_DATO } }).AND).toEqual([
       { estado: 'baja', maintenances: { none: { motivoBajaId: { not: null } } } },
     ]);
   });

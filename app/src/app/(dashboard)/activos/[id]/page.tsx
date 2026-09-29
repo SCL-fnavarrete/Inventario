@@ -1,11 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "@/lib/auth";
-import type { SesionAutenticada } from "@/lib/auth/guard";
-import { puedeVerActivo } from "@/lib/queries/activos";
-import { tieneVisibilidadTotal } from "@/lib/auth/sedeScope";
 import {
   Edit,
   User,
@@ -120,20 +115,6 @@ export default async function DetalleActivoPage({
     notFound();
   }
 
-  // Sede isolation: this page queries Prisma directly (not through
-  // /api/activos/:id), so the API's assertSedeAccess check doesn't apply
-  // here and must be replicated. Returns 404 (not 403) to avoid revealing
-  // that the record exists in another sede.
-  const session = (await getServerSession(authOptions)) as SesionAutenticada | null;
-  if (!session) {
-    notFound();
-  }
-  // La sede destino ve un equipo que viene en camino a ella (SPEC 2.108).
-  // La misma regla que la API (puedeVerActivo).
-  if (!(await puedeVerActivo(session, asset))) {
-    notFound();
-  }
-
   // Builds the specs object from whichever schema fields are set, without
   // assuming a fixed set per category (assets of the same category may
   // have different fields filled depending on when they were created).
@@ -155,10 +136,6 @@ export default async function DetalleActivoPage({
 
   // Por que no se puede dar de baja (null si se puede).
   const bloqueoBaja = motivoSinBaja(asset);
-  // El tecnico puede ver equipos de otra sede ("Por repartir" o que vienen
-  // hacia la suya), pero no actuar sobre ellos: sin botones que lleven a un
-  // rechazo (SPEC 2.111.6).
-  const soloLectura = !tieneVisibilidadTotal(session) && asset.sedeId !== session.user.sedeId;
 
   return (
     <div className="space-y-6">
@@ -173,9 +150,6 @@ export default async function DetalleActivoPage({
         title={`${asset.marca} ${asset.modelo}`}
         description={`${asset.categoria.nombre} • ${identificadorActivo(asset, "Sin n° de serie")}`}
         actions={
-          soloLectura ? (
-            <span className="text-sm text-fg-subtle">Solo lectura: el equipo es de {asset.sede?.nombre ?? "otra sede"}</span>
-          ) : (
           <div className="flex flex-wrap items-center gap-2">
             <Link href={`/activos/${asset.id}/editar`} className={buttonClasses()}>
               <Edit size={18} />
@@ -225,7 +199,6 @@ export default async function DetalleActivoPage({
               </Can>
             ) : null}
           </div>
-          )
         }
       />
 
