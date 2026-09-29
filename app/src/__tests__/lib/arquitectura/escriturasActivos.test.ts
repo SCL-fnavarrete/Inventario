@@ -9,8 +9,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const SRC = path.join(__dirname, '..', '..', '..');
-// El modulo Activos y sus propias rutas de API.
-const PERMITIDOS = [path.join('modules', 'activos'), path.join('app', 'api', 'activos')];
+// Solo el modulo Activos: sus rutas de API tambien llaman a su servicio.
+const PERMITIDOS = [path.join('modules', 'activos')];
 const ESCRITURA = /\.(asset|assetHistory)\.(create|createMany|update|updateMany|upsert|delete|deleteMany)\(/;
 
 function archivos(dir: string): string[] {

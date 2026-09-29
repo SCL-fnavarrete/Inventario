@@ -1,7 +1,13 @@
 import type { EstadoActivo, Prisma } from '@prisma/client';
-import { ConflictError, errorRepetido, ValidationError } from '@/shared/errores';
+import { prisma } from '@/shared/prisma';
+import { logger } from '@/shared/logger';
+import { ConflictError, errorRepetido, NotFoundError, ValidationError } from '@/shared/errores';
 import { MENSAJE_CAMBIO_SIMULTANEO } from '@/shared/utilidades/concurrencia';
-import type { CreateAssetInput } from '@/modules/activos/validaciones';
+import {
+  MENSAJE_GARANTIA_ANTES_DE_COMPRA,
+  terminaAntesDeEmpezar,
+} from '@/shared/validaciones/ordenFechas';
+import type { CreateAssetInput, UpdateAssetInput } from '@/modules/activos/validaciones';
 import { assetHistoryService, type AssetHistoryData } from '@/modules/activos/historial';
 import { validateTransition, type TransitionContext } from '@/modules/activos/maquinaEstados';
 
@@ -179,4 +185,198 @@ export async function descartarActivo(tx: Tx, assetId: string, motivo: string, u
     tx
   );
   return tx.asset.update({ where: { id: assetId }, data: { deletedAt: new Date() } });
+}
+
+/** Pulgadas del formulario (texto o numero) a numero, o null si viene vacio. */
+function leerPulgadas(value: string | number | null | undefined): number | null {
+  if (value === undefined || value === null || value === '') return null;
+  const num = typeof value === 'number' ? value : parseFloat(value);
+  return isNaN(num) ? null : num;
+}
+
+/**
+ * Edita la ficha de un equipo (PUT /api/activos/[id]). El estado no se edita
+ * (SPEC 2.86): cada cambio pasa por su proceso, que deja los registros que lo
+ * respaldan (solicitud, mantencion, baja, venta). Los cambios de
+ * especificaciones quedan en el historial, en la misma transaccion.
+ */
+export async function editarActivo(id: string, datos: UpdateAssetInput, usuario: string) {
+  const existente = await prisma.asset.findUnique({ where: { id } });
+  if (!existente) throw new NotFoundError('Activo no encontrado');
+
+  // Si solo llega una de las dos fechas, se compara con la ya guardada.
+  if (
+    terminaAntesDeEmpezar(
+      datos.fechaCompra !== undefined ? datos.fechaCompra : existente.fechaCompra,
+      datos.fechaGarantiaFin !== undefined ? datos.fechaGarantiaFin : existente.fechaGarantiaFin
+    )
+  ) {
+    throw new ValidationError(MENSAJE_GARANTIA_ANTES_DE_COMPRA, [
+      { field: 'fechaGarantiaFin', message: MENSAJE_GARANTIA_ANTES_DE_COMPRA },
+    ]);
+  }
+  // IMEI obligatorio si queda en una categoria de celular, y que no se
+  // repita (SPEC 2.112.7).
+  await reglasIdentificacion(
+    prisma,
+    {
+      categoriaId: datos.categoriaId ?? existente.categoriaId,
+      imei: datos.imei !== undefined ? datos.imei : existente.imei,
+    },
+    { crear: false, exceptoId: id }
+  );
+
+  if (datos.numeroSerie && datos.numeroSerie !== existente.numeroSerie) {
+    const repetido = await prisma.asset.findUnique({ where: { numeroSerie: datos.numeroSerie } });
+    if (repetido) throw errorRepetido('numeroSerie', 'Ya existe un activo con este número de serie');
+  }
+
+  // Editarlo a mano dejaba incoherencias: "asignado" sin empleado, o
+  // "disponible" con la asignacion todavia activa.
+  if (datos.estado && datos.estado !== existente.estado) {
+    throw new ConflictError(
+      'El estado no se edita: cambia con su proceso (solicitudes, mantenciones, baja o venta).'
+    );
+  }
+
+  // Cambios en especificaciones tecnicas, para el historial.
+  const specsAnteriores: Record<string, unknown> = {};
+  const specsNuevos: Record<string, unknown> = {};
+  for (const field of ['procesador', 'ram', 'discoDuro', 'sistemaOperativo', 'pulgadas'] as const) {
+    if (datos[field] === undefined) continue;
+    // Pulgadas se compara como numero: la base guarda un decimal y el
+    // formulario manda texto ("14"), que si no parecen distintos.
+    const antes =
+      field === 'pulgadas'
+        ? existente.pulgadas === null
+          ? null
+          : Number(existente.pulgadas)
+        : existente[field];
+    const ahora = field === 'pulgadas' ? leerPulgadas(datos.pulgadas) : datos[field];
+    if (ahora !== antes) {
+      specsAnteriores[field] = antes;
+      specsNuevos[field] = ahora;
+    }
+  }
+
+  // El historial y el update van juntos: si el update falla, el historial no
+  // registra un cambio que nunca ocurrio.
+  return prisma.$transaction(async (tx) => {
+    if (Object.keys(specsNuevos).length > 0) {
+      await assetHistoryService.registrarActualizacionSpecs(
+        id,
+        specsAnteriores as Prisma.InputJsonValue,
+        specsNuevos as Prisma.InputJsonValue,
+        usuario,
+        tx
+      );
+    }
+
+    return tx.asset.update({
+      where: { id },
+      data: {
+        ...(datos.categoriaId && { categoriaId: datos.categoriaId }),
+        ...(datos.marca && { marca: datos.marca }),
+        ...(datos.modelo && { modelo: datos.modelo }),
+        ...(datos.numeroSerie !== undefined && { numeroSerie: datos.numeroSerie || null }),
+        ...(datos.condicion && { condicion: datos.condicion }),
+        ...(datos.fechaCompra !== undefined && {
+          fechaCompra: datos.fechaCompra ? new Date(datos.fechaCompra) : null,
+        }),
+        ...(datos.fechaGarantiaFin !== undefined && {
+          fechaGarantiaFin: datos.fechaGarantiaFin ? new Date(datos.fechaGarantiaFin) : null,
+        }),
+        ...(datos.procesador !== undefined && { procesador: datos.procesador || null }),
+        ...(datos.ram !== undefined && { ram: datos.ram || null }),
+        ...(datos.discoDuro !== undefined && { discoDuro: datos.discoDuro || null }),
+        ...(datos.sistemaOperativo !== undefined && {
+          sistemaOperativo: datos.sistemaOperativo || null,
+        }),
+        ...(datos.imei !== undefined && { imei: datos.imei || null }),
+        ...(datos.numeroTelefono !== undefined && { numeroTelefono: datos.numeroTelefono || null }),
+        ...(datos.numeroActivacion !== undefined && {
+          numeroActivacion: datos.numeroActivacion || null,
+        }),
+        ...(datos.tipoPlan !== undefined && { tipoPlan: datos.tipoPlan || null }),
+        ...(datos.tieneCargador !== undefined && { tieneCargador: datos.tieneCargador }),
+        ...(datos.pulgadas !== undefined && { pulgadas: leerPulgadas(datos.pulgadas) }),
+        ...(datos.ubicacionFisica !== undefined && {
+          ubicacionFisica: datos.ubicacionFisica || null,
+        }),
+        ...(datos.microsoft365 !== undefined && { microsoft365: datos.microsoft365 }),
+        ...(datos.tipoLicenciaMicrosoft365 !== undefined && {
+          tipoLicenciaMicrosoft365: datos.tipoLicenciaMicrosoft365 || null,
+        }),
+        ...(datos.intuneEnrolled !== undefined && { intuneEnrolled: datos.intuneEnrolled }),
+        ...(datos.listaDistribucion !== undefined && {
+          listaDistribucion: datos.listaDistribucion || null,
+        }),
+        ...(datos.observaciones !== undefined && { observaciones: datos.observaciones || null }),
+        ...(datos.antivirus !== undefined && { antivirus: datos.antivirus || null }),
+        ...(datos.incidencia !== undefined && { incidencia: datos.incidencia || null }),
+        ...(datos.nombreEquipo !== undefined && { nombreEquipo: datos.nombreEquipo || null }),
+        ...(datos.conectividad !== undefined && { conectividad: datos.conectividad || null }),
+      },
+    });
+  });
+}
+
+/**
+ * Elimina un equipo (DELETE /api/activos/[id]). Con historial o asignaciones
+ * no se borra: su registro es evidencia de auditoria (SPEC 2.7.7, ISO 9001
+ * 7.5.3); se da de baja, o se descarta si es un duplicado (con motivo). Solo
+ * se borra de verdad el que nunca tuvo movimientos.
+ */
+export async function eliminarActivo(
+  id: string,
+  opciones: { descartar: boolean; motivo?: string },
+  usuario: string
+) {
+  const existente = await prisma.asset.findUnique({
+    where: { id },
+    select: {
+      marca: true,
+      modelo: true,
+      estado: true,
+      deletedAt: true,
+      _count: { select: { history: true, assignments: true } },
+    },
+  });
+  if (!existente) throw new NotFoundError('Activo no encontrado');
+  if (existente.deletedAt) throw new ConflictError('Este activo ya estaba descartado');
+
+  // Un equipo en manos de alguien no se borra ni se descarta: primero se
+  // devuelve. Si no, la persona queda con un equipo que el sistema no ve.
+  if (existente.estado === 'asignado') {
+    throw new ConflictError('El activo está asignado. Registra la devolución antes de eliminarlo.');
+  }
+
+  if (opciones.descartar) {
+    if (!opciones.motivo) {
+      throw new ValidationError('Descartar un activo requiere indicar el motivo (parámetro `motivo`)');
+    }
+    const motivo = opciones.motivo;
+    const asset = await prisma.$transaction((tx) => descartarActivo(tx, id, motivo, usuario));
+    return { descartado: true, asset };
+  }
+
+  if (existente._count.history > 0 || existente._count.assignments > 0) {
+    throw new ConflictError(
+      'El activo tiene historial o asignaciones y no puede eliminarse: su registro es evidencia de auditoría. Dalo de baja en su lugar.',
+      {
+        eventosHistorial: existente._count.history,
+        asignaciones: existente._count.assignments,
+        alternativas: {
+          baja: `POST /api/mantenciones/baja`,
+          descartarDuplicado: `DELETE /api/activos/${id}?descartar=true&motivo=...`,
+        },
+      }
+    );
+  }
+
+  await prisma.asset.delete({ where: { id } });
+  logger.info(
+    `[activos] Borrado físico de ${existente.marca} ${existente.modelo} (${id}) por ${usuario}: sin historial ni asignaciones`
+  );
+  return { descartado: false };
 }
