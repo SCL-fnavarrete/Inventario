@@ -186,6 +186,8 @@ export async function crearSolicitud(
         const nuevo = await tx.employee.create({
           data: {
             ...data.nuevoEmpleado,
+            // La ficha toma la fecha de ingreso de la solicitud (SPEC 2.119).
+            fechaIngreso: data.nuevoEmpleado.fechaIngreso ?? data.fechaIngreso,
             estado: data.nuevoEmpleado.estado || 'activo',
             sedeId,
           },
@@ -205,6 +207,8 @@ export async function crearSolicitud(
         if (esReincorporacion) {
           cambiosEmpleado.estado = 'activo';
           cambiosEmpleado.fechaTermino = null;
+          // Vuelve a entrar: su ingreso es el de esta solicitud (SPEC 2.119).
+          cambiosEmpleado.fechaIngreso = data.fechaIngreso;
         }
         if (data.tipoContrato) {
           cambiosEmpleado.tipoContrato = data.tipoContrato;

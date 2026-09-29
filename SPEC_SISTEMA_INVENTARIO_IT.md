@@ -3940,9 +3940,21 @@ El código se organiza por dominio en `src/modules/<modulo>/` y lo transversal e
 - `cambiarEstado(tx, { activo, a, contexto, datos, exigir, historial })` (`modules/activos/servicio.ts`) es el único camino para cambiar el estado de un equipo: valida con la máquina de estados (409 si no corresponde), cambia solo si el equipo sigue como se leyó y cumple `exigir` (si no, 409) y anota el historial. Si el estado no cambia (un "no devuelto" que se vuelve a marcar), solo guarda los datos.
 - El historial se escribe con `assetHistoryService`; el alta desde el Excel con `crearActivoImportado`; las compras usan `fijarFechaCompra` y `moverSedeDeCompra`.
 - Pasan por `cambiarEstado`: iniciar, completar y cancelar mantenciones y dar de baja; entregar, devolver y "no devuelto" (solicitudes); cancelar una asignación; enviar, recibir, anular y "apareció" (despachos); repartir una compra; vender. Entregar, devolver, recibir e iniciar/salir de mantención antes no validaban la transición: ahora sí, y todos quedan protegidos ante cambios simultáneos.
-- Un test (`__tests__/lib/arquitectura/escriturasActivos.test.ts`) falla si algún archivo fuera de `modules/activos` (y sus rutas `/api/activos`) escribe en esas tablas.
+- Un test (`__tests__/lib/arquitectura/escriturasActivos.test.ts`) falla si algún archivo fuera de `modules/activos` escribe en esas tablas; desde la etapa 3, tampoco las rutas `/api/activos` (editar y eliminar usan `editarActivo` y `eliminarActivo`).
+- Etapa 3, **las rutas solo orquestan**: revisan el permiso, validan la petición con Zod, llaman al servicio del módulo y responden. La lógica vive en el servicio, que recibe datos ya validados y el usuario, y avisa con los errores de `shared/errores` (el mensaje y el código de cada respuesta no cambian). Servicios de esta etapa: `editarActivo`, `eliminarActivo` (Activos); `iniciarMantencion`, `cancelarMantencion`, `editarMantencion`, `eliminarMantencion`, `completarMantencion` (Mantenciones; completar como "Sin reparación" usa los mismos pasos que la baja, `darDeBajaEnTransaccion`, que ahora también guarda el costo); `crearSolicitud` (`solicitudes/crear.ts`) y `aplicarTransicion` (`solicitudes/transicion.ts`); `editarCompra`, `eliminarCompra` (Compras); `editarEmpleado` (`personas/servicio.ts`).
+- Al editar un equipo, las pulgadas se comparan como número: guardar sin cambiarlas ya no deja "Especificaciones actualizadas: Pulgadas" en el historial.
+- La respuesta de desvincular o reincorporar a una persona desde Editar (400) ya no trae `redirectTo`, que ninguna pantalla usaba; el mensaje sigue indicando la solicitud que corresponde.
+
+### 2.119 La ficha de la persona toma la fecha de ingreso del onboarding
+La fecha de ingreso de un onboarding quedaba solo en la solicitud: la ficha de la persona creada quedaba sin fecha de ingreso, y la regla "el término no puede ser anterior al ingreso" (2.114) no tenía con qué comparar.
+- Persona nueva: su ficha toma `fechaIngreso` de la solicitud, salvo que los datos de la persona traigan la suya.
+- Reincorporación (onboarding de alguien desvinculado): además de volver a "activo" y limpiar `fechaTermino`, su `fechaIngreso` pasa a ser la de esta solicitud.
+- Las fichas ya creadas no se corrigen solas: se completan al editarlas.
 
 ## Changelog SPEC
+- **v2.43 (2026-09-29):**
+  - Sección 2.118: etapa 3 del monolito modular, las rutas solo orquestan y la lógica pasa a los servicios de cada módulo; el test de arquitectura ya no deja escribir en las tablas de activos ni a las rutas `/api/activos`; pulgadas comparadas como número al editar; sin `redirectTo` al rechazar desvincular desde Editar.
+  - Sección 2.119 (nueva): la ficha de la persona toma la fecha de ingreso del onboarding (también al reincorporarse).
 - **v2.42 (2026-09-29):**
   - Sección 2.118 (nueva): arquitectura de monolito modular (`src/modules/` y `src/shared/`); solo Activos escribe sus tablas y todos los cambios de estado pasan por `cambiarEstado`, con validación de la máquina de estados y protección ante cambios simultáneos en todos los flujos.
 - **v2.41 (2026-09-29):**
