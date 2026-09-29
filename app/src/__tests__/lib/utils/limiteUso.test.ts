@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import { exigirCupo, LIMITES } from "@/lib/utils/limiteUso";
+import { exigirCupo, LIMITES } from "@/shared/utilidades/limiteUso";
 
 // Auditoria 28-sep-2026 (1.2): exportar, PDF e importar no se pueden repetir en bucle.
 const { max, ventanaMs } = LIMITES.exportar;

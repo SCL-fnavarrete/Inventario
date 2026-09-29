@@ -5,11 +5,11 @@
  * Transicion de solicitudes (auditoria 27-sep-2026, 5.2-C). Desde SPEC 2.117
  * la sede no restringe: un tecnico mueve solicitudes de cualquier sede.
  */
-jest.mock('@/lib/auth/guard', () => {
-  const real = jest.requireActual('@/lib/auth/guard');
+jest.mock('@/shared/auth/guard', () => {
+  const real = jest.requireActual('@/shared/auth/guard');
   return { ...real, requirePermission: jest.fn() };
 });
-jest.mock('@/lib/prisma', () => ({
+jest.mock('@/shared/prisma', () => ({
   prisma: {
     systemUser: { findUnique: jest.fn() },
     workflowRequest: { findUnique: jest.fn() },
@@ -18,8 +18,8 @@ jest.mock('@/lib/prisma', () => ({
 }));
 
 import { NextRequest } from 'next/server';
-import { requirePermission } from '@/lib/auth/guard';
-import { prisma } from '@/lib/prisma';
+import { requirePermission } from '@/shared/auth/guard';
+import { prisma } from '@/shared/prisma';
 import { POST } from '@/app/api/solicitudes/[id]/transicion/route';
 
 const tecnico = (sedeId: string) => ({ user: { id: 't1', email: 't@scl.cl', name: 'Téc', role: 'tecnico', sedeId } });

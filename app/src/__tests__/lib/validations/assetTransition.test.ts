@@ -1,7 +1,7 @@
 import {
   assetVentaSchema,
   resultadoMantencionEnum,
-} from '@/lib/validations/assetTransition';
+} from '@/modules/activos/validacionesTransicion';
 
 // SPEC: Sección 2.7.4 — Proceso de Venta
 describe('assetVentaSchema', () => {
@@ -62,7 +62,7 @@ describe('assetVentaSchema', () => {
 // `documentoVenta` (el campo ya no existe en assetVentaSchema -- vender un
 // activo ya no requiere documento) y el describe completo de
 // `maintenanceCloseSchema` (ese schema se elimino; el cierre de mantencion
-// ahora usa `completeMaintenanceSchema` en lib/validations/maintenance.ts,
+// ahora usa `completeMaintenanceSchema` en modules/mantenciones/validaciones.ts,
 // que reutiliza `resultadoMantencionEnum` de este mismo archivo -- ver
 // pruebas de ese enum mas abajo).
 

@@ -1,4 +1,4 @@
-import { enteroEnRango, leerPaginacion } from "@/lib/utils/paginacion";
+import { enteroEnRango, leerPaginacion } from "@/shared/utilidades/paginacion";
 
 // Auditoria 27-sep-2026: ningun listado entrega mas filas que su tope.
 const params = (q: string) => new URLSearchParams(q);

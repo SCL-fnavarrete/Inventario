@@ -1,4 +1,4 @@
-import { sinIdsDeUsuario } from "@/lib/utils/privacidad";
+import { sinIdsDeUsuario } from "@/shared/utilidades/privacidad";
 
 // Auditoria 27-sep-2026 (F1-01): las respuestas de la API no llevan el id
 // interno de los usuarios del sistema.

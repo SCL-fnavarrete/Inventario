@@ -2,16 +2,16 @@
  * @jest-environment node
  */
 // El IMEI identifica al celular donde no hay N° de serie (SPEC 2.112.7).
-jest.mock('@/lib/prisma', () => ({ prisma: {} }));
+jest.mock('@/shared/prisma', () => ({ prisma: {} }));
 // Solo se prueba el armado de la fila, no el PDF.
 jest.mock('@react-pdf/renderer', () => ({ renderToBuffer: jest.fn() }));
-jest.mock('@/lib/templates/AnexoEntregaTemplate', () => ({}));
-jest.mock('@/lib/templates/ComprobanteEntregaTemplate', () => ({}));
-jest.mock('@/lib/templates/ComprobanteCambioTemplate', () => ({}));
-jest.mock('@/lib/templates/ActaDevolucionTemplate', () => ({}));
+jest.mock('@/modules/solicitudes/plantillas/AnexoEntregaTemplate', () => ({}));
+jest.mock('@/modules/solicitudes/plantillas/ComprobanteEntregaTemplate', () => ({}));
+jest.mock('@/modules/solicitudes/plantillas/ComprobanteCambioTemplate', () => ({}));
+jest.mock('@/modules/solicitudes/plantillas/ActaDevolucionTemplate', () => ({}));
 
-import { identificadorActivo } from '@/lib/utils/identificador';
-import { filaEquipo } from '@/lib/services/documentGeneratorService';
+import { identificadorActivo } from '@/modules/activos/identificador';
+import { filaEquipo } from '@/modules/solicitudes/documentos';
 
 const base = {
   categoria: { nombre: 'Celular' },

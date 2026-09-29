@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/shared/prisma";
 import bcrypt from "bcryptjs";
-import { requirePermission, handleApiError, errorRepetido, errorDeCampo } from '@/lib/auth/guard';
-import { crearUsuarioSchema } from '@/lib/validations/usuario';
-import { exigirSedeActiva } from '@/lib/queries/sedes';
-import { auditLogService } from '@/lib/services/auditLogService';
-import { SELECT_USUARIO } from '@/lib/queries/usuarios';
+import { requirePermission, handleApiError, errorRepetido, errorDeCampo } from '@/shared/auth/guard';
+import { crearUsuarioSchema } from '@/modules/configuracion/validacionesUsuario';
+import { exigirSedeActiva } from '@/shared/sedes/consultas';
+import { auditLogService } from '@/shared/auditoria';
+import { SELECT_USUARIO } from '@/modules/configuracion/consultasUsuarios';
 
 export async function GET() {
   try {

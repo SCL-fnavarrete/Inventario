@@ -1,5 +1,5 @@
 // Datos de la factura de una compra, en Nueva y Editar compra (SPEC 2.103).
-import { validarDatosFactura } from '@/lib/validations/purchase';
+import { validarDatosFactura } from '@/modules/compras/validaciones';
 
 const completa = {
   sedeId: 'sede-1',

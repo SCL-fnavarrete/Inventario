@@ -4,7 +4,7 @@ import {
   limpiarRut,
   rutSchema,
   rutOptionalSchema,
-} from '@/lib/validations/rut'
+} from '@/shared/validaciones/rut'
 
 describe('RUT Validation - validarDigitoVerificador', () => {
   test('should validate correct RUTs', () => {

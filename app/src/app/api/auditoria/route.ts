@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError, ValidationError } from "@/lib/auth/guard";
-import { consultarAuditoria } from "@/lib/services/auditoriaService";
-import { MODULOS_AUDITORIA } from "@/lib/constants/auditoria";
-import { rangoDiasChile } from "@/lib/utils/fechas";
-import { leerPaginacion } from "@/lib/utils/paginacion";
+import { requirePermission, handleApiError, ValidationError } from "@/shared/auth/guard";
+import { consultarAuditoria } from "@/modules/configuracion/auditoria";
+import { MODULOS_AUDITORIA } from "@/modules/configuracion/etiquetasAuditoria";
+import { rangoDiasChile } from "@/shared/utilidades/fechas";
+import { leerPaginacion } from "@/shared/utilidades/paginacion";
 
 // Auditoria unificada (SPEC 2.112.8): los tres historiales (AuditLog,
 // AssetHistory y WorkflowTransition) en una sola consulta, con paginas

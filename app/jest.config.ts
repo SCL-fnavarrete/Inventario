@@ -42,34 +42,38 @@ const config: Config = {
   // inutil cualquier umbral. Las rutas de API entran en la Ola 4.3, con los
   // tests de integracion; los componentes, cuando haya tests de componente.
   collectCoverageFrom: [
-    'src/lib/**/*.{js,jsx,ts,tsx}',
-    'src/hooks/**/*.{js,jsx,ts,tsx}',
+    // Logica de los modulos y de shared, sin sus componentes React (igual que
+    // antes con lib/ y hooks/, sin components/).
+    'src/modules/**/*.{js,jsx,ts,tsx}',
+    '!src/modules/**/componentes/**',
+    'src/shared/**/*.{js,jsx,ts,tsx}',
+    '!src/shared/ui/**',
     'src/proxy.ts',
     '!src/**/*.d.ts',
     // Plantillas PDF: markup declarativo, se cubren via los tests de
     // documentos de la Ola 2.
-    '!src/lib/templates/**',
+    '!src/modules/solicitudes/plantillas/**',
   ],
   coverageThreshold: {
     // Matriz de permisos: logica pura y unico punto de verdad de la
     // autorizacion. Hoy 100%.
-    './src/lib/auth/permissions.ts': LOGICA_PURA,
+    './src/shared/auth/permisos.ts': LOGICA_PURA,
 
     // Maquinas de estado: hoy 100% en las cuatro metricas.
-    './src/lib/services/assetStateMachine.ts': LOGICA_PURA,
-    './src/lib/services/workflowStateMachine.ts': LOGICA_PURA,
+    './src/modules/activos/maquinaEstados.ts': LOGICA_PURA,
+    './src/modules/solicitudes/maquinaEstados.ts': LOGICA_PURA,
 
     // Schemas Zod con cobertura completa.
-    './src/lib/validations/asset.ts': LOGICA_PURA,
-    './src/lib/validations/assignment.ts': LOGICA_PURA,
-    './src/lib/validations/rut.ts': LOGICA_PURA,
+    './src/modules/activos/validaciones.ts': LOGICA_PURA,
+    './src/modules/asignaciones/validaciones.ts': LOGICA_PURA,
+    './src/shared/validaciones/rut.ts': LOGICA_PURA,
 
     // Schemas Zod cuyas ramas todavia no llegan a 90: el piso es el valor
     // real de hoy. Subirlo es trabajo de las olas siguientes.
-    './src/lib/validations/assetTransition.ts': { ...LOGICA_PURA, branches: 80 },
-    './src/lib/validations/maintenance.ts': { ...LOGICA_PURA, branches: 74 },
-    './src/lib/validations/employee.ts': { ...LOGICA_PURA, branches: 59 },
-    './src/lib/validations/workflow.ts': { ...LOGICA_PURA, branches: 42 },
+    './src/modules/activos/validacionesTransicion.ts': { ...LOGICA_PURA, branches: 80 },
+    './src/modules/mantenciones/validaciones.ts': { ...LOGICA_PURA, branches: 74 },
+    './src/modules/personas/validaciones.ts': { ...LOGICA_PURA, branches: 59 },
+    './src/modules/solicitudes/validaciones.ts': { ...LOGICA_PURA, branches: 42 },
 
     // OJO: Jest saca del pool global los archivos que ya tienen umbral propio
     // arriba. Por eso este numero (6.5% medido) es mucho mas bajo que el

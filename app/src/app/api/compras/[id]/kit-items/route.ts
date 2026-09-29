@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
-import { linkKitItemsToPurchaseSchema } from "@/lib/validations/purchase";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
-import { agregarLineasKit } from '@/lib/services/compraService';
+import { prisma } from "@/shared/prisma";
+import { linkKitItemsToPurchaseSchema } from "@/modules/compras/validaciones";
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { ConflictError, NotFoundError, ValidationError } from '@/shared/errores';
+import { agregarLineasKit } from '@/modules/compras/servicio';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

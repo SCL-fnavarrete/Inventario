@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 // Seguridad de usuarios y registro de accesos (SPEC 2.112).
-jest.mock('@/lib/prisma', () => {
+jest.mock('@/shared/prisma', () => {
   const prisma: Record<string, unknown> = {
     systemUser: { findUnique: jest.fn(), count: jest.fn(), update: jest.fn() },
     systemConfig: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -14,21 +14,21 @@ jest.mock('@/lib/prisma', () => {
   prisma.$transaction = jest.fn((fn: (tx: unknown) => unknown) => fn(prisma));
   return { prisma };
 });
-jest.mock('@/lib/auth/guard', () => {
-  const real = jest.requireActual('@/lib/auth/guard');
+jest.mock('@/shared/auth/guard', () => {
+  const real = jest.requireActual('@/shared/auth/guard');
   return { ...real, requirePermission: jest.fn() };
 });
-jest.mock('@/lib/services/auditLogService', () => ({
+jest.mock('@/shared/auditoria', () => ({
   auditLogService: { registrarActualizacion: jest.fn() },
 }));
 
 import { NextRequest } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { requirePermission } from '@/lib/auth/guard';
-import { authOptions } from '@/lib/auth';
-import { minutosDeBloqueo, datosCliente, cerrarSesion, duracionLegible } from '@/lib/services/accesoService';
-import { navegadorLegible } from '@/lib/constants/accesos';
-import { inicioDiaChile, rangoDiasChile } from '@/lib/utils/fechas';
+import { prisma } from '@/shared/prisma';
+import { requirePermission } from '@/shared/auth/guard';
+import { authOptions } from '@/shared/auth/opciones';
+import { minutosDeBloqueo, datosCliente, cerrarSesion, duracionLegible } from '@/modules/configuracion/accesos';
+import { navegadorLegible } from '@/modules/configuracion/etiquetasAccesos';
+import { inicioDiaChile, rangoDiasChile } from '@/shared/utilidades/fechas';
 import { PUT as editarUsuario } from '@/app/api/usuarios/[id]/route';
 
 const db = prisma as unknown as {

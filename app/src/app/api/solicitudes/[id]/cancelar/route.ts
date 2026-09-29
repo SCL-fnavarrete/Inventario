@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { cancelWorkflowRequestSchema } from '@/lib/validations/workflow';
-import { requirePermission, handleApiError, respuestaDatosInvalidos, ConflictError, usuarioDeSesion } from '@/lib/auth/guard';
-import { sinIdsDeUsuario } from '@/lib/utils/privacidad';
+import { prisma } from '@/shared/prisma';
+import { cancelWorkflowRequestSchema } from '@/modules/solicitudes/validaciones';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, ConflictError, usuarioDeSesion } from '@/shared/auth/guard';
+import { sinIdsDeUsuario } from '@/shared/utilidades/privacidad';
 
 // POST /api/solicitudes/[id]/cancelar - Cancela una solicitud que todavia no
 // ejecuto ningun efecto secundario sobre el inventario (assignmentIds y

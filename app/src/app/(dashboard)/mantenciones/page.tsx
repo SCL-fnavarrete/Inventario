@@ -12,21 +12,21 @@ import {
   Loader2,
   ListChecks,
 } from "lucide-react";
-import type { VistaMantencion } from "@/lib/queries/mantenciones";
-import { cn } from "@/lib/utils";
-import { Can } from "@/components/auth/Can";
-import { EstadoMantencionBadge, MantencionesTabs } from "@/components/mantenciones";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
-import { formatearFechaConHora } from "@/lib/utils/fechas";
-import { estaVencida } from "@/lib/utils/mantenciones";
-import { motivoSinBaja } from "@/lib/constants/estadosActivo";
-import { CategoryIcon } from "@/components/activos/CategoryIcon";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { StatCard, StatGrid } from "@/components/ui/StatCard";
-import { Pagination } from "@/components/ui/Pagination";
-import { identificadorActivo } from "@/lib/utils/identificador";
+import type { VistaMantencion } from "@/modules/mantenciones/consultas";
+import { cn } from "@/shared/cn";
+import { Can } from "@/shared/ui/Can";
+import { EstadoMantencionBadge, MantencionesTabs } from "@/modules/mantenciones/componentes";
+import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
+import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
+import { formatearFechaConHora } from "@/shared/utilidades/fechas";
+import { estaVencida } from "@/modules/mantenciones/utilidades";
+import { motivoSinBaja } from "@/modules/activos/estados";
+import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { StatCard, StatGrid } from "@/shared/ui/StatCard";
+import { Pagination } from "@/shared/ui/Pagination";
+import { identificadorActivo } from "@/modules/activos/identificador";
 
 type TipoMantencion = {
   id: string;

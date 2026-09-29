@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { createMaintenanceTypeSchema } from '@/lib/validations/maintenanceType';
-import { auditLogService } from '@/lib/services/auditLogService';
-import { assertNombreTipoLibre } from '@/lib/queries/mantenciones';
+import { prisma } from '@/shared/prisma';
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { createMaintenanceTypeSchema } from '@/modules/mantenciones/validacionesTipo';
+import { auditLogService } from '@/shared/auditoria';
+import { assertNombreTipoLibre } from '@/modules/mantenciones/consultas';
 
 // GET /api/mantenciones/tipos - Listar tipos de mantencion
 // Catalogo global (sin sedeId, igual que AssetCategory) -- ver nota en

@@ -1,6 +1,6 @@
 /** @jest-environment node */
 import { Prisma } from "@prisma/client";
-import { siSigueIgual, MENSAJE_CAMBIO_SIMULTANEO } from "@/lib/utils/concurrencia";
+import { siSigueIgual, MENSAJE_CAMBIO_SIMULTANEO } from "@/shared/utilidades/concurrencia";
 
 // Auditoria 28-sep-2026 (7.A-1): una escritura condicionada que ya no
 // encuentra la fila (otra operacion gano) responde 409.

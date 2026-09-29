@@ -1,9 +1,9 @@
 import NextAuth from "next-auth";
 import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
-import { authOptions } from "@/lib/auth";
-import { cerrarSesion, datosCliente } from "@/lib/services/accesoService";
-import { logger } from "@/lib/logger";
+import { authOptions } from "@/shared/auth/opciones";
+import { cerrarSesion, datosCliente } from "@/modules/configuracion/accesos";
+import { logger } from "@/shared/logger";
 
 // Fix for Next.js 16 + Turbopack: prevent static analysis of dynamic API route
 export const dynamic = 'force-dynamic';

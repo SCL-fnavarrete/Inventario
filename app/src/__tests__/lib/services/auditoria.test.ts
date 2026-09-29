@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 // Auditoria unificada (SPEC 2.112.8).
-jest.mock('@/lib/prisma', () => ({
+jest.mock('@/shared/prisma', () => ({
   prisma: {
     $queryRaw: jest.fn(),
     sede: { findMany: jest.fn() },
@@ -11,16 +11,16 @@ jest.mock('@/lib/prisma', () => ({
     maintenanceType: { findMany: jest.fn() },
   },
 }));
-jest.mock('@/lib/auth/guard', () => {
-  const real = jest.requireActual('@/lib/auth/guard');
+jest.mock('@/shared/auth/guard', () => {
+  const real = jest.requireActual('@/shared/auth/guard');
   return { ...real, requirePermission: jest.fn() };
 });
 
 import { NextRequest } from 'next/server';
 import type { Prisma } from '@prisma/client';
-import { prisma } from '@/lib/prisma';
-import { requirePermission } from '@/lib/auth/guard';
-import { cambiosLegibles, consultarAuditoria, contiene, valorLegible } from '@/lib/services/auditoriaService';
+import { prisma } from '@/shared/prisma';
+import { requirePermission } from '@/shared/auth/guard';
+import { cambiosLegibles, consultarAuditoria, contiene, valorLegible } from '@/modules/configuracion/auditoria';
 import { GET } from '@/app/api/auditoria/route';
 
 const db = prisma as unknown as Record<string, jest.Mock & Record<string, jest.Mock>>;

@@ -2,20 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { Save, Loader2 } from "lucide-react";
-import { parseApiError } from "@/lib/utils/apiErrors";
-import { useToast } from "@/components/ui/Toast";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { AvisoSeccion, CampoTexto, ResumenErrores } from "@/components/ui/CampoFormulario";
-import { useErroresFormulario } from "@/hooks/useErroresFormulario";
-import { formatearFechaHoraCorta } from "@/lib/utils/fechas";
+import { parseApiError } from "@/shared/utilidades/apiErrors";
+import { useToast } from "@/shared/ui/Toast";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { AvisoSeccion, CampoTexto, ResumenErrores } from "@/shared/ui/CampoFormulario";
+import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
+import { formatearFechaHoraCorta } from "@/shared/utilidades/fechas";
 import {
   ETIQUETAS_PARAMETROS,
   LIMITES_SEGURIDAD,
   SEGURIDAD_POR_DEFECTO,
   validarParametros,
   type CampoSeguridad,
-} from "@/lib/validations/parametros";
+} from "@/modules/configuracion/validacionesParametros";
 
 // Configuracion > Seguridad (SPEC 2.112): duracion de la sesion y bloqueo por
 // intentos fallidos, por cuenta y por equipo (2.112.6). Se guarda en SystemConfig (fila unica). Antes esta pagina

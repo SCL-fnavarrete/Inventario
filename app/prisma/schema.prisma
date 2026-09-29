@@ -1137,7 +1137,7 @@ enum EstadoPendiente {
 
 // Estado del cargador de un notebook al entregarlo o devolverlo
 // (Assignment.condicionCargadorEntrega / condicionCargadorDevolucion).
-// Etiquetas visibles en src/lib/constants/condicionCargador.ts.
+// Etiquetas visibles en src/modules/activos/condicionCargador.ts.
 enum CondicionCargador {
   operativo
   con_danos

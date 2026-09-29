@@ -4,7 +4,7 @@ import {
   getTransitionDescription,
   validateTransition,
   isTerminalState,
-} from '@/lib/services/assetStateMachine';
+} from '@/modules/activos/maquinaEstados';
 import { EstadoActivo } from '@prisma/client';
 
 // SPEC: Sección 2.7 — Máquina de Estados del Ciclo de Vida de Activos

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/shared/prisma";
 import {
   Edit,
   User,
@@ -13,17 +13,17 @@ import {
   DollarSign,
   Wrench,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/cn";
 import type { TipoEvento } from "@prisma/client";
-import { formatearFecha } from "@/lib/utils/fechas";
-import { CategoryIcon } from "@/components/activos/CategoryIcon";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { AssetStatusBadge } from "@/components/ui/Badge";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { CONDICION_ACTIVO_LABEL } from "@/lib/constants/estadosActivo";
-import { Can } from "@/components/auth/Can";
-import { motivoSinBaja, motivoSinMantencion } from "@/lib/constants/estadosActivo";
-import { identificadorActivo } from "@/lib/utils/identificador";
+import { formatearFecha } from "@/shared/utilidades/fechas";
+import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { AssetStatusBadge } from "@/shared/ui/Badge";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { CONDICION_ACTIVO_LABEL } from "@/modules/activos/estados";
+import { Can } from "@/shared/ui/Can";
+import { motivoSinBaja, motivoSinMantencion } from "@/modules/activos/estados";
+import { identificadorActivo } from "@/modules/activos/identificador";
 
 // Covers the full TipoEvento enum so no event type renders as raw text
 // in the audit history.
@@ -47,7 +47,7 @@ async function getAsset(id: string) {
     where: { id },
     include: {
       categoria: true,
-      // The asset's sede determines its visibility (see sedeScope.ts).
+      // The asset's sede determines its visibility (see shared/sedes/filtro.ts).
       sede: { select: { nombre: true } },
       empleadoActual: {
         select: { nombres: true, apellidoPaterno: true, rut: true },

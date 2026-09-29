@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { employeeFiltersSchema } from "@/lib/validations/employee";
+import { prisma } from "@/shared/prisma";
+import { employeeFiltersSchema } from "@/modules/personas/validaciones";
 import { Prisma } from "@prisma/client";
-import { coincideBusqueda } from "@/lib/utils/text";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { filtroSede } from '@/lib/auth/sedeScope';
+import { coincideBusqueda } from "@/shared/utilidades/text";
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { filtroSede } from '@/shared/sedes/filtro';
 
 // GET /api/empleados - Listar empleados con filtros y paginación
 export async function GET(request: NextRequest) {

@@ -1,6 +1,6 @@
 // Reglas de Configuracion > Seguridad, compartidas por pantalla y servidor (SPEC 2.102, 2.112).
-import { validarParametros } from '@/lib/validations/parametros';
-import { esCorreoValido } from '@/lib/utils/text';
+import { validarParametros } from '@/modules/configuracion/validacionesParametros';
+import { esCorreoValido } from '@/shared/utilidades/text';
 
 describe('validarParametros', () => {
   test('valores dentro de sus limites no tienen errores', () => {

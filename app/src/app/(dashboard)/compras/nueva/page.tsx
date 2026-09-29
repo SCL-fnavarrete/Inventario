@@ -15,29 +15,29 @@ import {
   PackagePlus,
   Shirt,
 } from "lucide-react";
-import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { useCampoSede } from "@/components/providers/SedeSeleccionadaProvider";
-import { hoyISO } from "@/lib/utils/fechas";
-import { Modal } from "@/components/ui/Modal";
+import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { useCampoSede } from "@/shared/ui/providers/SedeSeleccionadaProvider";
+import { hoyISO } from "@/shared/utilidades/fechas";
+import { Modal } from "@/shared/ui/Modal";
 import {
   ACTIVO_FORM_VACIO,
   ActivoForm,
   payloadActivo,
   type ActivoFormValues,
-} from "@/components/activos/ActivoForm";
-import { normalizarImei } from "@/lib/validations/imei";
+} from "@/modules/activos/componentes/ActivoForm";
+import { normalizarImei } from "@/modules/activos/imei";
 import {
   AvisoSeccion,
   ResumenErrores,
   claseCampo,
-} from "@/components/ui/CampoFormulario";
-import { useErroresFormulario } from "@/hooks/useErroresFormulario";
-import { ETIQUETAS_FACTURA, validarDatosFactura } from "@/lib/validations/purchase";
-import { CamposFactura, type DatosFactura } from "@/components/compras/CamposFactura";
-import { identificadorActivo } from "@/lib/utils/identificador";
+} from "@/shared/ui/CampoFormulario";
+import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
+import { ETIQUETAS_FACTURA, validarDatosFactura } from "@/modules/compras/validaciones";
+import { CamposFactura, type DatosFactura } from "@/modules/compras/componentes/CamposFactura";
+import { identificadorActivo } from "@/modules/activos/identificador";
 
 type Sede = {
   id: string;

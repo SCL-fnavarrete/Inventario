@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { VISTAS_GUIA } from '@/lib/queries/guias';
+import { prisma } from "@/shared/prisma";
+import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { VISTAS_GUIA } from '@/modules/despachos/consultas';
 
 // GET /api/guias-despacho/resumen - Numeros de las tarjetas de Guías (SPEC
 // 2.108). Cada tarjeta cuenta con la misma condicion que filtra la lista.

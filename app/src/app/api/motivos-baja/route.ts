@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from "@/lib/auth/guard";
-import { filtroSede } from "@/lib/auth/sedeScope";
-import { opcionCatalogoSchema } from "@/lib/validations/categoria";
-import { crearMotivoBaja, listarMotivosBaja } from "@/lib/services/motivoBajaService";
+import { requirePermission, handleApiError } from "@/shared/auth/guard";
+import { filtroSede } from "@/shared/sedes/filtro";
+import { opcionCatalogoSchema } from "@/modules/activos/validacionesCategoria";
+import { crearMotivoBaja, listarMotivosBaja } from "@/modules/mantenciones/motivosBaja";
 
 // Motivos de baja (SPEC 2.116.5). La logica vive en motivoBajaService.
 

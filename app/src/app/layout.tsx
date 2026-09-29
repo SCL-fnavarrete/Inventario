@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { Montserrat } from "next/font/google";
-import { temaInitScript } from "@/lib/tema";
+import { temaInitScript } from "@/shared/tema";
 import "./globals.css";
 
 // Tipografia de marca (sclconsultores.com). next/font la sirve desde el
@@ -24,7 +24,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   // Nonce de esta visita (lo genera proxy.ts): sin el, la CSP bloquea el
-  // script del tema (lib/seguridad/csp.ts).
+  // script del tema (shared/seguridad/csp.ts).
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     // suppressHydrationWarning: temaInitScript pone data-theme en <html>

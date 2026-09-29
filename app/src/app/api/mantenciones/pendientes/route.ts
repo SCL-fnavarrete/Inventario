@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { inicioDeHoy } from '@/lib/utils/fechas';
+import { prisma } from "@/shared/prisma";
+import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { inicioDeHoy } from '@/shared/utilidades/fechas';
 import {
   VISTAS_MANTENCION,
   filtroPeriodo,
   ventanaPeriodo,
   whereSedeMantencion,
-} from '@/lib/queries/mantenciones';
+} from '@/modules/mantenciones/consultas';
 
 // GET /api/mantenciones/pendientes - Contadores de las tarjetas de resumen
 // de Mantenciones. Cada tarjeta cuenta con la misma condicion que usa la

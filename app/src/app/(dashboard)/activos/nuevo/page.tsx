@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { ActivoForm, payloadActivo, type ActivoFormValues } from "@/components/activos/ActivoForm";
+import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { ActivoForm, payloadActivo, type ActivoFormValues } from "@/modules/activos/componentes/ActivoForm";
 
 export default function NuevoActivoPage() {
   const router = useRouter();

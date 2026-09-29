@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError, errorRepetido } from '@/lib/auth/guard';
-import { auditLogService } from '@/lib/services/auditLogService';
-import { crearSedeSchema } from '@/lib/validations/sede';
-import { exigirNombreSedeLibre, USO_SEDE } from '@/lib/queries/sedes';
+import { prisma } from "@/shared/prisma";
+import { requirePermission, handleApiError, errorRepetido } from '@/shared/auth/guard';
+import { auditLogService } from '@/shared/auditoria';
+import { crearSedeSchema } from '@/modules/configuracion/validacionesSede';
+import { exigirNombreSedeLibre, USO_SEDE } from '@/shared/sedes/consultas';
 
 /**
  * CRUD de sedes. Solo admin puede escribir: son datos maestros.

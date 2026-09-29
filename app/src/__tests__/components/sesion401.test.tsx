@@ -26,7 +26,7 @@ window.fetch = fetchReal;
 
 // Se importa despues de fijar window.fetch: el modulo lo envuelve al cargar.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { SessionProvider, MENSAJE_SESION_PERDIDA } = require("@/components/providers/SessionProvider");
+const { SessionProvider, MENSAJE_SESION_PERDIDA } = require("@/shared/ui/providers/SessionProvider");
 
 const respuesta = (status: number, cuerpo: unknown = {}) =>
   new Response(JSON.stringify(cuerpo), { status, headers: { "Content-Type": "application/json" } });

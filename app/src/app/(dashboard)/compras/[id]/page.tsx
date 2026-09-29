@@ -19,34 +19,34 @@ import {
   Split,
   Truck,
   CheckCircle } from "lucide-react";
-import { Can } from "@/components/auth/Can";
-import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
-import { formatearFechaLarga } from "@/lib/utils/fechas";
-import { CategoryIcon } from "@/components/activos/CategoryIcon";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
-import { useErroresFormulario } from "@/hooks/useErroresFormulario";
-import { ETIQUETAS_FACTURA, validarDatosFactura } from "@/lib/validations/purchase";
-import { CamposFactura } from "@/components/compras/CamposFactura";
-import { Modal } from "@/components/ui/Modal";
+import { Can } from "@/shared/ui/Can";
+import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
+import { formatearFechaLarga } from "@/shared/utilidades/fechas";
+import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import { ResumenErrores, claseCampo } from "@/shared/ui/CampoFormulario";
+import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
+import { ETIQUETAS_FACTURA, validarDatosFactura } from "@/modules/compras/validaciones";
+import { CamposFactura } from "@/modules/compras/componentes/CamposFactura";
+import { Modal } from "@/shared/ui/Modal";
 import {
   ACTIVO_FORM_VACIO,
   ActivoForm,
   payloadActivo,
   type ActivoFormValues,
-} from "@/components/activos/ActivoForm";
+} from "@/modules/activos/componentes/ActivoForm";
 import {
   ESTADO_REPARTO_BADGE,
   ESTADO_REPARTO_LABEL,
   type AvanceReparto,
-} from "@/lib/constants/repartoCompra";
-import { cn } from "@/lib/utils";
-import { VentanaReparto } from "@/components/compras/VentanaReparto";
-import { ESTADO_GUIA_COLORS, ESTADO_GUIA_LABELS } from "@/types/guia-despacho";
+} from "@/modules/compras/reparto";
+import { cn } from "@/shared/cn";
+import { VentanaReparto } from "@/modules/compras/componentes/VentanaReparto";
+import { ESTADO_GUIA_COLORS, ESTADO_GUIA_LABELS } from "@/modules/despachos/tipos";
 import type { EstadoGuia } from "@prisma/client";
-import { identificadorActivo } from "@/lib/utils/identificador";
+import { identificadorActivo } from "@/modules/activos/identificador";
 
 /**
  * Confirmacion en modal propio, en vez de confirm()/alert() del navegador:

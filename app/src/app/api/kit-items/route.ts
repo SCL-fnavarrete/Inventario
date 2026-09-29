@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError, errorRepetido } from '@/lib/auth/guard';
-import { filtroSede, sedeIdParaCrear } from '@/lib/auth/sedeScope';
-import { exigirSedeActiva } from "@/lib/queries/sedes";
-import { createKitItemSchema } from '@/lib/validations/kitItem';
-import { auditLogService } from '@/lib/services/auditLogService';
+import { prisma } from "@/shared/prisma";
+import { requirePermission, handleApiError, errorRepetido } from '@/shared/auth/guard';
+import { filtroSede, sedeIdParaCrear } from '@/shared/sedes/filtro';
+import { exigirSedeActiva } from "@/shared/sedes/consultas";
+import { createKitItemSchema } from '@/modules/kit-epp/validaciones';
+import { auditLogService } from '@/shared/auditoria';
 
 // GET /api/kit-items?categoria=kit_bienvenida|epp
 // Catalogo de articulos de Kit de Bienvenida y EPP, con su stock actual.

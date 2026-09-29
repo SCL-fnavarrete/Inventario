@@ -1,25 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { leerPaginacion } from "@/lib/utils/paginacion";
+import { prisma } from "@/shared/prisma";
+import { leerPaginacion } from "@/shared/utilidades/paginacion";
 import { EstadoGuia, Prisma } from "@prisma/client";
 import {
   requirePermission,
   handleApiError,
   respuestaErroresCampos,
   errorDeCampo,
-} from '@/lib/auth/guard';
-import { sedeIdParaCrear } from '@/lib/auth/sedeScope';
-import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+} from '@/shared/auth/guard';
+import { sedeIdParaCrear } from '@/shared/sedes/filtro';
+import { ACTIVOS_VIGENTES } from '@/modules/activos/consultas';
 import {
   VISTAS_GUIA,
   type VistaGuia,
-} from '@/lib/queries/guias';
-import { crearDespacho, crearGuiaConNumero, sedeDestinoValida } from '@/lib/services/guiaDespachoService';
-import { ETIQUETAS_GUIA, validarNuevaGuia } from '@/lib/validations/guia';
-import { etiquetaEstadoActivo } from '@/lib/constants/estadosActivo';
-import { coincideBusqueda } from '@/lib/utils/text';
-import { ordenarComo, paginarCoincidencias } from "@/lib/utils/busquedaEnMemoria";
-import { identificadorActivo } from '@/lib/utils/identificador';
+} from '@/modules/despachos/consultas';
+import { crearDespacho, crearGuiaConNumero, sedeDestinoValida } from '@/modules/despachos/servicio';
+import { ETIQUETAS_GUIA, validarNuevaGuia } from '@/modules/despachos/validaciones';
+import { etiquetaEstadoActivo } from '@/modules/activos/estados';
+import { coincideBusqueda } from '@/shared/utilidades/text';
+import { ordenarComo, paginarCoincidencias } from "@/shared/utilidades/busquedaEnMemoria";
+import { identificadorActivo } from '@/modules/activos/identificador';
 
 // GET /api/guias-despacho - Listar guías de despacho
 export async function GET(request: NextRequest) {

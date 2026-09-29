@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/Button";
-import { buttonClasses } from "@/components/ui/buttonStyles";
+import { Button } from "@/shared/ui/Button";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
 
 /**
  * Error inesperado al mostrar una pantalla del sistema (auditoria

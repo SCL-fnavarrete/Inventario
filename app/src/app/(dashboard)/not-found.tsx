@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { buttonClasses } from "@/components/ui/buttonStyles";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
 
 /**
  * Registro inexistente dentro del sistema: la ficha llama a notFound().

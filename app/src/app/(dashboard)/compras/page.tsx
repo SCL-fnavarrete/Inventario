@@ -12,20 +12,20 @@ import {
   RefreshCw,
   Split,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Can } from "@/components/auth/Can";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
-import { formatearFecha } from "@/lib/utils/fechas";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { StatCard, StatGrid } from "@/components/ui/StatCard";
-import { Pagination } from "@/components/ui/Pagination";
+import { cn } from "@/shared/cn";
+import { Can } from "@/shared/ui/Can";
+import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
+import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
+import { formatearFecha } from "@/shared/utilidades/fechas";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { StatCard, StatGrid } from "@/shared/ui/StatCard";
+import { Pagination } from "@/shared/ui/Pagination";
 import {
   ESTADO_REPARTO_BADGE,
   ESTADO_REPARTO_LABEL,
   type AvanceReparto,
-} from "@/lib/constants/repartoCompra";
+} from "@/modules/compras/reparto";
 
 type Purchase = {
   id: string;

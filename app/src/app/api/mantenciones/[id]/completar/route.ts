@@ -1,24 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { completeMaintenanceSchema } from "@/lib/validations/maintenance";
+import { prisma } from "@/shared/prisma";
+import { completeMaintenanceSchema } from "@/modules/mantenciones/validaciones";
 import {
   requirePermission,
   handleApiError,
   respuestaDatosInvalidos,
   ConflictError,
-} from '@/lib/auth/guard';
+} from '@/shared/auth/guard';
 import {
   cancelarAbiertasPorBaja,
   registrarSalidaDeMantencion,
-} from '@/lib/services/mantencionActivoService';
-import { assetHistoryService } from '@/lib/services/assetHistoryService';
-import { auditLogService } from '@/lib/services/auditLogService';
-import { validateTransition } from '@/lib/services/assetStateMachine';
-import { formatearFechaCorta } from '@/lib/utils/fechas';
-import { etiquetaResultadoMantencion } from '@/lib/constants/resultadosMantencion';
-import { motivoSinBaja } from '@/lib/constants/estadosActivo';
-import { siSigueIgual } from '@/lib/utils/concurrencia';
-import { motivoParaBaja } from '@/lib/services/motivoBajaService';
+} from '@/modules/mantenciones/servicio';
+import { assetHistoryService } from '@/modules/activos/historial';
+import { auditLogService } from '@/shared/auditoria';
+import { validateTransition } from '@/modules/activos/maquinaEstados';
+import { formatearFechaCorta } from '@/shared/utilidades/fechas';
+import { etiquetaResultadoMantencion } from '@/modules/mantenciones/resultados';
+import { motivoSinBaja } from '@/modules/activos/estados';
+import { siSigueIgual } from '@/shared/utilidades/concurrencia';
+import { motivoParaBaja } from '@/modules/mantenciones/motivosBaja';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

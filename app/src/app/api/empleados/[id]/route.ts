@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { updateEmployeeSchema } from "@/lib/validations/employee";
+import { prisma } from "@/shared/prisma";
+import { updateEmployeeSchema } from "@/modules/personas/validaciones";
 import {
   requirePermission,
   handleApiError,
@@ -8,12 +8,12 @@ import {
   errorRepetido,
   errorDeCampo,
   ValidationError,
-} from '@/lib/auth/guard';
+} from '@/shared/auth/guard';
 import {
   MENSAJE_TERMINO_ANTES_DE_INGRESO,
   terminaAntesDeEmpezar,
-} from "@/lib/validations/ordenFechas";
-import { auditLogService } from '@/lib/services/auditLogService';
+} from "@/shared/validaciones/ordenFechas";
+import { auditLogService } from '@/shared/auditoria';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

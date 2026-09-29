@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
-import { agregarEquiposCompraSchema } from "@/lib/validations/purchase";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { NotFoundError, ValidationError } from '@/lib/errors';
+import { prisma } from "@/shared/prisma";
+import { agregarEquiposCompraSchema } from "@/modules/compras/validaciones";
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { NotFoundError, ValidationError } from '@/shared/errores';
 import {
   agregarEquiposNuevos,
   quitarEquipo,
   vincularEquiposExistentes,
   sinAsignacion,
-} from '@/lib/services/compraService';
+} from '@/modules/compras/servicio';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

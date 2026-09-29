@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 // Repartir una compra (SPEC 2.111.3): a la sede de llegada o con un despacho.
-jest.mock('@/lib/prisma', () => ({
+jest.mock('@/shared/prisma', () => ({
   prisma: {
     purchase: { findUnique: jest.fn() },
     sede: { findUnique: jest.fn() },
@@ -10,8 +10,8 @@ jest.mock('@/lib/prisma', () => ({
   },
 }));
 
-import { prisma } from '@/lib/prisma';
-import { repartirCompra } from '@/lib/services/compraService';
+import { prisma } from '@/shared/prisma';
+import { repartirCompra } from '@/modules/compras/servicio';
 
 const STGO = '11111111-1111-4111-8111-111111111111';
 const CONCE = '22222222-2222-4222-8222-222222222222';

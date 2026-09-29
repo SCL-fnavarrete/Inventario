@@ -6,7 +6,7 @@ import {
   resolverCondicion,
   resolverEstado,
   tieneMicrosoft365,
-} from "@/lib/importacion/activos";
+} from "@/modules/importacion/reglasFila";
 
 describe("interpretarEstado", () => {
   it("reconoce un estado real del sistema", () => {

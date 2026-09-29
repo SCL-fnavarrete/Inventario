@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions } from "@/shared/auth/opciones";
 
 // Con una sesion valida no tiene sentido ver el login: se va al inicio. La
 // revision se hace aqui y no en el proxy, porque solo aqui se consulta

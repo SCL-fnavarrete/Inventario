@@ -6,7 +6,7 @@ import {
   hoyISO,
   inicioDeHoy,
   inputFechaHoraAISO,
-} from '@/lib/utils/fechas';
+} from '@/shared/utilidades/fechas';
 
 afterEach(() => {
   jest.useRealTimers();

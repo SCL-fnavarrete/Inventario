@@ -12,14 +12,14 @@ import {
   List,
   FileText,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Can } from "@/components/auth/Can";
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { Pagination } from "@/components/ui/Pagination";
-import { documentoDeSolicitud } from '@/lib/constants/documentosSolicitud';
+import { cn } from '@/shared/cn';
+import { Can } from "@/shared/ui/Can";
+import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { Pagination } from "@/shared/ui/Pagination";
+import { documentoDeSolicitud } from '@/modules/solicitudes/tiposDocumento';
 
 type WorkflowRequest = {
   id: string;

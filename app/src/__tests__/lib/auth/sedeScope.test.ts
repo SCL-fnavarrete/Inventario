@@ -1,6 +1,6 @@
 // La sede es un dato, no un candado (SPEC 2.117): todos ven y trabajan con
 // todas las sedes; la del navbar solo filtra.
-import { filtroSede, sedeIdParaCrear } from '@/lib/auth/sedeScope';
+import { filtroSede, sedeIdParaCrear } from '@/shared/sedes/filtro';
 
 describe('filtroSede', () => {
   test('con una sede elegida filtra por ella; sin sede, trae todas', () => {

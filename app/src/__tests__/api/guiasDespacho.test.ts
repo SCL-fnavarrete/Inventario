@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 // Guias en transito (SPEC 2.108): recibir, resolver faltantes y anular.
-jest.mock('@/lib/prisma', () => ({
+jest.mock('@/shared/prisma', () => ({
   prisma: {
     dispatchGuide: { findUnique: jest.fn() },
     // El equipo perdido usa el motivo "Extravío" de la lista (SPEC 2.116.5).
@@ -10,22 +10,22 @@ jest.mock('@/lib/prisma', () => ({
     $transaction: jest.fn(),
   },
 }));
-jest.mock('@/lib/auth/guard', () => {
-  const real = jest.requireActual('@/lib/auth/guard');
+jest.mock('@/shared/auth/guard', () => {
+  const real = jest.requireActual('@/shared/auth/guard');
   return { ...real, requirePermission: jest.fn() };
 });
-jest.mock('@/lib/services/auditLogService', () => ({
+jest.mock('@/shared/auditoria', () => ({
   auditLogService: { registrarActualizacion: jest.fn() },
 }));
-jest.mock('@/lib/services/mantencionActivoService', () => ({
+jest.mock('@/modules/mantenciones/servicio', () => ({
   tipoCorrectivaPorDefecto: jest.fn().mockResolvedValue({ id: 't1', nombre: 'Correctiva' }),
   darDeBajaEnTransaccion: jest.fn(),
 }));
 
 import { NextRequest } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { requirePermission } from '@/lib/auth/guard';
-import { darDeBajaEnTransaccion } from '@/lib/services/mantencionActivoService';
+import { prisma } from '@/shared/prisma';
+import { requirePermission } from '@/shared/auth/guard';
+import { darDeBajaEnTransaccion } from '@/modules/mantenciones/servicio';
 import { PATCH as recibir } from '@/app/api/guias-despacho/[id]/route';
 import { POST as resolverItem } from '@/app/api/guias-despacho/[id]/items/[itemId]/route';
 import { POST as anular } from '@/app/api/guias-despacho/[id]/anular/route';

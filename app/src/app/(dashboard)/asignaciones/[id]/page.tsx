@@ -18,11 +18,11 @@ import {
   Mail,
   Loader2,
 } from "lucide-react";
-import { etiquetaEstadoActivo } from "@/lib/constants/estadosActivo";
-import { cn } from "@/lib/utils";
-import { formatearFechaLarga, formatearFechaHoraCorta } from "@/lib/utils/fechas";
-import { CategoryIcon } from "@/components/activos/CategoryIcon";
-import { identificadorActivo } from "@/lib/utils/identificador";
+import { etiquetaEstadoActivo } from "@/modules/activos/estados";
+import { cn } from "@/shared/cn";
+import { formatearFechaLarga, formatearFechaHoraCorta } from "@/shared/utilidades/fechas";
+import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
+import { identificadorActivo } from "@/modules/activos/identificador";
 
 type Assignment = {
   id: string;

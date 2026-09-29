@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 // Catalogos de Activos (SPEC 2.112.7): categorias y opciones.
-jest.mock('@/lib/prisma', () => {
+jest.mock('@/shared/prisma', () => {
   const tabla = () => ({
     findMany: jest.fn(),
     findFirst: jest.fn(),
@@ -22,24 +22,24 @@ jest.mock('@/lib/prisma', () => {
   prisma.$transaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(prisma));
   return { prisma };
 });
-jest.mock('@/lib/auth/guard', () => {
-  const real = jest.requireActual('@/lib/auth/guard');
+jest.mock('@/shared/auth/guard', () => {
+  const real = jest.requireActual('@/shared/auth/guard');
   return { ...real, requirePermission: jest.fn() };
 });
-jest.mock('@/lib/services/auditLogService', () => ({
+jest.mock('@/shared/auditoria', () => ({
   auditLogService: { registrarCreacion: jest.fn(), registrarActualizacion: jest.fn(), registrarEliminacion: jest.fn() },
 }));
 
 import { NextRequest } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { requirePermission } from '@/lib/auth/guard';
-import { auditLogService } from '@/lib/services/auditLogService';
-import { crearOpcion, eliminarOpcion, listarOpciones, renombrarOpcion } from '@/lib/services/catalogoOpcionesService';
-import { categoriaSchema } from '@/lib/validations/categoria';
+import { prisma } from '@/shared/prisma';
+import { requirePermission } from '@/shared/auth/guard';
+import { auditLogService } from '@/shared/auditoria';
+import { crearOpcion, eliminarOpcion, listarOpciones, renombrarOpcion } from '@/modules/activos/catalogos';
+import { categoriaSchema } from '@/modules/activos/validacionesCategoria';
 import { DELETE as eliminarCategoria, PUT as editarCategoria } from '@/app/api/categorias/[id]/route';
-import { reglasIdentificacion } from '@/lib/services/activoService';
-import { validarImei } from '@/lib/validations/imei';
-import { procesarFila } from '@/lib/importacion/procesarFila';
+import { reglasIdentificacion } from '@/modules/activos/servicio';
+import { validarImei } from '@/modules/activos/imei';
+import { procesarFila } from '@/modules/importacion/procesarFila';
 
 const db = prisma as unknown as Record<string, Record<string, jest.Mock>>;
 const audit = auditLogService as unknown as Record<string, jest.Mock>;

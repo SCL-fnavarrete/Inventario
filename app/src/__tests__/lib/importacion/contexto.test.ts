@@ -1,10 +1,10 @@
 /** @jest-environment node */
-jest.mock("@/lib/prisma", () => ({
+jest.mock("@/shared/prisma", () => ({
   prisma: { $queryRaw: jest.fn(), asset: { findMany: jest.fn() } },
 }));
 
-import { prisma } from "@/lib/prisma";
-import { seriesEImeiExistentes } from "@/lib/importacion/contexto";
+import { prisma } from "@/shared/prisma";
+import { seriesEImeiExistentes } from "@/modules/importacion/contexto";
 
 // Auditoria 28-sep-2026 (3.2): la importacion busca solo las series e IMEI
 // de las filas que llegan, no toda la tabla.

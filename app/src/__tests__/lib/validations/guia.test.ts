@@ -1,5 +1,5 @@
 // Guia de despacho nueva: reglas compartidas por pantalla y servidor (SPEC 2.104).
-import { validarNuevaGuia, validarRecepcion } from '@/lib/validations/guia';
+import { validarNuevaGuia, validarRecepcion } from '@/modules/despachos/validaciones';
 
 const completa = {
   assetIds: ['a1'],

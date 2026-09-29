@@ -2,7 +2,7 @@ import {
   ACTIVO_FORM_VACIO,
   payloadActivo,
   valoresDesdeActivo,
-} from '@/components/activos/ActivoForm';
+} from '@/modules/activos/componentes/ActivoForm';
 
 // SPEC 2.77: Nuevo y Editar Activo comparten formulario; lo que difiere
 // por modo es deliberado y se verifica aca.

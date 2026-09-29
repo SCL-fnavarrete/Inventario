@@ -1,21 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/shared/prisma";
 import {
   requirePermission,
   handleApiError,
   respuestaErroresCampos,
   ConflictError,
-} from '@/lib/auth/guard';
-import { NotFoundError } from '@/lib/errors';
-import { auditLogService } from '@/lib/services/auditLogService';
+} from '@/shared/auth/guard';
+import { NotFoundError } from '@/shared/errores';
+import { auditLogService } from '@/shared/auditoria';
 import {
   INCLUDE_DETALLE_GUIA,
   actualizarEstadoGuia,
   buscarGuia,
   recibirEquipos,
   resolverKit,
-} from '@/lib/services/guiaDespachoService';
-import { ETIQUETAS_GUIA, validarRecepcion } from '@/lib/validations/guia';
+} from '@/modules/despachos/servicio';
+import { ETIQUETAS_GUIA, validarRecepcion } from '@/modules/despachos/validaciones';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

@@ -1,27 +1,27 @@
 /** @jest-environment node */
 // Auditoria 27-sep-2026, 2.5 y 2.9: reglas de negocio de empleados, sedes
 // desactivadas y numero de solicitud.
-jest.mock('@/lib/prisma', () => ({
+jest.mock('@/shared/prisma', () => ({
   prisma: {
     employee: { findUnique: jest.fn(), update: jest.fn() },
     assignment: { count: jest.fn() },
     sede: { findUnique: jest.fn() },
   },
 }));
-jest.mock('@/lib/auth/guard', () => {
-  const real = jest.requireActual('@/lib/auth/guard');
+jest.mock('@/shared/auth/guard', () => {
+  const real = jest.requireActual('@/shared/auth/guard');
   return { ...real, requirePermission: jest.fn() };
 });
-jest.mock('@/lib/services/auditLogService', () => ({
+jest.mock('@/shared/auditoria', () => ({
   auditLogService: { registrarActualizacion: jest.fn() },
 }));
 
 import { NextRequest } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { requirePermission } from '@/lib/auth/guard';
+import { prisma } from '@/shared/prisma';
+import { requirePermission } from '@/shared/auth/guard';
 import { PUT as editarEmpleado } from '@/app/api/empleados/[id]/route';
-import { exigirSedeActiva } from '@/lib/queries/sedes';
-import { generarNumeroSolicitud } from '@/lib/services/numeroSolicitud';
+import { exigirSedeActiva } from '@/shared/sedes/consultas';
+import { generarNumeroSolicitud } from '@/modules/solicitudes/numero';
 
 const db = prisma as unknown as Record<string, Record<string, jest.Mock>>;
 const ADMIN = { user: { id: 'yo', email: 'yo@x.cl', role: 'admin', sedeId: null } };

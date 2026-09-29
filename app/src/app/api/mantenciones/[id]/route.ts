@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { updateMaintenanceSchema } from "@/lib/validations/maintenance";
+import { prisma } from "@/shared/prisma";
+import { updateMaintenanceSchema } from "@/modules/mantenciones/validaciones";
 import {
   requirePermission,
   handleApiError,
   respuestaDatosInvalidos,
   ConflictError,
   NotFoundError,
-} from '@/lib/auth/guard';
-import { auditLogService } from '@/lib/services/auditLogService';
-import { validateTransition } from '@/lib/services/assetStateMachine';
-import { registrarSalidaDeMantencion } from '@/lib/services/mantencionActivoService';
-import { siSigueIgual } from '@/lib/utils/concurrencia';
-import { motivoSinMantencion } from '@/lib/constants/estadosActivo';
-import { formatearFechaConHora } from '@/lib/utils/fechas';
+} from '@/shared/auth/guard';
+import { auditLogService } from '@/shared/auditoria';
+import { validateTransition } from '@/modules/activos/maquinaEstados';
+import { registrarSalidaDeMantencion } from '@/modules/mantenciones/servicio';
+import { siSigueIgual } from '@/shared/utilidades/concurrencia';
+import { motivoSinMantencion } from '@/modules/activos/estados';
+import { formatearFechaConHora } from '@/shared/utilidades/fechas';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

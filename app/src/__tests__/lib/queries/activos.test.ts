@@ -1,6 +1,6 @@
 // Busqueda de activos compartida por Activos y Mantenciones (SPEC 2.90).
-import { busquedaActivo, leerFiltrosActivos, palabrasDeBusqueda, whereFiltrosActivos } from '@/lib/queries/activos';
-import { SIN_DATO } from '@/lib/constants/filtrosActivos';
+import { busquedaActivo, leerFiltrosActivos, palabrasDeBusqueda, whereFiltrosActivos } from '@/modules/activos/consultas';
+import { SIN_DATO } from '@/modules/activos/filtros';
 
 describe('palabrasDeBusqueda', () => {
   test('separa por espacios y descarta los sobrantes', () => {

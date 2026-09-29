@@ -1,4 +1,4 @@
-import { ordenarComo, paginarCoincidencias } from "@/lib/utils/busquedaEnMemoria";
+import { ordenarComo, paginarCoincidencias } from "@/shared/utilidades/busquedaEnMemoria";
 
 // Auditoria 28-sep-2026 (3.1): se filtra con las columnas de busqueda y solo
 // la pagina se trae completa.

@@ -4,22 +4,22 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Check, Loader2, Package, MapPin, User, CheckCircle } from "lucide-react";
-import { SelectorActivos } from "@/components/guias-despacho/SelectorActivos";
-import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { useCampoSede } from "@/components/providers/SedeSeleccionadaProvider";
+import { SelectorActivos } from "@/modules/despachos/componentes/SelectorActivos";
+import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { useCampoSede } from "@/shared/ui/providers/SedeSeleccionadaProvider";
 import {
   AvisoSeccion,
   CampoFormulario,
   CampoTexto,
   ResumenErrores,
   claseCampo,
-} from "@/components/ui/CampoFormulario";
-import { useErroresFormulario } from "@/hooks/useErroresFormulario";
-import { ETIQUETAS_GUIA, validarNuevaGuia } from "@/lib/validations/guia";
-import { ahoraParaInputFechaHora, inputFechaHoraAISO } from "@/lib/utils/fechas";
+} from "@/shared/ui/CampoFormulario";
+import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
+import { ETIQUETAS_GUIA, validarNuevaGuia } from "@/modules/despachos/validaciones";
+import { ahoraParaInputFechaHora, inputFechaHoraAISO } from "@/shared/utilidades/fechas";
 
 type Sede = {
   id: string;

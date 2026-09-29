@@ -1,7 +1,7 @@
 // Filtros de guias de despacho (SPEC 2.108). Ver, recibir y anular ya no
 // dependen de la sede (SPEC 2.117).
 
-import { VISTAS_GUIA, whereActivosPorLlegar } from '@/lib/queries/guias';
+import { VISTAS_GUIA, whereActivosPorLlegar } from '@/modules/despachos/consultas';
 
 describe('filtros de guias', () => {
   test('"Por recibir" son las en camino o con faltantes hacia la sede', () => {

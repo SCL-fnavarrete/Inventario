@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { logger } from "@/lib/logger";
-import { procesarFila } from "@/lib/importacion/procesarFila";
-import { armarContextoImportacion } from "@/lib/importacion/contexto";
-import { validarCantidadFilas } from "@/lib/importacion/validarArchivo";
-import type { CorrectedRow, ImportRowStatus, ImportBatchResult } from "@/types/import";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { exigirCupo } from "@/lib/utils/limiteUso";
+import { prisma } from "@/shared/prisma";
+import { logger } from "@/shared/logger";
+import { procesarFila } from "@/modules/importacion/procesarFila";
+import { armarContextoImportacion } from "@/modules/importacion/contexto";
+import { validarCantidadFilas } from "@/modules/importacion/validarArchivo";
+import type { CorrectedRow, ImportRowStatus, ImportBatchResult } from "@/modules/importacion/tipos";
+import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { exigirCupo } from "@/shared/utilidades/limiteUso";
 
 // Operacion pesada: hasta 60 s (Vercel corta antes por defecto).
 export const maxDuration = 60;

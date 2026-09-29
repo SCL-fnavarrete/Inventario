@@ -1,7 +1,7 @@
 // Validacion por campo compartida (SPEC 2.95).
 import { act, renderHook } from '@testing-library/react';
-import { useErroresFormulario } from '@/hooks/useErroresFormulario';
-import { textoResumenErrores } from '@/components/ui/CampoFormulario';
+import { useErroresFormulario } from '@/shared/hooks/useErroresFormulario';
+import { textoResumenErrores } from '@/shared/ui/CampoFormulario';
 
 const ETIQUETAS = { marca: 'Marca', modelo: 'Modelo' };
 

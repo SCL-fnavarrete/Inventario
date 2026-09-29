@@ -2,17 +2,17 @@
  * @jest-environment node
  */
 // Motivos de baja como lista administrable (SPEC 2.116.5).
-jest.mock('@/lib/prisma', () => ({
+jest.mock('@/shared/prisma', () => ({
   prisma: {
     motivoBaja: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn(), delete: jest.fn() },
   },
 }));
-jest.mock('@/lib/services/auditLogService', () => ({
+jest.mock('@/shared/auditoria', () => ({
   auditLogService: { registrarEliminacion: jest.fn() },
 }));
 
-import { prisma } from '@/lib/prisma';
-import { eliminarMotivoBaja, motivoParaBaja } from '@/lib/services/motivoBajaService';
+import { prisma } from '@/shared/prisma';
+import { eliminarMotivoBaja, motivoParaBaja } from '@/modules/mantenciones/motivosBaja';
 
 const db = prisma as unknown as {
   motivoBaja: Record<'findUnique' | 'findFirst' | 'update' | 'delete', jest.Mock>;

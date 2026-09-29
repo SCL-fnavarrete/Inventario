@@ -4,7 +4,7 @@ import {
   useCampoSede,
   useSedePorDefecto,
   useSedeSeleccionada,
-} from "@/components/providers/SedeSeleccionadaProvider";
+} from "@/shared/ui/providers/SedeSeleccionadaProvider";
 
 /**
  * SPEC 2.80: la sede del navbar es el valor por defecto de los formularios

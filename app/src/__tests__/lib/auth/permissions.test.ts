@@ -8,8 +8,8 @@ import {
   rolesQuePueden,
   type Accion,
   type Recurso,
-} from '@/lib/auth/permissions';
-import { canTransition } from '@/lib/services/workflowStateMachine';
+} from '@/shared/auth/permisos';
+import { canTransition } from '@/modules/solicitudes/maquinaEstados';
 
 // Solo dos roles reales: admin (administra todo) y tecnico (soporte
 // operativo, en todas las sedes -- SPEC 2.117).

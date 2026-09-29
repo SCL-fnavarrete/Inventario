@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { can } from "@/lib/auth/permissions";
+import { authOptions } from "@/shared/auth/opciones";
+import { can } from "@/shared/auth/permisos";
 
 // Todo el modulo de Configuracion es exclusivo de admin (ver el recurso
-// "configuracion" en permissions.ts). Este layout es el guard real, del
+// "configuracion" en shared/auth/permisos.ts). Este layout es el guard real, del
 // lado del servidor, para todo el arbol, ya que las paginas de esta
 // carpeta son client components sin chequeo propio.
 export default async function ConfiguracionLayout({

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { can } from "@/lib/auth/permissions";
+import { authOptions } from "@/shared/auth/opciones";
+import { can } from "@/shared/auth/permisos";
 
 // Registrar una compra es solo de admin (SPEC 2.111.1): el tecnico ve las
 // compras, pero no las registra. La pagina es un client component; este

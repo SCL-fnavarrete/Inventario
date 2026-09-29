@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { auditLogService } from '@/lib/services/auditLogService';
-import { categoriaSchema } from '@/lib/validations/categoria';
-import { exigirNombreCategoriaLibre, snapshotCategoria } from '@/lib/queries/categorias';
-import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
-import { filtroSede } from '@/lib/auth/sedeScope';
+import { prisma } from "@/shared/prisma";
+import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { auditLogService } from '@/shared/auditoria';
+import { categoriaSchema } from '@/modules/activos/validacionesCategoria';
+import { exigirNombreCategoriaLibre, snapshotCategoria } from '@/modules/activos/consultasCategorias';
+import { ACTIVOS_VIGENTES } from '@/modules/activos/consultas';
+import { filtroSede } from '@/shared/sedes/filtro';
 
 export async function GET(request: NextRequest) {
   try {

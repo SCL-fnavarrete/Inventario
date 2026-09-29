@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { exigirCupo } from "@/lib/utils/limiteUso";
-import { validarArchivoExcel } from "@/lib/importacion/validarArchivo";
-import { nombresDeHojas } from "@/lib/importacion/leerExcel";
+import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { exigirCupo } from "@/shared/utilidades/limiteUso";
+import { validarArchivoExcel } from "@/modules/importacion/validarArchivo";
+import { nombresDeHojas } from "@/modules/importacion/leerExcel";
 
 // Operacion pesada: hasta 60 s (Vercel corta antes por defecto).
 export const maxDuration = 60;

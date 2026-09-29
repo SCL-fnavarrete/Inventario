@@ -1,5 +1,5 @@
 // Documento de una solicitud (SPEC 2.92): una sola regla para lista y detalle.
-import { documentoDeSolicitud } from '@/lib/constants/documentosSolicitud';
+import { documentoDeSolicitud } from '@/modules/solicitudes/tiposDocumento';
 
 describe('documentoDeSolicitud', () => {
   test('onboarding cerrado: Comprobante de Entrega', () => {

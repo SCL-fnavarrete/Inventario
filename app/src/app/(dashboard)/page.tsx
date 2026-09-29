@@ -1,9 +1,9 @@
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import type { SesionAutenticada } from "@/lib/auth/guard";
-import { filtroSede } from "@/lib/auth/sedeScope";
-import { leerSedeFiltroDesdeCookie } from "@/lib/auth/sedeFiltroCookie";
-import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/shared/auth/opciones";
+import type { SesionAutenticada } from "@/shared/auth/guard";
+import { filtroSede } from "@/shared/sedes/filtro";
+import { leerSedeFiltroDesdeCookie } from "@/shared/sedes/cookie";
+import { prisma } from "@/shared/prisma";
 import {
   Users,
   CheckCircle,
@@ -16,15 +16,15 @@ import {
   DollarSign,
   UserX,
 } from "lucide-react";
-import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
-import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
-import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
-import { ESTADO_ACTIVO_COLOR } from "@/lib/constants/estadosActivo";
-import { CategoryIcon } from "@/components/activos/CategoryIcon";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { StatCard, StatGrid } from "@/components/ui/StatCard";
-import { ESTADO_ACTIVO_TONO } from "@/lib/constants/tonos";
-import { inicioDeHoy } from "@/lib/utils/fechas";
+import { DashboardCharts } from "@/modules/dashboard/componentes/DashboardCharts";
+import { AlertsPanel } from "@/modules/dashboard/componentes/AlertsPanel";
+import { ACTIVOS_VIGENTES } from '@/modules/activos/consultas';
+import { ESTADO_ACTIVO_COLOR } from "@/modules/activos/estados";
+import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { StatCard, StatGrid } from "@/shared/ui/StatCard";
+import { ESTADO_ACTIVO_TONO } from "@/shared/constantes/tonos";
+import { inicioDeHoy } from "@/shared/utilidades/fechas";
 
 /**
  * Trae todos los datos del Resumen del Dashboard en un unico batch de

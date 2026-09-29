@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { repartoCompraSchema } from "@/lib/validations/purchase";
-import { repartirCompra } from '@/lib/services/compraService';
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { repartoCompraSchema } from "@/modules/compras/validaciones";
+import { repartirCompra } from '@/modules/compras/servicio';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

@@ -10,19 +10,19 @@ import {
   ClipboardCheck,
   Download,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { ErrorReviewPanel } from "@/components/import/ErrorReviewPanel";
-import type { ImportPreviewResult, ImportBatchResult, CorrectedRow } from "@/types/import";
-import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
-import { ESTADOS_RECONOCIDOS } from "@/lib/importacion/activos";
-import { FILAS_POR_TANDA } from "@/lib/importacion/validarArchivo";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { useCampoSede } from "@/components/providers/SedeSeleccionadaProvider";
-import { StatCard, StatGrid } from "@/components/ui/StatCard";
-import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
-import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import { cn } from "@/shared/cn";
+import { ErrorReviewPanel } from "@/modules/importacion/componentes/ErrorReviewPanel";
+import type { ImportPreviewResult, ImportBatchResult, CorrectedRow } from "@/modules/importacion/tipos";
+import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
+import { ESTADOS_RECONOCIDOS } from "@/modules/importacion/reglasFila";
+import { FILAS_POR_TANDA } from "@/modules/importacion/validarArchivo";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { useCampoSede } from "@/shared/ui/providers/SedeSeleccionadaProvider";
+import { StatCard, StatGrid } from "@/shared/ui/StatCard";
+import { MensajeCampo, ResumenErrores, claseCampo } from "@/shared/ui/CampoFormulario";
+import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 
 type Category = {
   id: number;

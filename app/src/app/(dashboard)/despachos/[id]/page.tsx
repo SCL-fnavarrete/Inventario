@@ -15,9 +15,9 @@ import {
   AlertTriangle,
   Shirt,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { parseApiError } from "@/lib/utils/apiErrors";
-import { especificacionesActivoTexto } from "@/lib/utils/assetSpecs";
+import { cn } from "@/shared/cn";
+import { parseApiError } from "@/shared/utilidades/apiErrors";
+import { especificacionesActivoTexto } from "@/modules/activos/especificaciones";
 import {
   ESTADO_GUIA_LABELS,
   ESTADO_GUIA_COLORS,
@@ -27,25 +27,25 @@ import {
   type DispatchGuideDetail,
   type DispatchGuideItem,
   type DispatchGuideKitLine,
-} from "@/types/guia-despacho";
+} from "@/modules/despachos/tipos";
 import {
   ahoraParaInputFechaHora,
   formatearFechaLarga,
   formatearFechaHoraCorta,
   inputFechaHoraAISO,
-} from "@/lib/utils/fechas";
-import { AvisoSeccion, CampoTexto, ResumenErrores } from "@/components/ui/CampoFormulario";
-import { useErroresFormulario } from "@/hooks/useErroresFormulario";
-import { ETIQUETAS_GUIA, validarRecepcion } from "@/lib/validations/guia";
-import { usePermissions } from "@/hooks/usePermissions";
-import { CategoryIcon } from "@/components/activos/CategoryIcon";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { Modal } from "@/components/ui/Modal";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { VentanaMotivo } from "@/components/ui/VentanaMotivo";
-import { VentanaKitDespacho, type AccionKitDespacho } from "@/components/guias-despacho/VentanaKitDespacho";
-import { identificadorActivo } from "@/lib/utils/identificador";
+} from "@/shared/utilidades/fechas";
+import { AvisoSeccion, CampoTexto, ResumenErrores } from "@/shared/ui/CampoFormulario";
+import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
+import { ETIQUETAS_GUIA, validarRecepcion } from "@/modules/despachos/validaciones";
+import { usePermissions } from "@/shared/hooks/usePermissions";
+import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { Modal } from "@/shared/ui/Modal";
+import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import { VentanaMotivo } from "@/shared/ui/VentanaMotivo";
+import { VentanaKitDespacho, type AccionKitDespacho } from "@/modules/despachos/componentes/VentanaKitDespacho";
+import { identificadorActivo } from "@/modules/activos/identificador";
 
 const BOTON_EXITO = "bg-success hover:bg-success-hover disabled:hover:bg-success";
 

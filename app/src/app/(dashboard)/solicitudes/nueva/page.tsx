@@ -4,36 +4,36 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Loader2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { CategoryIcon } from '@/components/activos/CategoryIcon';
+import { cn } from '@/shared/cn';
+import { CategoryIcon } from '@/modules/activos/componentes/CategoryIcon';
 import {
   SeleccionarCambioEquipo,
   itemCambioCompleto,
   type ItemCambioEquipo,
-} from '@/components/solicitudes/SeleccionarCambioEquipo';
-import { buttonClasses } from '@/components/ui/buttonStyles';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { useBorrador } from '@/hooks/useBorrador';
-import { SeccionCoordinacion } from '@/components/solicitudes/nueva/SeccionCoordinacion';
-import { BuscadorEmpleado, useBuscarEmpleado } from '@/components/solicitudes/nueva/BuscadorEmpleado';
-import { SeccionKitEpp, type ArticuloKit } from '@/components/solicitudes/nueva/SeccionKitEpp';
-import { FormEmpleadoNuevo } from '@/components/solicitudes/nueva/FormEmpleadoNuevo';
+} from '@/modules/solicitudes/componentes/SeleccionarCambioEquipo';
+import { buttonClasses } from '@/shared/ui/buttonStyles';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { useBorrador } from '@/shared/hooks/useBorrador';
+import { SeccionCoordinacion } from '@/modules/solicitudes/componentes/nueva/SeccionCoordinacion';
+import { BuscadorEmpleado, useBuscarEmpleado } from '@/modules/solicitudes/componentes/nueva/BuscadorEmpleado';
+import { SeccionKitEpp, type ArticuloKit } from '@/modules/solicitudes/componentes/nueva/SeccionKitEpp';
+import { FormEmpleadoNuevo } from '@/modules/solicitudes/componentes/nueva/FormEmpleadoNuevo';
 import {
   ElegirEstadoDevolucion,
   type EstadoDevolucion,
-} from '@/components/solicitudes/nueva/ElegirEstadoDevolucion';
+} from '@/modules/solicitudes/componentes/nueva/ElegirEstadoDevolucion';
 import {
   CLAVES,
   COORDINACION_VACIA,
   cuerpoCoordinacion,
   erroresCoordinacion,
   type Coordinacion,
-} from '@/components/solicitudes/nueva/coordinacion';
-import { SelectCondicionCargador } from '@/components/solicitudes/SelectCondicionCargador';
+} from '@/modules/solicitudes/componentes/nueva/coordinacion';
+import { SelectCondicionCargador } from '@/modules/activos/componentes/SelectCondicionCargador';
 import {
   CONDICION_CARGADOR_POR_DEFECTO,
   type CondicionCargador,
-} from '@/lib/constants/condicionCargador';
+} from '@/modules/activos/condicionCargador';
 import {
   AvisoSeccion,
   CampoFormulario,
@@ -44,11 +44,11 @@ import {
   enfocarPrimerError,
   sinErrores,
   textoResumenErrores,
-} from '@/components/ui/CampoFormulario';
-import { esCorreoValido } from '@/lib/utils/text';
-import { formatearFechaHora } from '@/lib/utils/fechas';
-import { useCampoSede, useSedeSeleccionada } from '@/components/providers/SedeSeleccionadaProvider';
-import { identificadorActivo } from "@/lib/utils/identificador";
+} from '@/shared/ui/CampoFormulario';
+import { esCorreoValido } from '@/shared/utilidades/text';
+import { formatearFechaHora } from '@/shared/utilidades/fechas';
+import { useCampoSede, useSedeSeleccionada } from '@/shared/ui/providers/SedeSeleccionadaProvider';
+import { identificadorActivo } from "@/modules/activos/identificador";
 
 import {
   CAMPOS_OBLIGATORIOS_ONBOARDING,
@@ -62,7 +62,7 @@ import {
   type EmployeeAssignment,
   type EmployeeKitAssignment,
   type EquipoDisponible,
-} from '@/components/solicitudes/nueva/datos';
+} from '@/modules/solicitudes/componentes/nueva/datos';
 
 export default function NuevaSolicitudPage() {
   const router = useRouter();
@@ -153,7 +153,7 @@ export default function NuevaSolicitudPage() {
   >({});
   // Coordinacion de entrega, cambio y devolucion: un objeto por tipo (fecha,
   // medio, lugar, OT, destino) en vez de 5 estados sueltos cada una; ver
-  // components/solicitudes/nueva/coordinacion.ts.
+  // modules/solicitudes/componentes/nueva/coordinacion.ts.
   const [coordEntrega, setCoordEntrega] = useState<Coordinacion>(COORDINACION_VACIA);
   const [coordCambio, setCoordCambio] = useState<Coordinacion>(COORDINACION_VACIA);
   const [coordDevolucion, setCoordDevolucion] = useState<Coordinacion>(COORDINACION_VACIA);

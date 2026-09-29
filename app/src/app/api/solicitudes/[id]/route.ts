@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { updateWorkflowRequestSchema } from '@/lib/validations/workflow';
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
+import { prisma } from '@/shared/prisma';
+import { updateWorkflowRequestSchema } from '@/modules/solicitudes/validaciones';
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
 import {
   asignacionesDelTicket,
   devueltaEnTicket,
   devueltasDespues,
   paresDeCambio,
-} from '@/lib/queries/asignacionesTicket';
-import { sinIdsDeUsuario } from '@/lib/utils/privacidad';
+} from '@/modules/solicitudes/consultasAsignaciones';
+import { sinIdsDeUsuario } from '@/shared/utilidades/privacidad';
 
 // GET /api/solicitudes/[id] - Get full detail
 export async function GET(

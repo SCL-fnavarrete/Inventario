@@ -2,7 +2,7 @@ import {
   condicionCargadorSchema,
   etiquetaCondicionCargador,
   opcionesCondicionCargador,
-} from '@/lib/constants/condicionCargador';
+} from '@/modules/activos/condicionCargador';
 
 describe('condicionCargador', () => {
   test('etiquetas de entrega', () => {

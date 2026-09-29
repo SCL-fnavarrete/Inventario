@@ -1,6 +1,6 @@
 // Corregir una fila con error al importar (SPEC 2.105).
 import { fireEvent, render, screen } from '@testing-library/react';
-import { ErrorRowEditor } from '@/components/import/ErrorRowEditor';
+import { ErrorRowEditor } from '@/modules/importacion/componentes/ErrorRowEditor';
 
 // La marca sale de un catalogo (SPEC 2.116.4): el selector pide sus opciones.
 beforeEach(() => {

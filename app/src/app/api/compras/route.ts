@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/shared/prisma";
 import {
   createPurchaseWithAssetsSchema,
   purchaseFiltersSchema,
-} from "@/lib/validations/purchase";
+} from "@/modules/compras/validaciones";
 import { Prisma } from "@prisma/client";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { NotFoundError } from '@/lib/errors';
-import { auditLogService } from '@/lib/services/auditLogService';
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { NotFoundError } from '@/shared/errores';
+import { auditLogService } from '@/shared/auditoria';
 import {
   INCLUDE_AVANCE_REPARTO,
   WHERE_COMPRA_POR_REPARTIR,
@@ -16,7 +16,7 @@ import {
   agregarLineasKit,
   avanceReparto,
   vincularEquiposExistentes,
-} from '@/lib/services/compraService';
+} from '@/modules/compras/servicio';
 
 // GET /api/compras - Listar compras/facturas con filtros y paginación
 export async function GET(request: NextRequest) {

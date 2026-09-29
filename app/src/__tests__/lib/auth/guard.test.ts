@@ -14,7 +14,7 @@ import {
   UnauthorizedError,
   ValidationError,
   handleApiError,
-} from '@/lib/auth/guard';
+} from '@/shared/auth/guard';
 
 /**
  * `handleApiError` es el traductor único de errores de la API.

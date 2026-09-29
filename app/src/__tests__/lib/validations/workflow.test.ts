@@ -5,7 +5,7 @@ import {
   cancelWorkflowRequestSchema,
   TipoSolicitudEnum,
   EstadoSolicitudEnum,
-} from '@/lib/validations/workflow';
+} from '@/modules/solicitudes/validaciones';
 
 // Pruebas del sistema de solicitudes (workflow)
 

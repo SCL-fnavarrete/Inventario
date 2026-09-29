@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { createWorkflowRequestSchema, workflowFiltersSchema } from '@/lib/validations/workflow';
-import { getInitialState } from '@/lib/services/workflowStateMachine';
-import { executeAssignment, executeKitDelivery, executeReturn, executeKitReturn } from '@/lib/services/workflowExecutionService';
+import { prisma } from '@/shared/prisma';
+import { createWorkflowRequestSchema, workflowFiltersSchema } from '@/modules/solicitudes/validaciones';
+import { getInitialState } from '@/modules/solicitudes/maquinaEstados';
+import { executeAssignment, executeKitDelivery, executeReturn, executeKitReturn } from '@/modules/solicitudes/ejecucion';
 import { Prisma, Employee } from '@prisma/client';
-import { requirePermission, handleApiError, respuestaDatosInvalidos, usuarioDeSesion } from '@/lib/auth/guard';
-import { filtroSede, sedeIdParaCrear } from '@/lib/auth/sedeScope';
-import { exigirSedeActiva } from "@/lib/queries/sedes";
-import { generarNumeroSolicitud } from '@/lib/services/numeroSolicitud';
-import { ValidationError } from '@/lib/errors';
-import { coincideBusqueda } from '@/lib/utils/text';
-import { ordenarComo, paginarCoincidencias } from "@/lib/utils/busquedaEnMemoria";
-import { desvinculacionesConActa } from '@/lib/queries/asignacionesTicket';
-import { sinIdsDeUsuario } from '@/lib/utils/privacidad';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, usuarioDeSesion } from '@/shared/auth/guard';
+import { filtroSede, sedeIdParaCrear } from '@/shared/sedes/filtro';
+import { exigirSedeActiva } from "@/shared/sedes/consultas";
+import { generarNumeroSolicitud } from '@/modules/solicitudes/numero';
+import { ValidationError } from '@/shared/errores';
+import { coincideBusqueda } from '@/shared/utilidades/text';
+import { ordenarComo, paginarCoincidencias } from "@/shared/utilidades/busquedaEnMemoria";
+import { desvinculacionesConActa } from '@/modules/solicitudes/consultasAsignaciones';
+import { sinIdsDeUsuario } from '@/shared/utilidades/privacidad';
 
 /** Intentos de crear el ticket si el numero choca con otra creacion simultanea. */
 const INTENTOS_NUMERO = 3;

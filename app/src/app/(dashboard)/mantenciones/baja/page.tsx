@@ -5,22 +5,22 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Wrench, XCircle } from "lucide-react";
-import { etiquetaEstadoActivo, motivoSinBaja } from "@/lib/constants/estadosActivo";
-import { CamposMotivoBaja, erroresMotivoBaja, useMotivosBaja } from "@/components/mantenciones/CamposMotivoBaja";
-import { hoyISO } from "@/lib/utils/fechas";
-import { parseApiError } from "@/lib/utils/apiErrors";
-import { mantencionACerrar } from "@/lib/utils/mantenciones";
-import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import { etiquetaEstadoActivo, motivoSinBaja } from "@/modules/activos/estados";
+import { CamposMotivoBaja, erroresMotivoBaja, useMotivosBaja } from "@/modules/mantenciones/componentes/CamposMotivoBaja";
+import { hoyISO } from "@/shared/utilidades/fechas";
+import { parseApiError } from "@/shared/utilidades/apiErrors";
+import { mantencionACerrar } from "@/modules/mantenciones/utilidades";
+import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import {
   CampoFormulario,
   CampoTexto,
   ResumenErrores,
   claseInput,
-} from "@/components/ui/CampoFormulario";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { useToast } from "@/components/ui/Toast";
-import { identificadorActivo } from "@/lib/utils/identificador";
+} from "@/shared/ui/CampoFormulario";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { useToast } from "@/shared/ui/Toast";
+import { identificadorActivo } from "@/modules/activos/identificador";
 
 type Activo = {
   id: string;

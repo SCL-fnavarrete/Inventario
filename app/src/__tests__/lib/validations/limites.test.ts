@@ -1,8 +1,8 @@
-import { createKitItemSchema, entregarKitItemsSchema } from "@/lib/validations/kitItem";
-import { createAssetSchema } from "@/lib/validations/asset";
-import { updateEmployeeSchema } from "@/lib/validations/employee";
-import { completeMaintenanceSchema } from "@/lib/validations/maintenance";
-import { MAX_CANTIDAD } from "@/lib/validations/comunes";
+import { createKitItemSchema, entregarKitItemsSchema } from "@/modules/kit-epp/validaciones";
+import { createAssetSchema } from "@/modules/activos/validaciones";
+import { updateEmployeeSchema } from "@/modules/personas/validaciones";
+import { completeMaintenanceSchema } from "@/modules/mantenciones/validaciones";
+import { MAX_CANTIDAD } from "@/shared/validaciones/comunes";
 
 // Auditoria 28-sep-2026 (7.B): ningun numero ni texto sin tope llega a la base.
 const CATEGORIA = "11111111-1111-4111-8111-111111111111";

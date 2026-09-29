@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 // Las dos rutas que dan de baja rechazan un equipo que sigue asignado (SPEC 2.106).
-jest.mock('@/lib/prisma', () => ({
+jest.mock('@/shared/prisma', () => ({
   prisma: {
     asset: { findUnique: jest.fn() },
     maintenance: { findUnique: jest.fn() },
@@ -11,8 +11,8 @@ jest.mock('@/lib/prisma', () => ({
     $transaction: jest.fn(),
   },
 }));
-jest.mock('@/lib/auth/guard', () => {
-  const real = jest.requireActual('@/lib/auth/guard');
+jest.mock('@/shared/auth/guard', () => {
+  const real = jest.requireActual('@/shared/auth/guard');
   return {
     ...real,
     requirePermission: jest.fn().mockResolvedValue({ user: { id: 'u1', email: 'qa@scl.cl', role: 'admin', sedeId: null } }),
@@ -20,7 +20,7 @@ jest.mock('@/lib/auth/guard', () => {
 });
 
 import { NextRequest } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/shared/prisma';
 import { POST as darDeBaja } from '@/app/api/mantenciones/baja/route';
 import { POST as completar } from '@/app/api/mantenciones/[id]/completar/route';
 

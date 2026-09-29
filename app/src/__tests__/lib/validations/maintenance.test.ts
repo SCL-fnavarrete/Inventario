@@ -5,11 +5,11 @@ import {
   maintenanceFiltersSchema,
   EstadoMantencionEnum,
   bajaPorMantencionSchema,
-} from '@/lib/validations/maintenance'
+} from '@/modules/mantenciones/validaciones'
 
 // El tipo de mantencion dejo de ser un enum fijo (9-sep-2026): ahora es una
 // fila de MaintenanceType referenciada por id (uuid). Ver schema.prisma y
-// src/lib/validations/maintenance.ts.
+// src/modules/mantenciones/validaciones.ts.
 const TIPO_ID = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
 
 describe('Maintenance Validation - EstadoMantencionEnum', () => {

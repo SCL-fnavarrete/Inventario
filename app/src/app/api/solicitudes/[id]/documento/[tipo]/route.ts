@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/shared/prisma';
 import {
   generateAnexoEntrega,
   generateComprobanteEntrega,
   generateComprobanteCambio,
   generateActaDevolucion,
-} from '@/lib/services/documentGeneratorService';
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { exigirCupo } from "@/lib/utils/limiteUso";
+} from '@/modules/solicitudes/documentos';
+import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { exigirCupo } from "@/shared/utilidades/limiteUso";
 
 // Operacion pesada: hasta 60 s (Vercel corta antes por defecto).
 export const maxDuration = 60;

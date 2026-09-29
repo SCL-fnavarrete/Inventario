@@ -2,17 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Edit, Save, MapPin, Power, PowerOff } from "lucide-react";
-import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
-import { useToast } from "@/components/ui/Toast";
-import { Button } from "@/components/ui/Button";
-import { ActiveBadge } from "@/components/ui/Badge";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { TablaAdaptable } from "@/components/ui/TablaAdaptable";
-import { CampoTexto, ResumenErrores } from "@/components/ui/CampoFormulario";
-import { useErroresFormulario } from "@/hooks/useErroresFormulario";
-import { useEnvio } from "@/hooks/useEnvio";
+import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
+import { useToast } from "@/shared/ui/Toast";
+import { Button } from "@/shared/ui/Button";
+import { ActiveBadge } from "@/shared/ui/Badge";
+import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { TablaAdaptable } from "@/shared/ui/TablaAdaptable";
+import { CampoTexto, ResumenErrores } from "@/shared/ui/CampoFormulario";
+import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
+import { useEnvio } from "@/shared/hooks/useEnvio";
 
 /**
  * Configuracion > Sedes. Un solo formulario para crear y editar (antes el

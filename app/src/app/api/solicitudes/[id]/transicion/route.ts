@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { transitionSchema } from '@/lib/validations/workflow';
-import { canTransition, isFinalState } from '@/lib/services/workflowStateMachine';
+import { prisma } from '@/shared/prisma';
+import { transitionSchema } from '@/modules/solicitudes/validaciones';
+import { canTransition, isFinalState } from '@/modules/solicitudes/maquinaEstados';
 import {
   executeAssignment,
   executeReturn,
   executeKitReturn,
-} from '@/lib/services/workflowExecutionService';
+} from '@/modules/solicitudes/ejecucion';
 import { SystemRole, EstadoSolicitud } from '@prisma/client';
-import { requirePermission, handleApiError, respuestaDatosInvalidos, usuarioDeSesion } from '@/lib/auth/guard';
-import { ConflictError, ValidationError } from '@/lib/errors';
-import { condicionCargadorSchema, type CondicionCargador } from '@/lib/constants/condicionCargador';
-import { sinIdsDeUsuario } from '@/lib/utils/privacidad';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, usuarioDeSesion } from '@/shared/auth/guard';
+import { ConflictError, ValidationError } from '@/shared/errores';
+import { condicionCargadorSchema, type CondicionCargador } from '@/modules/activos/condicionCargador';
+import { sinIdsDeUsuario } from '@/shared/utilidades/privacidad';
 
 // datosAccion llega sin schema propio: la condicion del cargador se valida
 // aca para responder 400 (y no un error de Prisma) ante un valor invalido,

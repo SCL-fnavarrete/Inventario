@@ -4,7 +4,7 @@ import {
   employeeFiltersSchema,
   TipoContratoEnum,
   EstadoEmpleadoEnum,
-} from '@/lib/validations/employee'
+} from '@/modules/personas/validaciones'
 
 // NOTA: TipoContratoEnum se redujo a ['contrato', 'boleta'] (migracion
 // replace_tipo_contrato_enum) y el campo "correo" se dividio en

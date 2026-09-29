@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError, respuestaErroresCampos } from "@/lib/auth/guard";
-import { auditLogService } from "@/lib/services/auditLogService";
+import { prisma } from "@/shared/prisma";
+import { requirePermission, handleApiError, respuestaErroresCampos } from "@/shared/auth/guard";
+import { auditLogService } from "@/shared/auditoria";
 import {
   CAMPOS_SEGURIDAD,
   ETIQUETAS_PARAMETROS,
   SEGURIDAD_POR_DEFECTO,
   validarParametros,
   type CampoSeguridad,
-} from "@/lib/validations/parametros";
+} from "@/modules/configuracion/validacionesParametros";
 
 // Configuracion > Seguridad (SPEC 2.112), guardada como fila unica
 // ("singleton"). GET siempre la devuelve (con los valores por defecto si aun

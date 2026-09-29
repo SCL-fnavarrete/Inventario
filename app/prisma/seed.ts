@@ -1,6 +1,6 @@
 import { PrismaClient, SystemRole } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
-import { validarPasswordFuerte } from "../src/lib/validations/password";
+import { validarPasswordFuerte } from "../src/modules/configuracion/clave";
 
 const prisma = new PrismaClient();
 

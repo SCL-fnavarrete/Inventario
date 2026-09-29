@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/shared/prisma";
 import bcrypt from "bcryptjs";
 import type { Prisma } from "@prisma/client";
 import {
@@ -9,12 +9,12 @@ import {
   NotFoundError,
   errorRepetido,
   errorDeCampo,
-} from '@/lib/auth/guard';
-import { registrarAcceso } from '@/lib/services/accesoService';
-import { editarUsuarioSchema } from '@/lib/validations/usuario';
-import { exigirSedeActiva } from '@/lib/queries/sedes';
-import { SELECT_USUARIO } from '@/lib/queries/usuarios';
-import { auditLogService } from '@/lib/services/auditLogService';
+} from '@/shared/auth/guard';
+import { registrarAcceso } from '@/modules/configuracion/accesos';
+import { editarUsuarioSchema } from '@/modules/configuracion/validacionesUsuario';
+import { exigirSedeActiva } from '@/shared/sedes/consultas';
+import { SELECT_USUARIO } from '@/modules/configuracion/consultasUsuarios';
+import { auditLogService } from '@/shared/auditoria';
 
 // Un usuario no se elimina: se desactiva (SPEC 2.112). Su nombre queda en
 // la auditoria y en todo lo que hizo.
@@ -143,7 +143,7 @@ export async function PUT(
     );
 
     // Desactivar o cambiar la contrasena corta su sesion en su siguiente
-    // accion (lib/auth.ts); queda en el registro de accesos, con quien lo hizo.
+    // accion (shared/auth/opciones.ts); queda en el registro de accesos, con quien lo hizo.
     const quien = session.user?.email ?? "un administrador";
     if (existingUser.activo && !user.activo) {
       await registrarAcceso({

@@ -2,9 +2,9 @@
 import {
   cancelarAbiertasPorBaja,
   registrarSalidaDeMantencion,
-} from '@/lib/services/mantencionActivoService';
-import { estadoTrasMantencion } from '@/lib/constants/estadosActivo';
-import type { PrismaTx } from '@/lib/services/assetHistoryService';
+} from '@/modules/mantenciones/servicio';
+import { estadoTrasMantencion } from '@/modules/activos/estados';
+import type { PrismaTx } from '@/modules/activos/historial';
 
 function txFalso() {
   return {

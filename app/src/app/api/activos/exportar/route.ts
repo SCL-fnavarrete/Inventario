@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
-import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { exigirCupo } from "@/lib/utils/limiteUso";
-import { leerFiltrosActivos, whereFiltrosActivos } from '@/lib/queries/activos';
-import { formatearFecha, hoyISO } from "@/lib/utils/fechas";
-import { CONDICION_ACTIVO_LABEL, ESTADO_ACTIVO_LABEL } from "@/lib/constants/estadosActivo";
+import { prisma } from "@/shared/prisma";
+import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { exigirCupo } from "@/shared/utilidades/limiteUso";
+import { leerFiltrosActivos, whereFiltrosActivos } from '@/modules/activos/consultas';
+import { formatearFecha, hoyISO } from "@/shared/utilidades/fechas";
+import { CONDICION_ACTIVO_LABEL, ESTADO_ACTIVO_LABEL } from "@/modules/activos/estados";
 
 // Operacion pesada: hasta 60 s (Vercel corta antes por defecto).
 export const maxDuration = 60;

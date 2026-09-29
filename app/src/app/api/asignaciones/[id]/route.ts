@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { returnAssignmentSchema } from "@/lib/validations/assignment";
-import { executeReturn } from "@/lib/services/workflowExecutionService";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { formatearFecha } from "@/lib/utils/fechas";
+import { prisma } from "@/shared/prisma";
+import { returnAssignmentSchema } from "@/modules/asignaciones/validaciones";
+import { executeReturn } from "@/modules/solicitudes/ejecucion";
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { formatearFecha } from "@/shared/utilidades/fechas";
 
 interface RouteParams {
   params: Promise<{ id: string }>;

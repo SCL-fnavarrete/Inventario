@@ -2,16 +2,16 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
+import { PageHeader } from "@/shared/ui/PageHeader";
 import {
   ActivoForm,
   payloadActivo,
   valoresDesdeActivo,
   type ActivoFormValues,
-} from "@/components/activos/ActivoForm";
-import { identificadorActivo } from "@/lib/utils/identificador";
+} from "@/modules/activos/componentes/ActivoForm";
+import { identificadorActivo } from "@/modules/activos/identificador";
 
 export default function EditarActivoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);

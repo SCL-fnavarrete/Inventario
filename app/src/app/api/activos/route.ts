@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { leerPaginacion } from "@/lib/utils/paginacion";
-import { createAssetSchema } from "@/lib/validations/asset";
-import { crearActivo } from "@/lib/services/activoService";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { sedeIdParaCrear } from '@/lib/auth/sedeScope';
-import { exigirSedeActiva } from "@/lib/queries/sedes";
-import { leerFiltrosActivos, whereFiltrosActivos } from '@/lib/queries/activos';
+import { prisma } from "@/shared/prisma";
+import { leerPaginacion } from "@/shared/utilidades/paginacion";
+import { createAssetSchema } from "@/modules/activos/validaciones";
+import { crearActivo } from "@/modules/activos/servicio";
+import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { sedeIdParaCrear } from '@/shared/sedes/filtro';
+import { exigirSedeActiva } from "@/shared/sedes/consultas";
+import { leerFiltrosActivos, whereFiltrosActivos } from '@/modules/activos/consultas';
 
 /**
  * Tope de filas por pagina. Protege la base de un ?limit arbitrario;

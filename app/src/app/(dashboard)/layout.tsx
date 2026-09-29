@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { Navbar } from "@/components/layout/Navbar";
-import { SessionProvider } from "@/components/providers/SessionProvider";
-import { SedeSeleccionadaProvider } from "@/components/providers/SedeSeleccionadaProvider";
-import { ToastProvider } from "@/components/ui/Toast";
+import { authOptions } from "@/shared/auth/opciones";
+import { Navbar } from "@/shared/ui/layout/Navbar";
+import { SessionProvider } from "@/shared/ui/providers/SessionProvider";
+import { SedeSeleccionadaProvider } from "@/shared/ui/providers/SedeSeleccionadaProvider";
+import { ToastProvider } from "@/shared/ui/Toast";
 
 export default async function DashboardLayout({
   children,

@@ -3,13 +3,13 @@
 import { useEffect, useState, Fragment } from "react";
 import Link from "next/link";
 import { Search, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { Pagination } from "@/components/ui/Pagination";
-import { CampoFormulario } from "@/components/ui/CampoFormulario";
-import { formatearFechaHora } from "@/lib/utils/fechas";
-import { MODULOS_AUDITORIA } from "@/lib/constants/auditoria";
+import { cn } from "@/shared/cn";
+import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { Pagination } from "@/shared/ui/Pagination";
+import { CampoFormulario } from "@/shared/ui/CampoFormulario";
+import { formatearFechaHora } from "@/shared/utilidades/fechas";
+import { MODULOS_AUDITORIA } from "@/modules/configuracion/etiquetasAuditoria";
 
 /**
  * Configuracion > Auditoria (SPEC 2.112.8): quien hizo que y cuando, en todos

@@ -3,7 +3,7 @@
 // agrega la CSP con nonce a las paginas.
 import { withAuth, type NextRequestWithAuth } from "next-auth/middleware";
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
-import { seguirConCsp } from "@/lib/seguridad/csp";
+import { seguirConCsp } from "@/shared/seguridad/csp";
 
 const esApi = (path: string) => path.startsWith("/api/");
 
@@ -53,7 +53,7 @@ const conSesion = withAuth(
 
 /**
  * Primero la sesion; despues, a toda pagina que sigue, su CSP con un nonce
- * nuevo (lib/seguridad/csp.ts). La CSP va aqui afuera y no dentro de
+ * nuevo (shared/seguridad/csp.ts). La CSP va aqui afuera y no dentro de
  * withAuth porque withAuth no llama a su funcion en /login: el login quedaba
  * sin CSP (auditoria 28-sep-2026, 1.3).
  */

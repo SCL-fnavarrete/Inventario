@@ -5,7 +5,7 @@ import {
   assignmentFiltersSchema,
   TipoMovimientoEnum,
   EstadoDevolucionEnum,
-} from '@/lib/validations/assignment'
+} from '@/modules/asignaciones/validaciones'
 
 describe('Assignment Validation - TipoMovimientoEnum', () => {
   test('should accept valid tipos de movimiento', () => {

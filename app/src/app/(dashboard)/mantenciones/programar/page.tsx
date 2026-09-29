@@ -4,26 +4,26 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Search, Wrench, User, Package, Loader2, ChevronDown, X } from "lucide-react";
-import { motivoSinMantencion } from "@/lib/constants/estadosActivo";
-import { cn } from "@/lib/utils";
-import { hoyISO } from "@/lib/utils/fechas";
-import { avisoFechaPasada } from "@/lib/utils/mantenciones";
-import { parseApiError } from "@/lib/utils/apiErrors";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useErroresFormulario } from "@/hooks/useErroresFormulario";
-import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
-import { CategoryIcon } from "@/components/activos/CategoryIcon";
-import { AssetStatusBadge } from "@/components/ui/Badge";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { motivoSinMantencion } from "@/modules/activos/estados";
+import { cn } from "@/shared/cn";
+import { hoyISO } from "@/shared/utilidades/fechas";
+import { avisoFechaPasada } from "@/modules/mantenciones/utilidades";
+import { parseApiError } from "@/shared/utilidades/apiErrors";
+import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
+import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
+import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
+import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
+import { AssetStatusBadge } from "@/shared/ui/Badge";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { PageHeader } from "@/shared/ui/PageHeader";
 import {
   AvisoSeccion,
   CampoFormulario,
   CampoTexto,
   ResumenErrores,
   claseCampo,
-} from "@/components/ui/CampoFormulario";
-import { identificadorActivo } from "@/lib/utils/identificador";
+} from "@/shared/ui/CampoFormulario";
+import { identificadorActivo } from "@/modules/activos/identificador";
 
 type Asset = {
   id: string;

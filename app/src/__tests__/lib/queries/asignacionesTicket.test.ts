@@ -1,20 +1,20 @@
 // Equipos de un ticket (SPEC 2.84, 2.87, 2.90, 2.92): pares del cambio,
 // devolucion en el ticket, recuperaciones posteriores y actas disponibles.
-jest.mock('@/lib/prisma', () => ({
+jest.mock('@/shared/prisma', () => ({
   prisma: {
     assignment: { findMany: jest.fn() },
     workflowRequest: { findMany: jest.fn() },
   },
 }));
 
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/shared/prisma';
 import {
   asignacionesDelTicket,
   desvinculacionesConActa,
   devueltaEnTicket,
   devueltasDespues,
   paresDeCambio,
-} from '@/lib/queries/asignacionesTicket';
+} from '@/modules/solicitudes/consultasAsignaciones';
 
 const assignmentFindMany = prisma.assignment.findMany as jest.Mock;
 const ticketFindMany = prisma.workflowRequest.findMany as jest.Mock;

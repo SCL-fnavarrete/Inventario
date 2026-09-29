@@ -4,7 +4,7 @@ import {
   etiquetaEstadoDevolucion,
   motivoSinBaja,
   motivoSinMantencion,
-} from '@/lib/constants/estadosActivo';
+} from '@/modules/activos/estados';
 
 describe('etiquetas legibles', () => {
   test('estado de devolucion', () => {

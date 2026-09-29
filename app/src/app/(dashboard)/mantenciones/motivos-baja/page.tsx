@@ -1,8 +1,8 @@
 "use client";
 
-import { MantencionesTabs } from "@/components/mantenciones";
-import { OpcionesCatalogo, type TextosCatalogo } from "@/components/configuracion/OpcionesCatalogo";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { MantencionesTabs } from "@/modules/mantenciones/componentes";
+import { OpcionesCatalogo, type TextosCatalogo } from "@/modules/activos/componentes/OpcionesCatalogo";
+import { PageHeader } from "@/shared/ui/PageHeader";
 
 /**
  * Mantenciones > Motivos de baja (SPEC 2.116.5). Catalogo operativo como

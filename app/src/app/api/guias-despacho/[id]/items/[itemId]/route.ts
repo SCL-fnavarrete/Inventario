@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError, ConflictError } from '@/lib/auth/guard';
-import { NotFoundError, ValidationError } from '@/lib/errors';
-import { auditLogService } from '@/lib/services/auditLogService';
-import { validateTransition } from '@/lib/services/assetStateMachine';
+import { prisma } from "@/shared/prisma";
+import { requirePermission, handleApiError, ConflictError } from '@/shared/auth/guard';
+import { NotFoundError, ValidationError } from '@/shared/errores';
+import { auditLogService } from '@/shared/auditoria';
+import { validateTransition } from '@/modules/activos/maquinaEstados';
 import {
   darDeBajaEnTransaccion,
   tipoCorrectivaPorDefecto,
-} from '@/lib/services/mantencionActivoService';
+} from '@/modules/mantenciones/servicio';
 import {
   INCLUDE_DETALLE_GUIA,
   actualizarEstadoGuia,
   buscarGuia,
   recibirEquipos,
-} from '@/lib/services/guiaDespachoService';
-import { motivoParaBaja } from '@/lib/services/motivoBajaService';
+} from '@/modules/despachos/servicio';
+import { motivoParaBaja } from '@/modules/mantenciones/motivosBaja';
 
 interface RouteParams {
   params: Promise<{ id: string; itemId: string }>;

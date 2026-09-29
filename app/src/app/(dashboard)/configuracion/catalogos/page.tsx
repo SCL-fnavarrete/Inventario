@@ -2,10 +2,10 @@
 
 import { Suspense, useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { Tabs } from "@/components/ui/Tabs";
-import { CategoriasCatalogo } from "@/components/configuracion/CategoriasCatalogo";
-import { OpcionesCatalogo } from "@/components/configuracion/OpcionesCatalogo";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { Tabs } from "@/shared/ui/Tabs";
+import { CategoriasCatalogo } from "@/modules/activos/componentes/CategoriasCatalogo";
+import { OpcionesCatalogo } from "@/modules/activos/componentes/OpcionesCatalogo";
 
 /**
  * Configuracion > Catalogos de Activos (SPEC 2.112.7): antes eran dos

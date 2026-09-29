@@ -1,5 +1,5 @@
 // Reglas compartidas de mantenciones (SPEC 2.96, 2.98, 2.100).
-import { avisoFechaPasada, estaVencida, mantencionACerrar } from '@/lib/utils/mantenciones';
+import { avisoFechaPasada, estaVencida, mantencionACerrar } from '@/modules/mantenciones/utilidades';
 
 afterEach(() => {
   jest.useRealTimers();

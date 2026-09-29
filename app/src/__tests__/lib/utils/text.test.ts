@@ -1,4 +1,4 @@
-import { coincideBusqueda, coincidePorPalabras, removeAccents } from '@/lib/utils/text';
+import { coincideBusqueda, coincidePorPalabras, removeAccents } from '@/shared/utilidades/text';
 
 describe('removeAccents', () => {
   test('quita tildes y pasa a minusculas', () => {

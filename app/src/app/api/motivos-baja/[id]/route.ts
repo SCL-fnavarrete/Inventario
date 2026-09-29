@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from "@/lib/auth/guard";
-import { opcionCatalogoSchema } from "@/lib/validations/categoria";
-import { eliminarMotivoBaja, renombrarMotivoBaja } from "@/lib/services/motivoBajaService";
+import { requirePermission, handleApiError } from "@/shared/auth/guard";
+import { opcionCatalogoSchema } from "@/modules/activos/validacionesCategoria";
+import { eliminarMotivoBaja, renombrarMotivoBaja } from "@/modules/mantenciones/motivosBaja";
 
 // Un motivo de baja (SPEC 2.116.5). Lo administran admin y tecnico (recurso motivosBaja).
 

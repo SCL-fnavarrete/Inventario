@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import { leerFilasExcel, leerHoja, nombresDeHojas, valorDeCelda } from "@/lib/importacion/leerExcel";
+import { leerFilasExcel, leerHoja, nombresDeHojas, valorDeCelda } from "@/modules/importacion/leerExcel";
 import { crearExcel } from "@/test-utils/excel";
 
 // Auditoria 28-sep-2026 (3.4): la lectura paso de `xlsx` a `exceljs` y tiene

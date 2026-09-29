@@ -3,7 +3,7 @@ import {
   updateAssetSchema,
   estadoActivoEnum,
   condicionActivoEnum,
-} from '@/lib/validations/asset'
+} from '@/modules/activos/validaciones'
 
 describe('Asset Validation - estadoActivoEnum', () => {
   test('should accept valid estados', () => {

@@ -2,17 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Edit, Trash2, Save, X } from "lucide-react";
-import { MantencionesTabs } from "@/components/mantenciones";
-import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { ActiveBadge } from "@/components/ui/Badge";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
-import { useErroresFormulario } from "@/hooks/useErroresFormulario";
-import { useEnvio } from "@/hooks/useEnvio";
-import { Button } from "@/components/ui/Button";
+import { MantencionesTabs } from "@/modules/mantenciones/componentes";
+import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { ActiveBadge } from "@/shared/ui/Badge";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import { MensajeCampo, ResumenErrores, claseCampo } from "@/shared/ui/CampoFormulario";
+import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
+import { useEnvio } from "@/shared/hooks/useEnvio";
+import { Button } from "@/shared/ui/Button";
 
 // Maintenance types are an editable catalog (not a fixed enum), manageable
 // by both admin and technician roles, so this screen lives inside

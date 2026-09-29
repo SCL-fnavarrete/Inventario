@@ -1,21 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/shared/prisma';
 import { Prisma } from '@prisma/client';
-import { updateAssetSchema } from '@/lib/validations/asset';
+import { updateAssetSchema } from '@/modules/activos/validaciones';
 import {
   MENSAJE_GARANTIA_ANTES_DE_COMPRA,
   terminaAntesDeEmpezar,
-} from '@/lib/validations/ordenFechas';
-import { assetHistoryService } from '@/lib/services/assetHistoryService';
-import { descartarActivo, reglasIdentificacion } from '@/lib/services/activoService';
+} from '@/shared/validaciones/ordenFechas';
+import { assetHistoryService } from '@/modules/activos/historial';
+import { descartarActivo, reglasIdentificacion } from '@/modules/activos/servicio';
 import {
   requirePermission,
   handleApiError,
   ConflictError,
   NotFoundError,
   ValidationError,
-} from '@/lib/auth/guard';
-import { logger } from '@/lib/logger';
+} from '@/shared/auth/guard';
+import { logger } from '@/shared/logger';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { RECURSOS, ACCIONES } from '@/lib/auth/permissions';
+import { RECURSOS, ACCIONES } from '@/shared/auth/permisos';
 
 /**
  * Auditoría estática de las rutas de API.

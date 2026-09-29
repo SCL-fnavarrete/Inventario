@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { assetVentaSchema } from '@/lib/validations/assetTransition';
-import { validateTransition } from '@/lib/services/assetStateMachine';
-import { assetHistoryService } from '@/lib/services/assetHistoryService';
-import { requirePermission, handleApiError, ConflictError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { etiquetaEstadoActivo } from '@/lib/constants/estadosActivo';
-import { siSigueIgual } from '@/lib/utils/concurrencia';
+import { prisma } from '@/shared/prisma';
+import { assetVentaSchema } from '@/modules/activos/validacionesTransicion';
+import { validateTransition } from '@/modules/activos/maquinaEstados';
+import { assetHistoryService } from '@/modules/activos/historial';
+import { requirePermission, handleApiError, ConflictError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { etiquetaEstadoActivo } from '@/modules/activos/estados';
+import { siSigueIgual } from '@/shared/utilidades/concurrencia';
 
 // Proceso de venta de un activo.
 export async function POST(

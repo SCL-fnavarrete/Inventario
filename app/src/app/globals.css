@@ -126,7 +126,7 @@
 
 /* ========================================
    TEMAS: claro (por defecto) y oscuro
-   El tema lo fija un script en <head> (ver lib/tema.ts) antes de pintar,
+   El tema lo fija un script en <head> (ver shared/tema.ts) antes de pintar,
    segun la preferencia guardada o la del sistema operativo.
    ======================================== */
 :root {
@@ -334,7 +334,7 @@
 }
 
 /* Tarjeta destacada (KPIs, secciones, grilla de activos). El color sale de
-   --card-accent, que fija un dato real via TONO_ACENTO (lib/constants/
+   --card-accent, que fija un dato real via TONO_ACENTO (shared/constantes/
    tonos.ts): halo radial y circulo en la esquina superior derecha, y un
    borde que se tine hacia esa esquina. El circulo crece al hover.
    Sin overflow/isolation a proposito: ambos aplanan el 3D y el contenido

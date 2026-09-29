@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { CampoFormulario, CampoTexto } from "@/components/ui/CampoFormulario";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
+import { CampoFormulario, CampoTexto } from "@/shared/ui/CampoFormulario";
+import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 
 // Auditoria 27-sep-2026, 2.13: el lector de pantalla anuncia los errores y
 // los lee al entrar al campo.

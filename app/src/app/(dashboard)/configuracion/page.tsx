@@ -8,11 +8,11 @@ import {
   KeyRound,
   Upload,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { LinkArrow } from "@/components/ui/Button";
-import { Tilt } from "@/components/ui/Tilt";
-import { TONO_ACENTO } from "@/lib/constants/tonos";
+import { cn } from "@/shared/cn";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { LinkArrow } from "@/shared/ui/Button";
+import { Tilt } from "@/shared/ui/Tilt";
+import { TONO_ACENTO } from "@/shared/constantes/tonos";
 
 // Secciones de Configuracion (SPEC 2.112). Todo el modulo es solo de admin
 // (layout.tsx), por eso las tarjetas ya no llevan la marca "Admin". Se eliminaron Mantenimiento de Datos (borrado masivo),

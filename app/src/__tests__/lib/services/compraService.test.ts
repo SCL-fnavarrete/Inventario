@@ -1,5 +1,5 @@
 // Compras: primero se compra, despues se reparte (SPEC 2.111).
-jest.mock('@/lib/prisma', () => ({ prisma: {} }));
+jest.mock('@/shared/prisma', () => ({ prisma: {} }));
 
 import {
   agregarEquiposNuevos,
@@ -7,8 +7,8 @@ import {
   avanceReparto,
   exigirSinReparto,
   quitarEquipo,
-} from '@/lib/services/compraService';
-import { createPurchaseWithAssetsSchema } from '@/lib/validations/purchase';
+} from '@/modules/compras/servicio';
+import { createPurchaseWithAssetsSchema } from '@/modules/compras/validaciones';
 
 const equipo = (estado: string, llegoConCompra = true, deletedAt: Date | null = null) => ({
   llegoConCompra,

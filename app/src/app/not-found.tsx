@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { buttonClasses } from "@/components/ui/buttonStyles";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
 
 /**
  * Direccion que no existe en el sistema (ej. /activoss). Antes se veia el 404

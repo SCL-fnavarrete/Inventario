@@ -4,26 +4,26 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Plus, Edit, Save, ShieldCheck, ShieldAlert, UserX, UserCheck, KeyRound } from "lucide-react";
-import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { useToast } from "@/components/ui/Toast";
-import { formatearFechaHoraCorta } from "@/lib/utils/fechas";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { Button } from "@/components/ui/Button";
-import { ActiveBadge } from "@/components/ui/Badge";
-import { TablaAdaptable } from "@/components/ui/TablaAdaptable";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
+import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import { useToast } from "@/shared/ui/Toast";
+import { formatearFechaHoraCorta } from "@/shared/utilidades/fechas";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { Button } from "@/shared/ui/Button";
+import { ActiveBadge } from "@/shared/ui/Badge";
+import { TablaAdaptable } from "@/shared/ui/TablaAdaptable";
+import { PageHeader } from "@/shared/ui/PageHeader";
 import {
   CampoFormulario,
   CampoTexto,
   ResumenErrores,
   claseCampo,
-} from "@/components/ui/CampoFormulario";
-import { useErroresFormulario } from "@/hooks/useErroresFormulario";
-import { useEnvio } from "@/hooks/useEnvio";
-import { validarPasswordFuerte } from "@/lib/validations/password";
-import { esCorreoValido } from "@/lib/utils/text";
+} from "@/shared/ui/CampoFormulario";
+import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
+import { useEnvio } from "@/shared/hooks/useEnvio";
+import { validarPasswordFuerte } from "@/modules/configuracion/clave";
+import { esCorreoValido } from "@/shared/utilidades/text";
 
 const usuarioFieldLabels: Record<string, string> = {
   email: "Email",

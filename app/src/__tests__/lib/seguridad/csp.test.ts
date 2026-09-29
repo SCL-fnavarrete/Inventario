@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import { construirCsp } from "@/lib/seguridad/csp";
+import { construirCsp } from "@/shared/seguridad/csp";
 
 // Auditoria 28-sep-2026 (1.3): la politica solo permite lo del propio sitio.
 test("en producción: nonce, sin eval y todo desde el propio sitio", () => {

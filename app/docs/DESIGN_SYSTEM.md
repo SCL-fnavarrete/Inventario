@@ -2,7 +2,7 @@
 
 Guía corta para que una pantalla nueva siga el mismo lenguaje visual sin
 tener que leer el código de otras. Todo vive en `src/app/globals.css`
-(tokens) y `src/components/ui/` (componentes). SPEC 2.77 y 2.78.
+(tokens) y `src/shared/ui/` (componentes). SPEC 2.77 y 2.78.
 
 ## Regla principal
 

@@ -1,17 +1,17 @@
-import { createAssetSchema, updateAssetSchema } from "@/lib/validations/asset";
-import { createEmployeeSchema, updateEmployeeSchema } from "@/lib/validations/employee";
-import { equipoNuevoCompraSchema } from "@/lib/validations/purchase";
+import { createAssetSchema, updateAssetSchema } from "@/modules/activos/validaciones";
+import { createEmployeeSchema, updateEmployeeSchema } from "@/modules/personas/validaciones";
+import { equipoNuevoCompraSchema } from "@/modules/compras/validaciones";
 import {
   createKitItemSchema,
   marcarKitItemNoAplicaSchema,
   updateKitItemSchema,
-} from "@/lib/validations/kitItem";
-import { cancelWorkflowRequestSchema, createCommentSchema } from "@/lib/validations/workflow";
+} from "@/modules/kit-epp/validaciones";
+import { cancelWorkflowRequestSchema, createCommentSchema } from "@/modules/solicitudes/validaciones";
 import {
   MENSAJE_GARANTIA_ANTES_DE_COMPRA,
   MENSAJE_TERMINO_ANTES_DE_INGRESO,
   terminaAntesDeEmpezar,
-} from "@/lib/validations/ordenFechas";
+} from "@/shared/validaciones/ordenFechas";
 
 // Auditoria 27-sep-2026, 2.5: textos obligatorios sin espacios de relleno,
 // orden de fechas y fechaBaja fuera de la edicion de activos.

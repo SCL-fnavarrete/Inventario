@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { useEnvio } from "@/hooks/useEnvio";
+import { useEnvio } from "@/shared/hooks/useEnvio";
 
 // Auditoria 27-sep-2026 (6.2): un doble clic o Enter + clic no envian dos veces.
 test("un segundo envío mientras el primero corre se ignora", async () => {

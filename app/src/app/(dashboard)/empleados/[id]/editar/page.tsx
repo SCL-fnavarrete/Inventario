@@ -4,13 +4,13 @@ import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Save, Loader2 } from "lucide-react";
-import { parseApiError, type FieldErrors } from "@/lib/utils/apiErrors";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
-import { esCorreoValido } from "@/lib/utils/text";
-import { useErroresFormulario } from "@/hooks/useErroresFormulario";
+import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { MensajeCampo, ResumenErrores, claseCampo } from "@/shared/ui/CampoFormulario";
+import { esCorreoValido } from "@/shared/utilidades/text";
+import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 
 // Nombre de cada campo en el resumen de errores.
 const ETIQUETAS_EMPLEADO: Record<string, string> = {

@@ -1,6 +1,6 @@
 // Ventana que pide un motivo obligatorio (SPEC 2.104): reemplaza window.prompt.
 import { fireEvent, render, screen } from '@testing-library/react';
-import { VentanaMotivo } from '@/components/ui/VentanaMotivo';
+import { VentanaMotivo } from '@/shared/ui/VentanaMotivo';
 
 function abrir(onConfirm = jest.fn()) {
   render(

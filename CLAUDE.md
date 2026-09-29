@@ -30,21 +30,33 @@ npm run db:studio        # Prisma Studio GUI
 `app/src/app/` con route groups `(auth)` (publico) y `(dashboard)` (autenticado),
 mas `api/` con los endpoints REST agrupados por feature.
 
+### Monolito modular
+
+El codigo se organiza por dominio de negocio, no por tipo tecnico:
+
+- `src/modules/<modulo>/`: activos, personas, asignaciones, mantenciones,
+  despachos, compras, kit-epp, solicitudes, importacion, configuracion y
+  dashboard. Cada uno tiene su logica (`servicio.ts`, `consultas.ts`,
+  `validaciones.ts`...) y sus `componentes/`.
+- `src/shared/`: lo transversal (prisma, auth y permisos, sedes, auditoria,
+  utilidades, validaciones comunes, hooks y `ui/`).
+- `src/app/`: solo las rutas de Next.js (pantallas y API).
+
 ### Key Modules
 
 | Path | Purpose |
 |------|---------|
-| `src/lib/auth.ts` | NextAuth config: Credentials provider, JWT sessions (duración de Configuración > Seguridad), revisa la cuenta en cada consulta (una desactivada queda fuera), lista negra de sesiones cerradas y "sesiones válidas desde" al desactivar (SPEC 2.112.5), bloqueo por intentos contado en el registro de accesos (SPEC 2.112) |
-| `src/lib/prisma.ts` | Prisma singleton (prevents connection pool exhaustion) |
-| `src/lib/auth/sedeScope.ts` | La sede es un dato, no un candado (SPEC 2.117): todos trabajan con todas las sedes. `filtroSede` (filtro del navbar) y `sedeIdParaCrear`. No agregar reglas de acceso por sede: lo que es solo de admin lo decide la matriz de permisos |
-| `src/lib/services/assetHistoryService.ts` | Audit trail — logs all asset events with old/new values |
-| `src/lib/services/workflowExecutionService.ts` | Ejecuta acciones de workflow: asignaciones, desvinculaciones, guias al hacer transiciones |
-| `src/lib/services/workflowStateMachine.ts` | Define estados válidos y transiciones permitidas por tipo de solicitud |
-| `src/lib/services/documentGeneratorService.ts` | Genera documentos (actas, reportes) asociados a solicitudes de workflow |
-| `src/lib/services/assetStateMachine.ts` | Máquina de estados de activos — valida transiciones, precondiciones, estados terminales |
-| `src/lib/validations/assetTransition.ts` | Zod schemas para transiciones de activos: baja, venta, mantención, reasignación |
-| `src/lib/validations/` | Zod schemas for all entities (asset, employee, assignment, workflow, etc.) |
-| `src/lib/utils/rut.ts` | Chilean RUT format validation |
+| `src/shared/auth/opciones.ts` | NextAuth config: Credentials provider, JWT sessions (duración de Configuración > Seguridad), revisa la cuenta en cada consulta (una desactivada queda fuera), lista negra de sesiones cerradas y "sesiones válidas desde" al desactivar (SPEC 2.112.5), bloqueo por intentos contado en el registro de accesos (SPEC 2.112) |
+| `src/shared/prisma.ts` | Prisma singleton (prevents connection pool exhaustion) |
+| `src/shared/sedes/filtro.ts` | La sede es un dato, no un candado (SPEC 2.117): todos trabajan con todas las sedes. `filtroSede` (filtro del navbar) y `sedeIdParaCrear`. No agregar reglas de acceso por sede: lo que es solo de admin lo decide la matriz de permisos |
+| `src/modules/activos/historial.ts` | Audit trail — logs all asset events with old/new values |
+| `src/modules/solicitudes/ejecucion.ts` | Ejecuta acciones de workflow: asignaciones, desvinculaciones, guias al hacer transiciones |
+| `src/modules/solicitudes/maquinaEstados.ts` | Define estados válidos y transiciones permitidas por tipo de solicitud |
+| `src/modules/solicitudes/documentos.ts` | Genera documentos (actas, reportes) asociados a solicitudes de workflow |
+| `src/modules/activos/maquinaEstados.ts` | Máquina de estados de activos — valida transiciones, precondiciones, estados terminales |
+| `src/modules/activos/validacionesTransicion.ts` | Zod schemas para transiciones de activos: baja, venta, mantención, reasignación |
+| `src/modules/<modulo>/validaciones.ts` | Zod schemas de cada entidad; las comunes en `src/shared/validaciones/` |
+| `src/shared/utilidades/rut.ts` | Chilean RUT format validation |
 | `src/proxy.ts` | Proxy de Next.js 16 (antes `middleware.ts`): exige sesión en todas las rutas salvo `/login` y `/api/auth` |
 | `prisma/schema.prisma` | 32 modelos y 24 enums (estados de activos, condiciones, contratos, workflow, accesos...) |
 
@@ -88,18 +100,18 @@ En produccion (Vercel) se aplica con `npm run db:migrate:prod`.
 
 ## Conventions
 
-- **Imports:** Always use `@/` path alias (e.g., `@/lib/prisma`, `@/components/ui/Button`)
-- **Validation:** All API input must be validated with Zod schemas from `src/lib/validations/`
-- **Audit trail:** Any asset mutation must call `assetHistoryService.registrar()` with appropriate event type
+- **Imports:** Always use `@/` path alias (e.g., `@/shared/prisma`, `@/shared/ui/Button`)
+- **Validation:** All API input must be validated with Zod schemas (`validaciones.ts` de cada modulo, o `src/shared/validaciones/`)
+- **Audit trail:** Any asset mutation must call `assetHistoryService.registrar()` (`src/modules/activos/historial.ts`) with appropriate event type
 - **Session checks:** All non-auth API routes must verify session via `getServerSession(authOptions)`
 - **Formatting:** Prettier with semicolons, single quotes, 100 char width, es5 trailing commas
 - **UI language:** All user-facing text is in Spanish
 - **RUT handling:** RUT is optional (`String?`): when unknown it is left blank. Always use null-safe access (`employee.rut || "—"`) and optional chaining (`employee.rut?.toLowerCase()`)
 - **Sin sincronización con Microsoft:** se eliminó (SPEC 2.112). Las personas se crean solo en Onboarding.
-- **Transiciones de estado de activos:** Toda transición de estado de un activo debe pasar por `assetStateMachine.validateTransition()`, dentro de su proceso: solicitudes (asignar, devolver, cambiar), mantenciones (la baja pasa siempre por una mantención "No reparable": `/api/mantenciones/baja` o al completar una, SPEC 2.88) y `/api/activos/[id]/venta`. El PUT de `/api/activos/[id]` no cambia el estado: lo rechaza con 409 (SPEC 2.86)
-- **Workflow/Solicitudes:** El sistema de solicitudes orquesta flujos completos (onboarding, cambio equipo, devolución por término). `workflowStateMachine` valida transiciones; `workflowExecutionService` ejecuta las acciones reales (crea asignaciones, desvinculaciones, guías). Las transiciones quedan en `WorkflowTransition` para auditoría
-- **Estilos y tema:** seguir `app/docs/DESIGN_SYSTEM.md`. Nunca colores fijos para superficies o texto (`bg-white`, `text-gray-900`, hex): usar los tokens (`bg-surface`, `text-fg`, `border-line`...) para que funcione el modo oscuro. Tarjetas destacadas con `card-feature` y color derivado de un dato real (`lib/constants/tonos.ts`); `<Tilt>` solo en pocas tarjetas, nunca en listas grandes
-- **Component structure:** Feature components in named dirs (`components/activos/`, `components/dashboard/`), reusable primitives in `components/ui/`
+- **Transiciones de estado de activos:** Toda transición de estado de un activo debe pasar por `validateTransition()` de `src/modules/activos/maquinaEstados.ts`, dentro de su proceso: solicitudes (asignar, devolver, cambiar), mantenciones (la baja pasa siempre por una mantención "No reparable": `/api/mantenciones/baja` o al completar una, SPEC 2.88) y `/api/activos/[id]/venta`. El PUT de `/api/activos/[id]` no cambia el estado: lo rechaza con 409 (SPEC 2.86)
+- **Workflow/Solicitudes:** El sistema de solicitudes orquesta flujos completos (onboarding, cambio equipo, devolución por término). `modules/solicitudes/maquinaEstados.ts` valida transiciones; `modules/solicitudes/ejecucion.ts` ejecuta las acciones reales (crea asignaciones, desvinculaciones, guías). Las transiciones quedan en `WorkflowTransition` para auditoría
+- **Estilos y tema:** seguir `app/docs/DESIGN_SYSTEM.md`. Nunca colores fijos para superficies o texto (`bg-white`, `text-gray-900`, hex): usar los tokens (`bg-surface`, `text-fg`, `border-line`...) para que funcione el modo oscuro. Tarjetas destacadas con `card-feature` y color derivado de un dato real (`shared/constantes/tonos.ts`); `<Tilt>` solo en pocas tarjetas, nunca en listas grandes
+- **Component structure:** los componentes de cada dominio en `src/modules/<modulo>/componentes/`; las piezas reutilizables en `src/shared/ui/`
 
 ## Environment Variables
 
@@ -142,13 +154,13 @@ export async function POST(request: NextRequest) {
 }
 ```
 
-- **La matriz manda.** `src/lib/auth/permissions.ts` es el unico punto de verdad
+- **La matriz manda.** `src/shared/auth/permisos.ts` es el unico punto de verdad
   (SPEC 1.3.1). No verifiques roles a mano dentro de una ruta: si el permiso
   que necesitas no existe, se cambia la matriz y el SPEC, no la ruta.
 - **La UI usa la misma matriz** via `usePermissions()` y `<Can recurso=... accion=...>`.
   Asi un boton visible nunca lleva a un 403.
 - **Las transiciones de workflow no pasan por la matriz.** Las autoriza
-  `workflowStateMachine.canTransition`, que ya conoce el rol de cada
+  `canTransition` (`src/modules/solicitudes/maquinaEstados.ts`), que ya conoce el rol de cada
   transicion. La ruta de transicion solo exige `solicitudes/read`.
 - **Formato de error unificado:** `{ error: string, details?: unknown }`.
   `handleApiError` traduce ApiError, ZodError y los codigos de Prisma
@@ -164,4 +176,4 @@ registro es evidencia de auditoria. `DELETE /api/activos/[id]` responde 409 y
 apunta a darlo de baja por Mantenciones (`/api/mantenciones/baja`). Para duplicados de importacion existe
 `DELETE /api/activos/[id]?descartar=true&motivo=...`, que marca `deletedAt` y
 deja el evento en el historial. Los listados y reportes filtran con
-`ACTIVOS_VIGENTES` de `src/lib/queries/activos.ts`.
+`ACTIVOS_VIGENTES` de `src/modules/activos/consultas.ts`.

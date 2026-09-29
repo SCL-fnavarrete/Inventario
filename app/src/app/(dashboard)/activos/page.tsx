@@ -24,24 +24,24 @@ import {
   User,
   Loader2
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard, ActivosTabs } from "@/components/activos";
-import { FiltrosDatoActivo, textoFiltroDato, useOpcionesFiltroDato } from "@/components/activos/FiltrosDatoActivo";
-import { FILTROS_DATO, type ParamFiltroDato } from "@/lib/constants/filtrosActivos";
-import { Can } from "@/components/auth/Can";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { CONSULTA_CELULAR, useMediaQuery } from "@/hooks/useMediaQuery";
-import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
+import { cn } from "@/shared/cn";
+import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard, ActivosTabs } from "@/modules/activos/componentes";
+import { FiltrosDatoActivo, textoFiltroDato, useOpcionesFiltroDato } from "@/modules/activos/componentes/FiltrosDatoActivo";
+import { FILTROS_DATO, type ParamFiltroDato } from "@/modules/activos/filtros";
+import { Can } from "@/shared/ui/Can";
+import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
+import { CONSULTA_CELULAR, useMediaQuery } from "@/shared/hooks/useMediaQuery";
+import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
 import type { EstadoActivo, CondicionActivo } from "@prisma/client";
-import { formatearFecha } from "@/lib/utils/fechas";
-import { CategoryIcon } from "@/components/activos/CategoryIcon";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { AssetConditionBadge, AssetStatusBadge } from "@/components/ui/Badge";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { Pagination } from "@/components/ui/Pagination";
-import { etiquetaEstadoActivo } from "@/lib/constants/estadosActivo";
-import { COLUMNA_FIJA_CELDA, COLUMNA_FIJA_ENCABEZADO } from "@/components/ui/tablaStyles";
-import { identificadorActivo } from "@/lib/utils/identificador";
+import { formatearFecha } from "@/shared/utilidades/fechas";
+import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { AssetConditionBadge, AssetStatusBadge } from "@/shared/ui/Badge";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { Pagination } from "@/shared/ui/Pagination";
+import { etiquetaEstadoActivo } from "@/modules/activos/estados";
+import { COLUMNA_FIJA_CELDA, COLUMNA_FIJA_ENCABEZADO } from "@/shared/ui/tablaStyles";
+import { identificadorActivo } from "@/modules/activos/identificador";
 
 type Asset = {
   id: string;

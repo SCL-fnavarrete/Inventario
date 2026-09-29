@@ -5,7 +5,7 @@ import {
   getNextStates,
   canTransition,
   isCancelled,
-} from '@/lib/services/workflowStateMachine';
+} from '@/modules/solicitudes/maquinaEstados';
 
 // SPEC: Sección 2.5.2 — Máquinas de estado por tipo de solicitud
 
@@ -81,7 +81,7 @@ describe('workflowStateMachine — getStatesForType', () => {
 });
 
 // SPEC Sección 2.5.3 Regla 1: solo tecnico/admin avanzan estados (los
-// únicos dos roles que existen -- ver permissions.ts).
+// únicos dos roles que existen -- ver shared/auth/permisos.ts).
 describe('workflowStateMachine — canTransition (transiciones permitidas)', () => {
   // Onboarding
   test('tecnico puede avanzar solicitud_recibida → gestion_ti (onboarding)', () => {

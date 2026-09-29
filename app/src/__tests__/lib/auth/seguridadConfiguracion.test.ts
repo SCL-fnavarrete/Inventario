@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 // Configuracion parte 3: seguridad y datos correctos (SPEC 2.112.6).
-jest.mock('@/lib/prisma', () => {
+jest.mock('@/shared/prisma', () => {
   const prisma: Record<string, unknown> = {
     systemUser: { findUnique: jest.fn(), findFirst: jest.fn(), count: jest.fn(), update: jest.fn(), create: jest.fn() },
     systemConfig: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -14,11 +14,11 @@ jest.mock('@/lib/prisma', () => {
   prisma.$transaction = jest.fn((fn: (tx: unknown) => unknown) => fn(prisma));
   return { prisma };
 });
-jest.mock('@/lib/auth/guard', () => {
-  const real = jest.requireActual('@/lib/auth/guard');
+jest.mock('@/shared/auth/guard', () => {
+  const real = jest.requireActual('@/shared/auth/guard');
   return { ...real, requirePermission: jest.fn() };
 });
-jest.mock('@/lib/services/auditLogService', () => ({
+jest.mock('@/shared/auditoria', () => ({
   auditLogService: { registrarActualizacion: jest.fn(), registrarCreacion: jest.fn() },
 }));
 jest.mock('bcryptjs', () => ({
@@ -30,14 +30,14 @@ jest.mock('bcryptjs', () => ({
 
 import { NextRequest } from 'next/server';
 import { compare } from 'bcryptjs';
-import { prisma } from '@/lib/prisma';
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { authOptions } from '@/lib/auth';
-import { minutosDeBloqueoEquipo, limpiarRegistroAntiguo } from '@/lib/services/accesoService';
-import { ipLegible } from '@/lib/constants/accesos';
-import { crearSedeSchema, editarSedeSchema } from '@/lib/validations/sede';
-import { crearUsuarioSchema, editarUsuarioSchema } from '@/lib/validations/usuario';
-import { validarParametros } from '@/lib/validations/parametros';
+import { prisma } from '@/shared/prisma';
+import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { authOptions } from '@/shared/auth/opciones';
+import { minutosDeBloqueoEquipo, limpiarRegistroAntiguo } from '@/modules/configuracion/accesos';
+import { ipLegible } from '@/modules/configuracion/etiquetasAccesos';
+import { crearSedeSchema, editarSedeSchema } from '@/modules/configuracion/validacionesSede';
+import { crearUsuarioSchema, editarUsuarioSchema } from '@/modules/configuracion/validacionesUsuario';
+import { validarParametros } from '@/modules/configuracion/validacionesParametros';
 import { PUT as editarUsuario } from '@/app/api/usuarios/[id]/route';
 import { POST as crearUsuario } from '@/app/api/usuarios/route';
 import { PATCH as editarSede } from '@/app/api/sedes/[id]/route';

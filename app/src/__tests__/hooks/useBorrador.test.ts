@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { useBorrador } from "@/hooks/useBorrador";
+import { useBorrador } from "@/shared/hooks/useBorrador";
 
 // Auditoria 27-sep-2026, 2.8: lo escrito en un formulario largo sobrevive a
 // una sesion vencida, en la misma pestaña.

@@ -14,14 +14,14 @@ import {
   User,
   Download,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { parseApiError, type FieldErrors } from '@/lib/utils/apiErrors';
-import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
-import { formatearFecha } from "@/lib/utils/fechas";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { VentanaMotivo } from '@/components/ui/VentanaMotivo';
-import { FilaEquipoTicket, type AsignacionFila } from '@/components/solicitudes/FilaEquipoTicket';
-import { documentoDeSolicitud } from '@/lib/constants/documentosSolicitud';
+import { cn } from '@/shared/cn';
+import { parseApiError, type FieldErrors } from '@/shared/utilidades/apiErrors';
+import { ApiErrorSummary } from '@/shared/ui/ApiErrorSummary';
+import { formatearFecha } from "@/shared/utilidades/fechas";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { VentanaMotivo } from '@/shared/ui/VentanaMotivo';
+import { FilaEquipoTicket, type AsignacionFila } from '@/modules/solicitudes/componentes/FilaEquipoTicket';
+import { documentoDeSolicitud } from '@/modules/solicitudes/tiposDocumento';
 
 type WorkflowDetail = {
   id: string;

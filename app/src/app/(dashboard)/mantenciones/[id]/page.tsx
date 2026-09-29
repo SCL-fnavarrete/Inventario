@@ -19,32 +19,32 @@ import {
   motivoSinBaja,
   etiquetaCondicionActivo,
   etiquetaEstadoActivo,
-} from "@/lib/constants/estadosActivo";
-import { cn } from "@/lib/utils";
-import type { ResultadoMantencion } from "@/lib/validations/assetTransition";
-import { parseApiError } from "@/lib/utils/apiErrors";
-import { formatearFecha, formatearFechaConHora, aValorInputDate, hoyISO } from "@/lib/utils/fechas";
-import { useErroresFormulario } from "@/hooks/useErroresFormulario";
-import { avisoFechaPasada } from "@/lib/utils/mantenciones";
+} from "@/modules/activos/estados";
+import { cn } from "@/shared/cn";
+import type { ResultadoMantencion } from "@/modules/activos/validacionesTransicion";
+import { parseApiError } from "@/shared/utilidades/apiErrors";
+import { formatearFecha, formatearFechaConHora, aValorInputDate, hoyISO } from "@/shared/utilidades/fechas";
+import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
+import { avisoFechaPasada } from "@/modules/mantenciones/utilidades";
 import {
   RESULTADO_MANTENCION_LABEL,
   etiquetaResultadoMantencion,
-} from "@/lib/constants/resultadosMantencion";
-import { CategoryIcon } from "@/components/activos/CategoryIcon";
-import { configEstadoMantencion } from "@/components/mantenciones";
-import { CamposMotivoBaja, erroresMotivoBaja, useMotivosBaja } from "@/components/mantenciones/CamposMotivoBaja";
-import { Can } from "@/components/auth/Can";
-import { AssetStatusBadge } from "@/components/ui/Badge";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { PageHeader } from "@/components/ui/PageHeader";
+} from "@/modules/mantenciones/resultados";
+import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
+import { configEstadoMantencion } from "@/modules/mantenciones/componentes";
+import { CamposMotivoBaja, erroresMotivoBaja, useMotivosBaja } from "@/modules/mantenciones/componentes/CamposMotivoBaja";
+import { Can } from "@/shared/ui/Can";
+import { AssetStatusBadge } from "@/shared/ui/Badge";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import { PageHeader } from "@/shared/ui/PageHeader";
 import {
   CampoFormulario,
   CampoTexto,
   ResumenErrores,
   claseCampo,
-} from "@/components/ui/CampoFormulario";
-import { identificadorActivo } from "@/lib/utils/identificador";
+} from "@/shared/ui/CampoFormulario";
+import { identificadorActivo } from "@/modules/activos/identificador";
 
 type ResultadoTipo = ResultadoMantencion;
 

@@ -17,8 +17,8 @@
  * inventario_it_test y se niega a correr contra cualquier otra.
  */
 // Las rutas se llaman de verdad; solo el permiso se simula (un admin).
-jest.mock('@/lib/auth/guard', () => {
-  const real = jest.requireActual('@/lib/auth/guard');
+jest.mock('@/shared/auth/guard', () => {
+  const real = jest.requireActual('@/shared/auth/guard');
   return {
     ...real,
     requirePermission: jest.fn().mockResolvedValue({
@@ -29,12 +29,12 @@ jest.mock('@/lib/auth/guard', () => {
 
 import { randomUUID } from 'crypto';
 import { NextRequest } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/shared/prisma';
 import {
   executeAssignment,
   executeKitDelivery,
   executeReturn,
-} from '@/lib/services/workflowExecutionService';
+} from '@/modules/solicitudes/ejecucion';
 import { POST as vender } from '@/app/api/activos/[id]/venta/route';
 import { POST as darDeBaja } from '@/app/api/mantenciones/baja/route';
 import { POST as completar } from '@/app/api/mantenciones/[id]/completar/route';

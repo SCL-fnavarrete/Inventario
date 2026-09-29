@@ -3,10 +3,10 @@ import {
   executeKitDelivery,
   executeKitReturn,
   executeReturn,
-} from '@/lib/services/workflowExecutionService';
-import { ConflictError, NotFoundError } from '@/lib/errors';
+} from '@/modules/solicitudes/ejecucion';
+import { ConflictError, NotFoundError } from '@/shared/errores';
 
-jest.mock('@/lib/services/auditLogService', () => ({
+jest.mock('@/shared/auditoria', () => ({
   auditLogService: { registrarCreacion: jest.fn(), registrarActualizacion: jest.fn() },
 }));
 

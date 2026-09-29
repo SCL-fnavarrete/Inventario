@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { createMaintenanceSchema, maintenanceFiltersSchema } from "@/lib/validations/maintenance";
+import { prisma } from "@/shared/prisma";
+import { createMaintenanceSchema, maintenanceFiltersSchema } from "@/modules/mantenciones/validaciones";
 import { Prisma } from "@prisma/client";
-import { requirePermission, handleApiError, respuestaDatosInvalidos, ConflictError } from '@/lib/auth/guard';
-import { motivoSinMantencion } from '@/lib/constants/estadosActivo';
-import { auditLogService } from '@/lib/services/auditLogService';
-import { formatearFechaConHora, inicioDeHoy } from '@/lib/utils/fechas';
-import { busquedaActivo, palabrasDeBusqueda } from "@/lib/queries/activos";
+import { requirePermission, handleApiError, respuestaDatosInvalidos, ConflictError } from '@/shared/auth/guard';
+import { motivoSinMantencion } from '@/modules/activos/estados';
+import { auditLogService } from '@/shared/auditoria';
+import { formatearFechaConHora, inicioDeHoy } from '@/shared/utilidades/fechas';
+import { busquedaActivo, palabrasDeBusqueda } from "@/modules/activos/consultas";
 import {
   INCLUDE_LISTADO_MANTENCION,
   VISTAS_MANTENCION,
@@ -15,7 +15,7 @@ import {
   paginarPorGrupos,
   ventanaPeriodo,
   whereSedeMantencion,
-} from "@/lib/queries/mantenciones";
+} from "@/modules/mantenciones/consultas";
 
 // GET /api/mantenciones - Listar mantenciones con filtros
 export async function GET(request: NextRequest) {

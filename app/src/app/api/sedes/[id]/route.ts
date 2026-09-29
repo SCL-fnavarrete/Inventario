@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError, NotFoundError } from '@/lib/auth/guard';
-import { auditLogService } from '@/lib/services/auditLogService';
-import { editarSedeSchema } from '@/lib/validations/sede';
-import { exigirNombreSedeLibre } from '@/lib/queries/sedes';
+import { prisma } from "@/shared/prisma";
+import { requirePermission, handleApiError, NotFoundError } from '@/shared/auth/guard';
+import { auditLogService } from '@/shared/auditoria';
+import { editarSedeSchema } from '@/modules/configuracion/validacionesSede';
+import { exigirNombreSedeLibre } from '@/shared/sedes/consultas';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
 // PATCH /api/sedes/[id] - Editar nombre o activar/desactivar una sede.
-// Desactivarla deja fuera a sus tecnicos (lib/auth.ts, SPEC 2.112.6): no
+// Desactivarla deja fuera a sus tecnicos (shared/auth/opciones.ts, SPEC 2.112.6): no
 // pueden iniciar sesion y los que estan dentro salen en su siguiente accion.
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {

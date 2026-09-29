@@ -4,18 +4,18 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { XCircle, DollarSign } from 'lucide-react';
-import { etiquetaEstadoActivo } from '@/lib/constants/estadosActivo';
-import { parseApiError, type FieldErrors } from '@/lib/utils/apiErrors';
-import { ApiErrorSummary } from '@/components/ui/ApiErrorSummary';
-import { PageHeader } from '@/components/ui/PageHeader';
+import { etiquetaEstadoActivo } from '@/modules/activos/estados';
+import { parseApiError, type FieldErrors } from '@/shared/utilidades/apiErrors';
+import { ApiErrorSummary } from '@/shared/ui/ApiErrorSummary';
+import { PageHeader } from '@/shared/ui/PageHeader';
 import {
   CampoFormulario,
   CampoTexto,
   ResumenErrores,
   claseInput,
-} from '@/components/ui/CampoFormulario';
-import { buttonClasses } from '@/components/ui/buttonStyles';
-import { useErroresFormulario } from '@/hooks/useErroresFormulario';
+} from '@/shared/ui/CampoFormulario';
+import { buttonClasses } from '@/shared/ui/buttonStyles';
+import { useErroresFormulario } from '@/shared/hooks/useErroresFormulario';
 
 // Nombre de cada campo en el resumen de errores.
 const ETIQUETAS_VENTA: Record<string, string> = {
@@ -23,8 +23,8 @@ const ETIQUETAS_VENTA: Record<string, string> = {
   monto: 'Monto',
   fechaVenta: 'Fecha de venta',
 };
-import { hoyISO } from '@/lib/utils/fechas';
-import { identificadorActivo } from "@/lib/utils/identificador";
+import { hoyISO } from '@/shared/utilidades/fechas';
+import { identificadorActivo } from "@/modules/activos/identificador";
 
 type Asset = {
   id: string;

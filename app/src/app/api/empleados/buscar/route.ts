@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { formatearRut, limpiarRut, validarDigitoVerificador } from "@/lib/validations/rut";
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { prisma } from "@/shared/prisma";
+import { formatearRut, limpiarRut, validarDigitoVerificador } from "@/shared/validaciones/rut";
+import { requirePermission, handleApiError } from '@/shared/auth/guard';
 
 // GET /api/empleados/buscar?rut=21.523.308-1 - Buscar empleado por RUT
 export async function GET(request: NextRequest) {

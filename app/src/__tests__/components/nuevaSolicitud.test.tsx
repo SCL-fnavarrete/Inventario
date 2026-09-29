@@ -5,10 +5,10 @@ import {
   cuerpoCoordinacion,
   erroresCoordinacion,
   type Coordinacion,
-} from "@/components/solicitudes/nueva/coordinacion";
-import { SeccionCoordinacion } from "@/components/solicitudes/nueva/SeccionCoordinacion";
-import { ElegirEstadoDevolucion } from "@/components/solicitudes/nueva/ElegirEstadoDevolucion";
-import { SeccionKitEpp } from "@/components/solicitudes/nueva/SeccionKitEpp";
+} from "@/modules/solicitudes/componentes/nueva/coordinacion";
+import { SeccionCoordinacion } from "@/modules/solicitudes/componentes/nueva/SeccionCoordinacion";
+import { ElegirEstadoDevolucion } from "@/modules/solicitudes/componentes/nueva/ElegirEstadoDevolucion";
+import { SeccionKitEpp } from "@/modules/solicitudes/componentes/nueva/SeccionKitEpp";
 
 // Auditoria 28-sep-2026 (3.6): piezas sacadas de Nueva Solicitud. Tienen que
 // mandar al servidor exactamente lo mismo que antes.

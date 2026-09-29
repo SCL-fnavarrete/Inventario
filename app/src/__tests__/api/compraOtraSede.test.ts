@@ -2,24 +2,24 @@
 // SPEC 2.111.6 (decision del 28-sep-2026): Compras muestra los equipos
 // comprados y a que sede se repartieron, no a quien estan asignados. Ni a
 // admin ni a tecnico.
-jest.mock('@/lib/prisma', () => ({
+jest.mock('@/shared/prisma', () => ({
   prisma: {
     purchase: { findUnique: jest.fn() },
     purchaseAsset: { findMany: jest.fn() },
   },
 }));
-jest.mock('@/lib/auth/guard', () => {
-  const real = jest.requireActual('@/lib/auth/guard');
+jest.mock('@/shared/auth/guard', () => {
+  const real = jest.requireActual('@/shared/auth/guard');
   return { ...real, requirePermission: jest.fn() };
 });
-jest.mock('@/lib/services/compraService', () => ({
-  ...jest.requireActual('@/lib/services/compraService'),
+jest.mock('@/modules/compras/servicio', () => ({
+  ...jest.requireActual('@/modules/compras/servicio'),
   avanceReparto: jest.fn(() => ({})),
 }));
 
 import { NextRequest } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { requirePermission } from '@/lib/auth/guard';
+import { prisma } from '@/shared/prisma';
+import { requirePermission } from '@/shared/auth/guard';
 import { GET as detalleCompra } from '@/app/api/compras/[id]/route';
 import { GET as equiposCompra } from '@/app/api/compras/[id]/activos/route';
 

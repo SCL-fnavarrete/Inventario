@@ -1,6 +1,6 @@
 "use client";
 
-import { KitEppCategoriaView } from "@/components/kit-epp/KitEppCategoriaView";
+import { KitEppCategoriaView } from "@/modules/kit-epp/componentes/KitEppCategoriaView";
 
 // Vive fuera de Configuracion (que es admin-only) porque el tecnico
 // necesita poder agregar/editar el stock de Kit de Bienvenida de su

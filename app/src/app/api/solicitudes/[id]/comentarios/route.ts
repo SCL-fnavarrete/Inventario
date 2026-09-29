@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { createCommentSchema } from '@/lib/validations/workflow';
-import { requirePermission, handleApiError, respuestaDatosInvalidos, usuarioDeSesion } from '@/lib/auth/guard';
-import { sinIdsDeUsuario } from '@/lib/utils/privacidad';
+import { prisma } from '@/shared/prisma';
+import { createCommentSchema } from '@/modules/solicitudes/validaciones';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, usuarioDeSesion } from '@/shared/auth/guard';
+import { sinIdsDeUsuario } from '@/shared/utilidades/privacidad';
 
 // POST /api/solicitudes/[id]/comentarios - Add comment
 export async function POST(

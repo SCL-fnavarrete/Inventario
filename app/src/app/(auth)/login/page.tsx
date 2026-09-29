@@ -3,14 +3,14 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/Button";
-import { ApiErrorSummary } from "@/components/ui/ApiErrorSummary";
-import { Logo } from "@/components/ui/Logo";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { MensajeCampo, ResumenErrores, claseCampo } from "@/components/ui/CampoFormulario";
-import { InputClave } from "@/components/ui/InputClave";
-import { useErroresFormulario } from "@/hooks/useErroresFormulario";
-import { esCorreoValido } from "@/lib/utils/text";
+import { Button } from "@/shared/ui/Button";
+import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
+import { Logo } from "@/shared/ui/Logo";
+import { ThemeToggle } from "@/shared/ui/ThemeToggle";
+import { MensajeCampo, ResumenErrores, claseCampo } from "@/shared/ui/CampoFormulario";
+import { InputClave } from "@/shared/ui/InputClave";
+import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
+import { esCorreoValido } from "@/shared/utilidades/text";
 
 const ETIQUETAS = { email: "Correo electrónico", password: "Contraseña" };
 

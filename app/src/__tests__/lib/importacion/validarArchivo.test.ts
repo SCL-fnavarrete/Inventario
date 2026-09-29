@@ -5,10 +5,10 @@ import {
   MENSAJE_XLS,
   validarArchivoExcel,
   validarCantidadFilas,
-} from "@/lib/importacion/validarArchivo";
-import { leerFilasExcel } from "@/lib/importacion/leerExcel";
-import { precargarEmpleadosPorRut } from "@/lib/importacion/procesarFila";
-import { interpretarRut } from "@/lib/importacion/activos";
+} from "@/modules/importacion/validarArchivo";
+import { leerFilasExcel } from "@/modules/importacion/leerExcel";
+import { precargarEmpleadosPorRut } from "@/modules/importacion/procesarFila";
+import { interpretarRut } from "@/modules/importacion/reglasFila";
 import { crearExcel } from "@/test-utils/excel";
 
 const archivo = (contenido: BlobPart[], nombre: string) => new File(contenido, nombre);

@@ -12,15 +12,15 @@ import {
   Users,
   UserX,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Tilt } from "@/components/ui/Tilt";
-import { TONO_ACENTO } from "@/lib/constants/tonos";
-import { ActivosTabs } from "@/components/activos";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useSedeSeleccionada } from "@/components/providers/SedeSeleccionadaProvider";
+import { cn } from "@/shared/cn";
+import { Tilt } from "@/shared/ui/Tilt";
+import { TONO_ACENTO } from "@/shared/constantes/tonos";
+import { ActivosTabs } from "@/modules/activos/componentes";
+import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
+import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { COLUMNA_FIJA_CELDA, COLUMNA_FIJA_ENCABEZADO } from "@/components/ui/tablaStyles";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { COLUMNA_FIJA_CELDA, COLUMNA_FIJA_ENCABEZADO } from "@/shared/ui/tablaStyles";
 
 // Read-only employee listing within Activos. Employees are created via the
 // onboarding flow; detail/edit lives in /empleados/[id].

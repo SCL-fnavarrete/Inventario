@@ -1,6 +1,6 @@
 /** @jest-environment node */
-import { procesarFila, type ContextoFila } from "@/lib/importacion/procesarFila";
-import { construirMapaCatalogo, interpretarRut } from "@/lib/importacion/activos";
+import { procesarFila, type ContextoFila } from "@/modules/importacion/procesarFila";
+import { construirMapaCatalogo, interpretarRut } from "@/modules/importacion/reglasFila";
 
 // Auditoria 27-sep-2026, 2.9: un equipo no queda "asignado" a alguien que ya
 // se desvinculo.

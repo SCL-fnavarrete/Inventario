@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { createAssignmentSchema, assignmentFiltersSchema } from "@/lib/validations/assignment";
-import { executeAssignment } from "@/lib/services/workflowExecutionService";
+import { prisma } from "@/shared/prisma";
+import { createAssignmentSchema, assignmentFiltersSchema } from "@/modules/asignaciones/validaciones";
+import { executeAssignment } from "@/modules/solicitudes/ejecucion";
 import { Prisma } from "@prisma/client";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/lib/auth/guard';
-import { filtroSede } from '@/lib/auth/sedeScope';
-import { coincideBusqueda } from '@/lib/utils/text';
+import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { filtroSede } from '@/shared/sedes/filtro';
+import { coincideBusqueda } from '@/shared/utilidades/text';
 
 export const dynamic = 'force-dynamic';
 

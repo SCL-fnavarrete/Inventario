@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { requirePermission, handleApiError, NotFoundError, ConflictError } from '@/lib/auth/guard';
-import { auditLogService } from '@/lib/services/auditLogService';
-import { categoriaSchema } from '@/lib/validations/categoria';
-import { exigirNombreCategoriaLibre, snapshotCategoria } from '@/lib/queries/categorias';
+import { prisma } from "@/shared/prisma";
+import { requirePermission, handleApiError, NotFoundError, ConflictError } from '@/shared/auth/guard';
+import { auditLogService } from '@/shared/auditoria';
+import { categoriaSchema } from '@/modules/activos/validacionesCategoria';
+import { exigirNombreCategoriaLibre, snapshotCategoria } from '@/modules/activos/consultasCategorias';
 
 export async function GET(
   request: NextRequest,

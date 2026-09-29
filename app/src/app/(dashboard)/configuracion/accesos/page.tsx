@@ -4,18 +4,18 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { LogIn, ShieldX, Lock, UserX, Search, Loader2 } from "lucide-react";
 import type { ResultadoAcceso } from "@prisma/client";
-import { cn } from "@/lib/utils";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { StatCard, StatGrid } from "@/components/ui/StatCard";
-import { Pagination } from "@/components/ui/Pagination";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { formatearFechaHora } from "@/lib/utils/fechas";
+import { cn } from "@/shared/cn";
+import { PageHeader } from "@/shared/ui/PageHeader";
+import { StatCard, StatGrid } from "@/shared/ui/StatCard";
+import { Pagination } from "@/shared/ui/Pagination";
+import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
+import { formatearFechaHora } from "@/shared/utilidades/fechas";
 import {
   RESULTADO_ACCESO_BADGE,
   RESULTADO_ACCESO_LABEL,
   ipLegible,
   navegadorLegible,
-} from "@/lib/constants/accesos";
+} from "@/modules/configuracion/etiquetasAccesos";
 
 type Registro = {
   id: string;

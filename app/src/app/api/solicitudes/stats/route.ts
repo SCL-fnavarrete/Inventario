@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { requirePermission, handleApiError } from '@/lib/auth/guard';
+import { prisma } from '@/shared/prisma';
+import { requirePermission, handleApiError } from '@/shared/auth/guard';
 
 // GET /api/solicitudes/stats - Dashboard stats
 export async function GET() {

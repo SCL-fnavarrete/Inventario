@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import { logger } from "@/lib/logger";
+import { logger } from "@/shared/logger";
 
 // Auditoria 27-sep-2026, 2.7: en produccion los errores dejan rastro, en JSON.
 const env = process.env as Record<string, string | undefined>;

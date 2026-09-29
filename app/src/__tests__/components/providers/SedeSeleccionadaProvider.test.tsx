@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import {
   SedeSeleccionadaProvider,
   useSedeSeleccionada,
-} from "@/components/providers/SedeSeleccionadaProvider";
+} from "@/shared/ui/providers/SedeSeleccionadaProvider";
 
 /**
  * SPEC 2.29 (14-sep-2026): selector de sede global del nav. Se prueba el

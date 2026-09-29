@@ -1,16 +1,16 @@
 // Orden de agenda del listado de mantenciones (SPEC 2.98).
-jest.mock('@/lib/prisma', () => ({
+jest.mock('@/shared/prisma', () => ({
   prisma: { maintenance: { count: jest.fn(), findMany: jest.fn() } },
 }));
 
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/shared/prisma';
 import {
   VISTAS_MANTENCION,
   filtroPeriodo,
   gruposAgenda,
   paginarPorGrupos,
   ventanaPeriodo,
-} from '@/lib/queries/mantenciones';
+} from '@/modules/mantenciones/consultas';
 
 const count = prisma.maintenance.count as jest.Mock;
 const findMany = prisma.maintenance.findMany as jest.Mock;

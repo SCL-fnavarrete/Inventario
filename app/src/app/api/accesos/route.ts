@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma, type ResultadoAcceso } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
-import { leerPaginacion } from "@/lib/utils/paginacion";
-import { requirePermission, handleApiError } from "@/lib/auth/guard";
-import { RESULTADOS_FALLIDOS } from "@/lib/services/accesoService";
-import { hoyISO, inicioDiaChile, rangoDiasChile } from "@/lib/utils/fechas";
+import { prisma } from "@/shared/prisma";
+import { leerPaginacion } from "@/shared/utilidades/paginacion";
+import { requirePermission, handleApiError } from "@/shared/auth/guard";
+import { RESULTADOS_FALLIDOS } from "@/modules/configuracion/accesos";
+import { hoyISO, inicioDiaChile, rangoDiasChile } from "@/shared/utilidades/fechas";
 
 /**
  * Registro de accesos (SPEC 2.112, Configuracion > Registro de accesos, solo

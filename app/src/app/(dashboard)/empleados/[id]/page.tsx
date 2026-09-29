@@ -21,11 +21,11 @@ import {
   HardHat,
   Gift,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/cn";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
-import { formatearFecha } from "@/lib/utils/fechas";
-import { buttonClasses } from "@/components/ui/buttonStyles";
-import { identificadorActivo } from "@/lib/utils/identificador";
+import { formatearFecha } from "@/shared/utilidades/fechas";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { identificadorActivo } from "@/modules/activos/identificador";
 
 type NotebookAsignado = {
   asignacionId: string;
