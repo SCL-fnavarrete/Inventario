@@ -27,3 +27,5 @@ export const categoriaSchema = z.object({
 export const opcionCatalogoSchema = z.object({
   nombre: z.string({ error: 'Escribe el nombre' }).trim().min(1, 'Escribe el nombre').max(100, 'Máximo 100 caracteres'),
 });
+
+export type CategoriaInput = z.infer<typeof categoriaSchema>;

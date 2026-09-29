@@ -105,6 +105,19 @@ export async function tipoCorrectivaPorDefecto(tx: PrismaTx) {
   );
 }
 
+/**
+ * Tipo de las mantenciones que trae un Excel importado: el Excel no dice el
+ * tipo, asi que quedan como "Preventiva" (se crea una sola vez si no existe).
+ */
+export async function tipoMantencionImportada() {
+  return prisma.maintenanceType.upsert({
+    where: { nombre: 'Preventiva' },
+    update: {},
+    create: { nombre: 'Preventiva' },
+    select: { id: true },
+  });
+}
+
 type MantencionAbierta = { id: string; estado: EstadoMantencion; tipo: { id: string; nombre: string } };
 
 /**

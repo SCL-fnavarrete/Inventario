@@ -3,3 +3,4 @@
 export * from '@/modules/importacion/contexto';
 export * from '@/modules/importacion/leerExcel';
 export * from '@/modules/importacion/procesarFila';
+export * from '@/modules/importacion/servicio';

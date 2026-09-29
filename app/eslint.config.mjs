@@ -6,11 +6,12 @@ import nextTs from "eslint-config-next/typescript";
 // Monolito modular (SPEC 2.118): desde fuera de un modulo solo se entra por
 // sus puertas: '@/modules/x' (reglas y tipos), '@/modules/x/servidor'
 // (servicios con base de datos) y '@/modules/x/componentes'; los PDF de
-// solicitudes, por su peso, entran por '@/modules/solicitudes/documentos'. Dentro de su
+// solicitudes y el Excel de activos, por su peso, entran por
+// '@/modules/solicitudes/documentos' y '@/modules/activos/excel'. Dentro de su
 // modulo cada archivo importa libre. shared/ no usa modulos.
 const MODULOS = readdirSync(new URL("./src/modules", import.meta.url));
 const soloPuertas = (m) => ({
-  group: [`@/modules/${m}/*`, `!@/modules/${m}/servidor`, `!@/modules/${m}/componentes`, `!@/modules/${m}/documentos`, `@/modules/${m}/componentes/*`],
+  group: [`@/modules/${m}/*`, `!@/modules/${m}/servidor`, `!@/modules/${m}/componentes`, `!@/modules/${m}/documentos`, `!@/modules/${m}/excel`, `@/modules/${m}/componentes/*`],
   message: `Entra a "${m}" por sus puertas: '@/modules/${m}', '@/modules/${m}/servidor' o '@/modules/${m}/componentes' (SPEC 2.118).`,
 });
 const limitar = (files, modulos) => ({

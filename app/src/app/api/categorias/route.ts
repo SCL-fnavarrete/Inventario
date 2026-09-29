@@ -1,40 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/shared/prisma";
 import { requirePermission, handleApiError } from '@/shared/auth/guard';
-import { auditLogService } from '@/shared/auditoria';
-import { categoriaSchema, ACTIVOS_VIGENTES } from '@/modules/activos';
-import { exigirNombreCategoriaLibre, snapshotCategoria } from '@/modules/activos/servidor';
-import { filtroSede } from '@/shared/sedes/filtro';
+import { categoriaSchema } from '@/modules/activos';
+import { crearCategoria, listarCategorias } from '@/modules/activos/servidor';
 
 export async function GET(request: NextRequest) {
   try {
     await requirePermission('categorias', 'read');
-
     const searchParams = request.nextUrl.searchParams;
-    const includeCount = searchParams.get("includeCount") === "true";
-
-    const categories = await prisma.assetCategory.findMany({
-      orderBy: { nombre: "asc" },
-      ...(includeCount && {
-        include: {
-          _count: {
-            select: { assets: true },
-          },
-        },
-      }),
+    const categorias = await listarCategorias({
+      conConteo: searchParams.get("includeCount") === "true",
+      sedeId: searchParams.get("sedeId"),
     });
-
-    if (!includeCount) return NextResponse.json(categories);
-
-    // _count.assets es el total de todas las sedes (decide si se puede
-    // eliminar); activosSede, los vigentes de la sede del navbar (SPEC 2.116.3).
-    const porSede = await prisma.asset.groupBy({
-      by: ["categoriaId"],
-      where: { ...ACTIVOS_VIGENTES, ...filtroSede(searchParams.get("sedeId")) },
-      _count: true,
-    });
-    const enSede = new Map(porSede.map((c) => [c.categoriaId, c._count]));
-    return NextResponse.json(categories.map((c) => ({ ...c, activosSede: enSede.get(c.id) ?? 0 })));
+    return NextResponse.json(categorias);
   } catch (error) {
     return handleApiError(error, 'Error al obtener categorías');
   }
@@ -43,27 +20,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('categorias', 'write');
-    const datos = categoriaSchema.parse(await request.json());
-    await exigirNombreCategoriaLibre(datos.nombre);
-
-    const category = await prisma.assetCategory.create({
-      data: {
-        nombre: datos.nombre,
-        descripcion: datos.descripcion,
-        stockMinimo: datos.stockMinimo ?? 3,
-        tipoFicha: datos.tipoFicha ?? "generico",
-      },
-    });
-
-    await auditLogService.registrarCreacion(
-      'categoria',
-      category.id,
-      `Categoría creada: ${category.nombre}`,
-      snapshotCategoria(category),
-      session.user?.email
-    );
-
-    return NextResponse.json(category, { status: 201 });
+    const categoria = await crearCategoria(categoriaSchema.parse(await request.json()), session.user?.email);
+    return NextResponse.json(categoria, { status: 201 });
   } catch (error) {
     return handleApiError(error, 'Error al crear categoría');
   }

@@ -7,7 +7,11 @@ import {
   MENSAJE_GARANTIA_ANTES_DE_COMPRA,
   terminaAntesDeEmpezar,
 } from '@/shared/validaciones/ordenFechas';
+import { sedeIdParaCrear } from '@/shared/sedes/filtro';
+import { exigirSedeActiva } from '@/shared/sedes/consultas';
 import type { CreateAssetInput, UpdateAssetInput } from '@/modules/activos/validaciones';
+import type { AssetVentaInput } from '@/modules/activos/validacionesTransicion';
+import { etiquetaEstadoActivo } from '@/modules/activos/estados';
 import { assetHistoryService, type AssetHistoryData } from '@/modules/activos/historial';
 import { validateTransition, type TransitionContext } from '@/modules/activos/maquinaEstados';
 
@@ -164,6 +168,72 @@ export async function crearActivo(
 
   await assetHistoryService.registrarCreacion(asset, opciones.usuario, tx);
   return asset;
+}
+
+/**
+ * Alta de un equipo desde Activos > Nuevo (POST /api/activos): la sede elegida
+ * en el formulario es obligatoria y debe estar activa (SPEC 2.117); el resto
+ * de las reglas son las de crearActivo.
+ */
+export async function registrarActivo(
+  datos: CreateAssetInput,
+  sedeIdPedido: string | undefined,
+  usuario: string
+) {
+  const sedeId = sedeIdParaCrear(sedeIdPedido, { requerido: true });
+  if (sedeId) await exigirSedeActiva(sedeId);
+  return prisma.$transaction((tx) => crearActivo(tx, datos, { sedeId, usuario }));
+}
+
+/**
+ * Venta de un equipo (POST /api/activos/[id]/venta): solo desde "baja" y sin
+ * asignacion activa. Dos ventas a la vez no se registran dos veces
+ * (cambiarEstado exige que siga de baja y sin empleado).
+ */
+export async function venderActivo(id: string, data: AssetVentaInput, usuario: string) {
+  const asset = await prisma.asset.findUnique({
+    where: { id },
+    include: { assignments: { where: { activo: true } } },
+  });
+  if (!asset) throw new NotFoundError('Activo no encontrado');
+  // Un registro descartado es basura de importacion: no genera movimientos.
+  if (asset.deletedAt) throw new ConflictError('Este activo esta descartado y no admite movimientos');
+  if (asset.estado !== 'baja') {
+    throw new ValidationError(
+      `El activo debe estar en estado "baja" para vender. Estado actual: ${etiquetaEstadoActivo(asset.estado)}`
+    );
+  }
+  if (asset.assignments.length > 0) {
+    throw new ValidationError('El activo tiene una asignación activa. No se puede vender.');
+  }
+  const motivo = `Venta a ${data.comprador}`;
+  const transicion = validateTransition(asset.estado, 'vendido', {
+    hasActiveAssignment: false,
+    hasActiveMaintenance: false,
+    motivo,
+  });
+  if (!transicion.valid) throw new ValidationError('Transición no permitida', transicion.errors);
+
+  return prisma.$transaction(async (tx) => {
+    await cambiarEstado(tx, {
+      activo: { id, estado: 'baja' },
+      a: 'vendido',
+      contexto: { motivo },
+      datos: { fechaVenta: data.fechaVenta },
+      exigir: { empleadoActualId: null },
+    });
+    const vendido = await tx.asset.findUniqueOrThrow({ where: { id }, include: { categoria: true } });
+    await assetHistoryService.registrarVenta(
+      id,
+      data.comprador,
+      Number(data.monto),
+      usuario,
+      data.fechaVenta,
+      data.moneda,
+      tx
+    );
+    return vendido;
+  });
 }
 
 /**

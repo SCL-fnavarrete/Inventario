@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { prisma } from "@/shared/prisma";
+import { fichaActivo } from "@/modules/activos/servidor";
 import {
   Edit,
   User,
@@ -44,74 +44,13 @@ const tipoEventoLabels: Record<TipoEvento, string> = {
   compra: "Compra",
 };
 
-async function getAsset(id: string) {
-  const asset = await prisma.asset.findUnique({
-    where: { id },
-    include: {
-      categoria: true,
-      // The asset's sede determines its visibility (see shared/sedes/filtro.ts).
-      sede: { select: { nombre: true } },
-      empleadoActual: {
-        select: { nombres: true, apellidoPaterno: true, rut: true },
-      },
-      history: {
-        orderBy: { createdAt: "desc" },
-        take: 20,
-      },
-      assignments: {
-        include: {
-          employee: {
-            select: { nombres: true, apellidoPaterno: true, rut: true },
-          },
-        },
-        orderBy: { fechaEntrega: "desc" },
-        take: 10,
-      },
-      maintenances: {
-        orderBy: { createdAt: "desc" },
-        take: 5,
-      },
-      // The purchase this asset arrived with, if any (n-to-n relation,
-      // though in practice there's usually just one).
-      purchaseAssets: {
-        include: {
-          purchase: {
-            include: { sede: { select: { nombre: true } } },
-          },
-        },
-        orderBy: { purchase: { fechaFactura: "desc" } },
-      },
-    },
-  });
-
-  if (!asset) return asset;
-
-  // Historical assignments without an identified employee (from a legacy
-  // import) can't have a real Assignment record, since employeeId is
-  // required. They're stored as AssetHistory rows flagged with
-  // datosNuevos.historicaSinPersona, and fetched separately here (not from
-  // the `history` query above, which is capped at take:20) so they can also
-  // be shown in the assignment history panel alongside real assignments.
-  const historialAsignacionesSinPersona = await prisma.assetHistory.findMany({
-    where: { assetId: asset.id, tipoEvento: "asignacion" },
-    orderBy: { createdAt: "asc" },
-  });
-
-  return {
-    ...asset,
-    historialAsignacionesSinPersona: historialAsignacionesSinPersona.filter(
-      (h) => (h.datosNuevos as { historicaSinPersona?: boolean } | null)?.historicaSinPersona === true
-    ),
-  };
-}
-
 export default async function DetalleActivoPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const asset = await getAsset(id);
+  const asset = await fichaActivo(id);
 
   if (!asset) {
     notFound();
