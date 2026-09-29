@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   Plus,
-  Upload,
   Download,
   Search,
   ChevronRight,
@@ -27,6 +26,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard, ActivosTabs } from "@/components/activos";
+import { FiltrosDatoActivo, textoFiltroDato, useOpcionesFiltroDato } from "@/components/activos/FiltrosDatoActivo";
+import { FILTROS_DATO, type ParamFiltroDato } from "@/lib/constants/filtrosActivos";
 import { Can } from "@/components/auth/Can";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { CONSULTA_CELULAR, useMediaQuery } from "@/hooks/useMediaQuery";
@@ -122,15 +123,26 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
 ];
 
 /**
- * Builds the stats URL, applying the nav's sede filter. Centralized here
- * since stats are refetched from several places (initial load, and after
- * creating/editing/deleting an asset) and must all filter consistently.
+ * Filtros de la URL como parametros de la API. La lista, el tablero, las
+ * tarjetas y el Excel piden lo mismo (SPEC 2.116.6); el tablero y las
+ * tarjetas van sin el estado: el tablero lo muestra en columnas y las
+ * tarjetas cuentan cada estado.
  */
-function urlStats(sedeSeleccionada: string | null): string {
-  return sedeSeleccionada
-    ? `/api/activos/stats?sedeId=${encodeURIComponent(sedeSeleccionada)}`
-    : "/api/activos/stats";
+function filtrosParaApi(sp: URLSearchParams, sede: string | null, conEstado = true): string {
+  const p = new URLSearchParams();
+  const estado = sp.get("estado");
+  // "Por llegar" no es un estado: son los que vienen en camino a la sede (SPEC 2.108).
+  if (conEstado && estado === "por_llegar") p.set("porLlegar", "1");
+  else if (conEstado && estado) p.set("estado", estado);
+  for (const clave of ["search", "categoriaId", ...FILTROS_DATO.map((d) => d.param)]) {
+    const valor = sp.get(clave);
+    if (valor) p.set(clave, valor);
+  }
+  if (sede) p.set("sedeId", sede);
+  return p.toString();
 }
+
+const urlStats = (filtros: string) => `/api/activos/stats?${filtros}`;
 
 function ActivosPageContent() {
   const router = useRouter();
@@ -145,6 +157,13 @@ function ActivosPageContent() {
   const searchQuery = searchParams.get("search") || "";
   const currentPage = parseInt(searchParams.get("page") || "1");
   const limitParam = parseInt(searchParams.get("limit") || "20");
+  const datosFilter = Object.fromEntries(FILTROS_DATO.map(({ param }) => [param, searchParams.get(param) ?? ""])) as Record<
+    ParamFiltroDato,
+    string
+  >;
+  const filtrosLista = filtrosParaApi(searchParams, sedeSeleccionada);
+  const filtrosSinEstado = filtrosParaApi(searchParams, sedeSeleccionada, false);
+  const opcionesDato = useOpcionesFiltroDato();
 
   // Local state
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -207,9 +226,10 @@ function ActivosPageContent() {
     async function fetchStats() {
       setStatsLoading(true);
       try {
-        const res = await fetch(urlStats(sedeSeleccionada));
-        const data = await res.json();
-        setStats(data);
+        const res = await fetch(urlStats(filtrosSinEstado));
+        // Una respuesta de error no trae los conteos: se deja lo anterior en
+        // vez de romper las tarjetas (antes se caia la pagina).
+        if (res.ok) setStats(await res.json());
       } catch (error) {
         console.error("Error fetching stats:", error);
       } finally {
@@ -217,24 +237,16 @@ function ActivosPageContent() {
       }
     }
     fetchStats();
-  }, [sedeSeleccionada]);
+  }, [filtrosSinEstado]);
 
   // Fetch assets
   useEffect(() => {
     async function fetchAssets() {
       setLoading(true);
       try {
-        const params = new URLSearchParams({
-          page: currentPage.toString(),
-          limit: limitParam.toString(),
-        });
-        if (searchQuery) params.append("search", searchQuery);
-        // "Por llegar" no es un estado: son los que vienen en camino a la
-        // sede (SPEC 2.108).
-        if (estadoFilter === "por_llegar") params.append("porLlegar", "1");
-        else if (estadoFilter) params.append("estado", estadoFilter);
-        if (categoriaFilter) params.append("categoriaId", categoriaFilter);
-        if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
+        const params = new URLSearchParams(filtrosLista);
+        params.set("page", currentPage.toString());
+        params.set("limit", limitParam.toString());
 
         const res = await fetch(`/api/activos?${params}`);
         const data = await res.json();
@@ -247,17 +259,15 @@ function ActivosPageContent() {
       }
     }
     fetchAssets();
-  }, [currentPage, limitParam, searchQuery, estadoFilter, categoriaFilter, sedeSeleccionada]);
+  }, [currentPage, limitParam, filtrosLista]);
 
   // Fetch all assets for Kanban view
   useEffect(() => {
     if (viewMode === "kanban") {
       async function fetchAllAssets() {
         try {
-          const params = new URLSearchParams({ limit: "1000" });
-          if (searchQuery) params.append("search", searchQuery);
-          if (categoriaFilter) params.append("categoriaId", categoriaFilter);
-          if (sedeSeleccionada) params.append("sedeId", sedeSeleccionada);
+          const params = new URLSearchParams(filtrosSinEstado);
+          params.set("limit", "1000");
 
           const res = await fetch(`/api/activos?${params}`);
           const data = await res.json();
@@ -268,7 +278,7 @@ function ActivosPageContent() {
       }
       fetchAllAssets();
     }
-  }, [viewMode, searchQuery, categoriaFilter, sedeSeleccionada]);
+  }, [viewMode, filtrosSinEstado]);
 
   // Handle search submit
   function handleSearch(e: React.FormEvent) {
@@ -319,7 +329,7 @@ function ActivosPageContent() {
           )
         );
         // Refresh stats
-        const statsRes = await fetch(urlStats(sedeSeleccionada));
+        const statsRes = await fetch(urlStats(filtrosSinEstado));
         const statsData = await statsRes.json();
         setStats(statsData);
       }
@@ -441,6 +451,12 @@ function ActivosPageContent() {
       displayValue: category?.nombre || categoriaFilter,
     });
   }
+  for (const { param, etiqueta } of FILTROS_DATO) {
+    const valor = datosFilter[param];
+    if (valor) {
+      activeFilters.push({ key: param, label: etiqueta, value: valor, displayValue: textoFiltroDato(param, valor, opcionesDato) });
+    }
+  }
 
   const visibleColumns = DEFAULT_COLUMNS.filter((col) => col.visible);
 
@@ -450,24 +466,21 @@ function ActivosPageContent() {
       <PageHeader
         title={
           <>
-            Activos {stats && <span className="text-fg-subtle font-semibold">({stats.total})</span>}
+            Activos
           </>
         }
         description="Gestión de equipos y dispositivos IT"
         actions={
           <>
             <a
-              href={`/api/activos/exportar?${estadoFilter === "por_llegar" ? "porLlegar=1" : `estado=${estadoFilter}`}&categoriaId=${categoriaFilter}${sedeSeleccionada ? `&sedeId=${sedeSeleccionada}` : ""}`}
+              href={`/api/activos/exportar?${filtrosLista}`}
               className={buttonClasses({ variant: "secondary" })}
             >
               <Download size={18} />
               <span className="hidden sm:inline">Exportar</span>
             </a>
+            {/* Importar vive en Configuracion (SPEC 2.116.7). */}
             <Can recurso="activos">
-              <Link href="/activos/importar" className={buttonClasses({ variant: "secondary" })}>
-                <Upload size={18} />
-                <span className="hidden sm:inline">Importar</span>
-              </Link>
               <Link href="/activos/nuevo" className={buttonClasses()}>
                 <Plus size={18} />
                 <span>Nuevo</span>
@@ -526,6 +539,13 @@ function ActivosPageContent() {
             />
           </form>
         </div>
+
+        {/* Filtros por datos de catalogo, combinables (SPEC 2.116.6) */}
+        <FiltrosDatoActivo
+          valores={datosFilter}
+          opciones={opcionesDato}
+          onChange={(param, valor) => updateUrlParams({ [param]: valor })}
+        />
 
         {/* Active Filters */}
         {activeFilters.length > 0 && (

@@ -6,7 +6,7 @@ import { crearActivo } from "@/lib/services/activoService";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { sedeIdParaCrear } from '@/lib/auth/sedeScope';
 import { exigirSedeActiva } from "@/lib/queries/sedes";
-import { busquedaActivo, palabrasDeBusqueda, whereFiltrosActivos } from '@/lib/queries/activos';
+import { leerFiltrosActivos, whereFiltrosActivos } from '@/lib/queries/activos';
 
 /**
  * Tope de filas por pagina. Protege la base de un ?limit arbitrario;
@@ -21,23 +21,12 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
 
     const { page, limit } = leerPaginacion(searchParams, { limitMaximo: LIMITE_MAXIMO_PAGINA });
-    const search = searchParams.get("search") || "";
     const empleadoActualId = searchParams.get("empleadoActualId") || "";
 
-    // Vigentes, sede de la sesion, estado, categoria, sede del menu y
-    // "Por llegar": los mismos filtros que la exportacion.
-    const where = whereFiltrosActivos(session, {
-      estado: searchParams.get("estado") || "",
-      categoriaId: searchParams.get("categoriaId") || "",
-      sedeIdFiltro: searchParams.get("sedeId") || "",
-      porLlegar: searchParams.get("porLlegar") === "1",
-    });
-
-    if (search) {
-      // Por palabras: cada una debe aparecer en algun dato del activo o de
-      // quien lo tiene ("Hp Probook 640 G2", "lenovo perez").
-      where.AND = palabrasDeBusqueda(search).map(busquedaActivo);
-    }
+    // Vigentes, sede de la sesion, estado, categoria, sede del menu, "Por
+    // llegar", busqueda y datos de catalogo: los mismos filtros que la
+    // exportacion y las tarjetas (SPEC 2.116.6).
+    const where = whereFiltrosActivos(session, leerFiltrosActivos(searchParams));
 
     if (empleadoActualId) {
       where.empleadoActualId = empleadoActualId;

@@ -6,6 +6,7 @@ import {
   MapPin,
   History,
   KeyRound,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -26,9 +27,16 @@ const configSections = [
   {
     // Antes eran dos tarjetas: Categorias y Opciones de Activos (SPEC 2.112.7).
     title: "Catálogos de Activos",
-    description: "Categorías y opciones de sistema operativo, antivirus y licencia Microsoft 365",
+    description: "Categorías, marcas y opciones de sistema operativo, antivirus y licencia Microsoft 365",
     href: "/configuracion/catalogos",
     icon: FolderTree,
+  },
+  {
+    // Antes estaba en Activos: la carga inicial se hace una vez (SPEC 2.116.7).
+    title: "Importar inventario",
+    description: "Carga masiva de equipos desde Excel (.xlsx), con revisión de filas antes de guardar",
+    href: "/configuracion/importar",
+    icon: Upload,
   },
   {
     title: "Usuarios del Sistema",

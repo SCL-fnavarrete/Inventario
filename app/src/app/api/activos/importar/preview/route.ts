@@ -13,7 +13,7 @@ export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await requirePermission('activos', 'write');
+    const session = await requirePermission('configuracion', 'write');
     exigirCupo(session.user.id, "importarArchivo");
 
     const formData = await request.formData();

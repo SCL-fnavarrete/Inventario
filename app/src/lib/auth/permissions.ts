@@ -22,6 +22,7 @@ export const RECURSOS = [
   'solicitudes',
   'mantenciones',
   'tiposMantencion',
+  'motivosBaja',
   'desvinculaciones',
   'guias',
   'compras',
@@ -79,6 +80,14 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
   // tecnico tambien puede crear/editar/eliminar tipos sin pasar por
   // Configuracion (admin-only).
   tiposMantencion: {
+    read: AMBOS,
+    write: AMBOS,
+    delete: AMBOS,
+  },
+
+  // Motivos de baja (SPEC 2.116.5): catalogo de Mantenciones igual que los
+  // tipos, lo administran admin y tecnico. Uno ya usado se desactiva.
+  motivosBaja: {
     read: AMBOS,
     write: AMBOS,
     delete: AMBOS,

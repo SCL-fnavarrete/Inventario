@@ -3,6 +3,7 @@ import type { SesionAutenticada } from '@/lib/auth/guard';
 import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
 import { estadoActivoEnum } from '@/lib/validations/asset';
 import { sedePropiaGuias, vieneAMiSede, whereActivosPorLlegar } from '@/lib/queries/guias';
+import { FILTROS_DATO, SIN_DATO, type FiltrosDato, type ParamFiltroDato } from '@/lib/constants/filtrosActivos';
 
 /**
  * Filtro de activos vigentes.
@@ -30,12 +31,20 @@ export const ACTIVOS_VIGENTES = { deletedAt: null } satisfies Prisma.AssetWhereI
  *   o, en "Por repartir", los de todas las sedes: el tecnico tambien ve lo
  *   que se esta por repartir (SPEC 2.111.6);
  * - estado (uno desconocido, de una URL editada a mano, se ignora) y categoria;
- * - sede elegida en el menu, solo para quien ve todas.
+ * - sede elegida en el menu, solo para quien ve todas;
+ * - busqueda por palabras y datos de catalogo (marca, sistema operativo,
+ *   antivirus, licencia, motivo de baja; SPEC 2.116.6), todos con AND.
  */
-export function whereFiltrosActivos(
-  session: SesionAutenticada,
-  f: { estado?: string; categoriaId?: string; sedeIdFiltro?: string; porLlegar?: boolean }
-): Prisma.AssetWhereInput {
+export type FiltrosActivos = {
+  estado?: string;
+  categoriaId?: string;
+  sedeIdFiltro?: string;
+  porLlegar?: boolean;
+  search?: string;
+  datos?: FiltrosDato;
+};
+
+export function whereFiltrosActivos(session: SesionAutenticada, f: FiltrosActivos): Prisma.AssetWhereInput {
   const where: Prisma.AssetWhereInput = f.porLlegar
     ? whereActivosPorLlegar(sedePropiaGuias(session, f.sedeIdFiltro))
     : f.estado === 'por_repartir'
@@ -45,7 +54,52 @@ export function whereFiltrosActivos(
   if (estado.success) where.estado = estado.data;
   if (f.categoriaId) where.categoriaId = f.categoriaId;
   if (f.sedeIdFiltro && tieneVisibilidadTotal(session) && !f.porLlegar) where.sedeId = f.sedeIdFiltro;
+
+  const y = [
+    ...palabrasDeBusqueda(f.search ?? '').map(busquedaActivo),
+    ...FILTROS_DATO.flatMap(({ param }) => {
+      const valor = f.datos?.[param];
+      return valor ? [condicionFiltroDato(param, valor)] : [];
+    }),
+  ];
+  if (y.length) where.AND = y;
   return where;
+}
+
+// Campo del activo de cada filtro por dato (el motivo de baja vive en la mantencion).
+const CAMPO_FILTRO = {
+  marca: 'marca',
+  so: 'sistemaOperativo',
+  antivirus: 'antivirus',
+  licencia: 'tipoLicenciaMicrosoft365',
+} as const;
+
+/** Condicion de un filtro por dato; SIN_DATO busca los que no lo tienen. */
+function condicionFiltroDato(param: ParamFiltroDato, valor: string): Prisma.AssetWhereInput {
+  if (param === 'motivoBaja') {
+    return valor === SIN_DATO
+      ? { estado: 'baja', maintenances: { none: { motivoBajaId: { not: null } } } }
+      : { maintenances: { some: { motivoBajaId: valor } } };
+  }
+  const campo = CAMPO_FILTRO[param];
+  return valor === SIN_DATO ? { OR: [{ [campo]: null }, { [campo]: '' }] } : { [campo]: valor };
+}
+
+/** Filtros de la lista leidos de la URL: la lista, el Excel y las tarjetas leen lo mismo. */
+export function leerFiltrosActivos(sp: URLSearchParams): FiltrosActivos {
+  const datos: FiltrosDato = {};
+  for (const { param } of FILTROS_DATO) {
+    const valor = sp.get(param)?.trim();
+    if (valor) datos[param] = valor.slice(0, 100);
+  }
+  return {
+    estado: sp.get('estado') || '',
+    categoriaId: sp.get('categoriaId') || '',
+    sedeIdFiltro: sp.get('sedeId') || '',
+    porLlegar: sp.get('porLlegar') === '1',
+    search: (sp.get('search') || '').slice(0, 200),
+    datos,
+  };
 }
 
 /**

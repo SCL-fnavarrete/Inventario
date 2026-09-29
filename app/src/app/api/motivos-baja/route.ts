@@ -10,7 +10,7 @@ import { crearMotivoBaja, listarMotivosBaja } from "@/lib/services/motivoBajaSer
 // cuantas bajas tiene cada uno, en todas las sedes y en la del navbar (?sedeId=).
 export async function GET(request: NextRequest) {
   try {
-    const session = await requirePermission("mantenciones", "read");
+    const session = await requirePermission("motivosBaja", "read");
     const p = request.nextUrl.searchParams;
     return NextResponse.json(
       await listarMotivosBaja({
@@ -24,10 +24,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: crea un motivo (o reactiva uno desactivado con ese nombre). Solo admin.
+// POST: crea un motivo (o reactiva uno desactivado con ese nombre).
 export async function POST(request: NextRequest) {
   try {
-    const session = await requirePermission("activos", "delete");
+    const session = await requirePermission("motivosBaja", "write");
     const { nombre } = opcionCatalogoSchema.parse(await request.json());
     const { opcion, creada } = await crearMotivoBaja(nombre, session.user?.email);
     return NextResponse.json(opcion, { status: creada ? 201 : 200 });

@@ -76,14 +76,16 @@ describe('permissions — tecnico', () => {
     expect(can('tecnico', 'solicitudes', 'write')).toBe(true);
   });
 
-  test('el borrado es de admin, salvo tiposMantencion', () => {
-    // tiposMantencion.delete es de admin + tecnico: es catalogo operativo
-    // del dia a dia, no configuracion del sistema.
+  test('el borrado es de admin, salvo los catalogos de Mantenciones', () => {
+    // tiposMantencion y motivosBaja: admin + tecnico, son catalogos
+    // operativos del dia a dia, no configuracion del sistema.
+    const operativos = ['tiposMantencion', 'motivosBaja'];
     for (const recurso of RECURSOS) {
-      if (recurso === 'tiposMantencion') continue;
+      if (operativos.includes(recurso)) continue;
       expect(can('tecnico', recurso, 'delete')).toBe(false);
     }
     expect(can('tecnico', 'tiposMantencion', 'delete')).toBe(true);
+    expect(can('tecnico', 'motivosBaja', 'delete')).toBe(true);
   });
 
   test('no toca datos maestros ni configuración ni usuarios', () => {

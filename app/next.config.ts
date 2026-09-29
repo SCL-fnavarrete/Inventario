@@ -22,6 +22,8 @@ const nextConfig: NextConfig = {
       },
       // Paginas retiradas: Proveedores (SPEC 2.35) y Kit/EPP, que vive en Activos.
       { source: "/configuracion/proveedores", destination: "/configuracion", permanent: true },
+      // Importar paso de Activos a Configuracion (SPEC 2.116.7).
+      { source: "/activos/importar", destination: "/configuracion/importar", permanent: true },
       { source: "/configuracion/kit-epp", destination: "/activos/kit-bienvenida", permanent: true },
     ];
   },

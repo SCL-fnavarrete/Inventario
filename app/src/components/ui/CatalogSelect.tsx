@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Plus, Check, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { parseApiError } from "@/lib/utils/apiErrors";
+import { MensajeCampo } from "@/components/ui/CampoFormulario";
 
 type Opcion = { id: string; nombre: string; activo: boolean };
 
@@ -13,6 +16,12 @@ interface CatalogSelectProps {
   onChange: (nombre: string) => void;
   placeholder?: string;
   className?: string;
+  /** Guarda el id de la opcion en vez del nombre: para registros que apuntan
+   * a ella, como el motivo de una baja (SPEC 2.116.5). */
+  usarId?: boolean;
+  /** Para unir el select a su etiqueta y marcarlo con error. */
+  id?: string;
+  invalido?: boolean;
 }
 
 /**
@@ -22,12 +31,15 @@ interface CatalogSelectProps {
  * plano: este componente solo controla que ese texto salga de una lista
  * cerrada en vez de tipeo libre.
  */
-export function CatalogSelect({ endpoint, value, onChange, placeholder, className }: CatalogSelectProps) {
+export function CatalogSelect({ endpoint, value, onChange, placeholder, className, usarId, id, invalido }: CatalogSelectProps) {
   const [opciones, setOpciones] = useState<Opcion[]>([]);
   const [loading, setLoading] = useState(true);
   const [agregando, setAgregando] = useState(false);
   const [nuevoNombre, setNuevoNombre] = useState("");
   const [guardando, setGuardando] = useState(false);
+  // Si crear falla (sin permiso, nombre repetido, servidor caido) se dice y
+  // la ventanita queda abierta, en vez de cerrarse sin avisar.
+  const [errorAgregar, setErrorAgregar] = useState("");
 
   useEffect(() => {
     let cancelado = false;
@@ -51,15 +63,23 @@ export function CatalogSelect({ endpoint, value, onChange, placeholder, classNam
   // El valor guardado puede no estar en el catalogo (dato historico
   // importado antes de que existiera la opcion); se agrega igual a la
   // lista para no perderlo de vista aunque no este activo formalmente.
+  // Con usarId no aplica: un id que no esta en la lista no tiene nombre que mostrar.
   const opcionesConValorActual =
-    value && !opciones.some((o) => o.nombre === value)
+    value && !usarId && !opciones.some((o) => o.nombre === value)
       ? [...opciones, { id: `__actual__${value}`, nombre: value, activo: true }]
       : opciones;
+
+  const cerrarAgregar = () => {
+    setAgregando(false);
+    setNuevoNombre("");
+    setErrorAgregar("");
+  };
 
   async function handleAgregar() {
     const nombre = nuevoNombre.trim();
     if (!nombre) return;
     setGuardando(true);
+    setErrorAgregar("");
     try {
       const res = await fetch(endpoint, {
         method: "POST",
@@ -71,12 +91,17 @@ export function CatalogSelect({ endpoint, value, onChange, placeholder, classNam
         setOpciones((prev) =>
           prev.some((o) => o.id === creada.id) ? prev : [...prev, creada].sort((a, b) => a.nombre.localeCompare(b.nombre))
         );
-        onChange(creada.nombre);
+        onChange(usarId ? creada.id : creada.nombre);
+        cerrarAgregar();
+      } else {
+        // El motivo del campo ("Máximo 100 caracteres") dice mas que el general.
+        const { message, fieldErrors } = await parseApiError(res, "No se pudo agregar la opción");
+        setErrorAgregar(fieldErrors.nombre ?? message);
       }
+    } catch {
+      setErrorAgregar("No se pudo agregar la opción. Revisa la conexión e intenta de nuevo.");
     } finally {
       setGuardando(false);
-      setAgregando(false);
-      setNuevoNombre("");
     }
   }
 
@@ -88,17 +113,19 @@ export function CatalogSelect({ endpoint, value, onChange, placeholder, classNam
             type="text"
             autoFocus
             value={nuevoNombre}
-            onChange={(e) => setNuevoNombre(e.target.value)}
+            onChange={(e) => {
+              setNuevoNombre(e.target.value);
+              setErrorAgregar("");
+            }}
+            aria-invalid={!!errorAgregar || undefined}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
                 handleAgregar();
               }
-              if (e.key === "Escape") {
-                setAgregando(false);
-                setNuevoNombre("");
-              }
+              if (e.key === "Escape") cerrarAgregar();
             }}
+            maxLength={100}
             placeholder="Nombre de la opción nueva"
             className="field-input flex-1 text-sm"
           />
@@ -113,16 +140,14 @@ export function CatalogSelect({ endpoint, value, onChange, placeholder, classNam
           </button>
           <button aria-label="Cancelar"
             type="button"
-            onClick={() => {
-              setAgregando(false);
-              setNuevoNombre("");
-            }}
+            onClick={cerrarAgregar}
             className="px-2 rounded-lg border border-line-strong text-fg-muted hover:bg-surface-muted"
             title="Cancelar"
           >
             <X size={16} />
           </button>
         </div>
+        <MensajeCampo mensaje={errorAgregar} />
       </div>
     );
   }
@@ -131,14 +156,16 @@ export function CatalogSelect({ endpoint, value, onChange, placeholder, classNam
     <div className={className}>
       <div className="flex gap-1">
         <select
+          id={id}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={loading}
-          className="field-input flex-1 text-sm"
+          aria-invalid={invalido || undefined}
+          className={cn("field-input flex-1 text-sm", invalido && "border-red-500 bg-red-50")}
         >
           <option value="">{placeholder || "Selecciona..."}</option>
           {opcionesConValorActual.map((o) => (
-            <option key={o.id} value={o.nombre}>
+            <option key={o.id} value={usarId ? o.id : o.nombre}>
               {o.nombre}
             </option>
           ))}
@@ -151,7 +178,7 @@ export function CatalogSelect({ endpoint, value, onChange, placeholder, classNam
             // mismo texto para que crear la opcion sea confirmar, no
             // retipear -- justo el caso de una fila de importacion que
             // quedo pendiente por un antivirus/SO/licencia no reconocido.
-            setNuevoNombre((prev) => prev || value);
+            setNuevoNombre((prev) => prev || (usarId ? "" : value));
             setAgregando(true);
           }}
           className="px-2 rounded-lg border border-line-strong text-fg-muted hover:bg-surface-muted"

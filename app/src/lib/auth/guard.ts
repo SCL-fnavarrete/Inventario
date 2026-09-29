@@ -69,6 +69,7 @@ const RECURSO_LABEL: Record<Recurso, string> = {
   solicitudes: 'solicitudes',
   mantenciones: 'mantenciones',
   tiposMantencion: 'tipos de mantención',
+  motivosBaja: 'motivos de baja',
   desvinculaciones: 'desvinculaciones',
   guias: 'despachos',
   compras: 'compras',

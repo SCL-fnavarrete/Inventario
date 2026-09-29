@@ -635,8 +635,9 @@ export default function ImportarActivosPage() {
   return (
     <div className="space-y-6 max-w-full">
       {/* Header */}
+      {/* En Configuracion (SPEC 2.116.7): la carga inicial se hace una vez y es del admin. */}
       <PageHeader
-        backHref="/activos"
+        backHref="/configuracion"
         title="Importar Activos"
         description="Carga masiva de equipos desde archivo Excel"
       />

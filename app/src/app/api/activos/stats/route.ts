@@ -1,26 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sedePropiaGuias, whereActivosPorLlegar } from '@/lib/queries/guias';
+import { sedePropiaGuias } from '@/lib/queries/guias';
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
-import { sedeWhere, tieneVisibilidadTotal } from '@/lib/auth/sedeScope';
-import { ACTIVOS_VIGENTES } from '@/lib/queries/activos';
+import { leerFiltrosActivos, whereFiltrosActivos } from '@/lib/queries/activos';
 
 export async function GET(request: NextRequest) {
   try {
     const session = await requirePermission('activos', 'read');
 
-    // Stats cards must reflect only the technician's sede, same as
-    // the /api/activos listing.
-    const sw = sedeWhere(session);
-    const whereVigentes: Record<string, unknown> = { ...ACTIVOS_VIGENTES, ...sw };
-
-    // Nav sede filter, same criterion as /api/activos: only honored for
-    // users with full visibility; others are already scoped by sedeWhere()
-    // and can't override it via query string.
-    const sedeIdFiltro = request.nextUrl.searchParams.get("sedeId") || "";
-    if (sedeIdFiltro && tieneVisibilidadTotal(session)) {
-      whereVigentes.sedeId = sedeIdFiltro;
-    }
+    // Las tarjetas cuentan con los mismos filtros que la lista (sede,
+    // categoria, busqueda y datos de catalogo; SPEC 2.116.6), salvo el suyo:
+    // las de estado ignoran el estado elegido y las pestañas de categoria la
+    // categoria elegida. Si no, al elegir "Disponible" las demas quedarian en 0.
+    const { estado: _estado, porLlegar: _porLlegar, ...filtros } = leerFiltrosActivos(request.nextUrl.searchParams);
+    const whereVigentes = whereFiltrosActivos(session, filtros);
+    const whereSinCategoria = whereFiltrosActivos(session, { ...filtros, categoriaId: "" });
+    const sedeIdFiltro = filtros.sedeIdFiltro ?? "";
 
     // Obtener total de activos
     const total = await prisma.asset.count({ where: whereVigentes });
@@ -28,11 +23,7 @@ export async function GET(request: NextRequest) {
     // "Por repartir" (SPEC 2.111.6): de todas las sedes, tambien para el
     // tecnico; la sede del menu filtra para quien ve todas.
     const porRepartir = await prisma.asset.count({
-      where: {
-        ...ACTIVOS_VIGENTES,
-        estado: "por_repartir",
-        ...(sedeIdFiltro && tieneVisibilidadTotal(session) && { sedeId: sedeIdFiltro }),
-      },
+      where: whereFiltrosActivos(session, { ...filtros, estado: "por_repartir" }),
     });
 
     // Obtener conteo por estado
@@ -69,7 +60,7 @@ export async function GET(request: NextRequest) {
         _count: {
           // Excludes discarded records and applies sede scoping.
           select: {
-            assets: { where: whereVigentes },
+            assets: { where: whereSinCategoria },
           },
         },
       },
@@ -113,7 +104,7 @@ export async function GET(request: NextRequest) {
     // 2.108). null si no hay una sede propia (admin sin sede elegida).
     const sedePropia = sedePropiaGuias(session, sedeIdFiltro);
     const porLlegar = sedePropia
-      ? await prisma.asset.count({ where: whereActivosPorLlegar(sedePropia) })
+      ? await prisma.asset.count({ where: whereFiltrosActivos(session, { ...filtros, porLlegar: true }) })
       : null;
 
     return NextResponse.json({

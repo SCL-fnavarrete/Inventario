@@ -46,6 +46,7 @@ Lectura (R) · Escritura (W) · Borrado (D).
 | solicitudes | RWD | RW |
 | mantenciones | RWD | RW |
 | tiposMantencion | RWD | RWD |
+| motivosBaja | RWD | RWD |
 | desvinculaciones | RWD | RW |
 | guias | RWD | RW |
 | compras | RWD | R (desde 2.111: registrar y repartir es solo de admin) |
@@ -58,7 +59,7 @@ Lectura (R) · Escritura (W) · Borrado (D).
 
 **Reglas que la matriz hace cumplir:**
 
-1. **El borrado es exclusivo de `admin`, con una excepción: `tiposMantencion`.**
+1. **El borrado es exclusivo de `admin`, con una excepción: los catálogos de Mantenciones, `tiposMantencion` y `motivosBaja` (2.116.5), que siguen la misma regla.**
    El técnico opera el parque, no lo destruye. Para activos con historial el
    borrado además está prohibido por completo (ver 2.7.7). La excepción es el
    catálogo `tiposMantencion` (`maintenance_types`): admin y técnico lo
@@ -3894,13 +3895,28 @@ Pedido de Javier: *"al catálogo la idea es también agregar marca como categor�
 ### 2.116.5 Motivos de baja como lista administrable
 Pedido de Javier: *"agregar categorías en bajas de equipo para futuros análisis"*, como *"lista administrable como en mantenciones pero en activos"*. Antes eran cinco motivos fijos guardados como texto, "Completar sin reparación" solo pedía texto libre y el equipo perdido en un despacho armaba su propio texto: no se podía contar cuántas bajas hubo por cada motivo.
 - **Modelo `MotivoBaja`** (tabla `motivos_baja`: nombre único, activo, `clave` única y opcional) y **`Maintenance.motivoBajaId`**, que apunta a él con `ON DELETE RESTRICT`, como el tipo de mantención. `Maintenance.motivoBaja` sigue siendo el texto que se muestra ("Robo" o "Robo: detalle"), así que historial, actas y pantallas no cambian. Migración `20260928110000_motivos_baja`: carga Obsolescencia, Falla irreparable, Robo, Extravío y Otro, y enlaza las bajas que ya existieran por el nombre al inicio de su texto.
-- **Configuración > Catálogos de Activos > Motivos de baja** (`/api/motivos-baja`, lectura con `mantenciones/read`, cambios solo admin): crear (un nombre desactivado se reactiva), renombrar (las bajas apuntan por id: toman el nombre nuevo) y eliminar. **Uno que ya se usó no se borra: se desactiva** (deja de ofrecerse; sus bajas son evidencia). La columna cuenta las bajas de la sede del navbar (2.116.3).
+- **Mantenciones > Motivos de baja** (subpestaña junto a Tipos, `/mantenciones/motivos-baja`; API `/api/motivos-baja` con el recurso `motivosBaja`, que admin y técnico leen, escriben y borran como `tiposMantencion`, 1.3.1; el enlace antiguo de Configuración > Catálogos de Activos redirige aquí): crear (un nombre desactivado se reactiva), renombrar (las bajas apuntan por id: toman el nombre nuevo) y eliminar. **Uno que ya se usó no se borra: se desactiva** (deja de ofrecerse; sus bajas son evidencia). La columna cuenta las bajas de la sede del navbar (2.116.3).
 - **"Extravío" y "Otro" los usa el sistema** (`clave` `extravio` y `otro`): se pueden renombrar, pero no desactivar ni eliminar (409).
-- **Las tres formas de dar de baja usan la lista** (`motivoParaBaja`, un solo punto): *Dar de baja* y *Completar mantención* "Sin reparación" piden el motivo (`motivoBajaId`, solo activos) y un detalle opcional, obligatorio con "Otro"; el equipo perdido en un despacho queda siempre con "Extravío" y lo escrito como detalle. Se retiran `motivoBajaEnum` y `MOTIVO_BAJA_LABEL`.
+- **Las tres formas de dar de baja usan la lista** (`motivoParaBaja`, un solo punto): *Dar de baja* y *Completar mantención* "Sin reparación" piden el motivo (`motivoBajaId`, solo activos) —con un "+" para agregar uno que no está, como el sistema operativo o el antivirus del activo— y un detalle opcional, obligatorio con "Otro"; el equipo perdido en un despacho queda siempre con "Extravío" y lo escrito como detalle. Se retiran `motivoBajaEnum` y `MOTIVO_BAJA_LABEL`.
+
+### 2.116.6 Activos: filtros por datos de catálogo, combinables
+Pedido de Javier: *"cuando quiero ver equipos de cierta marca, os, antivirus, licencias, o motivos de baja, al igual que ver quienes no lo tienen... y que el valor de las cartas cambien si elijo ese o más filtros"*.
+- Bajo el buscador de Activos, cinco listas: **Marca, Sistema operativo, Antivirus, Licencia M365 y Motivo de baja**, con las opciones de sus catálogos (también las desactivadas: un equipo antiguo puede tenerlas). Cada una trae "Todas" y "Sin …" (sin sistema operativo, sin antivirus, sin licencia, baja sin motivo), salvo Marca, que es obligatoria. El motivo de baja busca los equipos cuya mantención de baja tiene ese motivo (2.116.5).
+- **Todos los filtros se suman** (AND) con el estado, la categoría, la búsqueda y la sede del navbar; quedan en la dirección (`marca`, `so`, `antivirus`, `licencia`, `motivoBaja`; `sin_dato` para "Sin …") y en "Filtros activos", donde se quitan uno a uno.
+- **Las tarjetas y las pestañas de categoría cuentan con los filtros**: las de estado con todos menos el estado, y las pestañas con todos menos la categoría, para que elegir uno no deje las otras en 0. El total del título también.
+- Lista, tablero, tarjetas (`/api/activos/stats`) y Excel leen los filtros con una sola función (`leerFiltrosActivos` + `whereFiltrosActivos`). De paso, **el Excel ahora respeta la búsqueda**, que antes ignoraba.
+
+### 2.116.7 Importar pasa a Configuración
+Pedido de Javier: *"importación se movería a configuración, no es necesario tener en activos ya que solo se hará una vez"*.
+- La pantalla pasa de `/activos/importar` a **Configuración > Importar inventario** (`/configuracion/importar`); la dirección antigua redirige (`next.config.ts`) y Activos deja de mostrar el botón "Importar".
+- **Solo admin**: como todo Configuración, la pantalla y sus rutas (`/api/activos/importar/sheets`, `preview` y `batch`) exigen `configuracion/write`; antes bastaba `activos/write`, así que el técnico podía importar. El resto de la importación (reglas de 2.114.6, 2.115.10 y la marca de 2.116.4) no cambia.
+
+### 2.116.8 Errores visibles al agregar una opción
+El "+" de los selectores de catálogo (marca, sistema operativo, antivirus, licencia y motivo de baja) muestra bajo el campo por qué no se pudo agregar (por ejemplo "Máximo 100 caracteres" o un error del servidor) y deja la ventanita abierta; antes se cerraba sin avisar. El campo no admite más de 100 caracteres. En Activos, si el conteo de las tarjetas falla, se conservan los números anteriores en vez de romper la página.
 
 ## Changelog SPEC
 - **v2.40 (2026-09-28):**
-  - Sección 2.116 (nueva): columna "Acciones" del despacho solo cuando hay botones (2.116.1); empleados importados sin tipo de contrato, que se elige obligatoriamente al editar (2.116.2); Catálogos de Activos cuentan por la sede del navbar y las reglas de eliminar siguen mirando todas las sedes (2.116.3); catálogo de marcas, con migración `20260928100000_catalogo_marcas` y validación en la importación (2.116.4); motivos de baja como lista administrable con `Maintenance.motivoBajaId`, migración `20260928110000_motivos_baja` (2.116.5).
+  - Sección 2.116 (nueva): columna "Acciones" del despacho solo cuando hay botones (2.116.1); empleados importados sin tipo de contrato, que se elige obligatoriamente al editar (2.116.2); Catálogos de Activos cuentan por la sede del navbar y las reglas de eliminar siguen mirando todas las sedes (2.116.3); catálogo de marcas, con migración `20260928100000_catalogo_marcas` y validación en la importación (2.116.4); motivos de baja como lista administrable en Mantenciones > Motivos de baja, con "+" al dar de baja, recurso `motivosBaja` (RWD para admin y técnico, 1.3.1) y `Maintenance.motivoBajaId`, migración `20260928110000_motivos_baja` (2.116.5); filtros combinables de Activos por marca, sistema operativo, antivirus, licencia y motivo de baja, con tarjetas que cuentan según los filtros y Excel que respeta la búsqueda (2.116.6); Importar pasa a Configuración y queda solo para admin (2.116.7); errores visibles al agregar una opción con "+" (2.116.8).
 - **v2.39 (2026-09-28):**
   - Sección 2.115 (nueva): correcciones de la auditoría de 7 fases. 409 ante cambios simultáneos en venta, baja y mantenciones; límite de uso por usuario en exportar, PDF e importar (429) y `maxDuration` de 60 s; fecha inválida de empleado como error (ya no borra), fechas de activo reales, topes en cantidades, pulgadas, costo y textos, formato de teléfono; Compras sin estado ni asignación de sus equipos (2.111.6); búsqueda de Despachos y Solicitudes que trae completa solo la página; importación que busca solo las series e IMEI de las filas; Dashboard con solo las mantenciones que muestra; sesión revisada cada 5 minutos; CSP con nonce por visita (sin 'unsafe-inline' en scripts); conexión local a 127.0.0.1 y base de pruebas con `npm run test:integracion`; etiquetas unidas a sus campos y tablas desplazables; dependencias y componentes sin uso retirados; `npm audit` en el CI. Importación con `exceljs` (se retira `xlsx`, solo `.xlsx`) y Nueva Solicitud dividida en componentes (2.115.10 y 2.115.11).
 - **v2.38 (2026-09-28):**

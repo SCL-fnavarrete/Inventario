@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, handleApiError } from '@/lib/auth/guard';
 import { exigirCupo } from "@/lib/utils/limiteUso";
-import { whereFiltrosActivos } from '@/lib/queries/activos';
+import { leerFiltrosActivos, whereFiltrosActivos } from '@/lib/queries/activos';
 import { formatearFecha, hoyISO } from "@/lib/utils/fechas";
 import { CONDICION_ACTIVO_LABEL, ESTADO_ACTIVO_LABEL } from "@/lib/constants/estadosActivo";
 
@@ -170,13 +170,9 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     // Lo mismo que muestra la lista: sin descartados, un tecnico solo su
-    // sede, y los filtros elegidos (incluido "Por llegar").
-    const where = whereFiltrosActivos(session, {
-      estado: searchParams.get("estado") || "",
-      categoriaId: searchParams.get("categoriaId") || "",
-      sedeIdFiltro: searchParams.get("sedeId") || "",
-      porLlegar: searchParams.get("porLlegar") === "1",
-    });
+    // sede, y los filtros elegidos (incluidos "Por llegar", la busqueda y
+    // los datos de catalogo, SPEC 2.116.6).
+    const where = whereFiltrosActivos(session, leerFiltrosActivos(searchParams));
 
     // Se agregan assignments (para la Fecha de Entrega vigente) y
     // maintenances (para la ultima realizada y la proxima programada).

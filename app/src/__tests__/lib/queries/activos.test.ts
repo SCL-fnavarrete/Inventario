@@ -1,5 +1,6 @@
 // Busqueda de activos compartida por Activos y Mantenciones (SPEC 2.90).
-import { busquedaActivo, palabrasDeBusqueda, whereFiltrosActivos } from '@/lib/queries/activos';
+import { busquedaActivo, leerFiltrosActivos, palabrasDeBusqueda, whereFiltrosActivos } from '@/lib/queries/activos';
+import { SIN_DATO } from '@/lib/constants/filtrosActivos';
 
 describe('palabrasDeBusqueda', () => {
   test('separa por espacios y descarta los sobrantes', () => {
@@ -47,5 +48,41 @@ describe('whereFiltrosActivos', () => {
     expect(where.estado).toBe('en_transito');
     expect(where).not.toHaveProperty('sedeId');
     expect(JSON.stringify(where.dispatchItems)).toContain('conce');
+  });
+});
+
+// Filtros por datos de catalogo, combinables (SPEC 2.116.6).
+describe('filtros por marca, sistema operativo, antivirus, licencia y motivo de baja', () => {
+  const admin = { user: { id: 'a', email: 'a@x', role: 'admin', sedeId: null } } as never;
+
+  test('varios filtros se suman con la categoria, el estado y la busqueda', () => {
+    const where = whereFiltrosActivos(admin, {
+      estado: 'disponible',
+      categoriaId: 'c1',
+      search: 'probook',
+      datos: { marca: 'HP', so: 'Windows 11 Pro' },
+    });
+    expect(where).toMatchObject({ estado: 'disponible', categoriaId: 'c1' });
+    expect(where.AND).toHaveLength(3);
+    expect(where.AND).toEqual(expect.arrayContaining([{ marca: 'HP' }, { sistemaOperativo: 'Windows 11 Pro' }]));
+  });
+
+  test('"Sin ..." busca los que no tienen el dato', () => {
+    const where = whereFiltrosActivos(admin, { datos: { antivirus: SIN_DATO } });
+    expect(where.AND).toEqual([{ OR: [{ antivirus: null }, { antivirus: '' }] }]);
+  });
+
+  test('motivo de baja: por la mantencion de baja, o bajas sin motivo', () => {
+    expect(whereFiltrosActivos(admin, { datos: { motivoBaja: 'm1' } }).AND).toEqual([
+      { maintenances: { some: { motivoBajaId: 'm1' } } },
+    ]);
+    expect(whereFiltrosActivos(admin, { datos: { motivoBaja: SIN_DATO } }).AND).toEqual([
+      { estado: 'baja', maintenances: { none: { motivoBajaId: { not: null } } } },
+    ]);
+  });
+
+  test('se leen de la URL, sin vacios y con tope de largo', () => {
+    const f = leerFiltrosActivos(new URLSearchParams(`marca=Dell&licencia=&so=${'x'.repeat(300)}`));
+    expect(f.datos).toEqual({ marca: 'Dell', so: 'x'.repeat(100) });
   });
 });

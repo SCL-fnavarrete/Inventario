@@ -21,7 +21,7 @@ export const maxDuration = 60;
 // commit, disparado por un unico boton "Realizar importación".
 export async function POST(request: NextRequest) {
   try {
-    const session = await requirePermission('activos', 'write');
+    const session = await requirePermission('configuracion', 'write');
     exigirCupo(session.user.id, "importarTanda");
 
     const body = await request.json();

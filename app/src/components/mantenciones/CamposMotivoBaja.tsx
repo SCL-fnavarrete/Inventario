@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CampoFormulario, CampoTexto, claseInput } from "@/components/ui/CampoFormulario";
+import { useEffect, useId, useState } from "react";
+import { CampoFormulario, CampoTexto } from "@/components/ui/CampoFormulario";
+import { CatalogSelect } from "@/components/ui/CatalogSelect";
 
 /**
  * Motivo de una baja (SPEC 2.116.5): se elige de la lista administrable en
- * Configuracion > Catalogos de Activos y se puede agregar un detalle. Lo usan
- * "Dar de baja" y "Completar mantención" con resultado Sin reparación.
+ * Mantenciones > Motivos de baja (o se agrega ahi mismo con "+") y se puede
+ * sumar un detalle. Lo usan "Dar de baja" y "Completar mantención" con
+ * resultado Sin reparación.
  */
 
 export type MotivoBaja = { id: string; nombre: string; clave: string | null };
@@ -47,23 +49,24 @@ export function CamposMotivoBaja({
   onDetalle: (texto: string) => void;
   errores: { motivoBajaId?: string; motivoDetalle?: string };
 }) {
+  const idMotivo = useId();
+  // La lista del padre sirve para saber si es "Otro"; uno recien agregado
+  // con "+" nunca es del sistema, asi que no pide detalle.
   const pideDetalle = motivos.find((m) => m.id === motivoBajaId)?.clave === "otro";
   return (
     <>
-      <CampoFormulario label="Motivo de la baja" obligatorio error={errores.motivoBajaId}>
-        <select
+      <CampoFormulario label="Motivo de la baja" obligatorio error={errores.motivoBajaId} htmlFor={idMotivo}>
+        {/* Con "+" se agrega un motivo que no esta en la lista, como el
+            sistema operativo o el antivirus de un activo. */}
+        <CatalogSelect
+          id={idMotivo}
+          endpoint="/api/motivos-baja"
+          usarId
           value={motivoBajaId}
-          onChange={(e) => onMotivo(e.target.value)}
-          aria-invalid={!!errores.motivoBajaId}
-          className={claseInput(errores.motivoBajaId)}
-        >
-          <option value="">Selecciona un motivo</option>
-          {motivos.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.nombre}
-            </option>
-          ))}
-        </select>
+          onChange={onMotivo}
+          invalido={!!errores.motivoBajaId}
+          placeholder="Selecciona un motivo"
+        />
       </CampoFormulario>
       <CampoTexto
         label="Detalle del motivo"
