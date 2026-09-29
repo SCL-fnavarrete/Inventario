@@ -77,8 +77,9 @@ Lectura (R) · Escritura (W) · Borrado (D).
 4. **Las transiciones del workflow no se autorizan con esta matriz.** La regla
    de qué rol puede ejecutar cada transición vive en la máquina de estados de
    solicitudes (sección 2.5) y es la única fuente de esa decisión: la ruta de
-   transición sólo exige poder **leer** la solicitud y delega la autorización
-   real en la máquina de estados.
+   transición exige `solicitudes/write` (mover una solicitud es escribirla;
+   así desde el 14-sep-2026) y delega en la máquina de estados qué rol puede
+   hacer cada paso.
 5. **La sede no restringe el acceso** (desde 2.117): es un dato que dice
    dónde está cada cosa. Lo que un rol puede hacer lo decide solo esta matriz.
 
@@ -1740,179 +1741,82 @@ Hallazgos de Javier probando el sistema a mano, y las decisiones de modelo que s
 
 # PARTE 3: ARQUITECTURA TÉCNICA (ARCHITECTURE)
 
-## 3.1 Stack Tecnológico Recomendado
+## 3.1 Stack tecnológico
 
-### Opción A: Stack Moderno Full JavaScript (RECOMENDADO para recursos limitados)
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        FRONTEND                                  │
-│  Next.js 14+ (App Router) + TypeScript + Tailwind CSS           │
-│  + shadcn/ui (componentes) + React Query (estado servidor)      │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      BACKEND API                                 │
-│  Next.js API Routes (mismo proyecto) + Prisma ORM               │
-│  Autenticación: NextAuth.js                                     │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       BASE DE DATOS                              │
-│  PostgreSQL (Supabase FREE tier o Railway)                      │
-│  + Supabase Storage para documentos/actas                       │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       DEPLOYMENT                                 │
-│  Vercel (FREE tier) o Railway                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+> Reescrita el 29-sep-2026 (v2.45): antes describía el plan inicial (Supabase, shadcn/ui, React Query, opción Python), que no es lo que se construyó.
 
-### Opción B: Stack Python (si prefieren Python)
-```
-Frontend: React + Vite + TypeScript
-Backend: FastAPI + SQLAlchemy
-DB: PostgreSQL
-Deploy: Railway o Render
-```
+| Capa | Tecnología |
+|------|-----------|
+| Aplicación | Next.js 16 (App Router, React 19) en TypeScript; pantallas y API REST en el mismo proyecto |
+| Estilos | Tailwind CSS 4 con los tokens de `app/docs/DESIGN_SYSTEM.md` (modo claro y oscuro) |
+| Base de datos | PostgreSQL: Neon en producción; Docker (`docker-compose.yml`) en local |
+| Acceso a datos | Prisma 5, con migraciones versionadas (`prisma/migrations`; `db:push` deshabilitado) |
+| Autenticación | NextAuth 4 (credenciales, sesiones JWT) + matriz de permisos por rol (1.3.1) |
+| Validación | Zod 4, en la API y en los formularios |
+| Documentos | `@react-pdf/renderer` para actas y comprobantes; `exceljs` para importar y exportar Excel |
+| Gráficos | Recharts |
+| Calidad | Jest 30 (unitarios e integración contra una base de pruebas), ESLint 9, Prettier, CI en GitHub Actions (tipos, lint, tests con cobertura y build) |
+| Publicación | Vercel, con `app/` como Root Directory |
 
-## 3.2 Estructura de Carpetas del Proyecto
+## 3.2 Arquitectura: monolito modular
+
+La aplicación es **un solo proyecto que se publica junto** (un monolito), pero su código está **dividido por dominio de negocio** en módulos con límites claros (2.118). Así se mantiene la simplicidad de un solo despliegue sin que todo dependa de todo.
+
+### 3.2.1 Carpetas
 
 ```
-inventario-it/
-├── prisma/
-│   ├── schema.prisma              # Modelo de datos completo
-│   ├── migrations/                # Migraciones de BD
-│   └── seed.ts                    # Datos iniciales
-│
-├── src/
-│   ├── app/                       # Next.js App Router
-│   │   ├── (auth)/
-│   │   │   ├── login/page.tsx
-│   │   │   └── layout.tsx
-│   │   │
-│   │   ├── (dashboard)/
-│   │   │   ├── layout.tsx         # Layout con sidebar
-│   │   │   ├── page.tsx           # Dashboard principal
-│   │   │   │
-│   │   │   ├── activos/
-│   │   │   │   ├── page.tsx       # Lista de activos
-│   │   │   │   ├── [id]/page.tsx  # Detalle activo
-│   │   │   │   ├── nuevo/page.tsx # Crear activo
-│   │   │   │   └── importar/page.tsx # Importar desde Excel
-│   │   │   │
-│   │   │   ├── empleados/
-│   │   │   │   ├── page.tsx       # Lista empleados
-│   │   │   │   ├── [rut]/page.tsx # Ficha empleado (la azul)
-│   │   │   │   └── nuevo/page.tsx
-│   │   │   │
-│   │   │   ├── asignaciones/
-│   │   │   │   ├── page.tsx       # Historial asignaciones
-│   │   │   │   ├── nueva/page.tsx # Nueva asignación
-│   │   │   │   └── devolucion/page.tsx
-│   │   │   │
-│   │   │   ├── desvinculaciones/
-│   │   │   │   ├── page.tsx       # Lista desvinculaciones
-│   │   │   │   └── [id]/page.tsx  # Proceso desvinculación
-│   │   │   │
-│   │   │   ├── mantenciones/
-│   │   │   │   ├── page.tsx
-│   │   │   │   ├── programar/page.tsx
-│   │   │   │   └── calendario/page.tsx
-│   │   │   │
-│   │   │   ├── compras/
-│   │   │   │   ├── page.tsx       # Facturas y proveedores
-│   │   │   │   └── nueva/page.tsx
-│   │   │   │
-│   │   │   ├── stock/
-│   │   │   │   ├── page.tsx       # Vista stock general
-│   │   │   │   ├── disponibles/page.tsx
-│   │   │   │   ├── bodega/page.tsx
-│   │   │   │   └── baja/page.tsx
-│   │   │   │
-│   │   │   ├── reportes/
-│   │   │   │   ├── page.tsx
-│   │   │   │   ├── trazabilidad/page.tsx
-│   │   │   │   └── rrhh/page.tsx  # Reportes para RRHH
-│   │   │   │
-│   │   │   └── configuracion/
-│   │   │       ├── usuarios/page.tsx
-│   │   │       ├── categorias/page.tsx
-│   │   │       └── proveedores/page.tsx
-│   │   │
-│   │   └── api/
-│   │       ├── auth/[...nextauth]/route.ts
-│   │       ├── activos/route.ts
-│   │       ├── empleados/route.ts
-│   │       ├── asignaciones/route.ts
-│   │       ├── mantenciones/route.ts
-│   │       ├── reportes/route.ts
-│   │       ├── export/
-│   │       │   ├── excel/route.ts
-│   │       │   └── pdf/route.ts
-│   │       └── import/
-│   │           └── excel/route.ts
-│   │
-│   ├── components/
-│   │   ├── ui/                    # shadcn/ui components
-│   │   ├── forms/
-│   │   │   ├── AssetForm.tsx
-│   │   │   ├── EmployeeForm.tsx
-│   │   │   ├── AssignmentForm.tsx
-│   │   │   └── MaintenanceForm.tsx
-│   │   ├── tables/
-│   │   │   ├── AssetsTable.tsx
-│   │   │   ├── EmployeesTable.tsx
-│   │   │   └── DataTable.tsx      # Componente genérico
-│   │   ├── cards/
-│   │   │   ├── AssetCard.tsx
-│   │   │   ├── EmployeeCard.tsx   # La ficha azul
-│   │   │   └── StatsCard.tsx
-│   │   ├── charts/
-│   │   │   ├── StockChart.tsx
-│   │   │   └── AssignmentsChart.tsx
-│   │   └── layout/
-│   │       ├── Sidebar.tsx
-│   │       ├── Header.tsx
-│   │       └── Breadcrumb.tsx
-│   │
-│   ├── lib/
-│   │   ├── prisma.ts              # Cliente Prisma
-│   │   ├── auth.ts                # Config NextAuth
-│   │   ├── utils.ts               # Utilidades generales
-│   │   ├── validations/           # Schemas Zod
-│   │   │   ├── asset.ts
-│   │   │   ├── employee.ts
-│   │   │   └── assignment.ts
-│   │   └── services/
-│   │       ├── assetService.ts
-│   │       ├── employeeService.ts
-│   │       ├── assignmentService.ts
-│   │       ├── reportService.ts
-│   │       └── excelService.ts    # Importar/Exportar Excel
-│   │
-│   ├── hooks/
-│   │   ├── useAssets.ts
-│   │   ├── useEmployees.ts
-│   │   └── useAssignments.ts
-│   │
-│   └── types/
-│       └── index.ts               # TypeScript types
-│
-├── public/
-│   └── templates/
-│       ├── acta_entrega.html      # Template para PDF
-│       └── acta_devolucion.html
-│
-├── .env.example
-├── package.json
-├── tsconfig.json
-├── tailwind.config.ts
-└── README.md
+Inventario/
+├── SPEC_SISTEMA_INVENTARIO_IT.md   # Este documento: la fuente de verdad
+├── CLAUDE.md                       # Guía de implementación
+├── README.md
+└── app/                            # Proyecto Next.js (Root Directory en Vercel)
+    ├── prisma/                     # schema.prisma, migraciones y seed
+    ├── scripts/                    # Base de pruebas, respaldo, db:push deshabilitado
+    ├── docs/DESIGN_SYSTEM.md
+    └── src/
+        ├── app/                    # Solo rutas de Next.js
+        │   ├── (auth)/login/       # Pública
+        │   ├── (dashboard)/        # Pantallas con sesión
+        │   └── api/                # API REST por recurso
+        ├── modules/                # Un módulo por dominio de negocio
+        │   ├── activos/            # Equipos, su estado, historial, catálogos
+        │   ├── personas/           # Empleados
+        │   ├── asignaciones/       # Equipos en manos de alguien
+        │   ├── solicitudes/        # Onboarding, cambio de equipo, desvinculación y sus PDF
+        │   ├── mantenciones/       # Mantenciones y bajas
+        │   ├── despachos/          # Envíos entre sedes
+        │   ├── compras/            # Facturas y reparto a las sedes
+        │   ├── kit-epp/            # Kit de Bienvenida y EPP
+        │   ├── importacion/        # Carga inicial desde Excel
+        │   ├── configuracion/      # Usuarios, sedes, parámetros, auditoría
+        │   └── dashboard/          # Resumen y gráficos
+        ├── shared/                 # Lo común: prisma, auth y permisos, sedes,
+        │                           # auditoría, errores, utilidades, hooks, ui/
+        ├── proxy.ts                # Exige sesión (antes middleware.ts)
+        └── __tests__/
 ```
+
+Cada módulo guarda su lógica (`servicio.ts`, `consultas.ts`, `validaciones.ts`, máquinas de estado...) y sus `componentes/`.
+
+### 3.2.2 Reglas de la arquitectura
+
+1. **Las rutas solo orquestan.** Una ruta de `src/app/api` revisa el permiso (`requirePermission`), valida la petición con Zod, llama al servicio del módulo y responde; los errores los traduce `handleApiError`. La lógica de negocio vive en el servicio, que recibe datos ya validados y el usuario.
+2. **Cada módulo tiene puertas.** Desde fuera se entra solo por:
+   - `@/modules/<m>`: reglas, validaciones y tipos, sin base de datos (sirve en pantallas y en el servidor);
+   - `@/modules/<m>/servidor`: servicios y consultas que usan la base;
+   - `@/modules/<m>/componentes`: componentes de pantalla;
+   - `@/modules/solicitudes/documentos`: los PDF, aparte por su peso.
+
+   Dentro de su módulo, cada archivo importa libre.
+3. **`shared/` no depende de ningún módulo**: lo común no conoce los dominios.
+4. **Solo Activos escribe sus tablas** (`assets`, `asset_history`). Todo cambio de estado de un equipo pasa por `cambiarEstado()`, que valida con la máquina de estados (2.7), protege ante cambios simultáneos (409) y anota el historial.
+5. **El código de base de datos nunca llega al navegador**: `shared/prisma.ts` lleva `import "server-only"`, y el build falla si una pantalla lo importa.
+
+Las hacen cumplir, en cada cambio y en el CI: la regla `no-restricted-imports` de ESLint (reglas 2 y 3), el test `__tests__/lib/arquitectura/escriturasActivos.test.ts` (regla 4), el build (regla 5) y el test `__tests__/lib/auth/rutas-protegidas.test.ts` (toda ruta abre con `requirePermission`).
+
+### 3.2.3 Dependencias entre módulos
+
+Activos es el centro: todos los demás módulos lo usan (estados, historial, `cambiarEstado`), y Activos solo usa de Despachos el filtro de equipos "por llegar". Solicitudes usa además Mantenciones (devolución con daño) y Personas; Compras usa Despachos y Kit/EPP para repartir; Despachos usa Kit/EPP; Configuración lee los nombres de los estados de Despachos y de Solicitudes, para mostrarlos en la auditoría. Ningún otro módulo usa a Solicitudes.
 
 ## 3.3 Diagrama de Flujos Principales
 
@@ -3960,6 +3864,9 @@ La fecha de ingreso de un onboarding quedaba solo en la solicitud: la ficha de l
 - Las fichas ya creadas no se corrigen solas: se completan al editarlas.
 
 ## Changelog SPEC
+- **v2.45 (2026-09-29):**
+  - Secciones 3.1 y 3.2 reescritas: el stack real (en vez del plan inicial con Supabase y opción Python) y la arquitectura de monolito modular en un solo lugar: carpetas, reglas (rutas que orquestan, puertas, `shared` sin módulos, solo Activos escribe sus tablas, `server-only`), cómo se hacen cumplir y las dependencias entre módulos.
+  - 1.3.1, regla 4: la ruta de transición exige `solicitudes/write`, como hace el código desde el 14-sep-2026 (el texto seguía diciendo `read`; sin efecto práctico, ambos roles tienen los dos permisos).
 - **v2.44 (2026-09-29):**
   - Sección 2.118: etapa 4 del monolito modular, puertas por módulo (`index.ts`, `servidor.ts`, `componentes/index.ts` y `solicitudes/documentos`), `shared/` sin dependencias de módulos, regla de ESLint que lo exige y `server-only` en `shared/prisma.ts`.
 - **v2.43 (2026-09-29):**

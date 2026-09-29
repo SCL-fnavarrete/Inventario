@@ -17,8 +17,10 @@ npm run db:migrate       # Prisma dev migration (unica via para cambiar el schem
 npm run db:migrate:prod  # prisma migrate deploy (produccion)
 npm run db:status        # prisma migrate status - verificar deriva
 npm run db:push          # DESHABILITADO a proposito (ver "Migraciones")
-npm run db:seed          # Seed default users + categories
+npm run db:seed          # Primer admin (SEED_ADMIN_*) + categorias
 npm run db:studio        # Prisma Studio GUI
+npm run test:integracion # Tests contra la base de pruebas inventario_it_test
+npm run db:test:migrate  # Migraciones en la base de pruebas
 ```
 
 ## Architecture
@@ -56,12 +58,16 @@ nuevo, agregarlo a la puerta que corresponde.
 | Path | Purpose |
 |------|---------|
 | `src/shared/auth/opciones.ts` | NextAuth config: Credentials provider, JWT sessions (duración de Configuración > Seguridad), revisa la cuenta en cada consulta (una desactivada queda fuera), lista negra de sesiones cerradas y "sesiones válidas desde" al desactivar (SPEC 2.112.5), bloqueo por intentos contado en el registro de accesos (SPEC 2.112) |
-| `src/shared/prisma.ts` | Prisma singleton (prevents connection pool exhaustion) |
+| `src/shared/auth/accesos.ts` | Registro de accesos (ingresos, intentos fallidos, cierres de sesion) y bloqueo por intentos (SPEC 2.112) |
+| `src/shared/errores.ts` | Errores que lanzan los servicios (`NotFoundError`, `ConflictError`, `ValidationError`, `errorDeCampo`...); `handleApiError` los traduce a la respuesta |
+| `src/shared/prisma.ts` | Prisma singleton (prevents connection pool exhaustion); lleva `import "server-only"` |
+| `src/modules/activos/servicio.ts` | `cambiarEstado()` (unico camino para cambiar el estado de un equipo), crear, editar, eliminar y descartar equipos |
 | `src/shared/sedes/filtro.ts` | La sede es un dato, no un candado (SPEC 2.117): todos trabajan con todas las sedes. `filtroSede` (filtro del navbar) y `sedeIdParaCrear`. No agregar reglas de acceso por sede: lo que es solo de admin lo decide la matriz de permisos |
 | `src/modules/activos/historial.ts` | Audit trail — logs all asset events with old/new values |
 | `src/modules/solicitudes/ejecucion.ts` | Ejecuta acciones de workflow: asignaciones, desvinculaciones, guias al hacer transiciones |
 | `src/modules/solicitudes/maquinaEstados.ts` | Define estados válidos y transiciones permitidas por tipo de solicitud |
-| `src/modules/solicitudes/documentos.ts` | Genera documentos (actas, reportes) asociados a solicitudes de workflow |
+| `src/modules/solicitudes/crear.ts` y `transicion.ts` | Crear una solicitud (nace cerrada, SPEC 2.82) y avanzar las que quedaron abiertas |
+| `src/modules/solicitudes/documentos.ts` | Genera los PDF (actas, comprobantes); se importa por su propia puerta, `@/modules/solicitudes/documentos` |
 | `src/modules/activos/maquinaEstados.ts` | Máquina de estados de activos — valida transiciones, precondiciones, estados terminales |
 | `src/modules/activos/validacionesTransicion.ts` | Zod schemas para transiciones de activos: baja, venta, mantención, reasignación |
 | `src/modules/<modulo>/validaciones.ts` | Zod schemas de cada entidad; las comunes en `src/shared/validaciones/` |
@@ -71,12 +77,16 @@ nuevo, agregarlo a la puerta que corresponde.
 
 ### API Route Pattern
 
-Every API route follows this sequence:
-1. `getServerSession(authOptions)` → 401 if unauthenticated
-2. Validate input with Zod schema → 400 on failure
-3. Prisma operations
-4. Log to `assetHistoryService` for audit trail (on mutations)
-5. Return `NextResponse.json()`
+Las rutas solo orquestan (SPEC 3.2.2):
+1. `requirePermission(recurso, accion)` → 401/403
+2. Validar la peticion con el schema Zod del modulo → 400 (`respuestaDatosInvalidos`)
+3. Llamar al servicio del modulo (`@/modules/x/servidor`) con datos validados y el usuario
+4. Responder con `NextResponse.json()`; los errores los traduce `handleApiError`
+
+La logica de negocio, las transacciones, el historial y la auditoria van en el
+servicio, que avisa con los errores de `@/shared/errores` (`NotFoundError`,
+`ConflictError`, `ValidationError`, `errorDeCampo`...). Una ruta solo de lectura
+puede consultar Prisma directo.
 
 ### Modelos y enums
 
@@ -112,7 +122,7 @@ En produccion (Vercel) se aplica con `npm run db:migrate:prod`.
 - **Imports:** Always use `@/` path alias (e.g., `@/shared/prisma`, `@/shared/ui/Button`)
 - **Validation:** All API input must be validated with Zod schemas (`validaciones.ts` de cada modulo, o `src/shared/validaciones/`)
 - **Audit trail:** Any asset mutation must call `assetHistoryService.registrar()` (`src/modules/activos/historial.ts`) with appropriate event type
-- **Session checks:** All non-auth API routes must verify session via `getServerSession(authOptions)`
+- **Session checks:** toda ruta de la API abre con `requirePermission` (ver "Autorizacion")
 - **Formatting:** Prettier with semicolons, single quotes, 100 char width, es5 trailing commas
 - **UI language:** All user-facing text is in Spanish
 - **RUT handling:** RUT is optional (`String?`): when unknown it is left blank. Always use null-safe access (`employee.rut || "—"`) and optional chaining (`employee.rut?.toLowerCase()`)
@@ -125,8 +135,11 @@ En produccion (Vercel) se aplica con `npm run db:migrate:prod`.
 
 ## Environment Variables
 
-Conexion Neon (`DATABASE_URL` pooled y `DATABASE_URL_UNPOOLED` directa, requerida
-por las migraciones) y NextAuth (`NEXTAUTH_URL`, `NEXTAUTH_SECRET`).
+Ver `app/.env.example`. Conexion Neon (`DATABASE_URL` pooled y
+`DATABASE_URL_UNPOOLED` directa, requerida por las migraciones), NextAuth
+(`NEXTAUTH_URL`, `NEXTAUTH_SECRET` de 32+ caracteres) y el primer admin del seed
+(`SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`). En local, la base de
+`docker-compose.yml` escucha en `127.0.0.1:5433` (no `localhost`).
 
 ## Deployment
 
@@ -171,7 +184,7 @@ export async function POST(request: NextRequest) {
   Asi un boton visible nunca lleva a un 403.
 - **Las transiciones de workflow no pasan por la matriz.** Las autoriza
   `canTransition` (`src/modules/solicitudes/maquinaEstados.ts`), que ya conoce el rol de cada
-  transicion. La ruta de transicion solo exige `solicitudes/read`.
+  transicion. La ruta de transicion solo exige `solicitudes/write`.
 - **Formato de error unificado:** `{ error: string, details?: unknown }`.
   `handleApiError` traduce ApiError, ZodError y los codigos de Prisma
   (P2002/P2003/P2025), y acepta un segundo argumento con el mensaje generico de

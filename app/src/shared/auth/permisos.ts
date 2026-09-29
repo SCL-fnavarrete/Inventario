@@ -168,8 +168,9 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
  * puede ejecutar cada transicion, cubierto por tests. Duplicar esa regla en
  * la matriz crearia dos fuentes de verdad para lo mismo.
  *
- * Por eso la ruta de transicion exige `solicitudes/read` (que la persona pueda
- * ver la solicitud) y delega la decision real en la maquina de estados.
+ * Por eso la ruta de transicion exige solo `solicitudes/write` (mover una
+ * solicitud es escribirla) y delega en la maquina de estados que rol puede
+ * hacer cada paso.
  */
 
 /** ¿Puede este rol ejecutar esta accion sobre este recurso? */

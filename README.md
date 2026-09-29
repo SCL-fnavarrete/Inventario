@@ -1,243 +1,109 @@
 # Sistema de Control de Inventario IT
 
-Sistema web para la gestion integral del ciclo de vida de activos tecnologicos, desarrollado para **SCL Consultores**. Permite controlar notebooks, celulares, monitores, perifericos y su asignacion a empleados, mantenciones, compras, desvinculaciones y guias de despacho.
+Aplicación web de **SCL Consultores** para llevar el ciclo de vida de los equipos
+de TI (notebooks, celulares, monitores, periféricos) y de los artículos de Kit
+de Bienvenida y EPP, en todas las sedes de la empresa. Interfaz en español,
+contexto chileno (RUT opcional).
 
-> Contexto empresarial chileno: validacion de RUT, interfaz en espanol, integracion con Microsoft Entra ID.
+La especificación completa, fuente de verdad del sistema, está en
+[`SPEC_SISTEMA_INVENTARIO_IT.md`](SPEC_SISTEMA_INVENTARIO_IT.md).
 
-## Caracteristicas Principales
+## Qué hace
 
-- **Gestion de Activos** — CRUD completo de notebooks, celulares, monitores, impresoras y perifericos con estados de ciclo de vida (disponible, asignado, en mantencion, reutilizable, baja, vendido)
-- **Gestion de Empleados** — Registro con RUT chileno (opcional), tipos de contrato, ubicaciones y cargos
-- **Microsoft Entra ID Sync** — Sincronizacion unidireccional (solo lectura) de empleados desde Azure AD via Graph API. Los empleados sincronizados se identifican con badge "Microsoft"
-- **Asignaciones** — Flujo completo de entrega y devolucion de equipos con generacion de actas digitales en PDF
-- **Mantenciones** — Programacion y seguimiento de mantenciones preventivas y correctivas con calendario
-- **Desvinculaciones** — Proceso de devolucion de equipos al termino de contrato con reporte RRHH
-- **Compras** — Gestion de proveedores, ordenes de compra y vinculacion con activos
-- **Guias de Despacho** — Generacion y seguimiento de guias con PDF descargable
-- **Dashboard** — KPIs en tiempo real, graficos y alertas automaticas (mantenciones vencidas, devoluciones pendientes, equipos danados)
-- **Reportes** — Exportacion a Excel (inventario, empleados, stock, obsoletos, RRHH) y generacion de PDFs
-- **Trazabilidad** — Historial completo de cada activo con registro de todos los eventos
-- **Importacion** — Carga masiva de activos y empleados desde archivos Excel
+- **Activos**: alta, edición, historial completo de cada equipo y su estado
+  (disponible, asignado, en mantención, en tránsito, por repartir, no devuelto,
+  baja, vendido). Filtros combinables y exportación a Excel.
+- **Solicitudes**: onboarding, cambio de equipo y desvinculación, que asignan y
+  reciben los equipos y generan las actas en PDF.
+- **Mantenciones**: programar, iniciar, completar (reparado, espera de
+  repuestos o sin reparación) y dar de baja, con calendario y motivos de baja.
+- **Despachos** entre sedes, **Compras** (facturas y reparto a las sedes) y
+  **Kit/EPP** con stock por sede.
+- **Dashboard** con indicadores y alertas; **Configuración** con usuarios,
+  sedes, catálogos, seguridad, registro de accesos, auditoría e importación
+  inicial desde Excel.
 
-## Stack Tecnologico
+Hay dos roles: **admin** y **técnico**. Todos trabajan con todas las sedes: la
+sede es un dato que dice dónde está cada cosa, no una restricción.
 
-| Capa | Tecnologia |
-|------|-----------|
-| Framework | Next.js 16 (App Router, React 19) |
-| Lenguaje | TypeScript |
-| Estilos | Tailwind CSS 4 |
-| ORM | Prisma 5 |
-| Base de Datos | PostgreSQL (Neon) |
-| Autenticacion | NextAuth.js 4 (JWT, Credentials) |
-| Validacion | Zod 4 |
-| Estado cliente | TanStack React Query |
-| Graficos | Recharts |
-| Excel | xlsx |
-| PDF | jsPDF + jspdf-autotable, PDFDocument |
-| Deploy | Vercel |
+## Tecnología
 
-## Estructura del Proyecto
+Next.js 16 (App Router, React 19) · TypeScript · Tailwind CSS 4 · PostgreSQL
+(Neon en producción) · Prisma 5 · NextAuth 4 · Zod 4 · `@react-pdf/renderer` ·
+`exceljs` · Recharts · Jest · Vercel.
+
+## Estructura
 
 ```
-Inventario_Equipo/
-├── app/                          # Aplicacion Next.js (Root Directory en Vercel)
-│   ├── prisma/
-│   │   ├── schema.prisma         # 13+ modelos (Asset, Employee, Assignment, etc.)
-│   │   └── seed.ts               # Datos iniciales (usuarios, categorias)
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── (auth)/login/     # Pagina de login (publica)
-│   │   │   ├── (dashboard)/      # Paginas autenticadas
-│   │   │   │   ├── activos/      # Gestion de activos
-│   │   │   │   ├── empleados/    # Gestion de empleados
-│   │   │   │   ├── asignaciones/ # Asignaciones de equipos
-│   │   │   │   ├── mantenciones/ # Mantenciones preventivas/correctivas
-│   │   │   │   ├── desvinculaciones/ # Proceso de desvinculacion
-│   │   │   │   ├── compras/      # Ordenes de compra
-│   │   │   │   ├── guias-despacho/ # Guias de despacho
-│   │   │   │   ├── reportes/     # Reportes exportables
-│   │   │   │   └── configuracion/ # Config, categorias, usuarios, Microsoft Sync
-│   │   │   └── api/              # ~54 REST endpoints
-│   │   │       ├── activos/      # CRUD + importar/exportar
-│   │   │       ├── empleados/    # CRUD + ficha + buscar
-│   │   │       ├── asignaciones/ # CRUD + acta PDF
-│   │   │       ├── mantenciones/ # CRUD + completar + pendientes
-│   │   │       ├── desvinculaciones/ # CRUD + procesar + reporte
-│   │   │       ├── compras/      # CRUD + vincular activos
-│   │   │       ├── guias-despacho/ # CRUD + PDF
-│   │   │       ├── microsoft-sync/ # Sync + status
-│   │   │       ├── dashboard/    # Stats + alertas
-│   │   │       └── reportes/     # Excel exports
-│   │   ├── components/
-│   │   │   ├── ui/               # Componentes reutilizables
-│   │   │   ├── layout/           # Sidebar, Header
-│   │   │   ├── dashboard/        # Graficos, alertas
-│   │   │   ├── activos/          # Componentes de activos
-│   │   │   └── reportes/         # Buscador de empleados
-│   │   └── lib/
-│   │       ├── auth.ts           # NextAuth config (roles, rate limiting)
-│   │       ├── prisma.ts         # Prisma singleton
-│   │       ├── services/         # assetHistoryService, microsoftGraphService
-│   │       ├── validations/      # Zod schemas
-│   │       └── utils/            # RUT validation, formatters
-│   └── package.json
-├── excel/                        # Archivos Excel fuente
-└── CLAUDE.md                     # Instrucciones para Claude Code
+Inventario/
+├── SPEC_SISTEMA_INVENTARIO_IT.md   # Especificación (manda sobre todo lo demás)
+├── CLAUDE.md                       # Guía de implementación
+└── app/                            # Proyecto Next.js (Root Directory en Vercel)
+    ├── prisma/                     # Modelo, migraciones y seed
+    └── src/
+        ├── app/                    # Rutas: pantallas y API
+        ├── modules/                # Un módulo por dominio (activos, solicitudes, ...)
+        └── shared/                 # Lo común (base de datos, permisos, ui, ...)
 ```
 
-## Roles de Usuario
+Es un **monolito modular**: se publica como una sola aplicación, pero el código
+está separado por dominio y cada módulo expone solo sus "puertas"
+(`@/modules/x`, `@/modules/x/servidor`, `@/modules/x/componentes`). Las reglas
+están en la sección 3.2 del SPEC y las hacen cumplir ESLint, los tests y el build.
 
-| Rol | Permisos |
-|-----|----------|
-| **admin** | Acceso completo, gestion de usuarios, Microsoft Sync; ve todas las sedes |
-| **tecnico** | Asignar/recibir equipos, solicitudes, mantenciones, compras y guias; solo en su propia sede |
+## Levantarlo en local
 
-## Estados de Activos
-
-| Estado | Descripcion |
-|--------|-------------|
-| `disponible` | Listo para asignar |
-| `asignado` | En uso por un empleado |
-| `en_mantencion` | En reparacion o mantencion |
-| `reutilizable` | Devuelto, necesita revision |
-| `baja` | Dado de baja |
-| `vendido` | Vendido o descartado |
-
-## Requisitos Previos
-
-- Node.js 18+
-- PostgreSQL 14+ (o cuenta en [Neon](https://neon.tech))
-- npm
-
-## Instalacion
+Requisitos: Node.js 22 (la versión del CI), npm y Docker.
 
 ```bash
-# 1. Clonar el repositorio
-git clone https://github.com/nanonroses/inventario.git
-cd inventario/app
-
-# 2. Instalar dependencias
+cd app
 npm install
-
-# 3. Configurar variables de entorno
-cp .env.example .env
-# Editar .env con las credenciales de base de datos y NextAuth
-
-# 4. Ejecutar migraciones
-npm run db:migrate
-
-# 5. Cargar datos iniciales (usuario admin + categorias)
-npm run db:seed
-
-# 6. Iniciar servidor de desarrollo
-npm run dev
+cp .env.example .env          # completar los valores (ver abajo)
+docker compose up -d          # PostgreSQL en 127.0.0.1:5433
+npm run db:migrate            # crea las tablas
+npm run db:seed               # primer admin, categorías y sede inicial
+npm run dev                   # http://localhost:3000
 ```
 
-La aplicacion estara disponible en `http://localhost:3000`
+Variables de `app/.env` (detalle en `app/.env.example`):
 
-### Usuario por Defecto
+| Variable | Para qué |
+|----------|----------|
+| `DATABASE_URL` | Conexión a la base (en Neon, la del pooler) |
+| `DATABASE_URL_UNPOOLED` | Conexión directa, la usan las migraciones |
+| `POSTGRES_PASSWORD` | Clave de la base local de Docker |
+| `NEXTAUTH_URL` | URL de la app (`http://localhost:3000` en local) |
+| `NEXTAUTH_SECRET` | Secreto de sesiones, 32+ caracteres (`openssl rand -base64 32`) |
+| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Primer administrador; la clave con 12+ caracteres, mayúscula, minúscula, número y símbolo |
 
-El seed crea el primer administrador con el correo y la clave de `SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD` (en `.env`, ver `.env.example`). La clave debe tener 12 caracteres o más, con mayúscula, minúscula, número y símbolo. No hay una clave por defecto.
+En local usa `127.0.0.1` y no `localhost` en las URL de la base: en Windows,
+`localhost` prueba primero IPv6 y cada conexión tarda unos 2 segundos.
 
-## Variables de Entorno
+## Comandos (dentro de `app/`)
 
-```env
-# Base de datos PostgreSQL (Neon)
-DATABASE_URL="postgresql://..."           # Conexion pooled
-DATABASE_URL_UNPOOLED="postgresql://..."   # Conexion directa (migraciones)
-
-# NextAuth
-NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="genera-uno-con: openssl rand -base64 32"
-
-# Microsoft Entra ID (opcional - sincronizacion de empleados)
-MICROSOFT_TENANT_ID=""
-MICROSOFT_CLIENT_ID=""
-MICROSOFT_CLIENT_SECRET=""
-```
-
-## Microsoft Entra ID Sync
-
-Integracion unidireccional (solo lectura) con Microsoft Entra ID (Azure AD) para sincronizar empleados automaticamente.
-
-**Funcionalidades:**
-- Sincronizacion manual via boton en Configuracion (solo admin)
-- Crea empleados nuevos, actualiza existentes, desactiva los eliminados de Entra
-- Vinculacion por correo electronico en la primera sincronizacion, por Microsoft ID en las siguientes
-- Los empleados sincronizados se muestran con badge "Microsoft" y pueden no tener RUT
-- Alertas si un empleado desactivado tiene equipos asignados
-
-**Configuracion en Azure Portal:**
-1. Registrar aplicacion en Azure Portal > App registrations
-2. Agregar permiso `User.Read.All` (Application) y otorgar consentimiento admin
-3. Crear Client Secret
-4. Configurar las 3 variables de entorno (`MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`)
-
-## Scripts Disponibles
-
-Todos desde el directorio `app/`:
-
-| Comando | Descripcion |
-|---------|-------------|
+| Comando | Qué hace |
+|---------|----------|
 | `npm run dev` | Servidor de desarrollo |
-| `npm run build` | Compilar para produccion (`prisma generate && next build`) |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | Verificacion de tipos TypeScript |
-| `npm run test` | Tests unitarios (Jest) |
-| `npm run test:coverage` | Tests con cobertura (umbral 70%) |
-| `npm run db:migrate` | Crear migracion Prisma |
-| `npm run db:push` | Sincronizar schema sin migracion |
-| `npm run db:seed` | Cargar datos iniciales |
-| `npm run db:studio` | Abrir Prisma Studio |
+| `npm run build` / `npm start` | Compilar y correr en modo producción |
+| `npm run typecheck` · `npm run lint` · `npm run format` | Tipos, reglas (incluidos los límites entre módulos) y formato |
+| `npm test` · `npm run test:coverage` | Tests unitarios (con cobertura) |
+| `npm run db:test:migrate` · `npm run test:integracion` | Preparar la base de pruebas `inventario_it_test` y correr los tests contra ella |
+| `npm run db:migrate` | Crear una migración (única vía para cambiar el modelo) |
+| `npm run db:status` | Ver si la base está al día |
+| `npm run db:seed` · `npm run db:studio` | Datos iniciales · explorador de la base |
 
-## Despliegue
+`npm run db:push` está deshabilitado a propósito: todo cambio del modelo pasa por
+una migración versionada, junto con el SPEC.
 
-**Vercel** con git integration. Cada push a `main` despliega automaticamente.
+## Publicar (Vercel)
 
-- **Root Directory:** `app` (configurado en Vercel Project Settings)
-- **Build Command:** `prisma generate && next build`
-- **Variables de entorno:** configurar en Vercel Dashboard
+1. Proyecto en Vercel con **Root Directory = `app`**. El build ejecuta
+   `prisma generate` antes de `next build`.
+2. Configurar las variables de entorno de la tabla anterior en Vercel (sin
+   `POSTGRES_PASSWORD`), con `NEXTAUTH_URL` apuntando al dominio público.
+3. Aplicar las migraciones pendientes en la base de producción:
+   `npm run db:migrate:prod` (con las URL de Neon de producción).
+4. La primera vez, crear el administrador con `npm run db:seed`.
 
-## API Endpoints
-
-### Activos
-- `GET /api/activos` — Listar con filtros y paginacion
-- `POST /api/activos` — Crear nuevo
-- `GET /api/activos/:id` — Detalle
-- `PUT /api/activos/:id` — Actualizar
-- `DELETE /api/activos/:id` — Eliminar
-- `POST /api/activos/importar` — Importar desde Excel
-- `GET /api/activos/exportar` — Exportar a Excel
-
-### Empleados
-- `GET /api/empleados` — Listar con filtros
-- `GET /api/empleados/:id` — Detalle
-- `GET /api/empleados/:id/ficha` — Ficha completa con equipos
-- `GET /api/empleados/buscar?rut=XX.XXX.XXX-X` — Buscar por RUT
-
-### Asignaciones
-- `GET /api/asignaciones` — Listar
-- `POST /api/asignaciones` — Nueva asignacion
-- `PUT /api/asignaciones/:id` — Registrar devolucion
-- `GET /api/asignaciones/:id/acta` — Generar acta PDF
-
-### Mantenciones
-- `GET /api/mantenciones` — Listar
-- `POST /api/mantenciones` — Programar mantencion
-- `PUT /api/mantenciones/:id/completar` — Completar mantencion
-
-### Desvinculaciones
-- `GET /api/desvinculaciones` — Listar
-- `POST /api/desvinculaciones` — Crear
-- `PUT /api/desvinculaciones/:id/procesar-devolucion` — Procesar devolucion
-- `GET /api/desvinculaciones/:id/reporte-rrhh` — Reporte PDF
-
-### Microsoft Sync
-- `GET /api/microsoft-sync/status` — Estado de configuracion y estadisticas
-- `POST /api/microsoft-sync` — Ejecutar sincronizacion (solo admin)
-
-### Dashboard
-
-## Licencia
-
-Proyecto de uso interno y propietario de SCL Consultores.
+El CI de GitHub (`.github/workflows/ci.yml`) revisa en cada cambio: auditoría de
+dependencias, tipos, lint, tests con cobertura y build.
