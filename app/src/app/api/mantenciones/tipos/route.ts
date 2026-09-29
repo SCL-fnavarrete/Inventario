@@ -1,73 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/shared/prisma';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
 import { createMaintenanceTypeSchema } from '@/modules/mantenciones';
-import { auditLogService } from '@/shared/auditoria';
-import { assertNombreTipoLibre } from '@/modules/mantenciones/servidor';
+import { crearTipoMantencion, listarTiposMantencion } from '@/modules/mantenciones/servidor';
 
-// GET /api/mantenciones/tipos - Listar tipos de mantencion
-// Catalogo global (sin sedeId, igual que AssetCategory) -- ver nota en
-// prisma/schema.prisma (model MaintenanceType).
+// GET /api/mantenciones/tipos - Listar tipos de mantención (catalogo global)
 export async function GET(request: NextRequest) {
   try {
     await requirePermission('tiposMantencion', 'read');
-
     const searchParams = request.nextUrl.searchParams;
-    const soloActivos = searchParams.get('activo') === 'true';
-    const includeCount = searchParams.get('includeCount') === 'true';
-
-    const tipos = await prisma.maintenanceType.findMany({
-      where: soloActivos ? { activo: true } : undefined,
-      orderBy: { nombre: 'asc' },
-      ...(includeCount && {
-        include: {
-          _count: {
-            select: { maintenances: true },
-          },
-        },
-      }),
+    const tipos = await listarTiposMantencion({
+      soloActivos: searchParams.get('activo') === 'true',
+      conConteo: searchParams.get('includeCount') === 'true',
     });
-
     return NextResponse.json(tipos);
   } catch (error) {
     return handleApiError(error, 'Error al obtener tipos de mantención');
   }
 }
 
-// POST /api/mantenciones/tipos - Crear tipo de mantencion
-// Admin y tecnico pueden crear (recurso "tiposMantencion": AMBOS en
-// write), a diferencia de Categorias donde solo admin escribe.
+// POST /api/mantenciones/tipos - Crear tipo (admin y tecnico)
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('tiposMantencion', 'write');
-
-    const body = await request.json();
-    const validationResult = createMaintenanceTypeSchema.safeParse(body);
-
-    if (!validationResult.success) {
-      return respuestaDatosInvalidos(validationResult.error);
-    }
-
-    const { nombre, descripcion } = validationResult.data;
-
-    await assertNombreTipoLibre(nombre);
-
-    const tipo = await prisma.maintenanceType.create({
-      data: {
-        nombre: nombre.trim(),
-        descripcion: descripcion?.trim() || null,
-      },
-    });
-
-    // Registro de auditoria.
-    await auditLogService.registrarCreacion(
-      'tipo_mantencion',
-      tipo.id,
-      `Tipo de mantención creado: ${tipo.nombre}`,
-      { nombre: tipo.nombre, descripcion: tipo.descripcion },
-      session.user?.email
-    );
-
+    const parsed = createMaintenanceTypeSchema.safeParse(await request.json());
+    if (!parsed.success) return respuestaDatosInvalidos(parsed.error);
+    const tipo = await crearTipoMantencion(parsed.data, session.user?.email);
     return NextResponse.json(tipo, { status: 201 });
   } catch (error) {
     return handleApiError(error, 'Error al crear tipo de mantención');

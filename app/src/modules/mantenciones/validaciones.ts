@@ -170,4 +170,5 @@ export type CreateMaintenanceInput = z.infer<typeof createMaintenanceSchema>;
 export type UpdateMaintenanceInput = z.infer<typeof updateMaintenanceSchema>;
 export type CompleteMaintenanceInput = z.infer<typeof completeMaintenanceSchema>;
 export type BajaPorMantencionInput = z.input<typeof bajaPorMantencionSchema>;
+export type BajaPorMantencionDatos = z.infer<typeof bajaPorMantencionSchema>;
 export type MaintenanceFilters = z.infer<typeof maintenanceFiltersSchema>;

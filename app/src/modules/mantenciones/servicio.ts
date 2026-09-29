@@ -1,6 +1,6 @@
 import type { EstadoActivo, EstadoMantencion, Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
-import { ConflictError, NotFoundError, ValidationError } from '@/shared/errores';
+import { ConflictError, errorDeCampo, NotFoundError, ValidationError } from '@/shared/errores';
 import { siSigueIgual } from '@/shared/utilidades/concurrencia';
 import { formatearFechaConHora, formatearFechaCorta } from '@/shared/utilidades/fechas';
 import {
@@ -15,7 +15,9 @@ import { mantencionACerrar } from '@/modules/mantenciones/utilidades';
 import { motivoParaBaja } from '@/modules/mantenciones/motivosBaja';
 import { etiquetaResultadoMantencion } from '@/modules/mantenciones/resultados';
 import type {
+  BajaPorMantencionDatos,
   CompleteMaintenanceInput,
+  CreateMaintenanceInput,
   UpdateMaintenanceInput,
 } from '@/modules/mantenciones/validaciones';
 import type { PrismaTx } from '@/modules/activos/servidor';
@@ -612,4 +614,111 @@ export async function completarMantencion(
     );
     return actualizada;
   });
+}
+
+/**
+ * Programar una mantencion (POST /api/mantenciones). No cambia el estado del
+ * equipo (SPEC 2.96): pasa a "En Mantención" recien al iniciarla. Solo se
+ * rechaza el equipo que no admite mantenciones, con el motivo en palabras.
+ */
+export async function programarMantencion(data: CreateMaintenanceInput, usuario: string | null | undefined) {
+  const asset = await prisma.asset.findUnique({ where: { id: data.assetId } });
+  if (!asset) throw new NotFoundError('Activo no encontrado');
+  // Tipo del catalogo (Mantenciones > Tipos).
+  const tipo = await prisma.maintenanceType.findUnique({ where: { id: data.tipoId } });
+  if (!tipo) throw new NotFoundError('Tipo de mantención no encontrado');
+  if (asset.deletedAt) throw new ConflictError('Este activo está descartado y no admite movimientos');
+  const bloqueo = motivoSinMantencion(asset.estado);
+  if (bloqueo) throw errorDeCampo('assetId', bloqueo);
+
+  return prisma.$transaction(async (tx) => {
+    const mantencion = await tx.maintenance.create({
+      data: {
+        assetId: data.assetId,
+        tipoId: data.tipoId,
+        descripcion: data.descripcion,
+        fechaProgramada: data.fechaProgramada,
+        horaProgramada: data.horaProgramada,
+        proximaMantencion: data.proximaMantencion,
+        realizadoPor: data.realizadoPor,
+        costo: data.costo,
+        proveedorExterno: data.proveedorExterno,
+        estado: 'pendiente',
+      },
+      include: { tipo: true, asset: { include: { categoria: true } } },
+    });
+    await auditLogService.registrarCreacion(
+      'mantencion',
+      mantencion.id,
+      `Mantención creada: ${mantencion.tipo.nombre} para ${asset.marca} ${asset.modelo}`,
+      { assetId: data.assetId, tipoId: data.tipoId, descripcion: data.descripcion, estado: mantencion.estado },
+      usuario,
+      tx
+    );
+    // Historial del equipo, sin cambio de estado.
+    await assetHistoryService.registrar(
+      {
+        assetId: data.assetId,
+        tipoEvento: 'mantencion',
+        descripcion: `Mantención ${mantencion.tipo.nombre} programada para el ${formatearFechaConHora(data.fechaProgramada, data.horaProgramada)}: ${data.descripcion}`,
+        datosNuevos: { maintenanceId: mantencion.id },
+        usuarioSistema: usuario || data.realizadoPor || 'Sistema',
+      },
+      tx
+    );
+    return mantencion;
+  });
+}
+
+/**
+ * Dar de baja un equipo por Mantenciones (POST /api/mantenciones/baja, SPEC
+ * 2.88). Toda baja pasa por una mantencion "Sin reparación": se cierra la
+ * abierta o se registra una ya cerrada, en una transaccion junto con el paso
+ * del equipo a "baja" (darDeBajaEnTransaccion).
+ */
+export async function darDeBajaPorMantencion(data: BajaPorMantencionDatos, usuario: string) {
+  const asset = await prisma.asset.findUnique({
+    where: { id: data.assetId },
+    include: {
+      maintenances: {
+        where: { estado: { in: ['pendiente', 'en_proceso'] } },
+        include: { tipo: true },
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+  });
+  if (!asset) throw new NotFoundError('Activo no encontrado');
+  if (asset.deletedAt) throw new ConflictError('Este activo esta descartado y no admite movimientos');
+  // Regla unica de la baja (SPEC 2.106): solo un equipo sin empleado asignado.
+  const bloqueo = motivoSinBaja(asset);
+  if (bloqueo) throw new ConflictError(bloqueo);
+
+  // Motivo de la lista (SPEC 2.116.5): "Robo" o "Otro: detalle".
+  const { motivoBajaId, motivoTexto } = await motivoParaBaja(prisma, { id: data.motivoBajaId }, data.motivoDetalle);
+  const transicion = validateTransition(asset.estado, 'baja', {
+    hasActiveAssignment: !!asset.empleadoActualId,
+    hasActiveMaintenance: false,
+    motivo: motivoTexto,
+  });
+  if (!transicion.valid) throw new ConflictError(transicion.errors[0]);
+
+  // Tipo de la mantencion nueva, si no hay una abierta que cerrar.
+  const tipo = await prisma.maintenanceType.findUnique({ where: { id: data.tipoId } });
+  if (!tipo && !mantencionACerrar(asset.maintenances)) {
+    throw new NotFoundError('Tipo de mantención no encontrado');
+  }
+
+  const mantencion = await prisma.$transaction((tx) =>
+    darDeBajaEnTransaccion(tx, {
+      asset,
+      tipo: tipo ?? asset.maintenances[0].tipo,
+      motivoBajaId,
+      motivoTexto,
+      resultado: data.observaciones?.trim() || motivoTexto,
+      fechaRealizada: data.fechaRealizada,
+      realizadoPor: data.realizadoPor,
+      usuario,
+    })
+  );
+  return { mantencion, assetId: asset.id };
 }

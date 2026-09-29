@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/shared/prisma';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
 import { updateMaintenanceTypeSchema } from '@/modules/mantenciones';
-import { auditLogService } from '@/shared/auditoria';
-import { assertNombreTipoLibre } from '@/modules/mantenciones/servidor';
+import { editarTipoMantencion, eliminarTipoMantencion } from '@/modules/mantenciones/servidor';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -13,90 +11,21 @@ interface RouteParams {
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('tiposMantencion', 'write');
-
     const { id } = await params;
-    const body = await request.json();
-    const validationResult = updateMaintenanceTypeSchema.safeParse(body);
-
-    if (!validationResult.success) {
-      return respuestaDatosInvalidos(validationResult.error);
-    }
-
-    const data = validationResult.data;
-
-    const existing = await prisma.maintenanceType.findUnique({ where: { id } });
-    if (!existing) {
-      return NextResponse.json({ error: 'Tipo de mantención no encontrado' }, { status: 404 });
-    }
-
-    if (data.nombre) await assertNombreTipoLibre(data.nombre, id);
-
-    const tipo = await prisma.maintenanceType.update({
-      where: { id },
-      data: {
-        nombre: data.nombre?.trim() ?? existing.nombre,
-        descripcion:
-          data.descripcion !== undefined ? data.descripcion?.trim() || null : existing.descripcion,
-        activo: data.activo ?? existing.activo,
-      },
-    });
-
-    // Registro de auditoria.
-    await auditLogService.registrarActualizacion(
-      'tipo_mantencion',
-      tipo.id,
-      `Tipo de mantención actualizado: ${tipo.nombre}`,
-      { nombre: existing.nombre, descripcion: existing.descripcion, activo: existing.activo },
-      { nombre: tipo.nombre, descripcion: tipo.descripcion, activo: tipo.activo },
-      session.user?.email
-    );
-
-    return NextResponse.json(tipo);
+    const parsed = updateMaintenanceTypeSchema.safeParse(await request.json());
+    if (!parsed.success) return respuestaDatosInvalidos(parsed.error);
+    return NextResponse.json(await editarTipoMantencion(id, parsed.data, session.user?.email));
   } catch (error) {
     return handleApiError(error, 'Error al actualizar tipo de mantención');
   }
 }
 
-// DELETE /api/mantenciones/tipos/[id] - Eliminar un tipo
-// Solo se puede borrar si ninguna mantencion lo usa (por la FK). Si esta
-// en uso, se sugiere desactivarlo en vez de borrarlo (ver PUT, campo
-// "activo") para no perder el tipo de mantenciones ya registradas.
+// DELETE /api/mantenciones/tipos/[id] - Eliminar un tipo que nadie usa
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('tiposMantencion', 'delete');
-
     const { id } = await params;
-
-    const existing = await prisma.maintenanceType.findUnique({
-      where: { id },
-      include: { _count: { select: { maintenances: true } } },
-    });
-
-    if (!existing) {
-      return NextResponse.json({ error: 'Tipo de mantención no encontrado' }, { status: 404 });
-    }
-
-    if (existing._count.maintenances > 0) {
-      return NextResponse.json(
-        {
-          error:
-            'No se puede eliminar: hay mantenciones que usan este tipo. Puedes desactivarlo en vez de eliminarlo.',
-        },
-        { status: 400 }
-      );
-    }
-
-    await prisma.maintenanceType.delete({ where: { id } });
-
-    // Registro de auditoria.
-    await auditLogService.registrarEliminacion(
-      'tipo_mantencion',
-      existing.id,
-      `Tipo de mantención eliminado: ${existing.nombre}`,
-      { nombre: existing.nombre, descripcion: existing.descripcion },
-      session.user?.email
-    );
-
+    await eliminarTipoMantencion(id, session.user?.email);
     return NextResponse.json({ success: true });
   } catch (error) {
     return handleApiError(error, 'Error al eliminar tipo de mantención');

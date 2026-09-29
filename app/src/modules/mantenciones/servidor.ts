@@ -3,3 +3,4 @@
 export * from '@/modules/mantenciones/consultas';
 export * from '@/modules/mantenciones/motivosBaja';
 export * from '@/modules/mantenciones/servicio';
+export * from '@/modules/mantenciones/servicioTipos';

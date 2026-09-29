@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/shared/prisma';
 import { updateMaintenanceSchema } from '@/modules/mantenciones';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
 import {
   cancelarMantencion,
+  detalleMantencion,
   editarMantencion,
   eliminarMantencion,
   iniciarMantencion,
@@ -13,42 +13,12 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// GET /api/mantenciones/[id] - Obtener detalle de mantención
+// GET /api/mantenciones/[id] - Detalle de una mantención
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     await requirePermission('mantenciones', 'read');
     const { id } = await params;
-
-    const maintenance = await prisma.maintenance.findUnique({
-      where: { id },
-      include: {
-        tipo: true,
-        asset: {
-          include: {
-            categoria: true,
-            empleadoActual: {
-              select: {
-                id: true,
-                rut: true,
-                nombres: true,
-                apellidoPaterno: true,
-                apellidoMaterno: true,
-                // El correo de empresa es el identificador visible del empleado.
-                correoEmpresa: true,
-                correoPersonal: true,
-                cargo: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!maintenance) {
-      return NextResponse.json({ error: 'Mantención no encontrada' }, { status: 404 });
-    }
-
-    return NextResponse.json(maintenance);
+    return NextResponse.json(await detalleMantencion(id));
   } catch (error) {
     return handleApiError(error, 'Error al obtener mantención');
   }
