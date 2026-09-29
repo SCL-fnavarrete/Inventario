@@ -4,6 +4,7 @@ import { prisma } from '@/shared/prisma';
 import { ConflictError, errorDeCampo, errorRepetido, NotFoundError } from '@/shared/errores';
 import { auditLogService } from '@/shared/auditoria';
 import { registrarAcceso } from '@/shared/auth/accesos';
+import { actualizarCuenta, crearCuenta } from '@/shared/auth/cuentas';
 import { exigirSedeActiva } from '@/shared/sedes/consultas';
 import { SELECT_USUARIO } from '@/modules/configuracion/consultasUsuarios';
 import type { CrearUsuarioInput, EditarUsuarioInput } from '@/modules/configuracion/validacionesUsuario';
@@ -34,8 +35,8 @@ export async function crearUsuario(datos: CrearUsuarioInput, quien: string | nul
     if (!sedeId) throw errorDeCampo('sedeId', 'Este rol necesita una sede asignada');
     await exigirSedeActiva(sedeId);
   }
-  const user = await prisma.systemUser.create({
-    data: {
+  const user = await crearCuenta(
+    {
       email,
       nombre,
       rol,
@@ -43,8 +44,8 @@ export async function crearUsuario(datos: CrearUsuarioInput, quien: string | nul
       activo: activo ?? true,
       sedeId: rol === 'admin' ? null : sedeId,
     },
-    select: SELECT_USUARIO,
-  });
+    SELECT_USUARIO
+  );
   // Nunca la clave ni su hash en la auditoria.
   await auditLogService.registrarCreacion(
     'usuario',
@@ -125,7 +126,7 @@ export async function editarUsuario(
         );
       }
     }
-    return tx.systemUser.update({ where: { id }, data: cambios, select: SELECT_USUARIO });
+    return actualizarCuenta(tx, id, cambios, SELECT_USUARIO);
   });
 
   const resumen = (u: typeof user | typeof existente) => ({

@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { errorDeCampo, errorRepetido, NotFoundError, ValidationError } from '@/shared/errores';
 import {
@@ -144,4 +145,24 @@ export async function editarEmpleado(
     usuario
   );
   return employee;
+}
+
+/* ------------------------------------------------------------------------
+ * Escrituras de Personas que usan otros modulos dentro de su transaccion
+ * (SPEC 2.118: solo Personas escribe la tabla de personas).
+ * --------------------------------------------------------------------- */
+
+/** Alta de una persona: por Onboarding (Solicitudes) o desde un Excel (Importacion). */
+export function crearPersonaEnTx(tx: Prisma.TransactionClient, datos: Prisma.EmployeeUncheckedCreateInput) {
+  return tx.employee.create({ data: datos });
+}
+
+/** Cambios que trae una solicitud: reincorporacion, tipo de contrato. */
+export function actualizarPersonaEnTx(tx: Prisma.TransactionClient, id: string, datos: Prisma.EmployeeUpdateInput) {
+  return tx.employee.update({ where: { id }, data: datos });
+}
+
+/** Al cerrar una desvinculacion la persona queda desvinculada. */
+export function desvincularPersona(tx: Prisma.TransactionClient, id: string) {
+  return tx.employee.update({ where: { id }, data: { estado: 'desvinculado' } });
 }

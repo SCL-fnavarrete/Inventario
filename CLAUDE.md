@@ -47,7 +47,8 @@ El codigo se organiza por dominio de negocio, no por tipo tecnico:
 **Puertas (SPEC 2.118, etapa 4).** Desde fuera de un modulo se importa solo por:
 `@/modules/x` (reglas, validaciones y tipos, sin base de datos: sirve en
 pantallas), `@/modules/x/servidor` (servicios y consultas con base de datos) y
-`@/modules/x/componentes`; los PDF por `@/modules/solicitudes/documentos`.
+`@/modules/x/componentes`; los PDF por `@/modules/solicitudes/documentos` y el Excel
+de activos por `@/modules/activos/excel`.
 Dentro del modulo, import libre. `shared/` no importa modulos. Lo exige ESLint
 (`eslint.config.mjs`), y `import "server-only"` en `shared/prisma.ts` hace
 fallar el build si una pantalla trae codigo de base de datos. Al exponer algo
@@ -64,7 +65,7 @@ nuevo, agregarlo a la puerta que corresponde.
 | `src/modules/activos/servicio.ts` | `cambiarEstado()` (unico camino para cambiar el estado de un equipo), crear, editar, eliminar y descartar equipos |
 | `src/shared/sedes/filtro.ts` | La sede es un dato, no un candado (SPEC 2.117): todos trabajan con todas las sedes. `filtroSede` (filtro del navbar) y `sedeIdParaCrear`. No agregar reglas de acceso por sede: lo que es solo de admin lo decide la matriz de permisos |
 | `src/modules/activos/historial.ts` | Audit trail — logs all asset events with old/new values |
-| `src/modules/solicitudes/ejecucion.ts` | Ejecuta acciones de workflow: asignaciones, desvinculaciones, guias al hacer transiciones |
+| `src/modules/asignaciones/ejecucion.ts` | Entregar y devolver equipos (`executeAssignment`, `executeReturn`); lo usan Asignaciones y las Solicitudes |
 | `src/modules/solicitudes/maquinaEstados.ts` | Define estados válidos y transiciones permitidas por tipo de solicitud |
 | `src/modules/solicitudes/crear.ts` y `transicion.ts` | Crear una solicitud (nace cerrada, SPEC 2.82) y avanzar las que quedaron abiertas |
 | `src/modules/solicitudes/documentos.ts` | Genera los PDF (actas, comprobantes); se importa por su propia puerta, `@/modules/solicitudes/documentos` |
@@ -85,8 +86,10 @@ Las rutas solo orquestan (SPEC 3.2.2):
 
 La logica de negocio, las transacciones, el historial y la auditoria van en el
 servicio, que avisa con los errores de `@/shared/errores` (`NotFoundError`,
-`ConflictError`, `ValidationError`, `errorDeCampo`...). Una ruta solo de lectura
-puede consultar Prisma directo.
+`ConflictError`, `ValidationError`, `errorDeCampo`, `exigirSinErroresCampos`...).
+**Nada en `src/app` usa la base, tampoco para leer** (ESLint lo impide): las
+lecturas son funciones del modulo (`lecturas.ts` o `consultas.ts`), y las
+pantallas de servidor las llaman igual que las rutas.
 
 ### Modelos y enums
 
@@ -127,9 +130,9 @@ En produccion (Vercel) se aplica con `npm run db:migrate:prod`.
 - **UI language:** All user-facing text is in Spanish
 - **RUT handling:** RUT is optional (`String?`): when unknown it is left blank. Always use null-safe access (`employee.rut || "—"`) and optional chaining (`employee.rut?.toLowerCase()`)
 - **Sin sincronización con Microsoft:** se eliminó (SPEC 2.112). Las personas se crean solo en Onboarding.
-- **Solo Activos escribe sus tablas (SPEC 2.118):** fuera de `src/modules/activos` nadie escribe en `asset` ni `assetHistory` (lo verifica `__tests__/lib/arquitectura/escriturasActivos.test.ts`). Para cambiar el estado se usa `cambiarEstado()` de `src/modules/activos/servicio.ts`, que valida, protege ante cambios simultáneos y anota el historial.
+- **Cada tabla tiene un solo dueño (SPEC 3.2.2):** solo su módulo la escribe; los demás llaman a sus funciones (el mapa está en `__tests__/lib/arquitectura/duenosTablas.test.ts`, que falla si alguien escribe una tabla ajena o si una tabla nueva no tiene dueño). Para cambiar el estado de un equipo se usa `cambiarEstado()` de `src/modules/activos/servicio.ts`; entregar y devolver, `executeAssignment`/`executeReturn` de Asignaciones; Kit/EPP, `entregarKit`/`executeKitReturn`; personas, las funciones de `modules/personas/servicio.ts`; cuentas de usuario, `shared/auth/cuentas.ts`.
 - **Transiciones de estado de activos:** Toda transición de estado de un activo pasa por `cambiarEstado()` (que usa `validateTransition()` de `src/modules/activos/maquinaEstados.ts`), dentro de su proceso: solicitudes (asignar, devolver, cambiar), mantenciones (la baja pasa siempre por una mantención "No reparable": `/api/mantenciones/baja` o al completar una, SPEC 2.88) y `/api/activos/[id]/venta`. El PUT de `/api/activos/[id]` no cambia el estado: lo rechaza con 409 (SPEC 2.86)
-- **Workflow/Solicitudes:** El sistema de solicitudes orquesta flujos completos (onboarding, cambio equipo, devolución por término). `modules/solicitudes/maquinaEstados.ts` valida transiciones; `modules/solicitudes/ejecucion.ts` ejecuta las acciones reales (crea asignaciones, desvinculaciones, guías). Las transiciones quedan en `WorkflowTransition` para auditoría
+- **Workflow/Solicitudes:** El sistema de solicitudes orquesta flujos completos (onboarding, cambio equipo, devolución por término). `modules/solicitudes/maquinaEstados.ts` valida transiciones; `crear.ts` y `transicion.ts` ejecutan las acciones pidiéndoselas a sus módulos dueños (Asignaciones, Kit/EPP, Personas). Las transiciones quedan en `WorkflowTransition` para auditoría
 - **Estilos y tema:** seguir `app/docs/DESIGN_SYSTEM.md`. Nunca colores fijos para superficies o texto (`bg-white`, `text-gray-900`, hex): usar los tokens (`bg-surface`, `text-fg`, `border-line`...) para que funcione el modo oscuro. Tarjetas destacadas con `card-feature` y color derivado de un dato real (`shared/constantes/tonos.ts`); `<Tilt>` solo en pocas tarjetas, nunca en listas grandes
 - **Component structure:** los componentes de cada dominio en `src/modules/<modulo>/componentes/`; las piezas reutilizables en `src/shared/ui/`
 

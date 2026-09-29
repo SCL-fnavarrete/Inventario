@@ -30,11 +30,8 @@ jest.mock('@/shared/auth/guard', () => {
 import { randomUUID } from 'crypto';
 import { NextRequest } from 'next/server';
 import { prisma } from '@/shared/prisma';
-import {
-  executeAssignment,
-  executeKitDelivery,
-  executeReturn,
-} from '@/modules/solicitudes/ejecucion';
+import { executeAssignment, executeReturn } from '@/modules/asignaciones/ejecucion';
+import { executeKitDelivery } from '@/modules/solicitudes/ejecucion';
 import { POST as vender } from '@/app/api/activos/[id]/venta/route';
 import { POST as darDeBaja } from '@/app/api/mantenciones/baja/route';
 import { POST as completar } from '@/app/api/mantenciones/[id]/completar/route';

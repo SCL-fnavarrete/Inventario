@@ -14,14 +14,18 @@ const soloPuertas = (m) => ({
   group: [`@/modules/${m}/*`, `!@/modules/${m}/servidor`, `!@/modules/${m}/componentes`, `!@/modules/${m}/documentos`, `!@/modules/${m}/excel`, `@/modules/${m}/componentes/*`],
   message: `Entra a "${m}" por sus puertas: '@/modules/${m}', '@/modules/${m}/servidor' o '@/modules/${m}/componentes' (SPEC 2.118).`,
 });
-const limitar = (files, modulos) => ({
+const limitar = (files, modulos, paths = []) => ({
   files,
   ignores: ["**/*.test.ts", "**/*.test.tsx"],
-  rules: { "no-restricted-imports": ["error", { patterns: modulos.map(soloPuertas) }] },
+  rules: { "no-restricted-imports": ["error", { paths, patterns: modulos.map(soloPuertas) }] },
 });
+// Las rutas y pantallas no tocan la base: le piden todo a los modulos (SPEC 3.2.2).
+const SIN_BASE = [
+  { name: "@/shared/prisma", message: "src/app no usa la base: llama a la función del módulo en su puerta servidor (SPEC 3.2.2)." },
+];
 const limitesModulos = [
   ...MODULOS.map((m) => limitar([`src/modules/${m}/**/*.{ts,tsx}`], MODULOS.filter((x) => x !== m))),
-  limitar(["src/app/**/*.{ts,tsx}", "src/proxy.ts"], MODULOS),
+  limitar(["src/app/**/*.{ts,tsx}", "src/proxy.ts"], MODULOS, SIN_BASE),
   {
     files: ["src/shared/**/*.{ts,tsx}"],
     rules: {

@@ -1,4 +1,7 @@
 import { logger } from "@/shared/logger";
+import { crearPersonaEnTx } from "@/modules/personas/servidor";
+import { registrarAsignacionImportada } from "@/modules/asignaciones/servidor";
+import { registrarMantencionImportada } from "@/modules/mantenciones/servidor";
 import { parseDDMMYYYYToDate } from "@/modules/importacion/excel";
 import { formatearFechaCorta, inicioDeHoy } from "@/shared/utilidades/fechas";
 import {
@@ -470,7 +473,7 @@ export async function procesarFila(
         ? empleadoExistenteId
         : null;
     if (debeAsignar && !empleadoId && datosEmpleadoNuevo) {
-      const creado = await tx.employee.create({ data: datosEmpleadoNuevo, select: { id: true } });
+      const creado = await crearPersonaEnTx(tx, datosEmpleadoNuevo);
       empleadoId = creado.id;
       logger.log(`Empleado creado: ${datosEmpleadoNuevo.nombres} ${datosEmpleadoNuevo.apellidoPaterno}`);
     }
@@ -549,14 +552,12 @@ export async function procesarFila(
     // necesaria es que haya un empleado (custodia del equipo), no que se
     // conozca la fecha exacta en que se le entrego.
     if (empleadoId) {
-      await tx.assignment.create({
-        data: {
-          assetId: asset.id,
-          employeeId: empleadoId,
-          fechaEntrega,
-          tipoMovimiento: "ingreso",
-          activo: true,
-        },
+      await registrarAsignacionImportada(tx, {
+        assetId: asset.id,
+        employeeId: empleadoId,
+        fechaEntrega,
+        tipoMovimiento: "ingreso",
+        activo: true,
       });
 
       await anotar({ tipoEvento: "asignacion", descripcion: "Asignación importada desde Excel" });
@@ -584,17 +585,15 @@ export async function procesarFila(
       const crearRegistroMantencion = async (fecha: Date, estado: "pendiente" | "completada") => {
         const etiqueta = estado === "pendiente" ? "programada" : "realizada";
         const fechaFormateada = formatearFechaCorta(fecha);
-        await tx.maintenance.create({
-          data: {
-            assetId: asset.id,
-            tipoId: ctx.tipoMantencionId,
-            descripcion: `Mantención ${etiqueta}${sufijoEmpleado} (importada desde Excel)`,
-            fechaProgramada: estado === "pendiente" ? fecha : null,
-            fechaRealizada: estado === "completada" ? fecha : null,
-            proximaMantencion: null,
-            estado,
-            realizadoPor: estado === "completada" ? "Registro histórico" : null,
-          },
+        await registrarMantencionImportada(tx, {
+          assetId: asset.id,
+          tipoId: ctx.tipoMantencionId,
+          descripcion: `Mantención ${etiqueta}${sufijoEmpleado} (importada desde Excel)`,
+          fechaProgramada: estado === "pendiente" ? fecha : null,
+          fechaRealizada: estado === "completada" ? fecha : null,
+          proximaMantencion: null,
+          estado,
+          realizadoPor: estado === "completada" ? "Registro histórico" : null,
         });
         // La fecha va en el propio texto del historial: la fecha real del
         // evento puede ser muy distinta de cuando se importo, y sin esto
@@ -632,14 +631,12 @@ export async function procesarFila(
       // realizados o programados), asi que se crea siempre, con la fecha de
       // hoy y el mismo tipo "Preventiva" que usa el resto del import.
       const hoy = inicioDeHoy();
-      await tx.maintenance.create({
-        data: {
-          assetId: asset.id,
-          tipoId: ctx.tipoMantencionId,
-          descripcion: "Mantención en proceso (Estado importado como \"Mantención\" en el Excel)",
-          fechaProgramada: hoy,
-          estado: "en_proceso",
-        },
+      await registrarMantencionImportada(tx, {
+        assetId: asset.id,
+        tipoId: ctx.tipoMantencionId,
+        descripcion: "Mantención en proceso (Estado importado como \"Mantención\" en el Excel)",
+        fechaProgramada: hoy,
+        estado: "en_proceso",
       });
       await anotar({
         tipoEvento: "mantencion",

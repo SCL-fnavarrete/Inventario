@@ -4,12 +4,14 @@ import { ConflictError, NotFoundError, ValidationError } from '@/shared/errores'
 import { sedeIdParaCrear } from '@/shared/sedes/filtro';
 import { exigirSedeActiva } from '@/shared/sedes/consultas';
 import { getInitialState } from '@/modules/solicitudes/maquinaEstados';
+import { executeAssignment, executeReturn } from '@/modules/asignaciones/servidor';
+import { executeKitReturn } from '@/modules/kit-epp/servidor';
+import { executeKitDelivery } from '@/modules/solicitudes/ejecucion';
 import {
-  executeAssignment,
-  executeKitDelivery,
-  executeReturn,
-  executeKitReturn,
-} from '@/modules/solicitudes/ejecucion';
+  actualizarPersonaEnTx,
+  crearPersonaEnTx,
+  desvincularPersona,
+} from '@/modules/personas/servidor';
 import { generarNumeroSolicitud } from '@/modules/solicitudes/numero';
 import type { CreateWorkflowRequestInput } from '@/modules/solicitudes/validaciones';
 
@@ -183,14 +185,12 @@ export async function crearSolicitud(
       // junto y no queda un empleado sin ticket.
       let empId: string;
       if (data.tipo === 'onboarding' && !data.employeeId && data.nuevoEmpleado) {
-        const nuevo = await tx.employee.create({
-          data: {
-            ...data.nuevoEmpleado,
-            // La ficha toma la fecha de ingreso de la solicitud (SPEC 2.119).
-            fechaIngreso: data.nuevoEmpleado.fechaIngreso ?? data.fechaIngreso,
-            estado: data.nuevoEmpleado.estado || 'activo',
-            sedeId,
-          },
+        const nuevo = await crearPersonaEnTx(tx, {
+          ...data.nuevoEmpleado,
+          // La ficha toma la fecha de ingreso de la solicitud (SPEC 2.119).
+          fechaIngreso: data.nuevoEmpleado.fechaIngreso ?? data.fechaIngreso,
+          estado: data.nuevoEmpleado.estado || 'activo',
+          sedeId,
         });
         empId = nuevo.id;
       } else {
@@ -214,7 +214,7 @@ export async function crearSolicitud(
           cambiosEmpleado.tipoContrato = data.tipoContrato;
         }
         if (Object.keys(cambiosEmpleado).length > 0) {
-          await tx.employee.update({ where: { id: empId }, data: cambiosEmpleado });
+          await actualizarPersonaEnTx(tx, empId, cambiosEmpleado);
         }
       }
 
@@ -455,10 +455,7 @@ export async function crearSolicitud(
       // tambien puede cerrar de inmediato (ver arriba) pero el empleado
       // sigue activo, solo cambio de equipo.
       if (cierraDeInmediato && data.tipo === 'offboarding') {
-        await tx.employee.update({
-          where: { id: empId },
-          data: { estado: 'desvinculado' },
-        });
+        await desvincularPersona(tx, empId);
       }
 
       // Create initial transition log

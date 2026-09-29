@@ -5,6 +5,7 @@ import { auditLogService } from '@/shared/auditoria';
 import { sedeIdParaCrear } from '@/shared/sedes/filtro';
 import { ACTIVOS_VIGENTES, etiquetaEstadoActivo, identificadorActivo, validateTransition } from '@/modules/activos';
 import { cambiarEstado } from '@/modules/activos/servidor';
+import { devolverKitDeRepartoAnulado } from '@/modules/compras/servidor';
 import { darDeBajaEnTransaccion, motivoParaBaja, tipoCorrectivaPorDefecto } from '@/modules/mantenciones/servidor';
 import { ETIQUETAS_GUIA, validarNuevaGuia, validarRecepcion } from '@/modules/despachos/validaciones';
 import {
@@ -174,15 +175,8 @@ export async function anularDespacho(id: string, motivo: unknown, quien: Quien) 
         },
       });
     }
-    // Kit/EPP del reparto: vuelve a lo pendiente de su linea de compra. El
-    // registro del reparto queda, con el despacho anulado.
-    const repartos = await tx.purchaseKitReparto.findMany({ where: { guideId: guia.id } });
-    for (const r of repartos) {
-      await tx.purchaseKitItem.update({
-        where: { id: r.purchaseKitItemId },
-        data: { cantidadPorRepartir: { increment: r.cantidad } },
-      });
-    }
+    // Kit/EPP del reparto: Compras lo devuelve a lo pendiente de la compra.
+    await devolverKitDeRepartoAnulado(tx, guia.id);
     await tx.dispatchGuide.update({
       where: { id },
       data: { estado: 'anulada', fechaAnulacion: new Date(), anuladaPor: quien.nombre || usuario, motivoAnulacion: detalle },

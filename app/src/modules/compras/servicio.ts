@@ -581,3 +581,18 @@ export async function registrarCompra(data: CreatePurchaseWithAssetsInput, usuar
   });
   return { ...compra, reparto: avanceReparto(compra) };
 }
+
+/**
+ * Se anulo un despacho de reparto (SPEC 2.111.5): su Kit/EPP vuelve a lo
+ * pendiente de la linea de compra, para repartirlo de nuevo. El registro del
+ * reparto queda, con el despacho anulado. Lo llama Despachos al anular.
+ */
+export async function devolverKitDeRepartoAnulado(tx: Tx, guideId: string) {
+  const repartos = await tx.purchaseKitReparto.findMany({ where: { guideId } });
+  for (const r of repartos) {
+    await tx.purchaseKitItem.update({
+      where: { id: r.purchaseKitItemId },
+      data: { cantidadPorRepartir: { increment: r.cantidad } },
+    });
+  }
+}

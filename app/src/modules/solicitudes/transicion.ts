@@ -1,11 +1,9 @@
 import { prisma } from '@/shared/prisma';
 import type { TransitionInput } from '@/modules/solicitudes/validaciones';
 import { canTransition, isFinalState } from '@/modules/solicitudes/maquinaEstados';
-import {
-  executeAssignment,
-  executeReturn,
-  executeKitReturn,
-} from '@/modules/solicitudes/ejecucion';
+import { executeAssignment, executeReturn } from '@/modules/asignaciones/servidor';
+import { executeKitReturn } from '@/modules/kit-epp/servidor';
+import { desvincularPersona } from '@/modules/personas/servidor';
 import { SystemRole, EstadoSolicitud } from '@prisma/client';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@/shared/errores';
 import {
@@ -440,10 +438,7 @@ export async function aplicarTransicion(
     // trabaja en la empresa, y los equipos que tenia ya quedaron libres
     // (disponible/baja) en el paso de recepcion de equipos.
     if (isFinal && workflowRequest.tipo === 'offboarding') {
-      await tx.employee.update({
-        where: { id: workflowRequest.employeeId },
-        data: { estado: 'desvinculado' },
-      });
+      await desvincularPersona(tx, workflowRequest.employeeId);
     }
 
     // Log the transition

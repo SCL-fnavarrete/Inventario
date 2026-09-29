@@ -2,7 +2,7 @@ import type { EstadoActivo, EstadoMantencion, Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { ConflictError, errorDeCampo, NotFoundError, ValidationError } from '@/shared/errores';
 import { siSigueIgual } from '@/shared/utilidades/concurrencia';
-import { formatearFechaConHora, formatearFechaCorta } from '@/shared/utilidades/fechas';
+import { formatearFechaConHora, formatearFechaCorta, inicioDeHoy } from '@/shared/utilidades/fechas';
 import {
   estadoTrasMantencion,
   motivoSinBaja,
@@ -721,4 +721,65 @@ export async function darDeBajaPorMantencion(data: BajaPorMantencionDatos, usuar
     })
   );
   return { mantencion, assetId: asset.id };
+}
+
+/**
+ * Un equipo devuelto danado queda en mantencion con una mantencion en proceso
+ * desde hoy, del tipo "Correctiva" (o el primer tipo activo si ese no
+ * existe): un equipo en mantencion siempre tiene la suya en proceso (SPEC
+ * 2.96). Desde
+ * Mantenciones el tecnico la cierra como "Reparado" (vuelve a disponible) o
+ * "No reparable" (pasa a baja). SPEC 2.87.
+ */
+export async function abrirMantencionPorDano(
+  tx: PrismaTx,
+  datos: { assetId: string; empleado: string; observaciones: string | null; usuario: string }
+) {
+  const tipo = await tipoCorrectivaPorDefecto(tx);
+  if (!tipo) {
+    throw new ConflictError(
+      'No hay tipos de mantención activos para recibir un equipo dañado. Crea uno en Mantenciones > Tipos.'
+    );
+  }
+
+  const descripcion = `Evaluar equipo devuelto dañado por ${datos.empleado}${
+    datos.observaciones ? `: ${datos.observaciones}` : ''
+  }`;
+  const mantencion = await tx.maintenance.create({
+    data: {
+      assetId: datos.assetId,
+      tipoId: tipo.id,
+      descripcion,
+      fechaProgramada: inicioDeHoy(),
+      estado: 'en_proceso',
+    },
+  });
+
+  await assetHistoryService.registrar(
+    {
+      assetId: datos.assetId,
+      tipoEvento: 'mantencion',
+      descripcion: `Enviado a mantención ${tipo.nombre} por devolución con daño: se evalúa si se repara o se da de baja`,
+      datosNuevos: { estado: 'en_mantencion', maintenanceId: mantencion.id },
+      usuarioSistema: datos.usuario,
+    },
+    tx
+  );
+
+  await auditLogService.registrarCreacion(
+    'mantencion',
+    mantencion.id,
+    `Mantención creada: ${tipo.nombre} por devolución de equipo dañado`,
+    { assetId: datos.assetId, tipoId: tipo.id, descripcion, estado: 'en_proceso' },
+    datos.usuario,
+    tx
+  );
+}
+
+/**
+ * Mantencion historica que trae un Excel importado (ya realizada o
+ * programada), con los datos que arma la importacion fila por fila.
+ */
+export function registrarMantencionImportada(tx: PrismaTx, datos: Prisma.MaintenanceUncheckedCreateInput) {
+  return tx.maintenance.create({ data: datos });
 }

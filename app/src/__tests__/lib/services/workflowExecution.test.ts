@@ -1,9 +1,6 @@
-import {
-  executeAssignment,
-  executeKitDelivery,
-  executeKitReturn,
-  executeReturn,
-} from '@/modules/solicitudes/ejecucion';
+import { executeAssignment, executeReturn } from '@/modules/asignaciones/ejecucion';
+import { executeKitReturn } from '@/modules/kit-epp/entregas';
+import { executeKitDelivery } from '@/modules/solicitudes/ejecucion';
 import { ConflictError, NotFoundError } from '@/shared/errores';
 
 jest.mock('@/shared/auditoria', () => ({

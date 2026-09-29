@@ -5,7 +5,7 @@ import { filtroSede } from '@/shared/sedes/filtro';
 import { coincideBusqueda } from '@/shared/utilidades/text';
 import { formatearFecha } from '@/shared/utilidades/fechas';
 import { cambiarEstado } from '@/modules/activos/servidor';
-import { executeAssignment, executeReturn } from '@/modules/solicitudes/servidor';
+import { executeAssignment, executeReturn } from '@/modules/asignaciones/ejecucion';
 import type {
   AssignmentFilters,
   CreateAssignmentInput,

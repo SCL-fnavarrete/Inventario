@@ -3,6 +3,7 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "@/shared/prisma";
+import { anotarIngreso } from "@/shared/auth/cuentas";
 import {
   actualizarAcceso,
   datosCliente,
@@ -165,10 +166,7 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Tu sede está desactivada. Pide a un administrador que te cambie de sede.");
         }
 
-        await prisma.systemUser.update({
-          where: { id: user.id },
-          data: { ultimoLogin: new Date() },
-        });
+        await anotarIngreso(user.id);
         // Identificador propio de esta sesion (SPEC 2.112.5): une el ingreso
         // con su cierre en el registro y es lo que se anota en la lista negra
         // al cerrar sesion.

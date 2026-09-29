@@ -1800,23 +1800,26 @@ Cada módulo guarda su lógica (`servicio.ts`, `consultas.ts`, `validaciones.ts`
 
 ### 3.2.2 Reglas de la arquitectura
 
-1. **Las rutas solo orquestan.** Una ruta de `src/app/api` revisa el permiso (`requirePermission`), valida la petición con Zod, llama al servicio del módulo y responde; los errores los traduce `handleApiError`. La lógica de negocio vive en el servicio, que recibe datos ya validados y el usuario.
+1. **Las rutas y las pantallas solo orquestan; nada en `src/app` toca la base.** Una ruta de `src/app/api` revisa el permiso (`requirePermission`), valida la petición con Zod, llama a una función del módulo y responde; los errores los traduce `handleApiError`. Las lecturas (listas, detalles, tarjetas) también son funciones del módulo (`lecturas.ts` o `consultas.ts`), igual que las pantallas de servidor (Dashboard, ficha de un equipo). La lógica vive en el módulo, que recibe datos ya validados y el usuario.
 2. **Cada módulo tiene puertas.** Desde fuera se entra solo por:
    - `@/modules/<m>`: reglas, validaciones y tipos, sin base de datos (sirve en pantallas y en el servidor);
    - `@/modules/<m>/servidor`: servicios y consultas que usan la base;
    - `@/modules/<m>/componentes`: componentes de pantalla;
-   - `@/modules/solicitudes/documentos`: los PDF, aparte por su peso.
+   - `@/modules/solicitudes/documentos` y `@/modules/activos/excel`: los PDF y el Excel, aparte por el peso de `@react-pdf` y `exceljs`.
 
    Dentro de su módulo, cada archivo importa libre.
 3. **`shared/` no depende de ningún módulo**: lo común no conoce los dominios.
-4. **Solo Activos escribe sus tablas** (`assets`, `asset_history`). Todo cambio de estado de un equipo pasa por `cambiarEstado()`, que valida con la máquina de estados (2.7), protege ante cambios simultáneos (409) y anota el historial.
+4. **Cada tabla tiene un solo módulo dueño, el único que la escribe.** Los demás le piden el cambio a sus funciones:
+   - Activos: equipos, historial, categorías y catálogos (marca, sistema operativo, antivirus, licencia). Todo cambio de estado de un equipo pasa por `cambiarEstado()`, que valida con la máquina de estados (2.7), protege ante cambios simultáneos (409) y anota el historial.
+   - Personas: personas. Asignaciones: asignaciones (`executeAssignment`, `executeReturn`). Mantenciones: mantenciones, sus tipos y los motivos de baja. Despachos: despachos y sus líneas. Compras: compras, sus equipos, líneas de Kit/EPP y repartos. Kit/EPP: artículos y entregas (`entregarKit`, `executeKitReturn`). Solicitudes: solicitudes, comentarios, transiciones, pendientes y Kit/EPP requerido. Configuración: sedes y parámetros de seguridad.
+   - `shared/auth`: cuentas de usuario (`cuentas.ts`), registro de accesos y sesiones cerradas; `shared/auditoria`: la auditoría.
 5. **El código de base de datos nunca llega al navegador**: `shared/prisma.ts` lleva `import "server-only"`, y el build falla si una pantalla lo importa.
 
-Las hacen cumplir, en cada cambio y en el CI: la regla `no-restricted-imports` de ESLint (reglas 2 y 3), el test `__tests__/lib/arquitectura/escriturasActivos.test.ts` (regla 4), el build (regla 5) y el test `__tests__/lib/auth/rutas-protegidas.test.ts` (toda ruta abre con `requirePermission`).
+Las hacen cumplir, en cada cambio y en el CI: la regla `no-restricted-imports` de ESLint (reglas 1, 2 y 3: `src/app` no puede importar `@/shared/prisma`), el test `__tests__/lib/arquitectura/duenosTablas.test.ts` (regla 4: falla si un módulo escribe una tabla ajena o si se agrega una tabla sin dueño), el build (regla 5) y el test `__tests__/lib/auth/rutas-protegidas.test.ts` (toda ruta abre con `requirePermission`).
 
 ### 3.2.3 Dependencias entre módulos
 
-Activos es el centro: todos los demás módulos lo usan (estados, historial, `cambiarEstado`), y Activos solo usa de Despachos el filtro de equipos "por llegar". Solicitudes usa además Mantenciones (devolución con daño) y Personas; Compras usa Despachos y Kit/EPP para repartir; Despachos usa Kit/EPP; Configuración lee los nombres de los estados de Despachos y de Solicitudes, para mostrarlos en la auditoría. Ningún otro módulo usa a Solicitudes.
+Activos es el centro: todos los demás módulos lo usan (estados, historial, `cambiarEstado`); Personas no usa ninguno. Solicitudes usa Asignaciones (entregar y devolver), Kit/EPP (entregas) y Personas (alta, reincorporación y desvinculación). Asignaciones usa Mantenciones (devolución con daño). La importación usa Personas, Asignaciones y Mantenciones para sus registros históricos. Compras usa Despachos y Kit/EPP para repartir, y Despachos le pide a Compras que devuelva el Kit/EPP de un reparto anulado; Despachos usa además Kit/EPP y Mantenciones (equipo perdido). Configuración lee los nombres de los estados de Despachos y de Solicitudes para la auditoría. Hay dos dependencias de ida y vuelta, por una sola función cada una: Activos↔Despachos (el filtro "por llegar") y Compras↔Despachos (reparto y su anulación).
 
 ## 3.3 Diagrama de Flujos Principales
 
@@ -3844,7 +3847,7 @@ El código se organiza por dominio en `src/modules/<modulo>/` y lo transversal e
 - `cambiarEstado(tx, { activo, a, contexto, datos, exigir, historial })` (`modules/activos/servicio.ts`) es el único camino para cambiar el estado de un equipo: valida con la máquina de estados (409 si no corresponde), cambia solo si el equipo sigue como se leyó y cumple `exigir` (si no, 409) y anota el historial. Si el estado no cambia (un "no devuelto" que se vuelve a marcar), solo guarda los datos.
 - El historial se escribe con `assetHistoryService`; el alta desde el Excel con `crearActivoImportado`; las compras usan `fijarFechaCompra` y `moverSedeDeCompra`.
 - Pasan por `cambiarEstado`: iniciar, completar y cancelar mantenciones y dar de baja; entregar, devolver y "no devuelto" (solicitudes); cancelar una asignación; enviar, recibir, anular y "apareció" (despachos); repartir una compra; vender. Entregar, devolver, recibir e iniciar/salir de mantención antes no validaban la transición: ahora sí, y todos quedan protegidos ante cambios simultáneos.
-- Un test (`__tests__/lib/arquitectura/escriturasActivos.test.ts`) falla si algún archivo fuera de `modules/activos` escribe en esas tablas; desde la etapa 3, tampoco las rutas `/api/activos` (editar y eliminar usan `editarActivo` y `eliminarActivo`).
+- Un test (`__tests__/lib/arquitectura/escriturasActivos.test.ts`, reemplazado en v2.46 por `duenosTablas.test.ts`, que cubre todas las tablas) falla si algún archivo fuera de `modules/activos` escribe en esas tablas; desde la etapa 3, tampoco las rutas `/api/activos` (editar y eliminar usan `editarActivo` y `eliminarActivo`).
 - Etapa 3, **las rutas solo orquestan**: revisan el permiso, validan la petición con Zod, llaman al servicio del módulo y responden. La lógica vive en el servicio, que recibe datos ya validados y el usuario, y avisa con los errores de `shared/errores` (el mensaje y el código de cada respuesta no cambian). Servicios de esta etapa: `editarActivo`, `eliminarActivo` (Activos); `iniciarMantencion`, `cancelarMantencion`, `editarMantencion`, `eliminarMantencion`, `completarMantencion` (Mantenciones; completar como "Sin reparación" usa los mismos pasos que la baja, `darDeBajaEnTransaccion`, que ahora también guarda el costo); `crearSolicitud` (`solicitudes/crear.ts`) y `aplicarTransicion` (`solicitudes/transicion.ts`); `editarCompra`, `eliminarCompra` (Compras); `editarEmpleado` (`personas/servicio.ts`).
 - Al editar un equipo, las pulgadas se comparan como número: guardar sin cambiarlas ya no deja "Especificaciones actualizadas: Pulgadas" en el historial.
 - La respuesta de desvincular o reincorporar a una persona desde Editar (400) ya no trae `redirectTo`, que ninguna pantalla usaba; el mensaje sigue indicando la solicitud que corresponde.
@@ -3864,6 +3867,8 @@ La fecha de ingreso de un onboarding quedaba solo en la solicitud: la ficha de l
 - Las fichas ya creadas no se corrigen solas: se completan al editarlas.
 
 ## Changelog SPEC
+- **v2.46 (2026-09-30):**
+  - Secciones 3.2.2 y 3.2.3: monolito modular sin excepciones. Ninguna ruta ni pantalla de `src/app` usa la base (las lecturas también son funciones de los módulos; ESLint lo exige). Cada tabla tiene un solo módulo dueño: la entrega y devolución de equipos pasa de Solicitudes a Asignaciones, la de Kit/EPP a Kit/EPP, el alta y desvinculación de personas a Personas, la mantención por daño y las de la importación a Mantenciones, la devolución del Kit/EPP de un reparto anulado a Compras y las cuentas de usuario a `shared/auth/cuentas.ts`. El test `duenosTablas.test.ts` reemplaza a `escriturasActivos.test.ts`. El Excel de activos tiene su propia puerta (`@/modules/activos/excel`). Las opciones de catálogo que crea una importación quedan en la auditoría.
 - **v2.45 (2026-09-29):**
   - Secciones 3.1 y 3.2 reescritas: el stack real (en vez del plan inicial con Supabase y opción Python) y la arquitectura de monolito modular en un solo lugar: carpetas, reglas (rutas que orquestan, puertas, `shared` sin módulos, solo Activos escribe sus tablas, `server-only`), cómo se hacen cumplir y las dependencias entre módulos.
   - 1.3.1, regla 4: la ruta de transición exige `solicitudes/write`, como hace el código desde el 14-sep-2026 (el texto seguía diciendo `read`; sin efecto práctico, ambos roles tienen los dos permisos).
