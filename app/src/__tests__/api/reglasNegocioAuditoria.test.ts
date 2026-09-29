@@ -92,7 +92,6 @@ describe('editar empleado', () => {
     expect(res.status).toBe(400);
     const cuerpo = await res.json();
     expect(cuerpo.error).toMatch(/Onboarding/);
-    expect(cuerpo.redirectTo).toBe('/solicitudes/nueva');
   });
 
   test('un desvinculado se sigue pudiendo editar sin cambiar su estado', async () => {

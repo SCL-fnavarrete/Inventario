@@ -3,7 +3,7 @@ import { prisma } from '@/shared/prisma';
 import { ConflictError, NotFoundError, ValidationError } from '@/shared/errores';
 import { ACTIVOS_VIGENTES } from '@/modules/activos/consultas';
 import type { CreateAssetInput } from '@/modules/activos/validaciones';
-import type { RepartoCompraInput } from '@/modules/compras/validaciones';
+import type { RepartoCompraInput, UpdatePurchaseInput } from '@/modules/compras/validaciones';
 import { validarDatosDespacho } from '@/modules/despachos/validaciones';
 import { auditLogService } from '@/shared/auditoria';
 import { articuloKitEnSede, sumarStockKit } from '@/modules/kit-epp/servicio';
@@ -388,4 +388,127 @@ export async function repartirCompra(
     return guia;
   });
   return { despacho: { id: despacho.id, numero: despacho.numero } };
+}
+
+// ─── Editar y eliminar la compra ──────────────────────────────────────────
+
+/**
+ * Editar los datos de la factura (PUT /api/compras/[id]). La sede de
+ * llegada solo cambia mientras no se haya repartido nada, y lo que espera
+ * "Por repartir" se mueve con ella. El N° de factura es unico.
+ */
+export async function editarCompra(
+  id: string,
+  data: UpdatePurchaseInput,
+  usuario: string | null | undefined
+) {
+  const existente = await prisma.purchase.findUnique({ where: { id }, include: INCLUDE_AVANCE_REPARTO });
+  if (!existente) throw new NotFoundError('Compra no encontrada');
+
+  if (data.sedeId === null) {
+    throw new ValidationError('Elige la sede de llegada', [
+      { field: 'sedeId', message: 'Elige la sede de llegada' },
+    ]);
+  }
+  const cambiaSede = !!data.sedeId && data.sedeId !== existente.sedeId;
+  if (cambiaSede) {
+    exigirSinReparto(existente, 'cambiar la sede de llegada');
+    const sede = await prisma.sede.findUnique({ where: { id: data.sedeId! } });
+    if (!sede) throw new NotFoundError('La sede de llegada no existe');
+  }
+
+  if (data.numeroFactura) {
+    const duplicada = await prisma.purchase.findFirst({
+      where: { numeroFactura: data.numeroFactura, id: { not: id } },
+      select: { id: true },
+    });
+    if (duplicada) {
+      throw new ValidationError('Datos inválidos', [
+        { field: 'numeroFactura', message: `Ya existe otra compra con la factura ${data.numeroFactura}.` },
+      ]);
+    }
+  }
+
+  return prisma.$transaction(async (tx) => {
+    if (cambiaSede) await moverSedeDeLlegada(tx, id, data.sedeId!);
+
+    const actualizada = await tx.purchase.update({
+      where: { id },
+      data: {
+        ...(cambiaSede && { sedeId: data.sedeId }),
+        ...(data.numeroFactura !== undefined && { numeroFactura: data.numeroFactura }),
+        ...(data.fechaFactura !== undefined && { fechaFactura: data.fechaFactura }),
+        ...(data.rutProveedor !== undefined && { rutProveedor: data.rutProveedor }),
+        ...(data.tipoCompra !== undefined && { tipoCompra: data.tipoCompra }),
+        ...(data.descripcion !== undefined && { descripcion: data.descripcion }),
+        ...(data.compradoPor !== undefined && { compradoPor: data.compradoPor }),
+        ...(data.ordenCompra !== undefined && { ordenCompra: data.ordenCompra }),
+      },
+      include: { sede: { select: { id: true, nombre: true, codigo: true } } },
+    });
+
+    const resumen = (c: typeof existente | typeof actualizada) => ({
+      numeroFactura: c.numeroFactura,
+      rutProveedor: c.rutProveedor,
+      tipoCompra: c.tipoCompra,
+      sedeId: c.sedeId,
+    });
+    await auditLogService.registrarActualizacion(
+      'compra',
+      actualizada.id,
+      `Compra actualizada: factura ${actualizada.numeroFactura}`,
+      resumen(existente),
+      resumen(actualizada),
+      usuario,
+      tx
+    );
+    return actualizada;
+  });
+}
+
+/**
+ * Eliminar una compra (DELETE /api/compras/[id]), solo si no se repartio
+ * nada (SPEC 2.111.7). Sus equipos "Por repartir" se descartan (nunca se
+ * usaron; el historial los conserva) y sus lineas de Kit/EPP se borran:
+ * todavia no habian sumado stock.
+ */
+export async function eliminarCompra(id: string, usuario: string) {
+  const compra = await prisma.purchase.findUnique({
+    where: { id },
+    include: {
+      purchaseAssets: { include: { asset: { select: { estado: true, deletedAt: true } } } },
+      purchaseKitItems: true,
+    },
+  });
+  if (!compra) throw new NotFoundError('Compra no encontrada');
+  exigirSinReparto(compra, 'eliminar la compra');
+
+  await prisma.$transaction(async (tx) => {
+    for (const vinculo of compra.purchaseAssets) {
+      if (vinculo.asset.deletedAt) {
+        await tx.purchaseAsset.delete({ where: { id: vinculo.id } });
+      } else {
+        await quitarEquipo(tx, compra, vinculo, usuario);
+      }
+    }
+    await tx.purchaseKitItem.deleteMany({ where: { purchaseId: id } });
+
+    // Auditoria antes del delete fisico: es lo unico que queda de la compra.
+    await auditLogService.registrarEliminacion(
+      'compra',
+      compra.id,
+      `Compra eliminada: factura ${compra.numeroFactura}`,
+      {
+        numeroFactura: compra.numeroFactura,
+        rutProveedor: compra.rutProveedor,
+        tipoCompra: compra.tipoCompra,
+        sedeId: compra.sedeId,
+        cantidadActivosVinculados: compra.purchaseAssets.length,
+        cantidadArticulosKitVinculados: compra.purchaseKitItems.length,
+      },
+      usuario,
+      tx
+    );
+    await tx.purchase.delete({ where: { id } });
+  });
 }
