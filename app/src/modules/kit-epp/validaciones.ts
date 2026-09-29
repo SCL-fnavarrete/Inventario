@@ -48,3 +48,5 @@ export const marcarKitItemNoAplicaSchema = z.object({
 
 export type EntregarKitItemsInput = z.infer<typeof entregarKitItemsSchema>;
 export type MarcarKitItemNoAplicaInput = z.infer<typeof marcarKitItemNoAplicaSchema>;
+export type CreateKitItemInput = z.infer<typeof createKitItemSchema>;
+export type UpdateKitItemInput = z.infer<typeof updateKitItemSchema>;

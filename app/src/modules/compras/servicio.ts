@@ -3,7 +3,11 @@ import { prisma } from '@/shared/prisma';
 import { ConflictError, NotFoundError, ValidationError } from '@/shared/errores';
 import { ACTIVOS_VIGENTES } from '@/modules/activos';
 import type { CreateAssetInput } from '@/modules/activos';
-import type { RepartoCompraInput, UpdatePurchaseInput } from '@/modules/compras/validaciones';
+import type {
+  CreatePurchaseWithAssetsInput,
+  RepartoCompraInput,
+  UpdatePurchaseInput,
+} from '@/modules/compras/validaciones';
 import { validarDatosDespacho } from '@/modules/despachos';
 import { auditLogService } from '@/shared/auditoria';
 import { articuloKitEnSede, sumarStockKit } from '@/modules/kit-epp/servidor';
@@ -511,4 +515,69 @@ export async function eliminarCompra(id: string, usuario: string) {
     );
     await tx.purchase.delete({ where: { id } });
   });
+}
+
+/**
+ * Registrar una compra (POST /api/compras, SPEC 2.111.1, solo admin). Lo
+ * comprado queda "Por repartir" en la sede de llegada: los equipos nuevos se
+ * crean aqui mismo y el Kit/EPP no suma stock hasta repartirlo. Todo en una
+ * transaccion: si un equipo no se puede crear (N° de serie repetido), no
+ * queda ni la compra ni el resto.
+ */
+export async function registrarCompra(data: CreatePurchaseWithAssetsInput, usuario: string) {
+  const sede = await prisma.sede.findUnique({ where: { id: data.sedeId } });
+  if (!sede) throw new NotFoundError('La sede de llegada no existe');
+  // N° de factura unico en todo el sistema (opcional: solo si viene).
+  if (data.numeroFactura) {
+    const duplicada = await prisma.purchase.findFirst({
+      where: { numeroFactura: data.numeroFactura },
+      select: { id: true },
+    });
+    if (duplicada) {
+      throw new ValidationError('Datos inválidos', [
+        { field: 'numeroFactura', message: `Ya existe una compra con la factura ${data.numeroFactura}.` },
+      ]);
+    }
+  }
+
+  const compra = await prisma.$transaction(async (tx) => {
+    const nueva = await tx.purchase.create({
+      data: {
+        sedeId: data.sedeId,
+        numeroFactura: data.numeroFactura,
+        fechaFactura: data.fechaFactura,
+        rutProveedor: data.rutProveedor,
+        descripcion: data.descripcion,
+        compradoPor: data.compradoPor,
+        ordenCompra: data.ordenCompra,
+        tipoCompra: data.tipoCompra,
+      },
+    });
+    await auditLogService.registrarCreacion(
+      'compra',
+      nueva.id,
+      `Compra creada: factura ${nueva.numeroFactura}`,
+      {
+        numeroFactura: nueva.numeroFactura,
+        rutProveedor: nueva.rutProveedor,
+        tipoCompra: nueva.tipoCompra,
+        sedeId: nueva.sedeId,
+        equiposNuevos: data.equiposNuevos.length,
+        equiposVinculados: data.assets.length,
+        lineasKit: data.kitItems.length,
+      },
+      usuario,
+      tx
+    );
+    await agregarEquiposNuevos(tx, nueva, data.equiposNuevos, usuario);
+    if (data.assets.length > 0) {
+      await vincularEquiposExistentes(tx, nueva, data.assets.map((a) => a.assetId), usuario);
+    }
+    if (data.kitItems.length > 0) await agregarLineasKit(tx, nueva, data.kitItems);
+    return tx.purchase.findUniqueOrThrow({
+      where: { id: nueva.id },
+      include: { sede: { select: { id: true, nombre: true, codigo: true } }, ...INCLUDE_AVANCE_REPARTO },
+    });
+  });
+  return { ...compra, reparto: avanceReparto(compra) };
 }
