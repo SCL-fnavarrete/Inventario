@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/shared/prisma';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
-import { updateMaintenanceTypeSchema } from '@/modules/mantenciones/validacionesTipo';
+import { updateMaintenanceTypeSchema } from '@/modules/mantenciones';
 import { auditLogService } from '@/shared/auditoria';
-import { assertNombreTipoLibre } from '@/modules/mantenciones/consultas';
+import { assertNombreTipoLibre } from '@/modules/mantenciones/servidor';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

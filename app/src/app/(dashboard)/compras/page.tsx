@@ -25,7 +25,7 @@ import {
   ESTADO_REPARTO_BADGE,
   ESTADO_REPARTO_LABEL,
   type AvanceReparto,
-} from "@/modules/compras/reparto";
+} from "@/modules/compras";
 
 type Purchase = {
   id: string;

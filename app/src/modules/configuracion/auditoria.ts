@@ -1,10 +1,14 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
-import { ESTADO_ACTIVO_LABEL, CONDICION_ACTIVO_LABEL, etiquetaEstadoDevolucion } from '@/modules/activos/estados';
-import { ESTADO_GUIA_LABELS } from '@/modules/despachos/tipos';
-import { STATE_LABELS } from '@/modules/solicitudes/maquinaEstados';
+import {
+  ESTADO_ACTIVO_LABEL,
+  CONDICION_ACTIVO_LABEL,
+  etiquetaEstadoDevolucion,
+  identificadorActivo,
+} from '@/modules/activos';
+import { ESTADO_GUIA_LABELS } from '@/modules/despachos';
+import { STATE_LABELS } from '@/modules/solicitudes';
 import { MODULOS_AUDITORIA } from '@/modules/configuracion/etiquetasAuditoria';
-import { identificadorActivo } from '@/modules/activos/identificador';
 
 /**
  * Configuracion > Auditoria (SPEC 2.112.8): junta los tres historiales

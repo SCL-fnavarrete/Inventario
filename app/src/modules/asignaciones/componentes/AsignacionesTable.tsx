@@ -10,11 +10,11 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/shared/cn";
-import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
+import { CategoryIcon } from "@/modules/activos/componentes";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
 import { formatearFecha } from "@/shared/utilidades/fechas";
-import { identificadorActivo } from "@/modules/activos/identificador";
+import { identificadorActivo } from "@/modules/activos";
 
 type Assignment = {
   id: string;

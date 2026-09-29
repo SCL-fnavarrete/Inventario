@@ -33,6 +33,9 @@ const config: Config = {
   testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {
+    // Fuera de Next, server-only lanza un error a proposito; en los tests
+    // no hay navegador que proteger.
+    '^server-only$': '<rootDir>/node_modules/server-only/empty.js',
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/.next/'],

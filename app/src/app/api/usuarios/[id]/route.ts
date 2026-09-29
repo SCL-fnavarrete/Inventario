@@ -10,10 +10,9 @@ import {
   errorRepetido,
   errorDeCampo,
 } from '@/shared/auth/guard';
-import { registrarAcceso } from '@/modules/configuracion/accesos';
-import { editarUsuarioSchema } from '@/modules/configuracion/validacionesUsuario';
+import { registrarAcceso } from '@/shared/auth/accesos';
+import { editarUsuarioSchema, SELECT_USUARIO } from '@/modules/configuracion';
 import { exigirSedeActiva } from '@/shared/sedes/consultas';
-import { SELECT_USUARIO } from '@/modules/configuracion/consultasUsuarios';
 import { auditLogService } from '@/shared/auditoria';
 
 // Un usuario no se elimina: se desactiva (SPEC 2.112). Su nombre queda en

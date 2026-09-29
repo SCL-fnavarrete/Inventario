@@ -14,9 +14,9 @@ import {
   MantencionesTabs,
   configEstadoMantencion,
 } from "@/modules/mantenciones/componentes";
-import { estaVencida } from "@/modules/mantenciones/utilidades";
+import { estaVencida } from "@/modules/mantenciones";
 import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
-import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
+import { CategoryIcon } from "@/modules/activos/componentes";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { aValorInputDate, hoyISO } from "@/shared/utilidades/fechas";

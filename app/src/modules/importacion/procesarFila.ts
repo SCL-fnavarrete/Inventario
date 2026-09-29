@@ -13,9 +13,12 @@ import {
   tieneMicrosoft365,
 } from "@/modules/importacion/reglasFila";
 import { limpiarRut } from "@/shared/validaciones/rut";
-import { normalizarImei, validarImei } from "@/modules/activos/imei";
-import { crearActivoImportado } from "@/modules/activos/servicio";
-import { assetHistoryService, type AssetHistoryData } from "@/modules/activos/historial";
+import { normalizarImei, validarImei } from "@/modules/activos";
+import {
+  crearActivoImportado,
+  assetHistoryService,
+  type AssetHistoryData,
+} from "@/modules/activos/servidor";
 import { Prisma } from "@prisma/client";
 import type { SesionAutenticada } from "@/shared/auth/guard";
 import type { ValidationErrorType } from "@/modules/importacion/tipos";

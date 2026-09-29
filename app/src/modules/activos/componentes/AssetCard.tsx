@@ -8,7 +8,7 @@ import {
   Eye,
   Edit2
 } from "lucide-react";
-import { AssetConditionBadge, AssetStatusBadge } from "@/shared/ui/Badge";
+import { AssetConditionBadge, AssetStatusBadge } from "@/modules/activos/componentes/BadgesActivo";
 import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
 import Link from "next/link";
 import { cn } from "@/shared/cn";

@@ -19,7 +19,7 @@ import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvi
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { Pagination } from "@/shared/ui/Pagination";
-import { documentoDeSolicitud } from '@/modules/solicitudes/tiposDocumento';
+import { documentoDeSolicitud } from '@/modules/solicitudes';
 
 type WorkflowRequest = {
   id: string;

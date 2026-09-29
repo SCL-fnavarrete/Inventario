@@ -7,7 +7,7 @@ import {
   filtroPeriodo,
   ventanaPeriodo,
   whereSedeMantencion,
-} from '@/modules/mantenciones/consultas';
+} from '@/modules/mantenciones/servidor';
 
 // GET /api/mantenciones/pendientes - Contadores de las tarjetas de resumen
 // de Mantenciones. Cada tarjeta cuenta con la misma condicion que usa la

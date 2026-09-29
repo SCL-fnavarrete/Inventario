@@ -16,11 +16,9 @@ import {
   DollarSign,
   UserX,
 } from "lucide-react";
-import { DashboardCharts } from "@/modules/dashboard/componentes/DashboardCharts";
-import { AlertsPanel } from "@/modules/dashboard/componentes/AlertsPanel";
-import { ACTIVOS_VIGENTES } from '@/modules/activos/consultas';
-import { ESTADO_ACTIVO_COLOR } from "@/modules/activos/estados";
-import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
+import { DashboardCharts, AlertsPanel } from "@/modules/dashboard/componentes";
+import { ACTIVOS_VIGENTES, ESTADO_ACTIVO_COLOR } from '@/modules/activos';
+import { CategoryIcon } from "@/modules/activos/componentes";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { StatCard, StatGrid } from "@/shared/ui/StatCard";
 import { ESTADO_ACTIVO_TONO } from "@/shared/constantes/tonos";

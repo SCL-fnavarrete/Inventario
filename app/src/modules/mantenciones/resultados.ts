@@ -1,4 +1,4 @@
-import type { ResultadoMantencion } from '@/modules/activos/validacionesTransicion';
+import type { ResultadoMantencion } from '@/modules/activos';
 
 /**
  * Nombre de cada resultado de una mantencion (SPEC 2.99): dice como quedo

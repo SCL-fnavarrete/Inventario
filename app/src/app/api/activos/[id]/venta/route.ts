@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/shared/prisma';
-import { assetVentaSchema } from '@/modules/activos/validacionesTransicion';
-import { validateTransition } from '@/modules/activos/maquinaEstados';
-import { assetHistoryService } from '@/modules/activos/historial';
+import { assetVentaSchema, validateTransition, etiquetaEstadoActivo } from '@/modules/activos';
+import { assetHistoryService, cambiarEstado } from '@/modules/activos/servidor';
 import { requirePermission, handleApiError, ConflictError, respuestaDatosInvalidos } from '@/shared/auth/guard';
-import { etiquetaEstadoActivo } from '@/modules/activos/estados';
-import { cambiarEstado } from '@/modules/activos/servicio';
 
 // Proceso de venta de un activo.
 export async function POST(

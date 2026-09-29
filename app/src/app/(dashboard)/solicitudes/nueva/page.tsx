@@ -5,35 +5,44 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Loader2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/shared/cn';
-import { CategoryIcon } from '@/modules/activos/componentes/CategoryIcon';
+import { CategoryIcon, SelectCondicionCargador } from '@/modules/activos/componentes';
 import {
   SeleccionarCambioEquipo,
   itemCambioCompleto,
   type ItemCambioEquipo,
-} from '@/modules/solicitudes/componentes/SeleccionarCambioEquipo';
-import { buttonClasses } from '@/shared/ui/buttonStyles';
-import { PageHeader } from '@/shared/ui/PageHeader';
-import { useBorrador } from '@/shared/hooks/useBorrador';
-import { SeccionCoordinacion } from '@/modules/solicitudes/componentes/nueva/SeccionCoordinacion';
-import { BuscadorEmpleado, useBuscarEmpleado } from '@/modules/solicitudes/componentes/nueva/BuscadorEmpleado';
-import { SeccionKitEpp, type ArticuloKit } from '@/modules/solicitudes/componentes/nueva/SeccionKitEpp';
-import { FormEmpleadoNuevo } from '@/modules/solicitudes/componentes/nueva/FormEmpleadoNuevo';
-import {
+  SeccionCoordinacion,
+  BuscadorEmpleado,
+  useBuscarEmpleado,
+  SeccionKitEpp,
+  type ArticuloKit,
+  FormEmpleadoNuevo,
   ElegirEstadoDevolucion,
   type EstadoDevolucion,
-} from '@/modules/solicitudes/componentes/nueva/ElegirEstadoDevolucion';
-import {
   CLAVES,
   COORDINACION_VACIA,
   cuerpoCoordinacion,
   erroresCoordinacion,
   type Coordinacion,
-} from '@/modules/solicitudes/componentes/nueva/coordinacion';
-import { SelectCondicionCargador } from '@/modules/activos/componentes/SelectCondicionCargador';
+  CAMPOS_OBLIGATORIOS_ONBOARDING,
+  DATO_OBLIGATORIO,
+  ETIQUETAS_ERROR,
+  NEW_EMPLOYEE_INITIAL,
+  TIPOS,
+  especificacionesEquipo,
+  toggleCategoriaRequerida,
+  type Employee,
+  type EmployeeAssignment,
+  type EmployeeKitAssignment,
+  type EquipoDisponible,
+} from '@/modules/solicitudes/componentes';
+import { buttonClasses } from '@/shared/ui/buttonStyles';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { useBorrador } from '@/shared/hooks/useBorrador';
 import {
   CONDICION_CARGADOR_POR_DEFECTO,
   type CondicionCargador,
-} from '@/modules/activos/condicionCargador';
+  identificadorActivo,
+} from '@/modules/activos';
 import {
   AvisoSeccion,
   CampoFormulario,
@@ -48,21 +57,7 @@ import {
 import { esCorreoValido } from '@/shared/utilidades/text';
 import { formatearFechaHora } from '@/shared/utilidades/fechas';
 import { useCampoSede, useSedeSeleccionada } from '@/shared/ui/providers/SedeSeleccionadaProvider';
-import { identificadorActivo } from "@/modules/activos/identificador";
 
-import {
-  CAMPOS_OBLIGATORIOS_ONBOARDING,
-  DATO_OBLIGATORIO,
-  ETIQUETAS_ERROR,
-  NEW_EMPLOYEE_INITIAL,
-  TIPOS,
-  especificacionesEquipo,
-  toggleCategoriaRequerida,
-  type Employee,
-  type EmployeeAssignment,
-  type EmployeeKitAssignment,
-  type EquipoDisponible,
-} from '@/modules/solicitudes/componentes/nueva/datos';
 
 export default function NuevaSolicitudPage() {
   const router = useRouter();

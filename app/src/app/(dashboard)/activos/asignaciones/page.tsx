@@ -1,6 +1,7 @@
 "use client";
 
-import { ActivosTabs, AsignacionesTable } from "@/modules/activos/componentes";
+import { ActivosTabs } from "@/modules/activos/componentes";
+import { AsignacionesTable } from "@/modules/asignaciones/componentes";
 
 // This tab shows the assignments table on its own page, matching the
 // pattern used by the other Activos sub-tabs. No page-level header here:

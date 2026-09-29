@@ -1,7 +1,7 @@
 "use client";
 
 import { MantencionesTabs } from "@/modules/mantenciones/componentes";
-import { OpcionesCatalogo, type TextosCatalogo } from "@/modules/activos/componentes/OpcionesCatalogo";
+import { OpcionesCatalogo, type TextosCatalogo } from "@/modules/activos/componentes";
 import { PageHeader } from "@/shared/ui/PageHeader";
 
 /**

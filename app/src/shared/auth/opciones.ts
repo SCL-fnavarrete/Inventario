@@ -11,7 +11,7 @@ import {
   minutosDeBloqueoEquipo,
   registrarAcceso,
   type DatosAcceso,
-} from "@/modules/configuracion/accesos";
+} from "@/shared/auth/accesos";
 
 // Valores por defecto -- se usan mientras Configuracion > Seguridad no tenga
 // fila guardada, o si la consulta a la config falla: el login no se puede

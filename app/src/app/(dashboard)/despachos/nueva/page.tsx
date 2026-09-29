@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Check, Loader2, Package, MapPin, User, CheckCircle } from "lucide-react";
-import { SelectorActivos } from "@/modules/despachos/componentes/SelectorActivos";
+import { SelectorActivos } from "@/modules/despachos/componentes";
 import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
@@ -18,7 +18,7 @@ import {
   claseCampo,
 } from "@/shared/ui/CampoFormulario";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
-import { ETIQUETAS_GUIA, validarNuevaGuia } from "@/modules/despachos/validaciones";
+import { ETIQUETAS_GUIA, validarNuevaGuia } from "@/modules/despachos";
 import { ahoraParaInputFechaHora, inputFechaHoraAISO } from "@/shared/utilidades/fechas";
 
 type Sede = {

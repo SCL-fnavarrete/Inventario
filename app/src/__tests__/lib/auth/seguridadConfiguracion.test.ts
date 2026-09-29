@@ -33,7 +33,7 @@ import { compare } from 'bcryptjs';
 import { prisma } from '@/shared/prisma';
 import { requirePermission, handleApiError } from '@/shared/auth/guard';
 import { authOptions } from '@/shared/auth/opciones';
-import { minutosDeBloqueoEquipo, limpiarRegistroAntiguo } from '@/modules/configuracion/accesos';
+import { minutosDeBloqueoEquipo, limpiarRegistroAntiguo } from '@/shared/auth/accesos';
 import { ipLegible } from '@/modules/configuracion/etiquetasAccesos';
 import { crearSedeSchema, editarSedeSchema } from '@/modules/configuracion/validacionesSede';
 import { crearUsuarioSchema, editarUsuarioSchema } from '@/modules/configuracion/validacionesUsuario';

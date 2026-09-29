@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/shared/prisma';
-import { createWorkflowRequestSchema, workflowFiltersSchema } from '@/modules/solicitudes/validaciones';
-import { crearSolicitud } from '@/modules/solicitudes/crear';
+import { createWorkflowRequestSchema, workflowFiltersSchema } from '@/modules/solicitudes';
+import { crearSolicitud, desvinculacionesConActa } from '@/modules/solicitudes/servidor';
 import { Prisma } from '@prisma/client';
 import { requirePermission, handleApiError, respuestaDatosInvalidos, usuarioDeSesion } from '@/shared/auth/guard';
 import { filtroSede } from '@/shared/sedes/filtro';
 import { coincideBusqueda } from '@/shared/utilidades/text';
 import { ordenarComo, paginarCoincidencias } from "@/shared/utilidades/busquedaEnMemoria";
-import { desvinculacionesConActa } from '@/modules/solicitudes/consultasAsignaciones';
 import { sinIdsDeUsuario } from '@/shared/utilidades/privacidad';
 
 // GET /api/solicitudes - List with filters

@@ -3944,6 +3944,14 @@ El código se organiza por dominio en `src/modules/<modulo>/` y lo transversal e
 - Etapa 3, **las rutas solo orquestan**: revisan el permiso, validan la petición con Zod, llaman al servicio del módulo y responden. La lógica vive en el servicio, que recibe datos ya validados y el usuario, y avisa con los errores de `shared/errores` (el mensaje y el código de cada respuesta no cambian). Servicios de esta etapa: `editarActivo`, `eliminarActivo` (Activos); `iniciarMantencion`, `cancelarMantencion`, `editarMantencion`, `eliminarMantencion`, `completarMantencion` (Mantenciones; completar como "Sin reparación" usa los mismos pasos que la baja, `darDeBajaEnTransaccion`, que ahora también guarda el costo); `crearSolicitud` (`solicitudes/crear.ts`) y `aplicarTransicion` (`solicitudes/transicion.ts`); `editarCompra`, `eliminarCompra` (Compras); `editarEmpleado` (`personas/servicio.ts`).
 - Al editar un equipo, las pulgadas se comparan como número: guardar sin cambiarlas ya no deja "Especificaciones actualizadas: Pulgadas" en el historial.
 - La respuesta de desvincular o reincorporar a una persona desde Editar (400) ya no trae `redirectTo`, que ninguna pantalla usaba; el mensaje sigue indicando la solicitud que corresponde.
+- Etapa 4, **cada módulo tiene puertas** y desde fuera solo se entra por ellas:
+  - `@/modules/<m>` (`index.ts`): reglas, validaciones y tipos, sin base de datos; sirve en pantallas y en el servidor.
+  - `@/modules/<m>/servidor` (`servidor.ts`): servicios y consultas que usan la base, `exceljs` u otras piezas de servidor.
+  - `@/modules/<m>/componentes` (`componentes/index.ts`): componentes de pantalla que usan otros.
+  - `@/modules/solicitudes/documentos`: los PDF, aparte por el peso de `@react-pdf` (así no se carga en las demás rutas).
+  - Dentro de su módulo cada archivo importa libre. Una puerta solo expone lo de su módulo.
+- `shared/` no usa módulos: lo común no depende de un dominio. Para eso el registro de accesos pasa a `shared/auth/accesos.ts` (es parte del inicio de sesión), `USO_SEDE` a `modules/configuracion/consultasSedes.ts` y las etiquetas de estado y condición de un equipo a `modules/activos/componentes/BadgesActivo.tsx` (`shared/ui/Badge` queda genérico).
+- Lo hacen cumplir: una regla de ESLint (`no-restricted-imports`, armada en `eslint.config.mjs` con un ciclo sobre `src/modules`), y `import "server-only"` en `shared/prisma.ts`: si una pantalla llega a importar código que usa la base, el build falla en vez de mandar Prisma al navegador. El CI corre ambos. Los tests quedan fuera de la regla (prueban piezas internas) y en Jest `server-only` se reemplaza por un módulo vacío.
 
 ### 2.119 La ficha de la persona toma la fecha de ingreso del onboarding
 La fecha de ingreso de un onboarding quedaba solo en la solicitud: la ficha de la persona creada quedaba sin fecha de ingreso, y la regla "el término no puede ser anterior al ingreso" (2.114) no tenía con qué comparar.
@@ -3952,6 +3960,8 @@ La fecha de ingreso de un onboarding quedaba solo en la solicitud: la ficha de l
 - Las fichas ya creadas no se corrigen solas: se completan al editarlas.
 
 ## Changelog SPEC
+- **v2.44 (2026-09-29):**
+  - Sección 2.118: etapa 4 del monolito modular, puertas por módulo (`index.ts`, `servidor.ts`, `componentes/index.ts` y `solicitudes/documentos`), `shared/` sin dependencias de módulos, regla de ESLint que lo exige y `server-only` en `shared/prisma.ts`.
 - **v2.43 (2026-09-29):**
   - Sección 2.118: etapa 3 del monolito modular, las rutas solo orquestan y la lógica pasa a los servicios de cada módulo; el test de arquitectura ya no deja escribir en las tablas de activos ni a las rutas `/api/activos`; pulgadas comparadas como número al editar; sin `redirectTo` al rechazar desvincular desde Editar.
   - Sección 2.119 (nueva): la ficha de la persona toma la fecha de ingreso del onboarding (también al reincorporarse).

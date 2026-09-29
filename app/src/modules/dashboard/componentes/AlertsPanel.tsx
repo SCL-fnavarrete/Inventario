@@ -10,7 +10,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { formatearFechaConHora } from "@/shared/utilidades/fechas";
-import { identificadorActivo } from "@/modules/activos/identificador";
+import { identificadorActivo } from "@/modules/activos";
 
 interface Maintenance {
   id: string;

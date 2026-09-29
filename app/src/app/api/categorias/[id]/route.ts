@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
 import { requirePermission, handleApiError, NotFoundError, ConflictError } from '@/shared/auth/guard';
 import { auditLogService } from '@/shared/auditoria';
-import { categoriaSchema } from '@/modules/activos/validacionesCategoria';
-import { exigirNombreCategoriaLibre, snapshotCategoria } from '@/modules/activos/consultasCategorias';
+import { categoriaSchema } from '@/modules/activos';
+import { exigirNombreCategoriaLibre, snapshotCategoria } from '@/modules/activos/servidor';
 
 export async function GET(
   request: NextRequest,

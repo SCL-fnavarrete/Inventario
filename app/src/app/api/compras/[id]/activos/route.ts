@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/shared/prisma";
-import { agregarEquiposCompraSchema } from "@/modules/compras/validaciones";
+import { agregarEquiposCompraSchema } from "@/modules/compras";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
 import { NotFoundError, ValidationError } from '@/shared/errores';
 import {
@@ -9,7 +9,7 @@ import {
   quitarEquipo,
   vincularEquiposExistentes,
   sinAsignacion,
-} from '@/modules/compras/servicio';
+} from '@/modules/compras/servidor';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

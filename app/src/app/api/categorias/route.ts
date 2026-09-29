@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
 import { requirePermission, handleApiError } from '@/shared/auth/guard';
 import { auditLogService } from '@/shared/auditoria';
-import { categoriaSchema } from '@/modules/activos/validacionesCategoria';
-import { exigirNombreCategoriaLibre, snapshotCategoria } from '@/modules/activos/consultasCategorias';
-import { ACTIVOS_VIGENTES } from '@/modules/activos/consultas';
+import { categoriaSchema, ACTIVOS_VIGENTES } from '@/modules/activos';
+import { exigirNombreCategoriaLibre, snapshotCategoria } from '@/modules/activos/servidor';
 import { filtroSede } from '@/shared/sedes/filtro';
 
 export async function GET(request: NextRequest) {

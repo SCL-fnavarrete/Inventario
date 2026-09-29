@@ -17,13 +17,13 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { cn } from "@/shared/cn";
-import { especificacionesActivoTexto } from "@/modules/activos/especificaciones";
-import { SelectCondicionCargador } from "@/modules/activos/componentes/SelectCondicionCargador";
 import {
+  especificacionesActivoTexto,
   CONDICION_CARGADOR_POR_DEFECTO,
   type CondicionCargador,
-} from "@/modules/activos/condicionCargador";
-import { identificadorActivo } from "@/modules/activos/identificador";
+  identificadorActivo,
+} from "@/modules/activos";
+import { SelectCondicionCargador } from "@/modules/activos/componentes";
 
 type AsignacionActiva = {
   id: string;

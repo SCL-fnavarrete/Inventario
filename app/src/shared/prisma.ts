@@ -1,3 +1,6 @@
+// Solo servidor (SPEC 2.118): si una pantalla llega a importar codigo que usa
+// la base, el build falla en vez de mandar Prisma al navegador.
+import "server-only";
 import { PrismaClient } from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as {

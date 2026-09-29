@@ -25,7 +25,7 @@ import { cn } from "@/shared/cn";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 import { formatearFecha } from "@/shared/utilidades/fechas";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
-import { identificadorActivo } from "@/modules/activos/identificador";
+import { identificadorActivo } from "@/modules/activos";
 
 type NotebookAsignado = {
   asignacionId: string;

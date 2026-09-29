@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission, handleApiError } from "@/shared/auth/guard";
-import { opcionCatalogoSchema } from "@/modules/activos/validacionesCategoria";
-import { eliminarOpcion, renombrarOpcion } from "@/modules/activos/catalogos";
+import { opcionCatalogoSchema } from "@/modules/activos";
+import { eliminarOpcion, renombrarOpcion } from "@/modules/activos/servidor";
 
 // Opcion del catalogo "Sistema operativo" (SPEC 2.112.7). Renombrar y eliminar
 // son solo de admin; la logica vive en catalogoOpcionesService.

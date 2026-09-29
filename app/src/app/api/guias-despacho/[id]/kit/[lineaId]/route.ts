@@ -9,7 +9,7 @@ import {
   buscarGuia,
   resolverKit,
   type AccionKit,
-} from '@/modules/despachos/servicio';
+} from '@/modules/despachos/servidor';
 
 interface RouteParams {
   params: Promise<{ id: string; lineaId: string }>;

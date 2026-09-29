@@ -15,7 +15,7 @@ import {
   SEGURIDAD_POR_DEFECTO,
   validarParametros,
   type CampoSeguridad,
-} from "@/modules/configuracion/validacionesParametros";
+} from "@/modules/configuracion";
 
 // Configuracion > Seguridad (SPEC 2.112): duracion de la sesion y bloqueo por
 // intentos fallidos, por cuenta y por equipo (2.112.6). Se guarda en SystemConfig (fila unica). Antes esta pagina

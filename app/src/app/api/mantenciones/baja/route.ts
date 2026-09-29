@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/shared/prisma';
-import { bajaPorMantencionSchema } from '@/modules/mantenciones/validaciones';
+import { bajaPorMantencionSchema, mantencionACerrar } from '@/modules/mantenciones';
 import {
   requirePermission,
   handleApiError,
@@ -8,11 +8,8 @@ import {
   ConflictError,
   NotFoundError,
 } from '@/shared/auth/guard';
-import { validateTransition } from '@/modules/activos/maquinaEstados';
-import { darDeBajaEnTransaccion } from '@/modules/mantenciones/servicio';
-import { motivoSinBaja } from '@/modules/activos/estados';
-import { motivoParaBaja } from '@/modules/mantenciones/motivosBaja';
-import { mantencionACerrar } from '@/modules/mantenciones/utilidades';
+import { validateTransition, motivoSinBaja } from '@/modules/activos';
+import { darDeBajaEnTransaccion, motivoParaBaja } from '@/modules/mantenciones/servidor';
 
 // POST /api/mantenciones/baja - Dar de baja un equipo por mantencion (SPEC 2.88).
 // Toda baja pasa por una mantencion "Sin reparación": si el equipo tiene una

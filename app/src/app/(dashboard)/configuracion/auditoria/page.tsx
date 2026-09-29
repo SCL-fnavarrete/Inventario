@@ -9,7 +9,7 @@ import { PageHeader } from "@/shared/ui/PageHeader";
 import { Pagination } from "@/shared/ui/Pagination";
 import { CampoFormulario } from "@/shared/ui/CampoFormulario";
 import { formatearFechaHora } from "@/shared/utilidades/fechas";
-import { MODULOS_AUDITORIA } from "@/modules/configuracion/etiquetasAuditoria";
+import { MODULOS_AUDITORIA } from "@/modules/configuracion";
 
 /**
  * Configuracion > Auditoria (SPEC 2.112.8): quien hizo que y cuando, en todos

@@ -16,14 +16,16 @@ import {
 import { cn } from "@/shared/cn";
 import type { TipoEvento } from "@prisma/client";
 import { formatearFecha } from "@/shared/utilidades/fechas";
-import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
+import { CategoryIcon, AssetStatusBadge } from "@/modules/activos/componentes";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
-import { AssetStatusBadge } from "@/shared/ui/Badge";
 import { PageHeader } from "@/shared/ui/PageHeader";
-import { CONDICION_ACTIVO_LABEL } from "@/modules/activos/estados";
+import {
+  CONDICION_ACTIVO_LABEL,
+  motivoSinBaja,
+  motivoSinMantencion,
+  identificadorActivo,
+} from "@/modules/activos";
 import { Can } from "@/shared/ui/Can";
-import { motivoSinBaja, motivoSinMantencion } from "@/modules/activos/estados";
-import { identificadorActivo } from "@/modules/activos/identificador";
 
 // Covers the full TipoEvento enum so no event type renders as raw text
 // in the audit history.

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Fragment, type ReactNode } from 'react';
 import { cn } from '@/shared/cn';
 import { formatearFecha } from '@/shared/utilidades/fechas';
-import { etiquetaCondicionCargador } from '@/modules/activos/condicionCargador';
+import { etiquetaCondicionCargador } from '@/modules/activos';
 
 /** Asignacion de un ticket tal como la entrega GET /api/solicitudes/[id]. */
 export type AsignacionFila = {

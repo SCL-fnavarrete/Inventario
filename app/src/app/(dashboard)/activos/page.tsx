@@ -25,23 +25,36 @@ import {
   Loader2
 } from "lucide-react";
 import { cn } from "@/shared/cn";
-import { StatsBar, CategoryTabs, ActiveFilters, AssetCard, KanbanBoard, ActivosTabs } from "@/modules/activos/componentes";
-import { FiltrosDatoActivo, textoFiltroDato, useOpcionesFiltroDato } from "@/modules/activos/componentes/FiltrosDatoActivo";
-import { FILTROS_DATO, type ParamFiltroDato } from "@/modules/activos/filtros";
+import {
+  StatsBar,
+  CategoryTabs,
+  ActiveFilters,
+  AssetCard,
+  KanbanBoard,
+  ActivosTabs,
+  FiltrosDatoActivo,
+  textoFiltroDato,
+  useOpcionesFiltroDato,
+  CategoryIcon,
+  AssetConditionBadge,
+  AssetStatusBadge,
+} from "@/modules/activos/componentes";
+import {
+  FILTROS_DATO,
+  type ParamFiltroDato,
+  etiquetaEstadoActivo,
+  identificadorActivo,
+} from "@/modules/activos";
 import { Can } from "@/shared/ui/Can";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { CONSULTA_CELULAR, useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
 import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 import { formatearFecha } from "@/shared/utilidades/fechas";
-import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
-import { AssetConditionBadge, AssetStatusBadge } from "@/shared/ui/Badge";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { Pagination } from "@/shared/ui/Pagination";
-import { etiquetaEstadoActivo } from "@/modules/activos/estados";
 import { COLUMNA_FIJA_CELDA, COLUMNA_FIJA_ENCABEZADO } from "@/shared/ui/tablaStyles";
-import { identificadorActivo } from "@/modules/activos/identificador";
 
 type Asset = {
   id: string;

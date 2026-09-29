@@ -42,6 +42,15 @@ El codigo se organiza por dominio de negocio, no por tipo tecnico:
   utilidades, validaciones comunes, hooks y `ui/`).
 - `src/app/`: solo las rutas de Next.js (pantallas y API).
 
+**Puertas (SPEC 2.118, etapa 4).** Desde fuera de un modulo se importa solo por:
+`@/modules/x` (reglas, validaciones y tipos, sin base de datos: sirve en
+pantallas), `@/modules/x/servidor` (servicios y consultas con base de datos) y
+`@/modules/x/componentes`; los PDF por `@/modules/solicitudes/documentos`.
+Dentro del modulo, import libre. `shared/` no importa modulos. Lo exige ESLint
+(`eslint.config.mjs`), y `import "server-only"` en `shared/prisma.ts` hace
+fallar el build si una pantalla trae codigo de base de datos. Al exponer algo
+nuevo, agregarlo a la puerta que corresponde.
+
 ### Key Modules
 
 | Path | Purpose |

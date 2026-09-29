@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { cantidad, textoLibre } from "@/shared/validaciones/comunes";
-import { createEmployeeSchema, TipoContratoEnum } from '@/modules/personas/validaciones';
-import { condicionCargadorSchema } from '@/modules/activos/condicionCargador';
+import { createEmployeeSchema, TipoContratoEnum } from '@/modules/personas';
+import { condicionCargadorSchema } from '@/modules/activos';
 
 // Enums que coinciden con Prisma
 export const TipoSolicitudEnum = z.enum(['onboarding', 'cambio_equipo', 'offboarding']);

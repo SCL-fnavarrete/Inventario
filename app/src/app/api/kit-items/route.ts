@@ -3,7 +3,7 @@ import { prisma } from "@/shared/prisma";
 import { requirePermission, handleApiError, errorRepetido } from '@/shared/auth/guard';
 import { filtroSede, sedeIdParaCrear } from '@/shared/sedes/filtro';
 import { exigirSedeActiva } from "@/shared/sedes/consultas";
-import { createKitItemSchema } from '@/modules/kit-epp/validaciones';
+import { createKitItemSchema } from '@/modules/kit-epp';
 import { auditLogService } from '@/shared/auditoria';
 
 // GET /api/kit-items?categoria=kit_bienvenida|epp

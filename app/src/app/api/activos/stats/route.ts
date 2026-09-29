@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
 import { requirePermission, handleApiError } from '@/shared/auth/guard';
-import { leerFiltrosActivos, whereFiltrosActivos } from '@/modules/activos/consultas';
+import { leerFiltrosActivos, whereFiltrosActivos } from '@/modules/activos';
 
 export async function GET(request: NextRequest) {
   try {

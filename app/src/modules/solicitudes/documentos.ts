@@ -14,12 +14,13 @@ import {
   paresDeCambio,
 } from '@/modules/solicitudes/consultasAsignaciones';
 import { ValidationError } from '@/shared/errores';
-import { especificacionesActivo, type ActivoParaSpecs } from '@/modules/activos/especificaciones';
-import { formatearFecha } from "@/shared/utilidades/fechas";
 import {
+  especificacionesActivo,
+  type ActivoParaSpecs,
   etiquetaCondicionCargador,
   type ContextoCargador,
-} from "@/modules/activos/condicionCargador";
+} from '@/modules/activos';
+import { formatearFecha } from "@/shared/utilidades/fechas";
 
 // Helper to cast React.createElement result for @react-pdf/renderer
 function renderPdf(element: React.ReactElement) {

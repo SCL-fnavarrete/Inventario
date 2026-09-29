@@ -4,7 +4,7 @@ import { prisma } from "@/shared/prisma";
 import {
   createPurchaseWithAssetsSchema,
   purchaseFiltersSchema,
-} from "@/modules/compras/validaciones";
+} from "@/modules/compras";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
 import { NotFoundError } from '@/shared/errores';
@@ -16,7 +16,7 @@ import {
   agregarLineasKit,
   avanceReparto,
   vincularEquiposExistentes,
-} from '@/modules/compras/servicio';
+} from '@/modules/compras/servidor';
 
 // GET /api/compras - Listar compras/facturas con filtros y paginación
 export async function GET(request: NextRequest) {

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { PageHeader } from "@/shared/ui/PageHeader";
-import { ActivoForm, payloadActivo, type ActivoFormValues } from "@/modules/activos/componentes/ActivoForm";
+import { ActivoForm, payloadActivo, type ActivoFormValues } from "@/modules/activos/componentes";
 
 export default function NuevoActivoPage() {
   const router = useRouter();

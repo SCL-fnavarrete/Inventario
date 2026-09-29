@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/shared/prisma';
-import { updateAssetSchema } from '@/modules/activos/validaciones';
-import { editarActivo, eliminarActivo } from '@/modules/activos/servicio';
+import { updateAssetSchema } from '@/modules/activos';
+import { editarActivo, eliminarActivo } from '@/modules/activos/servidor';
 import { requirePermission, handleApiError } from '@/shared/auth/guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

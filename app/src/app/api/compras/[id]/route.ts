@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
-import { updatePurchaseSchema } from "@/modules/compras/validaciones";
+import { updatePurchaseSchema } from "@/modules/compras";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
 import { NotFoundError } from '@/shared/errores';
 import {
@@ -8,7 +8,7 @@ import {
   editarCompra,
   eliminarCompra,
   sinAsignacion,
-} from '@/modules/compras/servicio';
+} from '@/modules/compras/servidor';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

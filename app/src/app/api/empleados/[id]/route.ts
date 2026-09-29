@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
-import { updateEmployeeSchema } from "@/modules/personas/validaciones";
+import { updateEmployeeSchema } from "@/modules/personas";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
-import { editarEmpleado } from '@/modules/personas/servicio';
+import { editarEmpleado } from '@/modules/personas/servidor';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

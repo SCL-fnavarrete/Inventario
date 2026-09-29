@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission, handleApiError } from "@/shared/auth/guard";
 import { filtroSede } from "@/shared/sedes/filtro";
-import { opcionCatalogoSchema } from "@/modules/activos/validacionesCategoria";
-import { crearOpcion, listarOpciones } from "@/modules/activos/catalogos";
+import { opcionCatalogoSchema } from "@/modules/activos";
+import { crearOpcion, listarOpciones } from "@/modules/activos/servidor";
 
 // Catalogo "Antivirus" de los activos (SPEC 2.112.7). La logica es la
 // misma para los tres catalogos y vive en catalogoOpcionesService.

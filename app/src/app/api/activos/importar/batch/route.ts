@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
 import { logger } from "@/shared/logger";
-import { procesarFila } from "@/modules/importacion/procesarFila";
-import { armarContextoImportacion } from "@/modules/importacion/contexto";
-import { validarCantidadFilas } from "@/modules/importacion/validarArchivo";
-import type { CorrectedRow, ImportRowStatus, ImportBatchResult } from "@/modules/importacion/tipos";
+import { procesarFila, armarContextoImportacion } from "@/modules/importacion/servidor";
+import { validarCantidadFilas } from "@/modules/importacion";
+import type { CorrectedRow, ImportRowStatus, ImportBatchResult } from "@/modules/importacion";
 import { requirePermission, handleApiError } from '@/shared/auth/guard';
 import { exigirCupo } from "@/shared/utilidades/limiteUso";
 

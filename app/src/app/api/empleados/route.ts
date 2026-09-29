@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
-import { employeeFiltersSchema } from "@/modules/personas/validaciones";
+import { employeeFiltersSchema } from "@/modules/personas";
 import { Prisma } from "@prisma/client";
 import { coincideBusqueda } from "@/shared/utilidades/text";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';

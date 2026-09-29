@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
 import { requirePermission, handleApiError, NotFoundError } from '@/shared/auth/guard';
 import { auditLogService } from '@/shared/auditoria';
-import { editarSedeSchema } from '@/modules/configuracion/validacionesSede';
+import { editarSedeSchema } from '@/modules/configuracion';
 import { exigirNombreSedeLibre } from '@/shared/sedes/consultas';
 
 interface RouteParams {

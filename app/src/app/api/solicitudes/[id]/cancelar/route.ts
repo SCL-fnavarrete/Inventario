@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/shared/prisma';
-import { cancelWorkflowRequestSchema } from '@/modules/solicitudes/validaciones';
+import { cancelWorkflowRequestSchema } from '@/modules/solicitudes';
 import { requirePermission, handleApiError, respuestaDatosInvalidos, ConflictError, usuarioDeSesion } from '@/shared/auth/guard';
 import { sinIdsDeUsuario } from '@/shared/utilidades/privacidad';
 

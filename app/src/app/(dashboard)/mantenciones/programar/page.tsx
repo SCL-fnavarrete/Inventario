@@ -4,16 +4,15 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Search, Wrench, User, Package, Loader2, ChevronDown, X } from "lucide-react";
-import { motivoSinMantencion } from "@/modules/activos/estados";
+import { motivoSinMantencion, identificadorActivo } from "@/modules/activos";
 import { cn } from "@/shared/cn";
 import { hoyISO } from "@/shared/utilidades/fechas";
-import { avisoFechaPasada } from "@/modules/mantenciones/utilidades";
+import { avisoFechaPasada } from "@/modules/mantenciones";
 import { parseApiError } from "@/shared/utilidades/apiErrors";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
-import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
-import { AssetStatusBadge } from "@/shared/ui/Badge";
+import { CategoryIcon, AssetStatusBadge } from "@/modules/activos/componentes";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import {
@@ -23,7 +22,6 @@ import {
   ResumenErrores,
   claseCampo,
 } from "@/shared/ui/CampoFormulario";
-import { identificadorActivo } from "@/modules/activos/identificador";
 
 type Asset = {
   id: string;

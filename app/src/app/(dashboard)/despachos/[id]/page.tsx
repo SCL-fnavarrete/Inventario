@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/shared/cn";
 import { parseApiError } from "@/shared/utilidades/apiErrors";
-import { especificacionesActivoTexto } from "@/modules/activos/especificaciones";
+import { especificacionesActivoTexto, identificadorActivo } from "@/modules/activos";
 import {
   ESTADO_GUIA_LABELS,
   ESTADO_GUIA_COLORS,
@@ -27,7 +27,9 @@ import {
   type DispatchGuideDetail,
   type DispatchGuideItem,
   type DispatchGuideKitLine,
-} from "@/modules/despachos/tipos";
+  ETIQUETAS_GUIA,
+  validarRecepcion,
+} from "@/modules/despachos";
 import {
   ahoraParaInputFechaHora,
   formatearFechaLarga,
@@ -36,16 +38,14 @@ import {
 } from "@/shared/utilidades/fechas";
 import { AvisoSeccion, CampoTexto, ResumenErrores } from "@/shared/ui/CampoFormulario";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
-import { ETIQUETAS_GUIA, validarRecepcion } from "@/modules/despachos/validaciones";
 import { usePermissions } from "@/shared/hooks/usePermissions";
-import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
+import { CategoryIcon } from "@/modules/activos/componentes";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { Modal } from "@/shared/ui/Modal";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { VentanaMotivo } from "@/shared/ui/VentanaMotivo";
-import { VentanaKitDespacho, type AccionKitDespacho } from "@/modules/despachos/componentes/VentanaKitDespacho";
-import { identificadorActivo } from "@/modules/activos/identificador";
+import { VentanaKitDespacho, type AccionKitDespacho } from "@/modules/despachos/componentes";
 
 const BOTON_EXITO = "bg-success hover:bg-success-hover disabled:hover:bg-success";
 

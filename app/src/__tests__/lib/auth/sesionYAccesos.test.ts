@@ -26,7 +26,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/shared/prisma';
 import { requirePermission } from '@/shared/auth/guard';
 import { authOptions } from '@/shared/auth/opciones';
-import { minutosDeBloqueo, datosCliente, cerrarSesion, duracionLegible } from '@/modules/configuracion/accesos';
+import { minutosDeBloqueo, datosCliente, cerrarSesion, duracionLegible } from '@/shared/auth/accesos';
 import { navegadorLegible } from '@/modules/configuracion/etiquetasAccesos';
 import { inicioDiaChile, rangoDiasChile } from '@/shared/utilidades/fechas';
 import { PUT as editarUsuario } from '@/app/api/usuarios/[id]/route';

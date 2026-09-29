@@ -1,11 +1,10 @@
 import { Prisma } from '@prisma/client';
-import { tipoCorrectivaPorDefecto } from '@/modules/mantenciones/servicio';
-import type { CondicionCargador } from '@/modules/activos/condicionCargador';
+import { tipoCorrectivaPorDefecto } from '@/modules/mantenciones/servidor';
+import type { CondicionCargador } from '@/modules/activos';
 import { ConflictError, NotFoundError } from '@/shared/errores';
-import { etiquetaEstadoActivo, etiquetaEstadoDevolucion } from '@/modules/activos/estados';
+import { etiquetaEstadoActivo, etiquetaEstadoDevolucion } from '@/modules/activos';
 import { auditLogService } from '@/shared/auditoria';
-import { cambiarEstado } from '@/modules/activos/servicio';
-import { assetHistoryService } from '@/modules/activos/historial';
+import { cambiarEstado, assetHistoryService } from '@/modules/activos/servidor';
 import { inicioDeHoy } from '@/shared/utilidades/fechas';
 
 type PrismaTx = Prisma.TransactionClient;

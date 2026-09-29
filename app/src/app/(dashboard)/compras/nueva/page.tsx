@@ -27,17 +27,16 @@ import {
   ActivoForm,
   payloadActivo,
   type ActivoFormValues,
-} from "@/modules/activos/componentes/ActivoForm";
-import { normalizarImei } from "@/modules/activos/imei";
+} from "@/modules/activos/componentes";
+import { normalizarImei, identificadorActivo } from "@/modules/activos";
 import {
   AvisoSeccion,
   ResumenErrores,
   claseCampo,
 } from "@/shared/ui/CampoFormulario";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
-import { ETIQUETAS_FACTURA, validarDatosFactura } from "@/modules/compras/validaciones";
-import { CamposFactura, type DatosFactura } from "@/modules/compras/componentes/CamposFactura";
-import { identificadorActivo } from "@/modules/activos/identificador";
+import { ETIQUETAS_FACTURA, validarDatosFactura } from "@/modules/compras";
+import { CamposFactura, type DatosFactura } from "@/modules/compras/componentes";
 
 type Sede = {
   id: string;

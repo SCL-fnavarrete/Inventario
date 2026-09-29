@@ -19,22 +19,26 @@ import {
   motivoSinBaja,
   etiquetaCondicionActivo,
   etiquetaEstadoActivo,
-} from "@/modules/activos/estados";
+  identificadorActivo,
+} from "@/modules/activos";
 import { cn } from "@/shared/cn";
-import type { ResultadoMantencion } from "@/modules/activos/validacionesTransicion";
+import type { ResultadoMantencion } from "@/modules/activos";
 import { parseApiError } from "@/shared/utilidades/apiErrors";
 import { formatearFecha, formatearFechaConHora, aValorInputDate, hoyISO } from "@/shared/utilidades/fechas";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
-import { avisoFechaPasada } from "@/modules/mantenciones/utilidades";
 import {
+  avisoFechaPasada,
   RESULTADO_MANTENCION_LABEL,
   etiquetaResultadoMantencion,
-} from "@/modules/mantenciones/resultados";
-import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
-import { configEstadoMantencion } from "@/modules/mantenciones/componentes";
-import { CamposMotivoBaja, erroresMotivoBaja, useMotivosBaja } from "@/modules/mantenciones/componentes/CamposMotivoBaja";
+} from "@/modules/mantenciones";
+import { CategoryIcon, AssetStatusBadge } from "@/modules/activos/componentes";
+import {
+  configEstadoMantencion,
+  CamposMotivoBaja,
+  erroresMotivoBaja,
+  useMotivosBaja,
+} from "@/modules/mantenciones/componentes";
 import { Can } from "@/shared/ui/Can";
-import { AssetStatusBadge } from "@/shared/ui/Badge";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { PageHeader } from "@/shared/ui/PageHeader";
@@ -44,7 +48,6 @@ import {
   ResumenErrores,
   claseCampo,
 } from "@/shared/ui/CampoFormulario";
-import { identificadorActivo } from "@/modules/activos/identificador";
 
 type ResultadoTipo = ResultadoMantencion;
 

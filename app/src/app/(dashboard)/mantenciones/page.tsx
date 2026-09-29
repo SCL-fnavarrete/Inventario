@@ -12,21 +12,20 @@ import {
   Loader2,
   ListChecks,
 } from "lucide-react";
-import type { VistaMantencion } from "@/modules/mantenciones/consultas";
+import type { VistaMantencion } from "@/modules/mantenciones/servidor";
 import { cn } from "@/shared/cn";
 import { Can } from "@/shared/ui/Can";
 import { EstadoMantencionBadge, MantencionesTabs } from "@/modules/mantenciones/componentes";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
 import { formatearFechaConHora } from "@/shared/utilidades/fechas";
-import { estaVencida } from "@/modules/mantenciones/utilidades";
-import { motivoSinBaja } from "@/modules/activos/estados";
-import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
+import { estaVencida } from "@/modules/mantenciones";
+import { motivoSinBaja, identificadorActivo } from "@/modules/activos";
+import { CategoryIcon } from "@/modules/activos/componentes";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { StatCard, StatGrid } from "@/shared/ui/StatCard";
 import { Pagination } from "@/shared/ui/Pagination";
-import { identificadorActivo } from "@/modules/activos/identificador";
 
 type TipoMantencion = {
   id: string;

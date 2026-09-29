@@ -3,10 +3,13 @@ import { prisma } from '@/shared/prisma';
 import { ConflictError, NotFoundError, ValidationError } from '@/shared/errores';
 import { siSigueIgual } from '@/shared/utilidades/concurrencia';
 import { formatearFechaConHora, formatearFechaCorta } from '@/shared/utilidades/fechas';
-import { estadoTrasMantencion, motivoSinBaja, motivoSinMantencion } from '@/modules/activos/estados';
-import { assetHistoryService } from '@/modules/activos/historial';
-import { validateTransition } from '@/modules/activos/maquinaEstados';
-import { cambiarEstado } from '@/modules/activos/servicio';
+import {
+  estadoTrasMantencion,
+  motivoSinBaja,
+  motivoSinMantencion,
+  validateTransition,
+} from '@/modules/activos';
+import { assetHistoryService, cambiarEstado } from '@/modules/activos/servidor';
 import { auditLogService } from '@/shared/auditoria';
 import { mantencionACerrar } from '@/modules/mantenciones/utilidades';
 import { motivoParaBaja } from '@/modules/mantenciones/motivosBaja';
@@ -15,7 +18,7 @@ import type {
   CompleteMaintenanceInput,
   UpdateMaintenanceInput,
 } from '@/modules/mantenciones/validaciones';
-import type { PrismaTx } from '@/modules/activos/historial';
+import type { PrismaTx } from '@/modules/activos/servidor';
 
 /**
  * Lo que una mantencion le hace al estado del equipo (SPEC 2.96). Programar

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { cantidad } from "@/shared/validaciones/comunes";
 import { rutOptionalSchema } from "@/shared/validaciones/rut";
-import { createAssetSchema, revisarOrdenGarantia } from "@/modules/activos/validaciones";
+import { createAssetSchema, revisarOrdenGarantia } from "@/modules/activos";
 
 export const TipoCompraEnum = z.enum(["FACTURA", "GASTO_MENOR"]);
 

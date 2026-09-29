@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/shared/prisma';
-import { createCommentSchema } from '@/modules/solicitudes/validaciones';
+import { createCommentSchema } from '@/modules/solicitudes';
 import { requirePermission, handleApiError, respuestaDatosInvalidos, usuarioDeSesion } from '@/shared/auth/guard';
 import { sinIdsDeUsuario } from '@/shared/utilidades/privacidad';
 

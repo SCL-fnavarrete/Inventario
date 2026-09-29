@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { transitionSchema } from '@/modules/solicitudes/validaciones';
-import { aplicarTransicion } from '@/modules/solicitudes/transicion';
+import { transitionSchema } from '@/modules/solicitudes';
+import { aplicarTransicion } from '@/modules/solicitudes/servidor';
 import {
   requirePermission,
   handleApiError,

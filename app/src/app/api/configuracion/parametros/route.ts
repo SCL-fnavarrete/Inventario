@@ -8,7 +8,7 @@ import {
   SEGURIDAD_POR_DEFECTO,
   validarParametros,
   type CampoSeguridad,
-} from "@/modules/configuracion/validacionesParametros";
+} from "@/modules/configuracion";
 
 // Configuracion > Seguridad (SPEC 2.112), guardada como fila unica
 // ("singleton"). GET siempre la devuelve (con los valores por defecto si aun

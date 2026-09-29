@@ -3,19 +3,19 @@ import { prisma } from "@/shared/prisma";
 import { requirePermission, handleApiError, ConflictError } from '@/shared/auth/guard';
 import { NotFoundError, ValidationError } from '@/shared/errores';
 import { auditLogService } from '@/shared/auditoria';
-import { validateTransition } from '@/modules/activos/maquinaEstados';
-import { cambiarEstado } from '@/modules/activos/servicio';
+import { validateTransition } from '@/modules/activos';
+import { cambiarEstado } from '@/modules/activos/servidor';
 import {
   darDeBajaEnTransaccion,
   tipoCorrectivaPorDefecto,
-} from '@/modules/mantenciones/servicio';
+  motivoParaBaja,
+} from '@/modules/mantenciones/servidor';
 import {
   INCLUDE_DETALLE_GUIA,
   actualizarEstadoGuia,
   buscarGuia,
   recibirEquipos,
-} from '@/modules/despachos/servicio';
-import { motivoParaBaja } from '@/modules/mantenciones/motivosBaja';
+} from '@/modules/despachos/servidor';
 
 interface RouteParams {
   params: Promise<{ id: string; itemId: string }>;

@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
 import bcrypt from "bcryptjs";
 import { requirePermission, handleApiError, errorRepetido, errorDeCampo } from '@/shared/auth/guard';
-import { crearUsuarioSchema } from '@/modules/configuracion/validacionesUsuario';
+import { crearUsuarioSchema, SELECT_USUARIO } from '@/modules/configuracion';
 import { exigirSedeActiva } from '@/shared/sedes/consultas';
 import { auditLogService } from '@/shared/auditoria';
-import { SELECT_USUARIO } from '@/modules/configuracion/consultasUsuarios';
 
 export async function GET() {
   try {

@@ -20,8 +20,8 @@ import { ApiErrorSummary } from '@/shared/ui/ApiErrorSummary';
 import { formatearFecha } from "@/shared/utilidades/fechas";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { VentanaMotivo } from '@/shared/ui/VentanaMotivo';
-import { FilaEquipoTicket, type AsignacionFila } from '@/modules/solicitudes/componentes/FilaEquipoTicket';
-import { documentoDeSolicitud } from '@/modules/solicitudes/tiposDocumento';
+import { FilaEquipoTicket, type AsignacionFila } from '@/modules/solicitudes/componentes';
+import { documentoDeSolicitud } from '@/modules/solicitudes';
 
 type WorkflowDetail = {
   id: string;

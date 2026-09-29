@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
-import type { ImportPreviewResult, ImportRowStatus } from "@/modules/importacion/tipos";
+import type { ImportPreviewResult, ImportRowStatus } from "@/modules/importacion";
 import { requirePermission, handleApiError } from '@/shared/auth/guard';
 import { exigirCupo } from "@/shared/utilidades/limiteUso";
-import { leerFilasExcel, leerHoja, mapearFilas } from "@/modules/importacion/leerExcel";
-import { procesarFila } from "@/modules/importacion/procesarFila";
-import { armarContextoImportacion } from "@/modules/importacion/contexto";
-import { validarArchivoExcel } from "@/modules/importacion/validarArchivo";
+import {
+  leerFilasExcel,
+  leerHoja,
+  mapearFilas,
+  procesarFila,
+  armarContextoImportacion,
+} from "@/modules/importacion/servidor";
+import { validarArchivoExcel } from "@/modules/importacion";
 
 // Operacion pesada: hasta 60 s (Vercel corta antes por defecto).
 export const maxDuration = 60;

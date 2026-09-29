@@ -3,9 +3,9 @@ import ExcelJS from "exceljs";
 import { prisma } from "@/shared/prisma";
 import { requirePermission, handleApiError } from '@/shared/auth/guard';
 import { exigirCupo } from "@/shared/utilidades/limiteUso";
-import { leerFiltrosActivos, whereFiltrosActivos } from '@/modules/activos/consultas';
+import { leerFiltrosActivos, whereFiltrosActivos } from '@/modules/activos';
 import { formatearFecha, hoyISO } from "@/shared/utilidades/fechas";
-import { CONDICION_ACTIVO_LABEL, ESTADO_ACTIVO_LABEL } from "@/modules/activos/estados";
+import { CONDICION_ACTIVO_LABEL, ESTADO_ACTIVO_LABEL } from "@/modules/activos";
 
 // Operacion pesada: hasta 60 s (Vercel corta antes por defecto).
 export const maxDuration = 60;

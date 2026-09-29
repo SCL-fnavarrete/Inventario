@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
-import { createMaintenanceSchema, maintenanceFiltersSchema } from "@/modules/mantenciones/validaciones";
+import { createMaintenanceSchema, maintenanceFiltersSchema } from "@/modules/mantenciones";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError, respuestaDatosInvalidos, ConflictError } from '@/shared/auth/guard';
-import { motivoSinMantencion } from '@/modules/activos/estados';
+import { motivoSinMantencion, busquedaActivo, palabrasDeBusqueda } from '@/modules/activos';
 import { auditLogService } from '@/shared/auditoria';
-import { assetHistoryService } from '@/modules/activos/historial';
+import { assetHistoryService } from '@/modules/activos/servidor';
 import { formatearFechaConHora, inicioDeHoy } from '@/shared/utilidades/fechas';
-import { busquedaActivo, palabrasDeBusqueda } from "@/modules/activos/consultas";
 import {
   INCLUDE_LISTADO_MANTENCION,
   VISTAS_MANTENCION,
@@ -16,7 +15,7 @@ import {
   paginarPorGrupos,
   ventanaPeriodo,
   whereSedeMantencion,
-} from "@/modules/mantenciones/consultas";
+} from "@/modules/mantenciones/servidor";
 
 // GET /api/mantenciones - Listar mantenciones con filtros
 export async function GET(request: NextRequest) {

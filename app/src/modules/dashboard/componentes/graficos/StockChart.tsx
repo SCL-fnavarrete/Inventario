@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { ESTADO_ACTIVO_COLOR } from "@/modules/activos/estados";
+import { ESTADO_ACTIVO_COLOR } from "@/modules/activos";
 
 interface StockChartProps {
   data: {

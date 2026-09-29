@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/shared/prisma';
 import { requirePermission, handleApiError, usuarioDeSesion } from '@/shared/auth/guard';
-import { entregarKitItemsSchema, marcarKitItemNoAplicaSchema } from '@/modules/kit-epp/validaciones';
-import { executeKitDelivery } from '@/modules/solicitudes/ejecucion';
+import { entregarKitItemsSchema, marcarKitItemNoAplicaSchema } from '@/modules/kit-epp';
+import { executeKitDelivery } from '@/modules/solicitudes/servidor';
 
 // POST /api/solicitudes/[id]/kit-epp
 // Entrega articulos de Kit de Bienvenida / EPP para una solicitud de

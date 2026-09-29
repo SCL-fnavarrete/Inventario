@@ -1,26 +1,26 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { ConflictError, NotFoundError, ValidationError } from '@/shared/errores';
-import { ACTIVOS_VIGENTES } from '@/modules/activos/consultas';
-import type { CreateAssetInput } from '@/modules/activos/validaciones';
+import { ACTIVOS_VIGENTES } from '@/modules/activos';
+import type { CreateAssetInput } from '@/modules/activos';
 import type { RepartoCompraInput, UpdatePurchaseInput } from '@/modules/compras/validaciones';
-import { validarDatosDespacho } from '@/modules/despachos/validaciones';
+import { validarDatosDespacho } from '@/modules/despachos';
 import { auditLogService } from '@/shared/auditoria';
-import { articuloKitEnSede, sumarStockKit } from '@/modules/kit-epp/servicio';
+import { articuloKitEnSede, sumarStockKit } from '@/modules/kit-epp/servidor';
 import {
   crearDespacho,
   crearGuiaConNumero,
   sedeDestinoValida,
   type DatosEnvio,
-} from '@/modules/despachos/servicio';
-import { assetHistoryService } from '@/modules/activos/historial';
+} from '@/modules/despachos/servidor';
 import {
+  assetHistoryService,
   cambiarEstado,
   crearActivo,
   descartarActivo,
   fijarFechaCompra,
   moverSedeDeCompra,
-} from '@/modules/activos/servicio';
+} from '@/modules/activos/servidor';
 import type { AvanceReparto, EstadoReparto } from '@/modules/compras/reparto';
 
 type Tx = Prisma.TransactionClient;

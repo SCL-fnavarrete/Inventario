@@ -15,7 +15,7 @@ import {
   RESULTADO_ACCESO_LABEL,
   ipLegible,
   navegadorLegible,
-} from "@/modules/configuracion/etiquetasAccesos";
+} from "@/modules/configuracion";
 
 type Registro = {
   id: string;

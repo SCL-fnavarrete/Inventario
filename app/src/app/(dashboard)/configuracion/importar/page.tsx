@@ -11,12 +11,11 @@ import {
   Download,
 } from "lucide-react";
 import { cn } from "@/shared/cn";
-import { ErrorReviewPanel } from "@/modules/importacion/componentes/ErrorReviewPanel";
-import type { ImportPreviewResult, ImportBatchResult, CorrectedRow } from "@/modules/importacion/tipos";
+import { ErrorReviewPanel } from "@/modules/importacion/componentes";
+import type { ImportPreviewResult, ImportBatchResult, CorrectedRow } from "@/modules/importacion";
 import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
-import { ESTADOS_RECONOCIDOS } from "@/modules/importacion/reglasFila";
-import { FILAS_POR_TANDA } from "@/modules/importacion/validarArchivo";
+import { ESTADOS_RECONOCIDOS, FILAS_POR_TANDA } from "@/modules/importacion";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { useCampoSede } from "@/shared/ui/providers/SedeSeleccionadaProvider";

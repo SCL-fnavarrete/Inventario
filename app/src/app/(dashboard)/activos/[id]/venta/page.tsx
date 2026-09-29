@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { XCircle, DollarSign } from 'lucide-react';
-import { etiquetaEstadoActivo } from '@/modules/activos/estados';
+import { etiquetaEstadoActivo, identificadorActivo } from '@/modules/activos';
 import { parseApiError, type FieldErrors } from '@/shared/utilidades/apiErrors';
 import { ApiErrorSummary } from '@/shared/ui/ApiErrorSummary';
 import { PageHeader } from '@/shared/ui/PageHeader';
@@ -24,7 +24,6 @@ const ETIQUETAS_VENTA: Record<string, string> = {
   fechaVenta: 'Fecha de venta',
 };
 import { hoyISO } from '@/shared/utilidades/fechas';
-import { identificadorActivo } from "@/modules/activos/identificador";
 
 type Asset = {
   id: string;

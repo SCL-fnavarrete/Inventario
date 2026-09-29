@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission, handleApiError, ValidationError } from "@/shared/auth/guard";
-import { consultarAuditoria } from "@/modules/configuracion/auditoria";
-import { MODULOS_AUDITORIA } from "@/modules/configuracion/etiquetasAuditoria";
+import { consultarAuditoria } from "@/modules/configuracion/servidor";
+import { MODULOS_AUDITORIA } from "@/modules/configuracion";
 import { rangoDiasChile } from "@/shared/utilidades/fechas";
 import { leerPaginacion } from "@/shared/utilidades/paginacion";
 

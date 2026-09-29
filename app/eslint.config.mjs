@@ -1,6 +1,33 @@
+import { readdirSync } from "node:fs";
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+
+// Monolito modular (SPEC 2.118): desde fuera de un modulo solo se entra por
+// sus puertas: '@/modules/x' (reglas y tipos), '@/modules/x/servidor'
+// (servicios con base de datos) y '@/modules/x/componentes'; los PDF de
+// solicitudes, por su peso, entran por '@/modules/solicitudes/documentos'. Dentro de su
+// modulo cada archivo importa libre. shared/ no usa modulos.
+const MODULOS = readdirSync(new URL("./src/modules", import.meta.url));
+const soloPuertas = (m) => ({
+  group: [`@/modules/${m}/*`, `!@/modules/${m}/servidor`, `!@/modules/${m}/componentes`, `!@/modules/${m}/documentos`, `@/modules/${m}/componentes/*`],
+  message: `Entra a "${m}" por sus puertas: '@/modules/${m}', '@/modules/${m}/servidor' o '@/modules/${m}/componentes' (SPEC 2.118).`,
+});
+const limitar = (files, modulos) => ({
+  files,
+  ignores: ["**/*.test.ts", "**/*.test.tsx"],
+  rules: { "no-restricted-imports": ["error", { patterns: modulos.map(soloPuertas) }] },
+});
+const limitesModulos = [
+  ...MODULOS.map((m) => limitar([`src/modules/${m}/**/*.{ts,tsx}`], MODULOS.filter((x) => x !== m))),
+  limitar(["src/app/**/*.{ts,tsx}", "src/proxy.ts"], MODULOS),
+  {
+    files: ["src/shared/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [{ group: ["@/modules/*"], message: "shared/ no usa módulos: lo común no depende de un dominio (SPEC 2.118)." }] }],
+    },
+  },
+];
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -30,6 +57,7 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-unused-vars": ["warn", { ignoreRestSiblings: true }],
     },
   },
+  ...limitesModulos,
 ]);
 
 export default eslintConfig;

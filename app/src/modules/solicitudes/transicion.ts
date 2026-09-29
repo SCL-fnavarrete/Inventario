@@ -11,7 +11,7 @@ import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@
 import {
   condicionCargadorSchema,
   type CondicionCargador,
-} from '@/modules/activos/condicionCargador';
+} from '@/modules/activos';
 
 // datosAccion llega sin schema propio: la condicion del cargador se valida
 // aca para responder 400 (y no un error de Prisma) ante un valor invalido,

@@ -22,7 +22,7 @@ import {
 } from "@/shared/ui/CampoFormulario";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { useEnvio } from "@/shared/hooks/useEnvio";
-import { validarPasswordFuerte } from "@/modules/configuracion/clave";
+import { validarPasswordFuerte } from "@/modules/configuracion";
 import { esCorreoValido } from "@/shared/utilidades/text";
 
 const usuarioFieldLabels: Record<string, string> = {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/shared/prisma';
-import { updatePendienteSchema } from '@/modules/solicitudes/validaciones';
+import { updatePendienteSchema } from '@/modules/solicitudes';
 import { requirePermission, handleApiError, usuarioDeSesion } from '@/shared/auth/guard';
 
 // PATCH /api/solicitudes/[id]/pendientes/[pendienteId] - Update pendiente status

@@ -9,17 +9,11 @@ import {
   errorDeCampo,
 } from '@/shared/auth/guard';
 import { sedeIdParaCrear } from '@/shared/sedes/filtro';
-import { ACTIVOS_VIGENTES } from '@/modules/activos/consultas';
-import {
-  VISTAS_GUIA,
-  type VistaGuia,
-} from '@/modules/despachos/consultas';
-import { crearDespacho, crearGuiaConNumero, sedeDestinoValida } from '@/modules/despachos/servicio';
-import { ETIQUETAS_GUIA, validarNuevaGuia } from '@/modules/despachos/validaciones';
-import { etiquetaEstadoActivo } from '@/modules/activos/estados';
+import { ACTIVOS_VIGENTES, etiquetaEstadoActivo, identificadorActivo } from '@/modules/activos';
+import { VISTAS_GUIA, type VistaGuia, ETIQUETAS_GUIA, validarNuevaGuia } from '@/modules/despachos';
+import { crearDespacho, crearGuiaConNumero, sedeDestinoValida } from '@/modules/despachos/servidor';
 import { coincideBusqueda } from '@/shared/utilidades/text';
 import { ordenarComo, paginarCoincidencias } from "@/shared/utilidades/busquedaEnMemoria";
-import { identificadorActivo } from '@/modules/activos/identificador';
 
 // GET /api/guias-despacho - Listar guías de despacho
 export async function GET(request: NextRequest) {

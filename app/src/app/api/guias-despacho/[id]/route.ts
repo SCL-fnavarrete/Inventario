@@ -14,8 +14,8 @@ import {
   buscarGuia,
   recibirEquipos,
   resolverKit,
-} from '@/modules/despachos/servicio';
-import { ETIQUETAS_GUIA, validarRecepcion } from '@/modules/despachos/validaciones';
+} from '@/modules/despachos/servidor';
+import { ETIQUETAS_GUIA, validarRecepcion } from '@/modules/despachos';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
 import { requirePermission, handleApiError, ConflictError } from '@/shared/auth/guard';
 import { ValidationError } from '@/shared/errores';
-import { cambiarEstado } from '@/modules/activos/servicio';
+import { cambiarEstado } from '@/modules/activos/servidor';
 import { auditLogService } from '@/shared/auditoria';
-import { INCLUDE_DETALLE_GUIA, buscarGuia } from '@/modules/despachos/servicio';
+import { INCLUDE_DETALLE_GUIA, buscarGuia } from '@/modules/despachos/servidor';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

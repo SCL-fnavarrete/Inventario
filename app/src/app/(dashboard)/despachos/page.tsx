@@ -3,9 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Plus, Search, FileText, Truck, AlertTriangle, CheckCircle, XCircle, PackageOpen } from "lucide-react";
-import { GuiaDespachoTable } from "@/modules/despachos/componentes/GuiaDespachoTable";
-import type { DispatchGuideListItem } from "@/modules/despachos/tipos";
-import type { VistaGuia } from "@/modules/despachos/consultas";
+import { GuiaDespachoTable } from "@/modules/despachos/componentes";
+import type { DispatchGuideListItem, VistaGuia } from "@/modules/despachos";
 import { Can } from "@/shared/ui/Can";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";

@@ -10,8 +10,8 @@ import {
   payloadActivo,
   valoresDesdeActivo,
   type ActivoFormValues,
-} from "@/modules/activos/componentes/ActivoForm";
-import { identificadorActivo } from "@/modules/activos/identificador";
+} from "@/modules/activos/componentes";
+import { identificadorActivo } from "@/modules/activos";
 
 export default function EditarActivoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);

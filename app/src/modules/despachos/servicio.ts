@@ -2,10 +2,10 @@ import { prisma } from '@/shared/prisma';
 import { Prisma, type EstadoActivo } from '@prisma/client';
 import { hoyISO } from '@/shared/utilidades/fechas';
 import { ConflictError, NotFoundError, ValidationError, errorDeCampo } from '@/shared/errores';
-import { cambiarEstado } from '@/modules/activos/servicio';
+import { cambiarEstado } from '@/modules/activos/servidor';
 import { auditLogService } from '@/shared/auditoria';
 import { formatearRut } from '@/shared/validaciones/rut';
-import { articuloKitEnSede, estadoLineaKit, sumarStockKit } from '@/modules/kit-epp/servicio';
+import { articuloKitEnSede, estadoLineaKit, sumarStockKit } from '@/modules/kit-epp/servidor';
 
 type PrismaOCliente = typeof prisma | Prisma.TransactionClient;
 

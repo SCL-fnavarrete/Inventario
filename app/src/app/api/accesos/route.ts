@@ -3,7 +3,7 @@ import { Prisma, type ResultadoAcceso } from "@prisma/client";
 import { prisma } from "@/shared/prisma";
 import { leerPaginacion } from "@/shared/utilidades/paginacion";
 import { requirePermission, handleApiError } from "@/shared/auth/guard";
-import { RESULTADOS_FALLIDOS } from "@/modules/configuracion/accesos";
+import { RESULTADOS_FALLIDOS } from "@/shared/auth/accesos";
 import { hoyISO, inicioDiaChile, rangoDiasChile } from "@/shared/utilidades/fechas";
 
 /**

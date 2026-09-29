@@ -4,7 +4,7 @@ import { sedeIdParaCrear } from "@/shared/sedes/filtro";
 import { exigirSedeActiva } from "@/shared/sedes/consultas";
 import { construirMapaCatalogo, construirMapaSedes } from "@/modules/importacion/reglasFila";
 import { precargarEmpleadosPorRut, type ContextoFila } from "@/modules/importacion/procesarFila";
-import { normalizarImei } from "@/modules/activos/imei";
+import { normalizarImei } from "@/modules/activos";
 
 /**
  * Contexto de una importacion, compartido por la vista previa y la escritura

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
 import { requirePermission, handleApiError } from '@/shared/auth/guard';
-import { updateKitItemSchema } from '@/modules/kit-epp/validaciones';
+import { updateKitItemSchema } from '@/modules/kit-epp';
 import { auditLogService } from '@/shared/auditoria';
 
 export async function PUT(

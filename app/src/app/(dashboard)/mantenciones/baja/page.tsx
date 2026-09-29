@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Wrench, XCircle } from "lucide-react";
-import { etiquetaEstadoActivo, motivoSinBaja } from "@/modules/activos/estados";
-import { CamposMotivoBaja, erroresMotivoBaja, useMotivosBaja } from "@/modules/mantenciones/componentes/CamposMotivoBaja";
+import { etiquetaEstadoActivo, motivoSinBaja, identificadorActivo } from "@/modules/activos";
+import { CamposMotivoBaja, erroresMotivoBaja, useMotivosBaja } from "@/modules/mantenciones/componentes";
 import { hoyISO } from "@/shared/utilidades/fechas";
 import { parseApiError } from "@/shared/utilidades/apiErrors";
-import { mantencionACerrar } from "@/modules/mantenciones/utilidades";
+import { mantencionACerrar } from "@/modules/mantenciones";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import {
   CampoFormulario,
@@ -20,7 +20,6 @@ import {
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { useToast } from "@/shared/ui/Toast";
-import { identificadorActivo } from "@/modules/activos/identificador";
 
 type Activo = {
   id: string;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { completeMaintenanceSchema } from '@/modules/mantenciones/validaciones';
+import { completeMaintenanceSchema } from '@/modules/mantenciones';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
-import { completarMantencion } from '@/modules/mantenciones/servicio';
+import { completarMantencion } from '@/modules/mantenciones/servidor';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

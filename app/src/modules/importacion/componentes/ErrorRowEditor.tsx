@@ -13,7 +13,7 @@ import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 import {
   CONDICION_ACTIVO_LABEL as condicionLabels,
   ESTADO_ACTIVO_LABEL as estadoLabels,
-} from "@/modules/activos/estados";
+} from "@/modules/activos";
 
 type Sede = { id: string; nombre: string };
 

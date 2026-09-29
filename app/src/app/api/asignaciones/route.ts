@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
-import { createAssignmentSchema, assignmentFiltersSchema } from "@/modules/asignaciones/validaciones";
-import { executeAssignment } from "@/modules/solicitudes/ejecucion";
+import { createAssignmentSchema, assignmentFiltersSchema } from "@/modules/asignaciones";
+import { executeAssignment } from "@/modules/solicitudes/servidor";
 import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
 import { filtroSede } from '@/shared/sedes/filtro';

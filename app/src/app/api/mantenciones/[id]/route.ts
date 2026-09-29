@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/shared/prisma';
-import { updateMaintenanceSchema } from '@/modules/mantenciones/validaciones';
+import { updateMaintenanceSchema } from '@/modules/mantenciones';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
 import {
   cancelarMantencion,
   editarMantencion,
   eliminarMantencion,
   iniciarMantencion,
-} from '@/modules/mantenciones/servicio';
+} from '@/modules/mantenciones/servidor';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { resultadoMantencionEnum } from "@/modules/activos/validacionesTransicion";
+import { resultadoMantencionEnum } from "@/modules/activos";
 
 // El tipo de mantencion es una fila de MaintenanceType, referenciada por id
 // (ver prisma/schema.prisma y src/app/api/mantenciones/tipos).

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/shared/prisma';
-import { updateWorkflowRequestSchema } from '@/modules/solicitudes/validaciones';
+import { updateWorkflowRequestSchema } from '@/modules/solicitudes';
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
 import {
   asignacionesDelTicket,
   devueltaEnTicket,
   devueltasDespues,
   paresDeCambio,
-} from '@/modules/solicitudes/consultasAsignaciones';
+} from '@/modules/solicitudes/servidor';
 import { sinIdsDeUsuario } from '@/shared/utilidades/privacidad';
 
 // GET /api/solicitudes/[id] - Get full detail

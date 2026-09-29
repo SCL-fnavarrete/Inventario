@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { estadoActivoEnum } from '@/modules/activos/validaciones';
-import { whereActivosPorLlegar } from '@/modules/despachos/consultas';
+import { whereActivosPorLlegar } from '@/modules/despachos';
 import { filtroSede } from '@/shared/sedes/filtro';
 import { FILTROS_DATO, SIN_DATO, type FiltrosDato, type ParamFiltroDato } from '@/modules/activos/filtros';
 

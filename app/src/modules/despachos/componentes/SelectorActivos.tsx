@@ -10,10 +10,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/shared/cn";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
-import { etiquetaConectividad } from "@/modules/activos/especificaciones";
-import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
-import { AssetConditionBadge } from "@/shared/ui/Badge";
-import { identificadorActivo } from "@/modules/activos/identificador";
+import { etiquetaConectividad, identificadorActivo } from "@/modules/activos";
+import { CategoryIcon, AssetConditionBadge } from "@/modules/activos/componentes";
 
 type Asset = {
   id: string;

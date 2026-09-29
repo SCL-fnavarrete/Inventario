@@ -23,30 +23,30 @@ import { Can } from "@/shared/ui/Can";
 import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { formatearFechaLarga } from "@/shared/utilidades/fechas";
-import { CategoryIcon } from "@/modules/activos/componentes/CategoryIcon";
-import { buttonClasses } from "@/shared/ui/buttonStyles";
-import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
-import { ResumenErrores, claseCampo } from "@/shared/ui/CampoFormulario";
-import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
-import { ETIQUETAS_FACTURA, validarDatosFactura } from "@/modules/compras/validaciones";
-import { CamposFactura } from "@/modules/compras/componentes/CamposFactura";
-import { Modal } from "@/shared/ui/Modal";
 import {
+  CategoryIcon,
   ACTIVO_FORM_VACIO,
   ActivoForm,
   payloadActivo,
   type ActivoFormValues,
-} from "@/modules/activos/componentes/ActivoForm";
+} from "@/modules/activos/componentes";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import { ResumenErrores, claseCampo } from "@/shared/ui/CampoFormulario";
+import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import {
+  ETIQUETAS_FACTURA,
+  validarDatosFactura,
   ESTADO_REPARTO_BADGE,
   ESTADO_REPARTO_LABEL,
   type AvanceReparto,
-} from "@/modules/compras/reparto";
+} from "@/modules/compras";
+import { CamposFactura, VentanaReparto } from "@/modules/compras/componentes";
+import { Modal } from "@/shared/ui/Modal";
 import { cn } from "@/shared/cn";
-import { VentanaReparto } from "@/modules/compras/componentes/VentanaReparto";
-import { ESTADO_GUIA_COLORS, ESTADO_GUIA_LABELS } from "@/modules/despachos/tipos";
+import { ESTADO_GUIA_COLORS, ESTADO_GUIA_LABELS } from "@/modules/despachos";
 import type { EstadoGuia } from "@prisma/client";
-import { identificadorActivo } from "@/modules/activos/identificador";
+import { identificadorActivo } from "@/modules/activos";
 
 /**
  * Confirmacion en modal propio, en vez de confirm()/alert() del navegador:

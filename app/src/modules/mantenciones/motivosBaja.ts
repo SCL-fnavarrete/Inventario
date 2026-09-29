@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { ConflictError, NotFoundError, ValidationError, errorRepetido } from '@/shared/errores';
 import { auditLogService } from '@/shared/auditoria';
-import type { PrismaTx } from '@/modules/activos/historial';
+import type { PrismaTx } from '@/modules/activos/servidor';
 
 /**
  * Motivos de baja (SPEC 2.116.5): lista administrable en Configuracion >

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
 import { requirePermission, handleApiError, errorRepetido } from '@/shared/auth/guard';
 import { auditLogService } from '@/shared/auditoria';
-import { crearSedeSchema } from '@/modules/configuracion/validacionesSede';
-import { exigirNombreSedeLibre, USO_SEDE } from '@/shared/sedes/consultas';
+import { crearSedeSchema, USO_SEDE } from '@/modules/configuracion';
+import { exigirNombreSedeLibre } from '@/shared/sedes/consultas';
 
 /**
  * CRUD de sedes. Solo admin puede escribir: son datos maestros.

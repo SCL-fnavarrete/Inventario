@@ -14,8 +14,8 @@ import {
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { parseApiError } from "@/shared/utilidades/apiErrors";
 import { ahoraParaInputFechaHora, inputFechaHoraAISO } from "@/shared/utilidades/fechas";
-import { ETIQUETAS_GUIA, validarDatosDespacho } from "@/modules/despachos/validaciones";
-import { identificadorActivo } from "@/modules/activos/identificador";
+import { ETIQUETAS_GUIA, validarDatosDespacho } from "@/modules/despachos";
+import { identificadorActivo } from "@/modules/activos";
 
 type EquipoPendiente = { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: string };
 type LineaPendiente = { id: string; nombre: string; porRepartir: number };

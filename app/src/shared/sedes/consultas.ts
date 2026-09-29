@@ -1,6 +1,5 @@
 import { prisma } from '@/shared/prisma';
 import { errorDeCampo, errorRepetido } from '@/shared/errores';
-import { ACTIVOS_VIGENTES } from '@/modules/activos/consultas';
 
 /**
  * Reglas de sedes compartidas por Configuracion > Sedes y > Usuarios
@@ -28,16 +27,3 @@ export async function exigirNombreSedeLibre(nombre: string, exceptoId?: string) 
   });
   if (repetida) throw errorRepetido('nombre', 'Ya existe una sede con ese nombre');
 }
-
-/**
- * Lo que tiene cada sede, para avisar antes de desactivarla: tecnicos
- * activos (no podran entrar) y equipos vigentes.
- */
-export const USO_SEDE = {
-  _count: {
-    select: {
-      usuarios: { where: { activo: true } },
-      assets: { where: ACTIVOS_VIGENTES },
-    },
-  },
-} as const;
