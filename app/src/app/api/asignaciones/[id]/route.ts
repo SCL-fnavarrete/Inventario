@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
 import { returnAssignmentSchema } from "@/modules/asignaciones/validaciones";
 import { executeReturn } from "@/modules/solicitudes/ejecucion";
+import { cambiarEstado } from "@/modules/activos/servicio";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
 import { formatearFecha } from "@/shared/utilidades/fechas";
 
@@ -147,23 +148,17 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         where: { id },
       });
 
-      // Restaurar estado del activo
-      await tx.asset.update({
-        where: { id: assignment.assetId },
-        data: {
-          estado: "disponible",
-          empleadoActualId: null,
-        },
-      });
-
-      // Registrar en historial
-      await tx.assetHistory.create({
-        data: {
-          assetId: assignment.assetId,
+      // Restaurar estado del activo, con su historial.
+      await cambiarEstado(tx, {
+        activo: assignment.asset,
+        a: "disponible",
+        contexto: { motivo: "Asignación cancelada" },
+        datos: { empleadoActualId: null },
+        historial: {
           tipoEvento: "cambio_estado",
           descripcion: `Asignación cancelada. Equipo devuelto a disponible.`,
           datosAnteriores: {
-            estado: "asignado",
+            estado: assignment.asset.estado,
             empleadoActualId: assignment.employeeId,
           },
           datosNuevos: {

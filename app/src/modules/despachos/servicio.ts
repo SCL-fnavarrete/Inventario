@@ -2,8 +2,7 @@ import { prisma } from '@/shared/prisma';
 import { Prisma, type EstadoActivo } from '@prisma/client';
 import { hoyISO } from '@/shared/utilidades/fechas';
 import { ConflictError, NotFoundError, ValidationError, errorDeCampo } from '@/shared/errores';
-import { validateTransition } from '@/modules/activos/maquinaEstados';
-import { assetHistoryService } from '@/modules/activos/historial';
+import { cambiarEstado } from '@/modules/activos/servicio';
 import { auditLogService } from '@/shared/auditoria';
 import { formatearRut } from '@/shared/validaciones/rut';
 import { articuloKitEnSede, estadoLineaKit, sumarStockKit } from '@/modules/kit-epp/servicio';
@@ -96,13 +95,11 @@ export async function recibirEquipos(
       where: { id: item.id },
       data: { estado: 'recibido', fechaResolucion: ahora, resueltoPor: usuario },
     });
-    await tx.asset.update({
-      where: { id: item.assetId },
-      data: { estado: 'disponible', sedeId: guia.sedeDestinoId },
-    });
-    await tx.assetHistory.create({
-      data: {
-        assetId: item.assetId,
+    await cambiarEstado(tx, {
+      activo: { id: item.assetId, estado: 'en_transito' },
+      a: 'disponible',
+      datos: { sedeId: guia.sedeDestinoId },
+      historial: {
         tipoEvento: 'traslado',
         descripcion: `Llegó a ${guia.sedeDestino.nombre} (despacho ${guia.numero}): queda Disponible ahí`,
         datosAnteriores: { estado: 'en_transito', sedeId: guia.sedeId },
@@ -251,31 +248,19 @@ export async function crearDespacho(
   );
 
   for (const equipo of d.equipos) {
-    const transicion = validateTransition(equipo.estado, 'en_transito', {
-      hasActiveAssignment: false,
-      hasActiveMaintenance: false,
-    });
-    if (!transicion.valid) throw new ConflictError(transicion.errors[0]);
-
     // Sigue en su sede hasta que llegue (SPEC 2.108).
-    const { count } = await tx.asset.updateMany({
-      where: { id: equipo.id, estado: equipo.estado, deletedAt: null },
-      data: { estado: 'en_transito' },
-    });
-    if (count !== 1) {
-      throw new ConflictError('Un equipo cambió de estado mientras se preparaba el despacho. Vuelve a intentarlo.');
-    }
-    await assetHistoryService.registrar(
-      {
-        assetId: equipo.id,
+    await cambiarEstado(tx, {
+      activo: equipo,
+      a: 'en_transito',
+      mensajeConflicto: 'Un equipo cambió de estado mientras se preparaba el despacho. Vuelve a intentarlo.',
+      historial: {
         tipoEvento: 'traslado',
         descripcion: `Despachado a ${d.sedeDestino.nombre} en el despacho ${guia.numero} (OT Chilexpress ${d.envio.otChilexpress}): en tránsito`,
         datosAnteriores: { estado: equipo.estado, sedeId: equipo.sedeId },
         datosNuevos: { estado: 'en_transito', guideId: guia.id, sedeDestinoId: d.sedeDestino.id },
         usuarioSistema: d.usuario,
       },
-      tx
-    );
+    });
   }
 
   return guia;

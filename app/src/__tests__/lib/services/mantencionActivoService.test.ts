@@ -8,7 +8,7 @@ import type { PrismaTx } from '@/modules/activos/historial';
 
 function txFalso() {
   return {
-    asset: { update: jest.fn() },
+    asset: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     assetHistory: { create: jest.fn() },
     maintenance: { updateMany: jest.fn() },
   };
@@ -35,7 +35,10 @@ describe('registrarSalidaDeMantencion', () => {
     });
     expect(nuevo).toBe('disponible');
     // Solo si sigue en mantencion (7.A-1): no pisa un cambio simultaneo.
-    expect(tx.asset.update).toHaveBeenCalledWith({ where: { id: 'a1', estado: 'en_mantencion' }, data: { estado: 'disponible' } });
+    expect(tx.asset.updateMany).toHaveBeenCalledWith({
+      where: { id: 'a1', estado: 'en_mantencion', deletedAt: null },
+      data: { estado: 'disponible' },
+    });
     expect(tx.assetHistory.create.mock.calls[0][0].data.datosNuevos).toEqual({
       estado: 'disponible',
       maintenanceId: 'm1',
@@ -50,7 +53,7 @@ describe('registrarSalidaDeMantencion', () => {
       devolverEquipo: false,
     });
     expect(nuevo).toBeNull();
-    expect(tx.asset.update).not.toHaveBeenCalled();
+    expect(tx.asset.updateMany).not.toHaveBeenCalled();
     expect(tx.assetHistory.create).toHaveBeenCalledTimes(1);
   });
 
@@ -62,7 +65,7 @@ describe('registrarSalidaDeMantencion', () => {
       devolverEquipo: true,
     });
     expect(nuevo).toBeNull();
-    expect(tx.asset.update).not.toHaveBeenCalled();
+    expect(tx.asset.updateMany).not.toHaveBeenCalled();
   });
 });
 

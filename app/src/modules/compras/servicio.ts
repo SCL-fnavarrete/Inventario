@@ -5,7 +5,6 @@ import { ACTIVOS_VIGENTES } from '@/modules/activos/consultas';
 import type { CreateAssetInput } from '@/modules/activos/validaciones';
 import type { RepartoCompraInput } from '@/modules/compras/validaciones';
 import { validarDatosDespacho } from '@/modules/despachos/validaciones';
-import { validateTransition } from '@/modules/activos/maquinaEstados';
 import { auditLogService } from '@/shared/auditoria';
 import { articuloKitEnSede, sumarStockKit } from '@/modules/kit-epp/servicio';
 import {
@@ -15,7 +14,13 @@ import {
   type DatosEnvio,
 } from '@/modules/despachos/servicio';
 import { assetHistoryService } from '@/modules/activos/historial';
-import { crearActivo, descartarActivo } from '@/modules/activos/servicio';
+import {
+  cambiarEstado,
+  crearActivo,
+  descartarActivo,
+  fijarFechaCompra,
+  moverSedeDeCompra,
+} from '@/modules/activos/servicio';
 import type { AvanceReparto, EstadoReparto } from '@/modules/compras/reparto';
 
 type Tx = Prisma.TransactionClient;
@@ -150,7 +155,7 @@ export async function vincularEquiposExistentes(
   await tx.purchaseAsset.createMany({
     data: ids.map((assetId) => ({ purchaseId: compra.id, assetId, llegoConCompra: false })),
   });
-  await tx.asset.updateMany({ where: { id: { in: ids } }, data: { fechaCompra: compra.fechaFactura } });
+  await fijarFechaCompra(tx, ids, compra.fechaFactura);
   for (const assetId of ids) {
     await assetHistoryService.registrarVinculacionCompra(assetId, compra.numeroFactura, usuario, tx);
   }
@@ -218,10 +223,7 @@ export async function moverSedeDeLlegada(tx: Tx, compraId: string, nuevaSedeId: 
     select: { assetId: true },
   });
   if (vinculos.length > 0) {
-    await tx.asset.updateMany({
-      where: { id: { in: vinculos.map((v) => v.assetId) } },
-      data: { sedeId: nuevaSedeId },
-    });
+    await moverSedeDeCompra(tx, vinculos.map((v) => v.assetId), nuevaSedeId);
   }
   const lineas = await tx.purchaseKitItem.findMany({ where: { purchaseId: compraId }, include: { item: true } });
   for (const linea of lineas) {
@@ -307,29 +309,18 @@ export async function repartirCompra(
   if (datos.sedeDestinoId === sedeLlegada) {
     await prisma.$transaction(async (tx) => {
       for (const equipo of equipos) {
-        const transicion = validateTransition('por_repartir', 'disponible', {
-          hasActiveAssignment: false,
-          hasActiveMaintenance: false,
-        });
-        if (!transicion.valid) throw new ConflictError(transicion.errors[0]);
-        const { count } = await tx.asset.updateMany({
-          where: { id: equipo.id, estado: 'por_repartir', deletedAt: null },
-          data: { estado: 'disponible' },
-        });
-        if (count !== 1) {
-          throw new ConflictError('Un equipo cambió de estado mientras se repartía. Vuelve a intentarlo.');
-        }
-        await assetHistoryService.registrar(
-          {
-            assetId: equipo.id,
+        await cambiarEstado(tx, {
+          activo: { id: equipo.id, estado: 'por_repartir' },
+          a: 'disponible',
+          mensajeConflicto: 'Un equipo cambió de estado mientras se repartía. Vuelve a intentarlo.',
+          historial: {
             tipoEvento: 'cambio_estado',
             descripcion: `Repartido a ${compra.sede?.nombre ?? 'la sede de llegada'} (${factura}): queda Disponible`,
             datosAnteriores: { estado: 'por_repartir' },
             datosNuevos: { estado: 'disponible', purchaseId: compra.id },
             usuarioSistema: quien.usuario,
           },
-          tx
-        );
+        });
       }
       for (const { linea, cantidad } of kit) {
         await descontar(tx, linea.id, cantidad);

@@ -12,6 +12,7 @@ import {
   registrarSalidaDeMantencion,
 } from '@/modules/mantenciones/servicio';
 import { assetHistoryService } from '@/modules/activos/historial';
+import { cambiarEstado } from '@/modules/activos/servicio';
 import { auditLogService } from '@/shared/auditoria';
 import { validateTransition } from '@/modules/activos/maquinaEstados';
 import { formatearFechaCorta } from '@/shared/utilidades/fechas';
@@ -88,15 +89,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             include: { tipo: true, asset: { include: { categoria: true } } },
           })
         );
-        await tx.assetHistory.create({
-          data: {
+        await assetHistoryService.registrar(
+          {
             assetId: maintenance.assetId,
             tipoEvento: "mantencion",
             descripcion: `Mantención ${maintenance.tipo.nombre} en espera de repuestos: ${data.resultado}`,
             datosNuevos: { maintenanceId: id, resultadoTipo: data.resultadoTipo },
             usuarioSistema: usuario,
           },
-        });
+          tx
+        );
         await auditLogService.registrarActualizacion(
           'mantencion',
           id,
@@ -157,12 +159,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       // (resultadoTipo), no solo de si tiene dueño.
       if (data.resultadoTipo === "no_reparable") {
         // No reparable: da de baja el activo dentro de la misma transaccion.
-        await siSigueIgual(
-          tx.asset.update({
-            where: { id: maintenance.assetId, estado: maintenance.asset.estado, empleadoActualId: null },
-            data: { estado: "baja", fechaBaja: data.fechaRealizada },
-          })
-        );
+        await cambiarEstado(tx, {
+          activo: maintenance.asset,
+          a: "baja",
+          contexto: { motivo: baja.motivoTexto ?? undefined },
+          datos: { fechaBaja: data.fechaRealizada },
+          exigir: { empleadoActualId: null },
+        });
 
         await assetHistoryService.registrarBaja(
           maintenance.assetId,
@@ -204,15 +207,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             estado: "pendiente",
           },
         });
-        await tx.assetHistory.create({
-          data: {
+        await assetHistoryService.registrar(
+          {
             assetId: maintenance.assetId,
             tipoEvento: "mantencion",
             descripcion: `Mantención ${maintenance.tipo.nombre} programada para el ${formatearFechaCorta(data.proximaMantencion)}: ${descripcion}`,
             datosNuevos: { maintenanceId: siguiente.id },
             usuarioSistema: usuario,
           },
-        });
+          tx
+        );
       }
 
       // Registra quien completo el ticket y con que resultado.

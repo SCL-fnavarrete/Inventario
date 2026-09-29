@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/prisma";
 import { requirePermission, handleApiError, ConflictError } from '@/shared/auth/guard';
 import { ValidationError } from '@/shared/errores';
-import { validateTransition } from '@/modules/activos/maquinaEstados';
+import { cambiarEstado } from '@/modules/activos/servicio';
 import { auditLogService } from '@/shared/auditoria';
 import { INCLUDE_DETALLE_GUIA, buscarGuia } from '@/modules/despachos/servicio';
 
@@ -39,15 +39,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const textoVuelta = guia.purchaseId ? 'vuelve a Por repartir' : 'vuelve a Disponible';
     const actualizada = await prisma.$transaction(async (tx) => {
       for (const item of guia.items) {
-        const transicion = validateTransition('en_transito', estadoVuelta, {
-          hasActiveAssignment: false,
-          hasActiveMaintenance: false,
-        });
-        if (!transicion.valid) throw new ConflictError(transicion.errors[0]);
-        await tx.asset.update({ where: { id: item.assetId }, data: { estado: estadoVuelta } });
-        await tx.assetHistory.create({
-          data: {
-            assetId: item.assetId,
+        await cambiarEstado(tx, {
+          activo: { id: item.assetId, estado: 'en_transito' },
+          a: estadoVuelta,
+          historial: {
             tipoEvento: 'traslado',
             descripcion: `Despacho ${guia.numero} anulado: ${textoVuelta} en ${guia.sede?.nombre ?? 'su sede'}. Motivo: ${detalle}`,
             datosAnteriores: { estado: 'en_transito' },

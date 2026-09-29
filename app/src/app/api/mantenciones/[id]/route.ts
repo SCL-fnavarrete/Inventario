@@ -10,6 +10,8 @@ import {
 } from '@/shared/auth/guard';
 import { auditLogService } from '@/shared/auditoria';
 import { validateTransition } from '@/modules/activos/maquinaEstados';
+import { cambiarEstado } from '@/modules/activos/servicio';
+import { assetHistoryService } from '@/modules/activos/historial';
 import { registrarSalidaDeMantencion } from '@/modules/mantenciones/servicio';
 import { siSigueIgual } from '@/shared/utilidades/concurrencia';
 import { motivoSinMantencion } from '@/modules/activos/estados';
@@ -141,12 +143,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         );
 
         if (cambiaEstado) {
-          await siSigueIgual(
-            tx.asset.update({ where: { id: asset.id, estado: asset.estado }, data: { estado: "en_mantencion" } })
-          );
+          await cambiarEstado(tx, {
+            activo: asset,
+            a: "en_mantencion",
+            contexto: { hasActiveAssignment: !!asset.empleadoActualId, hasActiveMaintenance: true },
+          });
         }
-        await tx.assetHistory.create({
-          data: {
+        await assetHistoryService.registrar(
+          {
             assetId: asset.id,
             tipoEvento: "mantencion",
             descripcion: `Mantención ${existente.tipo.nombre} iniciada: ${existente.descripcion}`,
@@ -154,7 +158,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             datosNuevos: { ...(cambiaEstado ? { estado: "en_mantencion" } : {}), maintenanceId: id },
             usuarioSistema: usuario,
           },
-        });
+          tx
+        );
 
         await auditLogService.registrarActualizacion(
           'mantencion',
@@ -245,15 +250,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           data.fechaProgramada.getTime() !== existente.fechaProgramada?.getTime()) ||
         (data.horaProgramada !== undefined && data.horaProgramada !== existente.horaProgramada);
       if (cambiaFecha) {
-        await tx.assetHistory.create({
-          data: {
+        await assetHistoryService.registrar(
+          {
             assetId: asset.id,
             tipoEvento: "mantencion",
             descripcion: `Mantención ${tipoNombre} reprogramada del ${formatearFechaConHora(existente.fechaProgramada, existente.horaProgramada)} al ${formatearFechaConHora(actualizada.fechaProgramada, actualizada.horaProgramada)}`,
             datosNuevos: { maintenanceId: id },
             usuarioSistema: usuario,
           },
-        });
+          tx
+        );
       }
 
       await auditLogService.registrarActualizacion(
@@ -319,14 +325,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
       await tx.maintenance.delete({ where: { id } });
 
-      await tx.assetHistory.create({
-        data: {
+      await assetHistoryService.registrar(
+        {
           assetId: maintenance.assetId,
           tipoEvento: "mantencion",
           descripcion: `Mantención ${maintenance.tipo.nombre} programada para el ${formatearFechaConHora(maintenance.fechaProgramada, maintenance.horaProgramada)} eliminada`,
           usuarioSistema: usuario,
         },
-      });
+        tx
+      );
     });
 
     return NextResponse.json({ success: true });

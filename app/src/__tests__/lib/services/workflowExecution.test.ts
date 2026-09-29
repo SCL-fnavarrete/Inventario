@@ -145,7 +145,7 @@ describe('executeKitDelivery', () => {
 describe('executeReturn', () => {
   const asignacion = (o: Record<string, unknown> = {}) => ({
     id: 'asig-1', assetId: 'a1', employeeId: 'e1', activo: true,
-    asset: { estado: 'asignado', empleadoActualId: 'e1', tieneCargador: false },
+    asset: { id: 'a1', estado: 'asignado', empleadoActualId: 'e1', tieneCargador: false },
     employee: { nombres: 'Ana', apellidoPaterno: 'Pérez' },
     ...o,
   });
@@ -155,9 +155,10 @@ describe('executeReturn', () => {
     const tx = txFalso();
     (tx.assignment.findUnique as Fn).mockResolvedValue(asignacion());
     await executeReturn(comoTx(tx), devolucion);
-    expect(tx.asset.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ estado: 'disponible', empleadoActualId: null }) })
-    );
+    expect(tx.asset.updateMany).toHaveBeenCalledWith({
+      where: { id: 'a1', estado: 'asignado', deletedAt: null },
+      data: expect.objectContaining({ estado: 'disponible', empleadoActualId: null, condicion: 'usado' }),
+    });
   });
 
   it('rechaza devolver el equipo de otro empleado', async () => {
@@ -177,7 +178,7 @@ describe('executeReturn', () => {
     (tx.assignment.findUnique as Fn).mockResolvedValue(asignacion());
     (tx.assignment.updateMany as Fn).mockResolvedValue({ count: 0 });
     await expect(executeReturn(comoTx(tx), devolucion)).rejects.toThrow(/ya fue devuelta/);
-    expect(tx.asset.update).not.toHaveBeenCalled();
+    expect(tx.asset.updateMany).not.toHaveBeenCalled();
   });
 
   it('"no devuelto" deja la asignación activa y el equipo en no_devuelto', async () => {
@@ -185,7 +186,7 @@ describe('executeReturn', () => {
     (tx.assignment.findUnique as Fn).mockResolvedValue(asignacion());
     await executeReturn(comoTx(tx), { ...devolucion, estadoDevolucion: 'no_devuelto' });
     expect(tx.assignment.updateMany).not.toHaveBeenCalled();
-    expect(tx.asset.update).toHaveBeenCalledWith(expect.objectContaining({ data: { estado: 'no_devuelto' } }));
+    expect(tx.asset.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { estado: 'no_devuelto' } }));
   });
 });
 

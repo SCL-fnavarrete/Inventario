@@ -4,6 +4,7 @@ import { requirePermission, handleApiError, ConflictError } from '@/shared/auth/
 import { NotFoundError, ValidationError } from '@/shared/errores';
 import { auditLogService } from '@/shared/auditoria';
 import { validateTransition } from '@/modules/activos/maquinaEstados';
+import { cambiarEstado } from '@/modules/activos/servicio';
 import {
   darDeBajaEnTransaccion,
   tipoCorrectivaPorDefecto,
@@ -56,24 +57,23 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         );
       }
       const actualizada = await prisma.$transaction(async (tx) => {
-        const { count } = await tx.asset.updateMany({
-          where: { id: item.assetId, estado: 'baja' },
-          data: { estado: 'disponible', sedeId: guia.sedeDestinoId, fechaBaja: null },
-        });
-        if (count !== 1) throw new ConflictError('El equipo cambió de estado. Vuelve a cargar la página.');
-        await tx.dispatchGuideItem.update({
-          where: { id: itemId },
-          data: { estado: 'recibido', fechaResolucion: new Date(), resueltoPor: usuario },
-        });
-        await tx.assetHistory.create({
-          data: {
-            assetId: item.assetId,
+        await cambiarEstado(tx, {
+          activo: { id: item.assetId, estado: 'baja' },
+          a: 'disponible',
+          contexto: { aparecioEnDespacho: true },
+          datos: { sedeId: guia.sedeDestinoId, fechaBaja: null },
+          mensajeConflicto: 'El equipo cambió de estado. Vuelve a cargar la página.',
+          historial: {
             tipoEvento: 'cambio_estado',
             descripcion: `Apareció: se había dado por perdido en el despacho ${guia.numero}. Queda Disponible en ${guia.sedeDestino.nombre}`,
             datosAnteriores: { estado: 'baja' },
             datosNuevos: { estado: 'disponible', sedeId: guia.sedeDestinoId, guideId: guia.id },
             usuarioSistema: usuario,
           },
+        });
+        await tx.dispatchGuideItem.update({
+          where: { id: itemId },
+          data: { estado: 'recibido', fechaResolucion: new Date(), resueltoPor: usuario },
         });
         await auditLogService.registrarActualizacion(
           'guia_despacho',

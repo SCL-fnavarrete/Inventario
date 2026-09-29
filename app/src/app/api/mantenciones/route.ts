@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { requirePermission, handleApiError, respuestaDatosInvalidos, ConflictError } from '@/shared/auth/guard';
 import { motivoSinMantencion } from '@/modules/activos/estados';
 import { auditLogService } from '@/shared/auditoria';
+import { assetHistoryService } from '@/modules/activos/historial';
 import { formatearFechaConHora, inicioDeHoy } from '@/shared/utilidades/fechas';
 import { busquedaActivo, palabrasDeBusqueda } from "@/modules/activos/consultas";
 import {
@@ -236,15 +237,16 @@ export async function POST(request: NextRequest) {
       );
 
       // Historial del equipo, sin cambio de estado.
-      await tx.assetHistory.create({
-        data: {
+      await assetHistoryService.registrar(
+        {
           assetId: data.assetId,
           tipoEvento: "mantencion",
           descripcion: `Mantención ${maintenance.tipo.nombre} programada para el ${formatearFechaConHora(data.fechaProgramada, data.horaProgramada)}: ${data.descripcion}`,
           datosNuevos: { maintenanceId: maintenance.id },
           usuarioSistema: session.user?.email || data.realizadoPor || "Sistema",
         },
-      });
+        tx
+      );
 
       return maintenance;
     });

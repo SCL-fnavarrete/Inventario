@@ -1,9 +1,78 @@
 import type { EstadoActivo, Prisma } from '@prisma/client';
-import { errorRepetido, ValidationError } from '@/shared/errores';
+import { ConflictError, errorRepetido, ValidationError } from '@/shared/errores';
+import { MENSAJE_CAMBIO_SIMULTANEO } from '@/shared/utilidades/concurrencia';
 import type { CreateAssetInput } from '@/modules/activos/validaciones';
-import { assetHistoryService } from '@/modules/activos/historial';
+import { assetHistoryService, type AssetHistoryData } from '@/modules/activos/historial';
+import { validateTransition, type TransitionContext } from '@/modules/activos/maquinaEstados';
 
 type Tx = Prisma.TransactionClient;
+
+/**
+ * Unico camino para cambiar el estado de un equipo (SPEC 2.118). Los demas
+ * modulos no escriben en las tablas de activos: llaman a esta funcion.
+ * 1. Valida la transicion con la maquina de estados (409 si no corresponde).
+ *    Si el estado no cambia (ej. un "no devuelto" que se vuelve a marcar),
+ *    no hay transicion que validar: solo se guardan los datos.
+ * 2. Cambia el estado solo si el equipo sigue como se leyo, y cumple
+ *    `exigir` (ej. sin empleado): si otro lo cambio en el intertanto, 409.
+ * 3. Anota el historial, si se indica.
+ */
+export async function cambiarEstado(
+  tx: Tx,
+  p: {
+    activo: { id: string; estado: EstadoActivo };
+    a: EstadoActivo;
+    /** Lo que piden las precondiciones de la maquina de estados (motivo, estado de devolucion...). */
+    contexto?: Partial<TransitionContext>;
+    /** Lo que cambia junto con el estado (empleado, sede, condicion, fechas). */
+    datos?: Omit<Prisma.AssetUncheckedUpdateManyInput, 'estado'>;
+    /** Condiciones extra que deben seguir iguales al guardar. */
+    exigir?: Prisma.AssetWhereInput;
+    historial?: Omit<AssetHistoryData, 'assetId'>;
+    mensajeConflicto?: string;
+  }
+) {
+  if (p.a !== p.activo.estado) {
+    const transicion = validateTransition(p.activo.estado, p.a, {
+      hasActiveAssignment: false,
+      hasActiveMaintenance: false,
+      ...p.contexto,
+    });
+    if (!transicion.valid) throw new ConflictError(transicion.errors[0]);
+  }
+
+  const { count } = await tx.asset.updateMany({
+    where: { id: p.activo.id, estado: p.activo.estado, deletedAt: null, ...p.exigir },
+    data: { ...p.datos, estado: p.a },
+  });
+  if (count !== 1) throw new ConflictError(p.mensajeConflicto ?? MENSAJE_CAMBIO_SIMULTANEO);
+
+  if (p.historial) await assetHistoryService.registrar({ assetId: p.activo.id, ...p.historial }, tx);
+}
+
+/**
+ * Alta de un equipo desde la importacion: entra con el estado y los datos
+ * que trae el Excel, ya revisados fila por fila (procesarFila), y deja su
+ * evento de creacion en el historial.
+ */
+export async function crearActivoImportado(tx: Tx, datos: Prisma.AssetUncheckedCreateInput, usuario: string) {
+  const asset = await tx.asset.create({ data: datos });
+  await assetHistoryService.registrar(
+    { assetId: asset.id, tipoEvento: 'creacion', descripcion: 'Activo importado desde Excel', usuarioSistema: usuario },
+    tx
+  );
+  return asset;
+}
+
+/** Equipos que se asocian a una compra: toman su fecha de compra (SPEC 2.111). */
+export async function fijarFechaCompra(tx: Tx, ids: string[], fechaCompra: Date) {
+  await tx.asset.updateMany({ where: { id: { in: ids } }, data: { fechaCompra } });
+}
+
+/** Equipos "Por repartir" que siguen a su compra cuando cambia la sede de llegada (SPEC 2.111). */
+export async function moverSedeDeCompra(tx: Tx, ids: string[], sedeId: string) {
+  await tx.asset.updateMany({ where: { id: { in: ids } }, data: { sedeId } });
+}
 
 /**
  * Lo que identifica a un equipo como unico (SPEC 2.112.7): el IMEI en los

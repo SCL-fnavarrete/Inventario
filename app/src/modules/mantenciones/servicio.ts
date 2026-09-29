@@ -2,6 +2,7 @@ import type { EstadoActivo, EstadoMantencion, Prisma } from '@prisma/client';
 import { siSigueIgual } from '@/shared/utilidades/concurrencia';
 import { estadoTrasMantencion } from '@/modules/activos/estados';
 import { assetHistoryService } from '@/modules/activos/historial';
+import { cambiarEstado } from '@/modules/activos/servicio';
 import { auditLogService } from '@/shared/auditoria';
 import { mantencionACerrar } from '@/modules/mantenciones/utilidades';
 import type { PrismaTx } from '@/modules/activos/historial';
@@ -42,13 +43,11 @@ export async function registrarSalidaDeMantencion(
     datos.devolverEquipo && asset.estado === 'en_mantencion' ? estadoTrasMantencion(asset) : null;
 
   if (nuevoEstado) {
-    await siSigueIgual(
-      tx.asset.update({ where: { id: asset.id, estado: 'en_mantencion' }, data: { estado: nuevoEstado } })
-    );
+    await cambiarEstado(tx, { activo: { id: asset.id, estado: 'en_mantencion' }, a: nuevoEstado });
   }
 
-  await tx.assetHistory.create({
-    data: {
+  await assetHistoryService.registrar(
+    {
       assetId: asset.id,
       tipoEvento: 'mantencion',
       descripcion: datos.descripcion,
@@ -60,7 +59,8 @@ export async function registrarSalidaDeMantencion(
       },
       usuarioSistema: datos.usuario,
     },
-  });
+    tx
+  );
 
   return nuevoEstado;
 }
@@ -99,7 +99,7 @@ type MantencionAbierta = { id: string; estado: EstadoMantencion; tipo: { id: str
  * ya abierta. Toda baja queda como una mantencion "Sin reparación": se cierra
  * la que corresponde (en proceso o la pendiente mas antigua) o, si no hay, se
  * registra una ya cerrada del tipo indicado; las demas abiertas se cancelan.
- * Quien llama ya valido que se puede (motivoSinBaja, validateTransition).
+ * Quien llama ya reviso motivoSinBaja; la transicion la valida cambiarEstado.
  * La usan la baja por Mantenciones y el equipo perdido en una guia.
  */
 export async function darDeBajaEnTransaccion(
@@ -158,12 +158,13 @@ export async function darDeBajaEnTransaccion(
   // Un equipo de baja no queda con otras mantenciones pendientes.
   await cancelarAbiertasPorBaja(tx, asset.id, m.id);
 
-  await siSigueIgual(
-    tx.asset.update({
-      where: { id: asset.id, estado: asset.estado, empleadoActualId: null },
-      data: { estado: 'baja', fechaBaja: datos.fechaRealizada },
-    })
-  );
+  await cambiarEstado(tx, {
+    activo: asset,
+    a: 'baja',
+    contexto: { motivo: motivoTexto },
+    datos: { fechaBaja: datos.fechaRealizada },
+    exigir: { empleadoActualId: null },
+  });
 
   await assetHistoryService.registrarBaja(
     asset.id,

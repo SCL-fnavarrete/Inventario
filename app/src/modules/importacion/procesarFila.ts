@@ -14,6 +14,8 @@ import {
 } from "@/modules/importacion/reglasFila";
 import { limpiarRut } from "@/shared/validaciones/rut";
 import { normalizarImei, validarImei } from "@/modules/activos/imei";
+import { crearActivoImportado } from "@/modules/activos/servicio";
+import { assetHistoryService, type AssetHistoryData } from "@/modules/activos/historial";
 import { Prisma } from "@prisma/client";
 import type { SesionAutenticada } from "@/shared/auth/guard";
 import type { ValidationErrorType } from "@/modules/importacion/tipos";
@@ -470,8 +472,10 @@ export async function procesarFila(
       logger.log(`Empleado creado: ${datosEmpleadoNuevo.nombres} ${datosEmpleadoNuevo.apellidoPaterno}`);
     }
 
-    const asset = await tx.asset.create({
-      data: {
+    const usuarioImportacion = ctx.session.user?.email || "sistema";
+    const asset = await crearActivoImportado(
+      tx,
+      {
         categoriaId: ctx.categoriaId,
         sedeId,
         marca: marcaCatalogo,
@@ -496,16 +500,11 @@ export async function procesarFila(
         observaciones: obtener("observaciones") || null,
         empleadoActualId: empleadoId,
       },
-    });
-
-    await tx.assetHistory.create({
-      data: {
-        assetId: asset.id,
-        tipoEvento: "creacion",
-        descripcion: "Activo importado desde Excel",
-        usuarioSistema: ctx.session.user?.email || "sistema",
-      },
-    });
+      usuarioImportacion
+    );
+    // Los demas eventos de la fila, con el servicio de historial de Activos.
+    const anotar = (evento: Omit<AssetHistoryData, "assetId" | "usuarioSistema">) =>
+      assetHistoryService.registrar({ assetId: asset.id, usuarioSistema: usuarioImportacion, ...evento }, tx);
 
     // "Historial de asignaciones" del Excel antiguo: un contador tosco
     // ("1", "2", "1+") de cuantas veces se asigno el equipo, sin dato de
@@ -531,18 +530,14 @@ export async function procesarFila(
         // activo (se verian como un evento duplicado en vez de varias
         // asignaciones historicas distintas).
         const contador = cantidadFilas > 1 ? ` (${i + 1} de ${cantidadFilas})` : "";
-        await tx.assetHistory.create({
-          data: {
-            assetId: asset.id,
-            tipoEvento: "asignacion",
-            descripcion: `Asignación histórica previa a la migración, sin datos de la persona${contador}${notaImprecision}`,
-            usuarioSistema: ctx.session.user?.email || "sistema",
-            // Marca estructurada para que la ficha del activo pueda
-            // identificar estas filas de forma confiable y mostrarlas
-            // tambien en el cuadro "Historial de Asignaciones" -- en vez de
-            // parsear el texto de la descripcion, que puede cambiar.
-            datosNuevos: { historicaSinPersona: true, indice: i + 1, total: cantidadFilas },
-          },
+        await anotar({
+          tipoEvento: "asignacion",
+          descripcion: `Asignación histórica previa a la migración, sin datos de la persona${contador}${notaImprecision}`,
+          // Marca estructurada para que la ficha del activo pueda
+          // identificar estas filas de forma confiable y mostrarlas
+          // tambien en el cuadro "Historial de Asignaciones" -- en vez de
+          // parsear el texto de la descripcion, que puede cambiar.
+          datosNuevos: { historicaSinPersona: true, indice: i + 1, total: cantidadFilas },
         });
       }
     }
@@ -561,14 +556,7 @@ export async function procesarFila(
         },
       });
 
-      await tx.assetHistory.create({
-        data: {
-          assetId: asset.id,
-          tipoEvento: "asignacion",
-          descripcion: "Asignación importada desde Excel",
-          usuarioSistema: ctx.session.user?.email || "sistema",
-        },
-      });
+      await anotar({ tipoEvento: "asignacion", descripcion: "Asignación importada desde Excel" });
     }
 
     const fechaMantencionStr = obtener("mantencion");
@@ -608,13 +596,9 @@ export async function procesarFila(
         // La fecha va en el propio texto del historial: la fecha real del
         // evento puede ser muy distinta de cuando se importo, y sin esto
         // solo se veia entrando al detalle de la mantencion.
-        await tx.assetHistory.create({
-          data: {
-            assetId: asset.id,
-            tipoEvento: "mantencion",
-            descripcion: `Mantención ${etiqueta} el ${fechaFormateada} (importada desde Excel)`,
-            usuarioSistema: ctx.session.user?.email || "sistema",
-          },
+        await anotar({
+          tipoEvento: "mantencion",
+          descripcion: `Mantención ${etiqueta} el ${fechaFormateada} (importada desde Excel)`,
         });
       };
 
@@ -654,13 +638,9 @@ export async function procesarFila(
           estado: "en_proceso",
         },
       });
-      await tx.assetHistory.create({
-        data: {
-          assetId: asset.id,
-          tipoEvento: "mantencion",
-          descripcion: `Mantención en proceso desde el ${formatearFechaCorta(hoy)} (Estado="Mantención" importado desde Excel)`,
-          usuarioSistema: ctx.session.user?.email || "sistema",
-        },
+      await anotar({
+        tipoEvento: "mantencion",
+        descripcion: `Mantención en proceso desde el ${formatearFechaCorta(hoy)} (Estado="Mantención" importado desde Excel)`,
       });
     }
 

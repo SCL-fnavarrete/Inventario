@@ -4,6 +4,8 @@ import type { CondicionCargador } from '@/modules/activos/condicionCargador';
 import { ConflictError, NotFoundError } from '@/shared/errores';
 import { etiquetaEstadoActivo, etiquetaEstadoDevolucion } from '@/modules/activos/estados';
 import { auditLogService } from '@/shared/auditoria';
+import { cambiarEstado } from '@/modules/activos/servicio';
+import { assetHistoryService } from '@/modules/activos/historial';
 import { inicioDeHoy } from '@/shared/utilidades/fechas';
 
 type PrismaTx = Prisma.TransactionClient;
@@ -172,19 +174,24 @@ export async function executeAssignment(
   // simultanea ya lo tomo, esta no encuentra la fila y se rechaza. Antes se
   // leia "disponible" y se escribia sin condicion, y dos entregas a la vez
   // dejaban dos asignaciones activas del mismo equipo (R2).
-  const { count } = await tx.asset.updateMany({
-    where: { id: params.assetId, estado: 'disponible', deletedAt: null },
-    data: {
-      estado: 'asignado',
+  await cambiarEstado(tx, {
+    activo: { id: params.assetId, estado: 'disponible' },
+    a: 'asignado',
+    datos: {
       empleadoActualId: params.employeeId,
       // Solo se pisa si la entrega trae un nombre: si el tecnico lo dejo en
       // blanco, el equipo conserva el que ya tenia.
       ...(params.nombreEquipo ? { nombreEquipo: params.nombreEquipo } : {}),
     },
+    mensajeConflicto: 'El equipo ya fue entregado o cambió de estado. Recarga la lista y elige otro.',
+    historial: {
+      tipoEvento: 'asignacion',
+      descripcion: `Asignado a ${employee.nombres} ${employee.apellidoPaterno} (${employee.rut || '—'})`,
+      datosAnteriores: { estado: asset.estado, empleadoActualId: asset.empleadoActualId },
+      datosNuevos: { estado: 'asignado', empleadoActualId: params.employeeId },
+      usuarioSistema: params.entregadoPor || 'Sistema',
+    },
   });
-  if (count !== 1) {
-    throw new ConflictError('El equipo ya fue entregado o cambió de estado. Recarga la lista y elige otro.');
-  }
 
   const assignment = await tx.assignment.create({
     data: {
@@ -204,17 +211,6 @@ export async function executeAssignment(
     include: {
       asset: { include: { categoria: true } },
       employee: true,
-    },
-  });
-
-  await tx.assetHistory.create({
-    data: {
-      assetId: params.assetId,
-      tipoEvento: 'asignacion',
-      descripcion: `Asignado a ${employee.nombres} ${employee.apellidoPaterno} (${employee.rut || '—'})`,
-      datosAnteriores: { estado: asset.estado, empleadoActualId: asset.empleadoActualId },
-      datosNuevos: { estado: 'asignado', empleadoActualId: params.employeeId },
-      usuarioSistema: params.entregadoPor || 'Sistema',
     },
   });
 
@@ -269,16 +265,14 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       },
     });
 
-    await tx.asset.update({
-      where: { id: assignment.assetId },
-      data: { estado: 'no_devuelto' },
-    });
-
-    await tx.assetHistory.create({
-      data: {
-        assetId: assignment.assetId,
+    const descripcion = `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno} no devolvió el equipo ${params.contexto === 'cambio' ? 'en el cambio de equipo' : 'en su desvinculación'}. Queda "No devuelto", a la espera de recuperarlo.`;
+    await cambiarEstado(tx, {
+      activo: assignment.asset,
+      a: 'no_devuelto',
+      contexto: { hasActiveAssignment: true, motivo: descripcion },
+      historial: {
         tipoEvento: 'devolucion',
-        descripcion: `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno} no devolvió el equipo ${params.contexto === 'cambio' ? 'en el cambio de equipo' : 'en su desvinculación'}. Queda "No devuelto", a la espera de recuperarlo.`,
+        descripcion,
         datosAnteriores: {
           estado: assignment.asset.estado,
           empleadoActualId: assignment.asset.empleadoActualId,
@@ -330,21 +324,21 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
   const danado = params.estadoDevolucion === 'danado';
   const nuevoEstado: 'disponible' | 'en_mantencion' = danado ? 'en_mantencion' : 'disponible';
 
-  await tx.asset.update({
-    where: { id: assignment.assetId },
-    data: {
-      estado: nuevoEstado,
+  const descripcionDevolucion = `Devuelto por ${assignment.employee.nombres} ${assignment.employee.apellidoPaterno}. Estado: ${etiquetaEstadoDevolucion(params.estadoDevolucion)}`;
+  await cambiarEstado(tx, {
+    activo: assignment.asset,
+    a: nuevoEstado,
+    // estadoDevolucion para asignado -> disponible; motivo para un "no
+    // devuelto" que se recupera (SPEC 2.87).
+    contexto: { hasActiveAssignment: true, estadoDevolucion: params.estadoDevolucion, motivo: descripcionDevolucion },
+    datos: {
       ...(danado && { condicion: 'danado' }),
       ...(params.estadoDevolucion === 'ok' && { condicion: 'usado' }),
       empleadoActualId: null,
     },
-  });
-
-  await tx.assetHistory.create({
-    data: {
-      assetId: assignment.assetId,
+    historial: {
       tipoEvento: 'devolucion',
-      descripcion: `Devuelto por ${assignment.employee.nombres} ${assignment.employee.apellidoPaterno}. Estado: ${etiquetaEstadoDevolucion(params.estadoDevolucion)}`,
+      descripcion: descripcionDevolucion,
       datosAnteriores: {
         estado: assignment.asset.estado,
         empleadoActualId: assignment.asset.empleadoActualId,
@@ -404,15 +398,16 @@ async function enviarAMantencionPorDano(
     },
   });
 
-  await tx.assetHistory.create({
-    data: {
+  await assetHistoryService.registrar(
+    {
       assetId: datos.assetId,
       tipoEvento: 'mantencion',
       descripcion: `Enviado a mantención ${tipo.nombre} por devolución con daño: se evalúa si se repara o se da de baja`,
       datosNuevos: { estado: 'en_mantencion', maintenanceId: mantencion.id },
       usuarioSistema: datos.usuario,
     },
-  });
+    tx
+  );
 
   await auditLogService.registrarCreacion(
     'mantencion',

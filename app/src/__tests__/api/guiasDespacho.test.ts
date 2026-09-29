@@ -132,8 +132,8 @@ describe('PATCH /api/guias-despacho/[id] (confirmar recepcion)', () => {
     buscarGuia(guia('en_transito'));
     const res = await recibir(pedir('PATCH', body), ctx);
     expect(res.status).toBe(200);
-    expect(tx.asset.update).toHaveBeenCalledWith({
-      where: { id: 'activo-i1' },
+    expect(tx.asset.updateMany).toHaveBeenCalledWith({
+      where: { id: 'activo-i1', estado: 'en_transito', deletedAt: null },
       data: { estado: 'disponible', sedeId: 'conce' },
     });
     expect(tx.dispatchGuide.update).toHaveBeenLastCalledWith({ where: { id: 'g1' }, data: { estado: 'recibida' } });
@@ -184,8 +184,8 @@ describe('POST /api/guias-despacho/[id]/items/[itemId] (resolver faltante)', () 
     buscarGuia(guia('recibida_parcial', [item('i1'), item('i2', 'recibido')]));
     const res = await resolverItem(pedir('POST', { accion: 'llego' }), ctxItem);
     expect(res.status).toBe(200);
-    expect(tx.asset.update).toHaveBeenCalledWith({
-      where: { id: 'activo-i1' },
+    expect(tx.asset.updateMany).toHaveBeenCalledWith({
+      where: { id: 'activo-i1', estado: 'en_transito', deletedAt: null },
       data: { estado: 'disponible', sedeId: 'conce' },
     });
     expect(tx.dispatchGuide.update).toHaveBeenLastCalledWith({ where: { id: 'g1' }, data: { estado: 'recibida' } });
@@ -241,7 +241,10 @@ describe('POST /api/guias-despacho/[id]/anular', () => {
     buscarGuia(guia('en_transito'));
     const res = await anular(pedir('POST', { motivo: 'Se envió a la sede equivocada' }), ctx);
     expect(res.status).toBe(200);
-    expect(tx.asset.update).toHaveBeenCalledWith({ where: { id: 'activo-i1' }, data: { estado: 'disponible' } });
+    expect(tx.asset.updateMany).toHaveBeenCalledWith({
+      where: { id: 'activo-i1', estado: 'en_transito', deletedAt: null },
+      data: { estado: 'disponible' },
+    });
     expect(tx.dispatchGuide.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ estado: 'anulada' }) })
     );
@@ -364,7 +367,7 @@ describe('"Apareció" de un equipo perdido en el despacho', () => {
     const res = await resolverItem(pedir('POST', { accion: 'aparecio' }), ctxItem);
     expect(res.status).toBe(200);
     expect(tx.asset.updateMany).toHaveBeenCalledWith({
-      where: { id: 'activo-i1', estado: 'baja' },
+      where: { id: 'activo-i1', estado: 'baja', deletedAt: null },
       data: { estado: 'disponible', sedeId: 'conce', fechaBaja: null },
     });
     expect(tx.dispatchGuideItem.update).toHaveBeenCalledWith(
@@ -394,7 +397,10 @@ describe('anular un despacho de reparto (SPEC 2.111.5)', () => {
     tx.purchaseKitReparto.findMany.mockResolvedValue([{ purchaseKitItemId: 'l1', cantidad: 4 }]);
     const res = await anular(pedir('POST', { motivo: 'Se repartió a la sede equivocada' }), ctx);
     expect(res.status).toBe(200);
-    expect(tx.asset.update).toHaveBeenCalledWith({ where: { id: 'activo-i1' }, data: { estado: 'por_repartir' } });
+    expect(tx.asset.updateMany).toHaveBeenCalledWith({
+      where: { id: 'activo-i1', estado: 'en_transito', deletedAt: null },
+      data: { estado: 'por_repartir' },
+    });
     expect(tx.purchaseKitItem.update).toHaveBeenCalledWith({
       where: { id: 'l1' },
       data: { cantidadPorRepartir: { increment: 4 } },

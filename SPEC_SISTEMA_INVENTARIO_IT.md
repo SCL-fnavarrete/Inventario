@@ -3935,7 +3935,16 @@ Pedido de Javier: *"el técnico sí pueda interactuar con los equipos de otras s
 - **Importación** (solo admin, 2.116.7): sin reglas de técnico; se retira el error `sede_ajena`.
 - Reemplaza, en lo que restringía por sede: 2.8, 2.24.1, 2.108 (quién ve, recibe y anula una guía), 2.111.6 (solo lectura del técnico) y 2.114 (compras sin personas de otra sede para técnicos).
 
+### 2.118 Monolito modular: solo Activos escribe sus tablas
+El código se organiza por dominio en `src/modules/<modulo>/` y lo transversal en `src/shared/` (etapa 1, sin cambios de comportamiento). Regla de la etapa 2: **solo el módulo Activos escribe en las tablas `assets` y `asset_history`**; los demás módulos llaman a sus funciones:
+- `cambiarEstado(tx, { activo, a, contexto, datos, exigir, historial })` (`modules/activos/servicio.ts`) es el único camino para cambiar el estado de un equipo: valida con la máquina de estados (409 si no corresponde), cambia solo si el equipo sigue como se leyó y cumple `exigir` (si no, 409) y anota el historial. Si el estado no cambia (un "no devuelto" que se vuelve a marcar), solo guarda los datos.
+- El historial se escribe con `assetHistoryService`; el alta desde el Excel con `crearActivoImportado`; las compras usan `fijarFechaCompra` y `moverSedeDeCompra`.
+- Pasan por `cambiarEstado`: iniciar, completar y cancelar mantenciones y dar de baja; entregar, devolver y "no devuelto" (solicitudes); cancelar una asignación; enviar, recibir, anular y "apareció" (despachos); repartir una compra; vender. Entregar, devolver, recibir e iniciar/salir de mantención antes no validaban la transición: ahora sí, y todos quedan protegidos ante cambios simultáneos.
+- Un test (`__tests__/lib/arquitectura/escriturasActivos.test.ts`) falla si algún archivo fuera de `modules/activos` (y sus rutas `/api/activos`) escribe en esas tablas.
+
 ## Changelog SPEC
+- **v2.42 (2026-09-29):**
+  - Sección 2.118 (nueva): arquitectura de monolito modular (`src/modules/` y `src/shared/`); solo Activos escribe sus tablas y todos los cambios de estado pasan por `cambiarEstado`, con validación de la máquina de estados y protección ante cambios simultáneos en todos los flujos.
 - **v2.41 (2026-09-29):**
   - Sección 2.117 (nueva): la sede deja de restringir el acceso; todos trabajan con todas las sedes y la sede queda como dato (dónde está cada cosa y a qué sede pertenece cada usuario). `sedeScope.ts` queda en `filtroSede` y `sedeIdParaCrear`; despachos los recibe y anula cualquier sede; campo Sede abierto en los formularios; navbar libre que parte en la sede del usuario. Reemplaza 2.8 en lo que restringía.
   - Limpieza del repositorio: se retiran archivos que no se usan (plan de la sincronización con Microsoft, informes de auditoría, logo duplicado, configuración personal de editor y de Claude Code, scripts ya aplicados u obsoletos como la prueba de aislamiento por sede y su comando `test:aislamiento`, y el README duplicado de `app/`).
