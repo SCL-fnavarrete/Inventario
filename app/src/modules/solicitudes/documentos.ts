@@ -13,7 +13,7 @@ import {
   devueltasDespues,
   paresDeCambio,
 } from '@/modules/solicitudes/consultasAsignaciones';
-import { ValidationError } from '@/shared/errores';
+import { NotFoundError, ValidationError } from '@/shared/errores';
 import {
   especificacionesActivo,
   type ActivoParaSpecs,
@@ -325,4 +325,34 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
   });
 
   return renderPdf(element);
+}
+
+/** Documentos que se descargan de una solicitud y el nombre de su archivo. */
+const NOMBRES_DOCUMENTO = {
+  'anexo-entrega': 'Anexo_Entrega_Equipos',
+  'comprobante-entrega': 'Comprobante_Entrega',
+  'comprobante-cambio': 'Comprobante_Cambio',
+  'acta-devolucion': 'Acta_Devolucion',
+} as const;
+type TipoDocumento = keyof typeof NOMBRES_DOCUMENTO;
+
+const GENERADORES: Record<TipoDocumento, (solicitudId: string) => Promise<Buffer>> = {
+  'anexo-entrega': generateAnexoEntrega,
+  'comprobante-entrega': generateComprobanteEntrega,
+  'comprobante-cambio': generateComprobanteCambio,
+  'acta-devolucion': generateActaDevolucion,
+};
+
+/** PDF de una solicitud (GET /api/solicitudes/[id]/documento/[tipo]). */
+export async function documentoDeSolicitud(id: string, tipo: string) {
+  if (!Object.hasOwn(NOMBRES_DOCUMENTO, tipo)) {
+    throw new ValidationError(`Tipo de documento inválido. Opciones: ${Object.keys(NOMBRES_DOCUMENTO).join(', ')}`);
+  }
+  const solicitud = await prisma.workflowRequest.findUnique({ where: { id }, select: { numero: true } });
+  if (!solicitud) throw new NotFoundError('Solicitud no encontrada');
+  const clave = tipo as TipoDocumento;
+  return {
+    pdf: await GENERADORES[clave](id),
+    nombreArchivo: `${NOMBRES_DOCUMENTO[clave]}_${solicitud.numero}.pdf`,
+  };
 }

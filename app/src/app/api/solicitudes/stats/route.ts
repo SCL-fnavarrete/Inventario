@@ -1,39 +1,12 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/shared/prisma';
 import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { resumenSolicitudes } from '@/modules/solicitudes/servidor';
 
-// GET /api/solicitudes/stats - Dashboard stats
+// GET /api/solicitudes/stats - Estadisticas de Solicitudes (toda la empresa)
 export async function GET() {
-
   try {
     await requirePermission('solicitudes', 'read');
-
-    // Toda la empresa: la sede no restringe (SPEC 2.117).
-    const sw = {};
-    const [byType, byStatus, total, abiertas] = await Promise.all([
-      prisma.workflowRequest.groupBy({
-        by: ['tipo'],
-        where: sw,
-        _count: { id: true },
-      }),
-      prisma.workflowRequest.groupBy({
-        by: ['estado'],
-        where: sw,
-        _count: { id: true },
-      }),
-      prisma.workflowRequest.count({ where: sw }),
-      prisma.workflowRequest.count({
-        where: { ...sw, fechaCierre: null },
-      }),
-    ]);
-
-    return NextResponse.json({
-      total,
-      abiertas,
-      cerradas: total - abiertas,
-      porTipo: byType.map((t) => ({ tipo: t.tipo, count: t._count.id })),
-      porEstado: byStatus.map((s) => ({ estado: s.estado, count: s._count.id })),
-    });
+    return NextResponse.json(await resumenSolicitudes());
   } catch (error) {
     return handleApiError(error, 'Error al obtener estadísticas');
   }

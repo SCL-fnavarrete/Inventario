@@ -1,48 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/shared/prisma';
 import { createCommentSchema } from '@/modules/solicitudes';
 import { requirePermission, handleApiError, respuestaDatosInvalidos, usuarioDeSesion } from '@/shared/auth/guard';
+import { comentarSolicitud } from '@/modules/solicitudes/servidor';
 import { sinIdsDeUsuario } from '@/shared/utilidades/privacidad';
 
-// POST /api/solicitudes/[id]/comentarios - Add comment
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-
+// POST /api/solicitudes/[id]/comentarios - Agregar un comentario
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requirePermission('solicitudes', 'write');
     const { id } = await params;
-    const body = await request.json();
-
-    const validationResult = createCommentSchema.safeParse(body);
-    if (!validationResult.success) {
-      return respuestaDatosInvalidos(validationResult.error);
-    }
-
-    // Find the system user
-    const systemUser = usuarioDeSesion(session);
-
-    // Verify request exists
-    const existing = await prisma.workflowRequest.findUnique({ where: { id } });
-    if (!existing) {
-      return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
-    }
-
-    const data = validationResult.data;
-    const comment = await prisma.workflowComment.create({
-      data: {
-        requestId: id,
-        autorId: systemUser.id,
-        mensaje: data.mensaje,
-        esInterno: data.esInterno,
-      },
-      include: {
-        autor: { select: { nombre: true, rol: true } },
-      },
-    });
-
-    return NextResponse.json(sinIdsDeUsuario(comment), { status: 201 });
+    const parsed = createCommentSchema.safeParse(await request.json());
+    if (!parsed.success) return respuestaDatosInvalidos(parsed.error);
+    const comentario = await comentarSolicitud(id, parsed.data, usuarioDeSesion(session));
+    return NextResponse.json(sinIdsDeUsuario(comentario), { status: 201 });
   } catch (error) {
     return handleApiError(error, 'Error al agregar comentario');
   }

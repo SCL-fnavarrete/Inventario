@@ -1,86 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/shared/prisma';
-import {
-  generateAnexoEntrega,
-  generateComprobanteEntrega,
-  generateComprobanteCambio,
-  generateActaDevolucion,
-} from '@/modules/solicitudes/documentos';
+import { documentoDeSolicitud } from '@/modules/solicitudes/documentos';
 import { requirePermission, handleApiError } from '@/shared/auth/guard';
 import { exigirCupo } from "@/shared/utilidades/limiteUso";
 
 // Operacion pesada: hasta 60 s (Vercel corta antes por defecto).
 export const maxDuration = 60;
 
-const VALID_TIPOS = [
-  'anexo-entrega',
-  'comprobante-entrega',
-  'comprobante-cambio',
-  'acta-devolucion',
-] as const;
-
-type DocTipo = (typeof VALID_TIPOS)[number];
-
-const docNames: Record<DocTipo, string> = {
-  'anexo-entrega': 'Anexo_Entrega_Equipos',
-  'comprobante-entrega': 'Comprobante_Entrega',
-  'comprobante-cambio': 'Comprobante_Cambio',
-  'acta-devolucion': 'Acta_Devolucion',
-};
-
-// GET /api/solicitudes/[id]/documento/[tipo] - Generate and download PDF
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string; tipo: string }> }
-) {
-
+// GET /api/solicitudes/[id]/documento/[tipo] - Generar y descargar el PDF
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string; tipo: string }> }) {
   try {
     const session = await requirePermission('solicitudes', 'read');
     exigirCupo(session.user.id, "documento");
     const { id, tipo } = await params;
-
-    if (!VALID_TIPOS.includes(tipo as DocTipo)) {
-      return NextResponse.json(
-        { error: `Tipo de documento inválido. Opciones: ${VALID_TIPOS.join(', ')}` },
-        { status: 400 }
-      );
-    }
-
-    // Verify request exists
-    const solicitud = await prisma.workflowRequest.findUnique({
-      where: { id },
-      select: { id: true, numero: true, tipo: true, estado: true, sedeId: true },
-    });
-
-    if (!solicitud) {
-      return NextResponse.json({ error: 'Solicitud no encontrada' }, { status: 404 });
-    }
-
-    let pdfBuffer: Buffer;
-
-    switch (tipo as DocTipo) {
-      case 'anexo-entrega':
-        pdfBuffer = await generateAnexoEntrega(id);
-        break;
-      case 'comprobante-entrega':
-        pdfBuffer = await generateComprobanteEntrega(id);
-        break;
-      case 'comprobante-cambio':
-        pdfBuffer = await generateComprobanteCambio(id);
-        break;
-      case 'acta-devolucion':
-        pdfBuffer = await generateActaDevolucion(id);
-        break;
-      default:
-        return NextResponse.json({ error: 'Tipo no soportado' }, { status: 400 });
-    }
-
-    const fileName = `${docNames[tipo as DocTipo]}_${solicitud.numero}.pdf`;
-
-    return new NextResponse(new Uint8Array(pdfBuffer), {
+    const { pdf, nombreArchivo } = await documentoDeSolicitud(id, tipo);
+    return new NextResponse(new Uint8Array(pdf), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Content-Disposition': `attachment; filename="${nombreArchivo}"`,
       },
     });
   } catch (error) {

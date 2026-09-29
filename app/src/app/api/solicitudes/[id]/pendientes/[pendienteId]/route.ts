@@ -1,49 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/shared/prisma';
 import { updatePendienteSchema } from '@/modules/solicitudes';
 import { requirePermission, handleApiError, usuarioDeSesion } from '@/shared/auth/guard';
+import { actualizarPendiente } from '@/modules/solicitudes/servidor';
 
-// PATCH /api/solicitudes/[id]/pendientes/[pendienteId] - Update pendiente status
+// PATCH /api/solicitudes/[id]/pendientes/[pendienteId] - Actualizar un pendiente
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; pendienteId: string }> }
 ) {
-
   try {
     const session = await requirePermission('solicitudes', 'write');
     const { id, pendienteId } = await params;
-    const body = await request.json();
-
-    const validationResult = updatePendienteSchema.safeParse(body);
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Datos inválidos', details: validationResult.error.issues },
-        { status: 400 }
-      );
+    const parsed = updatePendienteSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Datos inválidos', details: parsed.error.issues }, { status: 400 });
     }
-
-    // Verify the pendiente belongs to the request
-    const pendiente = await prisma.workflowPendiente.findFirst({
-      where: { id: pendienteId, requestId: id },
-      include: { request: { select: { sedeId: true } } },
-    });
-    if (!pendiente) {
-      return NextResponse.json({ error: 'Pendiente no encontrado' }, { status: 404 });
-    }
-
-    const systemUser = usuarioDeSesion(session);
-
-    const data = validationResult.data;
-    const updated = await prisma.workflowPendiente.update({
-      where: { id: pendienteId },
-      data: {
-        estado: data.estado,
-        descripcion: data.descripcion !== undefined ? data.descripcion : undefined,
-        actualizadoPor: systemUser?.nombre || session.user?.name || 'Sistema',
-      },
-    });
-
-    return NextResponse.json(updated);
+    const quien = usuarioDeSesion(session)?.nombre || session.user?.name || 'Sistema';
+    return NextResponse.json(await actualizarPendiente(id, pendienteId, parsed.data, quien));
   } catch (error) {
     return handleApiError(error, 'Error al actualizar pendiente');
   }

@@ -45,3 +45,6 @@ export const marcarKitItemNoAplicaSchema = z.object({
   motivo: z.string().trim().min(1, 'Indica el motivo').max(500),
 });
 
+
+export type EntregarKitItemsInput = z.infer<typeof entregarKitItemsSchema>;
+export type MarcarKitItemNoAplicaInput = z.infer<typeof marcarKitItemNoAplicaSchema>;

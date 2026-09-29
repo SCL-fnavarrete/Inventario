@@ -5,3 +5,5 @@ export * from '@/modules/solicitudes/consultasAsignaciones';
 export * from '@/modules/solicitudes/crear';
 export * from '@/modules/solicitudes/ejecucion';
 export * from '@/modules/solicitudes/transicion';
+export * from '@/modules/solicitudes/lecturas';
+export * from '@/modules/solicitudes/servicioSolicitudes';
