@@ -59,3 +59,6 @@ export const editarUsuarioSchema = z.object({
   sedeId: sedeId.optional(),
   activo: z.boolean({ error: 'Valor inválido' }).optional(),
 });
+
+export type CrearUsuarioInput = z.infer<typeof crearUsuarioSchema>;
+export type EditarUsuarioInput = z.infer<typeof editarUsuarioSchema>;

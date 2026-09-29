@@ -1,61 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/shared/prisma";
-import { requirePermission, handleApiError, errorRepetido } from '@/shared/auth/guard';
-import { auditLogService } from '@/shared/auditoria';
-import { crearSedeSchema, USO_SEDE } from '@/modules/configuracion';
-import { exigirNombreSedeLibre } from '@/shared/sedes/consultas';
-
-/**
- * CRUD de sedes. Solo admin puede escribir: son datos maestros.
- */
+import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { crearSedeSchema } from '@/modules/configuracion';
+import { crearSede, listarSedes } from '@/modules/configuracion/servidor';
 
 // GET /api/sedes - Listar sedes. Con ?conUso=true (Configuracion > Sedes)
-// trae cuantos tecnicos activos y equipos tiene cada una, para avisar antes
-// de desactivarla (SPEC 2.112.6).
+// trae cuantos tecnicos activos y equipos tiene cada una (SPEC 2.112.6).
 export async function GET(request: NextRequest) {
   try {
     await requirePermission('sedes', 'read');
     const searchParams = request.nextUrl.searchParams;
-    const soloActivas = searchParams.get('activas') === 'true';
-    const conUso = searchParams.get('conUso') === 'true';
-
-    const sedes = await prisma.sede.findMany({
-      where: soloActivas ? { activa: true } : undefined,
-      orderBy: { nombre: 'asc' },
-      ...(conUso && { include: USO_SEDE }),
+    const sedes = await listarSedes({
+      soloActivas: searchParams.get('activas') === 'true',
+      conUso: searchParams.get('conUso') === 'true',
     });
-
     return NextResponse.json(sedes);
   } catch (error) {
     return handleApiError(error, "Error al obtener sedes");
   }
 }
 
-// POST /api/sedes - Crear nueva sede
+// POST /api/sedes - Crear una sede (solo admin: son datos maestros)
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('sedes', 'write');
-    const { codigo, nombre, activa } = crearSedeSchema.parse(await request.json());
-
-    const existente = await prisma.sede.findUnique({ where: { codigo } });
-    if (existente) {
-      throw errorRepetido('codigo', 'Ya existe una sede con ese código');
-    }
-    await exigirNombreSedeLibre(nombre);
-
-    const sede = await prisma.sede.create({
-      data: { codigo, nombre, activa: activa ?? true },
-    });
-
-    // Registro de auditoria.
-    await auditLogService.registrarCreacion(
-      'sede',
-      sede.id,
-      `Sede creada: ${sede.nombre} (${sede.codigo})`,
-      { codigo: sede.codigo, nombre: sede.nombre, activa: sede.activa },
-      session.user?.email
-    );
-
+    const sede = await crearSede(crearSedeSchema.parse(await request.json()), session.user?.email);
     return NextResponse.json(sede, { status: 201 });
   } catch (error) {
     return handleApiError(error, 'Error al crear sede');

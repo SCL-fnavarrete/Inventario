@@ -27,3 +27,6 @@ export const editarSedeSchema = z.object({
   nombre: nombre.optional(),
   activa: z.boolean({ error: 'Valor inválido' }).optional(),
 });
+
+export type CrearSedeInput = z.infer<typeof crearSedeSchema>;
+export type EditarSedeInput = z.infer<typeof editarSedeSchema>;

@@ -1,5 +1,5 @@
 import { prisma } from '@/shared/prisma';
-import { errorDeCampo, errorRepetido } from '@/shared/errores';
+import { errorDeCampo } from '@/shared/errores';
 
 /**
  * Reglas de sedes compartidas por Configuracion > Sedes y > Usuarios
@@ -17,13 +17,4 @@ export async function exigirSedeActiva(sedeId: string) {
   const sede = await prisma.sede.findUnique({ where: { id: sedeId }, select: { activa: true } });
   if (!sede) throw errorDeCampo('sedeId', 'La sede elegida no existe');
   if (!sede.activa) throw errorDeCampo('sedeId', 'La sede elegida está desactivada');
-}
-
-/** Dos sedes no pueden llamarse igual (sin importar mayusculas). */
-export async function exigirNombreSedeLibre(nombre: string, exceptoId?: string) {
-  const repetida = await prisma.sede.findFirst({
-    where: { nombre: { equals: nombre, mode: 'insensitive' }, ...(exceptoId && { NOT: { id: exceptoId } }) },
-    select: { id: true },
-  });
-  if (repetida) throw errorRepetido('nombre', 'Ya existe una sede con ese nombre');
 }
