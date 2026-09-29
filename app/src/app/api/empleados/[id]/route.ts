@@ -1,83 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/shared/prisma";
 import { updateEmployeeSchema } from "@/modules/personas";
 import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
-import { editarEmpleado } from '@/modules/personas/servidor';
+import { detalleEmpleado, editarEmpleado } from '@/modules/personas/servidor';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// GET /api/empleados/[id] - Obtener empleado por ID o RUT
+// GET /api/empleados/[id] - Persona por id o RUT
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     await requirePermission('empleados', 'read');
     const { id } = await params;
-
-    // Intentar buscar por UUID primero, luego por RUT
-    let employee = await prisma.employee.findUnique({
-      where: { id },
-      include: {
-        assignments: {
-          include: {
-            asset: {
-              include: {
-                categoria: true,
-              },
-            },
-          },
-          orderBy: { fechaEntrega: "desc" },
-        },
-        kitAssignments: {
-          include: {
-            item: true,
-          },
-        },
-        activosActuales: {
-          include: {
-            categoria: true,
-          },
-        },
-      },
-    });
-
-    // Si no se encuentra por UUID, intentar buscar por RUT
-    if (!employee) {
-      employee = await prisma.employee.findUnique({
-        where: { rut: id },
-        include: {
-          assignments: {
-            include: {
-              asset: {
-                include: {
-                  categoria: true,
-                },
-              },
-            },
-            orderBy: { fechaEntrega: "desc" },
-          },
-          kitAssignments: {
-            include: {
-              item: true,
-            },
-          },
-          activosActuales: {
-            include: {
-              categoria: true,
-            },
-          },
-        },
-      });
-    }
-
-    if (!employee) {
-      return NextResponse.json(
-        { error: "Empleado no encontrado" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(employee);
+    return NextResponse.json(await detalleEmpleado(id));
   } catch (error) {
     return handleApiError(error, 'Error al obtener empleado');
   }
