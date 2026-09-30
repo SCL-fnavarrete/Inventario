@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assetVentaSchema } from '@/modules/activos';
 import { venderActivo } from '@/modules/activos/servidor';
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, quienHace } from '@/shared/auth/guard';
 
 // Venta de un equipo dado de baja.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -10,7 +10,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id } = await params;
     const parsed = assetVentaSchema.safeParse(await request.json());
     if (!parsed.success) return respuestaDatosInvalidos(parsed.error);
-    return NextResponse.json(await venderActivo(id, parsed.data, session.user?.email || 'sistema'));
+    return NextResponse.json(await venderActivo(id, parsed.data, quienHace(session)));
   } catch (error) {
     return handleApiError(error, 'Error al registrar la venta');
   }

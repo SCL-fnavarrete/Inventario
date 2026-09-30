@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, quienHace } from '@/shared/auth/guard';
 import { buscarGuia, confirmarRecepcion } from '@/modules/despachos/servidor';
 
 interface RouteParams {
@@ -23,7 +23,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const session = await requirePermission('guias', 'write');
     const { id } = await params;
     const guia = await confirmarRecepcion(id, await request.json(), {
-      email: session.user?.email,
+      usuario: quienHace(session),
       nombre: session.user?.name,
     });
     return NextResponse.json(guia);

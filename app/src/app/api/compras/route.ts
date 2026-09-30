@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPurchaseWithAssetsSchema, purchaseFiltersSchema } from "@/modules/compras";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, quienHace } from '@/shared/auth/guard';
 import { listarCompras, registrarCompra } from '@/modules/compras/servidor';
 
 // GET /api/compras - Listar compras/facturas con filtros y paginación
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const session = await requirePermission('compras', 'write');
     const parsed = createPurchaseWithAssetsSchema.safeParse(await request.json());
     if (!parsed.success) return respuestaDatosInvalidos(parsed.error);
-    const compra = await registrarCompra(parsed.data, session.user?.email || 'sistema');
+    const compra = await registrarCompra(parsed.data, quienHace(session));
     return NextResponse.json(compra, { status: 201 });
   } catch (error) {
     return handleApiError(error, 'Error al crear compra');

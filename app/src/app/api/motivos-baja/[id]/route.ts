@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from "@/shared/auth/guard";
+import { requirePermission, handleApiError, quienHace } from "@/shared/auth/guard";
 import { opcionCatalogoSchema } from "@/modules/activos";
 import { eliminarMotivoBaja, renombrarMotivoBaja } from "@/modules/mantenciones/servidor";
 
@@ -11,7 +11,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const session = await requirePermission("motivosBaja", "write");
     const { id } = await params;
     const { nombre } = opcionCatalogoSchema.parse(await request.json());
-    return NextResponse.json(await renombrarMotivoBaja(id, nombre, session.user?.email));
+    return NextResponse.json(await renombrarMotivoBaja(id, nombre, quienHace(session)));
   } catch (error) {
     return handleApiError(error, "Error al actualizar motivo de baja");
   }
@@ -22,7 +22,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   try {
     const session = await requirePermission("motivosBaja", "delete");
     const { id } = await params;
-    return NextResponse.json(await eliminarMotivoBaja(id, session.user?.email));
+    return NextResponse.json(await eliminarMotivoBaja(id, quienHace(session)));
   } catch (error) {
     return handleApiError(error, "Error al eliminar motivo de baja");
   }

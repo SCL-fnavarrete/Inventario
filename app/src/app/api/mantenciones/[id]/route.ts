@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateMaintenanceSchema } from '@/modules/mantenciones';
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, quienHace } from '@/shared/auth/guard';
 import {
   cancelarMantencion,
   detalleMantencion,
@@ -33,7 +33,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const parsed = updateMaintenanceSchema.safeParse(await request.json());
     if (!parsed.success) return respuestaDatosInvalidos(parsed.error);
     const data = parsed.data;
-    const usuario = session.user?.email || 'Sistema';
+    const usuario = quienHace(session);
 
     const result =
       data.estado === 'en_proceso'
@@ -52,7 +52,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('mantenciones', 'delete');
     const { id } = await params;
-    await eliminarMantencion(id, session.user?.email || 'Sistema');
+    await eliminarMantencion(id, quienHace(session));
     return NextResponse.json({ success: true });
   } catch (error) {
     return handleApiError(error, 'Error al eliminar mantención');

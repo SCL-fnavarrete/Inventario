@@ -23,7 +23,7 @@ import {
   type AssetHistoryData,
 } from "@/modules/activos/servidor";
 import { Prisma } from "@prisma/client";
-import type { SesionAutenticada } from "@/shared/auth/guard";
+import { quienHace, type SesionAutenticada } from "@/shared/auth/guard";
 import type { ValidationErrorType } from "@/modules/importacion/tipos";
 import type { prisma as prismaSingleton } from "@/shared/prisma";
 
@@ -478,7 +478,7 @@ export async function procesarFila(
       logger.log(`Empleado creado: ${datosEmpleadoNuevo.nombres} ${datosEmpleadoNuevo.apellidoPaterno}`);
     }
 
-    const usuarioImportacion = ctx.session.user?.email || "sistema";
+    const usuarioImportacion = quienHace(ctx.session);
     const asset = await crearActivoImportado(
       tx,
       {

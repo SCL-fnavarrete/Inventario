@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, quienHace } from '@/shared/auth/guard';
 import { categoriaSchema } from '@/modules/activos';
 import { crearCategoria, listarCategorias } from '@/modules/activos/servidor';
 
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('categorias', 'write');
-    const categoria = await crearCategoria(categoriaSchema.parse(await request.json()), session.user?.email);
+    const categoria = await crearCategoria(categoriaSchema.parse(await request.json()), quienHace(session));
     return NextResponse.json(categoria, { status: 201 });
   } catch (error) {
     return handleApiError(error, 'Error al crear categoría');

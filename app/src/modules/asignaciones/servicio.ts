@@ -84,7 +84,7 @@ export async function detalleAsignacion(id: string) {
 }
 
 /** Entregar un equipo a una persona (POST /api/asignaciones). */
-export async function asignarEquipo(data: CreateAssignmentInput) {
+export async function asignarEquipo(data: CreateAssignmentInput, quien: string) {
   const [equipo, persona] = await Promise.all([
     prisma.asset.findUnique({ where: { id: data.assetId }, select: { sedeId: true } }),
     prisma.employee.findUnique({ where: { id: data.employeeId }, select: { sedeId: true } }),
@@ -99,6 +99,7 @@ export async function asignarEquipo(data: CreateAssignmentInput) {
       fechaEntrega: data.fechaEntrega,
       lugarEntrega: data.lugarEntrega,
       entregadoPor: data.entregadoPor,
+      usuarioSistema: quien,
       tipoMovimiento: data.tipoMovimiento,
       motivo: data.motivo,
       nombreEquipo: data.nombreEquipo,
@@ -119,7 +120,7 @@ async function asignacionActiva(id: string, yaDevuelta: string) {
  * anterior a la entrega (salvo que la entrega no tenga fecha, de un import
  * historico).
  */
-export async function registrarDevolucion(id: string, data: ReturnAssignmentInput) {
+export async function registrarDevolucion(id: string, data: ReturnAssignmentInput, quien: string) {
   const asignacion = await asignacionActiva(id, 'Esta asignación ya fue devuelta');
   if (asignacion.fechaEntrega && data.fechaDevolucion < asignacion.fechaEntrega) {
     throw new ValidationError(
@@ -131,6 +132,7 @@ export async function registrarDevolucion(id: string, data: ReturnAssignmentInpu
       assignmentId: id,
       fechaDevolucion: data.fechaDevolucion,
       recibidoPor: data.recibidoPor,
+      usuarioSistema: quien,
       estadoDevolucion: data.estadoDevolucion,
       observacionesDevolucion: data.observacionesDevolucion,
     })
@@ -138,7 +140,7 @@ export async function registrarDevolucion(id: string, data: ReturnAssignmentInpu
 }
 
 /** Cancelar una asignacion que no se ha devuelto: se borra y el equipo vuelve a disponible. */
-export async function cancelarAsignacion(id: string) {
+export async function cancelarAsignacion(id: string, quien: string) {
   const asignacion = await asignacionActiva(id, 'No se puede cancelar una asignación ya devuelta');
   await prisma.$transaction(async (tx) => {
     await tx.assignment.delete({ where: { id } });
@@ -152,7 +154,7 @@ export async function cancelarAsignacion(id: string) {
         descripcion: `Asignación cancelada. Equipo devuelto a disponible.`,
         datosAnteriores: { estado: asignacion.asset.estado, empleadoActualId: asignacion.employeeId },
         datosNuevos: { estado: 'disponible', empleadoActualId: null },
-        usuarioSistema: 'Sistema',
+        usuarioSistema: quien,
       },
     });
   });

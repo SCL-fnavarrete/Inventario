@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "@/shared/prisma";
 import { anotarIngreso } from "@/shared/auth/cuentas";
+import { normalizarUsuario } from "@/shared/auth/usuario";
 import {
   actualizarAcceso,
   datosCliente,
@@ -24,9 +25,9 @@ const DEFAULT_MAX_INTENTOS_IP = 20;
 const DEFAULT_LOCKOUT_IP_MINUTOS = 15;
 
 // Contrasena cifrada de relleno (no corresponde a ninguna cuenta). Cuando el
-// correo no existe se compara igual contra ella, para que la respuesta tarde
+// usuario no existe se compara igual contra ella, para que la respuesta tarde
 // lo mismo que con una contrasena incorrecta y no se pueda adivinar que
-// correos existen midiendo el tiempo (SPEC 2.112.6).
+// usuarios existen midiendo el tiempo (SPEC 2.112.6).
 const HASH_RELLENO = "$2b$12$A1ssCqH/xtvgwitFuqmyWeE/6jkGpeTwRUFEzxU.a.n4RLRVH3F4.";
 
 // Tope del JWT. La duracion real la controla `expiraEn` (ver jwt()), que se
@@ -80,15 +81,16 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "email" },
+        usuario: { label: "Usuario", type: "text" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials, req) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Email y contraseña son requeridos");
+        if (!credentials?.usuario || !credentials?.password) {
+          throw new Error("Usuario y contraseña son requeridos");
         }
 
-        const email = credentials.email.toLowerCase().trim();
+        // Se inicia sesion con el usuario, no con el correo (SPEC 2.122).
+        const usuario = normalizarUsuario(credentials.usuario);
         const cliente = datosCliente(req?.headers);
         const { maxIntentos, minutosBloqueo, horasSesion, maxIntentosIp, minutosBloqueoIp } =
           await getConfigSeguridad();
@@ -98,37 +100,37 @@ export const authOptions: NextAuthOptions = {
         // los intentos simultaneos se cuentan entre si: antes, 50 intentos a
         // la vez pasaban todos la revision de bloqueo mientras bcrypt
         // comparaba, porque ninguno se habia anotado todavia.
-        const intentoId = await registrarAcceso({ email, resultado: "clave_incorrecta", ...cliente });
-        const cerrarIntento = (d: Omit<DatosAcceso, "email" | "ip" | "navegador">) =>
-          actualizarAcceso(intentoId, { email, ...cliente, ...d });
+        const intentoId = await registrarAcceso({ usuarioIngresado: usuario, resultado: "clave_incorrecta", ...cliente });
+        const cerrarIntento = (d: Omit<DatosAcceso, "usuarioIngresado" | "ip" | "navegador">) =>
+          actualizarAcceso(intentoId, { usuarioIngresado: usuario, ...cliente, ...d });
         // El propio intento ya esta en el registro: no debe adelantar el bloqueo.
         const enCurso = intentoId ? 1 : 0;
 
         // Bloqueo por intentos fallidos, contados en el registro de accesos
         // (SPEC 2.112): funciona aunque el servidor corra en varias copias.
-        // Por correo desde este equipo, por correo desde cualquier lugar (con
+        // Por usuario desde este equipo, por usuario desde cualquier lugar (con
         // un tope mas alto) y por equipo (SPEC 2.112.6 y 2.114).
-        const bloqueoCorreo = await minutosDeBloqueo(email, cliente.ip, maxIntentos, minutosBloqueo, enCurso);
+        const bloqueoUsuario = await minutosDeBloqueo(usuario, cliente.ip, maxIntentos, minutosBloqueo, enCurso);
         const bloqueoEquipo = await minutosDeBloqueoEquipo(cliente.ip, maxIntentosIp, minutosBloqueoIp, enCurso);
-        const bloqueo = Math.max(bloqueoCorreo.minutos, bloqueoEquipo);
+        const bloqueo = Math.max(bloqueoUsuario.minutos, bloqueoEquipo);
         if (bloqueo > 0) {
           await cerrarIntento({
             resultado: "bloqueado",
             detalle:
-              bloqueoEquipo >= bloqueoCorreo.minutos
+              bloqueoEquipo >= bloqueoUsuario.minutos
                 ? "Demasiados intentos desde este equipo"
-                : bloqueoCorreo.motivo === "global"
+                : bloqueoUsuario.motivo === "global"
                   ? "Demasiados intentos contra esta cuenta desde distintos equipos"
                   : null,
           });
           throw new Error(`Demasiados intentos. Intente en ${bloqueo} minuto${bloqueo === 1 ? "" : "s"}`);
         }
 
-        // Mismo mensaje para "el correo no existe", "la cuenta esta
+        // Mismo mensaje para "el usuario no existe", "la cuenta esta
         // desactivada" y "la contrasena no coincide", para no permitir
-        // enumerar cuentas reales probando correos uno por uno. El detalle
+        // enumerar cuentas reales probando usuarios uno por uno. El detalle
         // real queda en el registro de accesos.
-        const CREDENCIALES_INVALIDAS = "Correo o contraseña incorrectos";
+        const CREDENCIALES_INVALIDAS = "Usuario o contraseña incorrectos";
 
         // Ninguna clave valida pasa de 200 caracteres (ver validarPasswordFuerte);
         // una mas larga solo sirve para gastar CPU en bcrypt. Cuenta como fallo.
@@ -138,7 +140,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         const user = await prisma.systemUser.findUnique({
-          where: { email },
+          where: { usuario },
           include: { sede: { select: { activa: true } } },
         });
         // Siempre se compara una contrasena, exista o no la cuenta: asi todas
@@ -176,7 +178,7 @@ export const authOptions: NextAuthOptions = {
 
         return {
           id: user.id,
-          email: user.email,
+          usuario: user.usuario,
           name: user.nombre,
           role: user.rol,
           sedeId: user.sedeId,
@@ -191,6 +193,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        token.usuario = user.usuario;
         token.sedeId = (user as { sedeId?: string | null }).sedeId ?? null;
         token.expiraEn = (user as { expiraEn?: number }).expiraEn;
         token.sesionId = (user as { sesionId?: string }).sesionId;
@@ -227,6 +230,7 @@ export const authOptions: NextAuthOptions = {
           rol: true,
           sedeId: true,
           nombre: true,
+          usuario: true,
           sesionesDesde: true,
           sesionesCerradas: { where: { id: token.sesionId }, select: { id: true } },
           sede: { select: { activa: true } },
@@ -248,12 +252,14 @@ export const authOptions: NextAuthOptions = {
       token.role = actual.rol;
       token.sedeId = actual.sedeId;
       token.name = actual.nombre;
+      token.usuario = actual.usuario;
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
+        session.user.usuario = token.usuario;
         session.user.sedeId = (token.sedeId as string | null) ?? null;
         if (token.name) session.user.name = token.name;
       }

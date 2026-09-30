@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { nombreConUsuario } from '@/shared/auth/usuario';
 import { Loader2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/shared/cn';
 import { CategoryIcon, SelectCondicionCargador } from '@/modules/activos/componentes';
@@ -986,7 +987,7 @@ export default function NuevaSolicitudPage() {
               type="text"
               value={
                 session?.user?.name
-                  ? `${session.user.name}${session.user.email ? ` (${session.user.email})` : ''}`
+                  ? nombreConUsuario(session.user.name, session.user.usuario)
                   : 'Cargando...'
               }
               disabled
@@ -1276,7 +1277,7 @@ export default function NuevaSolicitudPage() {
               type="text"
               value={
                 session?.user?.name
-                  ? `${session.user.name}${session.user.email ? ` (${session.user.email})` : ''}`
+                  ? nombreConUsuario(session.user.name, session.user.usuario)
                   : 'Cargando...'
               }
               disabled

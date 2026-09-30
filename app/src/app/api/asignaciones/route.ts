@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAssignmentSchema, assignmentFiltersSchema } from "@/modules/asignaciones";
 import { asignarEquipo, listarAsignaciones } from "@/modules/asignaciones/servidor";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, quienHace } from '@/shared/auth/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 // POST /api/asignaciones - Crear nueva asignacion
 export async function POST(request: NextRequest) {
   try {
-    await requirePermission('asignaciones', 'write');
+    const session = await requirePermission('asignaciones', 'write');
 
     const body = await request.json();
 
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       return respuestaDatosInvalidos(validationResult.error);
     }
 
-    return NextResponse.json(await asignarEquipo(validationResult.data), { status: 201 });
+    return NextResponse.json(await asignarEquipo(validationResult.data, quienHace(session)), { status: 201 });
   } catch (error) {
     return handleApiError(error, 'Error al crear asignación');
   }

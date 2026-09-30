@@ -1,6 +1,7 @@
 import { PrismaClient, SystemRole } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { validarPasswordFuerte } from "../src/modules/configuracion/clave";
+import { FORMATO_USUARIO, normalizarUsuario, USUARIO_MAX, USUARIO_MIN } from "../src/shared/auth/usuario";
 
 const prisma = new PrismaClient();
 
@@ -25,11 +26,15 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("Iniciando seed de datos...");
 
-  // 1. Crear usuario administrador. Correo y clave salen de variables de
-  // entorno: antes la clave era "admin123" fija y publicada en el README
-  // (auditoria 27-sep-2026, F1-02). La clave debe cumplir la misma politica
-  // que Configuracion > Usuarios.
-  const email = (process.env.SEED_ADMIN_EMAIL || "admin@sclconsultores.com").toLowerCase().trim();
+  // 1. Crear usuario administrador. Usuario, correo (opcional) y clave salen
+  // de variables de entorno: antes la clave era "admin123" fija y publicada
+  // en el README (auditoria 27-sep-2026, F1-02). Usuario y clave siguen las
+  // mismas reglas que Configuracion > Usuarios (SPEC 2.122).
+  const usuario = normalizarUsuario(process.env.SEED_ADMIN_USUARIO || "admin");
+  if (usuario.length < USUARIO_MIN || usuario.length > USUARIO_MAX || !FORMATO_USUARIO.test(usuario)) {
+    throw new Error("Seed: SEED_ADMIN_USUARIO debe tener de 3 a 30 minúsculas, números, punto, guion o guion bajo.");
+  }
+  const email = process.env.SEED_ADMIN_EMAIL?.toLowerCase().trim() || null;
   const clave = process.env.SEED_ADMIN_PASSWORD;
   const errorClave = clave ? validarPasswordFuerte(clave) : "Falta la variable SEED_ADMIN_PASSWORD";
   if (errorClave) {
@@ -39,9 +44,10 @@ async function main() {
 
   // update: {} -- si el admin ya existe no se le cambia la clave.
   const adminUser = await prisma.systemUser.upsert({
-    where: { email },
+    where: { usuario },
     update: {},
     create: {
+      usuario,
       email,
       passwordHash: hashedPassword,
       nombre: "Administrador Sistema",
@@ -49,7 +55,7 @@ async function main() {
       activo: true,
     },
   });
-  console.log("Usuario admin listo:", adminUser.email);
+  console.log("Usuario admin listo:", adminUser.usuario);
 
   // 2. Crear categorías de activos
   // tipoFicha decide los campos especiales del formulario (SPEC 2.112.7).

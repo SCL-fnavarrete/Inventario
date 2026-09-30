@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, quienHace } from '@/shared/auth/guard';
 import { crearUsuarioSchema } from '@/modules/configuracion';
 import { crearUsuario, listarUsuarios } from '@/modules/configuracion/servidor';
 
@@ -15,7 +15,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('usuarios', 'write');
-    const user = await crearUsuario(crearUsuarioSchema.parse(await request.json()), session.user?.email);
+    const user = await crearUsuario(crearUsuarioSchema.parse(await request.json()), quienHace(session));
     return NextResponse.json(user, { status: 201 });
   } catch (error) {
     return handleApiError(error, 'Error al crear usuario');

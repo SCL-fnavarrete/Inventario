@@ -90,19 +90,19 @@ describe('una sola consulta con páginas exactas', () => {
       .mockResolvedValueOnce([
         {
           fuente: 'workflow_transition', id: 't1', modulo: 'solicitud', entidad_id: 'r1', accion: 'gestion_ti>equipos_entregados',
-          descripcion: 'Cambio de estado', usuario_email: 'a@x.cl', usuario_nombre: 'Ana', datos_anteriores: null,
+          descripcion: 'Cambio de estado', usuario_registrado: 'ana', usuario_nombre: 'Ana', usuario_cuenta: 'ana', datos_anteriores: null,
           datos_nuevos: null, created_at: new Date(), contexto: 'SOL-0001',
         },
         {
           fuente: 'auditlog', id: 'a1', modulo: 'compra', entidad_id: 'c1', accion: 'eliminar', descripcion: 'Compra eliminada',
-          usuario_email: 'a@x.cl', usuario_nombre: null, datos_anteriores: { numeroFactura: '12' }, datos_nuevos: null,
+          usuario_registrado: 'a@x.cl', usuario_nombre: null, usuario_cuenta: null, datos_anteriores: { numeroFactura: '12' }, datos_nuevos: null,
           created_at: new Date(), contexto: null,
         },
       ])
       .mockResolvedValueOnce([{ total: 2 }]);
     const { data } = await consultarAuditoria({ page: 1, limit: 20 });
-    expect(data[0]).toMatchObject({ accion: 'Gestión TI → Equipos Entregados', usuario: 'Ana', enlace: '/solicitudes/r1' });
-    // Un registro eliminado no tiene a donde enlazar.
+    expect(data[0]).toMatchObject({ accion: 'Gestión TI → Equipos Entregados', usuario: 'Ana (ana)', enlace: '/solicitudes/r1' });
+    // Un registro eliminado no tiene a donde enlazar; sin cuenta se muestra lo anotado.
     expect(data[1]).toMatchObject({ accion: 'Eliminó', usuario: 'a@x.cl', enlace: null });
   });
 

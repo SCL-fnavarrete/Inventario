@@ -35,7 +35,7 @@ function esChoqueDeNumero(error: unknown): boolean {
 export async function crearSolicitud(
   data: CreateWorkflowRequestInput,
   sedeIdPedido: string | undefined,
-  systemUser: { id: string; nombre: string }
+  systemUser: { id: string; nombre: string; usuario: string }
 ) {
   // El ticket se crea y se cierra en el mismo formulario (SPEC 2.82): sin
   // los datos completos no se crea, en vez de quedar en una etapa intermedia.
@@ -250,6 +250,7 @@ export async function crearSolicitud(
             fechaEntrega: new Date(),
             lugarEntrega: null,
             entregadoPor: systemUser.nombre,
+            usuarioSistema: systemUser.usuario,
             tipoMovimiento: 'ingreso',
             motivo: `Onboarding - ${numero}`,
             condicionCargadorEntrega: cargador?.condicion || null,
@@ -341,6 +342,7 @@ export async function crearSolicitud(
             assignmentId: dev.assignmentId,
             fechaDevolucion: new Date(),
             recibidoPor: systemUser.nombre,
+            usuarioSistema: systemUser.usuario,
             estadoDevolucion: dev.estadoDevolucion,
             observacionesDevolucion: dev.observaciones || null,
             condicionCargadorDevolucion: dev.condicionCargador || null,
@@ -408,6 +410,7 @@ export async function crearSolicitud(
             assignmentId: cambio.oldAssignmentId,
             fechaDevolucion: new Date(),
             recibidoPor: systemUser.nombre,
+            usuarioSistema: systemUser.usuario,
             estadoDevolucion: cambio.estadoDevolucion,
             observacionesDevolucion: cambio.observacionesDevolucion || null,
             condicionCargadorDevolucion: cambio.condicionCargadorAnterior || null,
@@ -422,6 +425,7 @@ export async function crearSolicitud(
             fechaEntrega: new Date(),
             lugarEntrega: null,
             entregadoPor: systemUser.nombre,
+            usuarioSistema: systemUser.usuario,
             tipoMovimiento: 'cambio',
             motivo: `Cambio de equipo - ${numero}`,
             condicionCargadorEntrega: cambio.condicionCargadorNuevo || null,

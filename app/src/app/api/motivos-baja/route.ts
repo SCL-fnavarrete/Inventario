@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from "@/shared/auth/guard";
+import { requirePermission, handleApiError, quienHace } from "@/shared/auth/guard";
 import { filtroSede } from "@/shared/sedes/filtro";
 import { opcionCatalogoSchema } from "@/modules/activos";
 import { crearMotivoBaja, listarMotivosBaja } from "@/modules/mantenciones/servidor";
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission("motivosBaja", "write");
     const { nombre } = opcionCatalogoSchema.parse(await request.json());
-    const { opcion, creada } = await crearMotivoBaja(nombre, session.user?.email);
+    const { opcion, creada } = await crearMotivoBaja(nombre, quienHace(session));
     return NextResponse.json(opcion, { status: creada ? 201 : 200 });
   } catch (error) {
     return handleApiError(error, "Error al crear motivo de baja");

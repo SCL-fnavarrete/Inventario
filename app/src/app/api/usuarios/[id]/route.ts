@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, quienHace } from '@/shared/auth/guard';
 import { editarUsuarioSchema } from '@/modules/configuracion';
 import { editarUsuario, obtenerUsuario } from '@/modules/configuracion/servidor';
 
@@ -21,7 +21,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     const session = await requirePermission('usuarios', 'write');
     const { id } = await params;
     const datos = editarUsuarioSchema.parse(await request.json());
-    const user = await editarUsuario(id, datos, { id: session.user.id, email: session.user?.email });
+    const user = await editarUsuario(id, datos, { id: session.user.id, usuario: quienHace(session) });
     return NextResponse.json(user);
   } catch (error) {
     return handleApiError(error, 'Error al actualizar usuario');

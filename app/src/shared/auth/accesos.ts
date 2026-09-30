@@ -13,7 +13,8 @@ import { logger } from '@/shared/logger';
 export const RESULTADOS_FALLIDOS: ResultadoAcceso[] = ['clave_incorrecta', 'usuario_inexistente', 'usuario_inactivo'];
 
 export type DatosAcceso = {
-  email: string;
+  /** Usuario escrito al intentar entrar (puede no existir). */
+  usuarioIngresado: string;
   usuarioId?: string | null;
   resultado: ResultadoAcceso;
   ip?: string | null;
@@ -30,7 +31,7 @@ export async function registrarAcceso(d: DatosAcceso): Promise<string | null> {
   try {
     const fila = await prisma.accessLog.create({
       data: {
-        email: d.email.toLowerCase().trim().slice(0, 200),
+        usuarioIngresado: d.usuarioIngresado.toLowerCase().trim().slice(0, 200),
         usuarioId: d.usuarioId ?? null,
         resultado: d.resultado,
         ip: d.ip?.slice(0, 100) ?? null,
@@ -82,7 +83,7 @@ export function duracionLegible(ms: number) {
   return m === 0 ? `${h} h` : `${h} h ${m} min`;
 }
 
-type TokenSesion = { id?: unknown; email?: unknown; sesionId?: unknown; expiraEn?: unknown };
+type TokenSesion = { id?: unknown; usuario?: unknown; sesionId?: unknown; expiraEn?: unknown };
 
 /**
  * Cierre de sesion desde el menu (SPEC 2.112.5):
@@ -96,8 +97,8 @@ type TokenSesion = { id?: unknown; email?: unknown; sesionId?: unknown; expiraEn
 export async function cerrarSesion(token: TokenSesion, cliente: { ip: string | null; navegador: string | null }) {
   const usuarioId = typeof token.id === 'string' ? token.id : null;
   const sesionId = typeof token.sesionId === 'string' ? token.sesionId : null;
-  const email = typeof token.email === 'string' ? token.email : null;
-  if (!email) return;
+  const usuarioIngresado = typeof token.usuario === 'string' ? token.usuario : null;
+  if (!usuarioIngresado) return;
 
   let detalle: string | null = null;
   if (usuarioId && sesionId) {
@@ -114,7 +115,7 @@ export async function cerrarSesion(token: TokenSesion, cliente: { ip: string | n
     });
     if (ingreso) detalle = `Sesión de ${duracionLegible(Date.now() - ingreso.createdAt.getTime())}`;
   }
-  await registrarAcceso({ email, usuarioId, resultado: 'cierre_sesion', sesionId, detalle, ...cliente });
+  await registrarAcceso({ usuarioIngresado, usuarioId, resultado: 'cierre_sesion', sesionId, detalle, ...cliente });
 }
 
 /**
@@ -169,52 +170,52 @@ async function minutosBloqueados(
 }
 
 /**
- * Tope global por correo, como multiplo del limite configurado (auditoria
+ * Tope global por usuario, como multiplo del limite configurado (auditoria
  * 27-sep-2026, 2.6): frena a quien reparte los intentos contra una misma
  * cuenta entre muchas direcciones de red.
  */
-export const FACTOR_TOPE_GLOBAL_CORREO = 4;
+export const FACTOR_TOPE_GLOBAL_USUARIO = 4;
 
-export type BloqueoCorreo = { minutos: number; motivo: 'equipo' | 'global' | null };
+export type BloqueoUsuario = { minutos: number; motivo: 'equipo' | 'global' | null };
 
 /**
- * Minutos que le quedan de bloqueo a un correo, o 0 si puede intentar.
+ * Minutos que le quedan de bloqueo a un usuario, o 0 si puede intentar.
  * Cuenta los intentos fallidos desde su ultimo ingreso correcto y dentro de
  * la ventana de bloqueo, de dos formas:
  * - desde esta direccion de red (`maxIntentos`): un tercero que se equivoca
  *   a proposito ya no deja fuera al dueño de la cuenta desde otro lugar. Sin
- *   direccion conocida cuenta todos los del correo, como antes;
- * - desde cualquier lugar (`maxIntentos * FACTOR_TOPE_GLOBAL_CORREO`).
+ *   direccion conocida cuenta todos los del usuario, como antes;
+ * - desde cualquier lugar (`maxIntentos * FACTOR_TOPE_GLOBAL_USUARIO`).
  *
  * `enCurso` son los intentos ya anotados que todavia no terminan (el propio,
  * que se registra antes de revisar la clave): se suman al limite para que no
  * adelanten el bloqueo.
  */
 export async function minutosDeBloqueo(
-  email: string,
+  usuario: string,
   ip: string | null,
   maxIntentos: number,
   minutosBloqueo: number,
   enCurso = 0
-): Promise<BloqueoCorreo> {
-  const correo = email.toLowerCase().trim();
+): Promise<BloqueoUsuario> {
+  const usuarioIngresado = usuario.toLowerCase().trim();
   const desde = new Date(Date.now() - minutosBloqueo * 60_000);
   const ultimoExito = await prisma.accessLog.findFirst({
-    where: { email: correo, resultado: 'exito', createdAt: { gte: desde } },
+    where: { usuarioIngresado, resultado: 'exito', createdAt: { gte: desde } },
     orderBy: { createdAt: 'desc' },
     select: { createdAt: true },
   });
   const inicio = ultimoExito?.createdAt ?? desde;
   const porEquipo = await minutosBloqueados(
-    ip ? { email: correo, ip } : { email: correo },
+    ip ? { usuarioIngresado, ip } : { usuarioIngresado },
     inicio,
     maxIntentos + enCurso,
     minutosBloqueo
   );
   const global = await minutosBloqueados(
-    { email: correo },
+    { usuarioIngresado },
     inicio,
-    maxIntentos * FACTOR_TOPE_GLOBAL_CORREO + enCurso,
+    maxIntentos * FACTOR_TOPE_GLOBAL_USUARIO + enCurso,
     minutosBloqueo
   );
   const minutos = Math.max(porEquipo, global);
@@ -223,8 +224,8 @@ export async function minutosDeBloqueo(
 
 /**
  * Bloqueo por equipo (SPEC 2.112.6): los intentos fallidos desde una misma
- * direccion de red dentro de la ventana, pruebe el correo que pruebe. Frena
- * a quien prueba muchos correos. Un ingreso correcto de otra persona desde
+ * direccion de red dentro de la ventana, pruebe el usuario que pruebe. Frena
+ * a quien prueba muchos usuarios. Un ingreso correcto de otra persona desde
  * la misma red (una oficina) no lo reinicia.
  */
 export async function minutosDeBloqueoEquipo(

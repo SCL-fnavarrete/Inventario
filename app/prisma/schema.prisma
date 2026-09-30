@@ -10,7 +10,12 @@ datasource db {
 
 model SystemUser {
   id           String     @id @default(uuid())
-  email        String     @unique
+  // Con esto se inicia sesion (SPEC 2.122): minusculas, numeros, punto,
+  // guion y guion bajo. Es tambien lo que se anota como "quien lo hizo".
+  usuario      String     @unique
+  // Opcional, para recuperar la contrasena a futuro; hoy no se usa para
+  // nada. Las cuentas anteriores a SPEC 2.122 conservan aqui su correo.
+  email        String?    @unique
   passwordHash String     @map("password_hash")
   nombre       String
   rol          SystemRole
@@ -45,8 +50,9 @@ model SystemUser {
 // por intentos fallidos: se cuenta aqui y no en la memoria del servidor.
 model AccessLog {
   id        String          @id @default(uuid())
-  // Correo con que se intento entrar (puede no existir como usuario).
-  email     String
+  // Usuario con que se intento entrar, tal como se escribio (puede no
+  // existir). Los registros anteriores a SPEC 2.122 tienen el correo.
+  usuarioIngresado String  @map("usuario_ingresado")
   usuarioId String?         @map("usuario_id")
   resultado ResultadoAcceso
   // Direccion de red y navegador de quien intento (no hay en cierres de
@@ -60,7 +66,7 @@ model AccessLog {
   createdAt DateTime        @default(now()) @map("created_at")
   usuario   SystemUser?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
-  @@index([email, createdAt])
+  @@index([usuarioIngresado, createdAt])
   @@index([createdAt])
   @@index([resultado])
   @@index([sesionId])
@@ -622,7 +628,8 @@ model AssetHistory {
 // sin relacion FK a cada modelo) porque una sola tabla cubre varios
 // modelos distintos -- Prisma no soporta una FK que apunte a "uno de
 // varios modelos". Mismo motivo por el que `usuarioSistema` es texto
-// libre (email) y no una FK a SystemUser.
+// libre (el usuario; en registros anteriores a SPEC 2.122, el correo) y
+// no una FK a SystemUser.
 //
 // Excluido explicitamente: Proveedores (catalogo sin relevancia operativa).
 //
@@ -664,7 +671,7 @@ model SystemConfig {
   maxIntentosLogin     Int      @default(5) @map("max_intentos_login")
   minutosBloqueoLogin  Int      @default(15) @map("minutos_bloqueo_login")
   // Bloqueo por equipo (direccion de red), SPEC 2.112.6: frena a quien prueba
-  // muchos correos desde el mismo equipo.
+  // muchos usuarios desde el mismo equipo.
   maxIntentosIp        Int      @default(20) @map("max_intentos_ip")
   minutosBloqueoIp     Int      @default(15) @map("minutos_bloqueo_ip")
 

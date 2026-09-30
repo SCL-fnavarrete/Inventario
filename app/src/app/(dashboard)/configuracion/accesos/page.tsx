@@ -19,7 +19,8 @@ import {
 
 type Registro = {
   id: string;
-  email: string;
+  /** Usuario escrito al intentar entrar (en registros antiguos, el correo). */
+  usuarioIngresado: string;
   resultado: ResultadoAcceso;
   ip: string | null;
   navegador: string | null;
@@ -128,7 +129,7 @@ function Accesos() {
           <input
             type="text"
             aria-label="Usuario"
-            placeholder="Correo o nombre..."
+            placeholder="Usuario o nombre..."
             value={usuario}
             onChange={(e) => setUsuario(e.target.value)}
             className="field-input pl-9"
@@ -191,8 +192,8 @@ function Accesos() {
                     <td className="px-4 py-3 text-sm">
                       {/* En celular, fila compacta: la fecha va aqui arriba. */}
                       <p className="text-xs text-fg-muted sm:hidden">{formatearFechaHora(r.createdAt, FORMATO_FECHA)}</p>
-                      <p className="break-all font-medium text-fg">{r.usuario?.nombre ?? r.email}</p>
-                      {r.usuario && <p className="break-all text-xs text-fg-subtle">{r.email}</p>}
+                      <p className="break-all font-medium text-fg">{r.usuario?.nombre ?? r.usuarioIngresado}</p>
+                      {r.usuario && <p className="break-all text-xs text-fg-subtle">{r.usuarioIngresado}</p>}
                       <p className="text-xs text-fg-subtle md:hidden">
                         {navegadorLegible(r.navegador)}
                         {r.ip ? ` • ${ipLegible(r.ip)}` : ""}

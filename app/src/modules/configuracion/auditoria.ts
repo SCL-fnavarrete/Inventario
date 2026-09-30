@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
+import { nombreConUsuario } from '@/shared/auth/usuario';
 import {
   ESTADO_ACTIVO_LABEL,
   CONDICION_ACTIVO_LABEL,
@@ -52,30 +53,33 @@ type FilaAuditoria = {
   entidad_id: string;
   accion: string;
   descripcion: string;
-  usuario_email: string | null;
+  /** Lo que se anoto como quien lo hizo: el usuario, o el correo en registros anteriores a SPEC 2.122. */
+  usuario_registrado: string | null;
   usuario_nombre: string | null;
+  usuario_cuenta: string | null;
   datos_anteriores: unknown;
   datos_nuevos: unknown;
   created_at: Date;
   contexto: string | null;
 };
 
-// Los tres historiales con las mismas columnas. El nombre del usuario sale
-// de system_users (AuditLog y AssetHistory guardan el correo).
+// Los tres historiales con las mismas columnas. El nombre y el usuario salen
+// de system_users: AuditLog y AssetHistory guardan el usuario, o el correo en
+// los registros anteriores a SPEC 2.122 (por eso se busca la cuenta por ambos).
 const EVENTOS = Prisma.sql`
   SELECT 'auditlog' AS fuente, a.id, a.entidad::text AS modulo, a.entidad_id, a.accion::text AS accion,
-         a.descripcion, a.usuario_sistema AS usuario_email, u.nombre AS usuario_nombre,
+         a.descripcion, a.usuario_sistema AS usuario_registrado, u.nombre AS usuario_nombre, u.usuario AS usuario_cuenta,
          a.datos_anteriores, a.datos_nuevos, a.created_at, NULL::text AS contexto
-  FROM audit_log a LEFT JOIN system_users u ON u.email = a.usuario_sistema
+  FROM audit_log a LEFT JOIN system_users u ON a.usuario_sistema IN (u.usuario, u.email)
   UNION ALL
   SELECT 'asset_history', h.id, 'activo', h.asset_id, h.tipo_evento::text,
-         h.descripcion, h.usuario_sistema, u.nombre,
+         h.descripcion, h.usuario_sistema, u.nombre, u.usuario,
          h.datos_anteriores, h.datos_nuevos, h.created_at,
          concat_ws(' ', s.marca, s.modelo, '(' || coalesce(s.numero_serie, 'IMEI ' || s.imei) || ')')
-  FROM asset_history h LEFT JOIN assets s ON s.id = h.asset_id LEFT JOIN system_users u ON u.email = h.usuario_sistema
+  FROM asset_history h LEFT JOIN assets s ON s.id = h.asset_id LEFT JOIN system_users u ON h.usuario_sistema IN (u.usuario, u.email)
   UNION ALL
   SELECT 'workflow_transition', t.id, 'solicitud', t.request_id, t.estado_anterior::text || '>' || t.estado_nuevo::text,
-         coalesce(nullif(t.comentario, ''), 'Cambio de estado'), u.email, u.nombre,
+         coalesce(nullif(t.comentario, ''), 'Cambio de estado'), u.usuario, u.nombre, u.usuario,
          NULL::jsonb, t.datos_accion, t.created_at, r.numero
   FROM workflow_transitions t JOIN system_users u ON u.id = t.ejecutado_por_id JOIN workflow_requests r ON r.id = t.request_id
 `;
@@ -88,7 +92,7 @@ function condiciones(f: FiltrosAuditoria): Prisma.Sql {
   if (f.modulo) y.push(Prisma.sql`e.modulo = ${f.modulo}`);
   if (f.usuario) {
     const patron = contiene(f.usuario);
-    y.push(Prisma.sql`(e.usuario_email ILIKE ${patron} OR e.usuario_nombre ILIKE ${patron})`);
+    y.push(Prisma.sql`(e.usuario_registrado ILIKE ${patron} OR e.usuario_nombre ILIKE ${patron} OR e.usuario_cuenta ILIKE ${patron})`);
   }
   if (f.search) {
     const patron = contiene(f.search);
@@ -119,6 +123,7 @@ export async function consultarAuditoria(f: FiltrosAuditoria) {
 
 const CAMPO_LABEL: Record<string, string> = {
   nombre: 'Nombre',
+  usuario: 'Usuario',
   email: 'Correo',
   rol: 'Rol',
   activo: 'Activo',
@@ -315,8 +320,8 @@ function aEvento(fila: FilaAuditoria, nombres: Nombres) {
     moduloLabel: MODULOS_AUDITORIA[fila.modulo] ?? fila.modulo,
     accion: accionLegible(fila),
     descripcion: fila.descripcion,
-    usuario: fila.usuario_nombre ?? fila.usuario_email,
-    usuarioEmail: fila.usuario_email,
+    // "Javier Soto (jsoto)" (SPEC 2.122); sin cuenta, lo que quedo anotado.
+    usuario: nombreConUsuario(fila.usuario_nombre, fila.usuario_cuenta) || fila.usuario_registrado,
     contexto: fila.contexto,
     enlace: !eliminado && ENLACE[fila.modulo] ? ENLACE[fila.modulo](fila.entidad_id) : null,
     cambios: cambiosLegibles(fila.datos_anteriores, fila.datos_nuevos, fila.modulo, nombres),

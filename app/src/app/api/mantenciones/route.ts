@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createMaintenanceSchema, maintenanceFiltersSchema } from "@/modules/mantenciones";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, quienHace } from '@/shared/auth/guard';
 import { listarMantenciones, programarMantencion } from "@/modules/mantenciones/servidor";
 
 // GET /api/mantenciones - Listar mantenciones con filtros
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const session = await requirePermission('mantenciones', 'write');
     const parsed = createMaintenanceSchema.safeParse(await request.json());
     if (!parsed.success) return respuestaDatosInvalidos(parsed.error);
-    const mantencion = await programarMantencion(parsed.data, session.user?.email);
+    const mantencion = await programarMantencion(parsed.data, quienHace(session));
     return NextResponse.json(mantencion, { status: 201 });
   } catch (error) {
     return handleApiError(error, 'Error al crear mantención');

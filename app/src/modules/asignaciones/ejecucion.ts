@@ -18,6 +18,8 @@ export type ExecuteAssignmentParams = {
   fechaEntrega: Date;
   lugarEntrega?: string | null;
   entregadoPor?: string | null;
+  // Usuario de quien lo hace, para el historial (SPEC 2.122); el nombre va en entregadoPor.
+  usuarioSistema?: string | null;
   tipoMovimiento: 'ingreso' | 'cambio' | 'reemplazo' | 'temporal';
   motivo?: string | null;
   // Nombre de red del equipo (hostname). Se define al entregar, no al crear
@@ -40,6 +42,8 @@ export type ExecuteReturnParams = {
   assignmentId: string;
   fechaDevolucion: Date;
   recibidoPor?: string | null;
+  // Usuario de quien lo hace, para el historial (SPEC 2.122); el nombre va en recibidoPor.
+  usuarioSistema?: string | null;
   estadoDevolucion: 'ok' | 'danado' | 'incompleto' | 'no_devuelto';
   observacionesDevolucion?: string | null;
   // Condicion del cargador al momento de la devolucion -- mismo criterio
@@ -113,7 +117,7 @@ export async function executeAssignment(
       descripcion: `Asignado a ${employee.nombres} ${employee.apellidoPaterno} (${employee.rut || '—'})`,
       datosAnteriores: { estado: asset.estado, empleadoActualId: asset.empleadoActualId },
       datosNuevos: { estado: 'asignado', empleadoActualId: params.employeeId },
-      usuarioSistema: params.entregadoPor || 'Sistema',
+      usuarioSistema: params.usuarioSistema || params.entregadoPor || 'Sistema',
     },
   });
 
@@ -151,6 +155,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
   });
 
   if (!assignment) throw new NotFoundError('Asignación no encontrada');
+  const quien = params.usuarioSistema || params.recibidoPor || 'Sistema';
 
   if (params.expectedEmployeeId && assignment.employeeId !== params.expectedEmployeeId) {
     throw new ConflictError('Ese equipo no está asignado a este empleado');
@@ -206,7 +211,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
           empleadoActualId: assignment.asset.empleadoActualId,
           estadoDevolucion: params.estadoDevolucion,
         },
-        usuarioSistema: params.recibidoPor || 'Sistema',
+        usuarioSistema: quien,
       },
     });
 
@@ -272,7 +277,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
         empleadoActualId: null,
         estadoDevolucion: params.estadoDevolucion,
       },
-      usuarioSistema: params.recibidoPor || 'Sistema',
+      usuarioSistema: quien,
     },
   });
 
@@ -281,7 +286,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       assetId: assignment.assetId,
       empleado: `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno}`,
       observaciones: params.observacionesDevolucion ?? null,
-      usuario: params.recibidoPor || 'Sistema',
+      usuario: quien,
     });
   }
 

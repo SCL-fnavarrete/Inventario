@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, quienHace } from '@/shared/auth/guard';
 import { createKitItemSchema } from '@/modules/kit-epp';
 import { crearArticuloKit, listarArticulosKit } from '@/modules/kit-epp/servidor';
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('kitEpp', 'write');
-    const item = await crearArticuloKit(createKitItemSchema.parse(await request.json()), session.user?.email);
+    const item = await crearArticuloKit(createKitItemSchema.parse(await request.json()), quienHace(session));
     return NextResponse.json(item, { status: 201 });
   } catch (error) {
     return handleApiError(error, 'Error al crear artículo de Kit/EPP');

@@ -311,7 +311,7 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
       "POST",
       {
         fechaRealizada: completeForm.fechaRealizada,
-        realizadoPor: session?.user?.name || session?.user?.email || "",
+        realizadoPor: session?.user?.name || session?.user?.usuario || "",
         resultado: completeForm.resultado,
         resultadoTipo: completeForm.resultadoTipo,
         ...(completeForm.resultadoTipo === "no_reparable" && {

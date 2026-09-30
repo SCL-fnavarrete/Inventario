@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, quienHace } from '@/shared/auth/guard';
 import { updateMaintenanceTypeSchema } from '@/modules/mantenciones';
 import { editarTipoMantencion, eliminarTipoMantencion } from '@/modules/mantenciones/servidor';
 
@@ -14,7 +14,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const parsed = updateMaintenanceTypeSchema.safeParse(await request.json());
     if (!parsed.success) return respuestaDatosInvalidos(parsed.error);
-    return NextResponse.json(await editarTipoMantencion(id, parsed.data, session.user?.email));
+    return NextResponse.json(await editarTipoMantencion(id, parsed.data, quienHace(session)));
   } catch (error) {
     return handleApiError(error, 'Error al actualizar tipo de mantención');
   }
@@ -25,7 +25,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('tiposMantencion', 'delete');
     const { id } = await params;
-    await eliminarTipoMantencion(id, session.user?.email);
+    await eliminarTipoMantencion(id, quienHace(session));
     return NextResponse.json({ success: true });
   } catch (error) {
     return handleApiError(error, 'Error al eliminar tipo de mantención');

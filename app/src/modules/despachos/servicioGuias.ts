@@ -25,8 +25,8 @@ import {
  * /api/guias-despacho solo validan la peticion y llaman a estas.
  */
 
-/** Quien hace la accion: el correo queda en la auditoria; el nombre, en la guia. */
-export type Quien = { email?: string | null; nombre?: string | null };
+/** Quien hace algo en Despachos: su usuario (lo que se anota) y su nombre (SPEC 2.122). */
+export type Quien = { usuario: string; nombre?: string | null };
 
 /**
  * Crear un despacho. Los equipos quedan "En tránsito" en la sede de origen y
@@ -74,8 +74,8 @@ export async function registrarDespacho(body: Record<string, unknown>, quien: Qu
       sedeId,
       sedeDestino,
       equipos: assets.map((a) => ({ id: a.id, estado: a.estado, sedeId: a.sedeId })),
-      emisor: quien.nombre || quien.email || 'Técnico',
-      usuario: quien.email || 'sistema',
+      emisor: quien.nombre || quien.usuario,
+      usuario: quien.usuario,
     })
   );
 }
@@ -110,7 +110,7 @@ export async function confirmarRecepcion(
   }
   exigirSinErroresCampos(errores, ETIQUETAS_GUIA);
 
-  const usuario = quien.email || recibidoPor || 'Sistema';
+  const usuario = quien.usuario;
   return prisma.$transaction(async (tx) => {
     const recibidos = await recibirEquipos(tx, guia, idsLlegaron, usuario);
     if (idsLlegaron.length > 0 && recibidos === 0) {
@@ -132,7 +132,7 @@ export async function confirmarRecepcion(
       })`,
       { estado: guia.estado },
       { estado, recibidoPor, recibidos, unidadesKit },
-      quien.email,
+      quien.usuario,
       tx
     );
     return tx.dispatchGuide.findUniqueOrThrow({ where: { id }, include: INCLUDE_DETALLE_GUIA });
@@ -164,7 +164,7 @@ export async function anularDespacho(
     throw new ValidationError(mensaje, [{ field: 'motivo', message: mensaje }]);
   }
 
-  const usuario = quien.email || 'Sistema';
+  const usuario = quien.usuario;
   const estadoVuelta = guia.purchaseId ? 'por_repartir' : 'disponible';
   const textoVuelta = guia.purchaseId ? 'vuelve a Por repartir' : 'vuelve a Disponible';
   return prisma.$transaction(async (tx) => {
@@ -211,7 +211,7 @@ export async function resolverEquipoDespacho(id: string, itemId: string, accion:
   const guia = await buscarGuia(id);
   const item = guia.items.find((i) => i.id === itemId);
   if (!item) throw new NotFoundError('Ese equipo no es de este despacho');
-  const usuario = quien.email || 'Sistema';
+  const usuario = quien.usuario;
   const nombreEquipo = `${item.asset.marca} ${item.asset.modelo}`;
   const auditar = (tx: Prisma.TransactionClient, texto: string, estado: string) =>
     auditLogService.registrarActualizacion('guia_despacho', id, `Despacho ${guia.numero}: ${texto}`, { estado: guia.estado }, { estado }, usuario, tx);
@@ -349,7 +349,7 @@ export async function resolverKitDespacho(
     throw new ValidationError('Escribe qué pasó', [{ field: 'motivo', message: 'Escribe qué pasó' }]);
   }
 
-  const usuario = quien.email || 'Sistema';
+  const usuario = quien.usuario;
   const n = Number(datos.cantidad);
   return prisma.$transaction(async (tx) => {
     const { nombre } = await resolverKit(tx, guia, lineaId, accion, n, usuario, detalle);

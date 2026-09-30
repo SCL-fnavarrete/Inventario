@@ -27,17 +27,16 @@ export async function obtenerUsuario(id: string) {
 }
 
 export async function crearUsuario(datos: CrearUsuarioInput, quien: string | null | undefined) {
-  const { email, nombre, password, rol, sedeId, activo } = datos;
-  if (await prisma.systemUser.findUnique({ where: { email } })) {
-    throw errorRepetido('email', 'Ya existe un usuario con ese email');
-  }
+  const { usuario, email, nombre, password, rol, sedeId, activo } = datos;
+  await exigirLibres(usuario, email);
   if (rol !== 'admin') {
     if (!sedeId) throw errorDeCampo('sedeId', 'Este rol necesita una sede asignada');
     await exigirSedeActiva(sedeId);
   }
   const user = await crearCuenta(
     {
-      email,
+      usuario,
+      email: email ?? null,
       nombre,
       rol,
       passwordHash: await bcrypt.hash(password, 12),
@@ -50,11 +49,28 @@ export async function crearUsuario(datos: CrearUsuarioInput, quien: string | nul
   await auditLogService.registrarCreacion(
     'usuario',
     user.id,
-    `Usuario creado: ${user.nombre} (${user.email})`,
-    { email: user.email, nombre: user.nombre, rol: user.rol, activo: user.activo, sedeId: user.sedeId },
+    `Usuario creado: ${user.nombre} (${user.usuario})`,
+    resumen(user),
     quien
   );
   return user;
+}
+
+/** Lo que queda en la auditoria de una cuenta (nunca la clave ni su hash). */
+function resumen(u: { usuario: string; email: string | null; nombre: string; rol: string; activo: boolean; sedeId: string | null }) {
+  return { usuario: u.usuario, email: u.email, nombre: u.nombre, rol: u.rol, activo: u.activo, sedeId: u.sedeId };
+}
+
+/** El usuario y el correo no se repiten entre cuentas (`id`: la que se edita). */
+async function exigirLibres(usuario: string | undefined, email: string | null | undefined, id?: string) {
+  const otra = (where: Prisma.SystemUserWhereInput) =>
+    prisma.systemUser.findFirst({ where: { ...where, NOT: id ? { id } : undefined }, select: { id: true } });
+  if (usuario && (await otra({ usuario }))) {
+    throw errorRepetido('usuario', 'Ya existe una cuenta con ese usuario');
+  }
+  if (email && (await otra({ email }))) {
+    throw errorRepetido('email', 'Ya existe una cuenta con ese correo');
+  }
 }
 
 /**
@@ -66,18 +82,18 @@ export async function crearUsuario(datos: CrearUsuarioInput, quien: string | nul
 export async function editarUsuario(
   id: string,
   datos: EditarUsuarioInput,
-  sesion: { id: string; email?: string | null }
+  sesion: { id: string; usuario: string }
 ) {
-  const { email, nombre, rol, password, activo, sedeId } = datos;
+  const { usuario, email, nombre, rol, password, activo, sedeId } = datos;
   const existente = await prisma.systemUser.findUnique({ where: { id } });
   if (!existente) throw new NotFoundError('Usuario no encontrado');
-  if (email && email !== existente.email && (await prisma.systemUser.findUnique({ where: { email } }))) {
-    throw errorRepetido('email', 'El email ya está en uso por otro usuario');
-  }
+  await exigirLibres(usuario, email, id);
 
   const esUnoMismo = existente.id === sesion.id;
   const cambios: Prisma.SystemUserUpdateInput = {};
-  if (email) cambios.email = email;
+  if (usuario) cambios.usuario = usuario;
+  // Vacio (null) quita el correo.
+  if (email !== undefined) cambios.email = email;
   if (nombre) cambios.nombre = nombre;
   if (rol) cambios.rol = rol;
   if (activo !== undefined) {
@@ -129,33 +145,26 @@ export async function editarUsuario(
     return actualizarCuenta(tx, id, cambios, SELECT_USUARIO);
   });
 
-  const resumen = (u: typeof user | typeof existente) => ({
-    email: u.email,
-    nombre: u.nombre,
-    rol: u.rol,
-    activo: u.activo,
-    sedeId: u.sedeId,
-  });
   await auditLogService.registrarActualizacion(
     'usuario',
     user.id,
-    `Usuario actualizado: ${user.nombre} (${user.email})${password ? ' — contraseña cambiada' : ''}`,
+    `Usuario actualizado: ${user.nombre} (${user.usuario})${password ? ' — contraseña cambiada' : ''}`,
     resumen(existente),
     resumen(user),
-    sesion.email
+    sesion.usuario
   );
 
-  const quien = sesion.email ?? 'un administrador';
+  const quien = sesion.usuario;
   if (existente.activo && !user.activo) {
     await registrarAcceso({
-      email: user.email,
+      usuarioIngresado: user.usuario,
       usuarioId: user.id,
       resultado: 'sesion_revocada',
       detalle: `Cuenta desactivada por ${quien}`,
     });
   } else if (cortaPorClave) {
     await registrarAcceso({
-      email: user.email,
+      usuarioIngresado: user.usuario,
       usuarioId: user.id,
       resultado: 'sesion_revocada',
       detalle: `Contraseña cambiada por ${quien}`,

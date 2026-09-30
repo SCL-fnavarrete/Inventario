@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from "@/shared/auth/guard";
+import { requirePermission, handleApiError, quienHace } from "@/shared/auth/guard";
 import { opcionCatalogoSchema } from "@/modules/activos";
 import { eliminarOpcion, renombrarOpcion } from "@/modules/activos/servidor";
 
@@ -12,7 +12,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const session = await requirePermission("activos", "delete");
     const { id } = await params;
     const { nombre } = opcionCatalogoSchema.parse(await request.json());
-    return NextResponse.json(await renombrarOpcion("licencias-m365", id, nombre, session.user?.email));
+    return NextResponse.json(await renombrarOpcion("licencias-m365", id, nombre, quienHace(session)));
   } catch (error) {
     return handleApiError(error, "Error al actualizar opción");
   }
@@ -23,7 +23,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   try {
     const session = await requirePermission("activos", "delete");
     const { id } = await params;
-    await eliminarOpcion("licencias-m365", id, session.user?.email);
+    await eliminarOpcion("licencias-m365", id, quienHace(session));
     return NextResponse.json({ ok: true });
   } catch (error) {
     return handleApiError(error, "Error al eliminar opción");

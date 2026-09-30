@@ -18,7 +18,7 @@ jest.mock('@/shared/prisma', () => ({
 import { crearSolicitud } from '@/modules/solicitudes/crear';
 import type { CreateWorkflowRequestInput } from '@/modules/solicitudes/validaciones';
 
-const USUARIO = { id: 'u1', nombre: 'QA' };
+const USUARIO = { id: 'u1', nombre: 'QA', usuario: 'qa' };
 const solicitud = (d: object) => d as CreateWorkflowRequestInput;
 const desvinculado = { id: 'e1', nombres: 'Ana', apellidoPaterno: 'Rojas', estado: 'desvinculado' };
 

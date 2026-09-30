@@ -141,7 +141,7 @@ En produccion (Vercel) se aplica con `npm run db:migrate:prod`.
 Ver `app/.env.example`. Conexion Neon (`DATABASE_URL` pooled y
 `DATABASE_URL_UNPOOLED` directa, requerida por las migraciones), NextAuth
 (`NEXTAUTH_URL`, `NEXTAUTH_SECRET` de 32+ caracteres) y el primer admin del seed
-(`SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`). En local, la base de
+(`SEED_ADMIN_USUARIO`, `SEED_ADMIN_PASSWORD` y el opcional `SEED_ADMIN_EMAIL`). En local, la base de
 `docker-compose.yml` escucha en `127.0.0.1:5433` (no `localhost`).
 
 ## Deployment

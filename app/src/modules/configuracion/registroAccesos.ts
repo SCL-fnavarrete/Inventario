@@ -40,7 +40,7 @@ export async function listarAccesos(p: {
   if (p.usuario) {
     y.push({
       OR: [
-        { email: { contains: p.usuario, mode: 'insensitive' } },
+        { usuarioIngresado: { contains: p.usuario, mode: 'insensitive' } },
         { usuario: { nombre: { contains: p.usuario, mode: 'insensitive' } } },
       ],
     });

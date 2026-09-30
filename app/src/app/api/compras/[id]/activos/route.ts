@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { agregarEquiposCompraSchema } from "@/modules/compras";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, quienHace } from '@/shared/auth/guard';
 import { ValidationError } from '@/shared/errores';
 import {
   agregarEquiposACompra,
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const parsed = agregarEquiposCompraSchema.safeParse(await request.json());
     if (!parsed.success) return respuestaDatosInvalidos(parsed.error);
-    const equipos = await agregarEquiposACompra(id, parsed.data, session.user?.email || 'sistema');
+    const equipos = await agregarEquiposACompra(id, parsed.data, quienHace(session));
     return NextResponse.json(equipos, { status: 201 });
   } catch (error) {
     return handleApiError(error, 'Error al agregar equipos a la compra');
@@ -51,7 +51,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .min(1)
       .safeParse((request.nextUrl.searchParams.get("assetIds") || "").split(",").filter(Boolean));
     if (!ids.success) throw new ValidationError('Indica los equipos a quitar');
-    const cantidad = await quitarEquiposDeCompra(id, ids.data, session.user?.email || 'sistema');
+    const cantidad = await quitarEquiposDeCompra(id, ids.data, quienHace(session));
     return NextResponse.json({ message: `${cantidad} equipo(s) quitado(s) de la compra`, deletedCount: cantidad });
   } catch (error) {
     return handleApiError(error, 'Error al quitar equipos de la compra');

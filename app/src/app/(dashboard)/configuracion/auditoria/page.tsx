@@ -27,7 +27,6 @@ type Evento = {
   accion: string;
   descripcion: string;
   usuario: string | null;
-  usuarioEmail: string | null;
   contexto: string | null;
   enlace: string | null;
   cambios: Cambio[];
@@ -196,7 +195,7 @@ export default function AuditoriaPage() {
             <input
               type="text"
               aria-label="Usuario"
-              placeholder="Correo o nombre..."
+              placeholder="Usuario o nombre..."
               value={usuario}
               onChange={(e) => setUsuario(e.target.value)}
               className="field-input pl-9"
@@ -261,7 +260,7 @@ export default function AuditoriaPage() {
                         <td className="px-4 py-3 text-sm">
                           <QuePaso ev={ev} />
                         </td>
-                        <td className="px-4 py-3 text-sm text-fg-subtle" title={ev.usuarioEmail ?? undefined}>
+                        <td className="px-4 py-3 text-sm text-fg-subtle">
                           {ev.usuario ?? "—"}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-right">

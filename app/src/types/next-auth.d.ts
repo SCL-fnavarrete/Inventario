@@ -6,6 +6,8 @@ declare module "next-auth" {
     user: {
       id: string;
       role: string;
+      // Con que inicia sesion; es lo que se anota como quien hizo algo (SPEC 2.122).
+      usuario: string;
       // Sede del usuario (null para admin, que ve todas). No limita lo que ve (SPEC 2.117).
       sedeId: string | null;
     } & DefaultSession["user"];
@@ -13,6 +15,7 @@ declare module "next-auth" {
 
   interface User extends DefaultUser {
     role: string;
+    usuario: string;
     sedeId?: string | null;
   }
 }
@@ -21,6 +24,7 @@ declare module "next-auth/jwt" {
   interface JWT extends DefaultJWT {
     id: string;
     role: string;
+    usuario: string;
     sedeId: string | null;
     // SPEC 2.112: vencimiento segun Configuracion > Seguridad, identificador
     // de la sesion (lista negra) y hora de inicio (sesionesDesde).

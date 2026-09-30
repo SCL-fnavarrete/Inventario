@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, quienHace } from '@/shared/auth/guard';
 import { resolverEquipoDespacho } from '@/modules/despachos/servidor';
 
 interface RouteParams {
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { id, itemId } = await params;
     const { accion, motivo } = await request.json();
     const guia = await resolverEquipoDespacho(id, itemId, accion, motivo, {
-      email: session.user?.email,
+      usuario: quienHace(session),
       nombre: session.user?.name,
     });
     return NextResponse.json(guia);

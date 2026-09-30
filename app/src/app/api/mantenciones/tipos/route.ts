@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, quienHace } from '@/shared/auth/guard';
 import { createMaintenanceTypeSchema } from '@/modules/mantenciones';
 import { crearTipoMantencion, listarTiposMantencion } from '@/modules/mantenciones/servidor';
 
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     const session = await requirePermission('tiposMantencion', 'write');
     const parsed = createMaintenanceTypeSchema.safeParse(await request.json());
     if (!parsed.success) return respuestaDatosInvalidos(parsed.error);
-    const tipo = await crearTipoMantencion(parsed.data, session.user?.email);
+    const tipo = await crearTipoMantencion(parsed.data, quienHace(session));
     return NextResponse.json(tipo, { status: 201 });
   } catch (error) {
     return handleApiError(error, 'Error al crear tipo de mantención');

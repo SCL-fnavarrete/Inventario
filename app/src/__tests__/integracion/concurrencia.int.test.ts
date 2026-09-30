@@ -22,7 +22,7 @@ jest.mock('@/shared/auth/guard', () => {
   return {
     ...real,
     requirePermission: jest.fn().mockResolvedValue({
-      user: { id: 'admin-test', email: 'admin@test.cl', name: 'Admin', role: 'admin', sedeId: null },
+      user: { id: 'admin-test', usuario: 'admin.test', name: 'Admin', role: 'admin', sedeId: null },
     }),
   };
 });
@@ -104,7 +104,7 @@ describir('concurrencia real en Postgres', () => {
       data: { nombres: 'Prueba', apellidoPaterno: s, estado: 'activo', sedeId: sede.id },
     });
     const usuario = await prisma.systemUser.create({
-      data: { email: `t${s}@test.cl`, passwordHash: 'x', nombre: 'Test', rol: 'admin' },
+      data: { usuario: `t${s}`, passwordHash: 'x', nombre: 'Test', rol: 'admin' },
     });
     const solicitud = await prisma.workflowRequest.create({
       data: {

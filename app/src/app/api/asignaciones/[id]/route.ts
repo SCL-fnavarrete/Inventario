@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { returnAssignmentSchema } from "@/modules/asignaciones";
 import { cancelarAsignacion, detalleAsignacion, registrarDevolucion } from "@/modules/asignaciones/servidor";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, quienHace } from '@/shared/auth/guard';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -21,11 +21,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // PUT /api/asignaciones/[id] - Registrar devolución
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('asignaciones', 'write');
+    const session = await requirePermission('asignaciones', 'write');
     const { id } = await params;
     const parsed = returnAssignmentSchema.safeParse(await request.json());
     if (!parsed.success) return respuestaDatosInvalidos(parsed.error);
-    return NextResponse.json(await registrarDevolucion(id, parsed.data));
+    return NextResponse.json(await registrarDevolucion(id, parsed.data, quienHace(session)));
   } catch (error) {
     return handleApiError(error, 'Error al registrar devolución');
   }
@@ -34,9 +34,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/asignaciones/[id] - Cancelar una asignación que no se ha devuelto
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    await requirePermission('asignaciones', 'delete');
+    const session = await requirePermission('asignaciones', 'delete');
     const { id } = await params;
-    await cancelarAsignacion(id);
+    await cancelarAsignacion(id, quienHace(session));
     return NextResponse.json({ message: "Asignación cancelada correctamente" });
   } catch (error) {
     return handleApiError(error, 'Error al cancelar asignación');

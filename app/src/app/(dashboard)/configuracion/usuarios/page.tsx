@@ -22,11 +22,18 @@ import {
 } from "@/shared/ui/CampoFormulario";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { useEnvio } from "@/shared/hooks/useEnvio";
-import { validarPasswordFuerte } from "@/modules/configuracion";
+import {
+  FORMATO_USUARIO,
+  USUARIO_MAX,
+  USUARIO_MIN,
+  sugerirUsuario,
+  validarPasswordFuerte,
+} from "@/modules/configuracion";
 import { esCorreoValido } from "@/shared/utilidades/text";
 
 const usuarioFieldLabels: Record<string, string> = {
-  email: "Email",
+  usuario: "Usuario",
+  email: "Correo",
   nombre: "Nombre",
   password: "Contraseña",
   rol: "Rol",
@@ -55,7 +62,8 @@ type Sede = {
 
 type SystemUser = {
   id: string;
-  email: string;
+  usuario: string;
+  email: string | null;
   nombre: string;
   rol: "admin" | "tecnico";
   activo: boolean;
@@ -78,6 +86,16 @@ const roleColors: Record<string, string> = {
 const roleDescriptions: Record<string, string> = {
   admin: "Todo el sistema, incluida la Configuración",
   tecnico: "Trabajo operativo de soporte en todas las sedes; sin acceso a Configuración",
+};
+
+const FORMULARIO_VACIO = {
+  usuario: "",
+  email: "",
+  nombre: "",
+  rol: "tecnico" as SystemUser["rol"],
+  password: "",
+  activo: true,
+  sedeId: "",
 };
 
 function RolBadge({ rol }: { rol: SystemUser["rol"] }) {
@@ -113,14 +131,10 @@ export default function UsuariosPage() {
     return sede && !sede.activa ? sede : null;
   })();
   const [isCreating, setIsCreating] = useState(false);
-  const [formData, setFormData] = useState({
-    email: "",
-    nombre: "",
-    rol: "tecnico" as SystemUser["rol"],
-    password: "",
-    activo: true,
-    sedeId: "",
-  });
+  const [formData, setFormData] = useState(FORMULARIO_VACIO);
+  // Al crear, el usuario se arma solo con el nombre (SPEC 2.122) hasta que
+  // se escribe a mano; si se borra, vuelve a armarse solo.
+  const [usuarioAMano, setUsuarioAMano] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
@@ -133,6 +147,18 @@ export default function UsuariosPage() {
     limpiar(campo);
   };
 
+  const cambiarNombre = (nombre: string) => {
+    cambiar("nombre", nombre);
+    if (isCreating && !usuarioAMano) {
+      cambiar("usuario", sugerirUsuario(nombre, users.map((u) => u.usuario)));
+    }
+  };
+
+  const cambiarUsuario = (usuario: string) => {
+    setUsuarioAMano(usuario !== "");
+    cambiar("usuario", usuario === "" && isCreating ? sugerirUsuario(formData.nombre, users.map((u) => u.usuario)) : usuario);
+  };
+
   /**
    * Lo que falta o esta mal. La contraseña usa la misma regla que el
    * servidor: al crear es obligatoria; al editar, solo si se escribe una.
@@ -140,8 +166,13 @@ export default function UsuariosPage() {
   const validar = (creando: boolean) => {
     const e: Record<string, string> = {};
     if (!formData.nombre.trim()) e.nombre = "Escribe el nombre";
-    if (!formData.email.trim()) e.email = "Escribe el email";
-    else if (!esCorreoValido(formData.email)) e.email = "El email no es válido";
+    const usuario = formData.usuario.trim().toLowerCase();
+    if (!usuario) e.usuario = "Escribe el usuario";
+    else if (usuario.length < USUARIO_MIN || usuario.length > USUARIO_MAX)
+      e.usuario = `Entre ${USUARIO_MIN} y ${USUARIO_MAX} caracteres`;
+    else if (!FORMATO_USUARIO.test(usuario)) e.usuario = "Solo minúsculas, números, punto, guion y guion bajo";
+    // El correo es opcional; si se escribe, tiene que ser valido.
+    if (formData.email.trim() && !esCorreoValido(formData.email)) e.email = "El correo no es válido";
     if (creando || formData.password) {
       const errorPassword = validarPasswordFuerte(formData.password);
       if (errorPassword) e.password = errorPassword;
@@ -193,7 +224,7 @@ export default function UsuariosPage() {
       if (res.ok) {
         await fetchUsers();
         setIsCreating(false);
-        setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
+        setFormData(FORMULARIO_VACIO);
         setError("");
         setFieldErrors({});
         toast.success("Usuario creado exitosamente");
@@ -214,6 +245,7 @@ export default function UsuariosPage() {
       // El estado activo/inactivo se cambia con su propio boton, con
       // confirmacion, no desde este formulario.
       const updateData: Record<string, unknown> = {
+        usuario: formData.usuario,
         email: formData.email,
         nombre: formData.nombre,
         rol: formData.rol,
@@ -233,7 +265,7 @@ export default function UsuariosPage() {
       if (res.ok) {
         await fetchUsers();
         setEditingId(null);
-        setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
+        setFormData(FORMULARIO_VACIO);
         setError("");
         setFieldErrors({});
         toast.success("Usuario actualizado exitosamente");
@@ -252,13 +284,13 @@ export default function UsuariosPage() {
       user.activo
         ? {
             titulo: "Desactivar usuario",
-            mensaje: `${user.nombre} (${user.email}) no podrá iniciar sesión, y si está dentro del sistema quedará fuera en su siguiente acción. Su nombre se conserva en la auditoría y en todo lo que hizo. Puedes volver a activarlo cuando quieras.`,
+            mensaje: `${user.nombre} (${user.usuario}) no podrá iniciar sesión, y si está dentro del sistema quedará fuera en su siguiente acción. Su nombre se conserva en la auditoría y en todo lo que hizo. Puedes volver a activarlo cuando quieras.`,
             textoBoton: "Desactivar",
             onConfirm: () => toggleUserStatus(user),
           }
         : {
             titulo: "Activar usuario",
-            mensaje: `${user.nombre} (${user.email}) podrá volver a iniciar sesión con su contraseña.`,
+            mensaje: `${user.nombre} (${user.usuario}) podrá volver a iniciar sesión con su contraseña.`,
             textoBoton: "Activar",
             onConfirm: () => toggleUserStatus(user),
           }
@@ -292,8 +324,10 @@ export default function UsuariosPage() {
 
   const startEdit = (user: SystemUser) => {
     setEditingId(user.id);
+    setUsuarioAMano(true);
     setFormData({
-      email: user.email,
+      usuario: user.usuario,
+      email: user.email ?? "",
       nombre: user.nombre,
       rol: user.rol,
       password: "",
@@ -309,13 +343,12 @@ export default function UsuariosPage() {
   const cancelEdit = () => {
     setEditingId(null);
     setIsCreating(false);
-    setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
+    setFormData(FORMULARIO_VACIO);
     setError("");
     setFieldErrors({});
     reportar({});
   };
 
-  
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -336,7 +369,8 @@ export default function UsuariosPage() {
               <button
                 onClick={() => {
                   setIsCreating(true);
-                  setFormData({ email: "", nombre: "", rol: "tecnico", password: "", activo: true, sedeId: "" });
+                  setUsuarioAMano(false);
+                  setFormData(FORMULARIO_VACIO);
                   setError("");
                   setFieldErrors({});
                 }}
@@ -383,18 +417,31 @@ export default function UsuariosPage() {
               label="Nombre completo"
               obligatorio
               value={formData.nombre}
-              onChange={(v) => cambiar("nombre", v)}
+              onChange={cambiarNombre}
               error={errores.nombre}
-              placeholder="Nombre del usuario"
+              placeholder="Ej: Javier Andrés Soto Jaque"
             />
             <CampoTexto
-              label="Email"
+              label="Usuario"
               obligatorio
+              value={formData.usuario}
+              onChange={cambiarUsuario}
+              error={errores.usuario}
+              placeholder="jsoto"
+              ayuda={
+                isCreating
+                  ? "Con esto inicia sesión. Se arma solo con el nombre (inicial y primer apellido); puedes cambiarlo."
+                  : "Con esto inicia sesión. Minúsculas, números, punto, guion y guion bajo."
+              }
+            />
+            <CampoTexto
+              label="Correo (opcional)"
               type="email"
               value={formData.email}
               onChange={(v) => cambiar("email", v)}
               error={errores.email}
               placeholder="correo@ejemplo.com"
+              ayuda="Para recuperar la contraseña más adelante. Hoy no se usa."
             />
             <CampoTexto
               label={isCreating ? "Contraseña" : "Contraseña (déjala vacía para mantenerla)"}
@@ -480,7 +527,8 @@ export default function UsuariosPage() {
             celda: (u) => (
               <>
                 <div className="font-medium text-fg">{u.nombre}</div>
-                <div className="text-fg-subtle">{u.email}</div>
+                <div className="text-fg-subtle">{u.usuario}</div>
+                {u.email && <div className="text-xs text-fg-subtle">{u.email}</div>}
               </>
             ),
           },
@@ -496,7 +544,10 @@ export default function UsuariosPage() {
         tarjeta={(u) => (
           <>
             <p className="break-all font-medium text-fg">{u.nombre}</p>
-            <p className="break-all text-xs text-fg-subtle">{u.email}</p>
+            <p className="break-all text-xs text-fg-subtle">
+              {u.usuario}
+              {u.email && ` · ${u.email}`}
+            </p>
             <div className="flex flex-wrap items-center gap-2">
               <RolBadge rol={u.rol} />
               <ActiveBadge activo={u.activo} />
@@ -517,7 +568,7 @@ export default function UsuariosPage() {
               <Edit size={18} />
             </button>
             <Link
-              href={`/configuracion/accesos?usuario=${encodeURIComponent(user.email)}`}
+              href={`/configuracion/accesos?usuario=${encodeURIComponent(user.usuario)}`}
               className="p-1 text-fg-muted hover:bg-surface-muted rounded"
               title="Ver sus accesos"
               aria-label={`Ver los accesos de ${user.nombre}`}

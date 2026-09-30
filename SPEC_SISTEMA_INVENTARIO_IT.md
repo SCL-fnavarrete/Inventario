@@ -407,7 +407,8 @@ CREATE TABLE asset_history (
 ```sql
 CREATE TABLE system_users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(150) UNIQUE NOT NULL,
+    usuario VARCHAR(30) UNIQUE NOT NULL,            -- con esto se inicia sesion (2.122)
+    email VARCHAR(150) UNIQUE,                      -- opcional, para recuperar la clave a futuro (2.122)
     password_hash VARCHAR(255) NOT NULL,
     nombre VARCHAR(100) NOT NULL,
     rol ENUM('admin', 'tecnico') NOT NULL,          -- ver 1.3
@@ -3884,7 +3885,20 @@ La condición del cargador ya se guardaba por separado (`condicionCargadorEntreg
 - La API no cambia: los formularios siguen enviando `observacionesCargador` en la entrega y en la devolución, y cada una se guarda en su campo.
 - Datos existentes (migración `20260930004651_observacion_cargador_devolucion`): si la asignación ya se devolvió (o quedó "no devuelto") y esa devolución registró la condición del cargador, la observación guardada la escribió la devolución y pasa a la columna nueva; en los demás casos queda como observación de la entrega. Lo que la devolución ya había pisado no se puede recuperar.
 
+### 2.122 Se inicia sesión con un usuario, no con el correo (30-sep-2026)
+El correo de las cuentas solo servía para entrar: la app no envía correos. Decisiones de Javier: entrar con un usuario; el correo queda opcional para recuperar la contraseña a futuro; el usuario se arma solo con el nombre, pero se puede cambiar; en el historial se registran nombre y usuario.
+- **Cuenta** (`SystemUser`): `usuario` obligatorio y único, de 3 a 30 caracteres entre minúsculas, números, punto, guion y guion bajo; se guarda y se compara en minúsculas y sin espacios a los lados. `email` pasa a ser opcional (único si se escribe); hoy no se usa para nada. Las reglas están en `shared/auth/usuario.ts` (formato) y `modules/configuracion/usuario.ts` (sugerencia).
+- **Usuario sugerido** (`sugerirUsuario`): inicial del primer nombre y primer apellido, sin tildes ni ñ. Con 4 palabras o más el apellido es la tercera ("Javier Andrés Soto Jaque" → `jsoto`); con 2 o 3, la segunda. Si ya existe, se le agrega un número (`jsoto2`). En Configuración > Usuarios, al crear, el campo se llena solo mientras se escribe el nombre; si se escribe a mano deja de cambiar, y si se borra vuelve a llenarse solo.
+- **Inicio de sesión:** pide "Usuario" y contraseña. El mensaje de error sigue siendo el mismo para usuario inexistente, cuenta desactivada y contraseña incorrecta ("Usuario o contraseña incorrectos"). El bloqueo por intentos (2.112.6 y 2.114) cuenta por usuario en vez de por correo, con las mismas reglas.
+- **Registro de accesos:** la columna `email` pasa a `usuario_ingresado` (`AccessLog.usuarioIngresado`): el usuario escrito al intentar entrar. Los registros anteriores conservan el correo que se escribió.
+- **Quién lo hizo:** el historial de equipos y la auditoría anotan el usuario (antes, el correo); todas las rutas lo toman de la sesión con `quienHace()` (`shared/auth/guard.ts`). Las entregas y devoluciones (de Solicitudes y de Activos > Asignaciones) lo reciben aparte en `usuarioSistema`, y la cancelación de una asignación también lo anota (antes decía "Sistema"); antes estas anotaban el nombre. Las pantallas muestran "Nombre (usuario)" (Auditoría, responsable en Nueva Solicitud). Los campos que salen impresos en documentos (quien emite una guía, quien realizó una mantención, quien entregó) siguen con el nombre.
+- **Registros anteriores:** no se reescriben (son evidencia). Tienen el correo, y la Auditoría encuentra la cuenta por usuario o por correo, así también se muestran como "Nombre (usuario)".
+- **Datos existentes** (migración `20260930120000_usuario_en_vez_de_correo`): el usuario de cada cuenta es la parte de su correo antes de la @ (en minúsculas, sin caracteres no permitidos) y el correo se conserva en el campo opcional. Si dos cuentas quedaran con el mismo usuario, o uno con menos de 3 caracteres, la migración se detiene y lo dice, para resolverlo a mano.
+- **Seed:** el primer administrador sale de `SEED_ADMIN_USUARIO` (por defecto `admin`); `SEED_ADMIN_EMAIL` pasa a ser opcional.
+
 ## Changelog SPEC
+- **v2.50 (2026-09-30):**
+  - Sección 2.122 (nueva): se inicia sesión con un usuario (automático a partir del nombre, editable) y el correo queda opcional. El bloqueo por intentos y el registro de accesos cuentan por usuario; el historial y la auditoría anotan el usuario y muestran "Nombre (usuario)". Migración con el usuario de las cuentas existentes; seed con `SEED_ADMIN_USUARIO`.
 - **v2.49 (2026-09-30):**
   - Sección 2.121 (nueva): la observación del cargador se separa en una de entrega y otra de devolución (columna nueva `observaciones_cargador_devolucion`), así la devolución ya no pisa la de la entrega y cada acta muestra la suya. Migración con traslado de los datos existentes.
 - **v2.48 (2026-09-30):**

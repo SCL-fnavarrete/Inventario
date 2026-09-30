@@ -1,4 +1,4 @@
-import type { SesionAutenticada } from '@/shared/auth/guard';
+import { quienHace, type SesionAutenticada } from '@/shared/auth/guard';
 import { prisma } from '@/shared/prisma';
 import { logger } from '@/shared/logger';
 import { ValidationError } from '@/shared/errores';
@@ -163,7 +163,7 @@ export async function importarTanda(
     );
   }
 
-  await completarCatalogos(results, session.user?.email);
+  await completarCatalogos(results, quienHace(session));
 
   const respuesta: ImportBatchResult = {
     success: results.every((r) => r.status === 'imported'),

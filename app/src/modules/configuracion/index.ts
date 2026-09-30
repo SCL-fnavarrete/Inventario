@@ -7,4 +7,5 @@ export * from '@/modules/configuracion/etiquetasAccesos';
 export * from '@/modules/configuracion/etiquetasAuditoria';
 export * from '@/modules/configuracion/validacionesParametros';
 export * from '@/modules/configuracion/validacionesSede';
+export * from '@/modules/configuracion/usuario';
 export * from '@/modules/configuracion/validacionesUsuario';

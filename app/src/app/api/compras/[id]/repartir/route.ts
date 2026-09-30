@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, quienHace } from '@/shared/auth/guard';
 import { repartoCompraSchema } from "@/modules/compras";
 import { repartirCompra } from '@/modules/compras/servidor';
 
@@ -19,8 +19,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!validacion.success) return respuestaDatosInvalidos(validacion.error);
 
     const resultado = await repartirCompra(id, validacion.data, {
-      emisor: session.user.name || session.user.email || 'Administrador',
-      usuario: session.user.email || 'sistema',
+      emisor: session.user.name || quienHace(session),
+      usuario: quienHace(session),
     });
 
     return NextResponse.json(resultado, { status: 201 });

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, quienHace } from '@/shared/auth/guard';
 import { categoriaSchema } from '@/modules/activos';
 import { editarCategoria, eliminarCategoria, obtenerCategoria } from '@/modules/activos/servidor';
 
@@ -20,7 +20,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     const session = await requirePermission('categorias', 'write');
     const { id } = await params;
     const datos = categoriaSchema.parse(await request.json());
-    return NextResponse.json(await editarCategoria(id, datos, session.user?.email));
+    return NextResponse.json(await editarCategoria(id, datos, quienHace(session)));
   } catch (error) {
     return handleApiError(error, 'Error al actualizar categoría');
   }
@@ -30,7 +30,7 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   try {
     const session = await requirePermission('categorias', 'delete');
     const { id } = await params;
-    await eliminarCategoria(id, session.user?.email);
+    await eliminarCategoria(id, quienHace(session));
     return NextResponse.json({ success: true });
   } catch (error) {
     return handleApiError(error, 'Error al eliminar categoría');

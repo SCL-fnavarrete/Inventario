@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, quienHace } from '@/shared/auth/guard';
 import { editarSedeSchema } from '@/modules/configuracion';
 import { editarSede } from '@/modules/configuracion/servidor';
 
@@ -9,7 +9,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     const session = await requirePermission('sedes', 'write');
     const { id } = await params;
-    const sede = await editarSede(id, editarSedeSchema.parse(await request.json()), session.user?.email);
+    const sede = await editarSede(id, editarSedeSchema.parse(await request.json()), quienHace(session));
     return NextResponse.json(sede);
   } catch (error) {
     return handleApiError(error, 'Error al actualizar sede');

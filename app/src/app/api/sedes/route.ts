@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, quienHace } from '@/shared/auth/guard';
 import { crearSedeSchema } from '@/modules/configuracion';
 import { crearSede, listarSedes } from '@/modules/configuracion/servidor';
 
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('sedes', 'write');
-    const sede = await crearSede(crearSedeSchema.parse(await request.json()), session.user?.email);
+    const sede = await crearSede(crearSedeSchema.parse(await request.json()), quienHace(session));
     return NextResponse.json(sede, { status: 201 });
   } catch (error) {
     return handleApiError(error, 'Error al crear sede');

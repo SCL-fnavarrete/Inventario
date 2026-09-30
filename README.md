@@ -74,7 +74,7 @@ Variables de `app/.env` (detalle en `app/.env.example`):
 | `POSTGRES_PASSWORD` | Clave de la base local de Docker |
 | `NEXTAUTH_URL` | URL de la app (`http://localhost:3000` en local) |
 | `NEXTAUTH_SECRET` | Secreto de sesiones, 32+ caracteres (`openssl rand -base64 32`) |
-| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Primer administrador; la clave con 12+ caracteres, mayúscula, minúscula, número y símbolo |
+| `SEED_ADMIN_USUARIO` / `SEED_ADMIN_PASSWORD` (y `SEED_ADMIN_EMAIL`, opcional) | Primer administrador (entra con el usuario, SPEC 2.122); la clave con 12+ caracteres, mayúscula, minúscula, número y símbolo |
 
 En local usa `127.0.0.1` y no `localhost` en las URL de la base: en Windows,
 `localhost` prueba primero IPv6 y cada conexión tarda unos 2 segundos.

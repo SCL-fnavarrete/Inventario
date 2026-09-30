@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updatePurchaseSchema } from "@/modules/compras";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, quienHace } from '@/shared/auth/guard';
 import { detalleCompra, editarCompra, eliminarCompra } from '@/modules/compras/servidor';
 
 interface RouteParams {
@@ -29,7 +29,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const parsed = updatePurchaseSchema.safeParse(await request.json());
     if (!parsed.success) return respuestaDatosInvalidos(parsed.error);
-    return NextResponse.json(await editarCompra(id, parsed.data, session.user?.email));
+    return NextResponse.json(await editarCompra(id, parsed.data, quienHace(session)));
   } catch (error) {
     return handleApiError(error, 'Error al actualizar compra');
   }
@@ -41,7 +41,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('compras', 'delete');
     const { id } = await params;
-    await eliminarCompra(id, session.user?.email || 'sistema');
+    await eliminarCompra(id, quienHace(session));
     return NextResponse.json({ message: "Compra eliminada exitosamente" });
   } catch (error) {
     return handleApiError(error, 'Error al eliminar compra');

@@ -48,7 +48,7 @@ const CLAVE = 'Secreta#2026abc';
 beforeEach(() => {
   jest.clearAllMocks();
   db.systemConfig.findUnique.mockResolvedValue(null);
-  (requirePermission as jest.Mock).mockResolvedValue({ user: { id: 'yo', email: 'yo@x.cl', role: 'admin' } });
+  (requirePermission as jest.Mock).mockResolvedValue({ user: { id: 'yo', usuario: 'yo', role: 'admin' } });
 });
 
 const pedir = (method: string, body: unknown) =>
@@ -65,15 +65,30 @@ describe('reglas de datos (Zod)', () => {
     expect(crearSedeSchema.safeParse({ codigo: 123, nombre: 456 }).success).toBe(false);
   });
 
-  test('usuario: correo con formato inválido se rechaza, y queda en minúsculas', () => {
-    const malo = crearUsuarioSchema.safeParse({ email: 'esto-no-es-correo', nombre: 'A', password: CLAVE });
-    expect(malo.success).toBe(false);
+  // SPEC 2.122: se entra con el usuario; el correo es opcional.
+  test('usuario: obligatorio, en minúsculas y solo con caracteres permitidos', () => {
+    expect(crearUsuarioSchema.parse({ usuario: ' JSoto ', nombre: 'Ana', password: CLAVE }).usuario).toBe('jsoto');
+    for (const malo of ['', 'ab', 'j soto', 'jsoto@scl', 'ñandu', 'x'.repeat(31)]) {
+      const r = crearUsuarioSchema.safeParse({ usuario: malo, nombre: 'A', password: CLAVE });
+      expect(r.success).toBe(false);
+      expect(r.error?.issues[0].path).toEqual(['usuario']);
+    }
+    expect(crearUsuarioSchema.safeParse({ nombre: 'A', password: CLAVE }).success).toBe(false);
+    expect(crearUsuarioSchema.safeParse({ usuario: 'j.soto_2-b', nombre: 'A', password: CLAVE }).success).toBe(true);
+  });
+
+  test('usuario: el correo es opcional; si se escribe debe ser válido, y vacío queda sin correo', () => {
+    const sinCorreo = crearUsuarioSchema.parse({ usuario: 'ana', nombre: 'Ana', password: CLAVE });
+    expect(sinCorreo.email).toBeUndefined();
+    expect(crearUsuarioSchema.parse({ usuario: 'ana', email: '', nombre: 'Ana', password: CLAVE }).email).toBeNull();
+    expect(editarUsuarioSchema.parse({ email: '  ' }).email).toBeNull();
+    const malo = crearUsuarioSchema.safeParse({ usuario: 'ana', email: 'esto-no-es-correo', nombre: 'A', password: CLAVE });
     expect(malo.error?.issues[0].path).toEqual(['email']);
-    expect(crearUsuarioSchema.parse({ email: ' Ana@SCL.cl ', nombre: 'Ana', password: CLAVE }).email).toBe('ana@scl.cl');
+    expect(crearUsuarioSchema.parse({ usuario: 'ana', email: ' Ana@SCL.cl ', nombre: 'Ana', password: CLAVE }).email).toBe('ana@scl.cl');
   });
 
   test('usuario: contraseña débil se rechaza; vacía al editar significa mantenerla', () => {
-    expect(crearUsuarioSchema.safeParse({ email: 'a@x.cl', nombre: 'A', password: 'corta' }).success).toBe(false);
+    expect(crearUsuarioSchema.safeParse({ usuario: 'ana', nombre: 'A', password: 'corta' }).success).toBe(false);
     expect(editarUsuarioSchema.parse({ password: '' }).password).toBeUndefined();
     expect(editarUsuarioSchema.safeParse({ password: 'corta' }).success).toBe(false);
   });
@@ -104,9 +119,18 @@ describe('usuarios y sedes desactivadas', () => {
   test('no se crea un técnico en una sede desactivada', async () => {
     db.systemUser.findUnique.mockResolvedValue(null);
     db.sede.findUnique.mockResolvedValue({ activa: false });
-    const res = await crearUsuario(pedir('POST', { email: 'a@x.cl', nombre: 'A', password: CLAVE, rol: 'tecnico', sedeId: 's9' }));
+    const res = await crearUsuario(pedir('POST', { usuario: 'ana', nombre: 'A', password: CLAVE, rol: 'tecnico', sedeId: 's9' }));
     expect(res.status).toBe(409);
     expect((await res.json()).details[0].field).toBe('sedeId');
+    expect(db.systemUser.create).not.toHaveBeenCalled();
+  });
+
+  test('el usuario no se repite entre cuentas (SPEC 2.122)', async () => {
+    db.systemUser.findFirst.mockResolvedValueOnce({ id: 'otra' });
+    const res = await crearUsuario(pedir('POST', { usuario: 'JSoto', nombre: 'A', password: CLAVE, rol: 'admin' }));
+    expect(res.status).toBe(409);
+    expect((await res.json()).details[0].field).toBe('usuario');
+    expect(db.systemUser.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ usuario: 'jsoto' }) }));
     expect(db.systemUser.create).not.toHaveBeenCalled();
   });
 
@@ -120,7 +144,7 @@ describe('usuarios y sedes desactivadas', () => {
 });
 
 describe('cambiar la contraseña cierra las sesiones', () => {
-  const tecnico = { id: 'otro', email: 'otro@x.cl', nombre: 'Otro', rol: 'tecnico', activo: true, sedeId: 's1' };
+  const tecnico = { id: 'otro', usuario: 'otro', email: null, nombre: 'Otro', rol: 'tecnico', activo: true, sedeId: 's1' };
 
   test('la contraseña de otro usuario: se anulan sus sesiones y queda en el registro', async () => {
     db.systemUser.findUnique.mockResolvedValue(tecnico);
@@ -131,7 +155,7 @@ describe('cambiar la contraseña cierra las sesiones', () => {
       expect.objectContaining({ data: expect.objectContaining({ sesionesDesde: expect.any(Date) }) })
     );
     expect(db.accessLog.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ resultado: 'sesion_revocada', detalle: 'Contraseña cambiada por yo@x.cl' }),
+      data: expect.objectContaining({ resultado: 'sesion_revocada', detalle: 'Contraseña cambiada por yo' }),
     }));
   });
 
@@ -159,24 +183,31 @@ describe('inicio de sesión', () => {
     delete process.env.VERCEL;
   });
 
-  test('con un correo que no existe igual se compara una contraseña (mismo tiempo)', async () => {
+  test('con un usuario que no existe igual se compara una contraseña (mismo tiempo)', async () => {
     db.systemUser.findUnique.mockResolvedValue(null);
-    await expect(authorize({ email: 'nadie@x.cl', password: 'x' }, req)).rejects.toThrow('Correo o contraseña incorrectos');
+    await expect(authorize({ usuario: 'nadie', password: 'x' }, req)).rejects.toThrow('Usuario o contraseña incorrectos');
     expect(compare).toHaveBeenCalledWith('x', expect.stringMatching(/^\$2b\$12\$/));
   });
 
+  test('busca la cuenta por usuario, sin importar mayúsculas ni espacios (SPEC 2.122)', async () => {
+    db.systemUser.findUnique.mockResolvedValue(null);
+    await expect(authorize({ usuario: ' JSoto ', password: 'x' }, req)).rejects.toThrow(/incorrectos/);
+    expect(db.systemUser.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { usuario: 'jsoto' } }));
+    expect(db.accessLog.create.mock.calls[0][0].data.usuarioIngresado).toBe('jsoto');
+  });
+
   test('técnico de una sede desactivada no entra y queda "Sede desactivada"', async () => {
-    db.systemUser.findUnique.mockResolvedValue({ ...{ id: 'u1', email: 't@x.cl', nombre: 'T', rol: 'tecnico', activo: true, passwordHash: 'h' }, sede: { activa: false } });
+    db.systemUser.findUnique.mockResolvedValue({ ...{ id: 'u1', usuario: 'tec', nombre: 'T', rol: 'tecnico', activo: true, passwordHash: 'h' }, sede: { activa: false } });
     (compare as jest.Mock).mockResolvedValue(true);
-    await expect(authorize({ email: 't@x.cl', password: CLAVE }, req)).rejects.toThrow(/sede está desactivada/);
+    await expect(authorize({ usuario: 'tec', password: CLAVE }, req)).rejects.toThrow(/sede está desactivada/);
     expect(db.accessLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ resultado: 'sede_inactiva' }) }));
   });
 
-  test('bloqueo por equipo: muchos fallos desde la misma dirección bloquean cualquier correo', async () => {
+  test('bloqueo por equipo: muchos fallos desde la misma dirección bloquean cualquier usuario', async () => {
     db.accessLog.findMany.mockImplementation(({ where }) =>
       Promise.resolve(where.ip ? Array(20).fill({ createdAt: new Date() }) : [])
     );
-    await expect(authorize({ email: 'otro@x.cl', password: 'x' }, req)).rejects.toThrow(/Demasiados intentos/);
+    await expect(authorize({ usuario: 'otro', password: 'x' }, req)).rejects.toThrow(/Demasiados intentos/);
     expect(db.accessLog.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ resultado: 'bloqueado', detalle: 'Demasiados intentos desde este equipo', ip: '200.1.2.3' }),
     }));

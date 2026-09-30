@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { leerPaginacion } from "@/shared/utilidades/paginacion";
 import { createAssetSchema, leerFiltrosActivos } from "@/modules/activos";
 import { listarActivos, registrarActivo } from "@/modules/activos/servidor";
-import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, quienHace } from '@/shared/auth/guard';
 
 /**
  * Tope de filas por pagina. Protege la base de un ?limit arbitrario;
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const asset = await registrarActivo(
       createAssetSchema.parse(body),
       (body as { sedeId?: string }).sedeId,
-      session.user?.email || "sistema"
+      quienHace(session)
     );
     return NextResponse.json(asset, { status: 201 });
   } catch (error) {

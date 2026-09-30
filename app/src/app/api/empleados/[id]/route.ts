@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateEmployeeSchema } from "@/modules/personas";
-import { requirePermission, handleApiError, respuestaDatosInvalidos } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, respuestaDatosInvalidos, quienHace } from '@/shared/auth/guard';
 import { detalleEmpleado, editarEmpleado } from '@/modules/personas/servidor';
 
 interface RouteParams {
@@ -25,7 +25,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const parsed = updateEmployeeSchema.safeParse(await request.json());
     if (!parsed.success) return respuestaDatosInvalidos(parsed.error);
-    return NextResponse.json(await editarEmpleado(id, parsed.data, session.user?.email));
+    return NextResponse.json(await editarEmpleado(id, parsed.data, quienHace(session)));
   } catch (error) {
     return handleApiError(error, 'Error al actualizar empleado');
   }

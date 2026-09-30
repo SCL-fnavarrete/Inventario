@@ -1,6 +1,7 @@
 /** Datos de un usuario del sistema que se devuelven a la pantalla (nunca la contrasena). */
 export const SELECT_USUARIO = {
   id: true,
+  usuario: true,
   email: true,
   nombre: true,
   rol: true,

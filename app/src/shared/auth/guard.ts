@@ -34,21 +34,30 @@ export {
 
 /** Sesion autenticada, con el rol ya resuelto. */
 export interface SesionAutenticada extends Session {
-  user: Session['user'] & { id: string; role: string; sedeId: string | null };
+  user: Session['user'] & { id: string; role: string; usuario: string; sedeId: string | null };
 }
 
 /**
  * Quien hace la peticion, tomado de la sesion. El callback `jwt` de
  * shared/auth/opciones.ts ya relee id, nombre y rol de la base en cada peticion (y corta
  * la sesion si la cuenta se desactivo), asi que no hace falta volver a
- * buscarlo por correo en cada ruta (auditoria 28-sep-2026, 3.5).
+ * buscarlo en cada ruta (auditoria 28-sep-2026, 3.5).
  */
 export function usuarioDeSesion(session: SesionAutenticada) {
   return {
     id: session.user.id,
-    nombre: session.user.name ?? session.user.email ?? 'Sistema',
+    nombre: session.user.name ?? session.user.usuario ?? 'Sistema',
+    usuario: quienHace(session),
     rol: session.user.role as SystemRole,
   };
+}
+
+/**
+ * Lo que se anota como "quien lo hizo" en el historial y la auditoria: el
+ * usuario (SPEC 2.122). Las pantallas lo muestran junto al nombre.
+ */
+export function quienHace(session: SesionAutenticada): string {
+  return session.user.usuario || 'sistema';
 }
 
 /** Exige sesion. Lanza 401 si no hay. */
@@ -169,6 +178,7 @@ const ETIQUETA_CAMPO_UNICO: Record<string, string> = {
   numero: 'número',
   nombre: 'nombre',
   email: 'correo',
+  usuario: 'usuario',
   codigo: 'código',
   imei: 'IMEI',
 };

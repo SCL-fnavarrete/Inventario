@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateAssetSchema } from '@/modules/activos';
 import { detalleActivo, editarActivo, eliminarActivo } from '@/modules/activos/servidor';
-import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, quienHace } from '@/shared/auth/guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -18,7 +18,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const session = await requirePermission('activos', 'write');
     const { id } = await params;
     const datos = updateAssetSchema.parse(await request.json());
-    const asset = await editarActivo(id, datos, session.user?.email || 'sistema');
+    const asset = await editarActivo(id, datos, quienHace(session));
     return NextResponse.json(asset);
   } catch (error) {
     return handleApiError(error, 'Error al actualizar activo');
@@ -38,7 +38,7 @@ export async function DELETE(
         descartar: request.nextUrl.searchParams.get('descartar') === 'true',
         motivo: request.nextUrl.searchParams.get('motivo')?.trim(),
       },
-      session.user?.email || 'sistema'
+      quienHace(session)
     );
     return NextResponse.json({ success: true, ...resultado });
   } catch (error) {

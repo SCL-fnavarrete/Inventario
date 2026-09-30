@@ -118,6 +118,15 @@ describe('executeAssignment', () => {
     expect(datos).toMatchObject({ observacionesCargadorEntrega: 'Con cable original' });
     expect(datos).not.toHaveProperty('observacionesCargadorDevolucion');
   });
+
+  it('el historial anota el usuario; la asignación guarda el nombre (SPEC 2.122)', async () => {
+    const tx = txFalso();
+    (tx.asset.findUnique as Fn).mockResolvedValue(equipo());
+    (tx.employee.findUnique as Fn).mockResolvedValue(empleado());
+    await executeAssignment(comoTx(tx), { ...entrega, entregadoPor: 'Javier Soto', usuarioSistema: 'jsoto' });
+    expect((tx.assetHistory.create as Fn).mock.calls[0][0].data.usuarioSistema).toBe('jsoto');
+    expect((tx.assignment.create as Fn).mock.calls[0][0].data.entregadoPor).toBe('Javier Soto');
+  });
 });
 
 describe('executeKitDelivery', () => {
@@ -214,6 +223,15 @@ describe('executeReturn', () => {
       const datos = (tx.assignment.update as Fn).mock.calls[0][0].data;
       expect(datos).toMatchObject({ observacionesCargadorDevolucion: 'Cable pelado' });
       expect(datos).not.toHaveProperty('observacionesCargadorEntrega');
+    }
+  });
+
+  it('el historial anota el usuario, también en "no devuelto" (SPEC 2.122)', async () => {
+    for (const estadoDevolucion of ['ok', 'no_devuelto'] as const) {
+      const tx = txFalso();
+      (tx.assignment.findUnique as Fn).mockResolvedValue(asignacion());
+      await executeReturn(comoTx(tx), { ...devolucion, estadoDevolucion, recibidoPor: 'Javier Soto', usuarioSistema: 'jsoto' });
+      expect((tx.assetHistory.create as Fn).mock.calls[0][0].data.usuarioSistema).toBe('jsoto');
     }
   });
 });

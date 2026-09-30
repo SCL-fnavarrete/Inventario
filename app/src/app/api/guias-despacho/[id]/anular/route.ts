@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, quienHace } from '@/shared/auth/guard';
 import { anularDespacho } from '@/modules/despachos/servidor';
 import { devolverKitDeRepartoAnulado } from '@/modules/compras/servidor';
 
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const guia = await anularDespacho(
       id,
       motivo,
-      { email: session.user?.email, nombre: session.user?.name },
+      { usuario: quienHace(session), nombre: session.user?.name },
       devolverKitDeRepartoAnulado
     );
     return NextResponse.json(guia);

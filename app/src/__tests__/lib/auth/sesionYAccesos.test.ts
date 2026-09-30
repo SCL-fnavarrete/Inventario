@@ -110,28 +110,28 @@ describe('bloqueo por intentos, contado en el registro de accesos', () => {
   test('con menos fallos que el maximo, puede intentar', async () => {
     db.accessLog.findFirst.mockResolvedValue(null);
     db.accessLog.findMany.mockResolvedValue([{ createdAt: new Date() }, { createdAt: new Date() }]);
-    expect(await minutosDeBloqueo('a@x.cl', '200.1.2.3', 5, 15)).toEqual({ minutos: 0, motivo: null });
+    expect(await minutosDeBloqueo('ana', '200.1.2.3', 5, 15)).toEqual({ minutos: 0, motivo: null });
   });
 
   test('con el maximo de fallos, queda bloqueado los minutos que faltan', async () => {
     db.accessLog.findFirst.mockResolvedValue(null);
     const hace2min = new Date(Date.now() - 2 * 60_000);
     db.accessLog.findMany.mockResolvedValue(Array(5).fill({ createdAt: hace2min }));
-    expect(await minutosDeBloqueo('a@x.cl', '200.1.2.3', 5, 15)).toEqual({ minutos: 13, motivo: 'equipo' });
+    expect(await minutosDeBloqueo('ana', '200.1.2.3', 5, 15)).toEqual({ minutos: 13, motivo: 'equipo' });
   });
 
   test('solo cuenta los fallos despues del ultimo ingreso correcto', async () => {
     const ingreso = new Date(Date.now() - 60_000);
     db.accessLog.findFirst.mockResolvedValue({ createdAt: ingreso });
     db.accessLog.findMany.mockResolvedValue([]);
-    await minutosDeBloqueo('a@x.cl', '200.1.2.3', 5, 15);
+    await minutosDeBloqueo('ana', '200.1.2.3', 5, 15);
     expect(db.accessLog.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ createdAt: { gte: ingreso } }) })
     );
   });
 
-  // Auditoria 27-sep-2026, 2.6: correo + equipo, con un tope global mas alto.
-  describe('por correo y equipo, con tope global', () => {
+  // Auditoria 27-sep-2026, 2.6: usuario + equipo, con un tope global mas alto.
+  describe('por usuario y equipo, con tope global', () => {
     const hace2min = new Date(Date.now() - 2 * 60_000);
     const fallos = (desdeEsteEquipo: number, total: number) =>
       db.accessLog.findMany.mockImplementation(({ where, take }) =>
@@ -141,34 +141,34 @@ describe('bloqueo por intentos, contado en el registro de accesos', () => {
 
     test('los fallos de otro equipo no bloquean al dueño de la cuenta', async () => {
       fallos(0, 5);
-      expect((await minutosDeBloqueo('a@x.cl', '10.0.0.9', 5, 15)).minutos).toBe(0);
+      expect((await minutosDeBloqueo('ana', '10.0.0.9', 5, 15)).minutos).toBe(0);
     });
 
     test('los fallos desde este equipo si lo bloquean', async () => {
       fallos(5, 5);
-      expect(await minutosDeBloqueo('a@x.cl', '10.0.0.9', 5, 15)).toEqual({ minutos: 13, motivo: 'equipo' });
+      expect(await minutosDeBloqueo('ana', '10.0.0.9', 5, 15)).toEqual({ minutos: 13, motivo: 'equipo' });
       expect(db.accessLog.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ email: 'a@x.cl', ip: '10.0.0.9' }) })
+        expect.objectContaining({ where: expect.objectContaining({ usuarioIngresado: 'ana', ip: '10.0.0.9' }) })
       );
     });
 
     test('muchos fallos repartidos entre equipos llegan al tope global (4 veces el limite)', async () => {
       fallos(1, 19);
-      expect((await minutosDeBloqueo('a@x.cl', '10.0.0.9', 5, 15)).minutos).toBe(0);
+      expect((await minutosDeBloqueo('ana', '10.0.0.9', 5, 15)).minutos).toBe(0);
       fallos(1, 20);
-      expect(await minutosDeBloqueo('a@x.cl', '10.0.0.9', 5, 15)).toEqual({ minutos: 13, motivo: 'global' });
+      expect(await minutosDeBloqueo('ana', '10.0.0.9', 5, 15)).toEqual({ minutos: 13, motivo: 'global' });
     });
 
-    test('sin direccion conocida cuenta todos los fallos del correo', async () => {
+    test('sin direccion conocida cuenta todos los fallos del usuario', async () => {
       fallos(0, 5);
-      expect((await minutosDeBloqueo('a@x.cl', null, 5, 15)).minutos).toBe(13);
+      expect((await minutosDeBloqueo('ana', null, 5, 15)).minutos).toBe(13);
     });
 
     test('el intento en curso ya anotado no adelanta el bloqueo', async () => {
       fallos(5, 5);
-      expect((await minutosDeBloqueo('a@x.cl', '10.0.0.9', 5, 15, 1)).minutos).toBe(0);
+      expect((await minutosDeBloqueo('ana', '10.0.0.9', 5, 15, 1)).minutos).toBe(0);
       fallos(6, 6);
-      expect((await minutosDeBloqueo('a@x.cl', '10.0.0.9', 5, 15, 1)).minutos).toBe(13);
+      expect((await minutosDeBloqueo('ana', '10.0.0.9', 5, 15, 1)).minutos).toBe(13);
     });
   });
 
@@ -215,7 +215,7 @@ describe('inicio de sesion: el intento se anota antes de revisar la clave', () =
 
   test('se anota como fallido antes de buscar la cuenta y luego se corrige', async () => {
     db.systemUser.findUnique.mockResolvedValue(null);
-    await expect(authorize({ email: 'nadie@x.cl', password: 'x' }, req)).rejects.toThrow(/incorrectos/);
+    await expect(authorize({ usuario: 'nadie', password: 'x' }, req)).rejects.toThrow(/incorrectos/);
 
     expect(db.accessLog.create).toHaveBeenCalledTimes(1);
     expect(db.accessLog.create.mock.calls[0][0].data).toMatchObject({ resultado: 'clave_incorrecta', ip: '200.1.2.3' });
@@ -229,7 +229,7 @@ describe('inicio de sesion: el intento se anota antes de revisar la clave', () =
   });
 
   test('una contraseña de mas de 200 caracteres se rechaza sin buscar la cuenta', async () => {
-    await expect(authorize({ email: 'a@x.cl', password: 'x'.repeat(201) }, req)).rejects.toThrow(/incorrectos/);
+    await expect(authorize({ usuario: 'ana', password: 'x'.repeat(201) }, req)).rejects.toThrow(/incorrectos/);
     expect(db.systemUser.findUnique).not.toHaveBeenCalled();
     expect(db.accessLog.update).toHaveBeenCalledWith({
       where: { id: 'intento-1' },
@@ -241,7 +241,7 @@ describe('inicio de sesion: el intento se anota antes de revisar la clave', () =
     db.accessLog.findMany.mockImplementation(({ take }) =>
       Promise.resolve(Array(take).fill({ createdAt: new Date() }))
     );
-    await expect(authorize({ email: 'a@x.cl', password: 'x' }, req)).rejects.toThrow(/Demasiados intentos/);
+    await expect(authorize({ usuario: 'ana', password: 'x' }, req)).rejects.toThrow(/Demasiados intentos/);
     expect(db.systemUser.findUnique).not.toHaveBeenCalled();
     expect(db.accessLog.update).toHaveBeenCalledWith({
       where: { id: 'intento-1' },
@@ -256,7 +256,7 @@ describe('cerrar sesion: lista negra', () => {
   test('anota la sesion hasta la hora en que su token habria vencido y borra las vencidas', async () => {
     const expiraEn = Date.now() + 3 * 3600_000;
     db.accessLog.findFirst.mockResolvedValue({ createdAt: new Date(Date.now() - 125 * 60_000) });
-    await cerrarSesion({ id: 'u1', email: 'a@x.cl', sesionId: 'ses-1', expiraEn }, cliente);
+    await cerrarSesion({ id: 'u1', usuario: 'ana', sesionId: 'ses-1', expiraEn }, cliente);
     expect(db.sesionCerrada.upsert).toHaveBeenCalledWith({
       where: { id: 'ses-1' },
       create: { id: 'ses-1', usuarioId: 'u1', expiraEn: new Date(expiraEn) },
@@ -310,13 +310,13 @@ describe('dias en hora de Chile', () => {
 });
 
 describe('nunca quedarse sin administradores', () => {
-  const admin = (id: string) => ({ id, email: `${id}@x.cl`, nombre: id, rol: 'admin', activo: true, sedeId: null });
+  const admin = (id: string) => ({ id, usuario: id, email: null, nombre: id, rol: 'admin', activo: true, sedeId: null });
   const pedir = (body: unknown) =>
     new NextRequest('http://localhost/api/usuarios/x', { method: 'PUT', body: JSON.stringify(body) });
   const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 
   beforeEach(() => {
-    (requirePermission as jest.Mock).mockResolvedValue({ user: { id: 'yo', email: 'yo@x.cl', role: 'admin' } });
+    (requirePermission as jest.Mock).mockResolvedValue({ user: { id: 'yo', usuario: 'yo', role: 'admin' } });
   });
 
   test('no te puedes desactivar a ti mismo', async () => {
@@ -376,7 +376,7 @@ describe('nunca quedarse sin administradores', () => {
       expect.objectContaining({ data: expect.objectContaining({ activo: false, sesionesDesde: expect.any(Date) }) })
     );
     expect(db.accessLog.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ resultado: 'sesion_revocada', detalle: 'Cuenta desactivada por yo@x.cl' }),
+      data: expect.objectContaining({ resultado: 'sesion_revocada', detalle: 'Cuenta desactivada por yo' }),
     }));
   });
 });

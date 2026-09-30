@@ -54,7 +54,7 @@ type Asset = {
 
 export default function NuevaGuiaDespachoPage() {
   const { data: session } = useSession();
-  const emisor = session?.user?.name || session?.user?.email || "";
+  const emisor = session?.user?.name || session?.user?.usuario || "";
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});

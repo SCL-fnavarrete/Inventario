@@ -10,13 +10,13 @@ import { ThemeToggle } from "@/shared/ui/ThemeToggle";
 import { MensajeCampo, ResumenErrores, claseCampo } from "@/shared/ui/CampoFormulario";
 import { InputClave } from "@/shared/ui/InputClave";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
-import { esCorreoValido } from "@/shared/utilidades/text";
 
-const ETIQUETAS = { email: "Correo electrónico", password: "Contraseña" };
+// Se inicia sesion con el usuario, no con el correo (SPEC 2.122).
+const ETIQUETAS = { usuario: "Usuario", password: "Contraseña" };
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,15 +27,14 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     const faltan: Record<string, string> = {};
-    if (!email.trim()) faltan.email = "Escribe tu correo";
-    else if (!esCorreoValido(email)) faltan.email = "El correo no es válido";
+    if (!usuario.trim()) faltan.usuario = "Escribe tu usuario";
     if (!password) faltan.password = "Escribe tu contraseña";
     if (reportar(faltan)) return;
     setLoading(true);
 
     try {
       const result = await signIn("credentials", {
-        email,
+        usuario,
         password,
         redirect: false,
       });
@@ -71,23 +70,25 @@ export default function LoginPage() {
           <ApiErrorSummary error={error || null} />
 
           <div>
-            <label htmlFor="email" className="field-label">
-              Correo electrónico
+            <label htmlFor="usuario" className="field-label">
+              Usuario
             </label>
             <input
-              id="email"
-              type="email"
-              value={email}
+              id="usuario"
+              type="text"
+              value={usuario}
               onChange={(e) => {
-                setEmail(e.target.value);
-                limpiar("email");
+                setUsuario(e.target.value);
+                limpiar("usuario");
               }}
               autoComplete="username"
-              aria-invalid={!!errores.email}
-              className={claseCampo(errores.email)}
-              placeholder="usuario@sclconsultores.com"
+              autoCapitalize="none"
+              spellCheck={false}
+              aria-invalid={!!errores.usuario}
+              className={claseCampo(errores.usuario)}
+              placeholder="jsoto"
             />
-            <MensajeCampo mensaje={errores.email} />
+            <MensajeCampo mensaje={errores.usuario} />
           </div>
 
           <div>

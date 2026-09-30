@@ -1,21 +1,37 @@
 import { z } from 'zod';
 import { validarPasswordFuerte } from '@/modules/configuracion/clave';
+import { FORMATO_USUARIO, normalizarUsuario, USUARIO_MAX, USUARIO_MIN } from '@/modules/configuracion/usuario';
 
 /**
- * Reglas de Configuracion > Usuarios (SPEC 2.112.6). Que la sede exista y
- * este activa, y que el correo no se repita, se revisa en la ruta contra la
- * base.
+ * Reglas de Configuracion > Usuarios (SPEC 2.112.6 y 2.122). Que la sede
+ * exista y este activa, y que el usuario y el correo no se repitan, se revisa
+ * en el servicio contra la base.
  */
 
 export const ROLES_SISTEMA = ['admin', 'tecnico'] as const;
 
+// Con esto se inicia sesion (SPEC 2.122).
+const usuario = z
+  .string({ error: 'Escribe el usuario' })
+  .transform(normalizarUsuario)
+  .pipe(
+    z
+      .string()
+      .min(1, 'Escribe el usuario')
+      .min(USUARIO_MIN, `Mínimo ${USUARIO_MIN} caracteres`)
+      .max(USUARIO_MAX, `Máximo ${USUARIO_MAX} caracteres`)
+      .regex(FORMATO_USUARIO, 'Solo minúsculas, números, punto, guion y guion bajo')
+  );
+
+// Opcional, para recuperar la contrasena a futuro. Vacio = sin correo.
 const email = z
-  .string({ error: 'Escribe el correo' })
+  .string()
   .trim()
   .toLowerCase()
-  .min(1, 'Escribe el correo')
   .max(200, 'Máximo 200 caracteres')
-  .pipe(z.email('El correo no tiene un formato válido'));
+  .transform((v) => v || null)
+  .pipe(z.email('El correo no tiene un formato válido').nullable())
+  .nullable();
 
 const nombre = z
   .string({ error: 'Escribe el nombre' })
@@ -37,7 +53,8 @@ const sedeId = z
   .nullable();
 
 export const crearUsuarioSchema = z.object({
-  email,
+  usuario,
+  email: email.optional(),
   nombre,
   password,
   rol: rol.default('tecnico'),
@@ -48,6 +65,7 @@ export const crearUsuarioSchema = z.object({
 // El estado activo/inactivo se cambia con su propio boton (SPEC 2.112.3).
 // Una contrasena vacia al editar significa "mantener la actual".
 export const editarUsuarioSchema = z.object({
+  usuario: usuario.optional(),
   email: email.optional(),
   nombre: nombre.optional(),
   password: z

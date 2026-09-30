@@ -30,7 +30,7 @@ function leerCondicionCargador(valor: unknown): CondicionCargador | undefined {
 export async function aplicarTransicion(
   id: string,
   { nuevoEstado, comentario, datosAccion }: TransitionInput,
-  systemUser: { id: string; nombre: string; rol: SystemRole }
+  systemUser: { id: string; nombre: string; usuario: string; rol: SystemRole }
 ) {
   // Find the request
   const workflowRequest = await prisma.workflowRequest.findUnique({
@@ -204,6 +204,7 @@ export async function aplicarTransicion(
           fechaEntrega: new Date(),
           lugarEntrega: (datosAccion?.lugarEntrega as string) || null,
           entregadoPor: systemUser.nombre,
+          usuarioSistema: systemUser.usuario,
           tipoMovimiento: 'ingreso',
           motivo: `Onboarding - ${workflowRequest.numero}`,
           condicionCargadorEntrega: cargador?.condicion || null,
@@ -286,6 +287,7 @@ export async function aplicarTransicion(
           assignmentId: oldAssignmentId,
           fechaDevolucion: new Date(),
           recibidoPor: systemUser.nombre,
+          usuarioSistema: systemUser.usuario,
           estadoDevolucion: estadoDevolucionViejo,
           contexto: 'cambio',
           observacionesDevolucion: observacionesViejo
@@ -306,6 +308,7 @@ export async function aplicarTransicion(
           fechaEntrega: new Date(),
           lugarEntrega: (datosAccion?.lugarEntrega as string) || null,
           entregadoPor: systemUser.nombre,
+          usuarioSistema: systemUser.usuario,
           tipoMovimiento: 'cambio',
           motivo: workflowRequest.motivoCambio || `Cambio - ${workflowRequest.numero}`,
           condicionCargadorEntrega: condicionCargadorNuevo || null,
@@ -363,6 +366,7 @@ export async function aplicarTransicion(
           assignmentId: dev.assignmentId,
           fechaDevolucion: new Date(),
           recibidoPor: systemUser.nombre,
+          usuarioSistema: systemUser.usuario,
           estadoDevolucion: dev.estadoDevolucion,
           observacionesDevolucion: dev.observaciones || null,
           condicionCargadorDevolucion: leerCondicionCargador(dev.condicionCargador) || null,

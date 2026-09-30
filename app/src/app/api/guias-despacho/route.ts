@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { EstadoGuia } from "@prisma/client";
 import { leerPaginacion } from "@/shared/utilidades/paginacion";
-import { requirePermission, handleApiError } from '@/shared/auth/guard';
+import { requirePermission, handleApiError, quienHace } from '@/shared/auth/guard';
 import type { VistaGuia } from '@/modules/despachos';
 import { listarDespachos, registrarDespacho } from '@/modules/despachos/servidor';
 
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('guias', 'write');
     const guia = await registrarDespacho(await request.json(), {
-      email: session.user?.email,
+      usuario: quienHace(session),
       nombre: session.user?.name,
     });
     return NextResponse.json(guia, { status: 201 });
