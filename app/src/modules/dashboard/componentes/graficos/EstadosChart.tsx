@@ -64,8 +64,11 @@ export function EstadosChart({ data }: EstadosChartProps) {
             <Cell key={`cell-${index}`} fill={entry.color} />
           ))}
         </Pie>
+        {/* En la torta Recharts pinta el texto en negro fijo (no hay color de
+            serie): se usa el del tema para que se lea en modo oscuro. */}
         <Tooltip
           formatter={(value: number, name: string) => [value, name]}
+          itemStyle={{ color: "var(--fg)" }}
         />
         <Legend />
       </PieChart>
