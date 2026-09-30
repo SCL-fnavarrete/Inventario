@@ -84,14 +84,13 @@ export async function editarUsuario(
   datos: EditarUsuarioInput,
   sesion: { id: string; usuario: string }
 ) {
-  const { usuario, email, nombre, rol, password, activo, sedeId } = datos;
+  const { email, nombre, rol, password, activo, sedeId } = datos;
   const existente = await prisma.systemUser.findUnique({ where: { id } });
   if (!existente) throw new NotFoundError('Usuario no encontrado');
-  await exigirLibres(usuario, email, id);
+  await exigirLibres(undefined, email, id);
 
   const esUnoMismo = existente.id === sesion.id;
   const cambios: Prisma.SystemUserUpdateInput = {};
-  if (usuario) cambios.usuario = usuario;
   // Vacio (null) quita el correo.
   if (email !== undefined) cambios.email = email;
   if (nombre) cambios.nombre = nombre;

@@ -65,7 +65,9 @@ export const crearUsuarioSchema = z.object({
 // El estado activo/inactivo se cambia con su propio boton (SPEC 2.112.3).
 // Una contrasena vacia al editar significa "mantener la actual".
 export const editarUsuarioSchema = z.object({
-  usuario: usuario.optional(),
+  // El usuario no cambia una vez creado (SPEC 2.122): el historial lo anota
+  // y, si cambiara, lo anterior quedaria sin su cuenta.
+  usuario: z.never({ error: 'El usuario no se puede cambiar' }).optional(),
   email: email.optional(),
   nombre: nombre.optional(),
   password: z

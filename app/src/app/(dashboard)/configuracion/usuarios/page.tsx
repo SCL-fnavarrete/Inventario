@@ -245,7 +245,6 @@ export default function UsuariosPage() {
       // El estado activo/inactivo se cambia con su propio boton, con
       // confirmacion, no desde este formulario.
       const updateData: Record<string, unknown> = {
-        usuario: formData.usuario,
         email: formData.email,
         nombre: formData.nombre,
         rol: formData.rol,
@@ -428,10 +427,11 @@ export default function UsuariosPage() {
               onChange={cambiarUsuario}
               error={errores.usuario}
               placeholder="jsoto"
+              disabled={!isCreating}
               ayuda={
                 isCreating
-                  ? "Con esto inicia sesión. Se arma solo con el nombre (inicial y primer apellido); puedes cambiarlo."
-                  : "Con esto inicia sesión. Minúsculas, números, punto, guion y guion bajo."
+                  ? "Con esto inicia sesión. Se arma solo con el nombre (inicial y primer apellido); puedes cambiarlo antes de crear. Después no se puede cambiar."
+                  : "Con esto inicia sesión. No se puede cambiar: el historial lo usa para saber quién hizo cada cosa."
               }
             />
             <CampoTexto

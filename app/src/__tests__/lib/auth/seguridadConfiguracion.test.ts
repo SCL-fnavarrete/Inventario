@@ -134,6 +134,14 @@ describe('usuarios y sedes desactivadas', () => {
     expect(db.systemUser.create).not.toHaveBeenCalled();
   });
 
+  test('el usuario no se puede cambiar una vez creado (SPEC 2.122)', async () => {
+    const res = await editarUsuario(pedir('PUT', { usuario: 'otro.nombre' }), ctx('u1'));
+    expect(res.status).toBe(400);
+    expect((await res.json()).details[0].field).toBe('usuario');
+    expect(db.systemUser.update).not.toHaveBeenCalled();
+    expect(editarUsuarioSchema.safeParse({ nombre: 'Otro' }).success).toBe(true);
+  });
+
   test('dos sedes no pueden llamarse igual', async () => {
     db.sede.findUnique.mockResolvedValue({ id: 's1', nombre: 'Conce', activa: true });
     db.sede.findFirst.mockResolvedValue({ id: 's2' });
