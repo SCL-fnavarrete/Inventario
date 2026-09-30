@@ -22,6 +22,9 @@ import {
 } from '@/modules/activos';
 import { formatearFecha } from "@/shared/utilidades/fechas";
 
+/** De quien gestiono la solicitud, los PDF solo imprimen el nombre: no se lee nada mas de su cuenta. */
+const SOLO_NOMBRE = { select: { nombre: true } } as const;
+
 // Helper to cast React.createElement result for @react-pdf/renderer
 function renderPdf(element: React.ReactElement) {
   return renderToBuffer(element as React.ReactElement<DocumentProps>);
@@ -117,8 +120,8 @@ export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer>
           },
         },
       },
-      solicitante: true,
-      responsableActual: true,
+      solicitante: SOLO_NOMBRE,
+      responsableActual: SOLO_NOMBRE,
     },
   });
 
@@ -168,8 +171,8 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
           },
         },
       },
-      solicitante: true,
-      responsableActual: true,
+      solicitante: SOLO_NOMBRE,
+      responsableActual: SOLO_NOMBRE,
     },
   });
 
@@ -206,8 +209,8 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
     where: { id: solicitudId },
     include: {
       employee: true,
-      solicitante: true,
-      responsableActual: true,
+      solicitante: SOLO_NOMBRE,
+      responsableActual: SOLO_NOMBRE,
     },
   });
 
@@ -268,8 +271,8 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
           },
         },
       },
-      solicitante: true,
-      responsableActual: true,
+      solicitante: SOLO_NOMBRE,
+      responsableActual: SOLO_NOMBRE,
     },
   });
 

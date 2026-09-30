@@ -143,3 +143,23 @@ describe('handleApiError — fallo genérico', () => {
     expect(cuerpo.error).toBe('el activo está asignado');
   });
 });
+
+describe('handleApiError — cuerpo que no se puede leer', () => {
+  test('JSON malformado responde 400', async () => {
+    const res = handleApiError(new SyntaxError('Unexpected token n in JSON'));
+    expect(res.status).toBe(400);
+  });
+
+  test('algo que no es un formulario, donde se espera uno, responde 400', async () => {
+    const error = new TypeError(
+      'Content-Type was not one of "multipart/form-data" or "application/x-www-form-urlencoded".'
+    );
+    const res = handleApiError(error);
+    expect(res.status).toBe(400);
+    expect((await cuerpoDe(res)).error).toBe('El formato de los datos enviados no es válido');
+  });
+
+  test('cualquier otro TypeError sigue siendo un error del servidor', () => {
+    expect(handleApiError(new TypeError('x is not a function')).status).toBe(500);
+  });
+});

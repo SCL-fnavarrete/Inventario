@@ -3867,6 +3867,8 @@ La fecha de ingreso de un onboarding quedaba solo en la solicitud: la ficha de l
 - Las fichas ya creadas no se corrigen solas: se completan al editarlas.
 
 ## Changelog SPEC
+- **v2.47 (2026-09-30):**
+  - Correcciones de la revisión de seguridad del 30-sep: un pedido que no es un formulario donde se espera uno (importar Excel) responde 400 "El formato de los datos enviados no es válido", igual que un JSON malformado, en vez de 500; los PDF de solicitudes leen solo el nombre de quien la gestionó, no la cuenta completa.
 - **v2.46 (2026-09-30):**
   - Sección 3.2.3: sin dependencias de ida y vuelta entre módulos (el filtro "por llegar" pasa a Activos; al anular un reparto, la ruta le pasa a Despachos la función de Compras). La pantalla de Mantenciones toma el tipo `VistaMantencion` de sus validaciones, no de la puerta servidor.
   - Secciones 3.2.2 y 3.2.3: monolito modular sin excepciones. Ninguna ruta ni pantalla de `src/app` usa la base (las lecturas también son funciones de los módulos; ESLint lo exige). Cada tabla tiene un solo módulo dueño: la entrega y devolución de equipos pasa de Solicitudes a Asignaciones, la de Kit/EPP a Kit/EPP, el alta y desvinculación de personas a Personas, la mantención por daño y las de la importación a Mantenciones, la devolución del Kit/EPP de un reparto anulado a Compras y las cuentas de usuario a `shared/auth/cuentas.ts`. El test `duenosTablas.test.ts` reemplaza a `escriturasActivos.test.ts`. El Excel de activos tiene su propia puerta (`@/modules/activos/excel`). Las opciones de catálogo que crea una importación quedan en la auditoría.
