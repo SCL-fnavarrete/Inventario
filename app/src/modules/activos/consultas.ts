@@ -71,10 +71,20 @@ const CAMPO_FILTRO = {
 function condicionFiltroDato(param: ParamFiltroDato, valor: string): Prisma.AssetWhereInput {
   if (param === 'motivoBaja') {
     return valor === SIN_DATO
-      ? { estado: 'baja', maintenances: { none: { motivoBajaId: { not: null } } } }
-      : // Solo los ya dados de baja: una mantencion abierta "para dar de baja"
-        // tambien tiene motivo, pero el equipo todavia no es baja (SPEC 2.126).
-        { estado: 'baja', maintenances: { some: { motivoBajaId: valor } } };
+      ? {
+          estado: 'baja',
+          maintenances: { none: { motivoBajaId: { not: null } } },
+          assignments: { none: { motivoBajaId: { not: null } } },
+        }
+      : // El motivo esta en la mantencion de la baja o, si se dio de baja en
+        // un cambio de equipo, en la devolucion (SPEC 2.126).
+        {
+          estado: 'baja',
+          OR: [
+            { maintenances: { some: { motivoBajaId: valor } } },
+            { assignments: { some: { motivoBajaId: valor } } },
+          ],
+        };
   }
   const campo = CAMPO_FILTRO[param];
   return valor === SIN_DATO ? { OR: [{ [campo]: null }, { [campo]: '' }] } : { [campo]: valor };

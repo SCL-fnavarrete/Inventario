@@ -1,8 +1,8 @@
 /** @jest-environment node */
 /**
  * Cambio de equipo con el anterior "para dar de baja" (SPEC 2.126), contra
- * Postgres real: en una sola transaccion se cierra la asignacion y el equipo
- * queda de baja con su mantencion "No reparable" ya cerrada y su motivo.
+ * Postgres real: en una sola transaccion se cierra la asignacion con su
+ * motivo y el equipo queda de baja directo, sin pasar por Mantenciones.
  * Solo corre contra la base de pruebas (ver concurrencia.int.test.ts).
  */
 import { randomUUID } from 'crypto';
@@ -23,6 +23,7 @@ describir('devolver para dar de baja, en Postgres', () => {
       data: { nombres: 'Ana', apellidoPaterno: `Baja${s}`, estado: 'activo', sedeId: sede.id },
     });
     const motivo = await prisma.motivoBaja.create({ data: { nombre: `Robo ${s}` } });
+    const tipo = await prisma.maintenanceType.create({ data: { nombre: `Baja ${s}` } });
     const activo = await prisma.asset.create({
       data: {
         categoriaId: categoria.id, sedeId: sede.id, marca: 'Dell', modelo: `Baja ${s}`,
@@ -32,7 +33,12 @@ describir('devolver para dar de baja, en Postgres', () => {
     const asignacion = await prisma.assignment.create({
       data: { assetId: activo.id, employeeId: empleado.id, tipoMovimiento: 'ingreso', fechaEntrega: new Date(), activo: true },
     });
+    // Una preventiva programada: al darlo de baja se cancela.
+    await prisma.maintenance.create({
+      data: { assetId: activo.id, tipoId: tipo.id, descripcion: 'Preventiva', estado: 'pendiente', fechaProgramada: new Date() },
+    });
     Object.assign(ids, {
+      tipo: tipo.id,
       sede: sede.id, categoria: categoria.id, empleado: empleado.id, motivo: motivo.id,
       activo: activo.id, asignacion: asignacion.id,
     });
@@ -47,12 +53,13 @@ describir('devolver para dar de baja, en Postgres', () => {
     await prisma.asset.deleteMany({ where: { id: ids.activo } });
     await prisma.employee.deleteMany({ where: { id: ids.empleado } });
     await prisma.motivoBaja.deleteMany({ where: { id: ids.motivo } });
+    await prisma.maintenanceType.deleteMany({ where: { id: ids.tipo } });
     await prisma.assetCategory.deleteMany({ where: { id: ids.categoria } });
     await prisma.sede.deleteMany({ where: { id: ids.sede } });
     await prisma.$disconnect();
   });
 
-  test('queda de baja en el acto, con su mantención No reparable cerrada y el motivo', async () => {
+  test('queda de baja directo: sin mantención nueva, con el motivo en la devolución', async () => {
     await prisma.$transaction((tx) =>
       executeReturn(tx, {
         assignmentId: ids.asignacion,
@@ -74,21 +81,29 @@ describir('devolver para dar de baja, en Postgres', () => {
     expect(asignacion).toMatchObject({
       activo: false,
       estadoDevolucion: 'baja',
+      motivoBajaId: ids.motivo,
       observacionesDevolucion: `Motivo de baja: Robo ${s} — Denuncia 123`,
     });
 
+    // Ninguna mantencion nueva; la preventiva pendiente quedo cancelada.
     const mantenciones = await prisma.maintenance.findMany({ where: { assetId: ids.activo } });
     expect(mantenciones).toHaveLength(1);
-    expect(mantenciones[0]).toMatchObject({
-      estado: 'completada',
-      resultadoTipo: 'no_reparable',
-      motivoBajaId: ids.motivo,
-      motivoBaja: `Robo ${s}`,
+    expect(mantenciones[0]).toMatchObject({ descripcion: 'Preventiva', estado: 'cancelada' });
+
+    const historial = await prisma.assetHistory.findMany({ where: { assetId: ids.activo } });
+    expect(historial).toHaveLength(1);
+    expect(historial[0]).toMatchObject({
+      tipoEvento: 'baja',
+      descripcion: `Devuelto por Ana Baja${s} y dado de baja. Motivo: Robo ${s}`,
+      usuarioSistema: 'admin.test',
     });
 
-    const historial = await prisma.assetHistory.findMany({ where: { assetId: ids.activo }, orderBy: { createdAt: 'asc' } });
-    expect(historial.map((h) => h.tipoEvento)).toEqual(['devolucion', 'baja']);
-    expect(historial[0].descripcion).toBe(`Devuelto por Ana Baja${s} para dar de baja. Motivo: Robo ${s}`);
-    expect(historial.every((h) => h.usuarioSistema === 'admin.test')).toBe(true);
+    // El filtro y el conteo por motivo lo encuentran en la devolucion.
+    const { whereFiltrosActivos } = await import('@/modules/activos/consultas');
+    const conMotivo = await prisma.asset.count({ where: { id: ids.activo, ...whereFiltrosActivos({ datos: { motivoBaja: ids.motivo } }) } });
+    expect(conMotivo).toBe(1);
+    const { listarMotivosBaja } = await import('@/modules/mantenciones/servidor');
+    const uso = (await listarMotivosBaja({ conUso: true })).find((m) => m.id === ids.motivo);
+    expect(uso).toMatchObject({ enUso: 1 });
   });
 });

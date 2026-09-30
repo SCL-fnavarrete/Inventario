@@ -370,7 +370,7 @@ export function SeleccionarCambioEquipo({
                   )}
                   {item.estadoDevolucion === "baja" && (
                     <p className="mt-1 text-xs text-fg-subtle">
-                      El equipo queda de baja con este motivo (en Mantenciones queda registrado como &ldquo;No reparable&rdquo;).
+                      El equipo queda de baja directo con este motivo.
                     </p>
                   )}
                   <input

@@ -4,7 +4,7 @@ import { ConflictError, NotFoundError } from '@/shared/errores';
 import { formatearClp } from '@/shared/utilidades/moneda';
 import { etiquetaEstadoActivo, etiquetaEstadoDevolucion } from '@/modules/activos';
 import { cambiarEstado } from '@/modules/activos/servidor';
-import { abrirMantencionPorDano, darDeBajaAlDevolver, motivoParaBaja } from '@/modules/mantenciones/servidor';
+import { abrirMantencionPorDano, cancelarAbiertasPorBaja, motivoParaBaja } from '@/modules/mantenciones/servidor';
 
 /**
  * Entregar y devolver un equipo (SPEC 2.118: Asignaciones es el unico que
@@ -254,6 +254,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       recibidoPor: params.recibidoPor,
       estadoDevolucion: params.estadoDevolucion,
       observacionesDevolucion,
+      motivoBajaId: motivo?.motivoBajaId ?? null,
       ...(aplicaCargadorDevolucion && {
         condicionCargadorDevolucion: params.condicionCargadorDevolucion || null,
         observacionesCargadorDevolucion: params.observacionesCargador || null,
@@ -268,14 +269,14 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
   // Devolver en buen estado deja el equipo listo para entregar de nuevo:
   // vuelve directo a "disponible". Danado pasa a mantencion para que el
   // tecnico evalue si se repara o se da de baja (SPEC 2.87); antes iba
-  // directo a "baja", sin vuelta atras. "Para dar de baja" vuelve y queda
-  // de baja en el acto, mas abajo (SPEC 2.126).
+  // directo a "baja", sin vuelta atras. "Para dar de baja" (cambio de
+  // equipo) va directo a baja, sin pasar por Mantenciones (SPEC 2.126).
   const danado = params.estadoDevolucion === 'danado';
-  const nuevoEstado: 'disponible' | 'en_mantencion' = danado ? 'en_mantencion' : 'disponible';
+  const nuevoEstado = danado ? 'en_mantencion' : paraBaja ? 'baja' : 'disponible';
 
   const persona = `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno}`;
   const descripcionDevolucion = motivo
-    ? `Devuelto por ${persona} para dar de baja. Motivo: ${motivo.motivoTexto}`
+    ? `Devuelto por ${persona} y dado de baja. Motivo: ${motivo.motivoTexto}`
     : `Devuelto por ${persona}. Estado: ${etiquetaEstadoDevolucion(params.estadoDevolucion)}`;
   await cambiarEstado(tx, {
     activo: assignment.asset,
@@ -286,10 +287,11 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
     datos: {
       ...(danado && { condicion: 'danado' }),
       ...(params.estadoDevolucion === 'ok' && { condicion: 'usado' }),
+      ...(paraBaja && { fechaBaja: params.fechaDevolucion }),
       empleadoActualId: null,
     },
     historial: {
-      tipoEvento: 'devolucion',
+      tipoEvento: paraBaja ? 'baja' : 'devolucion',
       descripcion: descripcionDevolucion,
       datosAnteriores: {
         estado: assignment.asset.estado,
@@ -299,6 +301,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
         estado: nuevoEstado,
         empleadoActualId: null,
         estadoDevolucion: params.estadoDevolucion,
+        ...(motivo && { motivoBaja: motivo.motivoTexto }),
       },
       usuarioSistema: quien,
     },
@@ -312,17 +315,9 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       usuario: quien,
     });
   }
-  // Con motivo de baja, queda de baja de inmediato: su mantencion "No
-  // reparable" se registra ya cerrada, como toda baja (SPEC 2.88).
-  if (motivo) {
-    await darDeBajaAlDevolver(tx, {
-      assetId: assignment.assetId,
-      ...motivo,
-      persona,
-      realizadoPor: params.recibidoPor || quien,
-      usuario: quien,
-    });
-  }
+  // Un equipo de baja no queda con mantenciones pendientes (ej. una preventiva
+  // programada), igual que en toda baja.
+  if (paraBaja) await cancelarAbiertasPorBaja(tx, assignment.assetId);
 
   // Se devuelve la asignacion ya actualizada, no la que se leyo al entrar:
   // esa todavia dice activo: true y sin fecha de devolucion.

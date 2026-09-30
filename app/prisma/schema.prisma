@@ -197,6 +197,8 @@ model MotivoBaja {
   clave        String?       @unique
   createdAt    DateTime      @default(now()) @map("created_at")
   maintenances Maintenance[]
+  // Bajas directas desde un cambio de equipo (SPEC 2.126).
+  assignments  Assignment[]
 
   @@map("motivos_baja")
 }
@@ -440,6 +442,9 @@ model Assignment {
   // Valor del equipo (CLP) cuando quedo "No devuelto" (SPEC 2.124): se
   // copia del activo en ese momento y no cambia despues, para RRHH.
   valorNoDevuelto         Int?              @map("valor_no_devuelto")
+  // Cambio de equipo devuelto "para dar de baja" (SPEC 2.126): el motivo de
+  // la lista. La baja va directo, sin mantencion: el motivo queda aqui.
+  motivoBajaId            String?           @map("motivo_baja_id")
   observacionesDevolucion String?           @map("observaciones_devolucion")
   // Condicion del cargador -- solo tiene sentido si el activo es un
   // notebook con tieneCargador = true; para el resto queda null. Es un
@@ -460,6 +465,7 @@ model Assignment {
   updatedAt               DateTime          @updatedAt @map("updated_at")
   asset                   Asset             @relation(fields: [assetId], references: [id])
   employee                Employee          @relation(fields: [employeeId], references: [id])
+  motivoBaja              MotivoBaja?       @relation(fields: [motivoBajaId], references: [id], onDelete: Restrict)
 
   @@index([assetId])
   // "Equipos activos de un empleado" (ficha, traslado de sede, desvinculacion).
@@ -467,6 +473,7 @@ model Assignment {
   @@index([activo])
   @@index([fechaEntrega])
   @@index([tipoMovimiento])
+  @@index([motivoBajaId])
   @@map("assignments")
 }
 
@@ -1027,8 +1034,8 @@ enum EstadoDevolucion {
   // sale del parque util igual que uno danado, pero por otro motivo.
   no_devuelto
   // Cambio de equipo: el anterior se devuelve para darlo de baja, con un
-  // motivo de la lista (SPEC 2.126): queda de baja en el acto, con su
-  // mantencion "No reparable" ya cerrada.
+  // motivo de la lista (SPEC 2.126): queda de baja en el acto, sin pasar
+  // por Mantenciones; el motivo queda en la asignacion.
   baja
 }
 

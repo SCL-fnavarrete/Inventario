@@ -3,14 +3,6 @@ import { executeKitReturn } from '@/modules/kit-epp/entregas';
 import { executeKitDelivery } from '@/modules/solicitudes/ejecucion';
 import { ConflictError, NotFoundError } from '@/shared/errores';
 
-// La baja en si (mantencion "No reparable" ya cerrada) es de Mantenciones y
-// se prueba contra la base en cambioBaja.int.test.ts; aqui solo que se pide.
-jest.mock('@/modules/mantenciones/servidor', () => ({
-  ...jest.requireActual('@/modules/mantenciones/servidor'),
-  darDeBajaAlDevolver: jest.fn(),
-}));
-import { darDeBajaAlDevolver } from '@/modules/mantenciones/servidor';
-
 jest.mock('@/shared/auditoria', () => ({
   auditLogService: { registrarCreacion: jest.fn(), registrarActualizacion: jest.fn() },
 }));
@@ -234,10 +226,11 @@ describe('executeReturn', () => {
     }
   });
 
-  it('"para dar de baja" (cambio de equipo): queda de baja en el acto, con el motivo como comentario (SPEC 2.126)', async () => {
+  it('"para dar de baja" (cambio de equipo): va directo a baja, sin mantención, con el motivo en la devolución (SPEC 2.126)', async () => {
     const tx = {
       ...txFalso(),
       motivoBaja: { findFirst: jest.fn().mockResolvedValue({ id: 'm-robo', nombre: 'Robo', clave: null }) },
+      maintenance: { create: jest.fn(), updateMany: jest.fn() },
     };
     (tx.assignment.findUnique as Fn).mockResolvedValue(asignacion());
     await executeReturn(comoTx(tx), {
@@ -247,20 +240,28 @@ describe('executeReturn', () => {
       observacionesDevolucion: 'En el metro',
       contexto: 'cambio',
     });
-    // La asignacion se cierra con el motivo como comentario.
+    // La asignacion se cierra con el motivo (dato y comentario).
     expect((tx.assignment.update as Fn).mock.calls[0][0].data).toMatchObject({
       estadoDevolucion: 'baja',
+      motivoBajaId: 'm-robo',
       observacionesDevolucion: 'Motivo de baja: Robo — En el metro',
     });
-    // Vuelve sin quien lo tenga y se da de baja con su motivo, en la misma transaccion.
+    // De asignado a baja en un paso, sin quien lo tenga y con fecha de baja.
     expect(tx.asset.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ estado: 'disponible', empleadoActualId: null }) })
+      expect.objectContaining({
+        data: expect.objectContaining({ estado: 'baja', empleadoActualId: null, fechaBaja: devolucion.fechaDevolucion }),
+      })
     );
-    expect(darDeBajaAlDevolver).toHaveBeenCalledWith(tx, expect.objectContaining({
-      assetId: 'a1', motivoBajaId: 'm-robo', motivoTexto: 'Robo', persona: 'Ana Pérez',
-    }));
-    const historial = (tx.assetHistory.create as Fn).mock.calls.map((c) => c[0].data.descripcion);
-    expect(historial).toContain('Devuelto por Ana Pérez para dar de baja. Motivo: Robo');
+    // Sin mantencion nueva; las pendientes que tuviera se cancelan.
+    expect(tx.maintenance.create).not.toHaveBeenCalled();
+    expect(tx.maintenance.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ assetId: 'a1' }), data: expect.objectContaining({ estado: 'cancelada' }) })
+    );
+    const [historial] = (tx.assetHistory.create as Fn).mock.calls.map((c) => c[0].data);
+    expect(historial).toMatchObject({
+      tipoEvento: 'baja',
+      descripcion: 'Devuelto por Ana Pérez y dado de baja. Motivo: Robo',
+    });
   });
 
   it('"para dar de baja" sin un motivo válido se rechaza antes de escribir', async () => {

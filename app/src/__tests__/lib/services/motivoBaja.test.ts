@@ -17,7 +17,7 @@ import { eliminarMotivoBaja, motivoParaBaja } from '@/modules/mantenciones/motiv
 const db = prisma as unknown as {
   motivoBaja: Record<'findUnique' | 'findFirst' | 'update' | 'delete', jest.Mock>;
 };
-const motivo = (extra: object) => ({ id: 'm1', nombre: 'Robo', clave: null, _count: { maintenances: 0 }, ...extra });
+const motivo = (extra: object) => ({ id: 'm1', nombre: 'Robo', clave: null, _count: { maintenances: 0, assignments: 0 }, ...extra });
 
 beforeEach(() => jest.clearAllMocks());
 
@@ -29,9 +29,15 @@ describe('eliminar un motivo', () => {
   });
 
   test('uno ya usado solo se desactiva: sus bajas son evidencia', async () => {
-    db.motivoBaja.findUnique.mockResolvedValue(motivo({ _count: { maintenances: 3 } }));
+    db.motivoBaja.findUnique.mockResolvedValue(motivo({ _count: { maintenances: 3, assignments: 0 } }));
     expect(await eliminarMotivoBaja('m1')).toEqual({ desactivado: true });
     expect(db.motivoBaja.update).toHaveBeenCalledWith({ where: { id: 'm1' }, data: { activo: false } });
+    expect(db.motivoBaja.delete).not.toHaveBeenCalled();
+  });
+
+  test('usado solo en una baja desde un cambio de equipo también se desactiva (SPEC 2.126)', async () => {
+    db.motivoBaja.findUnique.mockResolvedValue(motivo({ _count: { maintenances: 0, assignments: 1 } }));
+    expect(await eliminarMotivoBaja('m1')).toEqual({ desactivado: true });
     expect(db.motivoBaja.delete).not.toHaveBeenCalled();
   });
 

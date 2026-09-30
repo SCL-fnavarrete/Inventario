@@ -229,45 +229,6 @@ export async function darDeBajaEnTransaccion(
   return m;
 }
 
-/**
- * Equipo devuelto en un cambio "para dar de baja" por un motivo de la lista
- * (SPEC 2.126): queda de baja en el acto, con su mantencion "No reparable"
- * ya cerrada, como toda baja (SPEC 2.88). Quien llama ya cerro la asignacion
- * y dejo el equipo sin empleado.
- */
-export async function darDeBajaAlDevolver(
-  tx: PrismaTx,
-  datos: { assetId: string; motivoBajaId: string; motivoTexto: string; persona: string; realizadoPor: string; usuario: string }
-) {
-  const [asset, tipo] = await Promise.all([
-    tx.asset.findUniqueOrThrow({
-      where: { id: datos.assetId },
-      include: {
-        maintenances: {
-          where: { estado: { in: ['pendiente', 'en_proceso'] } },
-          include: { tipo: true },
-          orderBy: { createdAt: 'asc' },
-        },
-      },
-    }),
-    tipoCorrectivaPorDefecto(tx),
-  ]);
-  if (!tipo && !mantencionACerrar(asset.maintenances)) {
-    throw new ConflictError('No hay tipos de mantención activos para registrar la baja. Crea uno en Mantenciones > Tipos.');
-  }
-  return darDeBajaEnTransaccion(tx, {
-    asset,
-    tipo: tipo ?? asset.maintenances[0].tipo,
-    motivoBajaId: datos.motivoBajaId,
-    motivoTexto: datos.motivoTexto,
-    resultado: `Dado de baja al devolverlo en un cambio de equipo: ${datos.motivoTexto}`,
-    descripcion: `Dar de baja (${datos.motivoTexto}): equipo devuelto por ${datos.persona} en un cambio de equipo`,
-    fechaRealizada: inicioDeHoy(),
-    realizadoPor: datos.realizadoPor,
-    usuario: datos.usuario,
-  });
-}
-
 /* ------------------------------------------------------------------------
  * Acciones sobre una mantencion (SPEC 2.96). Las rutas de
  * /api/mantenciones/[id] solo validan la peticion y llaman a estas.
