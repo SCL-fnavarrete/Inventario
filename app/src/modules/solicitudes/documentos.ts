@@ -243,7 +243,9 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
             ? 'Devuelto dañado'
             : a.estadoDevolucion === 'no_devuelto'
               ? 'No devuelto'
-              : 'Devolución OK',
+              : a.estadoDevolucion === 'baja'
+                ? 'Baja'
+                : 'Devolución OK',
           textoCargador(a, 'devolucion')
         )
       : FILA_VACIA

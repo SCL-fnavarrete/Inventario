@@ -70,6 +70,8 @@ export const ESTADO_DEVOLUCION_LABEL: Record<string, string> = {
   danado: 'Dañado',
   incompleto: 'Incompleto',
   no_devuelto: 'No devuelto',
+  // Cambio de equipo: se devolvio para darlo de baja (SPEC 2.126).
+  baja: 'Baja',
 };
 
 export function etiquetaEstadoDevolucion(estado: string): string {

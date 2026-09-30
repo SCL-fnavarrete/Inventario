@@ -34,6 +34,8 @@ const DEVOLUCION: Record<string, { texto: string; clase: string }> = {
   ok: { texto: 'Buen estado', clase: 'bg-green-100 text-green-700' },
   danado: { texto: 'Dañado', clase: 'bg-red-100 text-red-700' },
   no_devuelto: { texto: 'No devolvió', clase: 'bg-amber-100 text-amber-800' },
+  // Cambio de equipo: vuelve para darlo de baja (SPEC 2.126); el motivo va en las observaciones.
+  baja: { texto: 'Baja', clase: 'bg-red-100 text-red-700' },
 };
 
 /**

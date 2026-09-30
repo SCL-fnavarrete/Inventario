@@ -72,7 +72,9 @@ function condicionFiltroDato(param: ParamFiltroDato, valor: string): Prisma.Asse
   if (param === 'motivoBaja') {
     return valor === SIN_DATO
       ? { estado: 'baja', maintenances: { none: { motivoBajaId: { not: null } } } }
-      : { maintenances: { some: { motivoBajaId: valor } } };
+      : // Solo los ya dados de baja: una mantencion abierta "para dar de baja"
+        // tambien tiene motivo, pero el equipo todavia no es baja (SPEC 2.126).
+        { estado: 'baja', maintenances: { some: { motivoBajaId: valor } } };
   }
   const campo = CAMPO_FILTRO[param];
   return valor === SIN_DATO ? { OR: [{ [campo]: null }, { [campo]: '' }] } : { [campo]: valor };

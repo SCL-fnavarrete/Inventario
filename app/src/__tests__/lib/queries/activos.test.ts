@@ -70,7 +70,8 @@ describe('filtros por marca, sistema operativo, antivirus, licencia y motivo de 
 
   test('motivo de baja: por la mantencion de baja, o bajas sin motivo', () => {
     expect(whereFiltrosActivos({ datos: { motivoBaja: 'm1' } }).AND).toEqual([
-      { maintenances: { some: { motivoBajaId: 'm1' } } },
+      // Solo equipos ya de baja: una mantencion "para dar de baja" abierta no cuenta (SPEC 2.126).
+      { estado: 'baja', maintenances: { some: { motivoBajaId: 'm1' } } },
     ]);
     expect(whereFiltrosActivos({ datos: { motivoBaja: SIN_DATO } }).AND).toEqual([
       { estado: 'baja', maintenances: { none: { motivoBajaId: { not: null } } } },

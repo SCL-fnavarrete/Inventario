@@ -4,7 +4,7 @@ import { ConflictError, NotFoundError } from '@/shared/errores';
 import { formatearClp } from '@/shared/utilidades/moneda';
 import { etiquetaEstadoActivo, etiquetaEstadoDevolucion } from '@/modules/activos';
 import { cambiarEstado } from '@/modules/activos/servidor';
-import { abrirMantencionPorDano } from '@/modules/mantenciones/servidor';
+import { abrirMantencionPorDano, motivoParaBaja } from '@/modules/mantenciones/servidor';
 
 /**
  * Entregar y devolver un equipo (SPEC 2.118: Asignaciones es el unico que
@@ -45,7 +45,10 @@ export type ExecuteReturnParams = {
   recibidoPor?: string | null;
   // Usuario de quien lo hace, para el historial (SPEC 2.122); el nombre va en recibidoPor.
   usuarioSistema?: string | null;
-  estadoDevolucion: 'ok' | 'danado' | 'incompleto' | 'no_devuelto';
+  estadoDevolucion: 'ok' | 'danado' | 'incompleto' | 'no_devuelto' | 'baja';
+  // Solo con estadoDevolucion 'baja' (SPEC 2.126): el motivo de la lista y,
+  // si es "Otro", su detalle.
+  motivoBaja?: { id: string; detalle?: string | null };
   observacionesDevolucion?: string | null;
   // Condicion del cargador al momento de la devolucion -- mismo criterio
   // que condicionCargadorEntrega en ExecuteAssignmentParams: solo se usa
@@ -224,6 +227,16 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
     return actualizada;
   }
 
+  // "Para dar de baja" (SPEC 2.126): el motivo se revisa antes de escribir.
+  const paraBaja = params.estadoDevolucion === 'baja';
+  const motivo = paraBaja
+    ? await motivoParaBaja(tx, { id: params.motivoBaja?.id ?? '' }, params.motivoBaja?.detalle)
+    : null;
+  // El motivo queda como comentario de la devolucion, junto a lo que se anoto.
+  const observacionesDevolucion = motivo
+    ? `Motivo de baja: ${motivo.motivoTexto}${params.observacionesDevolucion ? ` — ${params.observacionesDevolucion}` : ''}`
+    : params.observacionesDevolucion;
+
   // Se cierra con una condicion sobre `activo`: si otra devolucion simultanea
   // ya la cerro, esta no encuentra la fila y se rechaza (mismo patron que las
   // entregas, auditoria 27-sep-2026).
@@ -240,7 +253,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       fechaDevolucion: params.fechaDevolucion,
       recibidoPor: params.recibidoPor,
       estadoDevolucion: params.estadoDevolucion,
-      observacionesDevolucion: params.observacionesDevolucion,
+      observacionesDevolucion,
       ...(aplicaCargadorDevolucion && {
         condicionCargadorDevolucion: params.condicionCargadorDevolucion || null,
         observacionesCargadorDevolucion: params.observacionesCargador || null,
@@ -255,11 +268,15 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
   // Devolver en buen estado deja el equipo listo para entregar de nuevo:
   // vuelve directo a "disponible". Danado pasa a mantencion para que el
   // tecnico evalue si se repara o se da de baja (SPEC 2.87); antes iba
-  // directo a "baja", sin vuelta atras.
+  // directo a "baja", sin vuelta atras. "Para dar de baja" tambien va a
+  // mantencion: la baja se completa ahi, como es el proceso (SPEC 2.88).
   const danado = params.estadoDevolucion === 'danado';
-  const nuevoEstado: 'disponible' | 'en_mantencion' = danado ? 'en_mantencion' : 'disponible';
+  const nuevoEstado: 'disponible' | 'en_mantencion' = danado || paraBaja ? 'en_mantencion' : 'disponible';
 
-  const descripcionDevolucion = `Devuelto por ${assignment.employee.nombres} ${assignment.employee.apellidoPaterno}. Estado: ${etiquetaEstadoDevolucion(params.estadoDevolucion)}`;
+  const persona = `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno}`;
+  const descripcionDevolucion = motivo
+    ? `Devuelto por ${persona} para dar de baja. Motivo: ${motivo.motivoTexto}`
+    : `Devuelto por ${persona}. Estado: ${etiquetaEstadoDevolucion(params.estadoDevolucion)}`;
   await cambiarEstado(tx, {
     activo: assignment.asset,
     a: nuevoEstado,
@@ -287,12 +304,13 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
     },
   });
 
-  if (danado) {
+  if (danado || paraBaja) {
     await abrirMantencionPorDano(tx, {
       assetId: assignment.assetId,
-      empleado: `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno}`,
+      empleado: persona,
       observaciones: params.observacionesDevolucion ?? null,
       usuario: quien,
+      motivoBaja: motivo,
     });
   }
 

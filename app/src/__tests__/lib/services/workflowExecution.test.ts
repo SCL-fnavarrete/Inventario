@@ -226,6 +226,50 @@ describe('executeReturn', () => {
     }
   });
 
+  it('"para dar de baja" (cambio de equipo): va a mantención con el motivo, y el motivo queda como comentario (SPEC 2.126)', async () => {
+    const tx = {
+      ...txFalso(),
+      motivoBaja: { findFirst: jest.fn().mockResolvedValue({ id: 'm-robo', nombre: 'Robo', clave: null }) },
+      maintenanceType: { findFirst: jest.fn().mockResolvedValue({ id: 't1', nombre: 'Correctiva' }) },
+      maintenance: { create: jest.fn().mockResolvedValue({ id: 'mant-1' }) },
+    };
+    (tx.assignment.findUnique as Fn).mockResolvedValue(asignacion());
+    await executeReturn(comoTx(tx), {
+      ...devolucion,
+      estadoDevolucion: 'baja',
+      motivoBaja: { id: 'm-robo' },
+      observacionesDevolucion: 'En el metro',
+      contexto: 'cambio',
+    });
+    // La asignacion se cierra con el motivo como comentario.
+    expect((tx.assignment.update as Fn).mock.calls[0][0].data).toMatchObject({
+      estadoDevolucion: 'baja',
+      observacionesDevolucion: 'Motivo de baja: Robo — En el metro',
+    });
+    // El equipo va a mantencion (la baja se completa ahi), sin quien lo tenga.
+    expect(tx.asset.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ estado: 'en_mantencion', empleadoActualId: null }) })
+    );
+    // La mantencion nace con el motivo ya elegido.
+    expect(tx.maintenance.create.mock.calls[0][0].data).toMatchObject({
+      estado: 'en_proceso',
+      motivoBajaId: 'm-robo',
+      motivoBaja: 'Robo',
+      descripcion: 'Dar de baja (Robo): equipo devuelto por Ana Pérez: En el metro',
+    });
+    const historial = (tx.assetHistory.create as Fn).mock.calls.map((c) => c[0].data.descripcion);
+    expect(historial).toContain('Devuelto por Ana Pérez para dar de baja. Motivo: Robo');
+  });
+
+  it('"para dar de baja" sin un motivo válido se rechaza antes de escribir', async () => {
+    const tx = { ...txFalso(), motivoBaja: { findFirst: jest.fn().mockResolvedValue(null) } };
+    (tx.assignment.findUnique as Fn).mockResolvedValue(asignacion());
+    await expect(
+      executeReturn(comoTx(tx), { ...devolucion, estadoDevolucion: 'baja', motivoBaja: { id: 'no-existe' } })
+    ).rejects.toThrow(/motivo de baja/);
+    expect(tx.assignment.updateMany).not.toHaveBeenCalled();
+  });
+
   it('"no devuelto" guarda el valor del equipo en ese momento, para RRHH (SPEC 2.124)', async () => {
     const tx = txFalso();
     const conValor = { id: 'a1', estado: 'asignado', empleadoActualId: 'e1', tieneCargador: false, valor: 850000 };

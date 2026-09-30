@@ -413,6 +413,10 @@ export async function crearSolicitud(
             recibidoPor: systemUser.nombre,
             usuarioSistema: systemUser.usuario,
             estadoDevolucion: cambio.estadoDevolucion,
+            // "Para dar de baja" con su motivo (SPEC 2.126).
+            ...(cambio.estadoDevolucion === 'baja' && {
+              motivoBaja: { id: cambio.motivoBajaId!, detalle: cambio.motivoBajaDetalle || null },
+            }),
             observacionesDevolucion: cambio.observacionesDevolucion || null,
             condicionCargadorDevolucion: cambio.condicionCargadorAnterior || null,
             observacionesCargador: cambio.observacionesCargadorAnterior || null,

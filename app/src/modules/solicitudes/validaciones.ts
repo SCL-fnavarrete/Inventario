@@ -154,7 +154,13 @@ const cambioEquipoFields = z.object({
       z.object({
         oldAssignmentId: z.string().uuid('ID de asignación inválido'),
         newAssetId: z.string().uuid('ID de activo inválido'),
-        estadoDevolucion: z.enum(['ok', 'danado', 'no_devuelto']),
+        // SPEC 2.126: en un cambio el equipo anterior vuelve en buen estado,
+        // danado o "para dar de baja" con un motivo de la lista. "No devolvio"
+        // es solo de la desvinculacion.
+        estadoDevolucion: z.enum(['ok', 'danado', 'baja'], { error: 'Elige cómo vuelve el equipo' }),
+        motivoBajaId: z.string().uuid('Elige el motivo de la baja').optional().nullable(),
+        // Detalle, obligatorio si el motivo es "Otro" (lo revisa motivoParaBaja).
+        motivoBajaDetalle: z.string().trim().max(500, 'Máximo 500 caracteres').optional().nullable(),
         observacionesDevolucion: z.string().optional().nullable(),
         // Condicion del cargador: solo aplica si el equipo es un notebook con
         // tieneCargador. "Anterior" es el del equipo devuelto, "Nuevo" el del
@@ -163,6 +169,9 @@ const cambioEquipoFields = z.object({
         observacionesCargadorAnterior: z.string().optional().nullable(),
         condicionCargadorNuevo: condicionCargadorSchema.optional().nullable(),
         observacionesCargadorNuevo: z.string().optional().nullable(),
+      }).refine((c) => c.estadoDevolucion !== 'baja' || !!c.motivoBajaId, {
+        message: 'Elige el motivo de la baja',
+        path: ['motivoBajaId'],
       })
     )
     .min(1, 'Elige al menos un equipo a cambiar'),

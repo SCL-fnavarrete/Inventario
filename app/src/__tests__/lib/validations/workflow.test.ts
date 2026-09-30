@@ -106,13 +106,15 @@ describe('createWorkflowRequestSchema — cambio_equipo (SPEC 2.84)', () => {
     expect(result.success).toBe(true);
   });
 
-  test('acepta observaciones, "no_devuelto" y datos del cargador', () => {
+  test('acepta observaciones, "para dar de baja" con motivo y datos del cargador', () => {
     const result = createWorkflowRequestSchema.safeParse({
       ...validCambio,
       cambios: [
         {
           ...cambio(1, 2),
-          estadoDevolucion: 'no_devuelto' as const,
+          estadoDevolucion: 'baja' as const,
+          motivoBajaId: uuid(9),
+          motivoBajaDetalle: 'Se lo robaron en el metro',
           observacionesDevolucion: 'No lo entregó',
           condicionCargadorAnterior: 'con_danos',
           condicionCargadorNuevo: 'operativo',
@@ -120,6 +122,16 @@ describe('createWorkflowRequestSchema — cambio_equipo (SPEC 2.84)', () => {
       ],
     });
     expect(result.success).toBe(true);
+  });
+
+  // SPEC 2.126: "No devolvió" es solo de la desvinculación; la baja pide motivo.
+  test('en un cambio no se acepta "no_devuelto", y "baja" exige el motivo', () => {
+    const conEstado = (extra: object) =>
+      createWorkflowRequestSchema.safeParse({ ...validCambio, cambios: [{ ...cambio(1, 2), ...extra }] });
+    expect(conEstado({ estadoDevolucion: 'no_devuelto' }).success).toBe(false);
+    const sinMotivo = conEstado({ estadoDevolucion: 'baja' });
+    expect(sinMotivo.success).toBe(false);
+    expect(sinMotivo.error?.issues[0].path).toEqual(['cambios', 0, 'motivoBajaId']);
   });
 
   test('rechaza sin equipos a cambiar (falta la lista o viene vacía)', () => {

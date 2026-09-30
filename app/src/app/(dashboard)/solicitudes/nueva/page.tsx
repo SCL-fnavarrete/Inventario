@@ -689,6 +689,11 @@ export default function NuevaSolicitudPage() {
             oldAssignmentId: c.oldAssignmentId,
             newAssetId: c.newAssetId,
             estadoDevolucion: c.estadoDevolucion,
+            // Para dar de baja: el motivo de la lista (SPEC 2.126).
+            ...(c.estadoDevolucion === 'baja' && {
+              motivoBajaId: c.motivoBajaId,
+              motivoBajaDetalle: c.motivoBajaDetalle.trim() || undefined,
+            }),
             observacionesDevolucion: c.observaciones || undefined,
             // Condicion del cargador, si el equipo la trae.
             condicionCargadorAnterior: c.condicionCargadorAnterior || undefined,
