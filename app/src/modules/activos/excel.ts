@@ -77,6 +77,7 @@ const COLUMNAS: ColumnaDef[] = [
   { header: "Próxima Mantención Programada", key: "proximaMantencionProgramada", width: 16, grupo: "mantencion" },
   // Fechas
   { header: "Fecha Compra", key: "fechaCompra", width: 12, grupo: "fechas" },
+  { header: "Valor (CLP)", key: "valor", width: 14, grupo: "fechas" },
   { header: "Fin Garantía", key: "finGarantia", width: 12, grupo: "fechas" },
   { header: "Fecha Baja", key: "fechaBaja", width: 12, grupo: "fechas" },
   { header: "Fecha Venta", key: "fechaVenta", width: 12, grupo: "fechas" },
@@ -262,6 +263,8 @@ export async function excelDeActivos(filtros: FiltrosActivos) {
       ultimaMantencionRealizada: ultimaMantencionRealizada ? formatearFecha(ultimaMantencionRealizada) : "",
       proximaMantencionProgramada: proximaMantencionProgramada ? formatearFecha(proximaMantencionProgramada) : "",
       fechaCompra: asset.fechaCompra ? formatearFecha(asset.fechaCompra) : "",
+      // Numero (no texto), para que se pueda sumar en Excel (SPEC 2.124).
+      valor: asset.valor ?? "",
       finGarantia: asset.fechaGarantiaFin ? formatearFecha(asset.fechaGarantiaFin) : "",
       fechaBaja: asset.fechaBaja ? formatearFecha(asset.fechaBaja) : "",
       fechaVenta: asset.fechaVenta ? formatearFecha(asset.fechaVenta) : "",

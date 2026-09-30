@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Fragment, type ReactNode } from 'react';
 import { cn } from '@/shared/cn';
 import { formatearFecha } from '@/shared/utilidades/fechas';
+import { formatearClp } from '@/shared/utilidades/moneda';
 import { etiquetaCondicionCargador } from '@/modules/activos';
 
 /** Asignacion de un ticket tal como la entrega GET /api/solicitudes/[id]. */
@@ -14,6 +15,8 @@ export type AsignacionFila = {
   recibidoPor?: string | null;
   estadoDevolucion?: string | null;
   observacionesDevolucion?: string | null;
+  // Valor del equipo al quedar No devuelto, para RRHH (SPEC 2.124).
+  valorNoDevuelto?: number | null;
   condicionCargadorEntrega?: string | null;
   // No se devolvio en este ticket sino en uno posterior (SPEC 2.87).
   recuperadoEn?: { id: string; numero: string } | null;
@@ -78,6 +81,7 @@ export function FilaEquipoTicket({
             a.estadoDevolucion === 'no_devuelto'
               ? 'Sigue asignado, a la espera de recuperarlo'
               : a.fechaDevolucion && `Devuelto el ${formatearFecha(a.fechaDevolucion)}`,
+            a.estadoDevolucion === 'no_devuelto' && a.valorNoDevuelto != null && `Valor: ${formatearClp(a.valorNoDevuelto)}`,
             a.recibidoPor && `Registrado por ${a.recibidoPor}`,
           ];
   const partes = [

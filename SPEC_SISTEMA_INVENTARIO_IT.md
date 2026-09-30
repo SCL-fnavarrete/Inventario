@@ -176,6 +176,7 @@ CREATE TABLE assets (
     lista_distribucion VARCHAR(200),           -- Listas de correo asignadas
     
     -- Fechas importantes
+    valor INTEGER,                             -- cuanto vale, en pesos chilenos (2.124): opcional, se actualiza a mano
     fecha_compra DATE,
     fecha_garantia_fin DATE,
     fecha_baja DATE,
@@ -285,6 +286,7 @@ CREATE TABLE assignments (
     fecha_devolucion DATE,
     recibido_por VARCHAR(100),
     estado_devolucion ENUM('ok', 'dañado', 'incompleto'),
+    valor_no_devuelto INTEGER,                 -- valor del equipo al quedar "No devuelto" (2.124), para RRHH
     observaciones_devolucion TEXT,             -- Ej: "Formateado", "Reasignado"
 
     -- Condición del cargador (solo aplica si el activo es un notebook con
@@ -3906,7 +3908,18 @@ Pedido de Javier: asociar cada solicitud con el ticket de la ticketera que la or
 - **Después:** en el detalle se ve junto al número y quien tiene `solicitudes/write` lo puede agregar o corregir (PATCH `/api/solicitudes/[id]`, también a las anteriores), pero no dejarlo vacío.
 - **Lista:** columna "Ticket" (en celular, bajo el número) y el buscador lo encuentra.
 
+### 2.124 Valor de cada equipo, y cuánto valía el que no se devolvió (30-sep-2026)
+Pedido de Javier: saber cuánto vale cada equipo y, si no se devuelve, dejar registrado su valor para RRHH. Decisiones: en pesos chilenos, opcional, lo ven todos, se actualiza a mano, no va en las actas; queda en el equipo y también en la solicitud. Compras sigue sin montos (2.10): el valor es del equipo, no de la factura.
+- **Dato:** `Asset.valor` (entero, CLP, 0 a 999.999.999), opcional; los equipos anteriores quedan sin valor. Se escribe en Nuevo y Editar activo ("Valor (CLP)", acepta `850000`, `850.000` o `$850.000`) y se ve en la ficha como `$850.000`. Formato y lectura en `shared/utilidades/moneda.ts`.
+- **Actualizarlo:** se edita a mano cuando corresponda (sin depreciación automática). Cada cambio queda en el historial del equipo: "Valor: $850.000 → $600.000", con quién y cuándo (`registrarCambioValor`). El evento "Actualización de Specs" de la ficha pasa a llamarse "Edición de datos", como en la Auditoría.
+- **No devuelto:** al quedar "No devuelto" (desvinculación o cambio de equipo), el valor que tiene el equipo en ese momento se copia a `Assignment.valorNoDevuelto` (columna `valor_no_devuelto`) y al evento del historial ("… Valor al no devolverse: $850.000"). No cambia aunque después se actualice el del equipo. Sin valor, se registra igual, sin monto. En el detalle de la solicitud se ve junto al equipo no devuelto ("Valor: $850.000").
+- **Excel:** la exportación suma la columna "Valor (CLP)" como número; la importación la acepta como columna opcional (encabezados "Valor", "Precio" o "Costo"), con la misma validación.
+- Migración `20260930140000_valor_activo`.
+- **Corrección encontrada al probarlo:** editar un equipo que no estaba "Disponible" (asignado, no devuelto, en mantención) respondía 409 "El estado no se edita" aunque no se tocara el estado. El schema de edición (`updateAssetSchema`) heredaba los valores por defecto del alta (estado "disponible", condición "nuevo"), y Zod 4 los aplica también en `.partial()`. Ahora la edición no los tiene: lo que no viene, no se toca.
+
 ## Changelog SPEC
+- **v2.53 (2026-09-30):**
+  - Sección 2.124 (nueva): valor de cada equipo en CLP (opcional, editable, con historial de cambios) y, al quedar "No devuelto", su valor de ese momento en la asignación, visible en la solicitud. Columna en la exportación e importación de Excel. Migración `valor_activo`. Corrige que no se pudiera editar un equipo que no estuviera "Disponible" (409 por un estado por defecto).
 - **v2.52 (2026-09-30):**
   - Sección 2.123 (nueva): cada solicitud lleva el ID del ticket de la ticketera (`id_ticket`): obligatorio al crear, texto libre, se puede repetir, editable después sin dejarlo vacío; columna y búsqueda en la lista. No va en los PDF.
 - **v2.51 (2026-09-30):**

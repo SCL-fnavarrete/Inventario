@@ -1,6 +1,7 @@
 import { prisma } from '@/shared/prisma'
 import { TipoEvento, Asset, Prisma } from '@prisma/client'
 import { etiquetaEstadoActivo, etiquetaEstadoDevolucion } from '@/modules/activos/estados'
+import { formatearClp } from '@/shared/utilidades/moneda'
 
 // Nombre legible de cada especificacion en el texto del historial.
 const ETIQUETA_SPEC: Record<string, string> = {
@@ -196,6 +197,24 @@ export const assetHistoryService = {
       descripcion: `Especificaciones actualizadas: ${cambios}`,
       datosAnteriores,
       datosNuevos,
+      usuarioSistema: usuario,
+    }, tx)
+  },
+
+  /** Cambio del valor del equipo (SPEC 2.124): "Valor: $850.000 → $600.000". */
+  async registrarCambioValor(
+    assetId: string,
+    anterior: number | null,
+    nuevo: number | null,
+    usuario?: string,
+    tx?: PrismaTx
+  ) {
+    return this.registrar({
+      assetId,
+      tipoEvento: 'actualizacion_specs',
+      descripcion: `Valor: ${formatearClp(anterior)} → ${formatearClp(nuevo)}`,
+      datosAnteriores: { valor: anterior },
+      datosNuevos: { valor: nuevo },
       usuarioSistema: usuario,
     }, tx)
   },

@@ -273,6 +273,9 @@ model Asset {
   listaDistribucion   String?             @map("lista_distribucion")
   antivirus           String?             // Software antivirus instalado
   incidencia          String?             // Incidencias reportadas (robo, falla, etc)
+  // Cuanto vale el equipo, en pesos chilenos (SPEC 2.124). Opcional y se
+  // actualiza a mano; cada cambio queda en el historial.
+  valor               Int?
   fechaCompra         DateTime?           @map("fecha_compra")
   fechaGarantiaFin    DateTime?           @map("fecha_garantia_fin")
   fechaBaja           DateTime?           @map("fecha_baja")
@@ -434,6 +437,9 @@ model Assignment {
   fechaDevolucion         DateTime?         @map("fecha_devolucion")
   recibidoPor             String?           @map("recibido_por")
   estadoDevolucion        EstadoDevolucion? @map("estado_devolucion")
+  // Valor del equipo (CLP) cuando quedo "No devuelto" (SPEC 2.124): se
+  // copia del activo en ese momento y no cambia despues, para RRHH.
+  valorNoDevuelto         Int?              @map("valor_no_devuelto")
   observacionesDevolucion String?           @map("observaciones_devolucion")
   // Condicion del cargador -- solo tiene sentido si el activo es un
   // notebook con tieneCargador = true; para el resto queda null. Es un

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { textoLibre, fechaTextoOpcional } from "@/shared/validaciones/comunes";
+import { leerClp, VALOR_MAXIMO_CLP } from "@/shared/utilidades/moneda";
 import { normalizarImei, validarImei } from "@/modules/activos/imei";
 import {
   MENSAJE_GARANTIA_ANTES_DE_COMPRA,
@@ -94,6 +95,22 @@ export const assetSchema = z.object({
   fechaCompra: fechaTextoOpcional,
   fechaGarantiaFin: fechaTextoOpcional,
 
+  // Valor en pesos chilenos (SPEC 2.124), opcional: acepta 850000, "850.000"
+  // o "$850.000"; vacio = sin valor.
+  valor: z
+    .union([z.number(), z.string()])
+    .transform(leerClp)
+    .pipe(
+      z
+        .number({ error: 'Escribe solo números, sin decimales' })
+        .int('Sin decimales')
+        .min(0, 'No puede ser negativo')
+        .max(VALOR_MAXIMO_CLP, 'Máximo $999.999.999')
+        .nullable()
+    )
+    .optional()
+    .nullable(),
+
   // Observaciones e incidencias
   observaciones: textoLibre(),
   incidencia: textoLibre(),
@@ -131,7 +148,13 @@ export const createAssetSchema = assetSchema.extend({
 
 // Schema para actualizar activo (todos opcionales). El orden compra/garantia
 // lo revisa la ruta, que conoce la fecha ya guardada si solo llega una.
-export const updateAssetSchema = assetSchema.partial();
+// Al editar, lo que no viene no se toca: sin los valores por defecto de
+// estado y condicion. Zod 4 los conserva en `.partial()`, y una edicion sin
+// estado llegaba como "disponible": el servidor la rechazaba (409) en todo
+// equipo asignado, no devuelto o en mantencion (SPEC 2.124).
+export const updateAssetSchema = assetSchema
+  .extend({ estado: estadoActivoEnum.optional(), condicion: condicionActivoEnum.optional() })
+  .partial();
 
 // Tipos TypeScript derivados
 export type AssetInput = z.infer<typeof assetSchema>;

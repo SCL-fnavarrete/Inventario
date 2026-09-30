@@ -134,6 +134,7 @@ export default function ImportarActivosPage() {
     observaciones: "Notas adicionales sobre el equipo.",
     fechaEntrega: "Fecha en que el equipo fue entregado a la persona (dd-mm-aaaa). Se usa como fecha de asignación.",
     fechaCompra: "Fecha de compra o factura del equipo (dd-mm-aaaa).",
+    valor: "Cuánto vale el equipo, en pesos chilenos (ej. 850000 o 850.000). Opcional.",
     correoPersonal: "Correo personal del empleado. No es obligatorio para importar; si falta, queda vacío y se puede completar después desde la ficha del empleado.",
     correoEmpresa: "Correo corporativo del empleado. Si se deja en blanco, se genera uno automáticamente.",
     cargo: "Cargo o puesto del empleado.",
@@ -230,6 +231,7 @@ export default function ImportarActivosPage() {
     { key: "observaciones", label: "Observaciones", categories: ["*"] },
     { key: "fechaEntrega", label: "Fecha de entrega", categories: ["*"] },
     { key: "fechaCompra", label: "Fecha de compra", categories: ["*"] },
+    { key: "valor", label: "Valor (CLP)", categories: ["*"] },
     // Campos opcionales para Notebook
     { key: "correoPersonal", label: "Correo Personal", categories: ["computador"] },
     { key: "correoEmpresa", label: "Correo Empresa", categories: ["computador"] },
@@ -350,6 +352,7 @@ export default function ImportarActivosPage() {
         estado: ["estado"],
         condicion: ["condicion", "condición"],
         fechaCompra: ["fecha compra", "fecha de compra", "fecha factura"],
+        valor: ["valor", "valor (clp)", "precio", "costo", "valor clp"],
         observaciones: ["obs.", "observaciones", "observacion"],
         // Campos de Notebook
         procesador: ["procesador", "cpu"],

@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import type { CondicionCargador } from '@/modules/activos';
 import { ConflictError, NotFoundError } from '@/shared/errores';
+import { formatearClp } from '@/shared/utilidades/moneda';
 import { etiquetaEstadoActivo, etiquetaEstadoDevolucion } from '@/modules/activos';
 import { cambiarEstado } from '@/modules/activos/servidor';
 import { abrirMantencionPorDano } from '@/modules/mantenciones/servidor';
@@ -183,6 +184,9 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
         recibidoPor: params.recibidoPor,
         estadoDevolucion: params.estadoDevolucion,
         observacionesDevolucion: params.observacionesDevolucion,
+        // El valor del equipo en este momento, para RRHH (SPEC 2.124): no
+        // cambia aunque despues se actualice el del activo.
+        valorNoDevuelto: assignment.asset.valor ?? null,
         ...(aplicaCargadorDevolucion && {
           condicionCargadorDevolucion: params.condicionCargadorDevolucion || null,
           observacionesCargadorDevolucion: params.observacionesCargador || null,
@@ -194,7 +198,8 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       },
     });
 
-    const descripcion = `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno} no devolvió el equipo ${params.contexto === 'cambio' ? 'en el cambio de equipo' : 'en su desvinculación'}. Queda "No devuelto", a la espera de recuperarlo.`;
+    const valor = assignment.asset.valor ?? null;
+    const descripcion = `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno} no devolvió el equipo ${params.contexto === 'cambio' ? 'en el cambio de equipo' : 'en su desvinculación'}. Queda "No devuelto", a la espera de recuperarlo.${valor !== null ? ` Valor al no devolverse: ${formatearClp(valor)}.` : ''}`;
     await cambiarEstado(tx, {
       activo: assignment.asset,
       a: 'no_devuelto',
@@ -210,6 +215,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
           estado: 'no_devuelto',
           empleadoActualId: assignment.asset.empleadoActualId,
           estadoDevolucion: params.estadoDevolucion,
+          valor,
         },
         usuarioSistema: quien,
       },

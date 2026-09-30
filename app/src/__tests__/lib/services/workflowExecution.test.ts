@@ -226,6 +226,26 @@ describe('executeReturn', () => {
     }
   });
 
+  it('"no devuelto" guarda el valor del equipo en ese momento, para RRHH (SPEC 2.124)', async () => {
+    const tx = txFalso();
+    const conValor = { id: 'a1', estado: 'asignado', empleadoActualId: 'e1', tieneCargador: false, valor: 850000 };
+    (tx.assignment.findUnique as Fn).mockResolvedValue(asignacion({ asset: conValor }));
+    await executeReturn(comoTx(tx), { ...devolucion, estadoDevolucion: 'no_devuelto' });
+    expect((tx.assignment.update as Fn).mock.calls[0][0].data.valorNoDevuelto).toBe(850000);
+    const historial = (tx.assetHistory.create as Fn).mock.calls[0][0].data;
+    expect(historial.descripcion).toContain('Valor al no devolverse: $850.000');
+    expect(historial.datosNuevos).toMatchObject({ valor: 850000 });
+  });
+
+  it('"no devuelto" sin valor en el equipo queda igual, sin monto', async () => {
+    const tx = txFalso();
+    const sinValor = { id: 'a1', estado: 'asignado', empleadoActualId: 'e1', tieneCargador: false, valor: null };
+    (tx.assignment.findUnique as Fn).mockResolvedValue(asignacion({ asset: sinValor }));
+    await executeReturn(comoTx(tx), { ...devolucion, estadoDevolucion: 'no_devuelto' });
+    expect((tx.assignment.update as Fn).mock.calls[0][0].data.valorNoDevuelto).toBeNull();
+    expect((tx.assetHistory.create as Fn).mock.calls[0][0].data.descripcion).not.toContain('Valor');
+  });
+
   it('el historial anota el usuario, también en "no devuelto" (SPEC 2.122)', async () => {
     for (const estadoDevolucion of ['ok', 'no_devuelto'] as const) {
       const tx = txFalso();

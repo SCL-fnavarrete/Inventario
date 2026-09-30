@@ -17,6 +17,7 @@ import {
 import { cn } from "@/shared/cn";
 import { MensajeCampo, ResumenErrores, claseCampo } from "@/shared/ui/CampoFormulario";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
+import { leerClp, VALOR_MAXIMO_CLP } from "@/shared/utilidades/moneda";
 
 /**
  * Formulario de Activo, compartido por Nuevo y Editar (SPEC 2.77). Antes
@@ -39,6 +40,8 @@ export type ActivoFormValues = {
   condicion: string;
   fechaCompra: string;
   fechaGarantiaFin: string;
+  // Pesos chilenos, como se escribe ("850.000"); vacio = sin valor (SPEC 2.124).
+  valor: string;
   procesador: string;
   ram: string;
   almacenamiento: string;
@@ -69,6 +72,7 @@ export const ACTIVO_FORM_VACIO: ActivoFormValues = {
   condicion: "nuevo",
   fechaCompra: "",
   fechaGarantiaFin: "",
+  valor: "",
   procesador: "",
   ram: "",
   almacenamiento: "",
@@ -106,6 +110,7 @@ export function valoresDesdeActivo(asset: Record<string, unknown>): ActivoFormVa
     condicion: txt("condicion"),
     fechaCompra: aInputDate(asset.fechaCompra as string | null),
     fechaGarantiaFin: aInputDate(asset.fechaGarantiaFin as string | null),
+    valor: asset.valor == null ? "" : Number(asset.valor).toLocaleString("es-CL"),
     procesador: txt("procesador"),
     ram: txt("ram"),
     almacenamiento: txt("discoDuro"),
@@ -140,6 +145,7 @@ export function payloadActivo(v: ActivoFormValues, modo: Modo) {
     condicion: v.condicion,
     fechaCompra: v.fechaCompra || null,
     fechaGarantiaFin: v.fechaGarantiaFin || null,
+    valor: v.valor.trim() || null,
     procesador: v.procesador || null,
     ram: v.ram || null,
     discoDuro: v.almacenamiento || null,
@@ -196,6 +202,7 @@ const ETIQUETAS_ACTIVO: Record<string, string> = {
   numeroSerie: "Número de serie",
   imei: "IMEI",
   sedeId: "Sede",
+  valor: "Valor",
 };
 
 function Seccion({ titulo, cols = 3, children }: { titulo: string; cols?: 2 | 3; children: ReactNode }) {
@@ -293,6 +300,10 @@ export function ActivoForm({
     if (esCelular && !normalizarImei(values.imei)) e.imei = "Escribe el IMEI del celular";
     else if (values.imei.trim() && validarImei(values.imei)) e.imei = validarImei(values.imei)!;
     if (crear && !sedeId) e.sedeId = "Elige la sede";
+    const valor = leerClp(values.valor);
+    if (valor !== null && (Number.isNaN(valor) || valor > VALOR_MAXIMO_CLP)) {
+      e.valor = "Escribe un monto en pesos, sin decimales (máximo $999.999.999)";
+    }
     return e;
   }
 
@@ -389,6 +400,13 @@ export function ActivoForm({
           hint="Opcional. El dashboard avisa cuando faltan 30 días para vencer."
         >
           <input type="date" {...bind("fechaGarantiaFin")} />
+        </Campo>
+        <Campo
+          label="Valor (CLP)"
+          error={error("valor")}
+          hint="Opcional. Cuánto vale el equipo, en pesos. Si cambia, queda en el historial."
+        >
+          <input type="text" inputMode="numeric" placeholder="Ej: 850.000" {...bind("valor")} />
         </Campo>
         {crear && !sedeFija && (
           <Campo

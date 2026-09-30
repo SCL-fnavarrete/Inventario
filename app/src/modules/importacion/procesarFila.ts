@@ -4,6 +4,7 @@ import { registrarAsignacionImportada } from "@/modules/asignaciones/servidor";
 import { registrarMantencionImportada } from "@/modules/mantenciones/servidor";
 import { parseDDMMYYYYToDate } from "@/modules/importacion/excel";
 import { formatearFechaCorta, inicioDeHoy } from "@/shared/utilidades/fechas";
+import { leerClp, VALOR_MAXIMO_CLP } from "@/shared/utilidades/moneda";
 import {
   ESTADOS_RECONOCIDOS,
   interpretarEstado,
@@ -428,6 +429,19 @@ export async function procesarFila(
   const fechaCompraStr = obtener("fechaCompra");
   const fechaCompra = fechaCompraStr ? parseDDMMYYYYToDate(fechaCompraStr) : null;
 
+  // Valor en pesos (SPEC 2.124), opcional: "850000", "850.000" o "$850.000".
+  const valorStr = obtener("valor");
+  const valor = leerClp(valorStr);
+  if (valor !== null && (Number.isNaN(valor) || valor > VALOR_MAXIMO_CLP)) {
+    return {
+      status: "error",
+      tipo: "invalid_format",
+      mensaje: `Valor no reconocido: "${valorStr}" (se espera un monto en pesos, sin decimales)`,
+      data: datosFila,
+      campo: "valor",
+    };
+  }
+
   // La fecha de entrega es obligatoria SOLO cuando el dato esta pero no se
   // pudo leer (ej. "32-13-2026" o texto suelto) -- eso es un error de
   // formato a corregir en el Excel. Una celda vacia no es un error: se
@@ -503,6 +517,7 @@ export async function procesarFila(
         microsoft365,
         tipoLicenciaMicrosoft365,
         fechaCompra,
+        valor,
         observaciones: obtener("observaciones") || null,
         empleadoActualId: empleadoId,
       },

@@ -163,6 +163,7 @@ export async function crearActivo(
       incidencia: datos.incidencia || null,
       nombreEquipo: datos.nombreEquipo || null,
       conectividad: datos.conectividad || null,
+      valor: datos.valor ?? null,
     },
   });
 
@@ -341,6 +342,10 @@ export async function editarActivo(id: string, datos: UpdateAssetInput, usuario:
         tx
       );
     }
+    // El valor se actualiza a mano; cada cambio queda en el historial (SPEC 2.124).
+    if (datos.valor !== undefined && datos.valor !== existente.valor) {
+      await assetHistoryService.registrarCambioValor(id, existente.valor, datos.valor, usuario, tx);
+    }
 
     return tx.asset.update({
       where: { id },
@@ -386,6 +391,7 @@ export async function editarActivo(id: string, datos: UpdateAssetInput, usuario:
         ...(datos.incidencia !== undefined && { incidencia: datos.incidencia || null }),
         ...(datos.nombreEquipo !== undefined && { nombreEquipo: datos.nombreEquipo || null }),
         ...(datos.conectividad !== undefined && { conectividad: datos.conectividad || null }),
+        ...(datos.valor !== undefined && { valor: datos.valor }),
       },
     });
   });

@@ -44,6 +44,38 @@ beforeEach(() => {
   mockDb.$transaction.mockImplementation((fn: (tx: typeof mockDb) => unknown) => fn(mockDb));
 });
 
+describe('editarActivo: valor (SPEC 2.124)', () => {
+  test('un cambio de valor se guarda y queda en el historial con antes y después', async () => {
+    mockDb.asset.findUnique.mockResolvedValueOnce({ ...activo, valor: 850000 });
+    const r = await editarActivo('a1', { valor: 600000 }, 'jsoto');
+    expect(r).toMatchObject({ valor: 600000 });
+    expect(mockDb.assetHistory.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        descripcion: 'Valor: $850.000 → $600.000',
+        datosAnteriores: { valor: 850000 },
+        datosNuevos: { valor: 600000 },
+        usuarioSistema: 'jsoto',
+      }),
+    });
+  });
+
+  test('el mismo valor, o no enviarlo, no anota nada', async () => {
+    mockDb.asset.findUnique.mockResolvedValueOnce({ ...activo, valor: 850000 });
+    await editarActivo('a1', { valor: 850000 }, 'yo');
+    mockDb.asset.findUnique.mockResolvedValueOnce({ ...activo, valor: 850000 });
+    const r = await editarActivo('a1', { marca: 'HP' }, 'yo');
+    expect(mockDb.assetHistory.create).not.toHaveBeenCalled();
+    expect(mockDb.asset.update.mock.calls[1][0].data).not.toHaveProperty('valor');
+    expect(r).toMatchObject({ marca: 'HP' });
+  });
+
+  test('quitar el valor también queda en el historial', async () => {
+    mockDb.asset.findUnique.mockResolvedValueOnce({ ...activo, valor: 850000 });
+    await editarActivo('a1', { valor: null }, 'yo');
+    expect(mockDb.assetHistory.create.mock.calls[0][0].data.descripcion).toBe('Valor: $850.000 → —');
+  });
+});
+
 describe('editarActivo', () => {
   test('guarda los cambios y anota en el historial los de especificaciones', async () => {
     mockDb.asset.findUnique.mockResolvedValueOnce(activo);

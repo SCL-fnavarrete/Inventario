@@ -16,6 +16,7 @@ import {
 import { cn } from "@/shared/cn";
 import type { TipoEvento } from "@prisma/client";
 import { formatearFecha } from "@/shared/utilidades/fechas";
+import { formatearClp } from "@/shared/utilidades/moneda";
 import { CategoryIcon, AssetStatusBadge } from "@/modules/activos/componentes";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
@@ -35,7 +36,7 @@ const tipoEventoLabels: Record<TipoEvento, string> = {
   devolucion: "Devolución",
   mantencion: "Mantención",
   cambio_estado: "Cambio de Estado",
-  actualizacion_specs: "Actualización de Specs",
+  actualizacion_specs: "Edición de datos",
   baja: "Baja",
   venta: "Venta",
   solicitud_workflow: "Solicitud",
@@ -237,6 +238,11 @@ export default async function DetalleActivoPage({
                 <dd className="font-medium text-fg">
                   {asset.categoria.nombre}
                 </dd>
+              </div>
+              {/* SPEC 2.124: en pesos chilenos, opcional. */}
+              <div>
+                <dt className="text-sm text-fg-subtle">Valor</dt>
+                <dd className="font-medium text-fg">{formatearClp(asset.valor)}</dd>
               </div>
               <div>
                 <dt className="text-sm text-fg-subtle">Ubicación Física</dt>
