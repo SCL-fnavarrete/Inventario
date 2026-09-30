@@ -816,6 +816,9 @@ model DispatchGuideItem {
 model WorkflowRequest {
   id                    String              @id @default(uuid())
   numero                String              @unique
+  // Ticket de la ticketera que origina la solicitud (SPEC 2.123): texto
+  // libre, obligatorio al crear y se puede repetir. Las anteriores quedan sin.
+  idTicket              String?             @map("id_ticket")
   tipo                  TipoSolicitud
   estado                EstadoSolicitud
   employeeId            String              @map("employee_id")

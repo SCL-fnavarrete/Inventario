@@ -154,6 +154,7 @@ export const CAMPOS_OBLIGATORIOS_ONBOARDING = [
 // Nombre visible de cada campo validado, para el resumen de errores.
 export const ETIQUETAS_ERROR: Record<string, string> = {
   ...Object.fromEntries(CAMPOS_OBLIGATORIOS_ONBOARDING),
+  idTicket: 'ID Ticket',
   employeeId: 'Empleado',
   cargoSolicitado: 'Cargo solicitado',
   fechaIngreso: 'Fecha de ingreso',

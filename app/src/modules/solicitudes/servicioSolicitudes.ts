@@ -29,7 +29,7 @@ const CON_PERSONAS = {
   responsableActual: { select: { nombre: true, rol: true } },
 } as const;
 
-/** Cambiar el responsable o las observaciones (PATCH /api/solicitudes/[id]). */
+/** Cambiar el responsable, las observaciones o el ID del ticket (PATCH /api/solicitudes/[id]). */
 export async function actualizarSolicitud(id: string, data: UpdateWorkflowRequestInput) {
   await buscarSolicitud(id);
   return prisma.workflowRequest.update({
@@ -37,6 +37,7 @@ export async function actualizarSolicitud(id: string, data: UpdateWorkflowReques
     data: {
       ...(data.responsableActualId !== undefined && { responsableActualId: data.responsableActualId }),
       ...(data.observaciones !== undefined && { observaciones: data.observaciones }),
+      ...(data.idTicket !== undefined && { idTicket: data.idTicket }),
     },
     include: CON_PERSONAS,
   });

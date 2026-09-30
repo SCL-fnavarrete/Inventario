@@ -126,6 +126,8 @@ export default function NuevaSolicitudPage() {
   // Form state
   const [employeeId, setEmployeeId] = useState('');
   const [observaciones, setObservaciones] = useState('');
+  // Ticket de la ticketera que origina la solicitud (SPEC 2.123), obligatorio.
+  const [idTicket, setIdTicket] = useState('');
 
   // Onboarding fields
   const [fechaIngreso, setFechaIngreso] = useState('');
@@ -192,7 +194,7 @@ export default function NuevaSolicitudPage() {
   // que escribe o elige la persona; lo que viene de la base (stock,
   // asignaciones del empleado, catalogos) se vuelve a consultar.
   const datosBorrador = {
-    step, tipo, sedeId, selectedEmployee, employeeId, observaciones,
+    step, tipo, sedeId, selectedEmployee, employeeId, observaciones, idTicket,
     devolucionEstados, devolucionObservaciones, devolucionCargador, devolucionCargadorObservaciones,
     devolucionEppEstados, devolucionEppObservaciones,
     onboardingEmp, modoEmpleadoOnboarding, cargoSolicitadoReincorporacion, tipoContratoReincorporacion,
@@ -221,6 +223,7 @@ export default function NuevaSolicitudPage() {
     poner('selectedEmployee', setSelectedEmployee);
     poner('employeeId', setEmployeeId);
     poner('observaciones', setObservaciones);
+    poner('idTicket', setIdTicket);
     poner('devolucionEstados', setDevolucionEstados);
     poner('devolucionObservaciones', setDevolucionObservaciones);
     poner('devolucionCargador', setDevolucionCargador);
@@ -550,6 +553,7 @@ export default function NuevaSolicitudPage() {
     motivoCambio: 'Motivo del Cambio',
     fechaDesvinculacion: 'Fecha de Desvinculación',
     observaciones: 'Observaciones',
+    idTicket: 'ID Ticket',
   };
 
   const handleSubmit = async () => {
@@ -558,12 +562,14 @@ export default function NuevaSolicitudPage() {
     setResumenErrores('');
 
     {
-      const errores =
-        tipo === 'onboarding'
+      const errores = {
+        ...(idTicket.trim() ? {} : { idTicket: 'Escribe el ID del ticket' }),
+        ...(tipo === 'onboarding'
           ? validarOnboarding()
           : tipo === 'cambio_equipo'
             ? validarCambio()
-            : validarOffboarding();
+            : validarOffboarding()),
+      };
       if (Object.keys(errores).length > 0) {
         setFieldErrors(errores);
         setResumenErrores(textoResumenErrores(errores, ETIQUETAS_ERROR));
@@ -589,6 +595,7 @@ export default function NuevaSolicitudPage() {
       // eligen despues, al gestionar la solicitud.
       const base = {
         tipo,
+        idTicket: idTicket.trim(),
         observaciones: observaciones || null,
         sedeId: sedeId || undefined,
       };
@@ -769,6 +776,24 @@ export default function NuevaSolicitudPage() {
     1: 'Selecciona el tipo de solicitud',
     2: tipo === 'onboarding' ? 'Datos del nuevo empleado y de la solicitud' : 'Completa los datos',
   };
+
+  // Mismo campo en los dos formularios (onboarding y cambio/devolucion).
+  const campoIdTicket = (
+    <CampoTexto
+      id="solicitud-id-ticket"
+      label="ID Ticket"
+      obligatorio
+      value={idTicket}
+      onChange={(v) => {
+        setIdTicket(v);
+        limpiarError('idTicket');
+      }}
+      error={fieldErrors.idTicket}
+      maxLength={50}
+      placeholder="Ej: 45821 o INC-2026-0045"
+      ayuda="El ticket de la ticketera que origina esta solicitud."
+    />
+  );
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -980,8 +1005,10 @@ export default function NuevaSolicitudPage() {
             />
           )}
 
+          <div className="border-t pt-4">{campoIdTicket}</div>
+
           {/* Responsable de la solicitud (solo lectura) */}
-          <div className="border-t pt-4">
+          <div>
             <label htmlFor="solicitud-responsable" className="field-label">Responsable</label>
             <input id="solicitud-responsable"
               type="text"
@@ -1269,6 +1296,8 @@ export default function NuevaSolicitudPage() {
               ayuda="Escribe al menos 2 caracteres para buscar. Una persona nueva se registra con una solicitud de Onboarding."
             />
           </div>
+
+          {campoIdTicket}
 
           {/* Responsable de la solicitud (solo lectura) */}
           <div>

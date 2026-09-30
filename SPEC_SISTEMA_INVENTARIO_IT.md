@@ -459,6 +459,7 @@ CREATE TABLE terminations (
 CREATE TABLE workflow_requests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     numero VARCHAR(50) UNIQUE NOT NULL,        -- Ej: "SOL-2026-0001" (auto-generado)
+    id_ticket VARCHAR(50),                     -- ticket de la ticketera (2.123): obligatorio al crear, se puede repetir
     tipo ENUM('onboarding', 'cambio_equipo', 'devolucion_termino') NOT NULL,
     estado ENUM(
         -- Onboarding
@@ -3897,7 +3898,17 @@ El correo de las cuentas solo servía para entrar: la app no envía correos. Dec
 - **Datos existentes** (migración `20260930120000_usuario_en_vez_de_correo`): el usuario de cada cuenta es la parte de su correo antes de la @ (en minúsculas, sin caracteres no permitidos) y el correo se conserva en el campo opcional. Si dos cuentas quedaran con el mismo usuario, o uno con menos de 3 caracteres, la migración se detiene y lo dice, para resolverlo a mano.
 - **Seed:** el primer administrador sale de `SEED_ADMIN_USUARIO` (por defecto `admin`); `SEED_ADMIN_EMAIL` pasa a ser opcional.
 
+### 2.123 ID del ticket de la ticketera en cada solicitud (30-sep-2026)
+Pedido de Javier: asociar cada solicitud con el ticket de la ticketera que la origina. Decisiones: obligatorio, se puede repetir, texto libre y no va en las actas ni comprobantes PDF.
+- **Dato:** `WorkflowRequest.idTicket` (columna `id_ticket`, migración `20260930130000_id_ticket_solicitud`), texto de hasta 50 caracteres sin espacios a los lados. En la base es opcional, porque las solicitudes anteriores no lo tienen.
+- **Al crear** (los tres tipos): obligatorio. En Nueva Solicitud va antes del Responsable, con validación por campo; el servidor lo exige también (`createWorkflowRequestSchema`).
+- **Se puede repetir:** un mismo ticket puede originar más de una solicitud.
+- **Después:** en el detalle se ve junto al número y quien tiene `solicitudes/write` lo puede agregar o corregir (PATCH `/api/solicitudes/[id]`, también a las anteriores), pero no dejarlo vacío.
+- **Lista:** columna "Ticket" (en celular, bajo el número) y el buscador lo encuentra.
+
 ## Changelog SPEC
+- **v2.52 (2026-09-30):**
+  - Sección 2.123 (nueva): cada solicitud lleva el ID del ticket de la ticketera (`id_ticket`): obligatorio al crear, texto libre, se puede repetir, editable después sin dejarlo vacío; columna y búsqueda en la lista. No va en los PDF.
 - **v2.51 (2026-09-30):**
   - Sección 2.122: el usuario de una cuenta no se puede cambiar una vez creada (la pantalla lo deja fijo y la API lo rechaza), para que el historial siempre encuentre su cuenta.
 - **v2.50 (2026-09-30):**

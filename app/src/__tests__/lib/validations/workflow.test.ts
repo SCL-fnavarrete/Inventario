@@ -5,6 +5,7 @@ import {
   cancelWorkflowRequestSchema,
   TipoSolicitudEnum,
   EstadoSolicitudEnum,
+  updateWorkflowRequestSchema,
 } from '@/modules/solicitudes/validaciones';
 
 // Pruebas del sistema de solicitudes (workflow)
@@ -12,6 +13,7 @@ import {
 // Datos base reutilizables
 const baseFields = {
   employeeId: '550e8400-e29b-41d4-a716-446655440000',
+  idTicket: '45821',
 };
 
 // ============================================================
@@ -172,6 +174,7 @@ describe('createWorkflowRequestSchema — cambio_equipo (SPEC 2.84)', () => {
 describe('createWorkflowRequestSchema — onboarding con reincorporación', () => {
   const validReincorporacion = {
     employeeId: '550e8400-e29b-41d4-a716-446655440000',
+    idTicket: '45821',
     tipo: 'onboarding' as const,
     fechaIngreso: '2026-04-07',
     cargoSolicitado: 'Analista TI',
@@ -452,5 +455,34 @@ describe('EstadoSolicitudEnum', () => {
 
   test('rechaza estado inválido', () => {
     expect(EstadoSolicitudEnum.safeParse('estado_inexistente').success).toBe(false);
+  });
+});
+
+// ============================================================
+// ID TICKET (SPEC 2.123)
+// ============================================================
+describe('ID del ticket de la ticketera', () => {
+  const offboarding = { ...baseFields, tipo: 'offboarding' as const };
+
+  test('es obligatorio al crear, en los tres tipos', () => {
+    for (const tipo of ['onboarding', 'cambio_equipo', 'offboarding'] as const) {
+      for (const idTicket of [undefined, '', '   ']) {
+        const r = createWorkflowRequestSchema.safeParse({ ...offboarding, tipo, idTicket });
+        expect(r.success).toBe(false);
+        expect(r.error?.issues.some((i) => i.path[0] === 'idTicket')).toBe(true);
+      }
+    }
+  });
+
+  test('es texto libre de hasta 50 caracteres, sin espacios a los lados', () => {
+    const r = createWorkflowRequestSchema.parse({ ...offboarding, idTicket: '  INC-2026/0045 #b ' });
+    expect(r.idTicket).toBe('INC-2026/0045 #b');
+    expect(createWorkflowRequestSchema.safeParse({ ...offboarding, idTicket: 'x'.repeat(51) }).success).toBe(false);
+  });
+
+  test('se puede agregar o corregir después, pero no dejar vacío', () => {
+    expect(updateWorkflowRequestSchema.parse({ idTicket: ' 999 ' }).idTicket).toBe('999');
+    expect(updateWorkflowRequestSchema.parse({ observaciones: 'x' }).idTicket).toBeUndefined();
+    expect(updateWorkflowRequestSchema.safeParse({ idTicket: '' }).success).toBe(false);
   });
 });

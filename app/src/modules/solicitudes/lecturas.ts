@@ -77,6 +77,7 @@ export async function listarSolicitudes(filters: WorkflowFilters, sedeId: string
       select: {
         id: true,
         numero: true,
+        idTicket: true,
         observaciones: true,
         employee: { select: { rut: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true } },
       },
@@ -86,7 +87,7 @@ export async function listarSolicitudes(filters: WorkflowFilters, sedeId: string
       (s) =>
         coincideBusqueda(terminoBusqueda, {
           rut: s.employee.rut,
-          campos: [s.numero, s.observaciones, s.employee.nombres, s.employee.apellidoPaterno, s.employee.apellidoMaterno],
+          campos: [s.numero, s.idTicket, s.observaciones, s.employee.nombres, s.employee.apellidoPaterno, s.employee.apellidoMaterno],
         }),
       skip,
       filters.limit

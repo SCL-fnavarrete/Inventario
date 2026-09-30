@@ -38,8 +38,17 @@ export const TipoPendienteEnum = z.enum([
 ]);
 export const EstadoPendienteEnum = z.enum(['pendiente', 'gestionando', 'entregado', 'no_aplica']);
 
+// Ticket de la ticketera que origina la solicitud (SPEC 2.123): texto libre,
+// obligatorio, y una vez puesto no se puede dejar vacio.
+const idTicket = z
+  .string({ error: 'Escribe el ID del ticket' })
+  .trim()
+  .min(1, 'Escribe el ID del ticket')
+  .max(50, 'Máximo 50 caracteres');
+
 // Base fields shared by all request types
 const baseRequestFields = {
+  idTicket,
   // Opcional porque un onboarding puede traer "nuevoEmpleado" en su lugar.
   // Cada tipo valida abajo (superRefine) que venga uno de los dos.
   employeeId: z.string().uuid('ID de empleado inválido').optional(),
@@ -367,6 +376,8 @@ export const updatePendienteSchema = z.object({
 export const updateWorkflowRequestSchema = z.object({
   responsableActualId: z.string().uuid().optional().nullable(),
   observaciones: textoLibre(),
+  // Se puede agregar o corregir despues (tambien a las anteriores a 2.123).
+  idTicket: idTicket.optional(),
 });
 
 // Schema for list filters

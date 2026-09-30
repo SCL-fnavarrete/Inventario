@@ -24,6 +24,7 @@ import { documentoDeSolicitud } from '@/modules/solicitudes';
 type WorkflowRequest = {
   id: string;
   numero: string;
+  idTicket: string | null;
   tipo: string;
   estado: string;
   // Si la desvinculacion tiene Acta de Devolucion (lo calcula el servidor).
@@ -157,7 +158,7 @@ export default function SolicitudesPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle" />
             <input
               type="text"
-              placeholder="Buscar por número, empleado, RUT..."
+              placeholder="Buscar por número, ticket, empleado, RUT..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="field-input pl-10 pr-4"
@@ -250,6 +251,9 @@ export default function SolicitudesPage() {
                     Número
                   </th>
                   <th className="table-th px-4 hidden md:table-cell">
+                    Ticket
+                  </th>
+                  <th className="table-th px-4 hidden md:table-cell">
                     Tipo
                   </th>
                   <th className="table-th px-4">
@@ -275,7 +279,12 @@ export default function SolicitudesPage() {
                   <tr key={req.id} className="hover:bg-surface-muted">
                     <td className="px-4 py-3 text-sm font-medium text-primary-700 whitespace-nowrap">
                       <Link href={`/solicitudes/${req.id}`}>{req.numero}</Link>
-                      {/* En celular el tipo va bajo el numero: una columna menos. */}
+                      {/* En celular el ticket y el tipo van bajo el numero: dos columnas menos. */}
+                      {req.idTicket && (
+                        <span className="md:hidden mt-1 block text-xs font-normal text-fg-muted">
+                          Ticket {req.idTicket}
+                        </span>
+                      )}
                       <span
                         className={cn(
                           'md:hidden mt-1 flex w-fit px-2 py-0.5 text-xs font-medium rounded-full',
@@ -284,6 +293,9 @@ export default function SolicitudesPage() {
                       >
                         {tipoLabels[req.tipo]}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-fg-muted hidden md:table-cell wrap-anywhere">
+                      {req.idTicket || '—'}
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
                       <span
@@ -390,6 +402,7 @@ export default function SolicitudesPage() {
                       >
                         <div className="flex justify-between items-start mb-2">
                           <span className="text-xs font-medium text-primary-700">{req.numero}</span>
+                          {req.idTicket && <span className="text-xs text-fg-muted">Ticket {req.idTicket}</span>}
                         </div>
                         <p className="text-sm font-medium text-fg">
                           {req.employee.nombres} {req.employee.apellidoPaterno}

@@ -3,6 +3,7 @@ export {
   FilaEquipoTicket,
   type AsignacionFila,
 } from '@/modules/solicitudes/componentes/FilaEquipoTicket';
+export { TicketSolicitud } from '@/modules/solicitudes/componentes/TicketSolicitud';
 export {
   SeleccionarCambioEquipo,
   itemCambioCompleto,

@@ -20,12 +20,13 @@ import { ApiErrorSummary } from '@/shared/ui/ApiErrorSummary';
 import { formatearFecha } from "@/shared/utilidades/fechas";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { VentanaMotivo } from '@/shared/ui/VentanaMotivo';
-import { FilaEquipoTicket, type AsignacionFila } from '@/modules/solicitudes/componentes';
+import { FilaEquipoTicket, TicketSolicitud, type AsignacionFila } from '@/modules/solicitudes/componentes';
 import { documentoDeSolicitud } from '@/modules/solicitudes';
 
 type WorkflowDetail = {
   id: string;
   numero: string;
+  idTicket: string | null;
   tipo: string;
   estado: string;
   /**
@@ -464,6 +465,11 @@ export default function SolicitudDetailPage() {
               )}
             </div>
             <p className="text-fg-muted">{tipoLabels[data.tipo]}</p>
+            <TicketSolicitud
+              solicitudId={data.id}
+              idTicket={data.idTicket}
+              onGuardado={(idTicket) => setData((d) => (d ? { ...d, idTicket } : d))}
+            />
           </div>
         </div>
 

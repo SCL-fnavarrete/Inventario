@@ -109,6 +109,7 @@ export async function crearSolicitud(
     estado: estadoInicial,
     solicitante: { connect: { id: systemUser.id } },
     responsableActual: { connect: { id: systemUser.id } },
+    idTicket: data.idTicket,
     observaciones: data.observaciones,
     assignmentIds: [],
     ...(sedeId ? { sede: { connect: { id: sedeId } } } : {}),
