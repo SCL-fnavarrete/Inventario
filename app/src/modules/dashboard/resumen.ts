@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { filtroSede } from '@/shared/sedes/filtro';
 import { inicioDeHoy } from '@/shared/utilidades/fechas';
@@ -27,13 +28,46 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
   const ahora = new Date();
   const sixMonthsAgo = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth() - 5, 1));
 
+  // Mantenciones del panel de alertas (SPEC 2.125): solo las mas urgentes de
+  // cada grupo; el resto se cuenta en la base. Asi el Dashboard cuesta lo
+  // mismo con 10 que con 10.000 (antes traia todas y dibujaba una tarjeta
+  // por cada una).
+  const vencidas = { estado: "pendiente" as const, fechaProgramada: { lt: today }, ...swAsset };
+  const proximas = { estado: "pendiente" as const, fechaProgramada: { gte: today, lte: nextWeek }, ...swAsset };
+  const mantencionesDelPanel = (where: Prisma.MaintenanceWhereInput) =>
+    prisma.maintenance.findMany({
+      where,
+      // La vencida mas antigua y la proxima mas cercana, primero.
+      orderBy: [{ fechaProgramada: "asc" }, { horaProgramada: "asc" }],
+      take: ALERTAS_POR_GRUPO,
+      select: {
+        id: true,
+        descripcion: true,
+        fechaProgramada: true,
+        horaProgramada: true,
+        asset: {
+          select: {
+            numeroSerie: true,
+            imei: true,
+            marca: true,
+            modelo: true,
+            sede: { select: { nombre: true } },
+          },
+        },
+      },
+    });
+
   const [
     totalAssets,
     assetsPorCategoriaYEstado,
     categoriesRaw,
-    maintenancesPendientes,
+    mantencionesVencidas,
+    totalVencidas,
+    mantencionesProximas,
+    totalProximas,
     totalMantencionesPendientes,
-    assignmentsUltimos6Meses,
+    movimientosPorMes,
+    recentAssignments,
     solicitudesAbiertas,
     kitItems,
   ] = await Promise.all([
@@ -46,38 +80,26 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
     prisma.assetCategory.findMany({
       select: { id: true, nombre: true, stockMinimo: true },
     }),
-    // Solo las que el panel muestra (vencidas y de aqui a una semana); las
-    // demas solo se cuentan abajo (auditoria 28-sep-2026, 4.1).
-    prisma.maintenance.findMany({
-      where: { estado: "pendiente", fechaProgramada: { lte: nextWeek }, ...swAsset },
-      // Orden ascendente por fecha programada: la vencida mas antigua y
-      // la proxima mas cercana aparecen primero.
-      orderBy: [{ fechaProgramada: "asc" }, { horaProgramada: "asc" }],
-      include: {
-        asset: {
-          select: {
-            numeroSerie: true,
-            imei: true,
-            marca: true,
-            modelo: true,
-            sede: { select: { nombre: true } },
-          },
-        },
-      },
-    }),
+    mantencionesDelPanel(vencidas),
+    prisma.maintenance.count({ where: vencidas }),
+    mantencionesDelPanel(proximas),
+    prisma.maintenance.count({ where: proximas }),
     prisma.maintenance.count({ where: { estado: "pendiente", ...swAsset } }),
-    // Entregas O devoluciones de los ultimos 6 meses: una devolucion cuenta
-    // en su mes aunque el equipo se haya entregado antes de ese periodo.
-    prisma.assignment.findMany({
-      where: {
-        OR: [{ fechaEntrega: { gte: sixMonthsAgo } }, { fechaDevolucion: { gte: sixMonthsAgo } }],
-        ...swAsset,
-      },
-      select: {
-        fechaEntrega: true,
-        fechaDevolucion: true,
-      },
-    }),
+    // Entregas y devoluciones por mes, contadas en la base (SPEC 2.125): una
+    // devolucion cuenta en su mes aunque el equipo se entregara antes.
+    prisma.$queryRaw<{ mes: string; asignaciones: number; devoluciones: number }[]>`
+      SELECT mes, sum(entrega)::int AS asignaciones, sum(devolucion)::int AS devoluciones
+      FROM (
+        SELECT to_char(a.fecha_entrega, 'YYYY-MM') AS mes, 1 AS entrega, 0 AS devolucion
+        FROM assignments a JOIN assets s ON s.id = a.asset_id
+        WHERE a.fecha_entrega >= ${sixMonthsAgo} AND s.deleted_at IS NULL ${soloSede(sedeIdFiltro)}
+        UNION ALL
+        SELECT to_char(a.fecha_devolucion, 'YYYY-MM'), 0, 1
+        FROM assignments a JOIN assets s ON s.id = a.asset_id
+        WHERE a.fecha_devolucion >= ${sixMonthsAgo} AND s.deleted_at IS NULL ${soloSede(sedeIdFiltro)}
+      ) movimientos
+      GROUP BY mes`,
+    prisma.assignment.count({ where: { fechaEntrega: { gte: treintaDiasAtras }, ...swAsset } }),
     prisma.workflowRequest.count({
       where: { fechaCierre: null, ...sw },
     }),
@@ -157,25 +179,10 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
     { estado: "vendido", cantidad: vendidoAssets, color: ESTADO_ACTIVO_COLOR.vendido },
   ].filter((e) => e.cantidad > 0);
 
-  // Mantenciones: el total se cuenta en la base; vencidas y proximas salen
-  // de la lista, sin limite de cantidad (el panel es scrolleable).
   const pendingMaintenance = totalMantencionesPendientes;
-  const mantencionesVencidas = maintenancesPendientes.filter(
-    (m) => m.fechaProgramada && m.fechaProgramada < today
-  );
-  const mantencionesProximas = maintenancesPendientes.filter(
-    (m) => m.fechaProgramada && m.fechaProgramada >= today && m.fechaProgramada <= nextWeek
-  );
 
-  // "Asig. Ultimos 30 dias" se deriva filtrando en memoria las
-  // asignaciones de los ultimos 6 meses.
-  const recentAssignments = assignmentsUltimos6Meses.filter(
-    (a) => a.fechaEntrega && a.fechaEntrega >= treintaDiasAtras
-  ).length;
-
-  // Agrupar asignaciones por mes para el grafico de movimientos
-  // Los 6 meses parten en 0: un mes sin movimientos tambien se muestra (antes
-  // se omitia y la linea saltaba de un mes a otro).
+  // Grafico de movimientos: los 6 meses parten en 0, asi un mes sin
+  // movimientos tambien se muestra (antes se omitia y la linea saltaba).
   const monthlyData: Record<
     string,
     { asignaciones: number; devoluciones: number }
@@ -184,25 +191,9 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
     const mes = new Date(Date.UTC(sixMonthsAgo.getUTCFullYear(), sixMonthsAgo.getUTCMonth() + i, 1));
     monthlyData[mes.toISOString().slice(0, 7)] = { asignaciones: 0, devoluciones: 0 };
   }
-
-  assignmentsUltimos6Meses.forEach((a) => {
-    // Cada movimiento cuenta en su propio mes, solo si cae en el periodo.
-    if (a.fechaEntrega && a.fechaEntrega >= sixMonthsAgo) {
-      const mes = a.fechaEntrega.toISOString().slice(0, 7);
-      if (!monthlyData[mes]) {
-        monthlyData[mes] = { asignaciones: 0, devoluciones: 0 };
-      }
-      monthlyData[mes].asignaciones++;
-    }
-
-    if (a.fechaDevolucion && a.fechaDevolucion >= sixMonthsAgo) {
-      const mesDev = a.fechaDevolucion.toISOString().slice(0, 7);
-      if (!monthlyData[mesDev]) {
-        monthlyData[mesDev] = { asignaciones: 0, devoluciones: 0 };
-      }
-      monthlyData[mesDev].devoluciones++;
-    }
-  });
+  for (const { mes, asignaciones, devoluciones } of movimientosPorMes) {
+    monthlyData[mes] = { asignaciones, devoluciones };
+  }
 
   const asignacionesChartData = Object.entries(monthlyData)
     .sort((a, b) => a[0].localeCompare(b[0]))
@@ -256,7 +247,17 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
     bajoStockItems,
     mantencionesVencidas,
     mantencionesProximas,
+    totalVencidas,
+    totalProximas,
   };
+}
+
+/** Cuantas mantenciones de cada grupo (vencidas, proximas) muestra el panel. */
+export const ALERTAS_POR_GRUPO = 5;
+
+/** Filtro de sede para las consultas SQL del resumen (vacio = todas). */
+function soloSede(sedeId: string | null) {
+  return sedeId ? Prisma.sql`AND s.sede_id = ${sedeId}` : Prisma.empty;
 }
 
 function formatMonth(mes: string): string {

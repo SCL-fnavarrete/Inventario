@@ -3917,7 +3917,16 @@ Pedido de Javier: saber cuánto vale cada equipo y, si no se devuelve, dejar reg
 - Migración `20260930140000_valor_activo`.
 - **Corrección encontrada al probarlo:** editar un equipo que no estaba "Disponible" (asignado, no devuelto, en mantención) respondía 409 "El estado no se edita" aunque no se tocara el estado. El schema de edición (`updateAssetSchema`) heredaba los valores por defecto del alta (estado "disponible", condición "nuevo"), y Zod 4 los aplica también en `.partial()`. Ahora la edición no los tiene: lo que no viene, no se toca.
 
+### 2.125 Dashboard: el panel de alertas y el gráfico no crecen con los datos (30-sep-2026)
+Pregunta de Javier: ¿afectaría el rendimiento si hubiera 1.000 mantenciones? Sí: el panel traía todas las vencidas y las de la semana, las mandaba al navegador y dibujaba una tarjeta por cada una; como una vencida sigue ahí hasta completarse, el Dashboard se iba volviendo lento solo. Las alertas de stock no tienen el problema (una por categoría o artículo).
+- **Panel de alertas:** muestra las 5 vencidas más antiguas y las 5 próximas más cercanas (`ALERTAS_POR_GRUPO`); el resto se cuenta en la base y aparece "…y 992 vencidas más · Ver todas", que abre Mantenciones ya filtrada (`/mantenciones?vista=vencidas` o `proximas`). El número de alertas del encabezado es el total real.
+- **Gráfico de movimientos:** las entregas y devoluciones de los últimos 6 meses se cuentan por mes en la base (una consulta SQL) en vez de traer cada una; "Asig. últimos 30 días" es un conteo.
+- **Medido con 1.000 mantenciones vencidas** (base de pruebas, versión de producción): la página pasó de 2,1 MB a 132 KB, de 14.123 a 1.232 elementos en pantalla y de 239 a 106 ms en el servidor.
+- Test de integración `dashboard.int.test.ts` (Postgres real): límite, totales, orden, conteo por mes y filtro de sede.
+
 ## Changelog SPEC
+- **v2.54 (2026-09-30):**
+  - Sección 2.125 (nueva): el panel de alertas del Dashboard muestra las 5 mantenciones más urgentes de cada grupo con el total y "Ver todas" (Mantenciones abre filtrada por `?vista=`); el gráfico de movimientos cuenta por mes en la base. El Dashboard cuesta lo mismo con 10 que con 10.000 mantenciones.
 - **v2.53 (2026-09-30):**
   - Sección 2.124 (nueva): valor de cada equipo en CLP (opcional, editable, con historial de cambios) y, al quedar "No devuelto", su valor de ese momento en la asignación, visible en la solicitud. Columna en la exportación e importación de Excel. Migración `valor_activo`. Corrige que no se pudiera editar un equipo que no estuviera "Disponible" (409 por un estado por defecto).
 - **v2.52 (2026-09-30):**

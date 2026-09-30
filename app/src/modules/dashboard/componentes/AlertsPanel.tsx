@@ -49,8 +49,11 @@ interface CategoriaBajoStock extends CategoriaSinStock {
 }
 
 interface AlertsPanelProps {
+  // Solo las mas urgentes de cada grupo; los totales cuentan todas (SPEC 2.125).
   mantencionesVencidas: Maintenance[];
   mantencionesProximas: Maintenance[];
+  totalVencidas: number;
+  totalProximas: number;
   sinStockItems: KitItemSinStock[];
   bajoStockItems: KitItemBajoStock[];
   sinStockCategorias: CategoriaSinStock[];
@@ -61,6 +64,24 @@ const categoriaKitLabels: Record<KitItemSinStock["categoria"], string> = {
   kit_bienvenida: "Kit de Bienvenida",
   epp: "EPP",
 };
+
+/** "…y 995 vencidas más · Ver todas": lleva a Mantenciones ya filtrada. */
+function VerMas({ resto, texto, vista }: { resto: number; texto: string; vista: "vencidas" | "proximas" }) {
+  if (resto <= 0) return null;
+  return (
+    <Link
+      href={`/mantenciones?vista=${vista}`}
+      className="flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2 text-sm text-fg-muted hover:bg-surface-muted"
+    >
+      <span>
+        …y {resto.toLocaleString("es-CL")} {texto} más
+      </span>
+      <span className="flex items-center gap-1 font-medium text-primary-700">
+        Ver todas <ChevronRight className="h-4 w-4" />
+      </span>
+    </Link>
+  );
+}
 
 /**
  * Etiqueta de sede para una alerta, para distinguir origen cuando estan
@@ -84,14 +105,16 @@ const kitEppHref: Record<KitItemSinStock["categoria"], string> = {
 export function AlertsPanel({
   mantencionesVencidas,
   mantencionesProximas,
+  totalVencidas,
+  totalProximas,
   sinStockItems,
   bajoStockItems,
   sinStockCategorias,
   bajoStockCategorias,
 }: AlertsPanelProps) {
   const totalAlertas =
-    mantencionesVencidas.length +
-    mantencionesProximas.length +
+    totalVencidas +
+    totalProximas +
     sinStockItems.length +
     bajoStockItems.length +
     sinStockCategorias.length +
@@ -105,7 +128,7 @@ export function AlertsPanel({
         </h2>
         {totalAlertas > 0 && (
           <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-            {totalAlertas} {totalAlertas === 1 ? "alerta" : "alertas"}
+            {totalAlertas.toLocaleString("es-CL")} {totalAlertas === 1 ? "alerta" : "alertas"}
           </span>
         )}
       </div>
@@ -140,6 +163,7 @@ export function AlertsPanel({
               <ChevronRight className="h-4 w-4 text-red-400 shrink-0" />
             </Link>
           ))}
+          <VerMas resto={totalVencidas - mantencionesVencidas.length} texto="vencidas" vista="vencidas" />
 
           {/* Mantenciones Próximas */}
           {mantencionesProximas.map((m) => (
@@ -168,6 +192,7 @@ export function AlertsPanel({
               <ChevronRight className="h-4 w-4 text-yellow-400 shrink-0" />
             </Link>
           ))}
+          <VerMas resto={totalProximas - mantencionesProximas.length} texto="próximas" vista="proximas" />
 
           {/* Sin Stock (Kit de Bienvenida / EPP) */}
           {sinStockItems.map((item) => (

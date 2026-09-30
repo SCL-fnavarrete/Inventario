@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Wrench,
@@ -129,7 +130,21 @@ function AccionesMantencion({ m }: { m: Maintenance }) {
   );
 }
 
+// ?vista=vencidas|proximas abre la lista ya filtrada: lo usa el "Ver todas"
+// del panel de alertas del Dashboard (SPEC 2.125).
+const VISTAS_DESDE_ENLACE: VistaMantencion[] = ["vencidas", "proximas"];
+
 export default function MantencionesPage() {
+  return (
+    <Suspense>
+      <Mantenciones />
+    </Suspense>
+  );
+}
+
+function Mantenciones() {
+  const params = useSearchParams();
+  const vistaInicial = VISTAS_DESDE_ENLACE.find((v) => v === params.get("vista")) ?? null;
   const [maintenances, setMaintenances] = useState<Maintenance[]>([]);
   const [tiposMantencion, setTiposMantencion] = useState<TipoMantencion[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -141,7 +156,7 @@ export default function MantencionesPage() {
   const [filterEstado, setFilterEstado] = useState("");
   // Tarjeta de resumen pulsada (SPEC 2.107): filtra la lista con la misma
   // regla que cuenta su numero. null = todas ("Total").
-  const [vista, setVista] = useState<VistaMantencion | null>(null);
+  const [vista, setVista] = useState<VistaMantencion | null>(vistaInicial);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);

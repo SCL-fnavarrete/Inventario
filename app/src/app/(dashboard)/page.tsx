@@ -42,6 +42,8 @@ export default async function DashboardPage() {
       <AlertsPanel
         mantencionesVencidas={data.mantencionesVencidas}
         mantencionesProximas={data.mantencionesProximas}
+        totalVencidas={data.totalVencidas}
+        totalProximas={data.totalProximas}
         sinStockItems={data.sinStockItems}
         bajoStockItems={data.bajoStockItems}
         sinStockCategorias={data.sinStockCategorias}
