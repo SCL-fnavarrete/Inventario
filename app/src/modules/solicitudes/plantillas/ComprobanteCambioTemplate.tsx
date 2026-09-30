@@ -2,7 +2,7 @@ import React from 'react';
 import { Document, Page, Text, View } from '@react-pdf/renderer';
 import { EMPRESA } from '@/modules/solicitudes/plantillas/pdfStyles';
 import { sclStyles as styles, LogoSCL } from '@/modules/solicitudes/plantillas/pdfSclBrand';
-import { TablaCargadorActa, TablaEquipoActa, type FilaEquipoActa } from '@/modules/solicitudes/plantillas/TablaEquipoActa';
+import { TablaEquipoActa, type FilaEquipoActa } from '@/modules/solicitudes/plantillas/TablaEquipoActa';
 
 type Props = {
   empleadoNombre: string;
@@ -55,14 +55,13 @@ export function ComprobanteCambioTemplate({
           , con motivo de: <Text style={styles.bold}>{motivoCambio}</Text>.
         </Text>
 
-        {/* Dos tablas compactas y un solo bloque de cargadores al final, para
-            que todo (firmas incluidas) quepa en una hoja. */}
+        {/* Dos tablas compactas, cada una con los cargadores de sus equipos en
+            su propia fila, para que todo (firmas incluidas) quepa en una hoja. */}
         <TablaEquipoActa
           titulo={equiposNuevos.length > 1 ? 'Equipos asignados (nuevos):' : 'Equipo asignado (nuevo):'}
           columnaEstado="Estado"
           filas={equiposNuevos}
           compacta
-          sinCargador
         />
         <TablaEquipoActa
           titulo={
@@ -71,9 +70,7 @@ export function ComprobanteCambioTemplate({
           columnaEstado="Estado"
           filas={equiposAnteriores}
           compacta
-          sinCargador
         />
-        <TablaCargadorActa filas={[...equiposNuevos, ...equiposAnteriores]} compacta />
 
         <Text style={styles.docObsCompacto}>
           <Text style={styles.italic}>

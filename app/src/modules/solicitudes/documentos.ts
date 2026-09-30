@@ -96,7 +96,7 @@ const FILA_VACIA: FilaEquipoActa = {
   cargador: null,
 };
 
-// Cargador para la tabla aparte del acta: etiqueta de la condicion y la
+// Cargador para su fila en la tabla del acta: etiqueta de la condicion y la
 // observacion. Null si el equipo no tiene cargador o nunca se registro.
 function textoCargador(
   asignacion: { observacionesCargador: string | null },

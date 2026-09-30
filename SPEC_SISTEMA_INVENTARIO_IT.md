@@ -2985,7 +2985,7 @@ Pedido de Javier: sin etapas intermedias. Una solicitud se crea completa en `/so
 
 Pedido de Javier. Los documentos de los cinco procesos (Comprobante de Entrega, presencial y por OT; Acta de Devolución, presencial y por OT; Comprobante de Cambio) comparten ahora una sola tabla de equipos, `lib/templates/TablaEquipoActa.tsx`. Reemplaza tres copias casi idénticas (la tabla del Comprobante de Entrega, la del Acta de Devolución y el `TablaEquipo` local del Comprobante de Cambio).
 
-- **Columnas:** Equipo · Marca · **N° de Serie** (en negrita, "—" si falta) · Descripción (modelo) · Especificaciones · una última columna cuyo título depende del documento ("Entregado" o "Estado"). El Comprobante de Cambio la usa dos veces, para el equipo nuevo y el devuelto. La condición del cargador va en una tabla pequeña debajo (N° de Serie del equipo · Condición · Observación), solo para los equipos que tienen cargador registrado. En el Comprobante de Cambio las tablas van en modo compacto (letra de 8 pt) y los dos cargadores en una sola tabla al final, para que el documento quepa en una hoja.
+- **Columnas:** Equipo · Marca · **N° de Serie** (en negrita, "—" si falta) · Descripción (modelo) · Especificaciones · una última columna cuyo título depende del documento ("Entregado" o "Estado"). El Comprobante de Cambio la usa dos veces, para el equipo nuevo y el devuelto. La condición del cargador va en una tabla pequeña debajo (N° de Serie del equipo · Condición · Observación), solo para los equipos que tienen cargador registrado. En el Comprobante de Cambio las tablas van en modo compacto (letra de 8 pt) y los dos cargadores en una sola tabla al final, para que el documento quepa en una hoja. *(Reemplazado por 2.120: el cargador va en la misma tabla, en su propia fila bajo el equipo.)*
 - **Especificaciones** salen de `especificacionesActivo` (`lib/utils/assetSpecs.ts`), la misma fuente que usa el resto de la aplicación, una por línea: procesador, RAM, disco y sistema operativo en notebooks; IMEI, número y plan en celulares; pulgadas en monitores. Antes la entrega las juntaba en la descripción y la devolución y el cambio las omitían.
 - **Devolución por OT (nuevo) y Cambio por OT:** cuando `medioDevolucion` o `medioCambio` es `chilexpress`, el documento agrega la misma cláusula que ya tenía la entrega por OT ("correspondiente a la Orden de Trabajo (OT) N° …"), con `otChilexpress` u `otCambioChilexpress`.
 - **El Acta de Devolución lista solo lo devuelto en ese ticket** (`WorkflowRequest.assignmentIds`). Antes incluía toda devolución histórica del empleado, por ejemplo el equipo devuelto en un cambio de equipo anterior. Los equipos marcados "No devolvió" también aparecen, con estado "No devuelto". Los tickets antiguos sin `assignmentIds` conservan el criterio anterior.
@@ -3866,7 +3866,18 @@ La fecha de ingreso de un onboarding quedaba solo en la solicitud: la ficha de l
 - Reincorporación (onboarding de alguien desvinculado): además de volver a "activo" y limpiar `fechaTermino`, su `fechaIngreso` pasa a ser la de esta solicitud.
 - Las fichas ya creadas no se corrigen solas: se completan al editarlas.
 
+
+### 2.120 El cargador va en la misma tabla que su equipo (30-sep-2026)
+Pedido de Javier: en las actas el cargador salía en una tabla aparte, debajo de la de equipos; ahora va **en la misma tabla, en su propia fila, justo debajo de su equipo**. Aplica a los tres documentos que usan la tabla de equipos (`TablaEquipoActa`): Comprobante de Entrega, Acta de Devolución y Comprobante de Cambio.
+- La fila del cargador usa las mismas columnas: Equipo "Cargador" · Marca del equipo · N° de Serie "—" (el cargador no tiene serie propia) · Descripción "Cargador de <modelo>" · Especificaciones: la observación del cargador (o "—") · última columna: su condición ("Operativo", "Con daños", "No incluido"/"No devuelto").
+- Solo aparece si el equipo tiene cargador registrado en esa entrega o devolución. El equipo y su cargador no se separan entre hojas.
+- En la fila del cargador las palabras no se cortan con guion ("Lat-itude"): pasan enteras a la línea siguiente.
+- En el Comprobante de Cambio cada tabla (equipos nuevos y devueltos) lleva los cargadores de sus propios equipos; desaparece la tabla de cargadores del final.
+- Se retira `TablaCargadorActa` y la opción `sinCargador` de la tabla.
+
 ## Changelog SPEC
+- **v2.48 (2026-09-30):**
+  - Sección 2.120 (nueva): en el Comprobante de Entrega, el Acta de Devolución y el Comprobante de Cambio el cargador va en la misma tabla que su equipo, en su propia fila justo debajo, en vez de una tabla aparte; en esa fila las palabras no se cortan con guion. Reemplaza lo dicho en 2.83 sobre la tabla de cargadores.
 - **v2.47 (2026-09-30):**
   - Correcciones de la revisión de seguridad del 30-sep: un pedido que no es un formulario donde se espera uno (importar Excel) responde 400 "El formato de los datos enviados no es válido", igual que un JSON malformado, en vez de 500; los PDF de solicitudes leen solo el nombre de quien la gestionó, no la cuenta completa.
 - **v2.46 (2026-09-30):**

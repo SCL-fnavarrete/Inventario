@@ -12,11 +12,9 @@ export type FilaEquipoActa = {
   /** Especificaciones segun la categoria, una por linea (ver assetSpecs). */
   especificaciones: string;
   estado: string;
-  /** Solo notebooks con cargador; va en una tabla aparte bajo la principal. */
+  /** Solo equipos con cargador registrado; va en su propia fila, justo bajo el equipo. */
   cargador: { condicion: string; observacion: string | null } | null;
 };
-
-const ANCHO_CARGADOR = { equipo: '40%', condicion: '25%', observacion: '35%' } as const;
 
 // Anchos de columna (suman 100%): el N° de serie es el dato que identifica
 // el equipo fisico, por eso va en negrita y con ancho propio. react-pdf solo
@@ -35,35 +33,37 @@ const ANCHO = {
 // letra y celdas mas chicas para que todo quepa en una hoja.
 const CELDA_COMPACTA = { fontSize: 8, padding: 3, lineHeight: 1.25 } as const;
 
+// La fila del cargador no corta palabras ("Lat-itude", "devuel-to"): pasa a
+// la linea siguiente entre palabras.
+const palabraEntera = (palabra: string) => [palabra];
+
 /**
  * Tabla de equipos compartida por el Comprobante de Entrega, el Acta de
  * Devolucion y el Comprobante de Cambio. El titulo de la ultima columna
- * cambia por documento ("Entregado", "Estado"). Debajo va la tabla de
- * cargadores (TablaCargadorActa), salvo que el documento la ponga aparte.
+ * cambia por documento ("Entregado", "Estado"). El cargador de un equipo va
+ * en la misma tabla, en su propia fila justo debajo (SPEC 2.120): Equipo
+ * "Cargador", la marca del equipo, sin serie, "Cargador de <modelo>", su
+ * observacion y su condicion. Equipo y cargador no se separan entre hojas.
  */
 export function TablaEquipoActa({
   titulo,
   columnaEstado,
   filas,
   compacta = false,
-  sinCargador = false,
 }: {
   titulo: string;
   columnaEstado: string;
   filas: FilaEquipoActa[];
   /** Letra, celdas y margenes mas chicos, para documentos con dos tablas. */
   compacta?: boolean;
-  /** El documento muestra los cargadores en una tabla aparte. */
-  sinCargador?: boolean;
 }) {
-  const conCargador = !sinCargador && filas.some((f) => f.cargador);
   const margenFinal = compacta ? 12 : styles.table.marginBottom;
   const celda = compacta ? CELDA_COMPACTA : {};
 
   return (
     <>
       <Text style={styles.equipLabel}>{titulo}</Text>
-      <View style={[styles.table, { marginBottom: conCargador ? 6 : margenFinal }]}>
+      <View style={[styles.table, { marginBottom: margenFinal }]}>
         <View style={styles.tableHeaderRow}>
           <Text style={[styles.tableHeaderCell, celda, { width: ANCHO.equipo }]}>Equipo</Text>
           <Text style={[styles.tableHeaderCell, celda, { width: ANCHO.marca }]}>Marca</Text>
@@ -87,98 +87,60 @@ export function TablaEquipoActa({
           </Text>
         </View>
         {filas.map((fila, i) => (
-          <View key={i} style={styles.tableRow} wrap={false}>
-            <Text style={[styles.tableCell, celda, { width: ANCHO.equipo, textAlign: 'center' }]}>
-              {fila.equipo}
-            </Text>
-            <Text style={[styles.tableCell, celda, { width: ANCHO.marca, textAlign: 'center' }]}>
-              {fila.marca || '—'}
-            </Text>
-            <Text
-              style={[
-                styles.tableCell,
-                styles.bold,
-                celda,
-                { width: ANCHO.serie, textAlign: 'center', fontSize: compacta ? 8 : 8.5 },
-              ]}
-            >
-              {fila.numeroSerie || '—'}
-            </Text>
-            <Text style={[styles.tableCell, celda, { width: ANCHO.descripcion }]}>
-              {fila.descripcion || '—'}
-            </Text>
-            <Text style={[styles.tableCell, celda, { width: ANCHO.especificaciones }]}>
-              {fila.especificaciones || '—'}
-            </Text>
-            <Text style={[styles.tableCell, celda, { width: ANCHO.estado, textAlign: 'center' }]}>
-              {fila.estado}
-            </Text>
+          // El equipo y su cargador van juntos: nunca se separan entre hojas.
+          <View key={i} wrap={false}>
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, celda, { width: ANCHO.equipo, textAlign: 'center' }]}>
+                {fila.equipo}
+              </Text>
+              <Text style={[styles.tableCell, celda, { width: ANCHO.marca, textAlign: 'center' }]}>
+                {fila.marca || '—'}
+              </Text>
+              <Text
+                style={[
+                  styles.tableCell,
+                  styles.bold,
+                  celda,
+                  { width: ANCHO.serie, textAlign: 'center', fontSize: compacta ? 8 : 8.5 },
+                ]}
+              >
+                {fila.numeroSerie || '—'}
+              </Text>
+              <Text style={[styles.tableCell, celda, { width: ANCHO.descripcion }]}>
+                {fila.descripcion || '—'}
+              </Text>
+              <Text style={[styles.tableCell, celda, { width: ANCHO.especificaciones }]}>
+                {fila.especificaciones || '—'}
+              </Text>
+              <Text style={[styles.tableCell, celda, { width: ANCHO.estado, textAlign: 'center' }]}>
+                {fila.estado}
+              </Text>
+            </View>
+            {fila.cargador && (
+              <View style={styles.tableRow}>
+                <Text hyphenationCallback={palabraEntera} style={[styles.tableCell, celda, { width: ANCHO.equipo, textAlign: 'center' }]}>
+                  Cargador
+                </Text>
+                <Text hyphenationCallback={palabraEntera} style={[styles.tableCell, celda, { width: ANCHO.marca, textAlign: 'center' }]}>
+                  {fila.marca || '—'}
+                </Text>
+                <Text hyphenationCallback={palabraEntera} style={[styles.tableCell, celda, { width: ANCHO.serie, textAlign: 'center' }]}>
+                  —
+                </Text>
+                <Text hyphenationCallback={palabraEntera} style={[styles.tableCell, celda, { width: ANCHO.descripcion }]}>
+                  {fila.descripcion ? `Cargador de ${fila.descripcion}` : 'Cargador'}
+                </Text>
+                <Text hyphenationCallback={palabraEntera} style={[styles.tableCell, celda, { width: ANCHO.especificaciones }]}>
+                  {fila.cargador.observacion || '—'}
+                </Text>
+                <Text hyphenationCallback={palabraEntera} style={[styles.tableCell, celda, { width: ANCHO.estado, textAlign: 'center' }]}>
+                  {fila.cargador.condicion}
+                </Text>
+              </View>
+            )}
           </View>
         ))}
       </View>
-
-      {conCargador && <TablaCargadorActa filas={filas} compacta={compacta} />}
     </>
-  );
-}
-
-/**
- * Condicion del cargador, una fila por equipo que lo tiene registrado (se
- * identifica por su N° de serie). No renderiza nada si ninguno tiene.
- */
-export function TablaCargadorActa({
-  filas,
-  compacta = false,
-}: {
-  filas: FilaEquipoActa[];
-  compacta?: boolean;
-}) {
-  const conCargador = filas.filter((f) => f.cargador);
-  if (conCargador.length === 0) return null;
-  const celda = compacta ? CELDA_COMPACTA : {};
-
-  return (
-    <View
-      style={{ width: '70%', marginBottom: compacta ? 12 : styles.table.marginBottom }}
-      wrap={false}
-    >
-      <View style={styles.tableHeaderRow}>
-        <Text style={[styles.tableHeaderCell, celda, { width: ANCHO_CARGADOR.equipo }]}>
-          Cargador (N° de Serie / IMEI)
-        </Text>
-        <Text style={[styles.tableHeaderCell, celda, { width: ANCHO_CARGADOR.condicion }]}>
-          Condición
-        </Text>
-        <Text style={[styles.tableHeaderCell, celda, { width: ANCHO_CARGADOR.observacion }]}>
-          Observación
-        </Text>
-      </View>
-      {conCargador.map((fila, i) => (
-        <View key={i} style={styles.tableRow}>
-          <Text
-            style={[
-              styles.tableCell,
-              styles.bold,
-              celda,
-              { width: ANCHO_CARGADOR.equipo, textAlign: 'center' },
-            ]}
-          >
-            {fila.numeroSerie || fila.descripcion || '—'}
-          </Text>
-          <Text
-            style={[
-              styles.tableCell,
-              celda,
-              { width: ANCHO_CARGADOR.condicion, textAlign: 'center' },
-            ]}
-          >
-            {fila.cargador!.condicion}
-          </Text>
-          <Text style={[styles.tableCell, celda, { width: ANCHO_CARGADOR.observacion }]}>
-            {fila.cargador!.observacion || '—'}
-          </Text>
-        </View>
-      ))}
-    </View>
   );
 }
