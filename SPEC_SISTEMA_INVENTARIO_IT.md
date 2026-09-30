@@ -293,7 +293,8 @@ CREATE TABLE assignments (
     -- entrega/devolución puntual.
     condicion_cargador_entrega ENUM('operativo', 'con_danos', 'no_incluido'),   -- CondicionCargador (2.81)
     condicion_cargador_devolucion ENUM('operativo', 'con_danos', 'no_incluido'),
-    observaciones_cargador TEXT,                -- Ej: "Cable pelado", "No traía cargador"
+    observaciones_cargador TEXT,                -- de la entrega (campo observacionesCargadorEntrega). Ej: "Con cable original"
+    observaciones_cargador_devolucion TEXT,     -- de la devolucion (2.121). Ej: "Cable pelado", "No traía cargador"
 
     -- Estado del registro
     activo BOOLEAN DEFAULT true,               -- false cuando se devuelve
@@ -669,7 +670,7 @@ CANCELACIÓN (los tres tipos):
 6. **Acumulación:** `assignment_ids` en `workflow_requests` es acumulativo; cada assignment creado se agrega al array, nunca se sobreescribe.
 7. **Cancelación:** cualquier solicitud (de los tres tipos) puede cancelarse mientras `assignment_ids` y `kit_return_ids` sigan vacíos -- es decir, mientras no haya ejecutado ningún efecto secundario real sobre el inventario todavía. Exige un motivo (texto libre, obligatorio) que queda en `workflow_transitions.comentario`. Pasa a `estado = 'cancelada'` y `fecha_cierre = now()`; no modifica activos ni empleados. Si la solicitud ya ejecutó algo (tiene `assignment_ids` y/o `kit_return_ids`), no se puede cancelar por esta vía -- hay que revertir manualmente cada acción (devolver el activo, etc.) antes de poder cerrarla.
 8. **Reincorporación (onboarding):** un `onboarding` puede apuntar a un `employee` ya existente que esté `desvinculado` (alguien que trabajó antes y vuelve) en vez de crear uno nuevo -- necesario porque `rut`/`correo_personal`/`correo_empresa` son únicos, así que "crear de nuevo" a esa persona choca con su registro anterior. Al crear el ticket, si el `employee_id` elegido está `desvinculado`, se reactiva (`estado -> activo`, `fecha_termino -> null`) dentro de la misma transacción que crea la solicitud. Para `cambio_equipo` y `offboarding` el empleado desvinculado sigue bloqueado (regla previa a esta, sin numerar aparte): no tiene sentido cambiarle el equipo o desvincular de nuevo a alguien que ya no está activo.
-9. **Condición del cargador:** cuando el activo entregado/devuelto en un `assignment` es un notebook con `tiene_cargador = true`, se puede registrar por separado la condición de su cargador (`condicion_cargador_entrega` al crear la asignación, `condicion_cargador_devolucion` al devolverla), con una observación libre opcional (`observaciones_cargador`). El cargador no es un activo propio en el inventario -- es solo un atributo de esa entrega/devolución puntual, igual que cualquier otro dato del acta. A diferencia de `estado_devolucion` del equipo, la condición del cargador **no** cambia el `estado` ni la `condicion` del Activo ni gatilla baja: es puramente informativo, para que quede constancia en el acta y en el historial. Se implementó primero en onboarding (entrega, 15-sep-2026); `cambio_equipo` y `offboarding` se extendieron con el mismo patrón el 16-sep-2026 (ver SPEC 2.48), que además agregó el lado de la *devolución* -- hasta entonces `condicion_cargador_devolucion` existía en el modelo pero ningún flujo lo escribía.
+9. **Condición del cargador:** cuando el activo entregado/devuelto en un `assignment` es un notebook con `tiene_cargador = true`, se puede registrar por separado la condición de su cargador (`condicion_cargador_entrega` al crear la asignación, `condicion_cargador_devolucion` al devolverla), con una observación libre opcional para cada momento (`observaciones_cargador` al entregar y `observaciones_cargador_devolucion` al devolver, desde 2.121; antes había una sola y la devolución pisaba la de la entrega). El cargador no es un activo propio en el inventario -- es solo un atributo de esa entrega/devolución puntual, igual que cualquier otro dato del acta. A diferencia de `estado_devolucion` del equipo, la condición del cargador **no** cambia el `estado` ni la `condicion` del Activo ni gatilla baja: es puramente informativo, para que quede constancia en el acta y en el historial. Se implementó primero en onboarding (entrega, 15-sep-2026); `cambio_equipo` y `offboarding` se extendieron con el mismo patrón el 16-sep-2026 (ver SPEC 2.48), que además agregó el lado de la *devolución* -- hasta entonces `condicion_cargador_devolucion` existía en el modelo pero ningún flujo lo escribía.
 
 ### 2.5.4 Estructura del campo `datos_accion` por transición con efecto
 
@@ -3875,7 +3876,17 @@ Pedido de Javier: en las actas el cargador salía en una tabla aparte, debajo de
 - En el Comprobante de Cambio cada tabla (equipos nuevos y devueltos) lleva los cargadores de sus propios equipos; desaparece la tabla de cargadores del final.
 - Se retira `TablaCargadorActa` y la opción `sinCargador` de la tabla.
 
+
+### 2.121 Observación del cargador: una al entregar y otra al devolver (30-sep-2026)
+La condición del cargador ya se guardaba por separado (`condicionCargadorEntrega` y `condicionCargadorDevolucion`), pero la observación era una sola (`observaciones_cargador`): al devolver el equipo, la observación de la devolución reemplazaba la de la entrega, y el Comprobante de Entrega, descargado después, mostraba la de la devolución. Pedido de Javier: conservar cómo se entregó y cómo se devolvió.
+- `Assignment.observacionesCargadorEntrega` (columna `observaciones_cargador`, la de siempre) la escribe la entrega; la nueva `Assignment.observacionesCargadorDevolucion` (columna `observaciones_cargador_devolucion`), la devolución y el "no devuelto" (`executeAssignment` y `executeReturn`, en `modules/asignaciones/ejecucion.ts`).
+- Cada acta muestra la condición y la observación de su momento: el Comprobante de Entrega las de la entrega; el Acta de Devolución y el equipo devuelto del Comprobante de Cambio, las de la devolución.
+- La API no cambia: los formularios siguen enviando `observacionesCargador` en la entrega y en la devolución, y cada una se guarda en su campo.
+- Datos existentes (migración `20260930004651_observacion_cargador_devolucion`): si la asignación ya se devolvió (o quedó "no devuelto") y esa devolución registró la condición del cargador, la observación guardada la escribió la devolución y pasa a la columna nueva; en los demás casos queda como observación de la entrega. Lo que la devolución ya había pisado no se puede recuperar.
+
 ## Changelog SPEC
+- **v2.49 (2026-09-30):**
+  - Sección 2.121 (nueva): la observación del cargador se separa en una de entrega y otra de devolución (columna nueva `observaciones_cargador_devolucion`), así la devolución ya no pisa la de la entrega y cada acta muestra la suya. Migración con traslado de los datos existentes.
 - **v2.48 (2026-09-30):**
   - Sección 2.120 (nueva): en el Comprobante de Entrega, el Acta de Devolución y el Comprobante de Cambio el cargador va en la misma tabla que su equipo, en su propia fila justo debajo, en vez de una tabla aparte; en esa fila las palabras no se cortan con guion. Reemplaza lo dicho en 2.83 sobre la tabla de cargadores.
 - **v2.47 (2026-09-30):**

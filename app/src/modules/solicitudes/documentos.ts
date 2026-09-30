@@ -96,16 +96,25 @@ const FILA_VACIA: FilaEquipoActa = {
   cargador: null,
 };
 
-// Cargador para su fila en la tabla del acta: etiqueta de la condicion y la
-// observacion. Null si el equipo no tiene cargador o nunca se registro.
+// Cargador para su fila en la tabla del acta: la condicion y la observacion
+// del momento que muestra el acta, entrega o devolucion (SPEC 2.121: cada una
+// tiene la suya). Null si el equipo no tiene cargador o nunca se registro.
 function textoCargador(
-  asignacion: { observacionesCargador: string | null },
-  condicion: string | null | undefined,
+  asignacion: {
+    condicionCargadorEntrega: string | null;
+    condicionCargadorDevolucion: string | null;
+    observacionesCargadorEntrega: string | null;
+    observacionesCargadorDevolucion: string | null;
+  },
   contexto: ContextoCargador
 ): FilaEquipoActa['cargador'] {
+  const [condicion, observacion] =
+    contexto === 'entrega'
+      ? [asignacion.condicionCargadorEntrega, asignacion.observacionesCargadorEntrega]
+      : [asignacion.condicionCargadorDevolucion, asignacion.observacionesCargadorDevolucion];
   const etiqueta = etiquetaCondicionCargador(condicion, contexto);
   if (!etiqueta) return null;
-  return { condicion: etiqueta, observacion: asignacion.observacionesCargador?.trim() || null };
+  return { condicion: etiqueta, observacion: observacion?.trim() || null };
 }
 
 export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer> {
@@ -182,7 +191,7 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
       ? await asignacionesDelTicket(solicitud.assignmentIds)
       : solicitud.employee.assignments;
   const assets = asignaciones.map((a) =>
-    filaEquipo(a.asset, 'OK', textoCargador(a, a.condicionCargadorEntrega, 'entrega'))
+    filaEquipo(a.asset, 'OK', textoCargador(a, 'entrega'))
   );
 
   // Coordinacion "por OT": se agrega la clausula de OT a la intro cuando
@@ -222,7 +231,7 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
 
   const equiposNuevos = pares.map(({ nuevo: a }) =>
     a
-      ? filaEquipo(a.asset, 'Entregado OK', textoCargador(a, a.condicionCargadorEntrega, 'entrega'))
+      ? filaEquipo(a.asset, 'Entregado OK', textoCargador(a, 'entrega'))
       : FILA_VACIA
   );
   // El estado es el real de la devolucion (antes decia siempre "Devolución OK").
@@ -235,7 +244,7 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
             : a.estadoDevolucion === 'no_devuelto'
               ? 'No devuelto'
               : 'Devolución OK',
-          textoCargador(a, a.condicionCargadorDevolucion, 'devolucion')
+          textoCargador(a, 'devolucion')
         )
       : FILA_VACIA
   );
@@ -307,7 +316,7 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
           : a.estadoDevolucion === 'no_devuelto'
             ? 'No devuelto'
             : a.estadoDevolucion || 'OK',
-      textoCargador(a, a.condicionCargadorDevolucion, 'devolucion')
+      textoCargador(a, 'devolucion')
     )
   );
 

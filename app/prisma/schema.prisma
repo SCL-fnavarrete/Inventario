@@ -435,7 +435,10 @@ model Assignment {
   // estado/condicion del Activo.
   condicionCargadorEntrega    CondicionCargador? @map("condicion_cargador_entrega")
   condicionCargadorDevolucion CondicionCargador? @map("condicion_cargador_devolucion")
-  observacionesCargador       String?               @map("observaciones_cargador")
+  // Observacion del cargador, una por momento (SPEC 2.121): antes era una
+  // sola y la devolucion pisaba la de la entrega.
+  observacionesCargadorEntrega    String?          @map("observaciones_cargador")
+  observacionesCargadorDevolucion String?          @map("observaciones_cargador_devolucion")
   activo                  Boolean           @default(true)
   actaEntregaUrl          String?           @map("acta_entrega_url")
   actaDevolucionUrl       String?           @map("acta_devolucion_url")

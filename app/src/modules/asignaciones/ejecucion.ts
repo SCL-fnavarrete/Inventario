@@ -129,7 +129,7 @@ export async function executeAssignment(
       activo: true,
       ...(aplicaCargador && {
         condicionCargadorEntrega: params.condicionCargadorEntrega || null,
-        observacionesCargador: params.observacionesCargador || null,
+        observacionesCargadorEntrega: params.observacionesCargador || null,
       }),
     },
     include: {
@@ -180,7 +180,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
         observacionesDevolucion: params.observacionesDevolucion,
         ...(aplicaCargadorDevolucion && {
           condicionCargadorDevolucion: params.condicionCargadorDevolucion || null,
-          observacionesCargador: params.observacionesCargador || null,
+          observacionesCargadorDevolucion: params.observacionesCargador || null,
         }),
       },
       include: {
@@ -232,7 +232,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       observacionesDevolucion: params.observacionesDevolucion,
       ...(aplicaCargadorDevolucion && {
         condicionCargadorDevolucion: params.condicionCargadorDevolucion || null,
-        observacionesCargador: params.observacionesCargador || null,
+        observacionesCargadorDevolucion: params.observacionesCargador || null,
       }),
     },
     include: {

@@ -104,6 +104,20 @@ describe('executeAssignment', () => {
     await executeAssignment(comoTx(tx), { ...entrega, condicionCargadorEntrega: 'operativo' });
     expect((tx.assignment.create as Fn).mock.calls[0][0].data).not.toHaveProperty('condicionCargadorEntrega');
   });
+
+  it('la observación del cargador queda como la de la entrega (SPEC 2.121)', async () => {
+    const tx = txFalso();
+    (tx.asset.findUnique as Fn).mockResolvedValue(equipo({ tieneCargador: true }));
+    (tx.employee.findUnique as Fn).mockResolvedValue(empleado());
+    await executeAssignment(comoTx(tx), {
+      ...entrega,
+      condicionCargadorEntrega: 'operativo',
+      observacionesCargador: 'Con cable original',
+    });
+    const datos = (tx.assignment.create as Fn).mock.calls[0][0].data;
+    expect(datos).toMatchObject({ observacionesCargadorEntrega: 'Con cable original' });
+    expect(datos).not.toHaveProperty('observacionesCargadorDevolucion');
+  });
 });
 
 describe('executeKitDelivery', () => {
@@ -184,6 +198,23 @@ describe('executeReturn', () => {
     await executeReturn(comoTx(tx), { ...devolucion, estadoDevolucion: 'no_devuelto' });
     expect(tx.assignment.updateMany).not.toHaveBeenCalled();
     expect(tx.asset.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { estado: 'no_devuelto' } }));
+  });
+
+  it('la observación del cargador va a la de la devolución, sin pisar la de la entrega (SPEC 2.121)', async () => {
+    const conCargador = { id: 'a1', estado: 'asignado', empleadoActualId: 'e1', tieneCargador: true };
+    for (const estadoDevolucion of ['ok', 'no_devuelto'] as const) {
+      const tx = txFalso();
+      (tx.assignment.findUnique as Fn).mockResolvedValue(asignacion({ asset: conCargador }));
+      await executeReturn(comoTx(tx), {
+        ...devolucion,
+        estadoDevolucion,
+        condicionCargadorDevolucion: 'con_danos',
+        observacionesCargador: 'Cable pelado',
+      });
+      const datos = (tx.assignment.update as Fn).mock.calls[0][0].data;
+      expect(datos).toMatchObject({ observacionesCargadorDevolucion: 'Cable pelado' });
+      expect(datos).not.toHaveProperty('observacionesCargadorEntrega');
+    }
   });
 });
 
