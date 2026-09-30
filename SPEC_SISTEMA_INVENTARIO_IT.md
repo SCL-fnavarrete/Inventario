@@ -3933,7 +3933,17 @@ Pedido de Javier: en un cambio de equipo, "No devolvió" no corresponde (es de l
 - Test de integración `cambioBaja.int.test.ts` (Postgres real): asignación cerrada con motivo, equipo de baja, ninguna mantención nueva, la preventiva pendiente cancelada, un evento de baja en el historial, y el filtro y el conteo por motivo lo encuentran.
 - La transición de solicitudes antiguas que quedaron abiertas (2.82) no cambia.
 
+### 2.127 Los catálogos base entran con las migraciones; el seed solo crea el administrador (30-sep-2026)
+Pedido de Javier: la sede Perú y las categorías de activos deben venir con las migraciones, como Santiago, Concepción, los tipos de mantención, las marcas y los motivos de baja. Las categorías son lo primero que se necesita: ningún equipo existe sin una.
+- Migración `20260930170000_sede_peru`: sede Perú (`PERU`).
+- Migración `20260930180000_categorias_base`: Notebook (computador), Celular (celular), Monitor (monitor), Mouse, Teclado, Webcam y Audífonos (periférico).
+- Ambas con `ON CONFLICT DO NOTHING`: en una base donde ya existen (por ejemplo, porque ya se corrió el seed anterior) no cambian nada.
+- El seed (`prisma/seed.ts`) queda solo con el primer administrador (`SEED_ADMIN_USUARIO`, `SEED_ADMIN_PASSWORD`).
+- Qué deja una base nueva tras `migrate deploy` + `db:seed` (verificado aplicando las 78 migraciones sobre una base vacía): sedes Santiago, Concepción y Perú; las 7 categorías; tipos de mantención Preventiva, Correctiva, Actualización SO, Limpieza y Reparación; marcas Acer, Asus, Dell, HP, Huawei, Lenovo y Samsung; motivos de baja Obsolescencia, Falla irreparable, Robo, Extravío y Otro; y el usuario administrador. Los equipos, personas, Kit/EPP y cuentas se cargan desde la aplicación (importación de Excel y Configuración). La importación agrega sola los sistemas operativos, antivirus y licencias del Excel; una marca que no esté en el catálogo se crea o elige en la vista previa.
+
 ## Changelog SPEC
+- **v2.58 (2026-09-30):**
+  - Sección 2.127 (nueva): la sede Perú y las categorías de activos base pasan a las migraciones (`sede_peru`, `categorias_base`); el seed solo crea el administrador. Detalle de lo que deja una base nueva.
 - **v2.57 (2026-09-30):**
   - Sección 2.126: la baja desde un cambio de equipo va directo, sin crear una mantención (excepción a 2.88); el motivo queda en la devolución (`Assignment.motivoBajaId`, migración `motivo_baja_en_devolucion`) y el filtro, el conteo y el borrado de motivos lo buscan también ahí.
 - **v2.56 (2026-09-30):**

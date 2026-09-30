@@ -17,7 +17,7 @@ npm run db:migrate       # Prisma dev migration (unica via para cambiar el schem
 npm run db:migrate:prod  # prisma migrate deploy (produccion)
 npm run db:status        # prisma migrate status - verificar deriva
 npm run db:push          # DESHABILITADO a proposito (ver "Migraciones")
-npm run db:seed          # Primer admin (SEED_ADMIN_*) + categorias
+npm run db:seed          # Primer admin (SEED_ADMIN_*); los catalogos base los crean las migraciones
 npm run db:studio        # Prisma Studio GUI
 npm run test:integracion # Tests contra la base de pruebas inventario_it_test
 npm run db:test:migrate  # Migraciones en la base de pruebas

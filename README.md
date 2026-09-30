@@ -61,7 +61,7 @@ npm install
 cp .env.example .env          # completar los valores (ver abajo)
 docker compose up -d          # PostgreSQL en 127.0.0.1:5433
 npm run db:migrate            # crea las tablas
-npm run db:seed               # primer admin, categorías y sede inicial
+npm run db:seed               # primer admin (los catálogos base los crean las migraciones)
 npm run dev                   # http://localhost:3000
 ```
 

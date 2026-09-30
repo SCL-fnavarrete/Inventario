@@ -10,17 +10,12 @@ const prisma = new PrismaClient();
  * empleados, activos ficticios) ya que esos se crean desde la UI con los
  * datos reales de la empresa.
  *
- * Lo que queda es lo mínimo sin lo cual el sistema no se puede operar
- * desde la UI:
- *   1. El catálogo de categorías de activos (Notebook, Celular, etc.) --
- *      no tiene una pantalla propia para crearla en Configuración.
- *   2. Un usuario administrador -- sin esto no hay con qué iniciar sesión
- *      la primera vez.
- *   3. La sede Perú, como excepción puntual: Santiago y Concepción ya
- *      existen en la base real y no se recrean acá para no arriesgar un
- *      código duplicado.
+ * Solo crea el primer usuario administrador: sin él no hay con qué iniciar
+ * sesión la primera vez.
  *
- * Sedes adicionales, Kit/EPP, empleados y activos se crean desde
+ * Los catálogos base los crean las migraciones: sedes (Santiago, Concepción,
+ * Perú), categorías de activos, tipos de mantención, marcas y motivos de
+ * baja. Sedes adicionales, Kit/EPP, empleados y activos se crean desde
  * Configuración o desde sus propios formularios.
  */
 async function main() {
@@ -56,40 +51,6 @@ async function main() {
     },
   });
   console.log("Usuario admin listo:", adminUser.usuario);
-
-  // 2. Crear categorías de activos
-  // tipoFicha decide los campos especiales del formulario (SPEC 2.112.7).
-  const categorias = [
-    { nombre: "Notebook", descripcion: "Computadores portátiles", tipoFicha: "computador" as const },
-    { nombre: "Celular", descripcion: "Teléfonos móviles corporativos", tipoFicha: "celular" as const },
-    { nombre: "Monitor", descripcion: "Pantallas y monitores", tipoFicha: "monitor" as const },
-    { nombre: "Mouse", descripcion: "Mouse y dispositivos de entrada", tipoFicha: "periferico" as const },
-    { nombre: "Teclado", descripcion: "Teclados", tipoFicha: "periferico" as const },
-    { nombre: "Webcam", descripcion: "Cámaras web", tipoFicha: "periferico" as const },
-    { nombre: "Audífonos", descripcion: "Audífonos y headsets", tipoFicha: "periferico" as const },
-  ];
-
-  for (const cat of categorias) {
-    await prisma.assetCategory.upsert({
-      where: { nombre: cat.nombre },
-      update: {},
-      create: cat,
-    });
-  }
-  console.log("Categorías de activos creadas:", categorias.length);
-
-  // 3. Sede Perú (ver nota arriba sobre por qué Santiago/Concepción no
-  // están acá).
-  const sedePeru = await prisma.sede.upsert({
-    where: { codigo: "PERU" },
-    update: {},
-    create: {
-      codigo: "PERU",
-      nombre: "Perú",
-      activa: true,
-    },
-  });
-  console.log("Sede creada:", sedePeru.nombre, `(${sedePeru.codigo})`);
 
   console.log("Seed completado exitosamente!");
   console.log(
