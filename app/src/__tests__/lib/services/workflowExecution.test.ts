@@ -3,6 +3,14 @@ import { executeKitReturn } from '@/modules/kit-epp/entregas';
 import { executeKitDelivery } from '@/modules/solicitudes/ejecucion';
 import { ConflictError, NotFoundError } from '@/shared/errores';
 
+// La baja en si (mantencion "No reparable" ya cerrada) es de Mantenciones y
+// se prueba contra la base en cambioBaja.int.test.ts; aqui solo que se pide.
+jest.mock('@/modules/mantenciones/servidor', () => ({
+  ...jest.requireActual('@/modules/mantenciones/servidor'),
+  darDeBajaAlDevolver: jest.fn(),
+}));
+import { darDeBajaAlDevolver } from '@/modules/mantenciones/servidor';
+
 jest.mock('@/shared/auditoria', () => ({
   auditLogService: { registrarCreacion: jest.fn(), registrarActualizacion: jest.fn() },
 }));
@@ -226,12 +234,10 @@ describe('executeReturn', () => {
     }
   });
 
-  it('"para dar de baja" (cambio de equipo): va a mantención con el motivo, y el motivo queda como comentario (SPEC 2.126)', async () => {
+  it('"para dar de baja" (cambio de equipo): queda de baja en el acto, con el motivo como comentario (SPEC 2.126)', async () => {
     const tx = {
       ...txFalso(),
       motivoBaja: { findFirst: jest.fn().mockResolvedValue({ id: 'm-robo', nombre: 'Robo', clave: null }) },
-      maintenanceType: { findFirst: jest.fn().mockResolvedValue({ id: 't1', nombre: 'Correctiva' }) },
-      maintenance: { create: jest.fn().mockResolvedValue({ id: 'mant-1' }) },
     };
     (tx.assignment.findUnique as Fn).mockResolvedValue(asignacion());
     await executeReturn(comoTx(tx), {
@@ -246,17 +252,13 @@ describe('executeReturn', () => {
       estadoDevolucion: 'baja',
       observacionesDevolucion: 'Motivo de baja: Robo — En el metro',
     });
-    // El equipo va a mantencion (la baja se completa ahi), sin quien lo tenga.
+    // Vuelve sin quien lo tenga y se da de baja con su motivo, en la misma transaccion.
     expect(tx.asset.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ estado: 'en_mantencion', empleadoActualId: null }) })
+      expect.objectContaining({ data: expect.objectContaining({ estado: 'disponible', empleadoActualId: null }) })
     );
-    // La mantencion nace con el motivo ya elegido.
-    expect(tx.maintenance.create.mock.calls[0][0].data).toMatchObject({
-      estado: 'en_proceso',
-      motivoBajaId: 'm-robo',
-      motivoBaja: 'Robo',
-      descripcion: 'Dar de baja (Robo): equipo devuelto por Ana Pérez: En el metro',
-    });
+    expect(darDeBajaAlDevolver).toHaveBeenCalledWith(tx, expect.objectContaining({
+      assetId: 'a1', motivoBajaId: 'm-robo', motivoTexto: 'Robo', persona: 'Ana Pérez',
+    }));
     const historial = (tx.assetHistory.create as Fn).mock.calls.map((c) => c[0].data.descripcion);
     expect(historial).toContain('Devuelto por Ana Pérez para dar de baja. Motivo: Robo');
   });

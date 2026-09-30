@@ -229,6 +229,45 @@ export async function darDeBajaEnTransaccion(
   return m;
 }
 
+/**
+ * Equipo devuelto en un cambio "para dar de baja" por un motivo de la lista
+ * (SPEC 2.126): queda de baja en el acto, con su mantencion "No reparable"
+ * ya cerrada, como toda baja (SPEC 2.88). Quien llama ya cerro la asignacion
+ * y dejo el equipo sin empleado.
+ */
+export async function darDeBajaAlDevolver(
+  tx: PrismaTx,
+  datos: { assetId: string; motivoBajaId: string; motivoTexto: string; persona: string; realizadoPor: string; usuario: string }
+) {
+  const [asset, tipo] = await Promise.all([
+    tx.asset.findUniqueOrThrow({
+      where: { id: datos.assetId },
+      include: {
+        maintenances: {
+          where: { estado: { in: ['pendiente', 'en_proceso'] } },
+          include: { tipo: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    }),
+    tipoCorrectivaPorDefecto(tx),
+  ]);
+  if (!tipo && !mantencionACerrar(asset.maintenances)) {
+    throw new ConflictError('No hay tipos de mantención activos para registrar la baja. Crea uno en Mantenciones > Tipos.');
+  }
+  return darDeBajaEnTransaccion(tx, {
+    asset,
+    tipo: tipo ?? asset.maintenances[0].tipo,
+    motivoBajaId: datos.motivoBajaId,
+    motivoTexto: datos.motivoTexto,
+    resultado: `Dado de baja al devolverlo en un cambio de equipo: ${datos.motivoTexto}`,
+    descripcion: `Dar de baja (${datos.motivoTexto}): equipo devuelto por ${datos.persona} en un cambio de equipo`,
+    fechaRealizada: inicioDeHoy(),
+    realizadoPor: datos.realizadoPor,
+    usuario: datos.usuario,
+  });
+}
+
 /* ------------------------------------------------------------------------
  * Acciones sobre una mantencion (SPEC 2.96). Las rutas de
  * /api/mantenciones/[id] solo validan la peticion y llaman a estas.
@@ -733,15 +772,7 @@ export async function darDeBajaPorMantencion(data: BajaPorMantencionDatos, usuar
  */
 export async function abrirMantencionPorDano(
   tx: PrismaTx,
-  datos: {
-    assetId: string;
-    empleado: string;
-    observaciones: string | null;
-    usuario: string;
-    // Devuelto "para dar de baja" en un cambio (SPEC 2.126): la mantencion
-    // nace con el motivo elegido, para completarla como "No reparable".
-    motivoBaja?: { motivoBajaId: string; motivoTexto: string } | null;
-  }
+  datos: { assetId: string; empleado: string; observaciones: string | null; usuario: string }
 ) {
   const tipo = await tipoCorrectivaPorDefecto(tx);
   if (!tipo) {
@@ -750,11 +781,9 @@ export async function abrirMantencionPorDano(
     );
   }
 
-  const { motivoBaja } = datos;
-  const detalle = datos.observaciones ? `: ${datos.observaciones}` : '';
-  const descripcion = motivoBaja
-    ? `Dar de baja (${motivoBaja.motivoTexto}): equipo devuelto por ${datos.empleado}${detalle}`
-    : `Evaluar equipo devuelto dañado por ${datos.empleado}${detalle}`;
+  const descripcion = `Evaluar equipo devuelto dañado por ${datos.empleado}${
+    datos.observaciones ? `: ${datos.observaciones}` : ''
+  }`;
   const mantencion = await tx.maintenance.create({
     data: {
       assetId: datos.assetId,
@@ -762,7 +791,6 @@ export async function abrirMantencionPorDano(
       descripcion,
       fechaProgramada: inicioDeHoy(),
       estado: 'en_proceso',
-      ...(motivoBaja && { motivoBajaId: motivoBaja.motivoBajaId, motivoBaja: motivoBaja.motivoTexto }),
     },
   });
 
@@ -770,9 +798,7 @@ export async function abrirMantencionPorDano(
     {
       assetId: datos.assetId,
       tipoEvento: 'mantencion',
-      descripcion: motivoBaja
-        ? `Enviado a mantención ${tipo.nombre} para dar de baja (${motivoBaja.motivoTexto}): se completa como "No reparable"`
-        : `Enviado a mantención ${tipo.nombre} por devolución con daño: se evalúa si se repara o se da de baja`,
+      descripcion: `Enviado a mantención ${tipo.nombre} por devolución con daño: se evalúa si se repara o se da de baja`,
       datosNuevos: { estado: 'en_mantencion', maintenanceId: mantencion.id },
       usuarioSistema: datos.usuario,
     },
@@ -782,9 +808,7 @@ export async function abrirMantencionPorDano(
   await auditLogService.registrarCreacion(
     'mantencion',
     mantencion.id,
-    motivoBaja
-      ? `Mantención creada: ${tipo.nombre} para dar de baja (${motivoBaja.motivoTexto})`
-      : `Mantención creada: ${tipo.nombre} por devolución de equipo dañado`,
+    `Mantención creada: ${tipo.nombre} por devolución de equipo dañado`,
     { assetId: datos.assetId, tipoId: tipo.id, descripcion, estado: 'en_proceso' },
     datos.usuario,
     tx

@@ -4,7 +4,7 @@ import { ConflictError, NotFoundError } from '@/shared/errores';
 import { formatearClp } from '@/shared/utilidades/moneda';
 import { etiquetaEstadoActivo, etiquetaEstadoDevolucion } from '@/modules/activos';
 import { cambiarEstado } from '@/modules/activos/servidor';
-import { abrirMantencionPorDano, motivoParaBaja } from '@/modules/mantenciones/servidor';
+import { abrirMantencionPorDano, darDeBajaAlDevolver, motivoParaBaja } from '@/modules/mantenciones/servidor';
 
 /**
  * Entregar y devolver un equipo (SPEC 2.118: Asignaciones es el unico que
@@ -268,10 +268,10 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
   // Devolver en buen estado deja el equipo listo para entregar de nuevo:
   // vuelve directo a "disponible". Danado pasa a mantencion para que el
   // tecnico evalue si se repara o se da de baja (SPEC 2.87); antes iba
-  // directo a "baja", sin vuelta atras. "Para dar de baja" tambien va a
-  // mantencion: la baja se completa ahi, como es el proceso (SPEC 2.88).
+  // directo a "baja", sin vuelta atras. "Para dar de baja" vuelve y queda
+  // de baja en el acto, mas abajo (SPEC 2.126).
   const danado = params.estadoDevolucion === 'danado';
-  const nuevoEstado: 'disponible' | 'en_mantencion' = danado || paraBaja ? 'en_mantencion' : 'disponible';
+  const nuevoEstado: 'disponible' | 'en_mantencion' = danado ? 'en_mantencion' : 'disponible';
 
   const persona = `${assignment.employee.nombres} ${assignment.employee.apellidoPaterno}`;
   const descripcionDevolucion = motivo
@@ -304,13 +304,23 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
     },
   });
 
-  if (danado || paraBaja) {
+  if (danado) {
     await abrirMantencionPorDano(tx, {
       assetId: assignment.assetId,
       empleado: persona,
       observaciones: params.observacionesDevolucion ?? null,
       usuario: quien,
-      motivoBaja: motivo,
+    });
+  }
+  // Con motivo de baja, queda de baja de inmediato: su mantencion "No
+  // reparable" se registra ya cerrada, como toda baja (SPEC 2.88).
+  if (motivo) {
+    await darDeBajaAlDevolver(tx, {
+      assetId: assignment.assetId,
+      ...motivo,
+      persona,
+      realizadoPor: params.recibidoPor || quien,
+      usuario: quien,
     });
   }
 

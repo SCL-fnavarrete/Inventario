@@ -1027,8 +1027,8 @@ enum EstadoDevolucion {
   // sale del parque util igual que uno danado, pero por otro motivo.
   no_devuelto
   // Cambio de equipo: el anterior se devuelve para darlo de baja, con un
-  // motivo de la lista (SPEC 2.126). Va a mantencion y la baja se completa
-  // ahi como "No reparable", con ese motivo ya elegido.
+  // motivo de la lista (SPEC 2.126): queda de baja en el acto, con su
+  // mantencion "No reparable" ya cerrada.
   baja
 }
 

@@ -65,10 +65,6 @@ type Maintenance = {
   estado: string;
   resultado: string | null;
   resultadoTipo: string | null;
-  // Abierta "para dar de baja" en un cambio de equipo (SPEC 2.126): trae el
-  // motivo elegido ("Robo", o "Otro: detalle").
-  motivoBajaId: string | null;
-  motivoBaja: string | null;
   createdAt: string;
   asset: {
     id: string;
@@ -184,17 +180,13 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
     try {
       const res = await fetch(`/api/mantenciones/${id}`);
       if (!res.ok) throw new Error("Mantención no encontrada");
-      const m: Maintenance = await res.json();
-      setMaintenance(m);
-      // Si se abrio para dar de baja, se completa como "No reparable" con su
-      // motivo ya elegido (se puede cambiar).
-      const paraBaja = !!m.motivoBajaId && m.estado !== "completada";
+      setMaintenance(await res.json());
       setCompleteForm({
         fechaRealizada: hoyISO(),
         resultado: "",
-        resultadoTipo: paraBaja ? "no_reparable" : "reparado",
-        motivoBajaId: paraBaja ? m.motivoBajaId! : "",
-        motivoDetalle: paraBaja ? (m.motivoBaja?.split(": ").slice(1).join(": ") ?? "") : "",
+        resultadoTipo: "reparado",
+        motivoBajaId: "",
+        motivoDetalle: "",
         proximaMantencion: "",
       });
     } catch (err) {

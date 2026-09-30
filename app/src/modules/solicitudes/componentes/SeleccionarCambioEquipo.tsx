@@ -332,7 +332,7 @@ export function SeleccionarCambioEquipo({
                     ))}
                   </div>
                   {/* Para dar de baja: cada motivo de la lista es una opcion. El
-                      equipo va a mantencion y la baja se completa ahi (SPEC 2.126). */}
+                      equipo queda de baja en el acto (SPEC 2.126). */}
                   {motivosBaja.length > 0 && (
                     <>
                       <p className="mt-2 text-xs text-fg-subtle">Para dar de baja por:</p>
@@ -370,7 +370,7 @@ export function SeleccionarCambioEquipo({
                   )}
                   {item.estadoDevolucion === "baja" && (
                     <p className="mt-1 text-xs text-fg-subtle">
-                      El equipo pasa a Mantención con este motivo; la baja se completa ahí.
+                      El equipo queda de baja con este motivo (en Mantenciones queda registrado como &ldquo;No reparable&rdquo;).
                     </p>
                   )}
                   <input

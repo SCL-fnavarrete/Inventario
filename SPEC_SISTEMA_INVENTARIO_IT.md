@@ -3925,15 +3925,17 @@ Pregunta de Javier: ¿afectaría el rendimiento si hubiera 1.000 mantenciones? S
 - Test de integración `dashboard.int.test.ts` (Postgres real): límite, totales, orden, conteo por mes y filtro de sede.
 
 ### 2.126 Cambio de equipo: el anterior se puede devolver para darlo de baja, con un motivo (30-sep-2026)
-Pedido de Javier: en un cambio de equipo, "No devolvió" no corresponde (es de la desvinculación) y hay más razones para sacar un equipo que las de hoy; se usan los motivos de baja. La baja sigue su proceso: pasa por Mantenciones (2.88).
+Pedido de Javier: en un cambio de equipo, "No devolvió" no corresponde (es de la desvinculación) y hay más razones para sacar un equipo que las de hoy; se usan los motivos de baja. Si se elige un motivo, el equipo queda de baja en el acto (decisión de Javier, v2.56: "el motivo es baja, es lógico"); la primera versión (v2.55) lo dejaba en una mantención abierta para completar la baja después.
 - **Opciones al calificar el equipo que se devuelve:** Buen estado, Dañado y, en la misma lista, "Para dar de baja por:" cada motivo activo del catálogo (Extravío, Falla irreparable, Obsolescencia, Robo, Otro…). "Otro" pide el detalle. "No devolvió" ya no se ofrece en el cambio (el servidor lo rechaza); sigue en la desvinculación.
-- **Qué pasa:** la asignación se cierra con estado de devolución **Baja** (valor nuevo `baja` de `EstadoDevolucion`, migración `20260930150000_devolucion_para_baja`) y el motivo como comentario ("Motivo de baja: Robo — lo que se anotó"). El equipo pasa a **En mantención**, igual que uno dañado, en una mantención que nace con el motivo elegido (`motivoBajaId`) y la descripción "Dar de baja (Robo): equipo devuelto por …". El historial dice "Devuelto por … para dar de baja. Motivo: Robo".
-- **La baja se completa en Mantenciones:** al abrir esa mantención, "Completar" viene con "No reparable" y el motivo ya elegido (se pueden cambiar). No se guarda el valor del equipo.
+- **Qué pasa, en una sola transacción:** la asignación se cierra con estado de devolución **Baja** (valor nuevo `baja` de `EstadoDevolucion`, migración `20260930150000_devolucion_para_baja`) y el motivo como comentario ("Motivo de baja: Robo — lo que se anotó"); el historial dice "Devuelto por … para dar de baja. Motivo: Robo". Acto seguido el equipo queda en **Baja**: como toda baja (2.88), con su mantención "No reparable" registrada **ya cerrada**, con el motivo (`motivoBajaId`) y la descripción "Dar de baja (Robo): equipo devuelto por … en un cambio de equipo" (`darDeBajaAlDevolver`, que usa la misma `darDeBajaEnTransaccion` de Mantenciones y los despachos). No se guarda el valor del equipo.
 - En la solicitud y en el Comprobante de Cambio el equipo devuelto aparece con estado "Baja".
-- El filtro de Activos por motivo de baja cuenta solo equipos ya dados de baja: una mantención abierta "para dar de baja" también tiene motivo, pero el equipo todavía no es baja.
+- El filtro de Activos por motivo de baja cuenta solo equipos en estado Baja.
+- Test de integración `cambioBaja.int.test.ts` (Postgres real): asignación cerrada, equipo de baja, mantención "No reparable" cerrada con el motivo e historial devolución → baja.
 - La transición de solicitudes antiguas que quedaron abiertas (2.82) no cambia.
 
 ## Changelog SPEC
+- **v2.56 (2026-09-30):**
+  - Sección 2.126: al devolver en un cambio "para dar de baja" con un motivo, el equipo queda de baja en el acto (mantención "No reparable" ya cerrada con el motivo), en vez de quedar en una mantención abierta.
 - **v2.55 (2026-09-30):**
   - Sección 2.126 (nueva): en un cambio de equipo, el anterior vuelve en buen estado, dañado o "para dar de baja" con un motivo del catálogo (estado de devolución `baja`); va a Mantenciones con el motivo ya elegido y la baja se completa ahí. "No devolvió" queda solo en la desvinculación. El filtro por motivo de baja cuenta solo equipos de baja.
 - **v2.54 (2026-09-30):**
