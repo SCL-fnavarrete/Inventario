@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/auth/opciones";
 import { Navbar } from "@/shared/ui/layout/Navbar";
 import { SessionProvider } from "@/shared/ui/providers/SessionProvider";
 import { SedeSeleccionadaProvider } from "@/shared/ui/providers/SedeSeleccionadaProvider";
 import { ToastProvider } from "@/shared/ui/Toast";
+import { AvisoOtraSesion } from "@/shared/ui/AvisoOtraSesion";
 
 export default async function DashboardLayout({
   children,
@@ -14,13 +16,19 @@ export default async function DashboardLayout({
   const session = await getServerSession(authOptions);
 
   if (!session) {
-    redirect("/login");
+    // Con cookie de sesion pero sin sesion valida: vencio, se inicio en otro
+    // equipo o la cerro un administrador. El login lo explica (SPEC 2.127).
+    const almacen = await cookies();
+    const habiaSesion =
+      almacen.has("next-auth.session-token") || almacen.has("__Secure-next-auth.session-token");
+    redirect(habiaSesion ? "/login?sesion=cerrada" : "/login");
   }
 
   return (
     <SessionProvider>
       <SedeSeleccionadaProvider>
         <ToastProvider position="top-right">
+          <AvisoOtraSesion />
           {/* Skip to content link for accessibility */}
           <a
             href="#main-content"

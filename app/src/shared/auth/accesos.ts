@@ -119,6 +119,23 @@ export async function cerrarSesion(token: TokenSesion, cliente: { ip: string | n
 }
 
 /**
+ * Si una sesion seguia abierta (SPEC 2.127): ingreso, no la cerraron desde el
+ * menu, no vencio (`horasSesion`, la duracion de Configuracion > Seguridad) y
+ * no la corto una desactivacion o un cambio de clave (`sesionesDesde`). Asi
+ * "se inicio sesion en otro equipo" solo se anota cuando de verdad la habia.
+ */
+export async function sesionSeguiaAbierta(sesionId: string, horasSesion: number, sesionesDesde: Date | null) {
+  const [ingreso, cerrada] = await Promise.all([
+    prisma.accessLog.findFirst({ where: { sesionId, resultado: 'exito' }, select: { createdAt: true } }),
+    prisma.sesionCerrada.findUnique({ where: { id: sesionId }, select: { id: true } }),
+  ]);
+  if (!ingreso || cerrada) return false;
+  const vencida = ingreso.createdAt.getTime() + horasSesion * 3600_000 < Date.now();
+  const cortada = !!sesionesDesde && ingreso.createdAt < sesionesDesde;
+  return !vencida && !cortada;
+}
+
+/**
  * Direccion de red y navegador de quien hace la peticion.
  *
  * x-forwarded-for lo puede escribir cualquiera: sin un proxy de confianza

@@ -29,6 +29,10 @@ model SystemUser {
   // desactivar la cuenta pasa a "ahora" y todas sus sesiones abiertas quedan
   // anuladas para siempre, aunque despues se reactive.
   sesionesDesde DateTime? @map("sesiones_desde")
+  // Unica sesion vigente de la cuenta (SPEC 2.127): al iniciar sesion pasa a
+  // ser la nueva y las demas quedan fuera en su siguiente accion; null = sin
+  // sesion (un admin la cerro).
+  sesionVigenteId String? @map("sesion_vigente_id")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 

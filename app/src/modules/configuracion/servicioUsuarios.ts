@@ -3,8 +3,8 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { ConflictError, errorDeCampo, errorRepetido, NotFoundError } from '@/shared/errores';
 import { auditLogService } from '@/shared/auditoria';
-import { registrarAcceso } from '@/shared/auth/accesos';
-import { actualizarCuenta, crearCuenta } from '@/shared/auth/cuentas';
+import { registrarAcceso, sesionSeguiaAbierta } from '@/shared/auth/accesos';
+import { actualizarCuenta, crearCuenta, fijarSesionVigente } from '@/shared/auth/cuentas';
 import { exigirSedeActiva } from '@/shared/sedes/consultas';
 import { SELECT_USUARIO } from '@/modules/configuracion/consultasUsuarios';
 import type { CrearUsuarioInput, EditarUsuarioInput } from '@/modules/configuracion/validacionesUsuario';
@@ -170,4 +170,35 @@ export async function editarUsuario(
     });
   }
   return user;
+}
+
+/**
+ * Un administrador cierra la sesion de un usuario (SPEC 2.127): la cuenta
+ * queda sin sesion vigente y el usuario sale en su siguiente accion, en
+ * cualquier equipo. No lo desactiva: puede volver a entrar con su clave. Si
+ * tenia una sesion abierta, queda en el registro de accesos.
+ */
+export async function cerrarSesionUsuario(id: string, sesion: { id: string; usuario: string }) {
+  if (id === sesion.id) {
+    throw new ConflictError('Para cerrar tu propia sesión usa "Cerrar sesión" en tu menú');
+  }
+  const [user, config] = await Promise.all([
+    prisma.systemUser.findUnique({ where: { id }, select: { usuario: true, sesionesDesde: true } }),
+    prisma.systemConfig.findUnique({ where: { id: 'singleton' }, select: { duracionSesionHoras: true } }),
+  ]);
+  if (!user) throw new NotFoundError('Usuario no encontrado');
+
+  const anterior = await fijarSesionVigente(id, null);
+  const teniaSesion =
+    !!anterior && (await sesionSeguiaAbierta(anterior, config?.duracionSesionHoras ?? 24, user.sesionesDesde));
+  if (teniaSesion) {
+    await registrarAcceso({
+      usuarioIngresado: user.usuario,
+      usuarioId: id,
+      resultado: 'sesion_revocada',
+      sesionId: anterior,
+      detalle: `Sesión cerrada por ${sesion.usuario}`,
+    });
+  }
+  return { teniaSesion };
 }

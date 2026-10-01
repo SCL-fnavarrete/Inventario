@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { getSession, signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/shared/ui/Button";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/shared/ui/ThemeToggle";
 import { MensajeCampo, ResumenErrores, claseCampo } from "@/shared/ui/CampoFormulario";
 import { InputClave } from "@/shared/ui/InputClave";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
+import { CLAVE_AVISO_OTRA_SESION } from "@/shared/ui/AvisoOtraSesion";
 
 // Se inicia sesion con el usuario, no con el correo (SPEC 2.122).
 const ETIQUETAS = { usuario: "Usuario", password: "Contraseña" };
@@ -20,6 +21,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Llego aqui porque su sesion dejo de valer (SPEC 2.127): no se sabe si
+  // vencio, se inicio en otro equipo o la cerro un administrador.
+  const [sesionCerrada, setSesionCerrada] = useState(false);
+  useEffect(() => {
+    setSesionCerrada(new URLSearchParams(window.location.search).get("sesion") === "cerrada");
+  }, []);
   // Validacion por campo, igual que el resto de los formularios (SPEC 2.105).
   const { errores, resumen, reportar, limpiar } = useErroresFormulario(ETIQUETAS);
 
@@ -42,6 +49,15 @@ export default function LoginPage() {
       if (result?.error) {
         setError(result.error);
       } else {
+        // Si al entrar se cerro otra sesion abierta, se avisa ya dentro (SPEC 2.127).
+        const sesion = await getSession();
+        if (sesion?.user?.otraSesionCerrada) {
+          try {
+            sessionStorage.setItem(CLAVE_AVISO_OTRA_SESION, "1");
+          } catch {
+            // Sin almacenamiento del navegador, solo no se muestra el aviso.
+          }
+        }
         router.push("/");
         router.refresh();
       }
@@ -66,6 +82,12 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+          {sesionCerrada && !error && (
+            <p role="status" className="rounded-lg border border-line bg-surface-muted px-3 py-2 text-sm text-fg-muted">
+              Tu sesión se cerró. Puede haber vencido, haberse iniciado con tu usuario en otro equipo o haberla
+              cerrado un administrador. Vuelve a iniciar sesión.
+            </p>
+          )}
           <ResumenErrores mensaje={resumen} />
           <ApiErrorSummary error={error || null} />
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { Plus, Edit, Save, ShieldCheck, ShieldAlert, UserX, UserCheck, KeyRound } from "lucide-react";
+import { Plus, Edit, Save, ShieldCheck, ShieldAlert, UserX, UserCheck, KeyRound, LogOut } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
@@ -296,6 +296,33 @@ export default function UsuariosPage() {
     );
   };
 
+  // Cerrar la sesion de un usuario (SPEC 2.127): sale en su siguiente accion,
+  // sin desactivarlo.
+  const pedirCerrarSesion = (user: SystemUser) =>
+    setConfirmacion({
+      titulo: "Cerrar sesión",
+      mensaje: `${user.nombre} (${user.usuario}) saldrá del sistema en su siguiente acción, en cualquier equipo donde esté. No se desactiva: puede volver a entrar con su contraseña.`,
+      textoBoton: "Cerrar sesión",
+      onConfirm: () => cerrarSesion(user),
+    });
+
+  const cerrarSesion = async (user: SystemUser) => {
+    setConfirmacion(null);
+    try {
+      const res = await fetch(`/api/usuarios/${user.id}/cerrar-sesion`, { method: "POST" });
+      if (res.ok) {
+        const { teniaSesion } = await res.json();
+        toast.success(teniaSesion ? "Sesión cerrada" : "No tenía una sesión abierta");
+      } else {
+        const { message } = await parseApiError(res, "Error al cerrar la sesión");
+        toast.error("No se cerró la sesión", message);
+      }
+    } catch (err) {
+      toast.error("No se cerró la sesión", "Error al cerrar la sesión");
+      console.error(err);
+    }
+  };
+
   const toggleUserStatus = async (user: SystemUser) => {
     setConfirmacion(null);
     try {
@@ -575,6 +602,17 @@ export default function UsuariosPage() {
             >
               <KeyRound size={18} />
             </Link>
+            {/* Tu propia sesion se cierra desde el menu (SPEC 2.127). */}
+            {user.id !== miId && user.activo && (
+              <button
+                onClick={() => pedirCerrarSesion(user)}
+                className="p-1 text-fg-muted hover:bg-surface-muted rounded"
+                title="Cerrar sesión"
+                aria-label={`Cerrar la sesión de ${user.nombre}`}
+              >
+                <LogOut size={18} />
+              </button>
+            )}
             {/* No te puedes desactivar a ti mismo (SPEC 2.112). */}
             {user.id !== miId && (
               <button
@@ -601,7 +639,7 @@ export default function UsuariosPage() {
         onClose={() => setConfirmacion(null)}
         onConfirm={() => confirmacion?.onConfirm()}
         variant={confirmacion?.textoBoton === "Activar" ? "info" : "danger"}
-        icon={confirmacion?.textoBoton === "Activar" ? UserCheck : UserX}
+        icon={confirmacion?.textoBoton === "Activar" ? UserCheck : confirmacion?.textoBoton === "Cerrar sesión" ? LogOut : UserX}
         title={confirmacion?.titulo ?? ""}
         message={confirmacion?.mensaje ?? ""}
         confirmLabel={confirmacion?.textoBoton ?? "Confirmar"}

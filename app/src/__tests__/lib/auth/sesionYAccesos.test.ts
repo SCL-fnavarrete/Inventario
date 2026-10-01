@@ -51,6 +51,7 @@ describe('la sesion revisa la cuenta en cada consulta', () => {
     sedeId: 's1',
     nombre: 'Ana',
     sesionesDesde: null,
+    sesionVigenteId: 'ses-1',
     sesionesCerradas: [],
     ...extra,
   });
@@ -89,6 +90,19 @@ describe('la sesion revisa la cuenta en cada consulta', () => {
   test('una sesion iniciada despues de reactivar si vale', async () => {
     db.systemUser.findUnique.mockResolvedValue(cuenta({ sesionesDesde: new Date(inicio - 1000) }));
     await expect(jwt({ token } as never)).resolves.toMatchObject({ id: 'u1' });
+  });
+
+  // SPEC 2.127: una sola sesion por usuario.
+  test('solo vale la sesion vigente: otra iniciada despues, o cerrada por un admin, queda fuera', async () => {
+    db.systemUser.findUnique.mockResolvedValue(cuenta({ sesionVigenteId: 'ses-2' }));
+    await expect(jwt({ token } as never)).rejects.toThrow(/reemplazada/);
+    db.systemUser.findUnique.mockResolvedValue(cuenta({ sesionVigenteId: null }));
+    await expect(jwt({ token } as never)).rejects.toThrow(/reemplazada/);
+  });
+
+  test('al iniciar sesion, el token recuerda si se cerro otra sesion (para el aviso)', async () => {
+    const nuevo = await jwt({ token: {}, user: { id: 'u1', role: 'tecnico', sedeId: null, expiraEn: 1, sesionId: 'ses-9', otraSesionCerrada: true } } as never);
+    expect(nuevo).toMatchObject({ otraSesionCerrada: true });
   });
 
   test('una sesion sin identificador (anterior a la lista negra) pide entrar de nuevo', async () => {

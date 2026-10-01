@@ -3,7 +3,7 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "@/shared/prisma";
-import { anotarIngreso } from "@/shared/auth/cuentas";
+import { anotarIngreso, fijarSesionVigente } from "@/shared/auth/cuentas";
 import { normalizarUsuario } from "@/shared/auth/usuario";
 import {
   actualizarAcceso,
@@ -12,6 +12,7 @@ import {
   minutosDeBloqueo,
   minutosDeBloqueoEquipo,
   registrarAcceso,
+  sesionSeguiaAbierta,
   type DatosAcceso,
 } from "@/shared/auth/accesos";
 
@@ -174,6 +175,21 @@ export const authOptions: NextAuthOptions = {
         // al cerrar sesion.
         const sesionId = randomUUID();
         await cerrarIntento({ usuarioId: user.id, resultado: "exito", sesionId });
+        // Una sola sesion por usuario, gana la ultima (SPEC 2.127): esta pasa
+        // a ser la vigente y las demas quedan fuera en su siguiente accion.
+        // Si la anterior seguia abierta, queda en el registro y se avisa.
+        const anterior = await fijarSesionVigente(user.id, sesionId);
+        const otraSesionCerrada =
+          !!anterior && (await sesionSeguiaAbierta(anterior, horasSesion, user.sesionesDesde));
+        if (otraSesionCerrada) {
+          await registrarAcceso({
+            usuarioIngresado: usuario,
+            usuarioId: user.id,
+            resultado: "sesion_revocada",
+            sesionId: anterior,
+            detalle: "Se inició sesión en otro equipo",
+          });
+        }
         await limpiarRegistroAntiguo();
 
         return {
@@ -184,6 +200,7 @@ export const authOptions: NextAuthOptions = {
           sedeId: user.sedeId,
           expiraEn: Date.now() + horasSesion * 60 * 60 * 1000,
           sesionId,
+          otraSesionCerrada,
         };
       },
     }),
@@ -197,6 +214,7 @@ export const authOptions: NextAuthOptions = {
         token.sedeId = (user as { sedeId?: string | null }).sedeId ?? null;
         token.expiraEn = (user as { expiraEn?: number }).expiraEn;
         token.sesionId = (user as { sesionId?: string }).sesionId;
+        token.otraSesionCerrada = (user as { otraSesionCerrada?: boolean }).otraSesionCerrada ?? false;
         token.inicio = Date.now();
         return token;
       }
@@ -232,6 +250,7 @@ export const authOptions: NextAuthOptions = {
           nombre: true,
           usuario: true,
           sesionesDesde: true,
+          sesionVigenteId: true,
           sesionesCerradas: { where: { id: token.sesionId }, select: { id: true } },
           sede: { select: { activa: true } },
         },
@@ -249,6 +268,11 @@ export const authOptions: NextAuthOptions = {
       if (actual.sesionesDesde && token.inicio < actual.sesionesDesde.getTime()) {
         throw new Error("Sesión cortada");
       }
+      // Solo vale la sesion vigente de la cuenta (SPEC 2.127): otra se inicio
+      // despues en otro equipo, o un administrador la cerro.
+      if (actual.sesionVigenteId !== token.sesionId) {
+        throw new Error("Sesión reemplazada");
+      }
       token.role = actual.rol;
       token.sedeId = actual.sedeId;
       token.name = actual.nombre;
@@ -261,6 +285,8 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role as string;
         session.user.usuario = token.usuario;
         session.user.sedeId = (token.sedeId as string | null) ?? null;
+        // Para el aviso "se cerró tu sesión en otro equipo" (SPEC 2.127).
+        session.user.otraSesionCerrada = token.otraSesionCerrada === true;
         if (token.name) session.user.name = token.name;
       }
       return session;

@@ -58,7 +58,7 @@ nuevo, agregarlo a la puerta que corresponde.
 
 | Path | Purpose |
 |------|---------|
-| `src/shared/auth/opciones.ts` | NextAuth config: Credentials provider, JWT sessions (duración de Configuración > Seguridad), revisa la cuenta en cada consulta (una desactivada queda fuera), lista negra de sesiones cerradas y "sesiones válidas desde" al desactivar (SPEC 2.112.5), bloqueo por intentos contado en el registro de accesos (SPEC 2.112) |
+| `src/shared/auth/opciones.ts` | NextAuth config: Credentials provider, JWT sessions (duración de Configuración > Seguridad), revisa la cuenta en cada consulta (una desactivada queda fuera), lista negra de sesiones cerradas y "sesiones válidas desde" al desactivar (SPEC 2.112.5), una sola sesión vigente por usuario (SPEC 2.128), bloqueo por intentos contado en el registro de accesos (SPEC 2.112) |
 | `src/shared/auth/accesos.ts` | Registro de accesos (ingresos, intentos fallidos, cierres de sesion) y bloqueo por intentos (SPEC 2.112) |
 | `src/shared/errores.ts` | Errores que lanzan los servicios (`NotFoundError`, `ConflictError`, `ValidationError`, `errorDeCampo`...); `handleApiError` los traduce a la respuesta |
 | `src/shared/prisma.ts` | Prisma singleton (prevents connection pool exhaustion); lleva `import "server-only"` |

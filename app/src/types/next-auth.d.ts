@@ -10,6 +10,8 @@ declare module "next-auth" {
       usuario: string;
       // Sede del usuario (null para admin, que ve todas). No limita lo que ve (SPEC 2.117).
       sedeId: string | null;
+      // Al iniciar esta sesion se cerro otra abierta en otro equipo (SPEC 2.127).
+      otraSesionCerrada?: boolean;
     } & DefaultSession["user"];
   }
 
@@ -31,5 +33,6 @@ declare module "next-auth/jwt" {
     expiraEn?: number;
     sesionId?: string;
     inicio?: number;
+    otraSesionCerrada?: boolean;
   }
 }

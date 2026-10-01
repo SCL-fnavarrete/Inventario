@@ -6,8 +6,11 @@ jest.mock('@/shared/prisma', () => {
   const prisma: Record<string, unknown> = {
     systemUser: { findUnique: jest.fn(), findFirst: jest.fn(), count: jest.fn(), update: jest.fn(), create: jest.fn() },
     systemConfig: { findUnique: jest.fn().mockResolvedValue(null) },
-    accessLog: { findFirst: jest.fn(), findMany: jest.fn(), create: jest.fn(), deleteMany: jest.fn() },
+    accessLog: { findFirst: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn(), deleteMany: jest.fn() },
     sede: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
+    // Una sola sesion por usuario (SPEC 2.127).
+    sesionCerrada: { findUnique: jest.fn().mockResolvedValue(null) },
+    $queryRaw: jest.fn().mockResolvedValue([{ sesion_vigente_id: null }]),
     $executeRaw: jest.fn(),
   };
   // Las transacciones corren sobre el mismo mock (ver PUT /api/usuarios/[id]).
@@ -41,6 +44,7 @@ import { validarParametros } from '@/modules/configuracion/validacionesParametro
 import { PUT as editarUsuario } from '@/app/api/usuarios/[id]/route';
 import { POST as crearUsuario } from '@/app/api/usuarios/route';
 import { PATCH as editarSede } from '@/app/api/sedes/[id]/route';
+import { POST as cerrarSesionDe } from '@/app/api/usuarios/[id]/cerrar-sesion/route';
 
 const db = prisma as unknown as Record<string, Record<string, jest.Mock>>;
 const CLAVE = 'Secreta#2026abc';
@@ -54,6 +58,37 @@ beforeEach(() => {
 const pedir = (method: string, body: unknown) =>
   new NextRequest('http://localhost/api/x', { method, body: typeof body === 'string' ? body : JSON.stringify(body) });
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
+
+// SPEC 2.127: un administrador cierra la sesion de un usuario.
+describe('cerrar la sesión de un usuario', () => {
+  const cerrar = (id: string) => cerrarSesionDe(pedir('POST', {}), ctx(id));
+
+  test('la cuenta queda sin sesión vigente y, si tenía una abierta, queda en el registro', async () => {
+    db.systemUser.findUnique.mockResolvedValue({ usuario: 'otro', sesionesDesde: null });
+    (db.$queryRaw as unknown as jest.Mock).mockResolvedValueOnce([{ sesion_vigente_id: 'ses-1' }]);
+    db.accessLog.findFirst.mockResolvedValueOnce({ createdAt: new Date() });
+    const res = await cerrar('otro');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ teniaSesion: true });
+    expect((db.$queryRaw as unknown as jest.Mock).mock.calls[0].slice(1)).toEqual([null, 'otro']);
+    expect(db.accessLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ resultado: 'sesion_revocada', sesionId: 'ses-1', detalle: 'Sesión cerrada por yo' }),
+    }));
+  });
+
+  test('sin sesión abierta responde igual, sin anotar nada', async () => {
+    db.systemUser.findUnique.mockResolvedValue({ usuario: 'otro', sesionesDesde: null });
+    const res = await cerrar('otro');
+    expect(await res.json()).toEqual({ teniaSesion: false });
+    expect(db.accessLog.create).not.toHaveBeenCalled();
+  });
+
+  test('la propia sesión no se cierra desde aquí', async () => {
+    const res = await cerrar('yo');
+    expect(res.status).toBe(409);
+    expect(db.$queryRaw).not.toHaveBeenCalled();
+  });
+});
 
 describe('reglas de datos (Zod)', () => {
   test('sede: el código queda en mayúsculas y sin espacios', () => {
@@ -202,6 +237,52 @@ describe('inicio de sesión', () => {
     await expect(authorize({ usuario: ' JSoto ', password: 'x' }, req)).rejects.toThrow(/incorrectos/);
     expect(db.systemUser.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { usuario: 'jsoto' } }));
     expect(db.accessLog.create.mock.calls[0][0].data.usuarioIngresado).toBe('jsoto');
+  });
+
+  // SPEC 2.127: una sola sesion por usuario, gana la ultima.
+  describe('una sola sesión por usuario', () => {
+    const cuenta = { id: 'u1', usuario: 'ana', nombre: 'Ana', rol: 'admin', activo: true, passwordHash: 'h', sedeId: null, sesionesDesde: null, sede: null };
+    const entrar = async () => {
+      db.systemUser.findUnique.mockResolvedValue(cuenta);
+      (compare as jest.Mock).mockResolvedValue(true);
+      db.accessLog.create.mockResolvedValue({ id: 'intento-1' });
+      return (await authorize({ usuario: 'ana', password: CLAVE }, req)) as { sesionId: string; otraSesionCerrada: boolean };
+    };
+    const anulada = () =>
+      db.accessLog.create.mock.calls.find((c) => c[0].data.resultado === 'sesion_revocada')?.[0].data;
+    // Que lo simulado aqui no pase a los demas tests.
+    afterEach(() => {
+      db.accessLog.create.mockReset();
+      db.accessLog.findFirst.mockReset();
+    });
+
+    test('la nueva sesión pasa a ser la vigente', async () => {
+      const u = await entrar();
+      const sql = (db.$queryRaw as unknown as jest.Mock).mock.calls[0];
+      expect(sql[0].join('')).toContain('sesion_vigente_id');
+      expect(sql.slice(1)).toEqual([u.sesionId, 'u1']);
+    });
+
+    test('si otra seguía abierta, queda anulada en el registro y se avisa', async () => {
+      (db.$queryRaw as unknown as jest.Mock).mockResolvedValueOnce([{ sesion_vigente_id: 'ses-vieja' }]);
+      db.accessLog.findFirst.mockImplementation(({ where }) =>
+        Promise.resolve(where.sesionId === 'ses-vieja' ? { createdAt: new Date(Date.now() - 3600_000) } : null)
+      );
+      const u = await entrar();
+      expect(u.otraSesionCerrada).toBe(true);
+      expect(anulada()).toMatchObject({ sesionId: 'ses-vieja', usuarioIngresado: 'ana', detalle: 'Se inició sesión en otro equipo' });
+    });
+
+    test('si la anterior ya se había cerrado o vencido, no se anota nada', async () => {
+      (db.$queryRaw as unknown as jest.Mock).mockResolvedValueOnce([{ sesion_vigente_id: 'ses-vieja' }]);
+      db.sesionCerrada.findUnique.mockResolvedValueOnce({ id: 'ses-vieja' });
+      db.accessLog.findFirst.mockResolvedValue({ createdAt: new Date() });
+      expect((await entrar()).otraSesionCerrada).toBe(false);
+      (db.$queryRaw as unknown as jest.Mock).mockResolvedValueOnce([{ sesion_vigente_id: 'ses-vieja' }]);
+      db.accessLog.findFirst.mockResolvedValue({ createdAt: new Date(Date.now() - 48 * 3600_000) });
+      expect((await entrar()).otraSesionCerrada).toBe(false);
+      expect(anulada()).toBeUndefined();
+    });
   });
 
   test('técnico de una sede desactivada no entra y queda "Sede desactivada"', async () => {

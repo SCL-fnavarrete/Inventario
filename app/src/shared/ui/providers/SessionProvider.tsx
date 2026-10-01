@@ -39,7 +39,7 @@ if (typeof window !== "undefined" && !(window as { __salidaPor401?: boolean })._
         });
       }
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- recarga completa: borra el estado de la pantalla sin sesion
-      window.location.href = "/login";
+      window.location.href = "/login?sesion=cerrada";
       return new Promise<Response>(() => {});
     }
     return respuesta;
@@ -85,7 +85,7 @@ function SalirSiNoHaySesion() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- la sesion volvio: el aviso ya no corresponde
     if (status === "authenticated" && anterior === "unauthenticated") setGuardadoSinSesion(false);
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- recarga completa: borra el estado de la pantalla sin sesion
-    else if (status === "unauthenticated" && !guardadoSinSesion) window.location.href = "/login";
+    else if (status === "unauthenticated" && !guardadoSinSesion) window.location.href = "/login?sesion=cerrada";
   }, [status, guardadoSinSesion]);
 
   if (!guardadoSinSesion) return null;
