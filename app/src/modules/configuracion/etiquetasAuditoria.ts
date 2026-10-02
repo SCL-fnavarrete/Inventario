@@ -4,6 +4,7 @@
  */
 export const MODULOS_AUDITORIA: Record<string, string> = {
   activo: "Activo",
+  linea: "Línea",
   solicitud: "Solicitud",
   empleado: "Empleado",
   compra: "Compra",

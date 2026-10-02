@@ -37,7 +37,7 @@ mas `api/` con los endpoints REST agrupados por feature.
 El codigo se organiza por dominio de negocio, no por tipo tecnico:
 
 - `src/modules/<modulo>/`: activos, personas, asignaciones, mantenciones,
-  despachos, compras, kit-epp, solicitudes, importacion, configuracion y
+  despachos, compras, kit-epp, lineas, solicitudes, importacion, configuracion y
   dashboard. Cada uno tiene su logica (`servicio.ts`, `consultas.ts`,
   `validaciones.ts`...) y sus `componentes/`.
 - `src/shared/`: lo transversal (prisma, auth y permisos, sedes, auditoria,
@@ -74,7 +74,7 @@ nuevo, agregarlo a la puerta que corresponde.
 | `src/modules/<modulo>/validaciones.ts` | Zod schemas de cada entidad; las comunes en `src/shared/validaciones/` |
 | `src/shared/utilidades/rut.ts` | Chilean RUT format validation |
 | `src/proxy.ts` | Proxy de Next.js 16 (antes `middleware.ts`): exige sesión en todas las rutas salvo `/login` y `/api/auth` |
-| `prisma/schema.prisma` | 32 modelos y 24 enums (estados de activos, condiciones, contratos, workflow, accesos...) |
+| `prisma/schema.prisma` | 33 modelos y 25 enums (estados de activos, condiciones, contratos, workflow, accesos...) |
 
 ### API Route Pattern
 
@@ -93,7 +93,7 @@ pantallas de servidor las llaman igual que las rutas.
 
 ### Modelos y enums
 
-Los 32 modelos y los 24 enums viven en `app/prisma/schema.prisma`, y el SPEC
+Los 33 modelos y los 25 enums viven en `app/prisma/schema.prisma`, y el SPEC
 documenta el proposito de cada uno. No se duplican aqui: la copia se desactualiza.
 
 ### Database Connections

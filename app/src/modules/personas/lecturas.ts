@@ -5,6 +5,7 @@ import { filtroSede } from '@/shared/sedes/filtro';
 import { coincideBusqueda } from '@/shared/utilidades/text';
 import { formatearRut, limpiarRut, validarDigitoVerificador } from '@/shared/validaciones/rut';
 import type { EmployeeFilters } from '@/modules/personas/validaciones';
+import { LINEAS_DEL_EQUIPO } from '@/modules/activos';
 
 /**
  * Lecturas de Personas contra la base (SPEC 3.2.2): la lista, la busqueda por
@@ -173,6 +174,7 @@ const RELACIONES_FICHA = {
       asset: {
         include: {
           categoria: true,
+          lineas: LINEAS_DEL_EQUIPO,
         },
       },
     },
@@ -184,6 +186,12 @@ const RELACIONES_FICHA = {
       item: true,
     },
     orderBy: { fechaEntrega: "desc" },
+  },
+  // Lineas telefonicas activas a su nombre (SPEC 2.131)
+  lineas: {
+    where: { estado: "activa" },
+    select: { id: true, numero: true, plan: true, activo: { select: { marca: true, modelo: true } } },
+    orderBy: { numero: "asc" },
   },
 } satisfies Prisma.EmployeeInclude;
 
@@ -270,6 +278,8 @@ export async function fichaEmpleado(id: string) {
       entregadoPor: notebook.entregadoPor,
     })),
 
+    lineas: employee.lineas,
+
     // Celulares asignados (ahora array)
     celulares: celulares.map((celular) => ({
       asignacionId: celular.id,
@@ -277,9 +287,8 @@ export async function fichaEmpleado(id: string) {
       modelo: celular.asset.modelo,
       numeroSerie: celular.asset.numeroSerie,
       imei: celular.asset.imei,
-      numeroTelefono: celular.asset.numeroTelefono,
+      lineas: celular.asset.lineas,
       numeroActivacion: celular.asset.numeroActivacion,
-      tipoPlan: celular.asset.tipoPlan,
       tieneCargador: celular.asset.tieneCargador,
       estado: celular.asset.estado,
       condicion: celular.asset.condicion,

@@ -52,6 +52,7 @@ Lectura (R) · Escritura (W) · Borrado (D).
 | compras | RWD | R (desde 2.111: registrar y repartir es solo de admin) |
 | categorias | RWD | R |
 | kitEpp | RWD | RW |
+| lineas | RWD | RW (desde 2.131) |
 | usuarios | RWD | — |
 | sedes | RWD | R |
 | reportes (Dashboard) | R | R |
@@ -3964,7 +3965,20 @@ Pedido de Javier: borrar de la base un equipo que se ingresó por error, mientra
 - **Pantalla:** botón "Eliminar" en la ficha del equipo, solo para el administrador y solo si se puede, con confirmación.
 - Descartar un duplicado (`deletedAt`, 2.7.7) no cambia.
 
+### 2.131 Líneas telefónicas (02-oct-2026)
+Pedido de Javier: un módulo para las líneas celulares, que se relacionan con los teléfonos, cargado desde la conciliación de líneas ("Conciliacion_lineas_celulares Final 2.xlsx"). Decisiones: la línea es un registro propio que se asocia a un celular y a una persona, pero no depende de ellos; el número y el plan dejan el equipo; los permisos son los de activos.
+- **Modelo `LineaTelefonica`** (tabla `lineas_telefonicas`, migración `20261002100000_lineas_telefonicas`): `numero` (único, solo dígitos con el 56: `56912345678`), `plan`, `precioMensual` (pesos al mes), `estado` (`EstadoLinea`: `activa` o `baja`), `fechaBaja`, `activoId` (el celular donde está el chip, opcional), `empleadoId` (la persona, opcional), `responsable` (texto, cuando no la tiene una persona del sistema: "Bodega Concepción" o un nombre sin RUT) y `observaciones`. `AuditEntidad` suma `linea`.
+- **Sale del equipo:** `Asset.numeroTelefono` y `Asset.tipoPlan` se eliminan. La migración pasa los que había a líneas (número normalizado, plan, el celular y quien lo tenía; si dos tenían el mismo número, queda uno). Donde se mostraban (ficha y tarjetas del equipo, asignación, selectores de solicitudes y despachos, actas en PDF, Excel de activos y búsqueda) ahora se leen las líneas activas del celular (`LINEAS_DEL_EQUIPO`, `textoLineas`). El Excel de activos mantiene las columnas "N° Teléfono" y "Tipo Plan", llenadas desde las líneas. La importación de activos deja de leer esas dos columnas: las líneas tienen su propia importación. El formulario del equipo ya no las pide.
+- **Pantalla Activos > Líneas** (`/activos/lineas`): lista con filtro de estado (activas, de baja, todas), búsqueda (número, persona, responsable, plan, celular) y el resumen de las activas: cuántas, costo mensual y cuántas sin asignar. Un formulario crea y edita; dar de baja es cambiar el estado (pone la fecha de baja; reactivar la quita). El celular se elige entre los equipos de categoría celular que no están de baja ni vendidos; la persona, entre las no desvinculadas. La ficha de la persona muestra sus líneas, y la del celular, la suya.
+- **Reglas** (`modules/lineas/servicio.ts`): número de celular chileno válido (9 dígitos que empiezan con 9, se acepta "+56 9 1234 5678"), sin repetir; el equipo asociado debe ser un celular. Crear, editar, dar de baja y eliminar quedan en la auditoría con quién lo hizo.
+- **Permisos** (recurso `lineas`): admin y técnico ven, crean, editan, dan de baja e importan; eliminar es solo del administrador (para una línea ingresada por error; si ya no se usa, se da de baja).
+- **Importación** (`POST /api/lineas/importar`, botón "Importar Excel"): lee la hoja "Consolidado" (busca la fila con "Línea normalizada" como encabezado) y, si está, "Bajas" para la fecha de baja. Por fila: "Dada de baja" queda de baja; la persona se busca por RUT ("Documento(s)"); si no está en el sistema o la línea figura con dos personas, el texto de "Responsable / ubicación" queda como responsable; plan, precio y observación se copian. El tráfico del mes, las filas de origen y los demás datos del cruce no se guardan. Una línea que ya existe solo completa lo que le falta (no cambia su estado ni lo editado a mano), así que importar dos veces no duplica. Números no válidos se informan al final. Con el archivo real: 134 líneas, 23 de baja y $1.978.924 al mes en las activas (el total del archivo menos las bajas).
+- API: `GET/POST /api/lineas`, `PUT/DELETE /api/lineas/[id]`, `GET /api/lineas/opciones` (celulares y personas del formulario), `POST /api/lineas/importar`.
+- Tests: unitarios de la validación del número y del formulario; integración `lineas.int.test.ts` (Postgres real): alta con auditoría, número repetido y equipo que no es celular rechazados, baja y reactivación, eliminación con auditoría, e importación (persona por RUT, fecha de baja, línea dudosa como texto, sin pisar la existente, sin duplicar al repetir).
+
 ## Changelog SPEC
+- **v2.62 (2026-10-02):**
+  - Sección 2.131 (nueva) y matriz 1.3.1: módulo de líneas telefónicas (`LineaTelefonica`, `EstadoLinea`, `AuditEntidad.linea`, recurso `lineas`); el número y el plan dejan el equipo (se quitan `Asset.numeroTelefono` y `Asset.tipoPlan`, migrados a líneas); pantalla Activos > Líneas e importación de la conciliación.
 - **v2.61 (2026-10-02):**
   - Sección 2.130 (nueva) y tabla de 2.7.7: el administrador elimina de la base un equipo ingresado por error (Disponible, sin uso, con solo alta y ediciones); queda en la auditoría (`AuditEntidad.activo`); botón en la ficha.
 - **v2.60 (2026-10-02):**

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/shared/cn";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
-import { etiquetaConectividad, identificadorActivo } from "@/modules/activos";
+import { etiquetaConectividad, identificadorActivo, textoLineas } from "@/modules/activos";
 import { CategoryIcon, AssetConditionBadge } from "@/modules/activos/componentes";
 
 type Asset = {
@@ -23,8 +23,7 @@ type Asset = {
   ram: string | null;
   discoDuro: string | null;
   sistemaOperativo: string | null;
-  numeroTelefono: string | null;
-  tipoPlan: string | null;
+  lineas?: { numero: string; plan: string | null }[];
   pulgadas: string | number | null;
   conectividad: string | null;
   estado: string;
@@ -258,8 +257,8 @@ export function SelectorActivos({
               let extraInfo = "";
               if (ficha === "computador" && asset.procesador) {
                 extraInfo = `${asset.ram || ""} ${asset.discoDuro || ""}`.trim();
-              } else if (ficha === "celular" && asset.numeroTelefono) {
-                extraInfo = asset.numeroTelefono;
+              } else if (ficha === "celular" && asset.lineas?.length) {
+                extraInfo = textoLineas(asset.lineas);
               } else if (ficha === "monitor" && asset.pulgadas) {
                 extraInfo = `${asset.pulgadas}"`;
               } else if (asset.conectividad) {

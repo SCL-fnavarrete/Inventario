@@ -3,7 +3,7 @@
 import { NavTabs } from "@/shared/ui/Tabs";
 
 // Pestanas del modulo Activos: Equipos, Asignaciones, Personal, Kit de
-// Bienvenida y EPP. Compartido entre las 5 paginas para no repetir el
+// Bienvenida, EPP y Lineas. Compartido entre las 6 paginas para no repetir el
 // mismo bloque de tabs en cada una.
 const TABS = [
   { href: "/activos", label: "Equipos" },
@@ -11,6 +11,7 @@ const TABS = [
   { href: "/activos/empleados", label: "Personal" },
   { href: "/activos/kit-bienvenida", label: "Kit de Bienvenida" },
   { href: "/activos/epp", label: "EPP" },
+  { href: "/activos/lineas", label: "Líneas" },
 ] as const;
 
 export function ActivosTabs() {

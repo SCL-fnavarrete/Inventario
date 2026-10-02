@@ -25,7 +25,7 @@ import { cn } from "@/shared/cn";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 import { formatearFecha } from "@/shared/utilidades/fechas";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
-import { identificadorActivo } from "@/modules/activos";
+import { identificadorActivo, textoLineas } from "@/modules/activos";
 
 type NotebookAsignado = {
   asignacionId: string;
@@ -52,9 +52,8 @@ type CelularAsignado = {
   modelo: string;
   numeroSerie: string | null;
   imei: string | null;
-  numeroTelefono: string | null;
+  lineas: { numero: string; plan: string | null }[];
   numeroActivacion: string | null;
-  tipoPlan: string | null;
   tieneCargador: boolean;
   estado: string;
   condicion: string;
@@ -96,6 +95,7 @@ type Ficha = {
     estado: EstadoEmpleado;
     telefonoContacto: string | null;
   };
+  lineas: { id: string; numero: string; plan: string | null; activo: { marca: string; modelo: string } | null }[];
   notebooks: NotebookAsignado[];
   celulares: CelularAsignado[];
   monitores: MonitorAsignado[];
@@ -412,6 +412,23 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
         </div>
       )}
 
+      {/* Lineas telefonicas a su nombre (SPEC 2.131) */}
+      {ficha.lineas.length > 0 && (
+        <div className="card p-6">
+          <h3 className="mb-4 flex items-center gap-3 text-lg font-semibold">
+            <Phone className="text-green-600" /> Líneas telefónicas
+          </h3>
+          <ul className="space-y-1 text-sm">
+            {ficha.lineas.map((l) => (
+              <li key={l.id}>
+                <span className="font-medium">{textoLineas([l])}</span>
+                {l.activo && <span className="text-fg-subtle"> · en {l.activo.marca} {l.activo.modelo}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Celulares */}
       {ficha.celulares.length > 0 && (
         <div className="card">
@@ -445,12 +462,8 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                     <p className="font-medium font-mono">{celular.imei || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-fg-subtle">N° Teléfono</p>
-                    <p className="font-medium">{celular.numeroTelefono || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-fg-subtle">Tipo Plan</p>
-                    <p className="font-medium">{celular.tipoPlan || "-"}</p>
+                    <p className="text-sm text-fg-subtle">Línea</p>
+                    <p className="font-medium">{celular.lineas.length ? textoLineas(celular.lineas) : "-"}</p>
                   </div>
                   <div>
                     <p className="text-sm text-fg-subtle">Cargador</p>

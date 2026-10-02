@@ -155,8 +155,6 @@ export default function ImportarActivosPage() {
     pulgadas: "Tamaño de la pantalla, en pulgadas.",
     imei: "IMEI del celular.",
     numeroActivacion: "Número de activación del plan del celular.",
-    numeroTelefono: "Número telefónico asociado al celular.",
-    tipoPlan: "Tipo de plan contratado para el celular.",
     cargador: "Indica si se entregó cargador junto con el celular.",
     lugarEntrega: "Lugar donde se entregó el celular.",
     entrega: "Fecha o estado de entrega del celular.",
@@ -255,8 +253,6 @@ export default function ImportarActivosPage() {
     // Campos para Celular
     { key: "numeroSerie", label: "N° Serie", categories: ["celular"] },
     { key: "numeroActivacion", label: "Nro Activación", categories: ["celular"] },
-    { key: "numeroTelefono", label: "Nro. Telefónico", categories: ["celular"] },
-    { key: "tipoPlan", label: "Tipo Plan", categories: ["celular"] },
     { key: "cargador", label: "Cargador", categories: ["celular"] },
     { key: "lugarEntrega", label: "Lugar Entrega", categories: ["celular"] },
     { key: "entrega", label: "Entrega", categories: ["celular"] },
@@ -372,8 +368,6 @@ export default function ImportarActivosPage() {
         // Campos de Celular
         imei: ["imei"],
         numeroActivacion: ["nro activacion", "numero activacion", "activacion"],
-        numeroTelefono: ["nro telefonico", "nro. telefonico", "telefono", "numero telefonico"],
-        tipoPlan: ["tipo plan", "plan"],
         cargador: ["cargador"],
         lugarEntrega: ["lugar entrega", "lugar"],
         entrega: ["entrega"],

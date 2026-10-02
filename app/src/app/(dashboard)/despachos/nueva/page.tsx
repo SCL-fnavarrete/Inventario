@@ -37,8 +37,7 @@ type Asset = {
   ram: string | null;
   discoDuro: string | null;
   sistemaOperativo: string | null;
-  numeroTelefono: string | null;
-  tipoPlan: string | null;
+  lineas?: { numero: string; plan: string | null }[];
   // Deben coincidir estructuralmente con el `Asset` local de
   // SelectorActivos.tsx (ambos se llaman igual, TS los trata como
   // incompatibles si no calzan campo a campo).

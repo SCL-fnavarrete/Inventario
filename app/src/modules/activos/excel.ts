@@ -1,7 +1,8 @@
 import ExcelJS from 'exceljs';
 import { prisma } from '@/shared/prisma';
 import { formatearFecha, hoyISO } from '@/shared/utilidades/fechas';
-import { whereFiltrosActivos, type FiltrosActivos } from '@/modules/activos/consultas';
+import { LINEAS_DEL_EQUIPO, whereFiltrosActivos, type FiltrosActivos } from '@/modules/activos/consultas';
+import { formatearNumero } from '@/modules/lineas';
 import { CONDICION_ACTIVO_LABEL, ESTADO_ACTIVO_LABEL } from '@/modules/activos/estados';
 
 /**
@@ -202,6 +203,7 @@ export async function excelDeActivos(filtros: FiltrosActivos) {
       maintenances: {
         select: { fechaProgramada: true, fechaRealizada: true, estado: true },
       },
+      lineas: LINEAS_DEL_EQUIPO,
     },
     orderBy: [{ sede: { nombre: "asc" } }, { categoria: { nombre: "asc" } }, { marca: "asc" }],
   });
@@ -232,9 +234,10 @@ export async function excelDeActivos(filtros: FiltrosActivos) {
       marca: asset.marca,
       modelo: asset.modelo,
       imei: asset.imei || "",
-      numeroTelefono: asset.numeroTelefono || "",
+      // El numero y el plan son de las lineas del celular (SPEC 2.131).
+      numeroTelefono: asset.lineas.map((l) => formatearNumero(l.numero)).join(", "),
       numeroActivacion: asset.numeroActivacion || "",
-      tipoPlan: asset.tipoPlan || "",
+      tipoPlan: asset.lineas.map((l) => l.plan).filter(Boolean).join(", "),
       sede: asset.sede?.nombre || "",
       estado: ESTADO_ACTIVO_LABEL[asset.estado] || asset.estado,
       condicion: CONDICION_ACTIVO_LABEL[asset.condicion] || asset.condicion,

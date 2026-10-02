@@ -50,8 +50,7 @@ type ActivoDisponible = {
   discoDuro: string | null;
   sistemaOperativo: string | null;
   imei: string | null;
-  numeroTelefono: string | null;
-  tipoPlan: string | null;
+  lineas?: { numero: string; plan: string | null }[];
   pulgadas: string | number | null;
   conectividad: string | null;
   tipoLicenciaMicrosoft365: string | null;

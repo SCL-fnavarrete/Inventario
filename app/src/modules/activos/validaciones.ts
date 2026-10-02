@@ -70,9 +70,7 @@ export const assetSchema = z.object({
   nombreEquipo: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
 
   // Specs Celular
-  numeroTelefono: z.string().max(20, "Máximo 20 caracteres").optional().nullable(),
   numeroActivacion: z.string().max(20, "Máximo 20 caracteres").optional().nullable(),
-  tipoPlan: z.string().max(50, "Máximo 50 caracteres").optional().nullable(),
   tieneCargador: z.boolean().optional(),
 
   // Conectividad compartida: Mouse, Teclado, Webcam, Audifonos

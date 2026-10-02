@@ -84,6 +84,7 @@ const RECURSO_LABEL: Record<Recurso, string> = {
   compras: 'compras',
   categorias: 'categorías de activos',
   kitEpp: 'Kit/EPP',
+  lineas: 'líneas telefónicas',
   usuarios: 'usuarios del sistema',
   sedes: 'sedes',
   reportes: 'el Dashboard',

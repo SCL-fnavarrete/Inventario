@@ -376,7 +376,6 @@ export async function procesarFila(
   const ram = obtener("ram") || null;
   const discoDuro = obtener("discoDuro") || obtener("almacenamiento") || null;
   const imei = imeiFila || null;
-  const numeroTelefono = obtener("numeroTelefono") || null;
   const pulgadasStr = obtener("pulgadas");
   const pulgadas = pulgadasStr ? parseFloat(pulgadasStr) : null;
   // --- Sistema operativo, antivirus y licencia M365: deben calzar con el
@@ -509,7 +508,6 @@ export async function procesarFila(
         ram,
         discoDuro,
         imei,
-        numeroTelefono,
         pulgadas,
         sistemaOperativo,
         antivirus,

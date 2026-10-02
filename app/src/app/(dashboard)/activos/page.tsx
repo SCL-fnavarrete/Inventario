@@ -44,6 +44,7 @@ import {
   type ParamFiltroDato,
   etiquetaEstadoActivo,
   identificadorActivo,
+  textoLineas,
 } from "@/modules/activos";
 import { Can } from "@/shared/ui/Can";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
@@ -73,7 +74,7 @@ type Asset = {
   fechaGarantiaFin: Date | null;
   ubicacionFisica: string | null;
   imei: string | null;
-  numeroTelefono: string | null;
+  lineas?: { numero: string; plan: string | null }[];
   categoria: {
     id: string;
     nombre: string;
@@ -936,10 +937,10 @@ function ActivosPageContent() {
                                       </dd>
                                     </div>
                                   )}
-                                  {asset.numeroTelefono && (
+                                  {!!asset.lineas?.length && (
                                     <div className="flex justify-between">
-                                      <dt className="text-fg-subtle">Teléfono:</dt>
-                                      <dd className="text-fg">{asset.numeroTelefono}</dd>
+                                      <dt className="text-fg-subtle">Línea:</dt>
+                                      <dd className="text-fg">{textoLineas(asset.lineas)}</dd>
                                     </div>
                                   )}
                                 </dl>

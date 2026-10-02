@@ -1,6 +1,6 @@
 import { prisma } from '@/shared/prisma';
 import { NotFoundError } from '@/shared/errores';
-import { whereFiltrosActivos, type FiltrosActivos } from '@/modules/activos/consultas';
+import { LINEAS_DEL_EQUIPO, whereFiltrosActivos, type FiltrosActivos } from '@/modules/activos/consultas';
 
 /**
  * Lecturas de Activos contra la base (SPEC 3.2.2): la lista, las tarjetas y
@@ -33,6 +33,7 @@ export async function listarActivos(
           },
         },
         sede: { select: { id: true, nombre: true } },
+        lineas: LINEAS_DEL_EQUIPO,
       },
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * limit,
@@ -138,6 +139,7 @@ export async function fichaActivo(id: string) {
         take: 10,
       },
       maintenances: { orderBy: { createdAt: 'desc' }, take: 5 },
+      lineas: LINEAS_DEL_EQUIPO,
       // La compra con que llego, si hay (relacion n a n; en la practica una).
       purchaseAssets: {
         include: { purchase: { include: { sede: { select: { nombre: true } } } } },

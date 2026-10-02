@@ -180,6 +180,13 @@ const CAMPO_LABEL: Record<string, string> = {
   activosCorregidos: 'Activos corregidos',
   codigo: 'Código',
   activa: 'Activa',
+  numero: 'Número',
+  plan: 'Plan',
+  precioMensual: 'Precio mensual',
+  activoId: 'Celular',
+  empleadoId: 'Persona',
+  responsable: 'Responsable',
+  observaciones: 'Observaciones',
 };
 
 // Datos internos que no le dicen nada a quien revisa (numeracion de la
@@ -208,6 +215,8 @@ async function nombresDeReferencias(filas: FilaAuditoria[]): Promise<Nombres> {
         ['sedeId', 'sede'],
         ['sedeDestinoId', 'sede'],
         ['empleadoActualId', 'empleado'],
+        ['empleadoId', 'empleado'],
+        ['activoId', 'activo'],
         ['assetId', 'activo'],
         ['tipoId', 'tipo'],
       ] as const) {

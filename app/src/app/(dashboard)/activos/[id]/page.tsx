@@ -27,6 +27,7 @@ import {
   motivoSinEliminar,
   motivoSinMantencion,
   identificadorActivo,
+  textoLineas,
 } from "@/modules/activos";
 import { Can } from "@/shared/ui/Can";
 
@@ -70,8 +71,7 @@ export default async function DetalleActivoPage({
   if (asset.sistemaOperativo) especificaciones.sistemaOperativo = asset.sistemaOperativo;
   if (asset.antivirus) especificaciones.antivirus = asset.antivirus;
   if (asset.nombreEquipo) especificaciones.nombreEquipo = asset.nombreEquipo;
-  if (asset.numeroTelefono) especificaciones.numeroTelefono = asset.numeroTelefono;
-  if (asset.tipoPlan) especificaciones.tipoPlan = asset.tipoPlan;
+  if (asset.lineas.length) especificaciones["Línea"] = textoLineas(asset.lineas);
   if (asset.conectividad) especificaciones.conectividad = asset.conectividad;
   // Name of the Microsoft 365 plan (e.g. "Premium").
   if (asset.tipoLicenciaMicrosoft365) {

@@ -2,6 +2,7 @@ import { prisma } from '@/shared/prisma';
 import { Prisma, type EstadoActivo } from '@prisma/client';
 import { hoyISO } from '@/shared/utilidades/fechas';
 import { ConflictError, NotFoundError, ValidationError, errorDeCampo } from '@/shared/errores';
+import { LINEAS_DEL_EQUIPO } from '@/modules/activos';
 import { cambiarEstado } from '@/modules/activos/servidor';
 import { auditLogService } from '@/shared/auditoria';
 import { formatearRut } from '@/shared/validaciones/rut';
@@ -135,7 +136,7 @@ export async function actualizarEstadoGuia(
 /** Lo que el detalle de una guia muestra y sus acciones necesitan. */
 export const INCLUDE_DETALLE_GUIA = {
   items: {
-    include: { asset: { include: { categoria: true } } },
+    include: { asset: { include: { categoria: true, lineas: LINEAS_DEL_EQUIPO } } },
     orderBy: { createdAt: 'asc' },
   },
   // Kit/EPP del despacho (SPEC 2.111.4)

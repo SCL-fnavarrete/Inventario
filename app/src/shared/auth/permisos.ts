@@ -27,6 +27,7 @@ export const RECURSOS = [
   'compras',
   'categorias',
   'kitEpp',
+  'lineas',
   'usuarios',
   'sedes',
   'reportes',
@@ -117,6 +118,13 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
   categorias: {
     read: AMBOS,
     write: ADMIN,
+    delete: ADMIN,
+  },
+
+  // Lineas telefonicas (SPEC 2.131): igual que los activos.
+  lineas: {
+    read: AMBOS,
+    write: AMBOS,
     delete: ADMIN,
   },
 

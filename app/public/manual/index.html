@@ -177,6 +177,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
           <li><a href="#activo-nuevo">Registrar un equipo</a></li>
           <li><a href="#ficha">Ficha del equipo</a></li>
           <li><a href="#venta">Vender un equipo</a></li>
+          <li><a href="#lineas">Líneas telefónicas</a></li>
         </ol>
       </li>
       <li><a href="#asignaciones">Asignaciones</a></li>
@@ -220,7 +221,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
       <span class="etiqueta">SCL Consultores · Soporte TI</span>
       <h1>Manual de usuario del sistema de Inventario IT</h1>
       <p class="bajada">Cómo registrar los equipos de la empresa, entregarlos y recibirlos de vuelta, programar sus mantenciones, moverlos entre sedes y llevar el control de todo lo que pasa con ellos.</p>
-      <div class="datos-doc"><span><b>Versión del sistema:</b> SPEC v2.61</span><span><b>Fecha:</b> octubre de 2026</span><span><b>Datos de las capturas:</b> de ejemplo</span></div>
+      <div class="datos-doc"><span><b>Versión del sistema:</b> SPEC v2.62</span><span><b>Fecha:</b> octubre de 2026</span><span><b>Datos de las capturas:</b> de ejemplo</span></div>
     </header>
 
     <section class="capitulo" aria-labelledby="t-inicio">
@@ -306,7 +307,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
 
     <section class="capitulo" id="activos" aria-labelledby="t-activos">
       <h2 id="t-activos"><span class="num">03</span>Activos (equipos)</h2>
-      <p class="intro">Aquí está el inventario: cada notebook, celular, monitor o periférico de la empresa. El módulo tiene cinco pestañas: Equipos, Asignaciones, Personal, Kit de Bienvenida y EPP.</p>
+      <p class="intro">Aquí está el inventario: cada notebook, celular, monitor o periférico de la empresa. El módulo tiene seis pestañas: Equipos, Asignaciones, Personal, Kit de Bienvenida, EPP y Líneas.</p>
       <figure>
         <button class="captura" type="button"><img src="img/04-activos-lista.jpg" alt="Listado de activos en vista de tabla" loading="lazy"></button>
         <figcaption>Listado de equipos en vista de tabla.</figcaption>
@@ -381,6 +382,20 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
         <button class="captura" type="button"><img src="img/09-activo-venta.jpg" alt="Formulario Registrar Venta" loading="lazy"></button>
         <figcaption>Registro de la venta de un equipo dado de baja.</figcaption>
       </figure>
+
+      <h3 id="lineas">Líneas telefónicas</h3>
+      <p>La pestaña <b>Líneas</b> lleva las líneas celulares contratadas: número, plan y costo mensual. Cada línea es un registro propio: se asocia al <b>celular</b> donde está el chip y a la <b>persona</b> que la usa, pero no depende de ellos (una línea puede estar en una bodega o sin asignar).</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/53-lineas.jpg" alt="Listado de líneas telefónicas con plan, costo, persona y celular" loading="lazy"></button>
+        <figcaption>Líneas activas, con el costo mensual total y cuántas están sin asignar.</figcaption>
+      </figure>
+      <ul>
+        <li><b>Nueva línea</b>: número (9 dígitos, ej. 9 1234 5678), plan, precio mensual, el celular, la persona y, si no la tiene una persona del sistema, un responsable o ubicación (ej. “Bodega Concepción”).</li>
+        <li>Para <b>dar de baja</b> una línea, edítala y cambia el estado a “De baja”: queda con la fecha del día. También se puede reactivar.</li>
+        <li><b>Importar Excel</b> carga la conciliación de líneas (hoja “Consolidado”): busca a la persona por su RUT y deja como responsable lo que no calza. Si una línea ya existe, solo completa los datos que le faltan.</li>
+        <li>El número y el plan ya no se escriben en el celular: su ficha muestra la línea asociada, y la ficha de la persona, sus líneas.</li>
+        <li>El basurero (solo administrador) elimina una línea ingresada por error; queda en la Auditoría.</li>
+      </ul>
     </section>
 
     <section class="capitulo" id="asignaciones" aria-labelledby="t-asig">

@@ -12,7 +12,6 @@ type AssetInfo = {
   ram: string | null;
   estado: string;
   imei?: string | null;
-  numeroTelefono?: string | null;
 };
 
 type Props = {

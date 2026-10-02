@@ -1,4 +1,5 @@
 import { ArrowLeftRight, Undo2, UserPlus } from 'lucide-react';
+import { textoLineas } from '@/modules/activos';
 
 /**
  * Tipos, constantes y funciones auxiliares de Nueva Solicitud (auditoria
@@ -71,8 +72,7 @@ export type EquipoDisponible = {
   discoDuro: string | null;
   sistemaOperativo: string | null;
   imei: string | null;
-  numeroTelefono: string | null;
-  tipoPlan: string | null;
+  lineas?: { numero: string; plan: string | null }[];
   operador: string | null;
   pulgadas: string | number | null;
   // Si el equipo es nuevo o usado; sale del campo `condicion`.
@@ -87,8 +87,7 @@ export function especificacionesEquipo(a: EquipoDisponible): string {
   if (a.discoDuro) partes.push(a.discoDuro);
   if (a.sistemaOperativo) partes.push(a.sistemaOperativo);
   if (a.imei) partes.push(`IMEI ${a.imei}`);
-  if (a.numeroTelefono) partes.push(a.numeroTelefono);
-  if (a.tipoPlan) partes.push(a.tipoPlan);
+  if (a.lineas?.length) partes.push(textoLineas(a.lineas));
   if (a.operador) partes.push(a.operador);
   if (a.pulgadas) partes.push(`${a.pulgadas}"`);
   return partes.join(' · ');

@@ -4,6 +4,7 @@ import { NotFoundError, ValidationError } from '@/shared/errores';
 import { filtroSede } from '@/shared/sedes/filtro';
 import { coincideBusqueda } from '@/shared/utilidades/text';
 import { formatearFecha } from '@/shared/utilidades/fechas';
+import { LINEAS_DEL_EQUIPO } from '@/modules/activos';
 import { cambiarEstado } from '@/modules/activos/servidor';
 import { executeAssignment, executeReturn } from '@/modules/asignaciones/ejecucion';
 import type {
@@ -75,7 +76,9 @@ export async function detalleAsignacion(id: string) {
   const asignacion = await prisma.assignment.findUnique({
     where: { id },
     include: {
-      asset: { include: { categoria: true, history: { orderBy: { createdAt: 'desc' }, take: 10 } } },
+      asset: {
+        include: { categoria: true, lineas: LINEAS_DEL_EQUIPO, history: { orderBy: { createdAt: 'desc' }, take: 10 } },
+      },
       employee: true,
     },
   });

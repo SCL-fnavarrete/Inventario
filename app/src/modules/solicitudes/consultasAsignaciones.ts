@@ -1,4 +1,5 @@
 import { prisma } from '@/shared/prisma';
+import { LINEAS_DEL_EQUIPO } from '@/modules/activos';
 
 /**
  * Asignaciones de un ticket (WorkflowRequest.assignmentIds), en el mismo
@@ -10,7 +11,7 @@ export async function asignacionesDelTicket(assignmentIds: string[]) {
   if (assignmentIds.length === 0) return [];
   const filas = await prisma.assignment.findMany({
     where: { id: { in: assignmentIds } },
-    include: { asset: { include: { categoria: true } } },
+    include: { asset: { include: { categoria: true, lineas: LINEAS_DEL_EQUIPO } } },
   });
   const porId = new Map(filas.map((a) => [a.id, a]));
   return assignmentIds.flatMap((id) => porId.get(id) ?? []);

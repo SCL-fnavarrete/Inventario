@@ -150,6 +150,7 @@ model Employee {
   assignments          Assignment[]
   kitAssignments       KitAssignment[]
   workflowRequests     WorkflowRequest[]
+  lineas               LineaTelefonica[]
 
   @@index([estado])
   @@index([tipoContrato])
@@ -260,9 +261,7 @@ model Asset {
   ram                 String?
   pulgadas            Decimal?            @db.Decimal(4, 1)
   sistemaOperativo    String?             @map("sistema_operativo")
-  numeroTelefono      String?             @map("numero_telefono")
   numeroActivacion    String?             @map("numero_activacion")
-  tipoPlan            String?             @map("tipo_plan")
   tieneCargador       Boolean             @default(true) @map("tiene_cargador")
   // Conectividad compartida por los perifericos simples (Mouse, Teclado,
   // Webcam, Audifonos) -- un solo campo en vez de cuatro secciones casi
@@ -313,6 +312,7 @@ model Asset {
   dispatchItems       DispatchGuideItem[]
   maintenances        Maintenance[]
   purchaseAssets      PurchaseAsset[]
+  lineas              LineaTelefonica[]
 
   @@index([estado])
   @@index([categoriaId])
@@ -322,6 +322,38 @@ model Asset {
   @@index([createdAt])
   @@index([deletedAt])
   @@map("assets")
+}
+
+// Linea telefonica contratada (SPEC 2.131). Es un registro propio: se asocia
+// a un celular y a una persona, pero no depende de ninguno de los dos.
+model LineaTelefonica {
+  id            String       @id @default(uuid())
+  // Solo digitos, con el 56 delante (ej. 56912345678).
+  numero        String       @unique
+  plan          String?
+  // Lo que cuesta al mes, en pesos chilenos.
+  precioMensual Int?         @map("precio_mensual")
+  estado        EstadoLinea  @default(activa)
+  fechaBaja     DateTime?    @map("fecha_baja")
+  activoId      String?      @map("activo_id")
+  empleadoId    String?      @map("empleado_id")
+  // Quien la tiene cuando no es una persona del sistema (ej. "Bodega Concepción").
+  responsable   String?
+  observaciones String?
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  activo        Asset?       @relation(fields: [activoId], references: [id])
+  empleado      Employee?    @relation(fields: [empleadoId], references: [id])
+
+  @@index([estado])
+  @@index([activoId])
+  @@index([empleadoId])
+  @@map("lineas_telefonicas")
+}
+
+enum EstadoLinea {
+  activa
+  baja
 }
 
 // Modelo Supplier eliminado: el area de soporte no necesita asociar una
@@ -1111,6 +1143,8 @@ enum AuditEntidad {
   catalogo
   // Equipo ingresado por error y borrado de la base (SPEC 2.130).
   activo
+  // Lineas telefonicas (SPEC 2.131).
+  linea
 }
 
 enum AuditAccion {

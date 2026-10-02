@@ -16,6 +16,7 @@ import {
 import { NotFoundError, ValidationError } from '@/shared/errores';
 import {
   especificacionesActivo,
+  LINEAS_DEL_EQUIPO,
   type ActivoParaSpecs,
   etiquetaCondicionCargador,
   type ContextoCargador,
@@ -125,7 +126,7 @@ export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer>
         include: {
           assignments: {
             where: { activo: true },
-            include: { asset: { include: { categoria: true } } },
+            include: { asset: { include: { categoria: true, lineas: LINEAS_DEL_EQUIPO } } },
           },
         },
       },
@@ -150,7 +151,6 @@ export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer>
     ram: a.asset.ram,
     estado: a.asset.condicion,
     imei: a.asset.imei,
-    numeroTelefono: a.asset.numeroTelefono,
   }));
 
   const element = React.createElement(AnexoEntregaTemplate, {
@@ -176,7 +176,7 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
         include: {
           assignments: {
             where: { activo: true },
-            include: { asset: { include: { categoria: true } } },
+            include: { asset: { include: { categoria: true, lineas: LINEAS_DEL_EQUIPO } } },
           },
         },
       },
@@ -277,7 +277,7 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
       employee: {
         include: {
           assignments: {
-            include: { asset: { include: { categoria: true } } },
+            include: { asset: { include: { categoria: true, lineas: LINEAS_DEL_EQUIPO } } },
             orderBy: { fechaEntrega: 'desc' },
           },
         },

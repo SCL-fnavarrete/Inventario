@@ -33,6 +33,7 @@ const DUENOS: Record<string, string> = {
   purchaseAsset: 'compras',
   purchaseKitItem: 'compras',
   purchaseKitReparto: 'compras',
+  lineaTelefonica: 'lineas',
   welcomeKitItem: 'kit-epp',
   kitAssignment: 'kit-epp',
   workflowRequest: 'solicitudes',

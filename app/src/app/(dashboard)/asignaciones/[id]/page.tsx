@@ -18,7 +18,7 @@ import {
   Mail,
   Loader2,
 } from "lucide-react";
-import { etiquetaEstadoActivo, identificadorActivo } from "@/modules/activos";
+import { etiquetaEstadoActivo, identificadorActivo, textoLineas } from "@/modules/activos";
 import { cn } from "@/shared/cn";
 import { formatearFechaLarga, formatearFechaHoraCorta } from "@/shared/utilidades/fechas";
 import { CategoryIcon } from "@/modules/activos/componentes";
@@ -47,8 +47,7 @@ type Assignment = {
     discoDuro: string | null;
     sistemaOperativo: string | null;
     imei: string | null;
-    numeroTelefono: string | null;
-    tipoPlan: string | null;
+    lineas: { numero: string; plan: string | null }[];
     estado: string;
     condicion: string;
     categoria: {
@@ -341,16 +340,10 @@ export default function AsignacionDetailPage({
                       <p className="font-mono">{assignment.asset.imei}</p>
                     </div>
                   )}
-                  {assignment.asset.numeroTelefono && (
+                  {assignment.asset.lineas.length > 0 && (
                     <div>
-                      <p className="text-xs text-fg-subtle uppercase">N° Teléfono</p>
-                      <p>{assignment.asset.numeroTelefono}</p>
-                    </div>
-                  )}
-                  {assignment.asset.tipoPlan && (
-                    <div>
-                      <p className="text-xs text-fg-subtle uppercase">Plan</p>
-                      <p>{assignment.asset.tipoPlan}</p>
+                      <p className="text-xs text-fg-subtle uppercase">Línea</p>
+                      <p>{textoLineas(assignment.asset.lineas)}</p>
                     </div>
                   )}
                 </>

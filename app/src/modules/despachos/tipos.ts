@@ -11,8 +11,7 @@ export interface DispatchGuideAsset {
   ram: string | null;
   discoDuro: string | null;
   sistemaOperativo: string | null;
-  numeroTelefono: string | null;
-  tipoPlan: string | null;
+  lineas?: { numero: string; plan: string | null }[];
   // Specs de Monitor/perifericos, ademas de Notebook/Celular -- ver
   // modules/activos/especificaciones.ts.
   pulgadas: string | number | null;

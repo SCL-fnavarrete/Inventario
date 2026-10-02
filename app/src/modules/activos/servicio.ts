@@ -148,9 +148,7 @@ export async function crearActivo(
       discoDuro: datos.discoDuro || null,
       sistemaOperativo: datos.sistemaOperativo || null,
       imei: datos.imei || null,
-      numeroTelefono: datos.numeroTelefono || null,
       numeroActivacion: datos.numeroActivacion || null,
-      tipoPlan: datos.tipoPlan || null,
       tieneCargador: datos.tieneCargador || false,
       pulgadas: datos.pulgadas || null,
       ubicacionFisica: datos.ubicacionFisica || null,
@@ -368,11 +366,9 @@ export async function editarActivo(id: string, datos: UpdateAssetInput, usuario:
           sistemaOperativo: datos.sistemaOperativo || null,
         }),
         ...(datos.imei !== undefined && { imei: datos.imei || null }),
-        ...(datos.numeroTelefono !== undefined && { numeroTelefono: datos.numeroTelefono || null }),
         ...(datos.numeroActivacion !== undefined && {
           numeroActivacion: datos.numeroActivacion || null,
         }),
-        ...(datos.tipoPlan !== undefined && { tipoPlan: datos.tipoPlan || null }),
         ...(datos.tieneCargador !== undefined && { tieneCargador: datos.tieneCargador }),
         ...(datos.pulgadas !== undefined && { pulgadas: leerPulgadas(datos.pulgadas) }),
         ...(datos.ubicacionFisica !== undefined && {
