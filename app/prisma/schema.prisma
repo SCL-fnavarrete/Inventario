@@ -1109,6 +1109,8 @@ enum AuditEntidad {
   configuracion
   // Opciones de sistema operativo, antivirus y licencia M365 (SPEC 2.112.7).
   catalogo
+  // Equipo ingresado por error y borrado de la base (SPEC 2.130).
+  activo
 }
 
 enum AuditAccion {

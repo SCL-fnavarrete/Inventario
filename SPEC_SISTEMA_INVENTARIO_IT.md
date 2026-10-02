@@ -2390,7 +2390,7 @@ justamente lo que da fe de lo ocurrido.
 |---|---|
 | Tiene historial o asignaciones | **409**, indicando que corresponde darlo de baja por Mantenciones (`POST /api/mantenciones/baja`, SPEC 2.88) |
 | Está asignado a alguien (`estado = asignado`) | **409**: primero se devuelve el equipo |
-| Sin historial ni asignaciones (creado por error) | Borrado físico permitido |
+| Disponible y sin uso: solo alta y ediciones en el historial, sin entregas, mantenciones, despachos ni compra (ingresado por error) | Borrado físico permitido, con su historial; queda en la auditoría (SPEC 2.130) |
 
 **Campo nuevo `deletedAt` (`deleted_at`, `DateTime?`, nullable).** Marca un
 activo como retirado de los listados sin borrar su fila ni su historial. Su
@@ -3957,7 +3957,16 @@ Pedido de Javier: que los usuarios tengan a mano un manual de cómo usar el sist
 - Se abre en una pestaña nueva desde "Manual de usuario" en el menú del usuario (arriba a la derecha, y en el menú del celular). La página exige sesión como todo el sistema (`proxy.ts`); las imágenes son públicas como todas las del sitio, y solo muestran datos de ejemplo.
 - Cuando cambie una pantalla o una regla, se actualiza el manual en el mismo commit si lo que dice deja de ser cierto.
 
+### 2.130 El administrador puede eliminar un equipo ingresado por error (02-oct-2026)
+Pedido de Javier: borrar de la base un equipo que se ingresó por error, mientras no se haya usado. Las solicitudes no se eliminan: ya ejecutaron entregas y devoluciones, y se corrigen con otra solicitud.
+- **Cuándo se puede** (`motivoSinEliminar` en `modules/activos/estados.ts`): el equipo está Disponible y no tiene entregas (ni históricas), mantenciones, despachos ni compra, y en su historial solo hay el alta (`creacion`) y ediciones de datos (`actualizacion_specs`). Si no, 409: "dalo de baja".
+- **Qué hace** (`eliminarActivo`, `DELETE /api/activos/[id]`, `activos/delete`: solo admin): en una transacción borra el historial y el equipo, y deja en la auditoría "Activo eliminado (ingresado por error)" con marca, modelo y serie. `AuditEntidad` suma `activo` (migración `20261002000000_auditoria_activo`).
+- **Pantalla:** botón "Eliminar" en la ficha del equipo, solo para el administrador y solo si se puede, con confirmación.
+- Descartar un duplicado (`deletedAt`, 2.7.7) no cambia.
+
 ## Changelog SPEC
+- **v2.61 (2026-10-02):**
+  - Sección 2.130 (nueva) y tabla de 2.7.7: el administrador elimina de la base un equipo ingresado por error (Disponible, sin uso, con solo alta y ediciones); queda en la auditoría (`AuditEntidad.activo`); botón en la ficha.
 - **v2.60 (2026-10-02):**
   - Sección 2.129 (nueva): manual de usuario estático en `public/manual/`, enlazado desde el menú del usuario.
 - **v2.59 (2026-10-01):**

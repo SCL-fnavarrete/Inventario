@@ -18,6 +18,7 @@ export {
   AssetStatusBadge,
   getStatusLabel,
 } from '@/modules/activos/componentes/BadgesActivo';
+export { EliminarActivo } from '@/modules/activos/componentes/EliminarActivo';
 export { CategoriasCatalogo } from '@/modules/activos/componentes/CategoriasCatalogo';
 export { CategoryIcon, iconoDeCategoria } from '@/modules/activos/componentes/CategoryIcon';
 export {

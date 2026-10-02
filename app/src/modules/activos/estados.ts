@@ -116,6 +116,22 @@ export function motivoSinBaja(activo: {
   }
 }
 
+/** Eventos del historial que no cuentan como uso: el alta y sus correcciones. */
+export const EVENTOS_SIN_USO = ['creacion', 'actualizacion_specs'] as const;
+
+/**
+ * Por que un equipo no se puede borrar de la base, o null si se puede (SPEC
+ * 2.130): solo uno ingresado por error, Disponible y sin ningun uso.
+ * `usos` suma entregas, mantenciones, despachos, compras y eventos del
+ * historial fuera de EVENTOS_SIN_USO.
+ */
+export function motivoSinEliminar(activo: { estado: string; usos: number }): string | null {
+  if (activo.estado !== 'disponible' || activo.usos > 0) {
+    return 'Solo se elimina un equipo Disponible que nunca se usó (sin entregas, mantenciones, despachos ni compra). Si ya no sirve, dalo de baja.';
+  }
+  return null;
+}
+
 /**
  * Por que un equipo no puede recibir una mantencion, o null si puede (SPEC
  * 2.96). Sirve para programarla y para iniciarla: un equipo que no esta en

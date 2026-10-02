@@ -11,7 +11,8 @@ const mockDb = {
     delete: jest.fn(),
   },
   assetCategory: { findUnique: jest.fn() },
-  assetHistory: { create: jest.fn() },
+  assetHistory: { create: jest.fn(), deleteMany: jest.fn() },
+  auditLog: { create: jest.fn() },
   $transaction: jest.fn(),
 };
 jest.mock('@/shared/prisma', () => ({
@@ -118,21 +119,37 @@ describe('editarActivo', () => {
 });
 
 describe('eliminarActivo', () => {
-  const sinMovimientos = { ...activo, deletedAt: null, _count: { history: 0, assignments: 0 } };
+  const sinUso = { assignments: 0, maintenances: 0, dispatchItems: 0, purchaseAssets: 0, history: 0 };
+  const sinMovimientos = { ...activo, marca: 'Dell', modelo: 'X', deletedAt: null, _count: sinUso };
 
-  test('sin historial ni asignaciones se borra de verdad', async () => {
+  test('Disponible y sin uso se borra con su historial y queda en la auditoría (SPEC 2.130)', async () => {
     mockDb.asset.findUnique.mockResolvedValueOnce(sinMovimientos);
     await expect(eliminarActivo('a1', { descartar: false }, 'yo')).resolves.toEqual({
       descartado: false,
     });
+    expect(mockDb.assetHistory.deleteMany).toHaveBeenCalledWith({ where: { assetId: 'a1' } });
     expect(mockDb.asset.delete).toHaveBeenCalledWith({ where: { id: 'a1' } });
+    expect(mockDb.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ entidad: 'activo', accion: 'eliminar', entidadId: 'a1' }),
+    });
   });
 
-  test('con historial no se borra: 409 y apunta a la baja', async () => {
-    mockDb.asset.findUnique.mockResolvedValueOnce({
-      ...sinMovimientos,
-      _count: { history: 2, assignments: 0 },
+  test.each([
+    ['un evento de uso en el historial', { history: 1 }],
+    ['una entrega', { assignments: 1 }],
+    ['una mantención', { maintenances: 1 }],
+    ['un despacho', { dispatchItems: 1 }],
+    ['una compra', { purchaseAssets: 1 }],
+  ])('con %s no se borra: 409', async (_caso, uso) => {
+    mockDb.asset.findUnique.mockResolvedValueOnce({ ...sinMovimientos, _count: { ...sinUso, ...uso } });
+    await expect(eliminarActivo('a1', { descartar: false }, 'yo')).rejects.toMatchObject({
+      status: 409,
     });
+    expect(mockDb.asset.delete).not.toHaveBeenCalled();
+  });
+
+  test('si no está Disponible no se borra: 409', async () => {
+    mockDb.asset.findUnique.mockResolvedValueOnce({ ...sinMovimientos, estado: 'en_mantencion' });
     await expect(eliminarActivo('a1', { descartar: false }, 'yo')).rejects.toMatchObject({
       status: 409,
     });
@@ -151,7 +168,7 @@ describe('eliminarActivo', () => {
   test('descartar pide motivo; con motivo marca deletedAt y deja historial', async () => {
     mockDb.asset.findUnique.mockResolvedValue({
       ...sinMovimientos,
-      _count: { history: 3, assignments: 1 },
+      _count: { ...sinUso, history: 3, assignments: 1 },
     });
     await expect(eliminarActivo('a1', { descartar: true }, 'yo')).rejects.toMatchObject({
       status: 400,

@@ -199,7 +199,9 @@ export async function POST(request: NextRequest) {
 
 Un activo con historial o asignaciones **no se borra** (SPEC 2.7.7): su
 registro es evidencia de auditoria. `DELETE /api/activos/[id]` responde 409 y
-apunta a darlo de baja por Mantenciones (`/api/mantenciones/baja`). Para duplicados de importacion existe
+apunta a darlo de baja por Mantenciones (`/api/mantenciones/baja`). Excepción (SPEC 2.130): uno Disponible que
+nunca se usó (solo alta y ediciones en su historial) se borra con su historial y queda en la auditoría
+(`motivoSinEliminar`). Para duplicados de importacion existe
 `DELETE /api/activos/[id]?descartar=true&motivo=...`, que marca `deletedAt` y
 deja el evento en el historial. Los listados y reportes filtran con
 `ACTIVOS_VIGENTES` de `src/modules/activos/consultas.ts`.

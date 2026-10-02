@@ -17,12 +17,14 @@ import { cn } from "@/shared/cn";
 import type { TipoEvento } from "@prisma/client";
 import { formatearFecha } from "@/shared/utilidades/fechas";
 import { formatearClp } from "@/shared/utilidades/moneda";
-import { CategoryIcon, AssetStatusBadge } from "@/modules/activos/componentes";
+import { CategoryIcon, AssetStatusBadge, EliminarActivo } from "@/modules/activos/componentes";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import {
   CONDICION_ACTIVO_LABEL,
+  EVENTOS_SIN_USO,
   motivoSinBaja,
+  motivoSinEliminar,
   motivoSinMantencion,
   identificadorActivo,
 } from "@/modules/activos";
@@ -78,6 +80,15 @@ export default async function DetalleActivoPage({
 
   // Por que no se puede dar de baja (null si se puede).
   const bloqueoBaja = motivoSinBaja(asset);
+  // Se puede borrar de la base si se ingreso por error y nunca se uso (SPEC
+  // 2.130). Los despachos los revisa el servidor.
+  const usos =
+    asset.assignments.length +
+    asset.historialAsignacionesSinPersona.length +
+    asset.maintenances.length +
+    asset.purchaseAssets.length +
+    asset.history.filter((e) => !(EVENTOS_SIN_USO as readonly string[]).includes(e.tipoEvento)).length;
+  const sePuedeEliminar = !motivoSinEliminar({ estado: asset.estado, usos });
 
   return (
     <div className="space-y-6">
@@ -140,6 +151,11 @@ export default async function DetalleActivoPage({
                 )}
               </Can>
             ) : null}
+            {sePuedeEliminar && (
+              <Can recurso="activos" accion="delete">
+                <EliminarActivo id={asset.id} nombre={`${asset.marca} ${asset.modelo}`} />
+              </Can>
+            )}
           </div>
         }
       />

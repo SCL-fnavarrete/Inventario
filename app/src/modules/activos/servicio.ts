@@ -1,6 +1,5 @@
 import type { EstadoActivo, Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
-import { logger } from '@/shared/logger';
 import { ConflictError, errorRepetido, NotFoundError, ValidationError } from '@/shared/errores';
 import { MENSAJE_CAMBIO_SIMULTANEO } from '@/shared/utilidades/concurrencia';
 import {
@@ -11,8 +10,9 @@ import { sedeIdParaCrear } from '@/shared/sedes/filtro';
 import { exigirSedeActiva } from '@/shared/sedes/consultas';
 import type { CreateAssetInput, UpdateAssetInput } from '@/modules/activos/validaciones';
 import type { AssetVentaInput } from '@/modules/activos/validacionesTransicion';
-import { etiquetaEstadoActivo } from '@/modules/activos/estados';
+import { EVENTOS_SIN_USO, etiquetaEstadoActivo, motivoSinEliminar } from '@/modules/activos/estados';
 import { assetHistoryService, type AssetHistoryData } from '@/modules/activos/historial';
+import { auditLogService } from '@/shared/auditoria';
 import { validateTransition, type TransitionContext } from '@/modules/activos/maquinaEstados';
 
 type Tx = Prisma.TransactionClient;
@@ -401,7 +401,8 @@ export async function editarActivo(id: string, datos: UpdateAssetInput, usuario:
  * Elimina un equipo (DELETE /api/activos/[id]). Con historial o asignaciones
  * no se borra: su registro es evidencia de auditoria (SPEC 2.7.7, ISO 9001
  * 7.5.3); se da de baja, o se descarta si es un duplicado (con motivo). Solo
- * se borra de verdad el que nunca tuvo movimientos.
+ * se borra de verdad el ingresado por error que nunca se uso (SPEC 2.130):
+ * se van el equipo y su historial, y queda la linea en la auditoria.
  */
 export async function eliminarActivo(
   id: string,
@@ -414,8 +415,17 @@ export async function eliminarActivo(
       marca: true,
       modelo: true,
       estado: true,
+      numeroSerie: true,
       deletedAt: true,
-      _count: { select: { history: true, assignments: true } },
+      _count: {
+        select: {
+          assignments: true,
+          maintenances: true,
+          dispatchItems: true,
+          purchaseAssets: true,
+          history: { where: { tipoEvento: { notIn: [...EVENTOS_SIN_USO] } } },
+        },
+      },
     },
   });
   if (!existente) throw new NotFoundError('Activo no encontrado');
@@ -436,23 +446,25 @@ export async function eliminarActivo(
     return { descartado: true, asset };
   }
 
-  if (existente._count.history > 0 || existente._count.assignments > 0) {
-    throw new ConflictError(
-      'El activo tiene historial o asignaciones y no puede eliminarse: su registro es evidencia de auditoría. Dalo de baja en su lugar.',
-      {
-        eventosHistorial: existente._count.history,
-        asignaciones: existente._count.assignments,
-        alternativas: {
-          baja: `POST /api/mantenciones/baja`,
-          descartarDuplicado: `DELETE /api/activos/${id}?descartar=true&motivo=...`,
-        },
-      }
-    );
-  }
+  const c = existente._count;
+  const bloqueo = motivoSinEliminar({
+    estado: existente.estado,
+    usos: c.assignments + c.maintenances + c.dispatchItems + c.purchaseAssets + c.history,
+  });
+  if (bloqueo) throw new ConflictError(bloqueo);
 
-  await prisma.asset.delete({ where: { id } });
-  logger.info(
-    `[activos] Borrado físico de ${existente.marca} ${existente.modelo} (${id}) por ${usuario}: sin historial ni asignaciones`
-  );
+  const nombre = `${existente.marca} ${existente.modelo} (S/N: ${existente.numeroSerie})`;
+  await prisma.$transaction(async (tx) => {
+    await tx.assetHistory.deleteMany({ where: { assetId: id } });
+    await tx.asset.delete({ where: { id } });
+    await auditLogService.registrarEliminacion(
+      'activo',
+      id,
+      `Activo eliminado (ingresado por error): ${nombre}`,
+      { marca: existente.marca, modelo: existente.modelo, numeroSerie: existente.numeroSerie },
+      usuario,
+      tx
+    );
+  });
   return { descartado: false };
 }

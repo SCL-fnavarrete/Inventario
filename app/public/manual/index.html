@@ -220,7 +220,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
       <span class="etiqueta">SCL Consultores · Soporte TI</span>
       <h1>Manual de usuario del sistema de Inventario IT</h1>
       <p class="bajada">Cómo registrar los equipos de la empresa, entregarlos y recibirlos de vuelta, programar sus mantenciones, moverlos entre sedes y llevar el control de todo lo que pasa con ellos.</p>
-      <div class="datos-doc"><span><b>Versión del sistema:</b> SPEC v2.60</span><span><b>Fecha:</b> octubre de 2026</span><span><b>Datos de las capturas:</b> de ejemplo</span></div>
+      <div class="datos-doc"><span><b>Versión del sistema:</b> SPEC v2.61</span><span><b>Fecha:</b> octubre de 2026</span><span><b>Datos de las capturas:</b> de ejemplo</span></div>
     </header>
 
     <section class="capitulo" aria-labelledby="t-inicio">
@@ -244,12 +244,12 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
             <tr><td>Crear y recibir despachos entre sedes</td><td class="si">Sí</td><td class="si">Sí</td></tr>
             <tr><td>Administrar Kit de Bienvenida y EPP</td><td class="si">Sí</td><td class="si">Sí</td></tr>
             <tr><td>Registrar y editar compras</td><td class="si">Sí</td><td class="no">Solo consulta</td></tr>
-            <tr><td>Eliminar algo creado por error: una mantención pendiente, una compra sin repartir, un artículo de Kit/EPP o una opción de catálogo sin uso</td><td class="si">Sí</td><td class="no">No (solo tipos de mantención y motivos de baja)</td></tr>
+            <tr><td>Eliminar algo creado por error: un equipo que nunca se usó, una mantención pendiente, una compra sin repartir, un artículo de Kit/EPP o una opción de catálogo sin uso</td><td class="si">Sí</td><td class="no">No (solo tipos de mantención y motivos de baja)</td></tr>
             <tr><td>Configuración (usuarios, sedes, catálogos, seguridad, importar, accesos, auditoría)</td><td class="si">Sí</td><td class="no">No</td></tr>
           </tbody>
         </table>
       </div>
-      <div class="aviso cuidado"><b class="titulo">Lo que nunca se elimina</b><p>Equipos, personas, asignaciones, solicitudes, despachos y usuarios no se eliminan, ni siquiera un administrador: son evidencia de auditoría. Un equipo que deja de usarse se da de baja; una cuenta se desactiva.</p></div>
+      <div class="aviso cuidado"><b class="titulo">Lo que nunca se elimina</b><p>Personas, asignaciones, solicitudes, despachos y usuarios no se eliminan, ni siquiera un administrador: son evidencia de auditoría. Un equipo solo se elimina si se ingresó por error y nunca se usó; si ya se usó, se da de baja. Una cuenta se desactiva.</p></div>
       <p>Las sedes no limitan lo que ve cada persona: todos trabajan con todas las sedes. La sede indica dónde está cada equipo y a qué sede pertenece cada persona.</p>
 
       <h3 id="entrar">Iniciar y cerrar sesión</h3>
@@ -373,7 +373,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
         <button class="captura larga" type="button"><img src="img/08-activo-editar.jpg" alt="Formulario para editar un equipo" loading="lazy"></button>
         <figcaption>Editar un equipo. Al editar aparece además el nombre de equipo (hostname).</figcaption>
       </figure>
-      <div class="aviso cuidado"><b class="titulo">Los equipos no se borran</b><p>Un equipo es evidencia de auditoría y no se puede eliminar. Cuando deja de usarse se da de <b>baja</b>.</p></div>
+      <div class="aviso cuidado"><b class="titulo">Eliminar un equipo ingresado por error</b><p>El administrador ve el botón <b>Eliminar</b> solo en un equipo <span class="chip disp">Disponible</span> que nunca se usó: sin entregas, mantenciones, despachos ni compra (corregir sus datos no cuenta como uso). Se borra para siempre con su historial, y en la Auditoría queda quién lo eliminó. Un equipo que ya se usó no se elimina: cuando deja de servir se da de <b>baja</b>.</p></div>
 
       <h3 id="venta">Vender un equipo</h3>
       <p>Solo se vende un equipo que ya está de <span class="chip baja">Baja</span>. En su ficha pulsa <b>Registrar venta</b> e indica comprador, monto, moneda y fecha. El equipo pasa a <span class="chip vend">Vendido</span> y la venta queda en su historial.</p>
