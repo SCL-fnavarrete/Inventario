@@ -3951,7 +3951,15 @@ Hallazgo de Javier: una misma cuenta podía tener sesiones abiertas en varios na
 - Al desplegar este cambio, todas las sesiones abiertas quedan sin vigente: cada persona inicia sesión una vez de nuevo.
 - Tests: unitarios (sesión no vigente rechazada, inicio de sesión fija la vigente y anota solo si había otra abierta, cierre por admin) e integración `sesionVigente.int.test.ts` (Postgres real, incluido dos inicios a la vez). Prueba con dos navegadores.
 
+### 2.129 Manual de usuario dentro del sistema (02-oct-2026)
+Pedido de Javier: que los usuarios tengan a mano un manual de cómo usar el sistema.
+- Es una página estática en `public/manual/` (`index.html` y sus capturas en `img/`, tomadas de una base con datos de ejemplo). No usa la base de datos ni la API.
+- Se abre en una pestaña nueva desde "Manual de usuario" en el menú del usuario (arriba a la derecha, y en el menú del celular). La página exige sesión como todo el sistema (`proxy.ts`); las imágenes son públicas como todas las del sitio, y solo muestran datos de ejemplo.
+- Cuando cambie una pantalla o una regla, se actualiza el manual en el mismo commit si lo que dice deja de ser cierto.
+
 ## Changelog SPEC
+- **v2.60 (2026-10-02):**
+  - Sección 2.129 (nueva): manual de usuario estático en `public/manual/`, enlazado desde el menú del usuario.
 - **v2.59 (2026-10-01):**
   - Sección 2.128 (nueva): una sola sesión por usuario, gana la última (`sesion_vigente_id`); el otro equipo sale en su siguiente acción y queda en el registro; avisos al que entra y al que sacaron; botón y `POST /api/usuarios/[id]/cerrar-sesion` para que el administrador cierre la sesión de un usuario sin desactivarlo.
 - **v2.58 (2026-09-30):**

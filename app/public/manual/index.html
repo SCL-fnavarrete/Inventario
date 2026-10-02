@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manual Inventario IT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: indice fijo a la izquierda en escritorio, columna de lectura de ~70ch; en celular el indice va arriba. */
+:root {
+  --bg: #f6f8fb;
+  --surface: #ffffff;
+  --surface-2: #eef3f8;
+  --fg: #142233;
+  --fg-muted: #4a5a6c;
+  --fg-subtle: #6b7a8b;
+  --line: #dbe3ec;
+  --brand: #0b6a93;
+  --brand-soft: #e2f0f7;
+  --accent: #d9792b;
+  --ok: #1d8a52;
+  --ok-soft: #e4f4ea;
+  --warn: #a8640f;
+  --warn-soft: #fbf0dd;
+  --danger: #b4322d;
+  --danger-soft: #fbe7e5;
+  --shadow: 0 1px 2px rgba(20, 34, 51, .06), 0 8px 24px rgba(20, 34, 51, .06);
+  --display: "Montserrat", "Segoe UI", system-ui, sans-serif;
+  --body: "Nunito Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1823; --surface: #13212f; --surface-2: #182a3a; --fg: #e8eef4; --fg-muted: #b3c0cd; --fg-subtle: #8c9bab;
+    --line: #243a4e; --brand: #4fb3dd; --brand-soft: #123447; --accent: #f0a05a;
+    --ok: #5ccf8f; --ok-soft: #12321f; --warn: #f0b860; --warn-soft: #3a2a10; --danger: #f08a83; --danger-soft: #3d1715;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1823; --surface: #13212f; --surface-2: #182a3a; --fg: #e8eef4; --fg-muted: #b3c0cd; --fg-subtle: #8c9bab;
+  --line: #243a4e; --brand: #4fb3dd; --brand-soft: #123447; --accent: #f0a05a;
+  --ok: #5ccf8f; --ok-soft: #12321f; --warn: #f0b860; --warn-soft: #3a2a10; --danger: #f08a83; --danger-soft: #3d1715;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .25);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.65 var(--body); }
+a { color: var(--brand); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+.pagina { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 48px; max-width: 1240px; margin: 0 auto; padding-inline: 24px; padding-block: 32px 80px; }
+@media (max-width: 960px) { .pagina { grid-template-columns: minmax(0, 1fr); gap: 24px; padding-inline: 16px; } }
+
+/* Indice */
+nav.indice { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; max-height: calc(100vh - 48px); overflow-y: auto; font-size: 14px; }
+@media (max-width: 960px) { nav.indice { position: static; max-height: none; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 16px; } }
+.marca { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+.marca-logo { width: 34px; height: 34px; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.marca-logo span:nth-child(1) { background: #f2b234; } .marca-logo span:nth-child(2) { background: #0b6a93; }
+.marca-logo span:nth-child(3) { background: #e2543f; } .marca-logo span:nth-child(4) { background: #2e9fd6; }
+.marca b { font-family: var(--display); font-size: 15px; letter-spacing: .02em; display: block; line-height: 1.2; }
+.marca small { color: var(--fg-subtle); font-size: 12px; }
+nav.indice ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.indice > ol > li > a { font-weight: 700; }
+nav.indice ol ol { padding-left: 14px; margin: 2px 0 8px; }
+nav.indice ol ol a { color: var(--fg-muted); font-weight: 400; }
+nav.indice a { display: block; padding: 4px 10px; border-radius: 6px; text-decoration: none; color: var(--fg); }
+nav.indice a:hover { background: var(--surface-2); }
+nav.indice a.activo { background: var(--brand-soft); color: var(--brand); }
+
+/* Contenido */
+main { min-width: 0; max-width: 820px; }
+header.portada { padding-block: 8px 28px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.etiqueta { font: 600 12px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 clamp(30px, 4.5vw, 42px)/1.15 var(--display); margin: 12px 0 12px; text-wrap: balance; }
+.bajada { font-size: 18px; color: var(--fg-muted); max-width: 62ch; margin: 0; }
+.datos-doc { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 18px; font-size: 13px; color: var(--fg-subtle); }
+.datos-doc b { color: var(--fg-muted); font-weight: 600; }
+
+section.capitulo { padding-top: 40px; }
+h2 { font: 700 26px/1.25 var(--display); margin: 0 0 6px; text-wrap: balance; display: flex; align-items: baseline; gap: 12px; }
+h2 .num { font: 600 14px/1 var(--mono); color: var(--accent); }
+h3 { font: 700 19px/1.3 var(--display); margin: 32px 0 6px; text-wrap: balance; }
+h4 { font: 700 16px/1.4 var(--body); margin: 20px 0 4px; }
+p { margin: 10px 0; max-width: 70ch; }
+.intro { color: var(--fg-muted); font-size: 17px; }
+ul, ol { padding-left: 22px; max-width: 70ch; }
+li { margin: 4px 0; }
+code, kbd { font: 500 .88em var(--mono); background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; }
+
+/* Pasos numerados (son secuencias reales) */
+ol.pasos { list-style: none; counter-reset: paso; padding: 0; display: grid; gap: 10px; }
+ol.pasos > li { counter-increment: paso; position: relative; padding-left: 40px; margin: 0; }
+ol.pasos > li::before { content: counter(paso); position: absolute; left: 0; top: 1px; width: 26px; height: 26px; border-radius: 50%; background: var(--brand-soft); color: var(--brand); font: 700 13px/26px var(--body); text-align: center; }
+
+/* Avisos */
+.aviso { border: 1px solid var(--line); border-left-width: 4px; border-radius: 10px; padding: 12px 16px; margin: 16px 0; background: var(--surface); max-width: 70ch; }
+.aviso p { margin: 4px 0; }
+.aviso b.titulo { display: block; font-size: 14px; letter-spacing: .02em; }
+.aviso.nota { border-left-color: var(--brand); }
+.aviso.nota b.titulo { color: var(--brand); }
+.aviso.cuidado { border-left-color: var(--warn); background: var(--warn-soft); }
+.aviso.cuidado b.titulo { color: var(--warn); }
+.aviso.admin { border-left-color: var(--danger); }
+.aviso.admin b.titulo { color: var(--danger); }
+
+/* Tablas */
+.tabla { overflow-x: auto; margin: 16px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { background: var(--surface-2); font-weight: 700; font-size: 12.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--fg-muted); }
+tr:last-child td { border-bottom: 0; }
+td.si { color: var(--ok); font-weight: 700; }
+td.no { color: var(--fg-subtle); }
+.chip { display: inline-block; font: 600 12.5px/1 var(--body); padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+.chip.disp { background: var(--ok-soft); color: var(--ok); }
+.chip.asig { background: var(--brand-soft); color: var(--brand); }
+.chip.mant { background: var(--warn-soft); color: var(--warn); }
+.chip.nodev { background: #fdeadb; color: #b4561a; }
+.chip.baja { background: var(--danger-soft); color: var(--danger); }
+.chip.vend { background: var(--surface-2); color: var(--fg-muted); }
+.chip.trans { background: #e1f3fb; color: #0e7aa6; }
+.chip.repar { background: #f1e6fb; color: #7a3fb4; }
+:root[data-theme="dark"] .chip.nodev, :root[data-theme="dark"] .chip.trans, :root[data-theme="dark"] .chip.repar { background: var(--surface-2); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip.nodev, :root:not([data-theme="light"]) .chip.trans, :root:not([data-theme="light"]) .chip.repar { background: var(--surface-2); } }
+
+/* Capturas */
+figure { margin: 20px 0 26px; }
+.captura { position: relative; display: block; width: 100%; padding: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); cursor: zoom-in; max-height: 620px; }
+.captura img { display: block; width: 100%; height: auto; }
+.captura.larga::after { content: "Clic para ver completa"; position: absolute; inset: auto 0 0 0; height: 90px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 14px; font: 600 13px var(--body); color: var(--fg); background: linear-gradient(to bottom, transparent, var(--surface) 80%); }
+.captura.doc { max-width: 520px; max-height: none; }
+figcaption { font-size: 13.5px; color: var(--fg-subtle); margin-top: 8px; max-width: 70ch; }
+.dos { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.dos figure { margin: 8px 0; }
+
+/* Visor */
+#visor { position: fixed; inset: 0; z-index: 50; background: rgba(8, 16, 24, .86); display: flex; justify-content: center; overflow-y: auto; padding: calc(env(safe-area-inset-top, 0px) + 56px) 16px 40px; }
+#visor[hidden] { display: none; }
+#visor img { max-width: min(1440px, 100%); height: auto; align-self: flex-start; border-radius: 8px; box-shadow: 0 20px 60px rgba(0, 0, 0, .5); }
+#visor button { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); right: 16px; font: 600 14px var(--body); background: #fff; color: #142233; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+
+.roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 16px 0; }
+.rol { border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; background: var(--surface); }
+.rol h4 { margin: 0 0 4px; }
+.rol p { margin: 0; color: var(--fg-muted); font-size: 15px; }
+
+footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13px; color: var(--fg-subtle); }
+</style>
+</head>
+<body>
+
+<div class="pagina">
+  <nav class="indice" aria-label="Índice del manual">
+    <div class="marca">
+      <div class="marca-logo" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+      <div><b>Inventario IT</b><small>Manual de usuario</small></div>
+    </div>
+    <ol>
+      <li><a href="#inicio">Antes de empezar</a>
+        <ol>
+          <li><a href="#roles">Roles y permisos</a></li>
+          <li><a href="#entrar">Iniciar y cerrar sesión</a></li>
+          <li><a href="#menu">Menú, sedes y tema</a></li>
+        </ol>
+      </li>
+      <li><a href="#dashboard">Dashboard</a></li>
+      <li><a href="#activos">Activos (equipos)</a>
+        <ol>
+          <li><a href="#estados">Estados de un equipo</a></li>
+          <li><a href="#activo-nuevo">Registrar un equipo</a></li>
+          <li><a href="#ficha">Ficha del equipo</a></li>
+          <li><a href="#venta">Vender un equipo</a></li>
+        </ol>
+      </li>
+      <li><a href="#asignaciones">Asignaciones</a></li>
+      <li><a href="#personal">Personal</a></li>
+      <li><a href="#kit">Kit de Bienvenida y EPP</a></li>
+      <li><a href="#solicitudes">Solicitudes</a>
+        <ol>
+          <li><a href="#onboarding">Onboarding</a></li>
+          <li><a href="#cambio">Cambio de equipo</a></li>
+          <li><a href="#offboarding">Offboarding</a></li>
+          <li><a href="#detalle-solicitud">Detalle y documentos</a></li>
+        </ol>
+      </li>
+      <li><a href="#mantenciones">Mantenciones</a>
+        <ol>
+          <li><a href="#programar">Programar</a></li>
+          <li><a href="#completar">Completar</a></li>
+          <li><a href="#baja">Dar de baja</a></li>
+          <li><a href="#tipos-motivos">Tipos y motivos</a></li>
+        </ol>
+      </li>
+      <li><a href="#compras">Compras</a></li>
+      <li><a href="#despachos">Despachos</a></li>
+      <li><a href="#configuracion">Configuración</a>
+        <ol>
+          <li><a href="#usuarios">Usuarios</a></li>
+          <li><a href="#sedes">Sedes</a></li>
+          <li><a href="#catalogos">Catálogos</a></li>
+          <li><a href="#seguridad">Seguridad</a></li>
+          <li><a href="#importar">Importar</a></li>
+          <li><a href="#accesos">Registro de accesos</a></li>
+          <li><a href="#auditoria">Auditoría</a></li>
+        </ol>
+      </li>
+      <li><a href="#preguntas">Preguntas frecuentes</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="portada" id="inicio">
+      <span class="etiqueta">SCL Consultores · Soporte TI</span>
+      <h1>Manual de usuario del sistema de Inventario IT</h1>
+      <p class="bajada">Cómo registrar los equipos de la empresa, entregarlos y recibirlos de vuelta, programar sus mantenciones, moverlos entre sedes y llevar el control de todo lo que pasa con ellos.</p>
+      <div class="datos-doc"><span><b>Versión del sistema:</b> SPEC v2.60</span><span><b>Fecha:</b> octubre de 2026</span><span><b>Datos de las capturas:</b> de ejemplo</span></div>
+    </header>
+
+    <section class="capitulo" aria-labelledby="t-inicio">
+      <h2 id="t-inicio"><span class="num">01</span>Antes de empezar</h2>
+      <p class="intro">El sistema registra cada equipo de TI (notebooks, celulares, monitores, periféricos), a quién está entregado, en qué sede está y todo lo que le pasa en su vida útil. Cada acción queda en un historial con quién la hizo y cuándo.</p>
+      <p>Las capturas de este manual usan datos de ejemplo. Los nombres, RUT y números de serie no son reales.</p>
+
+      <h3 id="roles">Roles y permisos</h3>
+      <p>Cada persona entra con su propia cuenta, que tiene uno de estos dos roles:</p>
+      <div class="roles">
+        <div class="rol"><h4>Administrador</h4><p>Todo el sistema, incluida la Configuración: usuarios, sedes, catálogos, seguridad, importación de Excel, registros de accesos y auditoría. Es el único que registra compras.</p></div>
+        <div class="rol"><h4>Técnico IT</h4><p>El trabajo diario de soporte en todas las sedes: equipos, personal, solicitudes, mantenciones, despachos y Kit/EPP. No ve la Configuración y solo consulta las compras.</p></div>
+      </div>
+      <div class="tabla">
+        <table>
+          <thead><tr><th>Puede…</th><th>Administrador</th><th>Técnico IT</th></tr></thead>
+          <tbody>
+            <tr><td>Ver y registrar equipos, asignaciones y personas</td><td class="si">Sí</td><td class="si">Sí</td></tr>
+            <tr><td>Crear solicitudes (onboarding, cambio, offboarding)</td><td class="si">Sí</td><td class="si">Sí</td></tr>
+            <tr><td>Programar, completar y dar de baja en Mantenciones</td><td class="si">Sí</td><td class="si">Sí</td></tr>
+            <tr><td>Crear y recibir despachos entre sedes</td><td class="si">Sí</td><td class="si">Sí</td></tr>
+            <tr><td>Administrar Kit de Bienvenida y EPP</td><td class="si">Sí</td><td class="si">Sí</td></tr>
+            <tr><td>Registrar y editar compras</td><td class="si">Sí</td><td class="no">Solo consulta</td></tr>
+            <tr><td>Eliminar algo creado por error: una mantención pendiente, una compra sin repartir, un artículo de Kit/EPP o una opción de catálogo sin uso</td><td class="si">Sí</td><td class="no">No (solo tipos de mantención y motivos de baja)</td></tr>
+            <tr><td>Configuración (usuarios, sedes, catálogos, seguridad, importar, accesos, auditoría)</td><td class="si">Sí</td><td class="no">No</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="aviso cuidado"><b class="titulo">Lo que nunca se elimina</b><p>Equipos, personas, asignaciones, solicitudes, despachos y usuarios no se eliminan, ni siquiera un administrador: son evidencia de auditoría. Un equipo que deja de usarse se da de baja; una cuenta se desactiva.</p></div>
+      <p>Las sedes no limitan lo que ve cada persona: todos trabajan con todas las sedes. La sede indica dónde está cada equipo y a qué sede pertenece cada persona.</p>
+
+      <h3 id="entrar">Iniciar y cerrar sesión</h3>
+      <ol class="pasos">
+        <li>Abre la dirección del sistema en el navegador.</li>
+        <li>Escribe tu <b>usuario</b> (por ejemplo <code>jsoto</code>), no tu correo, y tu <b>contraseña</b>.</li>
+        <li>Pulsa <b>Ingresar</b>. Llegas al Dashboard.</li>
+      </ol>
+      <figure>
+        <button class="captura" type="button"><img src="img/01-login.jpg" alt="Pantalla de inicio de sesión con los campos Usuario y Contraseña" loading="lazy"></button>
+        <figcaption>Inicio de sesión. Si te equivocas varias veces seguidas, la cuenta se bloquea unos minutos (por defecto, 15 minutos después de 5 intentos).</figcaption>
+      </figure>
+      <div class="aviso nota">
+        <b class="titulo">Una sola sesión por usuario</b>
+        <p>Tu usuario solo puede estar abierto en un lugar a la vez. Si entras desde otro navegador o equipo, la sesión anterior se cierra en su siguiente acción y esa pantalla vuelve al inicio de sesión con el aviso “Tu sesión se cerró”. Al entrar verás “Se cerró tu sesión en otro equipo” si había otra abierta. Si no fuiste tú, cambia tu contraseña o avisa a un administrador.</p>
+      </div>
+      <p><b>Para salir</b>, pulsa tu círculo con iniciales, arriba a la derecha, y elige <b>Cerrar sesión</b>. La sesión también se cierra sola cuando vence (24 horas por defecto).</p>
+      <p><b>Si olvidaste tu contraseña</b>, pídele a un administrador que te asigne una nueva desde Configuración › Usuarios. El sistema no envía correos de recuperación.</p>
+
+      <h3 id="menu">Menú, sedes y tema</h3>
+      <p>La barra superior tiene el menú de módulos (Dashboard, Activos, Solicitudes, Despachos, Mantenciones, Compras y, para administradores, Configuración) y tres controles a la derecha:</p>
+      <ul>
+        <li><b>Selector de sede</b> (“Todas las sedes”): filtra el Dashboard y los listados por una sede. No limita permisos; solo acota lo que ves.</li>
+        <li><b>Luna/sol</b>: cambia entre modo claro y oscuro.</li>
+        <li><b>Tus iniciales</b>: tu nombre, tu rol y Cerrar sesión.</li>
+      </ul>
+      <div class="dos">
+        <figure>
+          <button class="captura" type="button"><img src="img/48-dashboard-oscuro.jpg" alt="Dashboard en modo oscuro" loading="lazy"></button>
+          <figcaption>El mismo Dashboard en modo oscuro.</figcaption>
+        </figure>
+        <figure>
+          <button class="captura" type="button"><img src="img/49-tecnico.jpg" alt="Barra superior de un técnico, sin la opción Configuración" loading="lazy"></button>
+          <figcaption>Lo que ve un técnico: el menú no incluye Configuración.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="capitulo" id="dashboard" aria-labelledby="t-dash">
+      <h2 id="t-dash"><span class="num">02</span>Dashboard</h2>
+      <p class="intro">La pantalla de inicio resume el inventario y avisa lo que necesita atención.</p>
+      <figure>
+        <button class="captura larga" type="button"><img src="img/02-dashboard.jpg" alt="Dashboard con alertas, tarjetas de totales y gráficos" loading="lazy"></button>
+        <figcaption>Dashboard completo. Cada tarjeta y alerta lleva a la pantalla correspondiente al hacer clic.</figcaption>
+      </figure>
+      <ul>
+        <li><b>Alertas y Notificaciones</b>: mantenciones vencidas y próximas (las 5 más urgentes de cada grupo, con un enlace “Ver todas”), artículos de Kit/EPP sin stock o con stock bajo, y categorías de equipos sin stock disponible.</li>
+        <li><b>Tarjetas de totales</b>: equipos totales, disponibles, asignados, en mantención, no devueltos, de baja, vendidos, mantenciones pendientes, entregas de los últimos 30 días y solicitudes abiertas.</li>
+        <li><b>Gráficos</b>: stock por categoría, distribución por estado y movimientos (entregas y devoluciones) de los últimos seis meses. Pasa el mouse por un gráfico para ver los números.</li>
+        <li><b>Listas</b>: equipos por categoría y stock de Kit de Bienvenida y de EPP.</li>
+      </ul>
+      <p>Si eliges una sede en el selector de arriba, todo el Dashboard muestra solo esa sede.</p>
+    </section>
+
+    <section class="capitulo" id="activos" aria-labelledby="t-activos">
+      <h2 id="t-activos"><span class="num">03</span>Activos (equipos)</h2>
+      <p class="intro">Aquí está el inventario: cada notebook, celular, monitor o periférico de la empresa. El módulo tiene cinco pestañas: Equipos, Asignaciones, Personal, Kit de Bienvenida y EPP.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/04-activos-lista.jpg" alt="Listado de activos en vista de tabla" loading="lazy"></button>
+        <figcaption>Listado de equipos en vista de tabla.</figcaption>
+      </figure>
+      <p>Arriba están los totales por estado y por categoría: <b>pulsa uno para filtrar</b> la lista. Debajo puedes buscar por número de serie, marca, modelo o persona, y filtrar por marca, sistema operativo, antivirus, licencia de Microsoft 365 o motivo de baja.</p>
+      <p>El selector <b>Vista</b> cambia entre tres formas de ver los equipos:</p>
+      <div class="dos">
+        <figure>
+          <button class="captura larga" type="button"><img src="img/05-activos-tarjetas.jpg" alt="Equipos en vista de tarjetas" loading="lazy"></button>
+          <figcaption>Tarjetas: cada equipo con su estado, sus datos principales y la persona que lo tiene.</figcaption>
+        </figure>
+        <figure>
+          <button class="captura" type="button"><img src="img/05b-activos-kanban.jpg" alt="Equipos agrupados por estado en vista Kanban" loading="lazy"></button>
+          <figcaption>Kanban: una columna por estado, para ver de un vistazo cuántos hay en cada uno.</figcaption>
+        </figure>
+      </div>
+      <p><b>Exportar</b> descarga un Excel con los equipos que estás viendo (respeta los filtros), con una hoja de resumen y una hoja por sede.</p>
+
+      <h3 id="estados">Estados de un equipo</h3>
+      <p>El estado dice en qué momento de su vida está cada equipo. <b>No se cambia a mano</b>: cambia solo cuando se hace el proceso que corresponde.</p>
+      <div class="tabla">
+        <table>
+          <thead><tr><th>Estado</th><th>Qué significa</th><th>Cómo llega ahí</th></tr></thead>
+          <tbody>
+            <tr><td><span class="chip disp">Disponible</span></td><td>En bodega, listo para entregar.</td><td>Al registrarlo, al devolverlo en buen estado, al repararlo o al llegar de otra sede.</td></tr>
+            <tr><td><span class="chip asig">Asignado</span></td><td>Lo tiene una persona.</td><td>Con una solicitud de Onboarding o Cambio de equipo.</td></tr>
+            <tr><td><span class="chip mant">En Mantención</span></td><td>En revisión o reparación.</td><td>Al iniciar una mantención o al devolverlo dañado.</td></tr>
+            <tr><td><span class="chip nodev">No devuelto</span></td><td>La persona se fue sin devolverlo.</td><td>En un Offboarding, marcando “No devolvió”.</td></tr>
+            <tr><td><span class="chip trans">En tránsito</span></td><td>Viaja a otra sede.</td><td>Con un despacho, hasta que la otra sede confirma que llegó.</td></tr>
+            <tr><td><span class="chip repar">Por repartir</span></td><td>Recién comprado, espera en la sede de llegada.</td><td>Al registrar una compra; sale al repartirla.</td></tr>
+            <tr><td><span class="chip baja">Baja</span></td><td>Fuera de uso para siempre.</td><td>Desde Mantenciones (“Dar de baja”) o en un cambio de equipo con un motivo de baja.</td></tr>
+            <tr><td><span class="chip vend">Vendido</span></td><td>Se vendió; ya no es de la empresa.</td><td>Desde un equipo de baja, con “Registrar venta”.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="activo-nuevo">Registrar un equipo</h3>
+      <ol class="pasos">
+        <li>En Activos › Equipos pulsa <b>Nuevo</b>.</li>
+        <li>Elige la <b>categoría</b>. Según la categoría aparecen los campos que corresponden: procesador, RAM y disco en un computador; IMEI, número y plan en un celular; pulgadas en un monitor; conectividad en un periférico.</li>
+        <li>Completa <b>marca</b> (de la lista; con <b>+</b> agregas una nueva), <b>modelo</b>, <b>número de serie</b> (en un celular, el IMEI) y la <b>sede</b> donde está.</li>
+        <li>Opcional: fecha de compra, fin de garantía, <b>valor en pesos</b> y observaciones.</li>
+        <li>Pulsa <b>Guardar Activo</b>. El equipo queda <span class="chip disp">Disponible</span>.</li>
+      </ol>
+      <figure>
+        <button class="captura" type="button"><img src="img/07-activo-nuevo.jpg" alt="Formulario Nuevo Activo" loading="lazy"></button>
+        <figcaption>Formulario de un equipo nuevo. Los campos con * son obligatorios.</figcaption>
+      </figure>
+      <div class="aviso nota"><b class="titulo">Equipos que llegan en una compra</b><p>Si el equipo viene en una factura, conviene registrarlo desde <a href="#compras">Compras</a>: así queda unido a su factura.</p></div>
+      <div class="aviso nota"><b class="titulo">Fin de garantía</b><p>Queda a la vista en la ficha del equipo. El sistema no envía avisos cuando está por vencer: revísala en la ficha.</p></div>
+
+      <h3 id="ficha">Ficha del equipo</h3>
+      <p>Al pulsar un equipo se abre su ficha: estado, condición, sede, persona que lo tiene, datos generales, especificaciones, <b>historial de eventos</b> (todo lo que le pasó, con quién y cuándo) e <b>historial de asignaciones</b>.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/06-activo-detalle.jpg" alt="Ficha de un notebook con su historial" loading="lazy"></button>
+        <figcaption>Ficha de un equipo. Desde aquí se edita, se programa una mantención o se da de baja.</figcaption>
+      </figure>
+      <ul>
+        <li><b>Editar</b>: corrige datos como el modelo, las especificaciones o el valor. El estado no se edita. Si cambias el valor, el cambio queda en el historial.</li>
+        <li><b>Programar mantención</b>: abre Mantenciones con este equipo elegido.</li>
+        <li><b>Dar de baja</b>: solo para un equipo que no tiene persona asignada (ver <a href="#baja">Dar de baja</a>).</li>
+      </ul>
+      <figure>
+        <button class="captura larga" type="button"><img src="img/08-activo-editar.jpg" alt="Formulario para editar un equipo" loading="lazy"></button>
+        <figcaption>Editar un equipo. Al editar aparece además el nombre de equipo (hostname).</figcaption>
+      </figure>
+      <div class="aviso cuidado"><b class="titulo">Los equipos no se borran</b><p>Un equipo es evidencia de auditoría y no se puede eliminar. Cuando deja de usarse se da de <b>baja</b>.</p></div>
+
+      <h3 id="venta">Vender un equipo</h3>
+      <p>Solo se vende un equipo que ya está de <span class="chip baja">Baja</span>. En su ficha pulsa <b>Registrar venta</b> e indica comprador, monto, moneda y fecha. El equipo pasa a <span class="chip vend">Vendido</span> y la venta queda en su historial.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/09-activo-venta.jpg" alt="Formulario Registrar Venta" loading="lazy"></button>
+        <figcaption>Registro de la venta de un equipo dado de baja.</figcaption>
+      </figure>
+    </section>
+
+    <section class="capitulo" id="asignaciones" aria-labelledby="t-asig">
+      <h2 id="t-asig"><span class="num">04</span>Asignaciones</h2>
+      <p class="intro">La pestaña Activos › Asignaciones lista qué equipo tiene cada persona hoy. Se busca por RUT, nombre o equipo.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/10-asignaciones.jpg" alt="Listado de asignaciones vigentes" loading="lazy"></button>
+        <figcaption>Equipos entregados actualmente.</figcaption>
+      </figure>
+      <p>El ojo de cada fila abre el detalle: la persona, el equipo, cuándo y quién lo entregó, el tipo de movimiento (ingreso o cambio) y el historial del equipo.</p>
+      <figure>
+        <button class="captura larga" type="button"><img src="img/11-asignacion-detalle.jpg" alt="Detalle de una asignación" loading="lazy"></button>
+        <figcaption>Detalle de una asignación.</figcaption>
+      </figure>
+      <div class="aviso nota"><b class="titulo">¿Cómo se entrega o recibe un equipo?</b><p>Siempre con una <a href="#solicitudes">solicitud</a>: Onboarding para entregar, Cambio de equipo para reemplazar y Offboarding para recibir. Así cada movimiento queda con su ticket y su acta.</p></div>
+    </section>
+
+    <section class="capitulo" id="personal" aria-labelledby="t-pers">
+      <h2 id="t-pers"><span class="num">05</span>Personal</h2>
+      <p class="intro">La pestaña Activos › Personal es la lista de colaboradores con sus datos y sus equipos. Las personas nuevas se crean con una solicitud de <a href="#onboarding">Onboarding</a>.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/12-personal.jpg" alt="Listado de personal" loading="lazy"></button>
+        <figcaption>Personal. Las tarjetas de arriba filtran entre activos y desvinculados.</figcaption>
+      </figure>
+      <p>El ojo abre la <b>ficha del empleado</b>: datos de contacto, cargo, jefatura, qué equipos tiene por categoría y el estado de su Kit de Bienvenida y EPP. El lápiz permite <b>editar</b> sus datos (correo, cargo, jefatura, teléfono, dirección…).</p>
+      <div class="dos">
+        <figure>
+          <button class="captura larga" type="button"><img src="img/13-persona-detalle.jpg" alt="Ficha de un empleado" loading="lazy"></button>
+          <figcaption>Ficha de un empleado.</figcaption>
+        </figure>
+        <figure>
+          <button class="captura larga" type="button"><img src="img/14-persona-editar.jpg" alt="Formulario para editar un empleado" loading="lazy"></button>
+          <figcaption>Edición de sus datos.</figcaption>
+        </figure>
+      </div>
+      <p>El RUT es opcional: si no se conoce, se deja en blanco y se completa después.</p>
+    </section>
+
+    <section class="capitulo" id="kit" aria-labelledby="t-kit">
+      <h2 id="t-kit"><span class="num">06</span>Kit de Bienvenida y EPP</h2>
+      <p class="intro">Artículos que se entregan a las personas pero no son equipos: mochila, botella, polerón (Kit de Bienvenida), y casco, zapatos o chaleco de seguridad (EPP, elementos de protección personal). Se lleva el stock por sede.</p>
+      <div class="dos">
+        <figure>
+          <button class="captura" type="button"><img src="img/15-kit-bienvenida.jpg" alt="Listado del Kit de Bienvenida con stock" loading="lazy"></button>
+          <figcaption>Kit de Bienvenida, con stock por sede.</figcaption>
+        </figure>
+        <figure>
+          <button class="captura" type="button"><img src="img/16-epp.jpg" alt="Listado de EPP con stock" loading="lazy"></button>
+          <figcaption>EPP.</figcaption>
+        </figure>
+      </div>
+      <ul>
+        <li><b>Nuevo Artículo</b>: nombre, sede, cantidad y stock mínimo. Cuando el stock llega al mínimo, aparece como “Stock bajo” en el Dashboard; en 0, como “Sin stock”.</li>
+        <li>El stock <b>baja solo</b> al entregar en un Onboarding y <b>sube</b> al devolverlo o al repartir una compra.</li>
+        <li>El lápiz corrige el nombre o la cantidad; el basurero (solo administrador) elimina un artículo creado por error.</li>
+      </ul>
+    </section>
+
+    <section class="capitulo" id="solicitudes" aria-labelledby="t-sol">
+      <h2 id="t-sol"><span class="num">07</span>Solicitudes</h2>
+      <p class="intro">Las solicitudes son el camino para entregar, cambiar y recibir equipos. Cada una se asocia al ticket de la ticketera, deja un número propio (por ejemplo <code>WF-2026-0001</code>) y genera su acta en PDF.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/17-solicitudes.jpg" alt="Listado de solicitudes" loading="lazy"></button>
+        <figcaption>Listado de solicitudes. El buscador encuentra por número, ID del ticket, empleado o RUT.</figcaption>
+      </figure>
+      <p>Pulsa <b>Nueva Solicitud</b> y elige el tipo:</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/18-solicitud-tipo.jpg" alt="Elección del tipo de solicitud" loading="lazy"></button>
+        <figcaption>Los tres tipos de solicitud.</figcaption>
+      </figure>
+      <p>Todas piden el <b>ID Ticket</b> (el número del ticket de la ticketera que la origina; es obligatorio) y se <b>crean ya cerradas</b>: al pulsar Crear Solicitud se hacen de una vez las entregas y devoluciones. El responsable eres tú. Si sales a mitad de camino, al volver el sistema ofrece <b>recuperar el borrador</b>.</p>
+
+      <h3 id="onboarding">Onboarding: entregar equipos a una persona nueva</h3>
+      <ol class="pasos">
+        <li>Completa los datos de la persona: nombres, apellidos, RUT, correo personal, cargo, tipo de contrato, fecha de ingreso, supervisor, celular y dirección. Si la persona ya trabajó antes en la empresa, elige <b>Ya trabajó aquí (reincorporación)</b> y búscala: se reactiva su ficha en vez de crear otra.</li>
+        <li>Escribe el <b>ID Ticket</b>.</li>
+        <li>En <b>Equipos Requeridos</b>, abre cada categoría y elige el equipo exacto que se entrega (solo aparecen los disponibles de la sede). En un notebook indica además el estado del cargador.</li>
+        <li>Si corresponde, marca <b>Kit de Bienvenida</b> y/o <b>EPP</b> y ajusta los artículos y cantidades.</li>
+        <li>Elige la <b>sede</b> y coordina la entrega: fecha y hora, medio (presencial o despacho Chilexpress) y lugar u OT.</li>
+        <li>Pulsa <b>Crear Solicitud</b>. Se crea la persona, los equipos quedan <span class="chip asig">Asignados</span> y el stock de Kit/EPP se descuenta.</li>
+      </ol>
+      <figure>
+        <button class="captura larga" type="button"><img src="img/19-solicitud-onboarding.jpg" alt="Formulario de onboarding" loading="lazy"></button>
+        <figcaption>Formulario de Onboarding. Cada categoría muestra cuántos equipos disponibles hay.</figcaption>
+      </figure>
+
+      <h3 id="cambio">Cambio de equipo</h3>
+      <p>Para reemplazar uno o varios equipos de una persona (por falla, daño u otro motivo).</p>
+      <ol class="pasos">
+        <li>Busca a la persona por nombre, RUT o correo.</li>
+        <li>Escribe el <b>ID Ticket</b> y el <b>motivo del cambio</b>.</li>
+        <li>Marca cada equipo que se cambia y elige <b>en qué estado vuelve</b> (ver tabla).</li>
+        <li>Elige el <b>equipo nuevo</b> de reemplazo (de la misma categoría y sede) y, en un notebook, el estado de los cargadores.</li>
+        <li>Coordina la entrega del reemplazo y pulsa <b>Crear Solicitud</b>.</li>
+      </ol>
+      <div class="tabla">
+        <table>
+          <thead><tr><th>Si el equipo vuelve…</th><th>Qué pasa con él</th></tr></thead>
+          <tbody>
+            <tr><td><b>Buen estado</b></td><td>Queda <span class="chip disp">Disponible</span> para entregar a otra persona.</td></tr>
+            <tr><td><b>Dañado</b></td><td>Pasa a <span class="chip mant">En Mantención</span> con una mantención correctiva abierta, para evaluar si se repara.</td></tr>
+            <tr><td><b>Para dar de baja por…</b> (Extravío, Falla irreparable, Obsolescencia, Robo, Otro)</td><td>Queda de <span class="chip baja">Baja</span> de inmediato, con ese motivo. Con “Otro” se pide el detalle.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <figure>
+        <button class="captura larga" type="button"><img src="img/20-solicitud-cambio.jpg" alt="Formulario de cambio de equipo" loading="lazy"></button>
+        <figcaption>Cambio de equipo: se califica el equipo que vuelve y se elige el reemplazo.</figcaption>
+      </figure>
+
+      <h3 id="offboarding">Offboarding: desvinculación</h3>
+      <p>Para recibir los equipos de una persona que deja la empresa.</p>
+      <ol class="pasos">
+        <li>Busca a la persona. Aparecen todos los equipos que tiene.</li>
+        <li>Escribe el <b>ID Ticket</b> y la <b>fecha de desvinculación</b>.</li>
+        <li>Califica cada equipo: <b>Buen estado</b> (queda disponible), <b>Dañado</b> (pasa a mantención) o <b>No devolvió</b>.</li>
+        <li>Indica el estado del cargador y, si tiene, el Kit/EPP que devuelve.</li>
+        <li>Coordina la devolución y pulsa <b>Crear Solicitud</b>. La persona queda desvinculada.</li>
+      </ol>
+      <figure>
+        <button class="captura larga" type="button"><img src="img/21-solicitud-offboarding.jpg" alt="Formulario de offboarding" loading="lazy"></button>
+        <figcaption>Offboarding: cada equipo se califica antes de crear la solicitud.</figcaption>
+      </figure>
+      <div class="aviso cuidado"><b class="titulo">Equipo no devuelto</b><p>Si la persona no devuelve un equipo, queda <span class="chip nodev">No devuelto</span> y sigue a su nombre, a la espera de recuperarlo. Se registra el <b>valor</b> que tenía el equipo en ese momento, para que RRHH lo considere. Si después aparece, se recibe con otro Offboarding sobre la misma persona.</p></div>
+
+      <h3 id="detalle-solicitud">Detalle de la solicitud y documentos</h3>
+      <p>Al abrir una solicitud ves su número, el ticket (con el lápiz se corrige), los equipos entregados o devueltos, la coordinación, la persona y la actividad. En <b>Documentos</b> se descarga el acta en PDF, lista para imprimir y firmar.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/22-solicitud-detalle-onboarding.jpg" alt="Detalle de una solicitud de onboarding" loading="lazy"></button>
+        <figcaption>Detalle de un Onboarding, con el botón para descargar el Comprobante de Entrega.</figcaption>
+      </figure>
+      <div class="dos">
+        <figure>
+          <button class="captura larga" type="button"><img src="img/23-solicitud-detalle-cambio.jpg" alt="Detalle de un cambio de equipo" loading="lazy"></button>
+          <figcaption>Detalle de un Cambio de equipo.</figcaption>
+        </figure>
+        <figure>
+          <button class="captura" type="button"><img src="img/24-solicitud-detalle-offboarding.jpg" alt="Detalle de un offboarding con un equipo no devuelto" loading="lazy"></button>
+          <figcaption>Offboarding con un equipo no devuelto y su valor.</figcaption>
+        </figure>
+      </div>
+      <p>Cada tipo genera su documento. El cargador de cada notebook va en la misma tabla, en la fila de abajo de su equipo:</p>
+      <div class="dos">
+        <figure>
+          <button class="captura doc" type="button"><img src="img/50-acta-entrega.jpg" alt="Comprobante de Entrega en PDF" loading="lazy"></button>
+          <figcaption>Comprobante de Entrega (Onboarding).</figcaption>
+        </figure>
+        <figure>
+          <button class="captura doc" type="button"><img src="img/51-acta-cambio.jpg" alt="Comprobante de Cambio en PDF" loading="lazy"></button>
+          <figcaption>Comprobante de Cambio.</figcaption>
+        </figure>
+        <figure>
+          <button class="captura doc" type="button"><img src="img/52-acta-devolucion.jpg" alt="Acta de Devolución en PDF" loading="lazy"></button>
+          <figcaption>Acta de Devolución (Offboarding). Solo se genera si se devolvió al menos un equipo.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="capitulo" id="mantenciones" aria-labelledby="t-mant">
+      <h2 id="t-mant"><span class="num">08</span>Mantenciones</h2>
+      <p class="intro">Revisiones preventivas, reparaciones y bajas de equipos. Tiene cuatro pestañas: Listado, Calendario, Tipos y Motivos de baja.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/25-mantenciones.jpg" alt="Listado de mantenciones" loading="lazy"></button>
+        <figcaption>Listado. Las tarjetas filtran por vencidas, próximas, en proceso y completadas; una mantención vencida se marca en rojo.</figcaption>
+      </figure>
+      <figure>
+        <button class="captura" type="button"><img src="img/26-mantenciones-calendario.jpg" alt="Calendario mensual de mantenciones" loading="lazy"></button>
+        <figcaption>Calendario. Pulsa un día para ver sus mantenciones.</figcaption>
+      </figure>
+      <p>Una mantención pasa por estos estados: <b>Pendiente</b> (programada) → <b>En proceso</b> (el equipo queda <span class="chip mant">En Mantención</span>) → <b>Completada</b>. También puede quedar en espera de repuestos o cancelarse.</p>
+
+      <h3 id="programar">Programar una mantención</h3>
+      <ol class="pasos">
+        <li>Pulsa <b>Programar Mantención</b> (o hazlo desde la ficha del equipo).</li>
+        <li>Busca y elige el <b>equipo</b>. Los que no se pueden programar (por repartir, en tránsito, de baja) aparecen deshabilitados, con el motivo.</li>
+        <li>Elige el <b>tipo</b>, la <b>fecha</b> (y la hora, opcional) y describe qué se hará.</li>
+        <li>Marca <b>Iniciar ahora</b> si la reparación empieza hoy; si no, el equipo sigue en uso hasta que pulses <b>Iniciar</b>.</li>
+        <li>Pulsa <b>Programar Mantención</b>.</li>
+      </ol>
+      <figure>
+        <button class="captura larga" type="button"><img src="img/27-mantencion-programar.jpg" alt="Formulario para programar una mantención" loading="lazy"></button>
+        <figcaption>Programar una mantención.</figcaption>
+      </figure>
+
+      <h3 id="completar">Completar una mantención</h3>
+      <p>En una mantención <b>en proceso</b>, elige el resultado y completa la fecha y qué se hizo:</p>
+      <ul>
+        <li><b>Reparado, vuelve a uso</b>: el equipo vuelve a <span class="chip disp">Disponible</span> (o a la persona que lo tenía). Puedes dejar programada la próxima mantención.</li>
+        <li><b>En espera de repuestos</b>: sigue en mantención hasta que lleguen.</li>
+        <li><b>Sin reparación</b>: se pide el motivo de baja y el equipo queda de <span class="chip baja">Baja</span>.</li>
+      </ul>
+      <figure>
+        <button class="captura" type="button"><img src="img/28-mantencion-detalle.jpg" alt="Detalle de una mantención en proceso con el formulario para completarla" loading="lazy"></button>
+        <figcaption>Mantención en proceso, lista para completar.</figcaption>
+      </figure>
+      <figure>
+        <button class="captura" type="button"><img src="img/29-mantencion-completada.jpg" alt="Mantención completada" loading="lazy"></button>
+        <figcaption>Una mantención completada queda con su resultado, costo y técnico.</figcaption>
+      </figure>
+
+      <h3 id="baja">Dar de baja un equipo</h3>
+      <p>Para sacar de uso un equipo que no tiene persona asignada (si la tiene, primero se recibe con una solicitud). Se abre con <b>Dar de baja</b> desde la ficha del equipo o desde el listado de Mantenciones.</p>
+      <ol class="pasos">
+        <li>Elige el <b>motivo</b> de la lista (con <b>+</b> agregas uno nuevo). Si eliges “Otro”, describe qué pasó.</li>
+        <li>Revisa la fecha y quién lo realiza, y agrega observaciones si quieres.</li>
+        <li>Pulsa <b>Dar de baja</b>. Queda registrado como una mantención cerrada “Sin reparación”, y las mantenciones pendientes del equipo se cancelan.</li>
+      </ol>
+      <figure>
+        <button class="captura" type="button"><img src="img/30-mantencion-baja.jpg" alt="Formulario para dar de baja un equipo" loading="lazy"></button>
+        <figcaption>Dar de baja. Si el equipo tenía una mantención programada, se avisa que se cerrará.</figcaption>
+      </figure>
+
+      <h3 id="tipos-motivos">Tipos de mantención y motivos de baja</h3>
+      <p>Son listas que pueden ajustar el administrador y los técnicos. Un tipo o motivo que ya se usó no se borra: se desactiva, para conservar el historial.</p>
+      <div class="dos">
+        <figure>
+          <button class="captura" type="button"><img src="img/31-mantencion-tipos.jpg" alt="Tipos de mantención" loading="lazy"></button>
+          <figcaption>Tipos: Preventiva, Correctiva, Actualización SO, Limpieza, Reparación…</figcaption>
+        </figure>
+        <figure>
+          <button class="captura" type="button"><img src="img/32-motivos-baja.jpg" alt="Motivos de baja" loading="lazy"></button>
+          <figcaption>Motivos de baja. Extravío y Otro los usa el sistema y no se eliminan.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="capitulo" id="compras" aria-labelledby="t-comp">
+      <h2 id="t-comp"><span class="num">09</span>Compras</h2>
+      <p class="intro">Registra las facturas y lo que llegó con ellas. Lo comprado llega a una sede y desde ahí se reparte. Registrar y editar compras es solo del administrador; los técnicos las consultan.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/33-compras.jpg" alt="Listado de compras" loading="lazy"></button>
+        <figcaption>Compras y facturas, con el estado del reparto.</figcaption>
+      </figure>
+      <ol class="pasos">
+        <li>Pulsa <b>Nueva Compra</b> y elige la <b>sede de llegada</b> (donde llega físicamente).</li>
+        <li>Completa el <b>N° de factura</b> y su fecha; opcional: RUT del proveedor y orden de compra.</li>
+        <li>Agrega los <b>equipos</b>: <b>Agregar equipo comprado</b> crea uno nuevo; <b>Vincular equipo existente</b> une a la factura uno ya registrado.</li>
+        <li>Agrega el <b>Kit/EPP</b> comprado, si viene.</li>
+        <li>Pulsa <b>Guardar Compra</b>. Lo nuevo queda <span class="chip repar">Por repartir</span> en la sede de llegada.</li>
+      </ol>
+      <figure>
+        <button class="captura" type="button"><img src="img/34-compra-nueva.jpg" alt="Formulario de nueva compra" loading="lazy"></button>
+        <figcaption>Nueva compra.</figcaption>
+      </figure>
+      <h3>Repartir lo comprado</h3>
+      <p>En el detalle de la compra pulsa <b>Repartir</b> y elige a qué sede va cada cosa:</p>
+      <ul>
+        <li>A la <b>misma sede de llegada</b>: queda <span class="chip disp">Disponible</span> ahí mismo y el stock de Kit/EPP sube.</li>
+        <li>A <b>otra sede</b>: se crea un <a href="#despachos">despacho</a> con la OT de Chilexpress y queda <span class="chip trans">En tránsito</span> hasta que llegue.</li>
+      </ul>
+      <figure>
+        <button class="captura" type="button"><img src="img/35-compra-detalle.jpg" alt="Detalle de una compra con su reparto" loading="lazy"></button>
+        <figcaption>Detalle de una compra repartida en parte, con su despacho.</figcaption>
+      </figure>
+    </section>
+
+    <section class="capitulo" id="despachos" aria-labelledby="t-desp">
+      <h2 id="t-desp"><span class="num">10</span>Despachos</h2>
+      <p class="intro">Los despachos (guías) registran los equipos que viajan entre sedes. Un equipo cambia de sede solo cuando la sede destino confirma que llegó.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/36-despachos.jpg" alt="Listado de despachos" loading="lazy"></button>
+        <figcaption>Despachos, con totales en tránsito, con faltantes, recibidos y anulados.</figcaption>
+      </figure>
+      <ol class="pasos">
+        <li>Pulsa <b>Nuevo despacho</b> y elige la <b>sede origen</b>.</li>
+        <li>Marca los <b>equipos</b> a enviar (solo los disponibles de esa sede).</li>
+        <li>Completa la <b>OT de Chilexpress</b>, la sede destino, la fecha de envío y, si la sabes, la fecha estimada de llegada.</li>
+        <li>Indica quién recibe: nombre y RUT (no necesita estar registrado en el sistema).</li>
+        <li>Pulsa <b>Crear despacho</b>. Los equipos quedan <span class="chip trans">En tránsito</span>.</li>
+      </ol>
+      <figure>
+        <button class="captura" type="button"><img src="img/37-despacho-nuevo.jpg" alt="Formulario de nuevo despacho" loading="lazy"></button>
+        <figcaption>Nuevo despacho.</figcaption>
+      </figure>
+      <h3>Recibir, anular o reportar una pérdida</h3>
+      <ul>
+        <li><b>Confirmar recepción</b>: en el destino, marca qué llegó. Lo recibido queda <span class="chip disp">Disponible</span> en la sede destino. Si falta algo, el despacho queda “con faltantes” hasta resolverlo.</li>
+        <li><b>Se perdió</b>: si un equipo no llegó, se marca perdido y queda de baja por Extravío. Si aparece después, se puede recuperar desde el mismo despacho.</li>
+        <li><b>Anular despacho</b>: mientras viaja, si se envió por error. Los equipos vuelven a la sede origen.</li>
+      </ul>
+      <figure>
+        <button class="captura" type="button"><img src="img/38-despacho-detalle.jpg" alt="Detalle de un despacho en tránsito" loading="lazy"></button>
+        <figcaption>Detalle de un despacho en tránsito.</figcaption>
+      </figure>
+    </section>
+
+    <section class="capitulo" id="configuracion" aria-labelledby="t-conf">
+      <h2 id="t-conf"><span class="num">11</span>Configuración</h2>
+      <p class="intro">Solo para administradores. Reúne lo que define cómo funciona el sistema.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/39-configuracion.jpg" alt="Menú de Configuración" loading="lazy"></button>
+        <figcaption>Las secciones de Configuración.</figcaption>
+      </figure>
+
+      <h3 id="usuarios">Usuarios del sistema</h3>
+      <p>Las cuentas de quienes entran al sistema. Las cuentas no se eliminan: se desactivan.</p>
+      <ol class="pasos">
+        <li>Pulsa <b>Nuevo Usuario</b> y escribe el <b>nombre completo</b>.</li>
+        <li>El <b>usuario</b> se arma solo con la inicial del nombre y el primer apellido (por ejemplo, Paula Andrea Contreras Vidal → <code>pcontreras</code>). Puedes cambiarlo antes de crear; <b>después no se puede cambiar</b>.</li>
+        <li>El correo es opcional.</li>
+        <li>Define una <b>contraseña</b>: al menos 12 caracteres, con mayúscula, minúscula, número y símbolo.</li>
+        <li>Elige el <b>rol</b> y, para un técnico, su <b>sede</b>.</li>
+        <li>Pulsa <b>Crear Usuario</b> y entrégale su usuario y contraseña.</li>
+      </ol>
+      <figure>
+        <button class="captura" type="button"><img src="img/41-usuario-nuevo.jpg" alt="Formulario para crear un usuario" loading="lazy"></button>
+        <figcaption>Al escribir el nombre, el usuario se completa solo.</figcaption>
+      </figure>
+      <p>Los botones de cada fila, de izquierda a derecha:</p>
+      <ul>
+        <li><b>Lápiz</b>: editar nombre, correo, rol, sede o contraseña. Si le cambias la contraseña a otra persona, sus sesiones abiertas se cierran.</li>
+        <li><b>Llave</b>: ver sus accesos en el registro.</li>
+        <li><b>Flecha de salida</b>: cerrar su sesión. Sale en su siguiente acción, en cualquier equipo; no se desactiva y puede volver a entrar.</li>
+        <li><b>Persona con X</b>: desactivar la cuenta (no podrá entrar; sus registros se conservan). Se puede volver a activar.</li>
+      </ul>
+      <p>No puedes desactivarte a ti mismo, y el sistema nunca se queda sin un administrador activo.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/40-usuarios.jpg" alt="Listado de usuarios del sistema" loading="lazy"></button>
+        <figcaption>Usuarios del sistema.</figcaption>
+      </figure>
+
+      <h3 id="sedes">Sedes</h3>
+      <p>Las sedes de la empresa (Santiago, Concepción, Perú…). Se crean con código y nombre. Una sede desactivada ya no recibe equipos nuevos, y los técnicos que pertenecen a ella no pueden entrar hasta que se les cambie la sede.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/42-sedes.jpg" alt="Listado de sedes" loading="lazy"></button>
+        <figcaption>Sedes.</figcaption>
+      </figure>
+
+      <h3 id="catalogos">Catálogos de activos</h3>
+      <p>Las listas que se eligen al registrar un equipo: <b>Categorías</b>, <b>Marcas</b>, <b>Sistemas operativos</b>, <b>Antivirus</b> y <b>Licencias Microsoft 365</b>.</p>
+      <ul>
+        <li>En cada categoría, <b>Qué campos pide</b> decide los datos especiales del formulario (computador, celular, monitor, periférico o genérico), y <b>Stock mínimo</b> define cuándo el Dashboard avisa stock bajo.</li>
+        <li>Una opción que ya usan equipos no se borra: se desactiva.</li>
+      </ul>
+      <figure>
+        <button class="captura" type="button"><img src="img/43-catalogos.jpg" alt="Catálogos de activos, pestaña Categorías" loading="lazy"></button>
+        <figcaption>Catálogos, pestaña Categorías.</figcaption>
+      </figure>
+
+      <h3 id="seguridad">Seguridad</h3>
+      <p>Cuánto dura una sesión y cuándo se bloquea el inicio de sesión por intentos fallidos, tanto por cuenta como por equipo. Los cambios aplican a las sesiones que se inicien después de guardar.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/44-parametros.jpg" alt="Parámetros de seguridad" loading="lazy"></button>
+        <figcaption>Seguridad.</figcaption>
+      </figure>
+
+      <h3 id="importar">Importar inventario desde Excel</h3>
+      <ol class="pasos">
+        <li>Arrastra o elige un archivo <b>.xlsx</b>. Campos mínimos: marca, modelo y número de serie.</li>
+        <li>Indica qué columna del Excel corresponde a cada dato.</li>
+        <li>Revisa la <b>vista previa</b>: el sistema marca las filas con errores o duplicados.</li>
+        <li>Pulsa <b>Realizar importación</b>. Nada se guarda hasta este paso.</li>
+      </ol>
+      <p>Si una fila trae RUT y nombre, el equipo queda asignado a esa persona (se crea si no existe). Si trae fecha de mantención, se registra la mantención.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/45-importar.jpg" alt="Pantalla de importación de Excel" loading="lazy"></button>
+        <figcaption>Importar activos, con el formato esperado.</figcaption>
+      </figure>
+
+      <h3 id="accesos">Registro de accesos</h3>
+      <p>Quién intentó entrar, cuándo, desde dónde y con qué resultado: ingresos, contraseñas incorrectas, bloqueos, cierres de sesión y sesiones cortadas (por ejemplo, “Se inició sesión en otro equipo” o “Sesión cerrada por un administrador”). Se guarda por un año.</p>
+      <figure>
+        <button class="captura" type="button"><img src="img/46-accesos.jpg" alt="Registro de accesos" loading="lazy"></button>
+        <figcaption>Registro de accesos. Las tarjetas de arriba filtran lo de hoy.</figcaption>
+      </figure>
+
+      <h3 id="auditoria">Auditoría</h3>
+      <p>El historial completo de todos los módulos: quién hizo qué y cuándo. Filtra por módulo, usuario, texto o fechas, y abre el detalle de un evento para ver qué datos cambiaron.</p>
+      <figure>
+        <button class="captura larga" type="button"><img src="img/47-auditoria.jpg" alt="Auditoría de eventos" loading="lazy"></button>
+        <figcaption>Auditoría.</figcaption>
+      </figure>
+    </section>
+
+    <section class="capitulo" id="preguntas" aria-labelledby="t-faq">
+      <h2 id="t-faq"><span class="num">12</span>Preguntas frecuentes</h2>
+      <h4>¿Por qué no puedo cambiar el estado de un equipo al editarlo?</h4>
+      <p>El estado solo cambia con su proceso (solicitudes, mantenciones, despachos o venta). Así cada cambio queda registrado con su motivo.</p>
+      <h4>Entregué un equipo por error. ¿Cómo lo deshago?</h4>
+      <p>Las entregas no se borran ni se anulan. Recibe el equipo de vuelta con un Cambio de equipo (si la persona sigue en la empresa) o con un Offboarding (si se va), y entrégalo de nuevo a quien corresponde.</p>
+      <h4>¿Por qué no aparece un equipo para entregar?</h4>
+      <p>Solo se ofrecen los equipos <span class="chip disp">Disponibles</span> de la sede de la solicitud. Revisa en Activos su estado y su sede. Si está en otra sede, envíalo antes con un despacho.</p>
+      <h4>Una persona no devolvió su notebook. ¿Qué hago?</h4>
+      <p>En el Offboarding márcalo como “No devolvió”. Queda a su nombre como <span class="chip nodev">No devuelto</span>, con su valor registrado. Si lo entrega después, recíbelo con otro Offboarding sobre la misma persona.</p>
+      <h4>Me sacó del sistema sin cerrar sesión.</h4>
+      <p>Puede ser que tu sesión venció, que alguien entró con tu usuario en otro equipo o que un administrador la cerró. Vuelve a entrar. Si no reconoces el otro ingreso, cambia tu contraseña.</p>
+      <h4>Olvidé mi contraseña.</h4>
+      <p>Pídele a un administrador que te asigne una nueva desde Configuración › Usuarios.</p>
+      <h4>¿Puedo trabajar en el celular?</h4>
+      <p>Sí, todas las pantallas se adaptan. Recuerda que tu usuario solo puede estar abierto en un equipo a la vez.</p>
+    </section>
+
+    <footer>Manual de usuario · Sistema de Inventario IT de SCL Consultores · Octubre de 2026 · Capturas con datos de ejemplo.</footer>
+  </main>
+</div>
+
+<div id="visor" hidden role="dialog" aria-modal="true" aria-label="Captura ampliada">
+  <button type="button" id="cerrar-visor">Cerrar</button>
+  <img alt="">
+</div>
+
+<script>
+(() => {
+  const visor = document.getElementById("visor");
+  const img = visor.querySelector("img");
+  const cerrar = document.getElementById("cerrar-visor");
+  let origen = null;
+  const abrir = (boton) => {
+    const fuente = boton.querySelector("img");
+    origen = boton;
+    img.src = fuente.src;
+    img.alt = fuente.alt;
+    visor.hidden = false;
+    visor.scrollTop = 0;
+    document.body.style.overflow = "hidden";
+    cerrar.focus();
+  };
+  const salir = () => {
+    visor.hidden = true;
+    document.body.style.overflow = "";
+    if (origen) origen.focus();
+  };
+  document.querySelectorAll("button.captura").forEach((b) => b.addEventListener("click", () => abrir(b)));
+  cerrar.addEventListener("click", salir);
+  visor.addEventListener("click", (e) => { if (e.target === visor) salir(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !visor.hidden) salir(); });
+
+  // Marca en el indice la seccion que se esta leyendo.
+  const enlaces = [...document.querySelectorAll("nav.indice a")];
+  const porId = new Map(enlaces.map((a) => [a.getAttribute("href").slice(1), a]));
+  const observado = new IntersectionObserver((entradas) => {
+    entradas.forEach((en) => {
+      if (!en.isIntersecting) return;
+      const a = porId.get(en.target.id);
+      if (!a) return;
+      enlaces.forEach((x) => x.classList.remove("activo"));
+      a.classList.add("activo");
+    });
+  }, { rootMargin: "0px 0px -75% 0px" });
+  porId.forEach((_, id) => { const el = document.getElementById(id); if (el) observado.observe(el); });
+})();
+</script>
+</body>
+</html>

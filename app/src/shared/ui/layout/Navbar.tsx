@@ -10,6 +10,7 @@ import {
   ShoppingCart,
   Settings,
   LogOut,
+  BookOpen,
   Menu,
   X,
   Truck,
@@ -25,6 +26,9 @@ import { Logo } from "@/shared/ui/Logo";
 import { ThemeToggle } from "@/shared/ui/ThemeToggle";
 import type { Recurso } from "@/shared/auth/permisos";
 import type { LucideIcon } from "lucide-react";
+
+// Manual de usuario: pagina estatica en public/manual (SPEC 2.129).
+const MANUAL = "/manual/index.html";
 
 type Sede = {
   id: string;
@@ -214,6 +218,15 @@ export function Navbar() {
                   <p className="text-sm capitalize text-fg-subtle">{userRole}</p>
                 </div>
                 <div className="my-1 border-t border-line" />
+                <a
+                  href={MANUAL}
+                  target="_blank"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 rounded-control px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  Manual de usuario
+                </a>
                 <button
                   type="button"
                   role="menuitem"
@@ -276,6 +289,9 @@ export function Navbar() {
             <div className="min-w-0">
               <p className="truncate font-medium text-fg">{userName}</p>
               <p className="text-sm capitalize text-fg-subtle">{userRole}</p>
+              <a href={MANUAL} target="_blank" className="text-sm text-brand hover:underline">
+                Manual de usuario
+              </a>
             </div>
             <button
               type="button"
