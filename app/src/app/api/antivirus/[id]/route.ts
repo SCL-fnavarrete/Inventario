@@ -23,8 +23,8 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   try {
     const session = await requirePermission("activos", "delete");
     const { id } = await params;
-    await eliminarOpcion("antivirus", id, quienHace(session));
-    return NextResponse.json({ ok: true });
+    // Si un activo la usa, queda desactivada en vez de borrarse (SPEC 2.136).
+    return NextResponse.json(await eliminarOpcion("antivirus", id, quienHace(session)));
   } catch (error) {
     return handleApiError(error, "Error al eliminar opción");
   }

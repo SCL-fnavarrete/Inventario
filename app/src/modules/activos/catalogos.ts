@@ -131,11 +131,29 @@ export async function renombrarOpcion(clave: ClaveCatalogo, id: string, nombreEs
   return opcion;
 }
 
-/** Elimina una opcion. Los activos que la tienen guardada no se tocan. */
+/**
+ * Elimina una opcion. Si algun activo la usa no se borra: se desactiva (deja de
+ * ofrecerse y los activos conservan el dato), para no perder lo registrado
+ * (SPEC 2.136). Devuelve si quedo desactivada.
+ */
 export async function eliminarOpcion(clave: ClaveCatalogo, id: string, usuario?: string | null) {
-  const { etiqueta } = CATALOGOS[clave];
+  const { etiqueta, campo } = CATALOGOS[clave];
   const actual = await tabla(prisma, clave).findUnique({ where: { id } });
   if (!actual) throw new NotFoundError('Opción no encontrada');
+
+  const enUso = await prisma.asset.count({ where: { [campo]: actual.nombre } as Prisma.AssetWhereInput });
+  if (enUso > 0) {
+    await tabla(prisma, clave).update({ where: { id }, data: { activo: false } });
+    await auditLogService.registrarActualizacion(
+      'catalogo',
+      id,
+      `${etiqueta}: opción desactivada "${actual.nombre}" (la usan ${enUso} activo(s))`,
+      { catalogo: etiqueta, nombre: actual.nombre, activo: actual.activo },
+      { catalogo: etiqueta, nombre: actual.nombre, activo: false },
+      usuario
+    );
+    return { desactivado: true };
+  }
 
   await tabla(prisma, clave).delete({ where: { id } });
   await auditLogService.registrarEliminacion(
@@ -145,4 +163,5 @@ export async function eliminarOpcion(clave: ClaveCatalogo, id: string, usuario?:
     { catalogo: etiqueta, nombre: actual.nombre },
     usuario
   );
+  return { desactivado: false };
 }

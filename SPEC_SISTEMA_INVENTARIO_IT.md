@@ -40,19 +40,19 @@ Lectura (R) · Escritura (W) · Borrado (D).
 
 | Recurso | Admin | Técnico |
 |---|---|---|
-| activos | RWD | RW |
-| empleados | RWD | RW |
-| asignaciones | RWD | RW |
-| solicitudes | RWD | RW |
-| mantenciones | RWD | RW |
+| activos | RWD | RWD |
+| empleados | RWD | RWD |
+| asignaciones | RWD | RWD |
+| solicitudes | RWD | RWD |
+| mantenciones | RWD | RWD |
 | tiposMantencion | RWD | RWD |
 | motivosBaja | RWD | RWD |
-| desvinculaciones | RWD | RW |
-| guias | RWD | RW |
-| compras | RWD | RW (desde 2.134; entre 2.111 y 2.134 fue solo lectura) |
+| desvinculaciones | RWD | RWD |
+| guias | RWD | RWD |
+| compras | RWD | RWD (desde 2.134 y 2.136) |
 | categorias | RWD | R |
-| kitEpp | RWD | RW |
-| lineas | RWD | RW (desde 2.131) |
+| kitEpp | RWD | RWD |
+| lineas | RWD | RWD (desde 2.136) |
 | usuarios | RWD | — |
 | sedes | RWD | R |
 | reportes (Dashboard) | R | R |
@@ -60,18 +60,17 @@ Lectura (R) · Escritura (W) · Borrado (D).
 
 **Reglas que la matriz hace cumplir:**
 
-1. **El borrado es exclusivo de `admin`, con una excepción: los catálogos de Mantenciones, `tiposMantencion` y `motivosBaja` (2.116.5), que siguen la misma regla.**
-   El técnico opera el parque, no lo destruye. Para activos con historial el
-   borrado además está prohibido por completo (ver 2.7.7). La excepción es el
-   catálogo `tiposMantencion` (`maintenance_types`): admin y técnico lo
-   crean/editan/eliminan por igual, porque es una lista operativa del día a día
-   (no configuración del sistema) y el técnico es quien registra las
-   mantenciones. Un tipo en uso se retira con `activo = false`, no se borra.
+1. **El técnico hace lo mismo que el admin, salvo la Configuración (2.136), incluido eliminar.**
+   Lo que protege los datos no es el rol sino la regla de cada servicio, que vale
+   para todos: solo se elimina lo que no tiene nada registrado (un activo con
+   historial no se borra, 2.7.7 y 2.130; una línea que tuvo persona o cambios
+   tampoco; una opción de catálogo o un tipo en uso se desactiva), y todo borrado
+   queda en la auditoría. *(Hasta 2.136 el borrado era exclusivo del admin, salvo
+   los catálogos de Mantenciones.)*
 2. **`usuarios` y `configuracion` quedan fuera del alcance del técnico**: son
    información de identidad y de sistema. `categorias` y `sedes` son datos
-   maestros: el técnico los lee, solo admin los cambia. `compras` y `kitEpp`
-   sí son alcance del técnico (RW, nunca D): registra lo que llega y entrega
-   artículos en terreno (ver 2.10).
+   maestros: el técnico los lee, solo admin los cambia. Todo lo operativo
+   (`compras`, `kitEpp`, `lineas`…) es alcance completo del técnico (2.136).
 3. **`reportes` no tiene escritura para nadie**: controla el Dashboard, que
    se deriva de los datos. Conserva el nombre aunque el módulo Reportes se
    eliminó (2.79).
@@ -4066,9 +4065,14 @@ Pedido de Javier: *"no quiero que vaya a mantención, sino que se dé de baja de
 - **Dónde:** `executeReturn` (`modules/asignaciones/ejecucion.ts`) trata `danado` igual que `baja` (2.126), y es el único camino de toda devolución; se quitó `abrirMantencionPorDano`. Los esquemas (cambio y devolución por término al crear y al avanzar la solicitud, y la devolución manual) piden `motivoBajaId`/`motivoBajaDetalle` cuando el estado es Dañado. En Nueva solicitud, al marcar Dañado aparece el selector de motivo (`CamposMotivoBaja`, con "+" para agregar uno); en el cambio de equipo reemplaza la lista aparte "Para dar de baja por".
 - **No cambia:** el EPP devuelto dañado (Kit/EPP no se da de baja así) ni un equipo que llega dañado en una guía de despacho.
 
+### 2.136 El técnico gestiona todo salvo la Configuración (07-oct-2026)
+Pedido de Javier: *"el técnico ahora puede hacer lo mismo que admin, excepto el módulo de Configuración, ya que se eliminó la barrera de sede; imagina que algún admin o técnico se va de vacaciones: al menos un técnico deberá gestionar casi todo"*, con la condición *"solo elimina si no tiene nada registrado (asignado, historial…), para no eliminar ningún dato importante; al final queda en la auditoría"*.
+- **Matriz (1.3.1):** el técnico pasa a **RWD** en activos, empleados, asignaciones (incluye cancelar una entrega), solicitudes, mantenciones, desvinculaciones, guías, compras, Kit/EPP y líneas. Siguen solo del admin: usuarios, sedes, categorías y configuración (seguridad, importación de datos, accesos, auditoría).
+- **Eliminar solo lo que no tiene nada registrado**, por servicio y para todos los roles: activo Disponible sin uso (2.130); mantención pendiente; compra sin repartir; artículo de Kit/EPP nunca entregado; **línea** que nunca tuvo persona, no se movió y no tuvo cambios de precio, plan o estado (corregir sus datos no cuenta; antes se borraba sin condición; si ya se usó se pasa a Dada de baja); **opción de catálogo de activos** (marca, sistema operativo, antivirus, licencia) en uso: se **desactiva** en vez de borrarse (antes se borraba aunque la usaran equipos). Todo queda en la auditoría.
+
 ## Changelog SPEC
 - **v2.68 (2026-10-06):**
-  - Sección 2.133: **una sola pantalla de Importación de datos** para equipos (una opción por categoría), historial de equipos y líneas, con los mismos 4 pasos (Archivo, Columnas, Revisión, Importar), **guía "Cómo debe ir el Excel"** por categoría con **plantilla descargable** (`GET /api/importacion/plantilla`) y **fallos agrupados por motivo** con su solución y descarga en CSV. Una sola lista de campos para el paso de columnas, el detector y la guía. Los encabezados del Excel se leen sin espacios sobrantes. Las marcas nuevas del Excel se crean desde la revisión, y toda marca queda escrita de una sola forma (2.116.4). Sección 2.133: **la persona de la fila manda sobre la columna Estado**: con persona, Asignado (aunque diga Disponible); sin persona, Disponible (aunque diga Activo; antes quedaba asignado sin dueño). Se detienen Baja o Vendido con persona, datos de persona sin RUT ni nombre y No devuelto sin persona. Sección 2.135 (nueva): un equipo **devuelto dañado** (cambio, devolución por término o manual) se **da de baja en el acto** con su motivo de baja obligatorio; ya no pasa por mantención. Sección 2.134 (nueva) y matriz 1.3.1: el **técnico registra y reparte compras** (`compras` RW; eliminar sigue siendo del admin). Sección 2.131: **solo se asigna una línea disponible** (Asignar en vez de Reasignar; chip físico a un celular sin persona, eSIM a una persona activa) y la **devolución por término libera las eSIM** (origen de tenencia `termino`). Líneas con **tarjetas de cantidad** que filtran, **filtros combinables** en la URL (estado, asignación, plan, tipo de chip, operador, sin sede), desgloses por estado, plan, tipo de chip, operador y sede, y aviso de líneas por confirmar en el Dashboard. Estado de línea **Por confirmar** (`por_confirmar`, migración `20261006165000_estado_linea_por_confirmar`), para validar las líneas contra la factura del operador. Sección 2.127: la categoría **Impresora** (genérico) entra con la migración `20261006140000_categoria_impresora`. Sección 2.117: **equipos sin sede** — una fila con la Sede vacía se importa sin sede, se ve con "Todas las sedes", se encuentra con el filtro "Sin sede" de Activos, lo avisa el Dashboard y la sede se asigna una vez en Editar (después, solo por Guía de Despacho). Sin cambios en el modelo de datos ni en las rutas de importación.
+  - Sección 2.133: **una sola pantalla de Importación de datos** para equipos (una opción por categoría), historial de equipos y líneas, con los mismos 4 pasos (Archivo, Columnas, Revisión, Importar), **guía "Cómo debe ir el Excel"** por categoría con **plantilla descargable** (`GET /api/importacion/plantilla`) y **fallos agrupados por motivo** con su solución y descarga en CSV. Una sola lista de campos para el paso de columnas, el detector y la guía. Los encabezados del Excel se leen sin espacios sobrantes. Las marcas nuevas del Excel se crean desde la revisión, y toda marca queda escrita de una sola forma (2.116.4). Sección 2.133: **la persona de la fila manda sobre la columna Estado**: con persona, Asignado (aunque diga Disponible); sin persona, Disponible (aunque diga Activo; antes quedaba asignado sin dueño). Se detienen Baja o Vendido con persona, datos de persona sin RUT ni nombre y No devuelto sin persona. Sección 2.136 (nueva) y matriz 1.3.1: el **técnico hace lo mismo que el admin salvo la Configuración**, incluido eliminar; una **línea** solo se elimina si nunca tuvo persona ni cambios y una **opción de catálogo** en uso se desactiva en vez de borrarse (para todos). Sección 2.135 (nueva): un equipo **devuelto dañado** (cambio, devolución por término o manual) se **da de baja en el acto** con su motivo de baja obligatorio; ya no pasa por mantención. Sección 2.134 (nueva) y matriz 1.3.1: el **técnico registra y reparte compras** (`compras` RW; eliminar sigue siendo del admin). Sección 2.131: **solo se asigna una línea disponible** (Asignar en vez de Reasignar; chip físico a un celular sin persona, eSIM a una persona activa) y la **devolución por término libera las eSIM** (origen de tenencia `termino`). Líneas con **tarjetas de cantidad** que filtran, **filtros combinables** en la URL (estado, asignación, plan, tipo de chip, operador, sin sede), desgloses por estado, plan, tipo de chip, operador y sede, y aviso de líneas por confirmar en el Dashboard. Estado de línea **Por confirmar** (`por_confirmar`, migración `20261006165000_estado_linea_por_confirmar`), para validar las líneas contra la factura del operador. Sección 2.127: la categoría **Impresora** (genérico) entra con la migración `20261006140000_categoria_impresora`. Sección 2.117: **equipos sin sede** — una fila con la Sede vacía se importa sin sede, se ve con "Todas las sedes", se encuentra con el filtro "Sin sede" de Activos, lo avisa el Dashboard y la sede se asigna una vez en Editar (después, solo por Guía de Despacho). Sin cambios en el modelo de datos ni en las rutas de importación.
   - Sección 2.133: el **Historial de equipos** también identifica el equipo por **N° de serie** (monitores, mouse, audífonos, impresoras), no solo por IMEI; los datos de la persona (cargo, correo, comuna...) se ofrecen en la importación de Activos para todas las categorías.
   - Sección 2.133 (nueva): las importaciones de **Activos** (notebooks y celulares) y de **Líneas** buscan a la persona por RUT o por nombre y la **crean si no existe**, con una sola regla: siempre que la fila la traiga, activa si el equipo queda con ella (también en mantención), desvinculada si lo devolvió o no lo devolvió; nunca cambia el estado de una persona existente, solo completa datos vacíos; sin correo queda vacío (ya no se inventa). Nueva pestaña **Historial de equipos** (Importación de datos): las entregas anteriores del Excel normalizado quedan como asignaciones cerradas e historial del equipo. Detección de columnas en dos pasadas. Sin cambios en el modelo de datos.
 - **v2.67 (2026-10-06):**

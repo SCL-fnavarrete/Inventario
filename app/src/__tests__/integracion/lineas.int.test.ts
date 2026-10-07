@@ -253,6 +253,22 @@ describir('lineas telefonicas en Postgres', () => {
     expect(audit?.datosAnteriores).toMatchObject({ numero: n, observaciones: 'por error' });
   });
 
+  test('solo se elimina una línea sin nada registrado: una que tuvo persona o cambios se rechaza (SPEC 2.136)', async () => {
+    const conPersona = await crearLinea(datos({ numero: nuevo(), empleadoId: ids.empleado }));
+    await expect(eliminarLinea(conPersona.id, 'jsoto')).rejects.toMatchObject({ status: 409, message: expect.stringContaining('persona') });
+    const n = nuevo();
+    const conCambio = await crearLinea(datos({ numero: n, precioMensual: 1000 }));
+    await editarLinea(conCambio.id, datos({ numero: n, precioMensual: 2000 }));
+    await expect(eliminarLinea(conCambio.id, 'jsoto')).rejects.toMatchObject({ status: 409, message: expect.stringContaining('cambios') });
+    // Corregir sus datos no cuenta como uso.
+    const m = nuevo();
+    const corregida = await crearLinea(datos({ numero: m }));
+    await editarLinea(corregida.id, datos({ numero: m, observaciones: 'corregida' }));
+    eliminadas.push(corregida.id);
+    await eliminarLinea(corregida.id, 'jsoto');
+    expect(await prisma.lineaTelefonica.findUnique({ where: { id: corregida.id } })).toBeNull();
+  });
+
   test('importación: vista previa sin guardar, luego tandas con persona por RUT, celular por IMEI y sin pisar lo existente', async () => {
     const [conPersona, conCelular, duplicada, existente] = [nuevo(), nuevo(), nuevo(), nuevo()];
     await crearLinea(datos({ numero: existente, estadoId: suspendida }));

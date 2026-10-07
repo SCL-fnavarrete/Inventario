@@ -7,9 +7,13 @@ import type { SystemRole } from '@prisma/client';
  *
  * Solo existen dos roles reales (ver SystemRole en el schema):
  *
- *   | Admin   | CRUD completo, reportes, configuracion |
- *   | Tecnico | Trabajo operativo de soporte (activos, empleados, solicitudes,
- *   |         | mantenciones, guias), en todas las sedes (SPEC 2.117) |
+ *   | Admin   | Todo, incluida la Configuracion |
+ *   | Tecnico | Lo mismo que el admin, salvo la Configuracion (SPEC 2.136): si |
+ *   |         | alguien sale de vacaciones, un tecnico gestiona casi todo. |
+ *
+ * Eliminar tambien lo hace el tecnico; cada servicio exige que lo borrado no
+ * tenga nada registrado (para todos los roles) y queda en la auditoria. Lo de
+ * Configuracion (usuarios, sedes, categorias, seguridad) es solo del admin.
  *
  * Cualquier cambio de permisos se hace aqui, nunca en una ruta suelta.
  */
@@ -48,32 +52,32 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
   activos: {
     read: AMBOS,
     write: AMBOS,
-    delete: ADMIN,
+    delete: AMBOS,
   },
 
   empleados: {
     read: AMBOS,
     write: AMBOS,
-    delete: ADMIN,
+    delete: AMBOS,
   },
 
   // Entregar y recibir equipos es justamente el trabajo del tecnico.
   asignaciones: {
     read: AMBOS,
     write: AMBOS,
-    delete: ADMIN,
+    delete: AMBOS,
   },
 
   solicitudes: {
     read: AMBOS,
     write: AMBOS,
-    delete: ADMIN,
+    delete: AMBOS,
   },
 
   mantenciones: {
     read: AMBOS,
     write: AMBOS,
-    delete: ADMIN,
+    delete: AMBOS,
   },
 
   // Catalogo de tipos de mantencion: a diferencia de Categorias/
@@ -97,22 +101,22 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
   desvinculaciones: {
     read: AMBOS,
     write: AMBOS,
-    delete: ADMIN,
+    delete: AMBOS,
   },
 
   guias: {
     read: AMBOS,
     write: AMBOS,
-    delete: ADMIN,
+    delete: AMBOS,
   },
 
   // SPEC 2.111 y 2.134: la compra es de la empresa. Admin y tecnico la
-  // registran, agregan lo comprado y lo reparten a las sedes; eliminar (la
-  // compra o un item agregado por error) es del admin.
+  // registran, agregan lo comprado, lo reparten y eliminan lo agregado por
+  // error (SPEC 2.136).
   compras: {
     read: AMBOS,
     write: AMBOS,
-    delete: ADMIN,
+    delete: AMBOS,
   },
 
   // Datos maestros: los lee todo el que trabaja con activos, los cambia admin.
@@ -127,7 +131,7 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
   lineas: {
     read: AMBOS,
     write: AMBOS,
-    delete: ADMIN,
+    delete: AMBOS,
   },
 
   // Planes, estados y tipos de chip de las lineas: los administran todos,
@@ -140,12 +144,12 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
 
   // Catalogo y stock de Kit de Bienvenida / EPP: a diferencia de
   // Categorias, aca el tecnico si puede escribir -- entrega estos
-  // articulos en terreno y necesita ajustar el stock. Eliminar del catalogo
-  // queda solo para admin.
+  // articulos en terreno y necesita ajustar el stock (y borrar lo creado por
+  // error, SPEC 2.136).
   kitEpp: {
     read: AMBOS,
     write: AMBOS,
-    delete: ADMIN,
+    delete: AMBOS,
   },
 
   usuarios: {

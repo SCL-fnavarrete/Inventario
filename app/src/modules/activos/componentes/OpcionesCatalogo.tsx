@@ -51,7 +51,7 @@ const TEXTOS_ACTIVO: TextosCatalogo = {
   renombrada: (n) => (n ? `Opción renombrada y ${activos(n)} corregidos` : "Opción renombrada"),
   avisoEliminar: (nombre, n) =>
     n > 0
-      ? `"${nombre}" está guardada en ${activos(n)} (todas las sedes). Esos activos conservan el dato tal cual, pero la opción dejará de estar disponible para activos nuevos. ¿Eliminar de todas formas?`
+      ? `"${nombre}" está guardada en ${activos(n)} (todas las sedes): no se borra, se desactiva. Esos activos conservan el dato y la opción deja de ofrecerse para activos nuevos. ¿Continuar?`
       : `¿Eliminar la opción "${nombre}"?`,
 };
 

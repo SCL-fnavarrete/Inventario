@@ -226,10 +226,33 @@ export async function fichaLinea(id: string) {
   return { linea, tenencias, historial, reasignaciones: Math.max(tenencias.length - 1, 0) };
 }
 
-/** Borra una linea (solo admin). Su historial queda, con un evento de cierre, y sus datos en la auditoria. */
+/**
+ * Por que una linea no se puede eliminar, o null si no tiene nada registrado
+ * (SPEC 2.136): nunca tuvo persona, no se movio de donde se creo y no tuvo
+ * cambios de precio, plan o estado (corregir sus datos no cuenta).
+ */
+async function motivoSinEliminarLinea(tx: Prisma.TransactionClient, id: string) {
+  const [conPersona, tramos, cambios] = await Promise.all([
+    tx.lineaTenencia.count({ where: { lineaId: id, empleadoId: { not: null } } }),
+    tx.lineaTenencia.count({ where: { lineaId: id } }),
+    tx.lineaHistorial.count({ where: { lineaId: id, tipo: { notIn: ['creacion', 'importacion', 'datos'] } } }),
+  ]);
+  if (conPersona > 0) return 'ya la ha usado una persona';
+  if (tramos > 1) return 'ya se cambió de lugar';
+  if (cambios > 0) return 'ya tuvo cambios de precio, plan o estado';
+  return null;
+}
+
+/**
+ * Borra una linea ingresada por error (admin y tecnico, SPEC 2.136), solo si no
+ * tiene nada registrado. Su historial queda, con un evento de cierre, y sus
+ * datos en la auditoria. Una linea que ya se uso se pasa a Dada de baja.
+ */
 export async function eliminarLinea(id: string, usuario?: string | null) {
   await prisma.$transaction(async (tx) => {
     const actual = await lineaBloqueada(tx, id);
+    const motivo = await motivoSinEliminarLinea(tx, id);
+    if (motivo) throw new ConflictError(`No se puede eliminar: ${motivo}. Si ya no se usa, pásala a Dada de baja.`);
     await registrarEliminacion(tx, actual, usuario);
     await tx.lineaTelefonica.delete({ where: { id } });
     await auditLogService.registrarEliminacion('linea', id, `Línea ${actual.numero} eliminada`, foto(actual), usuario, tx);

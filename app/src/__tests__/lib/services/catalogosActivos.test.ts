@@ -16,7 +16,7 @@ jest.mock('@/shared/prisma', () => {
     sistemaOperativo: tabla(),
     licenciaMicrosoft365: tabla(),
     assetCategory: tabla(),
-    asset: { groupBy: jest.fn(), updateMany: jest.fn() },
+    asset: { groupBy: jest.fn(), updateMany: jest.fn(), count: jest.fn() },
     $transaction: jest.fn(),
   };
   prisma.$transaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(prisma));
@@ -119,11 +119,21 @@ describe('opciones de catálogo (una sola lógica para los tres)', () => {
 
   test('eliminar queda en la auditoría', async () => {
     db.antivirus.findUnique.mockResolvedValue({ id: 'a1', nombre: 'ESET' });
-    await eliminarOpcion('antivirus', 'a1', 'yo@x.cl');
+    db.asset.count.mockResolvedValue(0);
+    await expect(eliminarOpcion('antivirus', 'a1', 'yo@x.cl')).resolves.toEqual({ desactivado: false });
     expect(db.antivirus.delete).toHaveBeenCalledWith({ where: { id: 'a1' } });
     expect(audit.registrarEliminacion).toHaveBeenCalledWith(
       'catalogo', 'a1', 'Antivirus: opción eliminada "ESET"', expect.anything(), 'yo@x.cl'
     );
+  });
+
+  test('una opción que usan activos no se borra: se desactiva (SPEC 2.136)', async () => {
+    db.antivirus.findUnique.mockResolvedValue({ id: 'a2', nombre: 'Defender', activo: true });
+    db.asset.count.mockResolvedValue(3);
+    db.antivirus.delete.mockClear();
+    await expect(eliminarOpcion('antivirus', 'a2', 'yo@x.cl')).resolves.toEqual({ desactivado: true });
+    expect(db.antivirus.delete).not.toHaveBeenCalled();
+    expect(db.antivirus.update).toHaveBeenCalledWith({ where: { id: 'a2' }, data: { activo: false } });
   });
 });
 

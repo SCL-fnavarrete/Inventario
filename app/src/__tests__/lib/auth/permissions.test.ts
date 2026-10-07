@@ -76,17 +76,12 @@ describe('permissions — tecnico', () => {
     expect(can('tecnico', 'solicitudes', 'write')).toBe(true);
   });
 
-  test('el borrado es de admin, salvo los catalogos operativos', () => {
-    // tiposMantencion, motivosBaja y catalogosLineas (SPEC 2.131): admin +
-    // tecnico, son catalogos del dia a dia, no configuracion del sistema.
-    const operativos = ['tiposMantencion', 'motivosBaja', 'catalogosLineas'];
+  test('hace lo mismo que el admin salvo la Configuración, también eliminar (SPEC 2.136)', () => {
+    const soloAdmin = ['categorias', 'usuarios', 'sedes', 'configuracion', 'reportes'];
     for (const recurso of RECURSOS) {
-      if (operativos.includes(recurso)) continue;
-      expect(can('tecnico', recurso, 'delete')).toBe(false);
+      if (soloAdmin.includes(recurso)) continue;
+      for (const accion of ['read', 'write', 'delete'] as const) expect(can('tecnico', recurso, accion)).toBe(can('admin', recurso, accion));
     }
-    expect(can('tecnico', 'tiposMantencion', 'delete')).toBe(true);
-    expect(can('tecnico', 'motivosBaja', 'delete')).toBe(true);
-    expect(can('tecnico', 'catalogosLineas', 'delete')).toBe(true);
   });
 
   test('no toca datos maestros ni configuración ni usuarios', () => {
@@ -96,12 +91,11 @@ describe('permissions — tecnico', () => {
     expect(can('tecnico', 'configuracion', 'read')).toBe(false);
   });
 
-  // SPEC 2.111: la compra es de la empresa; el tecnico ve todas y lo que
-  // hay por repartir, pero registrar y repartir es del admin.
-  test('registra y reparte compras, pero no las elimina (SPEC 2.134)', () => {
+  // SPEC 2.134 y 2.136: el tecnico registra, reparte y elimina compras.
+  test('registra, reparte y elimina compras (SPEC 2.134, 2.136)', () => {
     expect(can('tecnico', 'compras', 'read')).toBe(true);
     expect(can('tecnico', 'compras', 'write')).toBe(true);
-    expect(can('tecnico', 'compras', 'delete')).toBe(false);
+    expect(can('tecnico', 'compras', 'delete')).toBe(true);
   });
 
   test('lee lo mismo que escribe, más los datos maestros de solo lectura', () => {
