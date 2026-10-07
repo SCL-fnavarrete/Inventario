@@ -114,6 +114,10 @@ export const DESCRIPCION_ESTADO: Record<string, string> = {
     'Está en la factura del operador, pero no se sabe quién la usa: hay que confirmarlo. Al saberlo pasa a Activa (y se asigna) o a Dada de baja. Cuenta en el costo mientras tanto.',
 };
 
+/** Color del estado en pantalla: Activa verde, de baja gris, y lo que hay que mirar (suspendida, en portabilidad, por confirmar) ambar. */
+export const tonoEstadoLinea = (e: { deBaja: boolean; clave?: string | null }) =>
+  e.deBaja ? 'neutral' : e.clave === 'activa' ? 'success' : 'warning';
+
 /**
  * Reasignar una linea (SPEC 2.131): a un telefono de la empresa (la persona sale
  * de el), a una persona (eSIM o telefono personal) o sin asignar. En los tres

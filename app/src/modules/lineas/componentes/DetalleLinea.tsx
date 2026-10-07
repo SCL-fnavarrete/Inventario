@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Edit, Repeat, Trash2 } from "lucide-react";
 import { ActivosTabs } from "@/modules/activos/componentes";
-import { DESCRIPCION_ESTADO, formatearNumero } from "@/modules/lineas";
+import { DESCRIPCION_ESTADO, formatearNumero, tonoEstadoLinea } from "@/modules/lineas";
 import { FormularioLinea } from "@/modules/lineas/componentes/FormularioLinea";
 import { ReasignarLinea } from "@/modules/lineas/componentes/ReasignarLinea";
 import { ORIGEN_TENENCIA, nombrePersona, personaDe, type FichaLinea } from "@/modules/lineas/componentes/tipos";
@@ -77,7 +77,7 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
         title={
           <span className="flex flex-wrap items-center gap-3">
             <span className="font-mono">{formatearNumero(linea.numero)}</span>
-            <Badge variant={deBaja ? "neutral" : "success"}>{linea.estado.nombre}</Badge>
+            <Badge variant={tonoEstadoLinea(linea.estado)}>{linea.estado.nombre}</Badge>
           </span>
         }
         description={[linea.plan?.nombre, linea.precioMensual != null && `${formatearClp(linea.precioMensual)} al mes`, linea.tipoChip?.nombre].filter(Boolean).join(" · ") || "Línea telefónica"}
@@ -134,7 +134,7 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
                   {linea.activo.marca} {linea.activo.modelo}
                 </Link>
               ) : (
-                <span className="text-fg-subtle">Ninguno (eSIM o teléfono personal)</span>
+                <span className="text-fg-subtle">{persona ? "Ninguno (eSIM o teléfono personal)" : "Ninguno"}</span>
               )}
             </Dato>
             <Dato titulo="Persona">
@@ -155,9 +155,9 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
         </div>
 
         <div className="card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-fg">Reasignaciones</h3>
+          <h3 className="mb-3 text-sm font-semibold text-fg">Cambios</h3>
           <p className="text-3xl font-bold text-fg">{reasignaciones}</p>
-          <p className="mb-3 text-xs text-fg-subtle">{reasignaciones === 1 ? "vez reasignada" : "veces reasignada"}</p>
+          <p className="mb-3 text-xs text-fg-subtle">{reasignaciones === 1 ? "vez cambió de lugar o de persona" : "veces cambió de lugar o de persona"}</p>
           <dl>
             <Dato titulo="Propietario anterior">
               {anterior?.empleado ? (

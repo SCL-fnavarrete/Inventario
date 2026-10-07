@@ -6,7 +6,7 @@ import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvi
 import Link from "next/link";
 import { Edit, Eye, ListChecks, Plus, Repeat, Trash2 } from "lucide-react";
 import { ActivosTabs } from "@/modules/activos/componentes";
-import { PARAMS_FILTRO_LINEA, formatearNumero } from "@/modules/lineas";
+import { PARAMS_FILTRO_LINEA, formatearNumero, tonoEstadoLinea } from "@/modules/lineas";
 import { FiltrosLineas, useOpcionesFiltroLineas } from "@/modules/lineas/componentes/FiltrosLineas";
 import { FormularioLinea } from "@/modules/lineas/componentes/FormularioLinea";
 import { IndicadoresLineas } from "@/modules/lineas/componentes/IndicadoresLineas";
@@ -212,7 +212,7 @@ export function LineasView() {
               className: "text-center",
               celda: (l) => (
                 <>
-                  <Badge variant={l.estado.deBaja ? "neutral" : "success"}>{l.estado.nombre}</Badge>
+                  <Badge variant={tonoEstadoLinea(l.estado)}>{l.estado.nombre}</Badge>
                   {l.fechaBaja && <span className="block text-xs text-fg-subtle">{formatearFecha(l.fechaBaja)}</span>}
                 </>
               ),
@@ -224,7 +224,7 @@ export function LineasView() {
                 {formatearNumero(l.numero)}
               </Link>
               <div className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
-                <Badge variant={l.estado.deBaja ? "neutral" : "success"}>{l.estado.nombre}</Badge>
+                <Badge variant={tonoEstadoLinea(l.estado)}>{l.estado.nombre}</Badge>
                 <Tenedor l={l} />
                 {l.plan && <span>· {l.plan.nombre}</span>}
               </div>
