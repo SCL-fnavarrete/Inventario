@@ -64,6 +64,60 @@ jobs:
       - name: Build
         run: npm run build
 
+  # Las migraciones aplicadas desde cero sobre un Postgres vacio (igual que la
+  # primera vez en produccion), sin deriva contra el schema, y los tests de
+  # integracion contra esa base. Detecta una migracion que depende de otra
+  # posterior en el orden, o un schema editado sin su migracion.
+  integracion:
+    name: migraciones · integración
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: inventario_it_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Los tests de integracion solo corren si la base se llama *_test.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/inventario_it_test
+      DATABASE_URL_UNPOOLED: postgresql://ci:ci@localhost:5432/inventario_it_test
+      NEXTAUTH_SECRET: ci-no-es-un-secreto-solo-para-el-build-0000
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar cliente Prisma
+        run: npx prisma generate
+
+      - name: Aplicar las migraciones desde cero
+        run: npx prisma migrate deploy
+
+      - name: El schema coincide con las migraciones
+        run: npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code
+
+      - name: Tests de integracion
+        run: npx jest src/__tests__/integracion --ci
+
   spec-guard:
     name: SPEC primero
     runs-on: ubuntu-latest

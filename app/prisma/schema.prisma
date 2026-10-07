@@ -9,40 +9,40 @@ datasource db {
 }
 
 model SystemUser {
-  id           String     @id @default(uuid())
+  id              String     @id @default(uuid())
   // Con esto se inicia sesion (SPEC 2.122): minusculas, numeros, punto,
   // guion y guion bajo. Es tambien lo que se anota como "quien lo hizo".
-  usuario      String     @unique
+  usuario         String     @unique
   // Opcional, para recuperar la contrasena a futuro; hoy no se usa para
   // nada. Las cuentas anteriores a SPEC 2.122 conservan aqui su correo.
-  email        String?    @unique
-  passwordHash String     @map("password_hash")
-  nombre       String
-  rol          SystemRole
-  activo       Boolean    @default(true)
-  ultimoLogin  DateTime?  @map("ultimo_login")
+  email           String?    @unique
+  passwordHash    String     @map("password_hash")
+  nombre          String
+  rol             SystemRole
+  activo          Boolean    @default(true)
+  ultimoLogin     DateTime?  @map("ultimo_login")
   // Sede a la que pertenece este usuario. `admin` la deja en null porque ve
   // todas las sedes; el resto queda restringido a los datos de la suya
   // (ver sedeScope()).
-  sedeId       String?    @map("sede_id")
+  sedeId          String?    @map("sede_id")
   // Solo valen las sesiones iniciadas desde esta fecha (SPEC 2.112.5): al
   // desactivar la cuenta pasa a "ahora" y todas sus sesiones abiertas quedan
   // anuladas para siempre, aunque despues se reactive.
-  sesionesDesde DateTime? @map("sesiones_desde")
+  sesionesDesde   DateTime?  @map("sesiones_desde")
   // Unica sesion vigente de la cuenta (SPEC 2.127): al iniciar sesion pasa a
   // ser la nueva y las demas quedan fuera en su siguiente accion; null = sin
   // sesion (un admin la cerro).
-  sesionVigenteId String? @map("sesion_vigente_id")
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
+  sesionVigenteId String?    @map("sesion_vigente_id")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
 
-  sede                Sede?             @relation(fields: [sedeId], references: [id])
-  solicitudesCreadas  WorkflowRequest[] @relation("SolicitanteRelation")
-  solicitudesAsignadas WorkflowRequest[] @relation("ResponsableRelation")
-  workflowComments    WorkflowComment[]
-  workflowTransitions WorkflowTransition[]
-  accesos             AccessLog[]
-  sesionesCerradas    SesionCerrada[]
+  sede                 Sede?                @relation(fields: [sedeId], references: [id])
+  solicitudesCreadas   WorkflowRequest[]    @relation("SolicitanteRelation")
+  solicitudesAsignadas WorkflowRequest[]    @relation("ResponsableRelation")
+  workflowComments     WorkflowComment[]
+  workflowTransitions  WorkflowTransition[]
+  accesos              AccessLog[]
+  sesionesCerradas     SesionCerrada[]
 
   @@index([sedeId])
   @@map("system_users")
@@ -53,22 +53,22 @@ model SystemUser {
 // el sistema corta al desactivar una cuenta. Tambien es la base del bloqueo
 // por intentos fallidos: se cuenta aqui y no en la memoria del servidor.
 model AccessLog {
-  id        String          @id @default(uuid())
+  id               String          @id @default(uuid())
   // Usuario con que se intento entrar, tal como se escribio (puede no
   // existir). Los registros anteriores a SPEC 2.122 tienen el correo.
-  usuarioIngresado String  @map("usuario_ingresado")
-  usuarioId String?         @map("usuario_id")
-  resultado ResultadoAcceso
+  usuarioIngresado String          @map("usuario_ingresado")
+  usuarioId        String?         @map("usuario_id")
+  resultado        ResultadoAcceso
   // Direccion de red y navegador de quien intento (no hay en cierres de
   // sesion ni cortes hechos por el sistema).
-  ip        String?
-  navegador String?
+  ip               String?
+  navegador        String?
   // Aclaracion, por ejemplo quien desactivo la cuenta.
-  detalle   String?
+  detalle          String?
   // Sesion a la que pertenece: une el ingreso con su cierre.
-  sesionId  String?         @map("sesion_id")
-  createdAt DateTime        @default(now()) @map("created_at")
-  usuario   SystemUser?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  sesionId         String?         @map("sesion_id")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  usuario          SystemUser?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   @@index([usuarioIngresado, createdAt])
   @@index([createdAt])
@@ -110,47 +110,48 @@ enum ResultadoAcceso {
 }
 
 model Employee {
-  id                   String          @id @default(uuid())
-  rut                  String?         @unique
-  nombres              String          @map("nombre")
-  apellidoPaterno      String          @map("apellido_paterno")
-  apellidoMaterno      String?         @map("apellido_materno")
+  id                   String            @id @default(uuid())
+  rut                  String?           @unique
+  nombres              String            @map("nombre")
+  apellidoPaterno      String            @map("apellido_paterno")
+  apellidoMaterno      String?           @map("apellido_materno")
   // El correo personal es el obligatorio y unico; el de empresa quedo
   // opcional (se conserva para no perder los datos ya importados, pero ya
   // no se exige ni se usa como identificador principal).
-  correoPersonal       String?         @unique @map("correo_personal")
-  correoEmpresa        String?         @unique @map("correo_empresa")
+  correoPersonal       String?           @unique @map("correo_personal")
+  correoEmpresa        String?           @unique @map("correo_empresa")
   cargo                String?
   jefatura             String?
   supervisor           String?
   ubicacion            String?
   division             String?
   area                 String?
-  subArea              String?         @map("sub_area")
-  direccionParticular  String?         @map("direccion_particular")
-  listasDistribucion   String?         @map("listas_distribucion")
+  subArea              String?           @map("sub_area")
+  direccionParticular  String?           @map("direccion_particular")
+  listasDistribucion   String?           @map("listas_distribucion")
   // Opcional: cuando no se conoce, se deja en blanco en vez de inventar un
   // valor. Solo se usa como etiqueta/filtro en pantalla, no condiciona
   // ninguna regla.
-  tipoContrato         TipoContrato?   @map("tipo_contrato")
-  fechaIngreso         DateTime?       @map("fecha_ingreso")
-  fechaTermino         DateTime?       @map("fecha_termino")
-  estado               EstadoEmpleado  @default(activo)
-  telefonoContacto     String?         @map("telefono_contacto")
-  createdAt            DateTime        @default(now()) @map("created_at")
-  updatedAt            DateTime        @updatedAt @map("updated_at")
-  fechaEntregaEpp      DateTime?       @map("fecha_entrega_epp")
-  fechaEntregaKit      DateTime?       @map("fecha_entrega_kit")
-  proximaMantencionEpp DateTime?       @map("proxima_mantencion_epp")
+  tipoContrato         TipoContrato?     @map("tipo_contrato")
+  fechaIngreso         DateTime?         @map("fecha_ingreso")
+  fechaTermino         DateTime?         @map("fecha_termino")
+  estado               EstadoEmpleado    @default(activo)
+  telefonoContacto     String?           @map("telefono_contacto")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+  fechaEntregaEpp      DateTime?         @map("fecha_entrega_epp")
+  fechaEntregaKit      DateTime?         @map("fecha_entrega_kit")
+  proximaMantencionEpp DateTime?         @map("proxima_mantencion_epp")
   // Sede de quien registro al empleado -- determina que soporte lo ve.
   // Independiente de `ubicacion` (texto libre).
-  sedeId               String?         @map("sede_id")
-  sede                 Sede?           @relation(fields: [sedeId], references: [id])
-  activosActuales      Asset[]         @relation("EmpleadoActual")
+  sedeId               String?           @map("sede_id")
+  sede                 Sede?             @relation(fields: [sedeId], references: [id])
+  activosActuales      Asset[]           @relation("EmpleadoActual")
   assignments          Assignment[]
   kitAssignments       KitAssignment[]
   workflowRequests     WorkflowRequest[]
   lineas               LineaTelefonica[]
+  tenenciasLinea       LineaTenencia[]
 
   @@index([estado])
   @@index([tipoContrato])
@@ -220,20 +221,20 @@ model Marca {
 }
 
 model AssetCategory {
-  id            String   @id @default(uuid())
-  nombre        String   @unique
-  descripcion   String?
+  id          String    @id @default(uuid())
+  nombre      String    @unique
+  descripcion String?
   // Umbral de "stock bajo" para la alerta del Dashboard, igual concepto que
   // WelcomeKitItem.stockMinimo pero aplicado a activos DISPONIBLES de esta
   // categoria (no al total): un notebook "asignado" no cuenta como stock,
   // es el que queda libre para entregar lo que le importa a soporte.
-  stockMinimo   Int      @default(3) @map("stock_minimo")
+  stockMinimo Int       @default(3) @map("stock_minimo")
   // "Que campos pide" (SPEC 2.112.7): decide los campos especiales del
   // formulario y de las fichas, en vez de reconocer la categoria por su
   // nombre. Asi renombrarla no rompe nada.
-  tipoFicha     TipoFicha @default(generico) @map("tipo_ficha")
-  createdAt     DateTime @default(now()) @map("created_at")
-  assets        Asset[]
+  tipoFicha   TipoFicha @default(generico) @map("tipo_ficha")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  assets      Asset[]
 
   @@map("asset_categories")
 }
@@ -241,78 +242,79 @@ model AssetCategory {
 // Campos especiales que pide una categoria de activos (SPEC 2.112.7).
 enum TipoFicha {
   computador // procesador, RAM, disco, sistema operativo, antivirus...
-  celular    // IMEI, numero de telefono, plan...
-  monitor    // pulgadas
+  celular // IMEI, numero de telefono, plan...
+  monitor // pulgadas
   periferico // solo lo basico (mouse, teclado, audifonos...)
-  generico   // lo basico mas los campos generales
+  generico // lo basico mas los campos generales
 }
 
 model Asset {
-  id                  String              @id @default(uuid())
-  categoriaId         String              @map("categoria_id")
-  numeroSerie         String?             @unique @map("numero_serie")
+  id                       String              @id @default(uuid())
+  categoriaId              String              @map("categoria_id")
+  numeroSerie              String?             @unique @map("numero_serie")
   // Identifica al celular como unico, igual que numeroSerie a los demas
   // equipos (SPEC 2.112.7). Solo digitos: 15, con digito verificador.
-  imei                String?             @unique
-  marca               String
-  modelo              String
-  procesador          String?
-  discoDuro           String?             @map("disco_duro")
-  ram                 String?
-  pulgadas            Decimal?            @db.Decimal(4, 1)
-  sistemaOperativo    String?             @map("sistema_operativo")
-  numeroActivacion    String?             @map("numero_activacion")
-  tieneCargador       Boolean             @default(true) @map("tiene_cargador")
+  imei                     String?             @unique
+  marca                    String
+  modelo                   String
+  procesador               String?
+  discoDuro                String?             @map("disco_duro")
+  ram                      String?
+  pulgadas                 Decimal?            @db.Decimal(4, 1)
+  sistemaOperativo         String?             @map("sistema_operativo")
+  numeroActivacion         String?             @map("numero_activacion")
+  tieneCargador            Boolean             @default(true) @map("tiene_cargador")
   // Conectividad compartida por los perifericos simples (Mouse, Teclado,
   // Webcam, Audifonos) -- un solo campo en vez de cuatro secciones casi
   // idénticas para ese mismo dato.
-  conectividad        String?
-  estado              EstadoActivo        @default(disponible)
-  condicion           CondicionActivo     @default(nuevo)
-  ubicacionFisica     String?             @map("ubicacion_fisica")
-  microsoft365        Boolean             @default(false) @map("microsoft_365")
+  conectividad             String?
+  estado                   EstadoActivo        @default(disponible)
+  condicion                CondicionActivo     @default(nuevo)
+  ubicacionFisica          String?             @map("ubicacion_fisica")
+  microsoft365             Boolean             @default(false) @map("microsoft_365")
   // Nombre del plan/licencia (ej. "Premium", "E3"), complementa el
   // booleano de arriba.
-  tipoLicenciaMicrosoft365 String?        @map("tipo_licencia_microsoft365")
-  intuneEnrolled      Boolean             @default(false) @map("intune_enrolled")
-  listaDistribucion   String?             @map("lista_distribucion")
-  antivirus           String?             // Software antivirus instalado
-  incidencia          String?             // Incidencias reportadas (robo, falla, etc)
+  tipoLicenciaMicrosoft365 String?             @map("tipo_licencia_microsoft365")
+  intuneEnrolled           Boolean             @default(false) @map("intune_enrolled")
+  listaDistribucion        String?             @map("lista_distribucion")
+  antivirus                String? // Software antivirus instalado
+  incidencia               String? // Incidencias reportadas (robo, falla, etc)
   // Cuanto vale el equipo, en pesos chilenos (SPEC 2.124). Opcional y se
   // actualiza a mano; cada cambio queda en el historial.
-  valor               Int?
-  fechaCompra         DateTime?           @map("fecha_compra")
-  fechaGarantiaFin    DateTime?           @map("fecha_garantia_fin")
-  fechaBaja           DateTime?           @map("fecha_baja")
+  valor                    Int?
+  fechaCompra              DateTime?           @map("fecha_compra")
+  fechaGarantiaFin         DateTime?           @map("fecha_garantia_fin")
+  fechaBaja                DateTime?           @map("fecha_baja")
   // Fecha en que se vendio el activo, ingresada por quien registra la
   // venta (no la fecha del sistema). Comprador/monto/moneda quedan solo en
   // AssetHistory.
-  fechaVenta          DateTime?           @map("fecha_venta")
+  fechaVenta               DateTime?           @map("fecha_venta")
   // Retira el activo de los listados sin borrar la fila ni su historial
   // (por ejemplo, duplicados de importacion). No reemplaza al estado
   // `baja`, que es un estado del ciclo de vida del equipo.
-  deletedAt           DateTime?           @map("deleted_at")
-  observaciones       String?
-  createdAt           DateTime            @default(now()) @map("created_at")
-  updatedAt           DateTime            @updatedAt @map("updated_at")
-  empleadoActualId    String?             @map("empleado_actual_id")
+  deletedAt                DateTime?           @map("deleted_at")
+  observaciones            String?
+  createdAt                DateTime            @default(now()) @map("created_at")
+  updatedAt                DateTime            @updatedAt @map("updated_at")
+  empleadoActualId         String?             @map("empleado_actual_id")
   // Nombre/etiqueta interna que TI o RRHH le puso al equipo (ej.
   // "SCL-BNEIRAC"), distinto de marca/modelo.
-  nombreEquipo        String?             @map("nombre_equipo")
+  nombreEquipo             String?             @map("nombre_equipo")
   // Sede donde esta almacenado FISICAMENTE el activo. Independiente de la
   // sede/ubicacion del empleado asignado -- no cambia por una asignacion o
   // devolucion, solo por una guia de despacho de tipo `traslado` ya
   // recibida.
-  sedeId              String?             @map("sede_id")
-  history             AssetHistory[]
-  categoria           AssetCategory       @relation(fields: [categoriaId], references: [id])
-  empleadoActual      Employee?           @relation("EmpleadoActual", fields: [empleadoActualId], references: [id])
-  sede                Sede?               @relation(fields: [sedeId], references: [id])
-  assignments         Assignment[]
-  dispatchItems       DispatchGuideItem[]
-  maintenances        Maintenance[]
-  purchaseAssets      PurchaseAsset[]
-  lineas              LineaTelefonica[]
+  sedeId                   String?             @map("sede_id")
+  history                  AssetHistory[]
+  categoria                AssetCategory       @relation(fields: [categoriaId], references: [id])
+  empleadoActual           Employee?           @relation("EmpleadoActual", fields: [empleadoActualId], references: [id])
+  sede                     Sede?               @relation(fields: [sedeId], references: [id])
+  assignments              Assignment[]
+  dispatchItems            DispatchGuideItem[]
+  maintenances             Maintenance[]
+  purchaseAssets           PurchaseAsset[]
+  lineas                   LineaTelefonica[]
+  tenenciasLinea           LineaTenencia[]
 
   @@index([estado])
   @@index([categoriaId])
@@ -327,33 +329,198 @@ model Asset {
 // Linea telefonica contratada (SPEC 2.131). Es un registro propio: se asocia
 // a un celular y a una persona, pero no depende de ninguno de los dos.
 model LineaTelefonica {
-  id            String       @id @default(uuid())
+  id            String          @id @default(uuid())
   // Solo digitos, con el 56 delante (ej. 56912345678).
-  numero        String       @unique
-  plan          String?
-  // Lo que cuesta al mes, en pesos chilenos.
-  precioMensual Int?         @map("precio_mensual")
-  estado        EstadoLinea  @default(activa)
-  fechaBaja     DateTime?    @map("fecha_baja")
-  activoId      String?      @map("activo_id")
-  empleadoId    String?      @map("empleado_id")
-  // Quien la tiene cuando no es una persona del sistema (ej. "Bodega Concepción").
+  numero        String          @unique
+  planId        String?         @map("plan_id")
+  // Lo que cuesta al mes, en pesos chilenos. El plan lo propone, pero cada
+  // linea tiene el suyo; sus cambios quedan en el historial (SPEC 2.131).
+  precioMensual Int?            @map("precio_mensual")
+  estadoId      String          @map("estado_id")
+  // Fecha en que paso a un estado que cuenta como baja.
+  fechaBaja     DateTime?       @map("fecha_baja")
+  tipoChipId    String?         @map("tipo_chip_id")
+  // Compania de la linea (Entel, Movistar...): catalogo seleccionable.
+  operadorId    String?         @map("operador_id")
+  // El celular donde esta. Si lo tiene, la persona es quien tiene el celular
+  // y empleadoId queda vacio; sin celular (chip en un telefono personal),
+  // la persona se guarda aqui (SPEC 2.131).
+  activoId      String?         @map("activo_id")
+  empleadoId    String?         @map("empleado_id")
+  // Sede donde esta la linea (opcional; el formulario propone la del navbar).
+  sedeId        String?         @map("sede_id")
+  // Nota de solo lectura: el texto libre que tenia antes de existir la sede
+  // (ej. "Bodega Concepción") cuando no calzo con ninguna.
   responsable   String?
   observaciones String?
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
-  activo        Asset?       @relation(fields: [activoId], references: [id])
-  empleado      Employee?    @relation(fields: [empleadoId], references: [id])
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  sede          Sede?           @relation(fields: [sedeId], references: [id])
+  activo        Asset?          @relation(fields: [activoId], references: [id])
+  empleado      Employee?       @relation(fields: [empleadoId], references: [id])
+  tipoChip      TipoChip?       @relation(fields: [tipoChipId], references: [id])
+  operador      OperadorLinea?  @relation(fields: [operadorId], references: [id])
+  plan          PlanLinea?      @relation(fields: [planId], references: [id])
+  estado        EstadoLinea     @relation(fields: [estadoId], references: [id])
+  tenencias     LineaTenencia[]
 
-  @@index([estado])
+  @@index([estadoId])
+  @@index([planId])
+  @@index([sedeId])
+  @@index([operadorId])
   @@index([activoId])
   @@index([empleadoId])
+  @@index([tipoChipId])
   @@map("lineas_telefonicas")
 }
 
-enum EstadoLinea {
-  activa
-  baja
+// Tipo de chip de una linea (chip fisico, eSIM...): catalogo que administra
+// el admin. La linea apunta por id; uno ya usado se desactiva (SPEC 2.131).
+model TipoChip {
+  id         String            @id @default(uuid())
+  nombre     String            @unique
+  activo     Boolean           @default(true)
+  // El chip va integrado o en el telefono de una persona, nunca en un celular de
+  // la empresa (eSIM / MFF): la linea no se asocia a un celular (SPEC 2.131).
+  sinCelular Boolean           @default(false) @map("sin_celular")
+  createdAt  DateTime          @default(now()) @map("created_at")
+  lineas     LineaTelefonica[]
+
+  @@map("tipos_chip")
+}
+
+// Operador (compania) de una linea: Entel, Movistar, Claro, WOM... Catalogo que
+// se agrega y renombra; uno usado se desactiva en vez de borrarse (SPEC 2.131).
+model OperadorLinea {
+  id        String            @id @default(uuid())
+  nombre    String            @unique
+  activo    Boolean           @default(true)
+  createdAt DateTime          @default(now()) @map("created_at")
+  lineas    LineaTelefonica[]
+
+  @@map("operadores_linea")
+}
+
+// Estados de una linea: son cuatro y fijos, los de su ciclo de vida (Activa,
+// Suspendida, En portabilidad, Dada de baja); no se agregan ni se cambian desde
+// la aplicacion. `deBaja` dice cuales ya no cuestan y piden fecha de baja
+// (SPEC 2.131).
+model EstadoLinea {
+  id        String            @id @default(uuid())
+  nombre    String            @unique
+  deBaja    Boolean           @default(false) @map("de_baja")
+  clave     String?           @unique
+  activo    Boolean           @default(true)
+  createdAt DateTime          @default(now()) @map("created_at")
+  lineas    LineaTelefonica[]
+
+  @@map("estados_linea")
+}
+
+// Plan de una linea, con su precio de referencia: al elegirlo se propone
+// ese precio (SPEC 2.131).
+model PlanLinea {
+  id            String            @id @default(uuid())
+  nombre        String            @unique
+  precioMensual Int?              @map("precio_mensual")
+  activo        Boolean           @default(true)
+  createdAt     DateTime          @default(now()) @map("created_at")
+  lineas        LineaTelefonica[]
+
+  @@map("planes_linea")
+}
+
+// Historial de una linea, como el de los activos (SPEC 2.131). `vigenteDesde`
+// es cuando rige el cambio (un precio nuevo puede regir desde el dia 1); con
+// los eventos de precio y estado se calcula lo que costo cada mes. Sin llave
+// foranea: al eliminar la linea el historial queda, con un evento `eliminacion`,
+// para que el costo de los meses pasados no cambie.
+model LineaHistorial {
+  id              String          @id @default(uuid())
+  lineaId         String          @map("linea_id")
+  tipo            TipoEventoLinea
+  descripcion     String
+  datosAnteriores Json?           @map("datos_anteriores")
+  datosNuevos     Json?           @map("datos_nuevos")
+  vigenteDesde    DateTime        @map("vigente_desde")
+  usuario         String?
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  @@index([lineaId])
+  @@index([vigenteDesde])
+  @@map("lineas_historial")
+}
+
+enum TipoEventoLinea {
+  creacion
+  importacion
+  precio
+  plan
+  estado
+  celular
+  persona
+  datos
+  eliminacion
+}
+
+// Tenencia de una linea (SPEC 2.131): cada tramo de tiempo en que estuvo en un
+// telefono y/o con una persona. Un cambio cierra el tramo (`hasta`) y abre otro;
+// el tramo abierto (sin `hasta`) es el actual. Guarda la persona de ese
+// momento, asi la linea recuerda a sus propietarios anteriores igual que el
+// equipo. Sirve para la ficha de la linea y para el historial de la persona.
+model LineaTenencia {
+  id          String              @id @default(uuid())
+  lineaId     String              @map("linea_id")
+  // El telefono de la empresa donde estaba el chip, si estaba en uno.
+  activoId    String?             @map("activo_id")
+  // Quien la tenia entonces: la persona de ese telefono o, sin telefono de la
+  // empresa (eSIM, telefono personal), la persona elegida.
+  empleadoId  String?             @map("empleado_id")
+  // Nota heredada (texto libre anterior a la sede); no se escribe mas.
+  responsable String?
+  // Sede de la linea en ese tramo.
+  sedeId      String?             @map("sede_id")
+  desde       DateTime
+  hasta       DateTime?
+  origen      OrigenTenencia
+  motivoId    String?             @map("motivo_id")
+  detalle     String?
+  usuario     String?
+  createdAt   DateTime            @default(now()) @map("created_at")
+  linea       LineaTelefonica     @relation(fields: [lineaId], references: [id], onDelete: Cascade)
+  activo      Asset?              @relation(fields: [activoId], references: [id], onDelete: SetNull)
+  empleado    Employee?           @relation(fields: [empleadoId], references: [id])
+  motivo      MotivoReasignacion? @relation(fields: [motivoId], references: [id])
+  sede        Sede?               @relation(fields: [sedeId], references: [id])
+
+  @@index([lineaId, desde])
+  @@index([empleadoId])
+  @@index([activoId])
+  @@map("lineas_tenencias")
+}
+
+// Como empezo un tramo: el alta de la linea, la importacion, una reasignacion
+// hecha a mano o el cambio de manos del telefono donde esta (automatico).
+enum OrigenTenencia {
+  alta
+  importacion
+  reasignacion
+  entrega_telefono
+  devolucion_telefono
+  // Devolucion por termino: sus eSIM quedan disponibles (SPEC 2.131).
+  termino
+}
+
+// Motivos de reasignacion de una linea: catalogo que administran todos; el
+// tramo apunta por id y uno ya usado se desactiva (SPEC 2.131).
+model MotivoReasignacion {
+  id        String          @id @default(uuid())
+  nombre    String          @unique
+  activo    Boolean         @default(true)
+  createdAt DateTime        @default(now()) @map("created_at")
+  tenencias LineaTenencia[]
+
+  @@map("motivos_reasignacion")
 }
 
 // Modelo Supplier eliminado: el area de soporte no necesita asociar una
@@ -365,48 +532,48 @@ enum EstadoLinea {
 // que vinieron con ella. No se registra proveedor ni dato financiero
 // alguno (monto, moneda, metodo de pago, precio unitario).
 model Purchase {
-  id             String          @id @default(uuid())
-  numeroFactura  String?         @map("numero_factura")
-  fechaFactura   DateTime        @map("fecha_factura")
+  id               String            @id @default(uuid())
+  numeroFactura    String?           @map("numero_factura")
+  fechaFactura     DateTime          @map("fecha_factura")
   // RUT del proveedor que emitio la factura: texto libre validado con el
   // mismo digito verificador que el rut de un empleado (ver
   // validations/rut.ts), no referencia al catalogo Supplier.
-  rutProveedor   String?         @map("rut_proveedor")
-  tipoCompra     TipoCompra      @default(FACTURA) @map("tipo_compra")
-  descripcion    String?
-  compradoPor    String?         @map("comprado_por")
-  ordenCompra    String?         @map("orden_compra")
+  rutProveedor     String?           @map("rut_proveedor")
+  tipoCompra       TipoCompra        @default(FACTURA) @map("tipo_compra")
+  descripcion      String?
+  compradoPor      String?           @map("comprado_por")
+  ordenCompra      String?           @map("orden_compra")
   // Sede de llegada (SPEC 2.111): donde llega fisicamente lo comprado y
   // donde espera "Por repartir". Obligatoria al crear, elegida
   // explicitamente; nullable en la columna solo por filas antiguas.
-  sedeId         String?         @map("sede_id")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  purchaseAssets PurchaseAsset[]
+  sedeId           String?           @map("sede_id")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  purchaseAssets   PurchaseAsset[]
   // Lineas de Kit/EPP compradas con esta factura. A diferencia de
   // PurchaseAsset, esto no crea una fila nueva por unidad -- Kit/EPP es
   // stock contable (ver WelcomeKitItem.cantidad), asi que cada linea suma
   // una cantidad al stock existente del articulo.
   purchaseKitItems PurchaseKitItem[]
   // Despachos creados al repartir esta compra a otras sedes (SPEC 2.111).
-  despachos      DispatchGuide[]
-  sede           Sede?           @relation(fields: [sedeId], references: [id])
+  despachos        DispatchGuide[]
+  sede             Sede?             @relation(fields: [sedeId], references: [id])
 
   @@index([sedeId])
   @@map("purchases")
 }
 
 model PurchaseAsset {
-  id         String   @id @default(uuid())
-  purchaseId String   @map("purchase_id")
-  assetId    String   @map("asset_id")
+  id             String   @id @default(uuid())
+  purchaseId     String   @map("purchase_id")
+  assetId        String   @map("asset_id")
   // SPEC 2.111: true si el equipo se compro en esta compra y pasa por el
   // reparto (nace "Por repartir"); false si ya existia y solo se vinculo a
   // la factura. Asi se sabe que se repartio y si la compra se puede eliminar.
   // Los vinculos anteriores a 2.111 quedan en false.
-  llegoConCompra Boolean @default(false) @map("llego_con_compra")
-  createdAt  DateTime @default(now()) @map("created_at")
-  asset      Asset    @relation(fields: [assetId], references: [id])
-  purchase   Purchase @relation(fields: [purchaseId], references: [id])
+  llegoConCompra Boolean  @default(false) @map("llego_con_compra")
+  createdAt      DateTime @default(now()) @map("created_at")
+  asset          Asset    @relation(fields: [assetId], references: [id])
+  purchase       Purchase @relation(fields: [purchaseId], references: [id])
 
   // Un equipo va una sola vez en cada compra (auditoria 27-sep-2026, 2.11).
   @@unique([purchaseId, assetId])
@@ -419,19 +586,19 @@ model PurchaseAsset {
 // crearse, suma esa cantidad al stock del articulo; si la compra se
 // elimina o la linea se desvincula, se resta de vuelta (sin bajar de 0).
 model PurchaseKitItem {
-  id         String         @id @default(uuid())
-  purchaseId String         @map("purchase_id")
-  itemId     String         @map("item_id")
-  cantidad   Int
+  id                  String               @id @default(uuid())
+  purchaseId          String               @map("purchase_id")
+  itemId              String               @map("item_id")
+  cantidad            Int
   // Unidades que todavia no se reparten a ninguna sede (SPEC 2.111). Parte
   // igual a `cantidad` y baja al repartir; vuelve a subir si se anula un
   // despacho de reparto. Las compras anteriores a 2.111 quedan en 0: ya
   // sumaron su stock al registrarse.
-  cantidadPorRepartir Int     @default(0) @map("cantidad_por_repartir")
-  createdAt  DateTime       @default(now()) @map("created_at")
-  purchase   Purchase       @relation(fields: [purchaseId], references: [id])
-  item       WelcomeKitItem @relation(fields: [itemId], references: [id])
-  repartos   PurchaseKitReparto[]
+  cantidadPorRepartir Int                  @default(0) @map("cantidad_por_repartir")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  purchase            Purchase             @relation(fields: [purchaseId], references: [id])
+  item                WelcomeKitItem       @relation(fields: [itemId], references: [id])
+  repartos            PurchaseKitReparto[]
 
   @@index([purchaseId])
   @@index([itemId])
@@ -461,47 +628,47 @@ model PurchaseKitReparto {
 }
 
 model Assignment {
-  id                      String            @id @default(uuid())
-  assetId                 String            @map("asset_id")
-  employeeId              String            @map("employee_id")
+  id                              String             @id @default(uuid())
+  assetId                         String             @map("asset_id")
+  employeeId                      String             @map("employee_id")
   // Nullable: una fila importada puede no traer fecha de entrega real, en
   // cuyo caso se guarda null en vez de forzar una fecha inventada. La
   // creacion manual desde el formulario sigue exigiendo una fecha real.
-  fechaEntrega            DateTime?         @map("fecha_entrega")
-  lugarEntrega            String?           @map("lugar_entrega")
-  entregadoPor            String?           @map("entregado_por")
-  tipoMovimiento          TipoMovimiento    @map("tipo_movimiento")
-  motivo                  String?
-  fechaDevolucion         DateTime?         @map("fecha_devolucion")
-  recibidoPor             String?           @map("recibido_por")
-  estadoDevolucion        EstadoDevolucion? @map("estado_devolucion")
+  fechaEntrega                    DateTime?          @map("fecha_entrega")
+  lugarEntrega                    String?            @map("lugar_entrega")
+  entregadoPor                    String?            @map("entregado_por")
+  tipoMovimiento                  TipoMovimiento     @map("tipo_movimiento")
+  motivo                          String?
+  fechaDevolucion                 DateTime?          @map("fecha_devolucion")
+  recibidoPor                     String?            @map("recibido_por")
+  estadoDevolucion                EstadoDevolucion?  @map("estado_devolucion")
   // Valor del equipo (CLP) cuando quedo "No devuelto" (SPEC 2.124): se
   // copia del activo en ese momento y no cambia despues, para RRHH.
-  valorNoDevuelto         Int?              @map("valor_no_devuelto")
+  valorNoDevuelto                 Int?               @map("valor_no_devuelto")
   // Cambio de equipo devuelto "para dar de baja" (SPEC 2.126): el motivo de
   // la lista. La baja va directo, sin mantencion: el motivo queda aqui.
-  motivoBajaId            String?           @map("motivo_baja_id")
-  observacionesDevolucion String?           @map("observaciones_devolucion")
+  motivoBajaId                    String?            @map("motivo_baja_id")
+  observacionesDevolucion         String?            @map("observaciones_devolucion")
   // Condicion del cargador -- solo tiene sentido si el activo es un
   // notebook con tieneCargador = true; para el resto queda null. Es un
   // atributo de esta entrega/devolucion puntual, no afecta el
   // estado/condicion del Activo.
-  condicionCargadorEntrega    CondicionCargador? @map("condicion_cargador_entrega")
-  condicionCargadorDevolucion CondicionCargador? @map("condicion_cargador_devolucion")
+  condicionCargadorEntrega        CondicionCargador? @map("condicion_cargador_entrega")
+  condicionCargadorDevolucion     CondicionCargador? @map("condicion_cargador_devolucion")
   // Observacion del cargador, una por momento (SPEC 2.121): antes era una
   // sola y la devolucion pisaba la de la entrega.
-  observacionesCargadorEntrega    String?          @map("observaciones_cargador")
-  observacionesCargadorDevolucion String?          @map("observaciones_cargador_devolucion")
-  activo                  Boolean           @default(true)
-  actaEntregaUrl          String?           @map("acta_entrega_url")
-  actaDevolucionUrl       String?           @map("acta_devolucion_url")
-  firmaEmpleadoEntrega    String?           @map("firma_empleado_entrega")
-  firmaEmpleadoDevolucion String?           @map("firma_empleado_devolucion")
-  createdAt               DateTime          @default(now()) @map("created_at")
-  updatedAt               DateTime          @updatedAt @map("updated_at")
-  asset                   Asset             @relation(fields: [assetId], references: [id])
-  employee                Employee          @relation(fields: [employeeId], references: [id])
-  motivoBaja              MotivoBaja?       @relation(fields: [motivoBajaId], references: [id], onDelete: Restrict)
+  observacionesCargadorEntrega    String?            @map("observaciones_cargador")
+  observacionesCargadorDevolucion String?            @map("observaciones_cargador_devolucion")
+  activo                          Boolean            @default(true)
+  actaEntregaUrl                  String?            @map("acta_entrega_url")
+  actaDevolucionUrl               String?            @map("acta_devolucion_url")
+  firmaEmpleadoEntrega            String?            @map("firma_empleado_entrega")
+  firmaEmpleadoDevolucion         String?            @map("firma_empleado_devolucion")
+  createdAt                       DateTime           @default(now()) @map("created_at")
+  updatedAt                       DateTime           @updatedAt @map("updated_at")
+  asset                           Asset              @relation(fields: [assetId], references: [id])
+  employee                        Employee           @relation(fields: [employeeId], references: [id])
+  motivoBaja                      MotivoBaja?        @relation(fields: [motivoBajaId], references: [id], onDelete: Restrict)
 
   @@index([assetId])
   // "Equipos activos de un empleado" (ficha, traslado de sede, desvinculacion).
@@ -514,27 +681,27 @@ model Assignment {
 }
 
 model WelcomeKitItem {
-  id             String          @id @default(uuid())
-  nombre         String
-  categoria      CategoriaKit
+  id               String                 @id @default(uuid())
+  nombre           String
+  categoria        CategoriaKit
   // Stock disponible de este articulo. Baja al entregar (KitAssignment),
   // sube si se devuelve. Es un conteo simple, no unidades individuales
   // rastreables (a diferencia de Asset) -- para EPP/Kit no hace falta
   // distinguir una unidad de otra, solo saber cuantas quedan.
-  cantidad       Int              @default(0)
+  cantidad         Int                    @default(0)
   // Umbral configurable para la alerta de "stock bajo" del Dashboard: se
   // avisa cuando cantidad llega a este numero o menos (y por separado cuando
   // llega a 0, "sin stock"). Cada articulo puede tener su propio umbral --
   // no todos se agotan al mismo ritmo.
-  stockMinimo    Int              @default(5) @map("stock_minimo")
+  stockMinimo      Int                    @default(5) @map("stock_minimo")
   // Catalogo separado por sede: cada sede tiene sus propias filas y su
   // propio stock, igual que Asset/Employee. Nullable: un registro "sin
   // sede" solo lo ve admin.
-  sedeId         String?          @map("sede_id")
-  sede           Sede?            @relation(fields: [sedeId], references: [id])
-  createdAt      DateTime         @default(now()) @map("created_at")
-  kitAssignments KitAssignment[]
-  requeridoEn    RequestKitItem[]
+  sedeId           String?                @map("sede_id")
+  sede             Sede?                  @relation(fields: [sedeId], references: [id])
+  createdAt        DateTime               @default(now()) @map("created_at")
+  kitAssignments   KitAssignment[]
+  requeridoEn      RequestKitItem[]
   // Compras que trajeron stock de este articulo.
   purchaseKitItems PurchaseKitItem[]
   despachadoEn     DispatchGuideKitItem[] @relation("KitDespachoOrigen")
@@ -685,15 +852,15 @@ model AssetHistory {
 // IMPORTANTE: `datosAnteriores`/`datosNuevos` de Usuario NUNCA deben incluir
 // `passwordHash` -- ver auditLogService y las rutas de /api/usuarios.
 model AuditLog {
-  id              String         @id @default(uuid())
+  id              String       @id @default(uuid())
   entidad         AuditEntidad
-  entidadId       String         @map("entidad_id")
+  entidadId       String       @map("entidad_id")
   accion          AuditAccion
   descripcion     String
-  datosAnteriores Json?          @map("datos_anteriores")
-  datosNuevos     Json?          @map("datos_nuevos")
-  usuarioSistema  String?        @map("usuario_sistema")
-  createdAt       DateTime       @default(now()) @map("created_at")
+  datosAnteriores Json?        @map("datos_anteriores")
+  datosNuevos     Json?        @map("datos_nuevos")
+  usuarioSistema  String?      @map("usuario_sistema")
+  createdAt       DateTime     @default(now()) @map("created_at")
 
   @@index([entidad, entidadId])
   @@index([createdAt])
@@ -712,39 +879,39 @@ model AuditLog {
 // sesiones NUEVAS (login) -- una sesion ya activa mantiene la duracion con
 // la que su JWT fue emitido, no se puede "cortar" a mitad de camino.
 model SystemConfig {
-  id                   String   @id @default("singleton")
+  id String @id @default("singleton")
 
   // Seguridad de sesion y login (Configuracion > Seguridad, SPEC 2.112).
   // Los "datos de la empresa" se quitaron: no se usaban en ninguna parte.
-  duracionSesionHoras  Int      @default(24) @map("duracion_sesion_horas")
-  maxIntentosLogin     Int      @default(5) @map("max_intentos_login")
-  minutosBloqueoLogin  Int      @default(15) @map("minutos_bloqueo_login")
+  duracionSesionHoras Int @default(24) @map("duracion_sesion_horas")
+  maxIntentosLogin    Int @default(5) @map("max_intentos_login")
+  minutosBloqueoLogin Int @default(15) @map("minutos_bloqueo_login")
   // Bloqueo por equipo (direccion de red), SPEC 2.112.6: frena a quien prueba
   // muchos usuarios desde el mismo equipo.
-  maxIntentosIp        Int      @default(20) @map("max_intentos_ip")
-  minutosBloqueoIp     Int      @default(15) @map("minutos_bloqueo_ip")
+  maxIntentosIp       Int @default(20) @map("max_intentos_ip")
+  minutosBloqueoIp    Int @default(15) @map("minutos_bloqueo_ip")
 
-  updatedAt            DateTime @updatedAt @map("updated_at")
-  updatedPor           String?  @map("updated_por")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  updatedPor String?  @map("updated_por")
 
   @@map("system_config")
 }
 
 model DispatchGuide {
-  id                   String              @id @default(uuid())
-  numero               String              @unique
+  id                   String                 @id @default(uuid())
+  numero               String                 @unique
   // Numero de seguimiento de Chilexpress -- todo despacho pasa por ahi, es
   // el dato principal de la guia.
-  otChilexpress        String              @map("ot_chilexpress")
-  fechaDespacho        DateTime            @map("fecha_despacho")
-  fechaEstimadaLlegada DateTime?           @map("fecha_estimada_llegada")
+  otChilexpress        String                 @map("ot_chilexpress")
+  fechaDespacho        DateTime               @map("fecha_despacho")
+  fechaEstimadaLlegada DateTime?              @map("fecha_estimada_llegada")
   // Emisor: se autocompleta con el tecnico de la sesion al crear la guia.
-  despachadoPor        String              @map("despachado_por")
+  despachadoPor        String                 @map("despachado_por")
   // Receptor: quien firma la recepcion fisica del paquete. Es texto libre
   // a proposito -- no siempre es un Employee del sistema (puede ser alguien
   // no onboardeado todavia).
-  receptorNombre       String              @map("receptor_nombre")
-  receptorRut          String              @map("receptor_rut")
+  receptorNombre       String                 @map("receptor_nombre")
+  receptorRut          String                 @map("receptor_rut")
   observaciones        String?
   // SPEC 2.108: la guia nace `en_transito` y sus equipos quedan "En
   // transito" en la sede de origen. Recien al confirmar la recepcion, la
@@ -753,31 +920,31 @@ model DispatchGuide {
   // faltante se resuelve despues como "Llego" o "Se perdio"). La sede de
   // origen puede anularla mientras esta en transito (`anulada`): los equipos
   // vuelven a "Disponible" en origen.
-  estado               EstadoGuia          @default(en_transito)
+  estado               EstadoGuia             @default(en_transito)
   // Primera confirmacion de recepcion.
-  fechaRecepcion       DateTime?           @map("fecha_recepcion")
-  recibidoPor          String?             @map("recibido_por")
-  fechaAnulacion       DateTime?           @map("fecha_anulacion")
-  anuladaPor           String?             @map("anulada_por")
-  motivoAnulacion      String?             @map("motivo_anulacion")
+  fechaRecepcion       DateTime?              @map("fecha_recepcion")
+  recibidoPor          String?                @map("recibido_por")
+  fechaAnulacion       DateTime?              @map("fecha_anulacion")
+  anuladaPor           String?                @map("anulada_por")
+  motivoAnulacion      String?                @map("motivo_anulacion")
   // Sede destino: obligatoria, se elige explicitamente en el formulario.
   // Al crear la guia, cada activo despachado cambia de inmediato a esta
   // sede (ver POST /api/guias-despacho).
-  sedeDestinoId        String              @map("sede_destino_id")
+  sedeDestinoId        String                 @map("sede_destino_id")
   // Sede de quien crea la guia (el emisor) -- junto con sedeDestinoId
   // determina que soporte puede ver/actuar sobre el registro.
-  sedeId               String?             @map("sede_id")
+  sedeId               String?                @map("sede_id")
   // Compra cuyo reparto creo este despacho (SPEC 2.111). Si se anula, lo
   // que viajaba vuelve a "Por repartir" en esa compra.
-  purchaseId           String?             @map("purchase_id")
-  createdAt            DateTime            @default(now()) @map("created_at")
-  updatedAt            DateTime            @updatedAt @map("updated_at")
+  purchaseId           String?                @map("purchase_id")
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
   items                DispatchGuideItem[]
   kitItems             DispatchGuideKitItem[]
   repartosKit          PurchaseKitReparto[]
-  purchase             Purchase?           @relation(fields: [purchaseId], references: [id])
-  sede                 Sede?               @relation("GuiasSede", fields: [sedeId], references: [id])
-  sedeDestino          Sede                @relation("GuiasDestino", fields: [sedeDestinoId], references: [id])
+  purchase             Purchase?              @relation(fields: [purchaseId], references: [id])
+  sede                 Sede?                  @relation("GuiasSede", fields: [sedeId], references: [id])
+  sedeDestino          Sede                   @relation("GuiasDestino", fields: [sedeDestinoId], references: [id])
 
   @@index([numero])
   @@index([estado])
@@ -819,43 +986,45 @@ model DispatchGuideKitItem {
 }
 
 model Sede {
-  id        String   @id @default(uuid())
+  id             String               @id @default(uuid())
   // Slug corto y estable (ej: STGO, CCP). No cambia aunque el nombre
   // visible cambie -- es lo que idealmente se referencia en integraciones
   // futuras.
-  codigo    String   @unique
-  nombre    String
+  codigo         String               @unique
+  nombre         String
   // Permite desactivar una sede sin perder el historial de activos/guias
   // que la referencian.
-  activa    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  assets       Asset[]
-  empleados    Employee[]
-  usuarios     SystemUser[]
-  solicitudes  WorkflowRequest[]
-  guias        DispatchGuide[]   @relation("GuiasSede")
-  guiasDestino DispatchGuide[]   @relation("GuiasDestino")
-  kitItems     WelcomeKitItem[]
-  compras      Purchase[]
-  repartosKit  PurchaseKitReparto[] @relation("RepartosKitSede")
+  activa         Boolean              @default(true)
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  assets         Asset[]
+  empleados      Employee[]
+  usuarios       SystemUser[]
+  solicitudes    WorkflowRequest[]
+  guias          DispatchGuide[]      @relation("GuiasSede")
+  guiasDestino   DispatchGuide[]      @relation("GuiasDestino")
+  kitItems       WelcomeKitItem[]
+  compras        Purchase[]
+  repartosKit    PurchaseKitReparto[] @relation("RepartosKitSede")
+  lineas         LineaTelefonica[]
+  tenenciasLinea LineaTenencia[]
 
   @@map("sedes")
 }
 
 model DispatchGuideItem {
-  id            String        @id @default(uuid())
-  guideId       String        @map("guide_id")
-  assetId       String        @map("asset_id")
-  observaciones String?
+  id              String         @id @default(uuid())
+  guideId         String         @map("guide_id")
+  assetId         String         @map("asset_id")
+  observaciones   String?
   // Cada equipo de la guia se resuelve por separado (SPEC 2.108): llega a
   // la sede destino o se pierde (se da de baja por Extravio).
   estado          EstadoItemGuia @default(en_transito)
   fechaResolucion DateTime?      @map("fecha_resolucion")
   resueltoPor     String?        @map("resuelto_por")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  asset         Asset         @relation(fields: [assetId], references: [id])
-  guide         DispatchGuide @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  asset           Asset          @relation(fields: [assetId], references: [id])
+  guide           DispatchGuide  @relation(fields: [guideId], references: [id], onDelete: Cascade)
 
   @@index([guideId])
   @@index([assetId])
@@ -863,86 +1032,86 @@ model DispatchGuideItem {
 }
 
 model WorkflowRequest {
-  id                    String              @id @default(uuid())
-  numero                String              @unique
+  id                        String          @id @default(uuid())
+  numero                    String          @unique
   // Ticket de la ticketera que origina la solicitud (SPEC 2.123): texto
   // libre, obligatorio al crear y se puede repetir. Las anteriores quedan sin.
-  idTicket              String?             @map("id_ticket")
-  tipo                  TipoSolicitud
-  estado                EstadoSolicitud
-  employeeId            String              @map("employee_id")
-  solicitanteId         String              @map("solicitante_id")
-  responsableActualId   String?             @map("responsable_actual_id")
+  idTicket                  String?         @map("id_ticket")
+  tipo                      TipoSolicitud
+  estado                    EstadoSolicitud
+  employeeId                String          @map("employee_id")
+  solicitanteId             String          @map("solicitante_id")
+  responsableActualId       String?         @map("responsable_actual_id")
   // Campos onboarding
-  fechaIngreso          DateTime?           @map("fecha_ingreso")
-  cargoSolicitado       String?             @map("cargo_solicitado")
-  ubicacionDestino      String?             @map("ubicacion_destino")
-  categoriasRequeridas  String[]            @default([]) @map("categorias_requeridas")
+  fechaIngreso              DateTime?       @map("fecha_ingreso")
+  cargoSolicitado           String?         @map("cargo_solicitado")
+  ubicacionDestino          String?         @map("ubicacion_destino")
+  categoriasRequeridas      String[]        @default([]) @map("categorias_requeridas")
   // Coordinacion de entrega (onboarding): si medioEntrega es presencial se
   // usa lugarEntrega y fechaEntregaCoordinada es la fecha/hora real de la
   // visita; si es despacho (Chilexpress) se usan otChilexpressEntrega +
   // ciudadEntrega, y fechaEntregaCoordinada pasa a ser la fecha estimada
   // de llegada.
-  fechaEntregaCoordinada DateTime?          @map("fecha_entrega_coordinada")
-  medioEntrega           String?            @map("medio_entrega")
-  lugarEntrega           String?            @map("lugar_entrega")
-  otChilexpressEntrega   String?            @map("ot_chilexpress_entrega")
-  ciudadEntrega          String?            @map("ciudad_entrega")
+  fechaEntregaCoordinada    DateTime?       @map("fecha_entrega_coordinada")
+  medioEntrega              String?         @map("medio_entrega")
+  lugarEntrega              String?         @map("lugar_entrega")
+  otChilexpressEntrega      String?         @map("ot_chilexpress_entrega")
+  ciudadEntrega             String?         @map("ciudad_entrega")
   // Kit de Bienvenida y EPP ya no son categorias de Activos (ver
   // WelcomeKitItem): la intencion se guarda aparte como estos dos flags,
   // y la entrega real (que articulos especificos, con que cantidad) se
   // registra en KitAssignment cuando Gestion TI la concreta.
-  kitBienvenidaSolicitado Boolean           @default(false) @map("kit_bienvenida_solicitado")
-  eppSolicitado           Boolean           @default(false) @map("epp_solicitado")
+  kitBienvenidaSolicitado   Boolean         @default(false) @map("kit_bienvenida_solicitado")
+  eppSolicitado             Boolean         @default(false) @map("epp_solicitado")
   // Campos cambio equipo
-  motivoCambio          String?             @map("motivo_cambio")
+  motivoCambio              String?         @map("motivo_cambio")
   // Coordinacion de cambio (cambio_equipo): se llena antes de ejecutar el
   // cambio. Mismo patron presencial/OT: si medioCambio es presencial se usa
   // lugarCambio; si es despacho (Chilexpress) se usan otCambioChilexpress +
   // ciudadCambio, y fechaCambioCoordinada pasa a ser la fecha estimada de
   // llegada.
-  medioCambio           String?             @map("medio_cambio")
-  fechaCambioCoordinada DateTime?           @map("fecha_cambio_coordinada")
-  lugarCambio           String?             @map("lugar_cambio")
-  otCambioChilexpress   String?             @map("ot_cambio_chilexpress")
-  ciudadCambio          String?             @map("ciudad_cambio")
+  medioCambio               String?         @map("medio_cambio")
+  fechaCambioCoordinada     DateTime?       @map("fecha_cambio_coordinada")
+  lugarCambio               String?         @map("lugar_cambio")
+  otCambioChilexpress       String?         @map("ot_cambio_chilexpress")
+  ciudadCambio              String?         @map("ciudad_cambio")
   // Campos devolución
-  fechaDesvinculacion   DateTime?           @map("fecha_desvinculacion")
-  medioDevolucion       String?             @map("medio_devolucion")
-  otChilexpress         String?             @map("ot_chilexpress")
-  ciudadDevolucion      String?             @map("ciudad_devolucion")
+  fechaDesvinculacion       DateTime?       @map("fecha_desvinculacion")
+  medioDevolucion           String?         @map("medio_devolucion")
+  otChilexpress             String?         @map("ot_chilexpress")
+  ciudadDevolucion          String?         @map("ciudad_devolucion")
   // Coordinacion de devolucion (offboarding): se llena antes de recibir
   // los equipos. lugarDevolucion es el analogo presencial de
   // ciudadDevolucion (destino del despacho OT); fechaDevolucionCoordinada
   // es la fecha/hora de la visita presencial, o la fecha estimada de
   // llegada si es por OT.
   fechaDevolucionCoordinada DateTime?       @map("fecha_devolucion_coordinada")
-  lugarDevolucion       String?             @map("lugar_devolucion")
+  lugarDevolucion           String?         @map("lugar_devolucion")
   // Referencias a registros creados
-  assignmentIds         String[]            @map("assignment_ids")
+  assignmentIds             String[]        @map("assignment_ids")
   // Igual que assignmentIds pero para devoluciones de EPP (KitAssignment):
   // se necesita para poder mostrar en el detalle del ticket que EPP se
   // devolvio, con su estado y observaciones -- employee.kitAssignments
   // trae TODO el historico del empleado, no solo lo de este ticket.
-  kitReturnIds           String[]            @default([]) @map("kit_return_ids")
-  dispatchGuideId       String?             @map("dispatch_guide_id")
+  kitReturnIds              String[]        @default([]) @map("kit_return_ids")
+  dispatchGuideId           String?         @map("dispatch_guide_id")
   // Sede de quien creo la solicitud -- determina que soporte la ve.
-  sedeId                String?             @map("sede_id")
+  sedeId                    String?         @map("sede_id")
   // General
-  observaciones         String?
-  fechaCierre           DateTime?           @map("fecha_cierre")
-  createdAt             DateTime            @default(now()) @map("created_at")
-  updatedAt             DateTime            @updatedAt @map("updated_at")
+  observaciones             String?
+  fechaCierre               DateTime?       @map("fecha_cierre")
+  createdAt                 DateTime        @default(now()) @map("created_at")
+  updatedAt                 DateTime        @updatedAt @map("updated_at")
 
-  employee              Employee            @relation(fields: [employeeId], references: [id])
-  solicitante           SystemUser          @relation("SolicitanteRelation", fields: [solicitanteId], references: [id])
-  responsableActual     SystemUser?         @relation("ResponsableRelation", fields: [responsableActualId], references: [id])
-  sede                  Sede?               @relation(fields: [sedeId], references: [id])
-  comments              WorkflowComment[]
-  transitions           WorkflowTransition[]
-  pendientes            WorkflowPendiente[]
-  kitAssignments        KitAssignment[]
-  kitRequeridos         RequestKitItem[]
+  employee          Employee             @relation(fields: [employeeId], references: [id])
+  solicitante       SystemUser           @relation("SolicitanteRelation", fields: [solicitanteId], references: [id])
+  responsableActual SystemUser?          @relation("ResponsableRelation", fields: [responsableActualId], references: [id])
+  sede              Sede?                @relation(fields: [sedeId], references: [id])
+  comments          WorkflowComment[]
+  transitions       WorkflowTransition[]
+  pendientes        WorkflowPendiente[]
+  kitAssignments    KitAssignment[]
+  kitRequeridos     RequestKitItem[]
 
   @@index([tipo])
   @@index([estado])
@@ -955,15 +1124,15 @@ model WorkflowRequest {
 }
 
 model WorkflowComment {
-  id          String          @id @default(uuid())
-  requestId   String          @map("request_id")
-  autorId     String          @map("autor_id")
-  mensaje     String
-  esInterno   Boolean         @default(false) @map("es_interno")
-  createdAt   DateTime        @default(now()) @map("created_at")
+  id        String   @id @default(uuid())
+  requestId String   @map("request_id")
+  autorId   String   @map("autor_id")
+  mensaje   String
+  esInterno Boolean  @default(false) @map("es_interno")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  request     WorkflowRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  autor       SystemUser      @relation(fields: [autorId], references: [id])
+  request WorkflowRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  autor   SystemUser      @relation(fields: [autorId], references: [id])
 
   @@index([requestId])
   @@index([autorId])
@@ -971,17 +1140,17 @@ model WorkflowComment {
 }
 
 model WorkflowTransition {
-  id              String          @id @default(uuid())
-  requestId       String          @map("request_id")
-  estadoAnterior  EstadoSolicitud @map("estado_anterior")
-  estadoNuevo     EstadoSolicitud @map("estado_nuevo")
-  ejecutadoPorId  String          @map("ejecutado_por_id")
-  comentario      String?
-  datosAccion     Json?           @map("datos_accion")
-  createdAt       DateTime        @default(now()) @map("created_at")
+  id             String          @id @default(uuid())
+  requestId      String          @map("request_id")
+  estadoAnterior EstadoSolicitud @map("estado_anterior")
+  estadoNuevo    EstadoSolicitud @map("estado_nuevo")
+  ejecutadoPorId String          @map("ejecutado_por_id")
+  comentario     String?
+  datosAccion    Json?           @map("datos_accion")
+  createdAt      DateTime        @default(now()) @map("created_at")
 
-  request         WorkflowRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  ejecutadoPor    SystemUser      @relation(fields: [ejecutadoPorId], references: [id])
+  request      WorkflowRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  ejecutadoPor SystemUser      @relation(fields: [ejecutadoPorId], references: [id])
 
   @@index([requestId])
   @@index([createdAt])
@@ -990,16 +1159,16 @@ model WorkflowTransition {
 }
 
 model WorkflowPendiente {
-  id              String          @id @default(uuid())
-  requestId       String          @map("request_id")
-  tipo            TipoPendiente
-  estado          EstadoPendiente @default(pendiente)
-  descripcion     String?
-  actualizadoPor  String?         @map("actualizado_por")
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
+  id             String          @id @default(uuid())
+  requestId      String          @map("request_id")
+  tipo           TipoPendiente
+  estado         EstadoPendiente @default(pendiente)
+  descripcion    String?
+  actualizadoPor String?         @map("actualizado_por")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
 
-  request         WorkflowRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  request WorkflowRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
   @@index([requestId])
   @@index([estado])

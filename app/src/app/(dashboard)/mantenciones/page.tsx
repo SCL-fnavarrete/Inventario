@@ -27,6 +27,7 @@ import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { StatCard, StatGrid } from "@/shared/ui/StatCard";
 import { Pagination } from "@/shared/ui/Pagination";
+import { logger } from "@/shared/logger";
 
 type TipoMantencion = {
   id: string;
@@ -188,7 +189,7 @@ function Mantenciones() {
         setTiposMantencion(await res.json());
       }
     } catch (error) {
-      console.error("Error fetching tipos de mantención:", error);
+      logger.error("Error fetching tipos de mantención", error);
     }
   }
 
@@ -213,7 +214,7 @@ function Mantenciones() {
       const data = await res.json();
 
       if (!res.ok) {
-        console.error("Error fetching maintenances:", data.error || data);
+        logger.error("Error fetching maintenances", data.error || data);
         setMaintenances([]);
         setTotalPages(1);
         setTotal(0);
@@ -224,7 +225,7 @@ function Mantenciones() {
       setTotalPages(data.pagination?.totalPages || 1);
       setTotal(data.pagination?.total ?? 0);
     } catch (error) {
-      console.error("Error fetching maintenances:", error);
+      logger.error("Error fetching maintenances", error);
     } finally {
       setLoading(false);
     }
@@ -242,7 +243,7 @@ function Mantenciones() {
       const data = await res.json();
       setStats(data.stats);
     } catch (error) {
-      console.error("Error fetching stats:", error);
+      logger.error("Error fetching stats", error);
     }
   }
 

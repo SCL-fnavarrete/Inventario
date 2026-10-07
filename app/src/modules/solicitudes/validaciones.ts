@@ -68,6 +68,17 @@ const baseRequestFields = {
 };
 
 // Onboarding-specific fields
+// Un equipo devuelto danado se da de baja en el acto, con un motivo de la
+// lista (SPEC 2.135): lo usan el cambio de equipo y la devolucion por termino.
+const motivoBajaCampos = {
+  motivoBajaId: z.string().uuid('Elige el motivo de la baja').optional().nullable(),
+  // Detalle, obligatorio si el motivo es "Otro" (lo revisa motivoParaBaja).
+  motivoBajaDetalle: z.string().trim().max(500, 'Máximo 500 caracteres').optional().nullable(),
+};
+const conMotivoSiDanado = (d: { estadoDevolucion?: string | null; motivoBajaId?: string | null }) =>
+  (d.estadoDevolucion !== 'danado' && d.estadoDevolucion !== 'baja') || !!d.motivoBajaId;
+const MOTIVO_OBLIGATORIO = { message: 'Elige el motivo de la baja', path: ['motivoBajaId'] };
+
 const onboardingFields = z.object({
   tipo: z.literal('onboarding'),
   ...baseRequestFields,
@@ -154,9 +165,9 @@ const cambioEquipoFields = z.object({
       z.object({
         oldAssignmentId: z.string().uuid('ID de asignación inválido'),
         newAssetId: z.string().uuid('ID de activo inválido'),
-        // SPEC 2.126: en un cambio el equipo anterior vuelve en buen estado,
-        // danado o "para dar de baja" con un motivo de la lista. "No devolvio"
-        // es solo de la desvinculacion.
+        // SPEC 2.135: en un cambio el equipo anterior vuelve en buen estado o
+        // danado; danado (o "baja", lo mismo) se da de baja en el acto con un
+        // motivo de la lista. "No devolvio" es solo de la desvinculacion.
         estadoDevolucion: z.enum(['ok', 'danado', 'baja'], { error: 'Elige cómo vuelve el equipo' }),
         motivoBajaId: z.string().uuid('Elige el motivo de la baja').optional().nullable(),
         // Detalle, obligatorio si el motivo es "Otro" (lo revisa motivoParaBaja).
@@ -169,10 +180,7 @@ const cambioEquipoFields = z.object({
         observacionesCargadorAnterior: z.string().optional().nullable(),
         condicionCargadorNuevo: condicionCargadorSchema.optional().nullable(),
         observacionesCargadorNuevo: z.string().optional().nullable(),
-      }).refine((c) => c.estadoDevolucion !== 'baja' || !!c.motivoBajaId, {
-        message: 'Elige el motivo de la baja',
-        path: ['motivoBajaId'],
-      })
+      }).refine(conMotivoSiDanado, MOTIVO_OBLIGATORIO)
     )
     .min(1, 'Elige al menos un equipo a cambiar'),
   // Coordinacion de cambio: permite coordinar la entrega del equipo nuevo
@@ -216,12 +224,13 @@ const devolucionTerminoFields = z.object({
       z.object({
         assignmentId: z.string().uuid(),
         estadoDevolucion: z.enum(['ok', 'danado', 'no_devuelto']),
+        ...motivoBajaCampos,
         observaciones: z.string().optional().nullable(),
         // Condicion del cargador: solo aplica si el activo es un notebook
         // con tieneCargador.
         condicionCargador: condicionCargadorSchema.optional().nullable(),
         observacionesCargador: z.string().optional().nullable(),
-      })
+      }).refine(conMotivoSiDanado, MOTIVO_OBLIGATORIO)
     )
     .optional()
     .default([]),
@@ -295,6 +304,7 @@ const datosAccionSchema = z
     newAssetId: z.string().uuid().optional().nullable(),
     oldAssignmentId: z.string().uuid().optional().nullable(),
     estadoDevolucion: estadoDevolucionAccion.optional().nullable(),
+    ...motivoBajaCampos,
     observacionesDevolucion: textoOpcional(1000),
     // La condicion del cargador la valida leerCondicionCargador en la ruta.
     condicionCargador: z.record(z.string(), z.unknown()).optional().nullable(),
@@ -307,10 +317,11 @@ const datosAccionSchema = z
         z.object({
           assignmentId: z.string().uuid(),
           estadoDevolucion: estadoDevolucionAccion,
+          ...motivoBajaCampos,
           observaciones: textoOpcional(1000),
           condicionCargador: z.unknown().optional(),
           observacionesCargador: textoOpcional(500),
-        })
+        }).refine(conMotivoSiDanado, MOTIVO_OBLIGATORIO)
       )
       .max(50)
       .optional(),
@@ -342,6 +353,8 @@ const datosAccionSchema = z
     ciudadDevolucion: textoOpcional(100),
   })
   .superRefine((d, ctx) => {
+    // El equipo anterior de un cambio devuelto danado se da de baja: pide el motivo (SPEC 2.135).
+    if (!conMotivoSiDanado(d)) ctx.addIssue({ code: 'custom', ...MOTIVO_OBLIGATORIO });
     // Si se indica el medio, se exigen sus datos: presencial -> lugar;
     // Chilexpress -> N° de OT y ciudad de destino.
     const reglas = [

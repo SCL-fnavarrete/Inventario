@@ -13,6 +13,7 @@ import { MensajeCampo, ResumenErrores, claseCampo } from "@/shared/ui/CampoFormu
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { useEnvio } from "@/shared/hooks/useEnvio";
 import { Button } from "@/shared/ui/Button";
+import { logger } from "@/shared/logger";
 
 // Maintenance types are an editable catalog (not a fixed enum), manageable
 // by both admin and technician roles, so this screen lives inside
@@ -80,7 +81,7 @@ export default function TiposMantencionPage() {
         setTipos(data);
       }
     } catch (err) {
-      console.error("Error fetching tipos de mantención:", err);
+      logger.error("Error fetching tipos de mantención", err);
     } finally {
       setLoading(false);
     }
@@ -108,7 +109,7 @@ export default function TiposMantencionPage() {
       }
     } catch (err) {
       setError("Error al crear tipo de mantención");
-      console.error(err);
+      logger.error("Error en la pantalla", err);
     }
   };
 
@@ -134,7 +135,7 @@ export default function TiposMantencionPage() {
       }
     } catch (err) {
       setError("Error al actualizar tipo de mantención");
-      console.error(err);
+      logger.error("Error en la pantalla", err);
     }
   };
 
@@ -155,7 +156,7 @@ export default function TiposMantencionPage() {
       }
     } catch (err) {
       setError("Error al cambiar el estado del tipo");
-      console.error(err);
+      logger.error("Error en la pantalla", err);
     }
   };
 
@@ -185,7 +186,7 @@ export default function TiposMantencionPage() {
       }
     } catch (err) {
       setError("Error al eliminar tipo de mantención");
-      console.error(err);
+      logger.error("Error en la pantalla", err);
     }
   };
 

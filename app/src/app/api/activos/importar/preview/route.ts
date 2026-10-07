@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission, handleApiError, ValidationError } from '@/shared/auth/guard';
 import { exigirCupo } from "@/shared/utilidades/limiteUso";
@@ -23,8 +24,11 @@ export async function POST(request: NextRequest) {
       buffer: await validarArchivoExcel(formData.get("file")),
       sheetName,
       categoria: formData.get("categoria") as string,
-      mapping: mappingStr ? (JSON.parse(mappingStr) as Record<string, string>) : null,
-      corrections: correctionsStr ? JSON.parse(correctionsStr) : {},
+      // Forma validada: campo -> encabezado, y fila -> campo -> valor corregido.
+      mapping: mappingStr ? z.record(z.string(), z.string().max(200)).parse(JSON.parse(mappingStr)) : null,
+      corrections: correctionsStr
+        ? z.record(z.string().regex(/^\d+$/), z.record(z.string(), z.string().max(2000))).parse(JSON.parse(correctionsStr))
+        : {},
       sedeId: formData.get("sedeId") as string | null,
       session,
     });

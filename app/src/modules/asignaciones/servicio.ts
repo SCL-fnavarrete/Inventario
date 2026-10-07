@@ -137,6 +137,8 @@ export async function registrarDevolucion(id: string, data: ReturnAssignmentInpu
       recibidoPor: data.recibidoPor,
       usuarioSistema: quien,
       estadoDevolucion: data.estadoDevolucion,
+      // Danado: se da de baja con su motivo (SPEC 2.135).
+      ...(data.motivoBajaId && { motivoBaja: { id: data.motivoBajaId, detalle: data.motivoBajaDetalle || null } }),
       observacionesDevolucion: data.observacionesDevolucion,
     })
   );

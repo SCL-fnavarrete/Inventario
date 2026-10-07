@@ -12,6 +12,7 @@ import {
   crearPersonaEnTx,
   desvincularPersona,
 } from '@/modules/personas/servidor';
+import { liberarEsimDePersona } from '@/modules/lineas/servidor';
 import { generarNumeroSolicitud } from '@/modules/solicitudes/numero';
 import type { CreateWorkflowRequestInput } from '@/modules/solicitudes/validaciones';
 
@@ -345,6 +346,8 @@ export async function crearSolicitud(
             recibidoPor: systemUser.nombre,
             usuarioSistema: systemUser.usuario,
             estadoDevolucion: dev.estadoDevolucion,
+            // Danado: se da de baja con su motivo (SPEC 2.135).
+            ...(dev.motivoBajaId && { motivoBaja: { id: dev.motivoBajaId, detalle: dev.motivoBajaDetalle || null } }),
             observacionesDevolucion: dev.observaciones || null,
             condicionCargadorDevolucion: dev.condicionCargador || null,
             observacionesCargador: dev.observacionesCargador || null,
@@ -413,9 +416,9 @@ export async function crearSolicitud(
             recibidoPor: systemUser.nombre,
             usuarioSistema: systemUser.usuario,
             estadoDevolucion: cambio.estadoDevolucion,
-            // "Para dar de baja" con su motivo (SPEC 2.126).
-            ...(cambio.estadoDevolucion === 'baja' && {
-              motivoBaja: { id: cambio.motivoBajaId!, detalle: cambio.motivoBajaDetalle || null },
+            // Danado o "para dar de baja": se da de baja con su motivo (SPEC 2.135).
+            ...(cambio.motivoBajaId && {
+              motivoBaja: { id: cambio.motivoBajaId, detalle: cambio.motivoBajaDetalle || null },
             }),
             observacionesDevolucion: cambio.observacionesDevolucion || null,
             condicionCargadorDevolucion: cambio.condicionCargadorAnterior || null,
@@ -465,6 +468,8 @@ export async function crearSolicitud(
       // sigue activo, solo cambio de equipo.
       if (cierraDeInmediato && data.tipo === 'offboarding') {
         await desvincularPersona(tx, empId);
+        // Sus eSIM quedan disponibles; las de un celular siguen al celular (SPEC 2.131).
+        await liberarEsimDePersona(tx, empId, { usuario: systemUser.usuario, detalle: 'Devolución por término' });
       }
 
       // Create initial transition log

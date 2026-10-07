@@ -47,6 +47,7 @@ import { cn } from "@/shared/cn";
 import { ESTADO_GUIA_COLORS, ESTADO_GUIA_LABELS } from "@/modules/despachos";
 import type { EstadoGuia } from "@prisma/client";
 import { identificadorActivo } from "@/modules/activos";
+import { logger } from "@/shared/logger";
 
 /**
  * Confirmacion en modal propio, en vez de confirm()/alert() del navegador:
@@ -231,7 +232,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       const data = await res.json();
       setSedes(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Error fetching sedes:", err);
+      logger.error("Error fetching sedes", err);
     }
   }
 
@@ -261,7 +262,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       setShowEditForm(false);
       await fetchPurchase();
     } catch (err) {
-      console.error("Error updating purchase:", err);
+      logger.error("Error updating purchase", err);
       setError("Error al guardar los cambios");
     } finally {
       setSavingEdit(false);
@@ -284,7 +285,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       const linkedIds = new Set(purchase?.purchaseAssets.map((pa) => pa.assetId) || []);
       setAvailableAssets((data.data || []).filter((a: Asset) => !linkedIds.has(a.id)));
     } catch (error) {
-      console.error("Error searching assets:", error);
+      logger.error("Error searching assets", error);
     } finally {
       setLoadingAssets(false);
     }
@@ -402,7 +403,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       const data = await res.json();
       setKitItemsCatalogo(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Error fetching kit items:", error);
+      logger.error("Error fetching kit items", error);
     }
   }
 

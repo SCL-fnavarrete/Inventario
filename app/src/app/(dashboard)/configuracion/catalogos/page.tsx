@@ -1,74 +1,37 @@
 "use client";
 
 import { Suspense, useEffect } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/shared/ui/PageHeader";
-import { Tabs } from "@/shared/ui/Tabs";
-import { CategoriasCatalogo, OpcionesCatalogo } from "@/modules/activos/componentes";
+import { CATALOGOS_EQUIPO, CategoriasCatalogo } from "@/modules/activos/componentes";
 
 /**
- * Configuracion > Catalogos de Activos (SPEC 2.112.7): antes eran dos
- * pantallas, "Categorias de Activos" y "Opciones de Activos". La pestaña
- * queda en la direccion (?tab=) para poder volver o compartir el enlace.
+ * Configuracion > Categorias de Activos (SPEC 2.112.7), solo admin. Marcas,
+ * sistemas operativos, antivirus y licencias pasaron a Activos > Equipos >
+ * Catalogos, donde tambien los usa el tecnico: un enlace antiguo (?tab=) lleva alla.
  */
-
-const OPCIONES: Record<string, { titulo: string; placeholder: string }> = {
-  marcas: { titulo: "Marcas", placeholder: "Ej: Lenovo" },
-  "sistemas-operativos": { titulo: "Sistemas operativos", placeholder: "Ej: Windows 11 Pro" },
-  antivirus: { titulo: "Antivirus", placeholder: "Ej: Windows Defender" },
-  "licencias-m365": { titulo: "Licencias Microsoft 365", placeholder: "Ej: Microsoft 365 Business Premium" },
-};
-
-type Pestaña = string;
-
-const PESTAÑAS: { key: Pestaña; label: string }[] = [
-  { key: "categorias", label: "Categorías" },
-  ...Object.entries(OPCIONES).map(([key, o]) => ({
-    key,
-    label: o.titulo,
-  })),
-];
-
 export default function CatalogosPage() {
   return (
     <Suspense>
-      <Catalogos />
+      <Categorias />
     </Suspense>
   );
 }
 
-function Catalogos() {
-  const params = useSearchParams();
+function Categorias() {
   const router = useRouter();
-  const pathname = usePathname();
-  const pedida = params.get("tab");
-  const pestaña: Pestaña = PESTAÑAS.some((p) => p.key === pedida) ? (pedida as Pestaña) : "categorias";
+  const pedida = useSearchParams().get("tab");
 
-  // Los motivos de baja pasaron a Mantenciones (SPEC 2.116.5): el enlace antiguo lleva alla.
   useEffect(() => {
+    // Los motivos de baja pasaron a Mantenciones (SPEC 2.116.5).
     if (pedida === "motivos-baja") router.replace("/mantenciones/motivos-baja");
+    else if (pedida && pedida in CATALOGOS_EQUIPO) router.replace(`/activos/catalogos?tab=${pedida}`);
   }, [pedida, router]);
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        backHref="/configuracion"
-        title="Catálogos de Activos"
-        description="Categorías y opciones que se eligen al crear o editar un activo"
-      />
-
-      <Tabs items={PESTAÑAS} value={pestaña} onChange={(p) => router.replace(`${pathname}?tab=${p}`, { scroll: false })} />
-
-      {pestaña === "categorias" ? (
-        <CategoriasCatalogo />
-      ) : (
-        <OpcionesCatalogo
-          key={pestaña}
-          endpoint={`/api/${pestaña}`}
-          titulo={OPCIONES[pestaña].titulo}
-          placeholder={OPCIONES[pestaña].placeholder}
-        />
-      )}
+      <PageHeader backHref="/configuracion" title="Categorías de Activos" description="Tipos de equipo y la ficha que usa cada uno" />
+      <CategoriasCatalogo />
     </div>
   );
 }

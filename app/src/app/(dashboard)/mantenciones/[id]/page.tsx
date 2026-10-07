@@ -48,6 +48,7 @@ import {
   ResumenErrores,
   claseCampo,
 } from "@/shared/ui/CampoFormulario";
+import { logger } from "@/shared/logger";
 
 type ResultadoTipo = ResultadoMantencion;
 
@@ -190,7 +191,7 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
         proximaMantencion: "",
       });
     } catch (err) {
-      console.error("Error fetching maintenance:", err);
+      logger.error("Error fetching maintenance", err);
       setError("Error al cargar mantención");
     } finally {
       setLoading(false);

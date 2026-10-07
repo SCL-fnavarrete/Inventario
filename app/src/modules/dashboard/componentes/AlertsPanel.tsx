@@ -8,6 +8,8 @@ import {
   PackageX,
   Package,
   ChevronRight,
+  MapPinOff,
+  PhoneOff,
 } from "lucide-react";
 import { formatearFechaConHora } from "@/shared/utilidades/fechas";
 import { identificadorActivo } from "@/modules/activos";
@@ -58,6 +60,10 @@ interface AlertsPanelProps {
   bajoStockItems: KitItemBajoStock[];
   sinStockCategorias: CategoriaSinStock[];
   bajoStockCategorias: CategoriaBajoStock[];
+  /** Equipos sin sede (importados sin ella, SPEC 2.117): se completan en Editar. */
+  equiposSinSede: number;
+  /** Lineas por confirmar (SPEC 2.131): abre Lineas filtrada por ese estado. */
+  lineasPorConfirmar: { lineas: number; estadoId: string | null };
 }
 
 const categoriaKitLabels: Record<KitItemSinStock["categoria"], string> = {
@@ -111,8 +117,12 @@ export function AlertsPanel({
   bajoStockItems,
   sinStockCategorias,
   bajoStockCategorias,
+  equiposSinSede,
+  lineasPorConfirmar,
 }: AlertsPanelProps) {
   const totalAlertas =
+    (equiposSinSede > 0 ? 1 : 0) +
+    (lineasPorConfirmar.lineas > 0 ? 1 : 0) +
     totalVencidas +
     totalProximas +
     sinStockItems.length +
@@ -140,6 +150,44 @@ export function AlertsPanel({
         </div>
       ) : (
         <div className="space-y-4 max-h-96 overflow-y-auto">
+          {/* Lineas por confirmar: abre Lineas filtrada por ese estado (SPEC 2.131) */}
+          {lineasPorConfirmar.lineas > 0 && lineasPorConfirmar.estadoId && (
+            <Link
+              href={`/activos/lineas?estado=${lineasPorConfirmar.estadoId}`}
+              className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors"
+            >
+              <div className="p-2 bg-yellow-100 rounded-full shrink-0">
+                <PhoneOff className="h-4 w-4 text-yellow-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-yellow-900">
+                  {lineasPorConfirmar.lineas.toLocaleString("es-CL")} {lineasPorConfirmar.lineas === 1 ? "línea por confirmar" : "líneas por confirmar"}
+                </p>
+                <p className="text-xs text-yellow-700">Confirma si siguen contratadas y quién las usa.</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-yellow-400 shrink-0" />
+            </Link>
+          )}
+
+          {/* Equipos sin sede: abre Activos con el filtro "Sin sede" (SPEC 2.117) */}
+          {equiposSinSede > 0 && (
+            <Link
+              href="/activos?sede=sin_dato"
+              className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+            >
+              <div className="p-2 bg-blue-100 rounded-full shrink-0">
+                <MapPinOff className="h-4 w-4 text-blue-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-blue-900">
+                  {equiposSinSede.toLocaleString("es-CL")} {equiposSinSede === 1 ? "equipo sin sede" : "equipos sin sede"}
+                </p>
+                <p className="text-xs text-blue-700">Asígnales la sede desde Editar equipo.</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-blue-400 shrink-0" />
+            </Link>
+          )}
+
           {/* Mantenciones Vencidas */}
           {mantencionesVencidas.map((m) => (
             <Link

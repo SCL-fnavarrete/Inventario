@@ -25,10 +25,37 @@ export { clave, parseEstado, parseCondicion, interpretarEstado, ESTADOS_RECONOCI
 export type { LecturaEstado };
 
 /**
- * Estado final del activo. El Excel manda cuando dice algo que es un estado;
- * si no, el estado se deduce de si el equipo esta en manos de alguien.
+ * El Excel dice "Activo" o "Asignado", pero la fila no trae persona (RUT ni
+ * nombre): nadie lo tiene, asi que entra Disponible (SPEC 2.133). Antes quedaba
+ * "asignado" sin dueno: ni disponible ni de alguien.
+ */
+export function asignadoSinPersona(lectura: LecturaEstado, tieneEmpleado: boolean): boolean {
+  return lectura.tipo === "estado" && lectura.estado === "asignado" && !tieneEmpleado;
+}
+
+/**
+ * El Excel dice "Disponible", pero la fila trae a una persona: los Excel no son
+ * confiables, y si trae los datos de alguien el equipo es de esa persona (regla
+ * de Javier, SPEC 2.133): entra Asignado, con su entrega.
+ */
+export function disponibleConPersona(lectura: LecturaEstado, tieneEmpleado: boolean): boolean {
+  return lectura.tipo === "estado" && lectura.estado === "disponible" && tieneEmpleado;
+}
+
+/** Baja o vendido: estados finales, que una persona en la fila no cambia. */
+export function estadoFinal(lectura: LecturaEstado): boolean {
+  return lectura.tipo === "estado" && (lectura.estado === "baja" || lectura.estado === "vendido");
+}
+
+/**
+ * Estado final del activo (SPEC 2.133). Si la fila trae persona, el equipo es
+ * suyo (Asignado, salvo que diga No devuelto o En mantencion); si no la trae,
+ * nadie lo tiene ("Asignado" pasa a Disponible). Baja y vendido se respetan
+ * (con persona la fila se detiene antes, ver procesarFila).
  */
 export function resolverEstado(lectura: LecturaEstado, tieneEmpleado: boolean): EstadoActivo {
+  if (asignadoSinPersona(lectura, tieneEmpleado)) return "disponible";
+  if (disponibleConPersona(lectura, tieneEmpleado)) return "asignado";
   if (lectura.tipo === "estado") return lectura.estado;
   return tieneEmpleado ? "asignado" : "disponible";
 }
@@ -147,8 +174,9 @@ export function construirMapaSedes(sedes: SedeReferencia[]): Record<string, stri
  *
  * Prioridad:
  *   sede corregida a mano en esta fila > sede elegida para todo el archivo >
- *   deteccion automatica por la columna "Sede" de la fila. Si ninguna
- *   aplica, se informa el error -- nunca se adivina. La corregida y la
+ *   deteccion automatica por la columna "Sede" de la fila. Una Sede vacia
+ *   deja el equipo sin sede (SPEC 2.117: se completa despues en Editar); una
+ *   escrita que no calza con ninguna se informa como error -- nunca se adivina. La corregida y la
  *   elegida para el archivo se validan contra las sedes reales antes de
  *   usarse (pueden venir de una preferencia guardada que apunte a una
  *   sede ya eliminada): si no existen, se informa el error igual que si
@@ -162,7 +190,7 @@ export function resolverSedeParaFila(
     sedeIdCorregida?: string | null;
   }
 ):
-  | { sedeId: string }
+  | { sedeId: string | null }
   | { error: "sede_no_reconocida"; valorOriginal: string } {
   const valorNormalizado = clave(opts.valorSede ?? "");
   const sedeDetectada = valorNormalizado ? opts.mapaSedes[valorNormalizado] : undefined;
@@ -186,6 +214,7 @@ export function resolverSedeParaFila(
     return { sedeId: opts.sedeIdExplicita };
   }
 
+  if (!valorNormalizado) return { sedeId: null };
   if (!sedeDetectada) {
     return { error: "sede_no_reconocida", valorOriginal: opts.valorSede ?? "" };
   }

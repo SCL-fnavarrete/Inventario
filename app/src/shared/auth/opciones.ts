@@ -3,6 +3,7 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "@/shared/prisma";
+import { logger } from "@/shared/logger";
 import { anotarIngreso, fijarSesionVigente } from "@/shared/auth/cuentas";
 import { normalizarUsuario } from "@/shared/auth/usuario";
 import {
@@ -50,7 +51,7 @@ function secretoDeSesion(): string | undefined {
   if (!secreto || secreto.length < LARGO_MINIMO_SECRETO) {
     const mensaje = `NEXTAUTH_SECRET debe tener al menos ${LARGO_MINIMO_SECRETO} caracteres (genéralo con: openssl rand -base64 32)`;
     if (process.env.NODE_ENV === "production") throw new Error(mensaje);
-    if (process.env.NODE_ENV === "development") console.warn(`[seguridad] ${mensaje}`);
+    if (process.env.NODE_ENV === "development") logger.warn(`[seguridad] ${mensaje}`);
   }
   return secreto;
 }

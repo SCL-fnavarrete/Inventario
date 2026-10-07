@@ -60,11 +60,14 @@ export function OpcionesCatalogo({
   titulo,
   placeholder,
   textos = TEXTOS_ACTIVO,
+  puedeEliminar = true,
 }: {
   endpoint: string;
   titulo: string;
   placeholder: string;
   textos?: TextosCatalogo;
+  /** Sin permiso de eliminar no se muestra el basurero (un boton visible nunca lleva a un 403). */
+  puedeEliminar?: boolean;
 }) {
   const toast = useToast();
   const [opciones, setOpciones] = useState<Opcion[]>([]);
@@ -318,7 +321,7 @@ export function OpcionesCatalogo({
                             >
                               <Pencil size={18} />
                             </button>
-                            {!opcion.protegido && opcion.activo && (
+                            {puedeEliminar && !opcion.protegido && opcion.activo && (
                               <button
                                 onClick={() => setAEliminar(opcion)}
                                 className="rounded p-1 text-red-600 hover:bg-red-50"

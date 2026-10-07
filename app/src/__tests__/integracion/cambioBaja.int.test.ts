@@ -106,4 +106,31 @@ describir('devolver para dar de baja, en Postgres', () => {
     const uso = (await listarMotivosBaja({ conUso: true })).find((m) => m.id === ids.motivo);
     expect(uso).toMatchObject({ enUso: 1 });
   });
+
+  test('devuelto "Dañado" también se da de baja en el acto: pide el motivo y no abre mantención (SPEC 2.135)', async () => {
+    const otro = await prisma.asset.create({
+      data: { categoriaId: ids.categoria, sedeId: ids.sede, marca: 'Dell', modelo: `Danado ${s}`, estado: 'asignado', empleadoActualId: ids.empleado },
+    });
+    const asignacion = await prisma.assignment.create({
+      data: { assetId: otro.id, employeeId: ids.empleado, tipoMovimiento: 'ingreso', fechaEntrega: new Date(), activo: true },
+    });
+    const devolver = (motivoBaja?: { id: string }) =>
+      prisma.$transaction((tx) =>
+        executeReturn(tx, { assignmentId: asignacion.id, fechaDevolucion: new Date(), recibidoPor: 'Admin', usuarioSistema: 'admin.test', estadoDevolucion: 'danado', motivoBaja })
+      );
+    try {
+      // Sin motivo no se puede: se rechaza y no cambia nada.
+      await expect(devolver()).rejects.toMatchObject({ details: [{ field: 'motivoBajaId' }] });
+      expect(await prisma.asset.findUniqueOrThrow({ where: { id: otro.id } })).toMatchObject({ estado: 'asignado' });
+
+      await devolver({ id: ids.motivo });
+      expect(await prisma.asset.findUniqueOrThrow({ where: { id: otro.id } })).toMatchObject({ estado: 'baja', condicion: 'danado', empleadoActualId: null });
+      expect(await prisma.assignment.findUniqueOrThrow({ where: { id: asignacion.id } })).toMatchObject({ estadoDevolucion: 'danado', motivoBajaId: ids.motivo });
+      expect(await prisma.maintenance.count({ where: { assetId: otro.id } })).toBe(0);
+    } finally {
+      await prisma.assetHistory.deleteMany({ where: { assetId: otro.id } });
+      await prisma.assignment.deleteMany({ where: { assetId: otro.id } });
+      await prisma.asset.delete({ where: { id: otro.id } });
+    }
+  });
 });

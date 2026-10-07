@@ -88,6 +88,12 @@ describe('filtros por marca, sistema operativo, antivirus, licencia y motivo de 
     ]);
   });
 
+  test('"Sin sede" busca los equipos sin sede, aunque el navbar diga "Todas" (SPEC 2.117)', () => {
+    const where = whereFiltrosActivos({ datos: { sede: SIN_DATO } });
+    expect(where.AND).toEqual([{ sedeId: null }]);
+    expect(where.sedeId).toBeUndefined();
+  });
+
   test('se leen de la URL, sin vacios y con tope de largo', () => {
     const f = leerFiltrosActivos(new URLSearchParams(`marca=Dell&licencia=&so=${'x'.repeat(300)}`));
     expect(f.datos).toEqual({ marca: 'Dell', so: 'x'.repeat(100) });

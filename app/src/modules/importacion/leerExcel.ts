@@ -80,7 +80,8 @@ export async function leerHoja(buffer: ArrayBuffer, sheetName: string): Promise<
 
   const [encabezado, ...filas] = conDatos;
   validarCantidadFilas(filas.length);
-  return { headers: (encabezado?.celdas ?? []).map((h) => String(h)), filas };
+  // Sin espacios sobrantes: "IMEI " y "IMEI" son la misma columna (si no, la columna se ignoraba en silencio).
+  return { headers: (encabezado?.celdas ?? []).map((h) => String(h).trim()), filas };
 }
 
 /** Pasa cada fila a `{ campo: valor }` segun el mapeo campo -> encabezado. */

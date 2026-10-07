@@ -37,6 +37,7 @@ import {
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { ETIQUETAS_FACTURA, validarDatosFactura } from "@/modules/compras";
 import { CamposFactura, type DatosFactura } from "@/modules/compras/componentes";
+import { logger } from "@/shared/logger";
 
 type Sede = {
   id: string;
@@ -157,7 +158,7 @@ export default function NuevaCompraPage() {
       const data = await res.json();
       setKitItemsCatalogo(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Error fetching kit items:", error);
+      logger.error("Error fetching kit items", error);
     }
   }
 
@@ -200,7 +201,7 @@ export default function NuevaCompraPage() {
       const data = await res.json();
       setSedes(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Error fetching sedes:", error);
+      logger.error("Error fetching sedes", error);
     }
   }
 
@@ -210,7 +211,7 @@ export default function NuevaCompraPage() {
       const data = await res.json();
       setCategories(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Error fetching categories:", error);
+      logger.error("Error fetching categories", error);
     }
   }
 
@@ -237,7 +238,7 @@ export default function NuevaCompraPage() {
       const selectedIds = new Set(selectedAssets.map((a) => a.assetId));
       setAvailableAssets((data.data || []).filter((a: Asset) => !selectedIds.has(a.id)));
     } catch (error) {
-      console.error("Error searching assets:", error);
+      logger.error("Error searching assets", error);
     } finally {
       setLoadingAssets(false);
     }

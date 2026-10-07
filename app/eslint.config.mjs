@@ -44,6 +44,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Informe generado por `test:coverage`.
+    "coverage/**",
   ]),
   // Scripts utilitarios de Node (CommonJS): no son codigo de la app y se
   // ejecutan con `node`, asi que `require()` es la forma correcta ahi.
@@ -61,6 +63,13 @@ const eslintConfig = defineConfig([
     rules: {
       "@typescript-eslint/no-unused-vars": ["warn", { ignoreRestSiblings: true }],
     },
+  },
+  // Todo registro pasa por shared/logger: en produccion deja una linea JSON
+  // que se puede buscar en Vercel, y en los tests no ensucia la salida.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/shared/logger.ts", "**/*.test.ts", "**/*.test.tsx", "src/__tests__/**"],
+    rules: { "no-console": "error" },
   },
   ...limitesModulos,
 ]);

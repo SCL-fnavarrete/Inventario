@@ -28,6 +28,7 @@ export const RECURSOS = [
   'categorias',
   'kitEpp',
   'lineas',
+  'catalogosLineas',
   'usuarios',
   'sedes',
   'reportes',
@@ -105,12 +106,12 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
     delete: ADMIN,
   },
 
-  // SPEC 2.111: la compra es de la empresa. El admin la registra y decide a
-  // que sede se reparte lo comprado; el tecnico ve todas las compras y lo
-  // que hay por repartir, en solo lectura.
+  // SPEC 2.111 y 2.134: la compra es de la empresa. Admin y tecnico la
+  // registran, agregan lo comprado y lo reparten a las sedes; eliminar (la
+  // compra o un item agregado por error) es del admin.
   compras: {
     read: AMBOS,
-    write: ADMIN,
+    write: AMBOS,
     delete: ADMIN,
   },
 
@@ -121,11 +122,20 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
     delete: ADMIN,
   },
 
-  // Lineas telefonicas (SPEC 2.131): igual que los activos.
+  // Lineas telefonicas (SPEC 2.131): igual que los activos. Importarlas es
+  // de Configuracion (admin), como la importacion de activos.
   lineas: {
     read: AMBOS,
     write: AMBOS,
     delete: ADMIN,
+  },
+
+  // Planes, estados y tipos de chip de las lineas: los administran todos,
+  // como los motivos de baja. Uno ya usado se desactiva.
+  catalogosLineas: {
+    read: AMBOS,
+    write: AMBOS,
+    delete: AMBOS,
   },
 
   // Catalogo y stock de Kit de Bienvenida / EPP: a diferencia de

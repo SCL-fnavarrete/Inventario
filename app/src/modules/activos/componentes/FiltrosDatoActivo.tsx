@@ -19,7 +19,7 @@ export function useOpcionesFiltroDato(): OpcionesFiltroDato {
   useEffect(() => {
     Promise.all(
       FILTROS_DATO.map(async ({ param, endpoint }) => {
-        const res = await fetch(endpoint).catch(() => null);
+        const res = endpoint ? await fetch(endpoint).catch(() => null) : null;
         const lista: { id: string; nombre: string }[] = res?.ok ? await res.json() : [];
         // El motivo se filtra por id (la baja apunta a el); los demas por nombre.
         return [param, lista.map((o) => ({ valor: param === "motivoBaja" ? o.id : o.nombre, nombre: o.nombre }))];

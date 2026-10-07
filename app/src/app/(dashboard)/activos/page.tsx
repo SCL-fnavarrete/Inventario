@@ -22,7 +22,8 @@ import {
   MapPin,
   Shield,
   User,
-  Loader2
+  Loader2,
+  ListChecks
 } from "lucide-react";
 import { cn } from "@/shared/cn";
 import {
@@ -56,6 +57,7 @@ import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { Pagination } from "@/shared/ui/Pagination";
 import { COLUMNA_FIJA_CELDA, COLUMNA_FIJA_ENCABEZADO } from "@/shared/ui/tablaStyles";
+import { logger } from "@/shared/logger";
 
 type Asset = {
   id: string;
@@ -74,7 +76,7 @@ type Asset = {
   fechaGarantiaFin: Date | null;
   ubicacionFisica: string | null;
   imei: string | null;
-  lineas?: { numero: string; plan: string | null }[];
+  lineas?: { numero: string; plan: { nombre: string } | null }[];
   categoria: {
     id: string;
     nombre: string;
@@ -245,7 +247,7 @@ function ActivosPageContent() {
         // vez de romper las tarjetas (antes se caia la pagina).
         if (res.ok) setStats(await res.json());
       } catch (error) {
-        console.error("Error fetching stats:", error);
+        logger.error("Error fetching stats", error);
       } finally {
         setStatsLoading(false);
       }
@@ -267,7 +269,7 @@ function ActivosPageContent() {
         setAssets(data.data);
         setPagination(data.pagination);
       } catch (error) {
-        console.error("Error fetching assets:", error);
+        logger.error("Error fetching assets", error);
       } finally {
         setLoading(false);
       }
@@ -287,7 +289,7 @@ function ActivosPageContent() {
           const data = await res.json();
           setAllAssets(data.data);
         } catch (error) {
-          console.error("Error fetching all assets:", error);
+          logger.error("Error fetching all assets", error);
         }
       }
       fetchAllAssets();
@@ -348,7 +350,7 @@ function ActivosPageContent() {
         setStats(statsData);
       }
     } catch (error) {
-      console.error("Error updating status:", error);
+      logger.error("Error updating status", error);
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -494,6 +496,10 @@ function ActivosPageContent() {
               <span className="hidden sm:inline">Exportar</span>
             </a>
             {/* Importar vive en Configuracion (SPEC 2.116.7). */}
+            <Link href="/activos/catalogos" className={buttonClasses({ variant: "outline" })}>
+              <ListChecks size={18} />
+              <span className="hidden sm:inline">Catálogos</span>
+            </Link>
             <Can recurso="activos">
               <Link href="/activos/nuevo" className={buttonClasses()}>
                 <Plus size={18} />

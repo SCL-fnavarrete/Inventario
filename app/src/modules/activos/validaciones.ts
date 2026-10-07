@@ -151,7 +151,12 @@ export const createAssetSchema = assetSchema.extend({
 // estado llegaba como "disponible": el servidor la rechazaba (409) en todo
 // equipo asignado, no devuelto o en mantencion (SPEC 2.124).
 export const updateAssetSchema = assetSchema
-  .extend({ estado: estadoActivoEnum.optional(), condicion: condicionActivoEnum.optional() })
+  .extend({
+    estado: estadoActivoEnum.optional(),
+    condicion: condicionActivoEnum.optional(),
+    // Solo para un equipo sin sede (importado sin ella, SPEC 2.117).
+    sedeId: z.string().uuid("Sede inválida").optional(),
+  })
   .partial();
 
 // Tipos TypeScript derivados

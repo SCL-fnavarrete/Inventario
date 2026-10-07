@@ -30,6 +30,7 @@ import {
   validarPasswordFuerte,
 } from "@/modules/configuracion";
 import { esCorreoValido } from "@/shared/utilidades/text";
+import { logger } from "@/shared/logger";
 
 const usuarioFieldLabels: Record<string, string> = {
   usuario: "Usuario",
@@ -194,7 +195,7 @@ export default function UsuariosPage() {
         setUsers(data);
       }
     } catch (err) {
-      console.error("Error fetching users:", err);
+      logger.error("Error fetching users", err);
     } finally {
       setLoading(false);
     }
@@ -207,7 +208,7 @@ export default function UsuariosPage() {
         setSedes(await res.json());
       }
     } catch (err) {
-      console.error("Error fetching sedes:", err);
+      logger.error("Error fetching sedes", err);
     }
   };
 
@@ -234,7 +235,7 @@ export default function UsuariosPage() {
       }
     } catch (err) {
       setError("Error al crear usuario");
-      console.error(err);
+      logger.error("Error en la pantalla", err);
     }
   };
 
@@ -274,7 +275,7 @@ export default function UsuariosPage() {
       }
     } catch (err) {
       setError("Error al actualizar usuario");
-      console.error(err);
+      logger.error("Error en la pantalla", err);
     }
   };
 
@@ -319,7 +320,7 @@ export default function UsuariosPage() {
       }
     } catch (err) {
       toast.error("No se cerró la sesión", "Error al cerrar la sesión");
-      console.error(err);
+      logger.error("Error en la pantalla", err);
     }
   };
 
@@ -342,7 +343,7 @@ export default function UsuariosPage() {
       }
     } catch (err) {
       setError("Error al cambiar estado del usuario");
-      console.error(err);
+      logger.error("Error en la pantalla", err);
     }
   };
 

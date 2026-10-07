@@ -26,6 +26,7 @@ import {
   ESTADO_REPARTO_LABEL,
   type AvanceReparto,
 } from "@/modules/compras";
+import { logger } from "@/shared/logger";
 
 type Purchase = {
   id: string;
@@ -91,7 +92,7 @@ export default function ComprasPage() {
       setTotal(data.pagination?.total ?? 0);
       setStats(data.stats || null);
     } catch (error) {
-      console.error("Error fetching purchases:", error);
+      logger.error("Error fetching purchases", error);
     } finally {
       setLoading(false);
     }

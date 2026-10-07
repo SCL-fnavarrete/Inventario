@@ -48,12 +48,20 @@ export const createMultipleAssignmentsSchema = z.object({
 });
 
 // Schema para registrar devolución
-export const returnAssignmentSchema = z.object({
-  fechaDevolucion: fechaObligatoria,
-  recibidoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
-  estadoDevolucion: EstadoDevolucionEnum,
-  observacionesDevolucion: textoLibre(1000),
-});
+export const returnAssignmentSchema = z
+  .object({
+    fechaDevolucion: fechaObligatoria,
+    recibidoPor: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
+    estadoDevolucion: EstadoDevolucionEnum,
+    // Danado: se da de baja en el acto con un motivo de la lista (SPEC 2.135).
+    motivoBajaId: z.string().uuid("Elige el motivo de la baja").optional().nullable(),
+    motivoBajaDetalle: z.string().trim().max(500, "Máximo 500 caracteres").optional().nullable(),
+    observacionesDevolucion: textoLibre(1000),
+  })
+  .refine((d) => d.estadoDevolucion !== "danado" || !!d.motivoBajaId, {
+    message: "Elige el motivo de la baja",
+    path: ["motivoBajaId"],
+  });
 
 // Schema para filtros de búsqueda
 export const assignmentFiltersSchema = z.object({

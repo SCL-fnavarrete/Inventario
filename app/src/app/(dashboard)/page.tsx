@@ -48,6 +48,8 @@ export default async function DashboardPage() {
         bajoStockItems={data.bajoStockItems}
         sinStockCategorias={data.sinStockCategorias}
         bajoStockCategorias={data.bajoStockCategorias}
+        equiposSinSede={data.equiposSinSede}
+        lineasPorConfirmar={data.lineasPorConfirmar}
       />
 
       {/* KPIs principales. "Total Activos" cuenta todos los estados, incluido

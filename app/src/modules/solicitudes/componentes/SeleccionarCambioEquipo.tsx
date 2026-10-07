@@ -24,7 +24,7 @@ import {
   identificadorActivo,
 } from "@/modules/activos";
 import { SelectCondicionCargador } from "@/modules/activos/componentes";
-import { useMotivosBaja } from "@/modules/mantenciones/componentes";
+import { CamposMotivoBaja, useMotivosBaja } from "@/modules/mantenciones/componentes";
 
 type AsignacionActiva = {
   id: string;
@@ -50,7 +50,7 @@ type ActivoDisponible = {
   discoDuro: string | null;
   sistemaOperativo: string | null;
   imei: string | null;
-  lineas?: { numero: string; plan: string | null }[];
+  lineas?: { numero: string; plan: { nombre: string } | null }[];
   pulgadas: string | number | null;
   conectividad: string | null;
   tipoLicenciaMicrosoft365: string | null;
@@ -59,8 +59,9 @@ type ActivoDisponible = {
 
 type Categoria = { id: string; nombre: string };
 
-// SPEC 2.126: "No devolvió" es solo de la desvinculación; aquí el equipo
-// vuelve bien, dañado o para darlo de baja con un motivo de la lista.
+// SPEC 2.135: el equipo vuelve en buen estado o dañado; dañado se da de baja
+// en el acto con un motivo de la lista. "No devolvió" es solo de la
+// desvinculación. ("baja" queda por compatibilidad: es lo mismo que dañado.)
 type EstadoDevolucion = "ok" | "danado" | "baja";
 
 /**
@@ -72,7 +73,7 @@ export type ItemCambioEquipo = {
   oldAssignmentId: string;
   newAssetId: string;
   estadoDevolucion: EstadoDevolucion | "";
-  // Con estadoDevolucion "baja": el motivo elegido y, si es "Otro", su detalle.
+  // Con estadoDevolucion "danado": el motivo de la baja y, si es "Otro", su detalle.
   motivoBajaId: string;
   motivoBajaDetalle: string;
   motivoPideDetalle: boolean;
@@ -89,7 +90,8 @@ export type ItemCambioEquipo = {
 export function faltaEnCambio(item: ItemCambioEquipo): string | null {
   const faltan = [
     !item.estadoDevolucion && "el estado de devolución",
-    item.estadoDevolucion === "baja" && item.motivoPideDetalle && !item.motivoBajaDetalle.trim() && "el detalle del motivo",
+    item.estadoDevolucion === "danado" && !item.motivoBajaId && "el motivo de la baja",
+    item.estadoDevolucion === "danado" && item.motivoPideDetalle && !item.motivoBajaDetalle.trim() && "el detalle del motivo",
     !item.newAssetId && "el reemplazo",
   ].filter(Boolean);
   return faltan.length ? faltan.join(" y ") : null;
@@ -330,47 +332,24 @@ export function SeleccionarCambioEquipo({
                       </label>
                     ))}
                   </div>
-                  {/* Para dar de baja: cada motivo de la lista es una opcion. El
-                      equipo queda de baja en el acto (SPEC 2.126). */}
-                  {motivosBaja.length > 0 && (
-                    <>
-                      <p className="mt-2 text-xs text-fg-subtle">Para dar de baja por:</p>
-                      <div className="flex flex-wrap gap-4 text-sm text-fg-muted">
-                        {motivosBaja.map((m) => (
-                          <label key={m.id} className="flex min-w-0 max-w-full items-center gap-1.5 wrap-anywhere">
-                            <input
-                              type="radio"
-                              name={`estado-cambio-${a.id}`}
-                              checked={item.estadoDevolucion === "baja" && item.motivoBajaId === m.id}
-                              onChange={() =>
-                                actualizar(a.id, {
-                                  estadoDevolucion: "baja",
-                                  motivoBajaId: m.id,
-                                  motivoPideDetalle: m.clave === "otro",
-                                })
-                              }
-                            />
-                            {m.nombre}
-                          </label>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                  {item.estadoDevolucion === "baja" && item.motivoPideDetalle && (
-                    <input
-                      type="text"
-                      value={item.motivoBajaDetalle}
-                      maxLength={500}
-                      onChange={(e) => actualizar(a.id, { motivoBajaDetalle: e.target.value })}
-                      placeholder="Describe el motivo (obligatorio)"
-                      aria-label="Detalle del motivo de baja"
-                      className="field-input field-input-sm mt-2"
-                    />
-                  )}
-                  {item.estadoDevolucion === "baja" && (
-                    <p className="mt-1 text-xs text-fg-subtle">
-                      El equipo queda de baja directo con este motivo.
-                    </p>
+                  {/* Dañado: se da de baja en el acto con un motivo de la lista (SPEC 2.135). */}
+                  {item.estadoDevolucion === "danado" && (
+                    <div className="mt-2 space-y-2 rounded-md border border-line bg-surface p-2">
+                      <CamposMotivoBaja
+                        motivos={motivosBaja}
+                        motivoBajaId={item.motivoBajaId}
+                        detalle={item.motivoBajaDetalle}
+                        onMotivo={(id) =>
+                          actualizar(a.id, {
+                            motivoBajaId: id,
+                            motivoPideDetalle: motivosBaja.find((m) => m.id === id)?.clave === "otro",
+                          })
+                        }
+                        onDetalle={(texto) => actualizar(a.id, { motivoBajaDetalle: texto })}
+                        errores={{}}
+                      />
+                      <p className="text-xs text-fg-subtle">El equipo devuelto queda de baja con este motivo.</p>
+                    </div>
                   )}
                   <input
                     type="text"

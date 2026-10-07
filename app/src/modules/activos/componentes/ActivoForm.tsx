@@ -33,6 +33,8 @@ import { leerClp, VALOR_MAXIMO_CLP } from "@/shared/utilidades/moneda";
 export type ActivoFormValues = {
   categoriaId: string;
   sedeId: string;
+  /** Al editar: el equipo no tiene sede (se importo sin ella) y se le puede asignar (SPEC 2.117). */
+  sinSede?: boolean;
   marca: string;
   modelo: string;
   numeroSerie: string;
@@ -88,6 +90,8 @@ export const ACTIVO_FORM_VACIO: ActivoFormValues = {
 };
 
 type Modo = "crear" | "editar";
+// Los campos que se escriben (todos menos la marca sinSede).
+type CampoTexto = Exclude<keyof ActivoFormValues, "sinSede">;
 
 // Fecha ISO -> yyyy-mm-dd para <input type="date">.
 const aInputDate = (valor?: string | null) =>
@@ -99,6 +103,7 @@ export function valoresDesdeActivo(asset: Record<string, unknown>): ActivoFormVa
   return {
     ...ACTIVO_FORM_VACIO,
     categoriaId: txt("categoriaId"),
+    sinSede: asset.sedeId == null,
     marca: txt("marca"),
     modelo: txt("modelo"),
     numeroSerie: txt("numeroSerie"),
@@ -128,8 +133,8 @@ export function valoresDesdeActivo(asset: Record<string, unknown>): ActivoFormVa
 export function payloadActivo(v: ActivoFormValues, modo: Modo) {
   return {
     categoriaId: v.categoriaId,
-    // La sede solo se fija al crear; el backend rechaza un valor vacio.
-    ...(modo === "crear" ? { sedeId: v.sedeId || undefined } : {}),
+    // La sede se fija al crear; al editar, solo si el equipo no tenia (SPEC 2.117).
+    ...(modo === "crear" || (v.sinSede && v.sedeId) ? { sedeId: v.sedeId || undefined } : {}),
     marca: v.marca,
     modelo: v.modelo,
     numeroSerie: v.numeroSerie || null,
@@ -242,7 +247,8 @@ export function ActivoForm({
 }: ActivoFormProps) {
   const crear = modo === "crear";
   // Sede al crear: precargada con la del navbar o la propia (useCampoSede,
-  // SPEC 2.80). Al editar no se muestra: el activo conserva la suya.
+  // SPEC 2.80). Al editar no se muestra: el activo conserva la suya, salvo que
+  // no tenga (importado sin sede): entonces se le asigna aqui una vez (SPEC 2.117).
   const [sedeElegida, setSedeId] = useCampoSede();
   const sedeId = sedeFija ?? sedeElegida;
 
@@ -259,17 +265,17 @@ export function ActivoForm({
       .then((r) => r.json())
       .then((data) => setCategories(Array.isArray(data) ? data : []))
       .catch(() => setCategories([]));
-    if (crear) {
+    if (crear || initialValues.sinSede) {
       fetch("/api/sedes?activas=true")
         .then((r) => r.json())
         .then((data) => setSedes(Array.isArray(data) ? data : []))
         .catch(() => setSedes([]));
     }
-  }, [crear]);
+  }, [crear, initialValues.sinSede]);
 
-  const set = (name: keyof ActivoFormValues) => (valor: string) =>
+  const set = (name: CampoTexto) => (valor: string) =>
     setValues((prev) => ({ ...prev, [name]: valor }));
-  const bind = (name: keyof ActivoFormValues) => ({
+  const bind = (name: CampoTexto) => ({
     name,
     value: values[name],
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -424,6 +430,18 @@ export function ActivoForm({
               <option value="" disabled>
                 Selecciona una sede...
               </option>
+              {sedes.map((sede) => (
+                <option key={sede.id} value={sede.id}>
+                  {sede.nombre}
+                </option>
+              ))}
+            </select>
+          </Campo>
+        )}
+        {!crear && values.sinSede && (
+          <Campo label="Sede" hint="Este equipo no tiene sede. Asígnala aquí; después solo cambia con una Guía de Despacho." error={error("sedeId")}>
+            <select {...bind("sedeId")}>
+              <option value="">Sin sede</option>
               {sedes.map((sede) => (
                 <option key={sede.id} value={sede.id}>
                   {sede.nombre}

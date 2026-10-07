@@ -3,6 +3,7 @@ import { prisma } from '@/shared/prisma';
 import { filtroSede } from '@/shared/sedes/filtro';
 import { inicioDeHoy } from '@/shared/utilidades/fechas';
 import { ACTIVOS_VIGENTES, ESTADO_ACTIVO_COLOR } from '@/modules/activos';
+import { lineasPorConfirmar } from '@/modules/lineas/servidor';
 
 /**
  * Trae todos los datos del Resumen del Dashboard en un unico batch de
@@ -70,6 +71,8 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
     recentAssignments,
     solicitudesAbiertas,
     kitItems,
+    equiposSinSede,
+    lineasSinConfirmar,
   ] = await Promise.all([
     prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sw } }),
     prisma.asset.groupBy({
@@ -108,6 +111,11 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
       orderBy: { nombre: 'asc' },
       include: { sede: { select: { nombre: true } } },
     }),
+    // Equipos importados sin sede (SPEC 2.117): una tarea pendiente, se cuenta
+    // con cualquier sede elegida en el navbar (por definicion no son de ninguna).
+    prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, sedeId: null } }),
+    // Lineas por confirmar (SPEC 2.131): tambien una tarea pendiente, de todas las sedes.
+    lineasPorConfirmar(),
   ]);
 
   // Desglose de activos por categoria + estado, agregado en memoria a
@@ -249,6 +257,8 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
     mantencionesProximas,
     totalVencidas,
     totalProximas,
+    equiposSinSede,
+    lineasPorConfirmar: lineasSinConfirmar,
   };
 }
 

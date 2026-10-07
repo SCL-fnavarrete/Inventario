@@ -72,7 +72,7 @@ export type EquipoDisponible = {
   discoDuro: string | null;
   sistemaOperativo: string | null;
   imei: string | null;
-  lineas?: { numero: string; plan: string | null }[];
+  lineas?: { numero: string; plan: { nombre: string } | null }[];
   operador: string | null;
   pulgadas: string | number | null;
   // Si el equipo es nuevo o usado; sale del campo `condicion`.

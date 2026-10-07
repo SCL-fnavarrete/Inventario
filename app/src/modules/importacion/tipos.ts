@@ -10,6 +10,8 @@ export type ValidationErrorType =
   | "sede_no_reconocida"
   | "catalogo_no_reconocido"
   | "empleado_desvinculado"
+  | "persona_ambigua"
+  | "persona_duplicada"
   | "unknown_error";
 
 export interface ValidationError {
@@ -27,6 +29,19 @@ export interface ImportRowStatus {
   errors: ValidationError[];
   warnings: ValidationError[];
   assetId?: string;
+  /** Lo que la fila hace con su persona (SPEC 2.133): existente, o nueva y con que estado. */
+  persona?: {
+    accion: "existente" | "nueva";
+    estado: "activo" | "desvinculado";
+    porNombre: boolean;
+    completados: string[];
+  };
+  /** Fila valida sin sede: el equipo queda sin sede (SPEC 2.117). */
+  sinSede?: boolean;
+  /** Decia "Activo"/"Asignado" sin persona: entra Disponible. */
+  activoSinPersona?: boolean;
+  /** Decia "Disponible" pero trae persona: entra Asignado. */
+  disponibleConPersona?: boolean;
 }
 
 export interface ImportPreviewResult {
@@ -38,6 +53,14 @@ export interface ImportPreviewResult {
   warningCount: number;
   duplicatesInFile: string[];
   duplicatesInDb: string[];
+  /** Personas de las filas validas: cuantas se crean (y con que estado) y cuantas ya existen. */
+  personas: { nuevasActivas: number; nuevasDesvinculadas: number; existentes: number; porNombre: number };
+  /** Filas validas que quedan sin sede (se completa despues en Editar). */
+  sinSede: number;
+  /** Filas que decian "Activo"/"Asignado" sin persona: entran Disponibles. */
+  activosSinPersona: number;
+  /** Filas que decian "Disponible" pero traen persona: entran Asignadas a ella. */
+  disponiblesConPersona: number;
 }
 
 export interface ImportResult {

@@ -5,6 +5,7 @@ import { exigirSedeActiva } from "@/shared/sedes/consultas";
 import { construirMapaCatalogo, construirMapaSedes } from "@/modules/importacion/reglasFila";
 import { precargarEmpleadosPorRut, type ContextoFila } from "@/modules/importacion/procesarFila";
 import { normalizarImei } from "@/modules/activos";
+import { cargarIndicePersonas } from "@/modules/personas/servidor";
 
 /**
  * Contexto de una importacion, compartido por la vista previa y la escritura
@@ -25,7 +26,7 @@ export async function armarContextoImportacion(datos: {
   if (sedeIdExplicita) await exigirSedeActiva(sedeIdExplicita);
 
   // Todo lo que no depende de las filas, en paralelo.
-  const [sedes, marcas, sistemas, antivirus, licencias, existentes, empleados] = await Promise.all([
+  const [sedes, marcas, sistemas, antivirus, licencias, existentes, empleados, indicePersonas] = await Promise.all([
     // Solo sedes activas: una fila no trae equipos a una sede desactivada (2.9).
     prisma.sede.findMany({ where: { activa: true }, select: { id: true, nombre: true, codigo: true } }),
     // Catalogos administrables: se validan fila por fila sin texto fijo.
@@ -35,6 +36,8 @@ export async function armarContextoImportacion(datos: {
     prisma.licenciaMicrosoft365.findMany({ select: { nombre: true } }),
     seriesEImeiExistentes(datos.filas),
     precargarEmpleadosPorRut(datos.filas.map((f) => f.rut ?? ""), prisma),
+    // Todas las personas, una vez: la persona de cada fila se busca por RUT o por nombre (SPEC 2.133).
+    cargarIndicePersonas(prisma),
   ]);
 
   return {
@@ -50,6 +53,7 @@ export async function armarContextoImportacion(datos: {
     mapaLicenciasM365: construirMapaCatalogo(licencias),
     ...existentes,
     ...empleados,
+    indicePersonas,
   };
 }
 

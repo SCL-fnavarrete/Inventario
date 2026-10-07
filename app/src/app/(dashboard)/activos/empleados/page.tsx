@@ -21,6 +21,7 @@ import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvi
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { COLUMNA_FIJA_CELDA, COLUMNA_FIJA_ENCABEZADO } from "@/shared/ui/tablaStyles";
+import { logger } from "@/shared/logger";
 
 // Read-only employee listing within Activos. Employees are created via the
 // onboarding flow; detail/edit lives in /empleados/[id].
@@ -131,7 +132,7 @@ export default function PersonalPage() {
       const data = await res.json();
       setSedes(data);
     } catch (error) {
-      console.error("Error fetching sedes:", error);
+      logger.error("Error fetching sedes", error);
     }
   }
 
@@ -143,7 +144,7 @@ export default function PersonalPage() {
       const data = await res.json();
 
       if (!res.ok || !data.data) {
-        console.error("Error fetching stats:", data.error);
+        logger.error("Error fetching stats", data.error);
         return;
       }
 
@@ -172,7 +173,7 @@ export default function PersonalPage() {
         desvinculados,
       });
     } catch (error) {
-      console.error("Error fetching stats:", error);
+      logger.error("Error fetching stats", error);
     }
   }
 
@@ -200,7 +201,7 @@ export default function PersonalPage() {
       setEmployees(data.data);
       setPagination(data.pagination);
     } catch (error) {
-      console.error("Error fetching employees:", error);
+      logger.error("Error fetching employees", error);
     } finally {
       setLoading(false);
     }

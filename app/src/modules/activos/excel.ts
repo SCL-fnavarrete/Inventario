@@ -237,7 +237,7 @@ export async function excelDeActivos(filtros: FiltrosActivos) {
       // El numero y el plan son de las lineas del celular (SPEC 2.131).
       numeroTelefono: asset.lineas.map((l) => formatearNumero(l.numero)).join(", "),
       numeroActivacion: asset.numeroActivacion || "",
-      tipoPlan: asset.lineas.map((l) => l.plan).filter(Boolean).join(", "),
+      tipoPlan: asset.lineas.map((l) => l.plan?.nombre).filter(Boolean).join(", "),
       sede: asset.sede?.nombre || "",
       estado: ESTADO_ACTIVO_LABEL[asset.estado] || asset.estado,
       condicion: CONDICION_ACTIVO_LABEL[asset.condicion] || asset.condicion,

@@ -76,16 +76,17 @@ describe('permissions — tecnico', () => {
     expect(can('tecnico', 'solicitudes', 'write')).toBe(true);
   });
 
-  test('el borrado es de admin, salvo los catalogos de Mantenciones', () => {
-    // tiposMantencion y motivosBaja: admin + tecnico, son catalogos
-    // operativos del dia a dia, no configuracion del sistema.
-    const operativos = ['tiposMantencion', 'motivosBaja'];
+  test('el borrado es de admin, salvo los catalogos operativos', () => {
+    // tiposMantencion, motivosBaja y catalogosLineas (SPEC 2.131): admin +
+    // tecnico, son catalogos del dia a dia, no configuracion del sistema.
+    const operativos = ['tiposMantencion', 'motivosBaja', 'catalogosLineas'];
     for (const recurso of RECURSOS) {
       if (operativos.includes(recurso)) continue;
       expect(can('tecnico', recurso, 'delete')).toBe(false);
     }
     expect(can('tecnico', 'tiposMantencion', 'delete')).toBe(true);
     expect(can('tecnico', 'motivosBaja', 'delete')).toBe(true);
+    expect(can('tecnico', 'catalogosLineas', 'delete')).toBe(true);
   });
 
   test('no toca datos maestros ni configuración ni usuarios', () => {
@@ -97,9 +98,9 @@ describe('permissions — tecnico', () => {
 
   // SPEC 2.111: la compra es de la empresa; el tecnico ve todas y lo que
   // hay por repartir, pero registrar y repartir es del admin.
-  test('ve las compras en solo lectura', () => {
+  test('registra y reparte compras, pero no las elimina (SPEC 2.134)', () => {
     expect(can('tecnico', 'compras', 'read')).toBe(true);
-    expect(can('tecnico', 'compras', 'write')).toBe(false);
+    expect(can('tecnico', 'compras', 'write')).toBe(true);
     expect(can('tecnico', 'compras', 'delete')).toBe(false);
   });
 

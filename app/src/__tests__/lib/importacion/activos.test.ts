@@ -5,6 +5,9 @@ import {
   parseEstado,
   resolverCondicion,
   resolverEstado,
+  asignadoSinPersona,
+  disponibleConPersona,
+  estadoFinal,
   tieneMicrosoft365,
 } from "@/modules/importacion/reglasFila";
 
@@ -69,6 +72,27 @@ describe("resolverEstado", () => {
   it("deduce el estado del RUT cuando la celda viene vacia", () => {
     expect(resolverEstado({ tipo: "vacio" }, true)).toBe("asignado");
     expect(resolverEstado({ tipo: "vacio" }, false)).toBe("disponible");
+  });
+
+  it('"Activo" o "Asignado" sin persona es Disponible: nadie lo tiene (SPEC 2.133)', () => {
+    const activo = interpretarEstado("Activo");
+    expect(resolverEstado(activo, false)).toBe("disponible");
+    expect(asignadoSinPersona(activo, false)).toBe(true);
+    expect(resolverEstado(activo, true)).toBe("asignado");
+    expect(asignadoSinPersona(activo, true)).toBe(false);
+    // Los demas estados se respetan aunque no haya persona.
+    expect(resolverEstado({ tipo: "estado", estado: "en_mantencion" }, false)).toBe("en_mantencion");
+  });
+
+  it('"Disponible" con persona es Asignado: si trae los datos de alguien, el equipo es suyo (SPEC 2.133)', () => {
+    const disponible = interpretarEstado("Disponible");
+    expect(resolverEstado(disponible, true)).toBe("asignado");
+    expect(disponibleConPersona(disponible, true)).toBe(true);
+    expect(resolverEstado(disponible, false)).toBe("disponible");
+    // Baja y vendido no cambian: con persona, la fila se detiene antes.
+    expect(estadoFinal(interpretarEstado("Baja"))).toBe(true);
+    expect(estadoFinal(disponible)).toBe(false);
+    expect(resolverEstado({ tipo: "estado", estado: "no_devuelto" }, true)).toBe("no_devuelto");
   });
 });
 

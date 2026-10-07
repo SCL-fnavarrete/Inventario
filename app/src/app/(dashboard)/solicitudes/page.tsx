@@ -20,6 +20,7 @@ import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { Pagination } from "@/shared/ui/Pagination";
 import { documentoDeSolicitud } from '@/modules/solicitudes';
+import { logger } from "@/shared/logger";
 
 type WorkflowRequest = {
   id: string;
@@ -114,7 +115,7 @@ export default function SolicitudesPage() {
         setRequests(json.data || []);
         setPagination(json.pagination || { page: 1, limit: 10, total: 0, totalPages: 0 });
       } catch (error) {
-        console.error('Error fetching requests:', error);
+        logger.error('Error fetching requests', error);
       } finally {
         setLoading(false);
       }

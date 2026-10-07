@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/shared/ui/Button";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { logger } from "@/shared/logger";
 
 /**
  * Error inesperado al mostrar una pantalla del sistema (auditoria
@@ -19,7 +20,7 @@ export default function ErrorPantalla({
   retry: () => void;
 }) {
   useEffect(() => {
-    console.error(error);
+    logger.error("Error en la pantalla", error);
   }, [error]);
 
   return (

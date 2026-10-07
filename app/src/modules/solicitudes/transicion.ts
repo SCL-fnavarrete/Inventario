@@ -4,6 +4,7 @@ import { canTransition, isFinalState } from '@/modules/solicitudes/maquinaEstado
 import { executeAssignment, executeReturn } from '@/modules/asignaciones/servidor';
 import { executeKitReturn } from '@/modules/kit-epp/servidor';
 import { desvincularPersona } from '@/modules/personas/servidor';
+import { liberarEsimDePersona } from '@/modules/lineas/servidor';
 import { SystemRole, EstadoSolicitud } from '@prisma/client';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@/shared/errores';
 import {
@@ -289,6 +290,10 @@ export async function aplicarTransicion(
           recibidoPor: systemUser.nombre,
           usuarioSistema: systemUser.usuario,
           estadoDevolucion: estadoDevolucionViejo,
+          // Danado: se da de baja con su motivo (SPEC 2.135).
+          ...(datosAccion?.motivoBajaId && {
+            motivoBaja: { id: datosAccion.motivoBajaId, detalle: datosAccion.motivoBajaDetalle || null },
+          }),
           contexto: 'cambio',
           observacionesDevolucion: observacionesViejo
             ? `Cambio de equipo - ${workflowRequest.numero}: ${observacionesViejo}`
@@ -355,6 +360,8 @@ export async function aplicarTransicion(
           | {
               assignmentId: string;
               estadoDevolucion: 'ok' | 'danado' | 'no_devuelto';
+              motivoBajaId?: string | null;
+              motivoBajaDetalle?: string | null;
               observaciones?: string;
               // Condicion del cargador (se valida con leerCondicionCargador).
               condicionCargador?: unknown;
@@ -368,6 +375,8 @@ export async function aplicarTransicion(
           recibidoPor: systemUser.nombre,
           usuarioSistema: systemUser.usuario,
           estadoDevolucion: dev.estadoDevolucion,
+          // Danado: se da de baja con su motivo (SPEC 2.135).
+          ...(dev.motivoBajaId && { motivoBaja: { id: dev.motivoBajaId, detalle: dev.motivoBajaDetalle || null } }),
           observacionesDevolucion: dev.observaciones || null,
           condicionCargadorDevolucion: leerCondicionCargador(dev.condicionCargador) || null,
           observacionesCargador: dev.observacionesCargador || null,
@@ -443,6 +452,8 @@ export async function aplicarTransicion(
     // (disponible/baja) en el paso de recepcion de equipos.
     if (isFinal && workflowRequest.tipo === 'offboarding') {
       await desvincularPersona(tx, workflowRequest.employeeId);
+      // Sus eSIM quedan disponibles; las de un celular siguen al celular (SPEC 2.131).
+      await liberarEsimDePersona(tx, workflowRequest.employeeId, { usuario: systemUser.usuario, detalle: 'Devolución por término' });
     }
 
     // Log the transition

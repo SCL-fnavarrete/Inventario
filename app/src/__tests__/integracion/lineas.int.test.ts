@@ -1,146 +1,686 @@
 /** @jest-environment node */
 /**
- * Lineas telefonicas contra Postgres real (SPEC 2.131): alta, edicion, baja,
- * eliminacion con auditoria e importacion de la conciliacion. Solo corre
- * contra la base de pruebas (ver concurrencia.int.test.ts).
+ * Lineas telefonicas contra Postgres real (SPEC 2.131): alta, edicion con
+ * historial y vigencia, costo por mes, catalogos, eliminacion con auditoria
+ * e importacion por pasos. Solo corre contra la base de pruebas (ver
+ * concurrencia.int.test.ts).
  */
 import { randomUUID } from 'crypto';
 import ExcelJS from 'exceljs';
 import { prisma } from '@/shared/prisma';
-import { lineaSchema } from '@/modules/lineas';
-import { crearLinea, editarLinea, eliminarLinea, importarLineas, listarLineas } from '@/modules/lineas/servidor';
+import { lineaSchema, reasignacionSchema } from '@/modules/lineas';
+import { columnasDeHoja, hojasDelArchivo, importarTandaLineas, vistaPreviaLineas } from '@/modules/lineas/excel';
+import { asignarEquipo, registrarDevolucion } from '@/modules/asignaciones/servidor';
+import {
+  costoPorMes,
+  crearLinea,
+  crearOpcionLinea,
+  editarLinea,
+  editarOpcionLinea,
+  eliminarLinea,
+  eliminarOpcionLinea,
+  fichaLinea,
+  historialLinea,
+  indicadoresLineas,
+  listarLineas,
+  reasignarLinea,
+  tenenciasDePersona,
+  alCambiarTenedorDelTelefono,
+  liberarEsimDePersona,
+} from '@/modules/lineas/servidor';
 
 const hayBaseDePrueba = (process.env.DATABASE_URL ?? '').includes('_test');
 const describir = hayBaseDePrueba ? describe : describe.skip;
 
 /** Numero de celular al azar, para no chocar con otras corridas. */
+/** Letras al azar: los nombres de personas se comparan sin digitos. */
+const letras = (n: number) => Array.from({ length: n }, () => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join('');
 const numeroAlAzar = () => `5699${String(Math.floor(Math.random() * 1e7)).padStart(7, '0')}`;
-const datos = (extra: Record<string, unknown>) => lineaSchema.parse(extra);
-
-/** Libro como la conciliacion: titulo, nota, fila vacia y el encabezado en la fila 4. */
-async function libro(consolidado: (string | number | null)[][], bajas: (string | number)[][]) {
-  const wb = new ExcelJS.Workbook();
-  const hoja = (nombre: string, encabezado: string[], filas: (string | number | null)[][]) => {
-    const ws = wb.addWorksheet(nombre);
-    ws.addRow([nombre]);
-    ws.addRow(['nota']);
-    ws.addRow([]);
-    ws.addRow(encabezado);
-    filas.forEach((f) => ws.addRow(f));
-  };
-  hoja(
-    'Consolidado',
-    ['Línea normalizada', 'Estado', 'Responsable / ubicación', 'Documento(s)', 'Precio plan', 'Descripción plan', 'Observación'],
-    consolidado
-  );
-  hoja('Bajas', ['Línea normalizada', 'Estado', 'Fecha actualización'], bajas);
-  return (await wb.xlsx.writeBuffer()) as ArrayBuffer;
-}
+// Tipos de chip de base (migraciones): fisico va en un celular, eSIM con una persona.
+let fisico: string;
+let esim: string;
+/** Datos de una linea; si se asocia y no se indica el tipo de chip, el que corresponde (SPEC 2.131). */
+const datos = (extra: Record<string, unknown>) =>
+  lineaSchema.parse({ tipoChipId: extra.activoId ? fisico : extra.empleadoId ? esim : undefined, ...extra });
 
 describir('lineas telefonicas en Postgres', () => {
   const s = randomUUID().slice(0, 8);
+  // Apellidos unicos de las personas que crea la importacion (SPEC 2.133), para borrarlas al final.
+  const u = letras(8);
   const rut = `${10 + Math.floor(Math.random() * 80)}.${s.replace(/\D/g, '0').slice(0, 3)}.${s.replace(/\D/g, '1').slice(3, 6)}-K`;
-  const ids: { celular?: string; notebook?: string; empleado?: string; categorias: string[] } = { categorias: [] };
+  const ids: {
+    celular?: string;
+    notebook?: string;
+    empleado?: string;
+    otraPersona?: string;
+    desvinculada?: string;
+    // Celular sin dueno (para entregarlo y devolverlo) y uno de baja.
+    disponible?: string;
+    // Celular de bodega donde se ponen las lineas de prueba.
+    libre?: string;
+    telefonoBaja?: string;
+    // Dos sedes de prueba (se borran al final).
+    sede?: string;
+    otraSede?: string;
+    categorias: string[];
+    opciones: string[];
+  } = {
+    categorias: [],
+    opciones: [],
+  };
   const numeros: string[] = [];
+  // Lineas que los tests eliminan: su historial queda, y se limpia al final.
+  const eliminadas: string[] = [];
   const nuevo = () => {
     const n = numeroAlAzar();
     numeros.push(n);
     return n;
   };
+  let suspendida: string;
+  let baja: string;
 
   beforeAll(async () => {
     const celular = await prisma.assetCategory.create({ data: { nombre: `Cel ${s}`, tipoFicha: 'celular' } });
     const notebook = await prisma.assetCategory.create({ data: { nombre: `Nb ${s}`, tipoFicha: 'computador' } });
     ids.categorias.push(celular.id, notebook.id);
-    ids.celular = (await prisma.asset.create({ data: { categoriaId: celular.id, marca: 'Samsung', modelo: `A55 ${s}` } })).id;
     ids.notebook = (await prisma.asset.create({ data: { categoriaId: notebook.id, marca: 'Dell', modelo: `Nb ${s}` } })).id;
     ids.empleado = (
       await prisma.employee.create({ data: { nombres: 'Prueba', apellidoPaterno: `Lineas${s}`, rut, estado: 'activo' } })
     ).id;
+    // El celular lo tiene la persona de prueba.
+    ids.celular = (
+      await prisma.asset.create({
+        data: { categoriaId: celular.id, marca: 'Samsung', modelo: `A55 ${s}`, imei: `35${s.replace(/\D/g, '7').slice(0, 6)}1234567`.slice(0, 15), estado: 'asignado', empleadoActualId: ids.empleado },
+      })
+    ).id;
+    ids.otraPersona = (await prisma.employee.create({ data: { nombres: 'Otra', apellidoPaterno: `Lineas${s}b`, estado: 'activo' } })).id;
+    ids.desvinculada = (await prisma.employee.create({ data: { nombres: 'Se fue', apellidoPaterno: `Lineas${s}c`, estado: 'desvinculado' } })).id;
+    ids.disponible = (await prisma.asset.create({ data: { categoriaId: celular.id, marca: 'Samsung', modelo: `Libre ${s}`, estado: 'disponible' } })).id;
+    ids.libre = (await prisma.asset.create({ data: { categoriaId: celular.id, marca: 'Motorola', modelo: `Bodega ${s}`, estado: 'disponible' } })).id;
+    ids.telefonoBaja = (await prisma.asset.create({ data: { categoriaId: celular.id, marca: 'Samsung', modelo: `Baja ${s}`, estado: 'baja' } })).id;
+    ids.sede = (await prisma.sede.create({ data: { codigo: `S${s}`, nombre: `Sede Uno ${s}` } })).id;
+    ids.otraSede = (await prisma.sede.create({ data: { codigo: `T${s}`, nombre: `Sede Dos ${s}` } })).id;
+    suspendida = (await prisma.estadoLinea.findUniqueOrThrow({ where: { nombre: 'Suspendida' } })).id;
+    baja = (await prisma.estadoLinea.findUniqueOrThrow({ where: { clave: 'baja' } })).id;
+    fisico = (await prisma.tipoChip.findUniqueOrThrow({ where: { nombre: 'Físico' } })).id;
+    esim = (await prisma.tipoChip.findUniqueOrThrow({ where: { nombre: 'eSIM / MFF' } })).id;
   });
 
   afterAll(async () => {
     const lineas = await prisma.lineaTelefonica.findMany({ where: { numero: { in: numeros } }, select: { id: true } });
-    await prisma.auditLog.deleteMany({ where: { entidad: 'linea', entidadId: { in: lineas.map((l) => l.id) } } });
+    const idsLineas = [...lineas.map((l) => l.id), ...eliminadas];
+    await prisma.auditLog.deleteMany({ where: { entidadId: { in: [...idsLineas, ...ids.opciones] } } });
+    await prisma.lineaHistorial.deleteMany({ where: { lineaId: { in: idsLineas } } });
     await prisma.lineaTelefonica.deleteMany({ where: { numero: { in: numeros } } });
-    await prisma.asset.deleteMany({ where: { id: { in: [ids.celular!, ids.notebook!] } } });
+    await prisma.sede.deleteMany({ where: { id: { in: [ids.sede!, ids.otraSede!] } } });
+    const creadas = await prisma.employee.findMany({ where: { apellidoPaterno: { in: [`Gomez${u}`, `Rojas${u}`] } }, select: { id: true } });
+    await prisma.auditLog.deleteMany({ where: { entidadId: { in: creadas.map((e) => e.id) } } });
+    await prisma.employee.deleteMany({ where: { id: { in: creadas.map((e) => e.id) } } });
+    await prisma.assignment.deleteMany({ where: { assetId: ids.disponible } });
+    await prisma.assetHistory.deleteMany({ where: { assetId: { in: [ids.disponible!, ids.celular!, ids.libre!] } } });
+    await prisma.motivoReasignacion.deleteMany({ where: { id: { in: ids.opciones } } });
+    await prisma.planLinea.deleteMany({ where: { id: { in: ids.opciones } } });
+    await prisma.tipoChip.deleteMany({ where: { id: { in: ids.opciones } } });
+    await prisma.estadoLinea.deleteMany({ where: { id: { in: ids.opciones } } });
+    await prisma.asset.deleteMany({ where: { id: { in: [ids.celular!, ids.notebook!, ids.disponible!, ids.telefonoBaja!, ids.libre!] } } });
     await prisma.assetCategory.deleteMany({ where: { id: { in: ids.categorias } } });
-    await prisma.employee.deleteMany({ where: { id: ids.empleado } });
+    await prisma.employee.deleteMany({ where: { id: { in: [ids.empleado!, ids.otraPersona!, ids.desvinculada!] } } });
     await prisma.$disconnect();
   });
 
-  test('crea con el número normalizado, asociada a celular y persona, y queda en la auditoría', async () => {
+  test('crea Activa por defecto; solo en un celular sin persona; queda en el historial y la auditoría', async () => {
     const n = nuevo();
+    // Un celular que tiene alguien no: la persona recibe la línea con una solicitud (SPEC 2.131).
+    await expect(crearLinea(datos({ numero: n, activoId: ids.celular }))).rejects.toMatchObject({
+      details: [{ field: 'activoId', message: expect.stringContaining('lo tiene una persona') }],
+    });
     const linea = await crearLinea(
-      datos({ numero: `+56 9 ${n.slice(3, 7)} ${n.slice(7)}`, plan: 'Plan X', precioMensual: '18479', activoId: ids.celular, empleadoId: ids.empleado }),
+      datos({ numero: `+56 9 ${n.slice(3, 7)} ${n.slice(7)}`, precioMensual: '18479', activoId: ids.libre, empleadoId: ids.empleado }),
       'jsoto'
     );
-    expect(linea).toMatchObject({ numero: n, precioMensual: 18479, estado: 'activa', activoId: ids.celular });
-    const audit = await prisma.auditLog.findFirst({ where: { entidad: 'linea', entidadId: linea.id } });
-    expect(audit).toMatchObject({ accion: 'crear', descripcion: `Línea ${n} creada`, usuarioSistema: 'jsoto' });
-    // La ficha del celular y la de la persona la encuentran.
-    expect(await listarLineas({ busqueda: `Lineas${s}` })).toEqual([expect.objectContaining({ id: linea.id })]);
+    expect(linea).toMatchObject({ numero: n, precioMensual: 18479, activoId: ids.libre, empleadoId: null, estado: { nombre: 'Activa' } });
+    expect((await historialLinea(linea.id)).map((e) => e.tipo)).toEqual(['creacion']);
+    expect(await prisma.auditLog.findFirst({ where: { entidadId: linea.id } })).toMatchObject({ accion: 'crear', usuarioSistema: 'jsoto' });
+    const [encontrada] = await listarLineas({ estado: 'todas', q: n });
+    expect(encontrada).toMatchObject({ id: linea.id, activo: { id: ids.libre, empleadoActual: null } });
   });
 
-  test('rechaza un número repetido y un equipo que no es celular', async () => {
+  test('sin celular (teléfono personal) la persona se guarda en la línea', async () => {
+    const linea = await crearLinea(datos({ numero: nuevo(), empleadoId: ids.empleado }));
+    expect(linea).toMatchObject({ activoId: null, empleadoId: ids.empleado });
+  });
+
+  test('rechaza un número repetido, un equipo que no es celular y una fecha futura', async () => {
     const n = nuevo();
     await crearLinea(datos({ numero: n }));
     await expect(crearLinea(datos({ numero: n.slice(2) }))).rejects.toMatchObject({ status: 409 });
     await expect(crearLinea(datos({ numero: nuevo(), activoId: ids.notebook }))).rejects.toMatchObject({
       details: [{ field: 'activoId', message: 'Elige un celular del inventario' }],
     });
+    await expect(crearLinea(datos({ numero: nuevo(), vigenteDesde: '2999-01-01' }))).rejects.toMatchObject({
+      details: [{ field: 'vigenteDesde', message: 'La fecha no puede ser futura' }],
+    });
   });
 
-  test('darla de baja pone la fecha de baja; reactivarla la quita', async () => {
+  test('cambiar precio y estado deja eventos con su vigencia; la baja pone esa fecha', async () => {
     const n = nuevo();
-    const linea = await crearLinea(datos({ numero: n }));
-    const baja = await editarLinea(linea.id, datos({ numero: n, estado: 'baja' }), 'jsoto');
-    expect(baja.fechaBaja).toBeInstanceOf(Date);
-    const activa = await editarLinea(linea.id, datos({ numero: n, estado: 'activa' }));
+    const linea = await crearLinea(datos({ numero: n, precioMensual: 10000, vigenteDesde: '2026-01-15' }), 'jsoto');
+    await editarLinea(linea.id, datos({ numero: n, precioMensual: 12000, estadoId: suspendida, vigenteDesde: '2026-03-01' }), 'jsoto');
+    const dada = await editarLinea(linea.id, datos({ numero: n, precioMensual: 12000, estadoId: baja, vigenteDesde: '2026-05-10' }));
+    expect(dada.fechaBaja?.toISOString().slice(0, 10)).toBe('2026-05-10');
+    const eventos = await historialLinea(linea.id);
+    // Precio y estado del mismo dia se guardan juntos: su orden entre ellos da igual.
+    expect(eventos.map((e) => `${e.vigenteDesde.toISOString().slice(0, 10)} ${e.tipo}`).sort()).toEqual([
+      '2026-01-15 creacion',
+      '2026-03-01 estado',
+      '2026-03-01 precio',
+      '2026-05-10 estado',
+    ]);
+    // Reactivarla quita la fecha de baja.
+    const activa = await editarLinea(linea.id, datos({ numero: n, precioMensual: 12000, estadoId: suspendida }));
     expect(activa.fechaBaja).toBeNull();
-    const descripciones = (
-      await prisma.auditLog.findMany({ where: { entidadId: linea.id }, orderBy: { createdAt: 'asc' } })
-    ).map((a) => a.descripcion);
-    expect(descripciones).toEqual([`Línea ${n} creada`, `Línea ${n} dada de baja`, `Línea ${n} reactivada`]);
   });
 
-  test('eliminar la borra y deja sus datos en la auditoría', async () => {
+  test('costo por mes: cuenta el precio que regía y no cuenta los meses de baja', async () => {
     const n = nuevo();
-    const linea = await crearLinea(datos({ numero: n, plan: 'Plan Y' }));
+    const hace = (meses: number) => {
+      const d = new Date();
+      d.setUTCDate(1);
+      d.setUTCMonth(d.getUTCMonth() - meses);
+      return d.toISOString().slice(0, 10);
+    };
+    const antes = await costoPorMes(4);
+    const linea = await crearLinea(datos({ numero: n, precioMensual: 1000, vigenteDesde: hace(3) }));
+    await editarLinea(linea.id, datos({ numero: n, precioMensual: 3000, vigenteDesde: hace(2) }));
+    await editarLinea(linea.id, datos({ numero: n, precioMensual: 3000, estadoId: baja, vigenteDesde: hace(1) }));
+    const despues = await costoPorMes(4);
+    expect(despues.map((m, i) => m.costo - antes[i].costo)).toEqual([1000, 3000, 0, 0]);
+  });
+
+  test('costo por mes: una línea eliminada cuenta los meses en que existió y deja de contar desde su eliminación', async () => {
+    const n = nuevo();
+    const hace = (meses: number) => {
+      const d = new Date();
+      d.setUTCDate(1);
+      d.setUTCMonth(d.getUTCMonth() - meses);
+      return d.toISOString().slice(0, 10);
+    };
+    const antes = await costoPorMes(4);
+    const linea = await crearLinea(datos({ numero: n, precioMensual: 5000, vigenteDesde: hace(3) }));
+    eliminadas.push(linea.id);
+    await eliminarLinea(linea.id, 'jsoto');
+    const despues = await costoPorMes(4);
+    // Existió los tres meses anteriores y se eliminó este mes: este ya no la cuenta.
+    expect(despues.map((m, i) => m.costo - antes[i].costo)).toEqual([5000, 5000, 5000, 0]);
+  });
+
+  test('catálogos: una opción usada se desactiva y la línea la conserva', async () => {
+    const { opcion } = await crearOpcionLinea('planes', { nombre: `Plan prueba ${s}`, precioMensual: 9990 }, 'jsoto');
+    ids.opciones.push(opcion.id);
+    expect(opcion).toMatchObject({ precioMensual: 9990 });
+    const n = nuevo();
+    const linea = await crearLinea(datos({ numero: n, planId: opcion.id }));
+    expect(await eliminarOpcionLinea('planes', opcion.id, 'jsoto')).toEqual({ desactivado: true });
+    await expect(crearLinea(datos({ numero: nuevo(), planId: opcion.id }))).rejects.toMatchObject({
+      details: [{ field: 'planId', message: 'Elige una opción de la lista' }],
+    });
+    expect(await editarLinea(linea.id, datos({ numero: n, planId: opcion.id, observaciones: 'x' }))).toMatchObject({ planId: opcion.id });
+  });
+
+  test('los estados son cinco y fijos: no se agregan, renombran ni eliminan', async () => {
+    const estados = await prisma.estadoLinea.findMany({ where: { clave: { not: null } }, orderBy: { nombre: 'asc' } });
+    expect(estados.map((e) => [e.nombre, e.clave, e.deBaja])).toEqual([
+      ['Activa', 'activa', false],
+      ['Dada de baja', 'baja', true],
+      ['En portabilidad', 'portabilidad', false],
+      ['Por confirmar', 'por_confirmar', false],
+      ['Suspendida', 'suspendida', false],
+    ]);
+    await expect(crearOpcionLinea('estados', { nombre: `Otro ${s}` })).rejects.toMatchObject({ status: 409 });
+    await expect(editarOpcionLinea('estados', baja, { nombre: 'Renombrada' })).rejects.toMatchObject({ status: 409 });
+    await expect(eliminarOpcionLinea('estados', suspendida)).rejects.toMatchObject({ status: 409 });
+    expect(await prisma.estadoLinea.count({ where: { nombre: { in: [`Otro ${s}`, 'Renombrada'] } } })).toBe(0);
+  });
+
+  test('eliminar la borra, conserva su historial con un evento de cierre y deja sus datos en la auditoría', async () => {
+    const n = nuevo();
+    const linea = await crearLinea(datos({ numero: n, observaciones: 'por error' }));
+    eliminadas.push(linea.id);
     await eliminarLinea(linea.id, 'jsoto');
     expect(await prisma.lineaTelefonica.findUnique({ where: { id: linea.id } })).toBeNull();
+    expect((await historialLinea(linea.id)).map((e) => e.tipo).sort()).toEqual(['creacion', 'eliminacion']);
     const audit = await prisma.auditLog.findFirst({ where: { entidadId: linea.id, accion: 'eliminar' } });
-    expect(audit?.datosAnteriores).toMatchObject({ numero: n, plan: 'Plan Y' });
+    expect(audit?.datosAnteriores).toMatchObject({ numero: n, observaciones: 'por error' });
   });
 
-  test('importa la conciliación: persona por RUT, bajas con su fecha, dudosas como texto y sin pisar lo existente', async () => {
-    const [conPersona, deBaja, duplicada, existente] = [nuevo(), nuevo(), nuevo(), nuevo()];
-    await crearLinea(datos({ numero: existente, estado: 'activa' }));
-    const buffer = await libro(
-      [
-        [conPersona, 'Coincide', 'Prueba', rut, 18479, '2404 Emp. Extra SIM', null],
-        [deBaja, 'Dada de baja', 'Bodega Concepción', null, 18479, '2404 Emp. Extra SIM', 'Baja confirmada'],
-        [duplicada, 'Coincide', 'Ana | Luis', '1-9 | 2-7', 14277, '2403 Emp. Extra SIM', 'La misma línea en dos personas'],
-        [existente, 'Dada de baja', 'Bodega Santiago', null, 22681, '2203 Emp. Extra SIM', null],
-        ['123', 'No asignada', null, null, null, null, null],
-      ],
-      [[deBaja, 'Dada de baja', '2026-08-13']]
-    );
+  test('importación: vista previa sin guardar, luego tandas con persona por RUT, celular por IMEI y sin pisar lo existente', async () => {
+    const [conPersona, conCelular, duplicada, existente] = [nuevo(), nuevo(), nuevo(), nuevo()];
+    await crearLinea(datos({ numero: existente, estadoId: suspendida }));
+    const imei = (await prisma.asset.findUniqueOrThrow({ where: { id: ids.celular } })).imei!;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Consolidado');
+    ws.addRow(['Conciliación']);
+    ws.addRow([]);
+    ws.addRow(['Línea normalizada', 'Estado', 'Responsable / ubicación', 'Documento(s)', 'Precio plan', 'Descripción plan', 'IMEI']);
+    ws.addRow([conPersona, 'Coincide', 'Prueba', rut, 18479, `Plan ${s}`, null]);
+    ws.addRow([conCelular, 'Coincide', null, null, 18479, `Plan ${s}`, imei]);
+    ws.addRow([duplicada, 'Dada de baja', 'Ana | Luis', '1-9 | 2-7', 14277, null, null]);
+    ws.addRow([existente, 'Dada de baja', 'Bodega Santiago', null, 22681, null, null]);
+    ws.addRow(['123', 'No asignada', null, null, null, null, null]);
+    const buffer = (await wb.xlsx.writeBuffer()) as ArrayBuffer;
+    const mapeo = { numero: 'Línea normalizada', estado: 'Estado', responsable: 'Responsable / ubicación', rut: 'Documento(s)', precio: 'Precio plan', plan: 'Descripción plan', imei: 'IMEI' };
 
-    const r = await importarLineas(buffer, 'jsoto');
-    expect(r).toEqual({ nuevas: 3, completadas: 1, conPersona: 1, invalidas: ['123'] });
+    const previa = await vistaPreviaLineas(buffer, 'Consolidado', mapeo);
+    expect(previa.resumen).toMatchObject({ total: 5, nuevas: 3, existentes: 1, conError: 1, entregasAnteriores: 0 });
+    expect(previa.valores.estado.map((v) => [v.valor, v.opcionId])).toEqual([
+      ['Coincide', null],
+      ['Dada de baja', baja],
+    ]);
+    expect(previa.valores.plan).toEqual([{ valor: `Plan ${s}`, filas: 2, precioSugerido: 18479, opcionId: null }]);
+    expect(await prisma.lineaTelefonica.count({ where: { numero: { in: [conPersona, conCelular, duplicada] } } })).toBe(0);
+
+    // La pantalla agrega el plan nuevo y asocia "Coincide" a Activa (vacio).
+    const { opcion: plan } = await crearOpcionLinea('planes', { nombre: `Plan ${s}`, precioMensual: 18479 });
+    ids.opciones.push(plan.id);
+    const filas = previa.filas
+      .filter((f) => f.errores.length === 0)
+      .map(({ existe: _x, estado, plan: p, tipoChip: _t, operador: _o, errores: _e, avisos: _a, ...f }) => ({
+        ...f,
+        estadoId: estado === 'Dada de baja' ? baja : null,
+        planId: p ? plan.id : null,
+        tipoChipId: null,
+        operadorId: null,
+      }));
+    const r = await importarTandaLineas(filas, '2026-07-31', 'jsoto');
+    expect(r.map((x) => x.resultado)).toEqual(['nueva', 'nueva', 'nueva', 'completada']);
 
     const porNumero = new Map(
-      (await prisma.lineaTelefonica.findMany({ where: { numero: { in: numeros } } })).map((l) => [l.numero, l])
+      (await prisma.lineaTelefonica.findMany({ where: { numero: { in: numeros } }, include: { estado: true } })).map((l) => [l.numero, l])
     );
-    expect(porNumero.get(conPersona)).toMatchObject({ empleadoId: ids.empleado, responsable: null, precioMensual: 18479 });
-    expect(porNumero.get(deBaja)).toMatchObject({ estado: 'baja', responsable: 'Bodega Concepción' });
-    expect(porNumero.get(deBaja)?.fechaBaja?.toISOString().slice(0, 10)).toBe('2026-08-13');
-    expect(porNumero.get(duplicada)).toMatchObject({ empleadoId: null, responsable: 'Ana | Luis' });
-    // La que ya existia solo completa lo que le faltaba: el estado no cambia.
-    expect(porNumero.get(existente)).toMatchObject({ estado: 'activa', plan: '2203 Emp. Extra SIM', responsable: 'Bodega Santiago' });
+    expect(porNumero.get(conPersona)).toMatchObject({ empleadoId: ids.empleado, responsable: null, planId: plan.id, estado: { nombre: 'Activa' } });
+    expect(porNumero.get(conCelular)).toMatchObject({ activoId: ids.celular, empleadoId: null });
+    expect(porNumero.get(duplicada)).toMatchObject({ empleadoId: null, responsable: 'Ana | Luis', estado: { clave: 'baja' } });
+    expect(porNumero.get(duplicada)?.fechaBaja?.toISOString().slice(0, 10)).toBe('2026-07-31');
+    // La que ya existia: el estado no cambia; solo completa precio y sede (el texto "Bodega Santiago" nombra la sede Santiago).
+    expect(porNumero.get(existente)).toMatchObject({ estadoId: suspendida, precioMensual: 22681, responsable: null, sedeId: expect.any(String) });
+    // Cada linea importada abre su tramo de tenencia; la completada cambia el suyo.
+    expect((await fichaLinea(porNumero.get(conCelular)!.id)).tenencias).toMatchObject([
+      { origen: 'importacion', activoId: ids.celular, empleadoId: ids.empleado },
+    ]);
+    expect((await fichaLinea(porNumero.get(existente)!.id)).tenencias).toMatchObject([
+      { origen: 'importacion', responsable: null, sedeId: expect.any(String), hasta: null },
+      { origen: 'alta', responsable: null },
+    ]);
+    const [importada] = await historialLinea(porNumero.get(conPersona)!.id);
+    expect(importada).toMatchObject({ tipo: 'importacion', usuario: 'jsoto' });
+    expect(importada.vigenteDesde.toISOString().slice(0, 10)).toBe('2026-07-31');
 
     // Importar de nuevo no duplica ni cambia nada.
-    expect(await importarLineas(buffer)).toEqual({ nuevas: 0, completadas: 0, conPersona: 1, invalidas: ['123'] });
+    expect((await importarTandaLineas(filas, '2026-07-31')).map((x) => x.resultado)).toEqual(['sin cambios', 'sin cambios', 'sin cambios', 'sin cambios']);
+  });
+
+  test('importación del inventario de celulares: un número repetido es una línea con su historial, el operador y el chip salen del archivo y la ubicación va a la sede', async () => {
+    const [numA, numB, numC] = [nuevo(), nuevo(), nuevo()];
+    const imei = (await prisma.asset.findUniqueOrThrow({ where: { id: ids.celular } })).imei!;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('NORMALIZADO');
+    ws.addRow(['RUT', 'Nombre', 'Apellido P.', 'Apellido M.', 'Marca', 'Modelo', 'N° serie', 'IMEI ', 'Estado', 'N° Telefono', 'Operador', 'Fecha entrega', 'Incidencia', 'Observación']);
+    // numA: primero alguien que no está en el sistema, después la persona de prueba con su celular.
+    ws.addRow(['9.999.999-9', 'Luis', `Gomez${u}`, 'Perez', 'Samsung', 'A04', 'S1', '111111111111111', 'Nuevo', numA, 'Entel', new Date('2024-02-10'), null, null]);
+    ws.addRow([rut, 'Prueba', `Lineas${s}`, null, 'Samsung', 'A55', 'S2', imei, 'Usado', Number(numA), 'Entel', new Date('2025-03-01'), 'Falla', 'Rancagua']);
+    // numB: una eSIM, sin persona, en la bodega de una sede; el operador no se sabe.
+    ws.addRow([null, null, null, null, null, null, null, null, 'eSim', numB, 'n/a', null, null, 'Bodega Santiago']);
+    // numC sin RUT pero con nombre; y una fila sin número.
+    ws.addRow([null, 'Rosa', `Rojas${u}`, null, 'Motorola', 'G54', 'S3', null, 'Nuevo', Number(numC.slice(2)), 'Movistar', new Date('2024-05-01'), null, null]);
+    ws.addRow(['25.684.772-8', 'Daniela', 'Alejandra', null, null, null, null, null, 'eSim', null, null, null, null, null]);
+    const buffer = (await wb.xlsx.writeBuffer()) as ArrayBuffer;
+
+    // Propone la hoja y las columnas del inventario: "Estado" es del equipo, no de la línea.
+    expect((await hojasDelArchivo(buffer)).sugerida).toBe('NORMALIZADO');
+    const { mapeo } = await columnasDeHoja(buffer, 'NORMALIZADO');
+    expect(mapeo).toMatchObject({
+      numero: 'N° Telefono', rut: 'RUT', imei: 'IMEI', tipoChip: 'Estado', operador: 'Operador', fechaEntrega: 'Fecha entrega',
+      responsable: 'Observación', observaciones: 'Incidencia', nombre: 'Nombre', apellidoPaterno: 'Apellido P.',
+    });
+    expect(mapeo.estado).toBeUndefined();
+
+    const previa = await vistaPreviaLineas(buffer, 'NORMALIZADO', mapeo);
+    expect(previa.resumen).toMatchObject({ total: 4, nuevas: 3, conError: 1, entregasAnteriores: 1 });
+    const falta = previa.filas.find((f) => f.errores.length);
+    expect(falta?.errores).toEqual(['Falta el número']);
+    const linea = previa.filas.find((f) => f.numero === numA)!;
+    expect(linea).toMatchObject({ rut, operador: 'Entel', fechaEntrega: '2025-03-01', observaciones: 'Falla', entregas: [{ nombre: `Luis Gomez${u} Perez`, desde: '2024-02-10' }] });
+    // Las dos personas que no estan en el sistema se crearian (la otra no trae RUT).
+    expect(previa.resumen.personasNuevas).toBe(2);
+    expect(linea.avisos).toEqual([]);
+    // "eSim" y "SIM" son del tipo de chip; "Nuevo" y "Usado" son del equipo y no calzan con ninguno; "n/a" no es un operador.
+    const eSim = (await prisma.tipoChip.findUniqueOrThrow({ where: { nombre: 'eSIM / MFF' } })).id;
+    const entel = (await prisma.operadorLinea.findUniqueOrThrow({ where: { nombre: 'Entel' } })).id;
+    expect(previa.valores.tipoChip.find((v) => v.valor === 'eSim')?.opcionId).toBe(eSim);
+    expect(previa.valores.tipoChip.find((v) => v.valor === 'Usado')?.opcionId).toBeNull();
+    expect(previa.valores.operador.map((v) => v.valor).sort()).toEqual(['Entel', 'Movistar']);
+    expect(previa.valores.operador.find((v) => v.valor === 'Entel')?.opcionId).toBe(entel);
+
+    const filas = previa.filas
+      .filter((f) => f.errores.length === 0)
+      .map(({ existe: _x, estado: _s, plan: _p, tipoChip, operador, errores: _e, avisos: _a, ...f }) => ({
+        ...f,
+        estadoId: null,
+        planId: null,
+        tipoChipId: tipoChip === 'eSim' ? eSim : null,
+        operadorId: operador === 'Entel' ? entel : null,
+      }));
+    expect((await importarTandaLineas(filas, '2026-07-31', 'jsoto')).map((x) => x.resultado)).toEqual(['nueva', 'nueva', 'nueva']);
+
+    const porNumero = new Map((await prisma.lineaTelefonica.findMany({ where: { numero: { in: [numA, numB, numC] } } })).map((l) => [l.numero, l]));
+    // numA: queda en el celular de la persona de hoy, sin precio ni plan, con operador y la incidencia.
+    expect(porNumero.get(numA)).toMatchObject({ activoId: ids.celular, empleadoId: null, planId: null, precioMensual: null, operadorId: entel, observaciones: 'Falla · Rancagua' });
+    const tramos = (await fichaLinea(porNumero.get(numA)!.id)).tenencias;
+    expect(tramos).toMatchObject([
+      { activoId: ids.celular, empleadoId: ids.empleado, hasta: null, origen: 'importacion' },
+      { activoId: null, empleadoId: expect.any(String), responsable: null, origen: 'importacion', detalle: 'Entrega anterior registrada en el archivo' },
+    ]);
+    // Quien tuvo la linea antes no estaba en el sistema: se creo desvinculado (su RUT tenia el digito verificador malo, queda sin RUT).
+    expect(await prisma.employee.findUniqueOrThrow({ where: { id: tramos[1].empleadoId! } })).toMatchObject({ nombres: 'Luis', apellidoPaterno: `Gomez${u}`, estado: 'desvinculado', rut: null });
+    expect(tramos[1].desde.toISOString().slice(0, 10)).toBe('2024-02-10');
+    expect(tramos[1].hasta?.toISOString().slice(0, 10)).toBe('2025-03-01');
+    expect(tramos[0].desde.toISOString().slice(0, 10)).toBe('2025-03-01');
+    expect((await fichaLinea(porNumero.get(numA)!.id)).reasignaciones).toBe(1);
+    // numB: eSIM en la bodega de una sede, sin operador.
+    expect(porNumero.get(numB)).toMatchObject({ tipoChipId: eSim, operadorId: null, activoId: null, empleadoId: null, responsable: null, sedeId: expect.any(String) });
+    // numC: sin RUT se busca por nombre y, como no esta, se crea activa sin RUT para completarlo despues.
+    expect(porNumero.get(numC)).toMatchObject({ empleadoId: expect.any(String), responsable: null });
+    expect(await prisma.employee.findUniqueOrThrow({ where: { id: porNumero.get(numC)!.empleadoId! } })).toMatchObject({ nombres: 'Rosa', apellidoPaterno: `Rojas${u}`, estado: 'activo', rut: null });
+    // La persona de hoy ve la línea en su historial.
+    expect((await tenenciasDePersona(ids.empleado!)).some((t) => t.lineaId === porNumero.get(numA)!.id)).toBe(true);
+  });
+
+  test('indicadores: asignada solo con persona (celular o teléfono personal); un responsable en texto no cuenta', async () => {
+    const antes = await indicadoresLineas();
+    const [personal, delCelular] = await Promise.all([
+      prisma.employee.create({ data: { nombres: 'Prueba', apellidoPaterno: `Ind${s}a`, estado: 'activo' } }),
+      prisma.employee.create({ data: { nombres: 'Prueba', apellidoPaterno: `Ind${s}b`, estado: 'activo' } }),
+    ]);
+    const celular = await prisma.asset.create({
+      data: { categoriaId: ids.categorias[0], marca: 'Samsung', modelo: `Ind ${s}`, estado: 'disponible' },
+    });
+    try {
+      await crearLinea(datos({ numero: nuevo(), responsable: 'Bodega Prueba' })); // solo texto
+      await crearLinea(datos({ numero: nuevo(), empleadoId: personal.id })); // teléfono personal
+      await crearLinea(datos({ numero: nuevo(), activoId: celular.id })); // celular de la empresa, de bodega...
+      await prisma.$transaction((tx) => alCambiarTenedorDelTelefono(tx, { activoId: celular.id, de: null, a: delCelular.id }));
+      await prisma.asset.update({ where: { id: celular.id }, data: { estado: 'asignado', empleadoActualId: delCelular.id } }); // ...y se entrega
+      const d = await indicadoresLineas();
+      expect(d.vigentes.lineas - antes.vigentes.lineas).toBe(3);
+      expect(d.asignadas.lineas - antes.asignadas.lineas).toBe(2);
+      expect(d.sinAsignar.lineas - antes.sinAsignar.lineas).toBe(1);
+      // Las dos personas nuevas tienen línea, una en su teléfono personal y otra en su celular.
+      expect(d.personas.activas - antes.personas.activas).toBe(2);
+      expect(d.personas.conLinea - antes.personas.conLinea).toBe(2);
+      // El total es vigentes + de baja.
+      expect(d.total.lineas).toBe(d.vigentes.lineas + d.deBaja.lineas);
+      expect(d.total.costo).toBe(d.vigentes.costo + d.deBaja.costo);
+    } finally {
+      const enCelular = await prisma.lineaTelefonica.findMany({ where: { activoId: celular.id }, select: { id: true } });
+      await prisma.lineaTenencia.deleteMany({ where: { lineaId: { in: enCelular.map((l) => l.id) } } });
+      await prisma.lineaTelefonica.deleteMany({ where: { activoId: celular.id } });
+      await prisma.asset.delete({ where: { id: celular.id } });
+      await prisma.employee.deleteMany({ where: { id: { in: [personal.id, delCelular.id] } } });
+    }
+  });
+
+  test('tenencia: el primer tramo es el alta; asignar cierra uno y abre otro, con motivo, y se cuenta', async () => {
+    const linea = await crearLinea(datos({ numero: nuevo(), activoId: ids.libre }), 'jsoto');
+    let ficha = await fichaLinea(linea.id);
+    expect(ficha.reasignaciones).toBe(0);
+    expect(ficha.tenencias).toMatchObject([{ origen: 'alta', hasta: null, activoId: ids.libre, empleadoId: null }]);
+
+    // Sacada del celular (chip físico): queda sin asignar y sin persona.
+    const motivo = await prisma.motivoReasignacion.findFirstOrThrow({ where: { nombre: 'Cambio de equipo' } });
+    const reasignada = await reasignarLinea(
+      linea.id,
+      reasignacionSchema.parse({ destino: 'ninguno', motivoId: motivo.id, detalle: 'chip retirado del equipo' }),
+      'jsoto'
+    );
+    expect(reasignada).toMatchObject({ activoId: null, empleadoId: null });
+    ficha = await fichaLinea(linea.id);
+    expect(ficha.reasignaciones).toBe(1);
+    expect(ficha.tenencias).toMatchObject([
+      { origen: 'reasignacion', empleadoId: null, activoId: null, hasta: null, usuario: 'jsoto', detalle: 'chip retirado del equipo', motivo: { nombre: 'Cambio de equipo' } },
+      { origen: 'alta', empleadoId: null, activoId: ids.libre },
+    ]);
+    // El tramo anterior termina justo cuando empieza el nuevo.
+    expect(ficha.tenencias[1].hasta?.getTime()).toBe(ficha.tenencias[0].desde.getTime());
+    // Y queda en la auditoría.
+    expect(await prisma.auditLog.findFirst({ where: { entidadId: linea.id, descripcion: { contains: 'reasignada' } } })).toBeTruthy();
+
+    // De vuelta a un celular de bodega.
+    const devuelta = await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'telefono', activoId: ids.libre }));
+    expect(devuelta).toMatchObject({ activoId: ids.libre, empleadoId: null });
+    expect((await fichaLinea(linea.id)).tenencias[0]).toMatchObject({ empleadoId: null, activoId: ids.libre });
+    // Sin asignar, en una sede.
+    await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', sedeId: ids.sede }));
+    expect((await fichaLinea(linea.id)).tenencias[0]).toMatchObject({ empleadoId: null, activoId: null, sedeId: ids.sede });
+    expect((await fichaLinea(linea.id)).reasignaciones).toBe(3);
+  });
+
+  test('reasignar rechaza lo que no cambia, una persona desvinculada, un celular de baja, una fecha mala y una línea de baja', async () => {
+    const n = nuevo();
+    const linea = await crearLinea(datos({ numero: n, activoId: ids.libre }));
+    const reasignar = (extra: Record<string, unknown>) => reasignarLinea(linea.id, reasignacionSchema.parse(extra));
+    await expect(reasignar({ destino: 'telefono', activoId: ids.libre })).rejects.toMatchObject({ status: 409 });
+    // Un celular que tiene alguien no (SPEC 2.131).
+    await expect(reasignar({ destino: 'telefono', activoId: ids.celular })).rejects.toMatchObject({
+      details: [{ field: 'activoId', message: expect.stringContaining('lo tiene una persona') }],
+    });
+    // Chip físico: no va directo a una persona (SPEC 2.131).
+    await expect(reasignar({ destino: 'persona', empleadoId: ids.otraPersona })).rejects.toMatchObject({
+      details: [{ field: 'destino', message: expect.stringContaining('chip físico') }],
+    });
+    // Una eSIM disponible sí va a una persona, pero no a una desvinculada.
+    const deEsim = await crearLinea(datos({ numero: nuevo(), tipoChipId: esim }));
+    await expect(
+      reasignarLinea(deEsim.id, reasignacionSchema.parse({ destino: 'persona', empleadoId: ids.desvinculada }))
+    ).rejects.toMatchObject({ details: [{ field: 'empleadoId', message: 'La persona está desvinculada' }] });
+    await expect(reasignar({ destino: 'telefono', activoId: ids.notebook })).rejects.toMatchObject({
+      details: [{ field: 'activoId', message: 'Elige un celular del inventario' }],
+    });
+    await expect(reasignar({ destino: 'telefono', activoId: ids.telefonoBaja })).rejects.toMatchObject({
+      details: [{ field: 'activoId', message: 'Ese celular está de baja o vendido' }],
+    });
+    await expect(reasignar({ destino: 'ninguno', desde: '2999-01-01' })).rejects.toMatchObject({
+      details: [{ field: 'desde', message: 'La fecha no puede ser futura' }],
+    });
+    // No puede empezar antes que el tramo actual (el alta fue hoy).
+    await expect(reasignar({ destino: 'ninguno', desde: '2000-01-01' })).rejects.toMatchObject({ details: [{ field: 'desde' }] });
+    // Elegir "persona" o "teléfono" sin elegir cuál ni siquiera pasa la validación.
+    expect(() => reasignacionSchema.parse({ destino: 'persona' })).toThrow();
+    expect(() => reasignacionSchema.parse({ destino: 'telefono' })).toThrow();
+    // Nada de lo rechazado dejó rastro.
+    expect((await fichaLinea(linea.id)).tenencias).toHaveLength(1);
+    // Una línea dada de baja no se reasigna.
+    await editarLinea(linea.id, datos({ numero: n, tipoChipId: fisico, estadoId: baja }));
+    await expect(reasignar({ destino: 'ninguno' })).rejects.toMatchObject({ status: 409 });
+  });
+
+  test('editar una línea no cambia su teléfono ni su persona: eso es Asignar', async () => {
+    const n = nuevo();
+    const linea = await crearLinea(datos({ numero: n, activoId: ids.libre }));
+    const editada = await editarLinea(
+      linea.id,
+      datos({ numero: n, tipoChipId: fisico, precioMensual: 999, activoId: '', empleadoId: ids.otraPersona, responsable: 'Bodega' })
+    );
+    expect(editada).toMatchObject({ activoId: ids.libre, empleadoId: null, responsable: null, precioMensual: 999 });
+    expect((await fichaLinea(linea.id)).tenencias).toHaveLength(1);
+    // El tipo de chip no se quita, y no cambia a uno que no calza con dónde está la línea.
+    await expect(editarLinea(linea.id, datos({ numero: n, tipoChipId: '' }))).rejects.toMatchObject({
+      details: [{ field: 'tipoChipId', message: 'Elige el tipo de chip' }],
+    });
+    await expect(editarLinea(linea.id, datos({ numero: n, tipoChipId: esim }))).rejects.toMatchObject({
+      details: [{ field: 'tipoChipId', message: expect.stringContaining('déjala sin asignar') }],
+    });
+    // Sin asignar, sí puede pasar a eSIM.
+    await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno' }));
+    expect(await editarLinea(linea.id, datos({ numero: n, tipoChipId: esim }))).toMatchObject({ tipoChipId: esim });
+  });
+
+  test('cambios simultáneos de una línea van uno tras otro: un solo tramo abierto y editar no deshace una reasignación', async () => {
+    const n = nuevo();
+    const linea = await crearLinea(datos({ numero: n, activoId: ids.libre }));
+    const resultados = await Promise.allSettled([
+      reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', sedeId: ids.otraSede })),
+      reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', sedeId: ids.sede })),
+      editarLinea(linea.id, datos({ numero: n, tipoChipId: fisico, precioMensual: 555 })),
+    ]);
+    // Ninguno falla: cada uno espera al anterior y parte de lo que este dejo.
+    expect(resultados.map((r) => r.status)).toEqual(['fulfilled', 'fulfilled', 'fulfilled']);
+    const { linea: final, tenencias } = await fichaLinea(linea.id);
+    expect(tenencias.filter((t) => t.hasta === null)).toHaveLength(1);
+    expect(tenencias).toHaveLength(3);
+    // La linea queda donde la dejo la ultima reasignacion (la edicion no la devolvio al celular).
+    const abierto = tenencias[0];
+    expect({ activoId: final.activoId, empleadoId: final.empleadoId, sedeId: final.sedeId }).toEqual({
+      activoId: abierto.activoId,
+      empleadoId: abierto.activoId ? null : abierto.empleadoId,
+      sedeId: abierto.sedeId,
+    });
+    expect(final.activoId).toBeNull();
+    expect(Number(final.precioMensual)).toBe(555);
+  });
+
+  test('cuando el teléfono cambia de manos, la línea anota su tenencia: entrega y devolución, con el historial de la persona', async () => {
+    const linea = await crearLinea(datos({ numero: nuevo(), activoId: ids.disponible }));
+    expect((await fichaLinea(linea.id)).tenencias[0]).toMatchObject({ origen: 'alta', empleadoId: null, activoId: ids.disponible });
+
+    // Se entrega el teléfono (por Asignaciones, como en un onboarding): la línea pasa a la persona.
+    const asignacion = await asignarEquipo(
+      { assetId: ids.disponible!, employeeId: ids.otraPersona!, fechaEntrega: new Date(), tipoMovimiento: 'ingreso' },
+      'jsoto'
+    );
+    let ficha = await fichaLinea(linea.id);
+    expect(ficha.tenencias[0]).toMatchObject({ origen: 'entrega_telefono', empleadoId: ids.otraPersona, hasta: null });
+    expect(ficha.tenencias[0].detalle).toBeTruthy();
+
+    // Se devuelve (como en un offboarding): queda sin persona, dentro del mismo teléfono.
+    await registrarDevolucion(asignacion.id, { fechaDevolucion: new Date(), estadoDevolucion: 'ok' }, 'jsoto');
+    ficha = await fichaLinea(linea.id);
+    expect(ficha.reasignaciones).toBe(2);
+    expect(ficha.tenencias).toMatchObject([
+      { origen: 'devolucion_telefono', empleadoId: null, activoId: ids.disponible, hasta: null },
+      { origen: 'entrega_telefono', empleadoId: ids.otraPersona },
+      { origen: 'alta', empleadoId: null },
+    ]);
+    expect(ficha.tenencias[1].hasta).not.toBeNull();
+
+    // La línea no pasó por el celular que no tiene: su persona sigue saliendo del teléfono.
+    expect((await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: linea.id } })).empleadoId).toBeNull();
+
+    // Historial de la persona: la línea que tuvo, con cómo terminó.
+    const delHistorial = (await tenenciasDePersona(ids.otraPersona!)).filter((t) => t.lineaId === linea.id);
+    expect(delHistorial).toMatchObject([{ cierre: 'devolucion_telefono', linea: { id: linea.id } }]);
+
+    // Reasignar el mismo día de un cambio automático funciona (queda a continuación).
+    const hoy = new Date().toISOString().slice(0, 10);
+    await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', sedeId: ids.sede, desde: hoy }));
+    expect((await fichaLinea(linea.id)).tenencias[0]).toMatchObject({ origen: 'reasignacion', sedeId: ids.sede });
+  });
+
+  test('sede: se guarda al crear, se filtra por la del navbar, editar no la cambia y Reasignar la cambia en cada tramo', async () => {
+    const linea = await crearLinea(datos({ numero: nuevo(), sedeId: ids.sede }), 'jsoto');
+    expect(linea).toMatchObject({ sedeId: ids.sede });
+    expect((await fichaLinea(linea.id)).tenencias[0]).toMatchObject({ origen: 'alta', sedeId: ids.sede });
+    expect((await listarLineas({ sedeId: ids.sede })).map((l) => l.id)).toContain(linea.id);
+    expect((await listarLineas({ sedeId: ids.otraSede })).map((l) => l.id)).not.toContain(linea.id);
+
+    // Editar no mueve la línea de sede: eso es Reasignar.
+    const editada = await editarLinea(linea.id, datos({ numero: linea.numero, precioMensual: '1000', sedeId: ids.otraSede }));
+    expect(editada.sedeId).toBe(ids.sede);
+
+    // Solo cambiar la sede ya es una reasignación; repetirla se rechaza, y una sede que no existe también.
+    await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', sedeId: ids.otraSede }));
+    const ficha = await fichaLinea(linea.id);
+    expect(ficha.reasignaciones).toBe(1);
+    expect(ficha.tenencias).toMatchObject([{ sedeId: ids.otraSede, hasta: null }, { sedeId: ids.sede }]);
+    await expect(reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', sedeId: ids.otraSede }))).rejects.toMatchObject({ status: 409 });
+    await expect(reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', sedeId: randomUUID() }))).rejects.toMatchObject({
+      details: [{ field: 'sedeId', message: 'Elige una sede de la lista' }],
+    });
+    await expect(crearLinea(datos({ numero: nuevo(), sedeId: randomUUID() }))).rejects.toMatchObject({
+      details: [{ field: 'sedeId', message: 'Elige una sede de la lista' }],
+    });
+  });
+
+  test('eSIM: un tipo de chip "sin celular" no admite celular al crear ni al reasignar; las líneas que ya lo tenían se pueden seguir editando', async () => {
+    const { opcion: esim } = await crearOpcionLinea('tipos-chip', { nombre: `eSIM ${s}`, sinCelular: true });
+    ids.opciones.push(esim.id);
+    expect(esim).toMatchObject({ sinCelular: true });
+    // Al crear: con celular se rechaza; con persona o sin nada, no.
+    await expect(crearLinea(datos({ numero: nuevo(), tipoChipId: esim.id, activoId: ids.celular }))).rejects.toMatchObject({
+      details: [{ field: 'activoId', message: expect.stringContaining('eSIM') }],
+    });
+    const conPersona = await crearLinea(datos({ numero: nuevo(), tipoChipId: esim.id, empleadoId: ids.otraPersona }));
+    expect(conPersona).toMatchObject({ activoId: null, empleadoId: ids.otraPersona });
+    // Ya asignada: no se asigna a otra persona desde Líneas (SPEC 2.131).
+    await expect(reasignarLinea(conPersona.id, reasignacionSchema.parse({ destino: 'persona', empleadoId: ids.empleado }))).rejects.toMatchObject({ status: 409 });
+    // Disponible: a un celular se rechaza; a una persona, no.
+    const libre = await crearLinea(datos({ numero: nuevo(), tipoChipId: esim.id }));
+    await expect(reasignarLinea(libre.id, reasignacionSchema.parse({ destino: 'telefono', activoId: ids.libre }))).rejects.toMatchObject({
+      details: [{ field: 'destino', message: expect.stringContaining('eSIM') }],
+    });
+    await reasignarLinea(libre.id, reasignacionSchema.parse({ destino: 'persona', empleadoId: ids.empleado }));
+
+    // Una línea antigua que quedó en un celular con eSIM (de antes de la regla) se sigue editando si no cambia el chip.
+    const antigua = await prisma.lineaTelefonica.create({
+      data: { numero: nuevo(), estadoId: (await prisma.estadoLinea.findUniqueOrThrow({ where: { clave: 'activa' } })).id, tipoChipId: esim.id, activoId: ids.celular },
+    });
+    const editada = await editarLinea(antigua.id, datos({ numero: antigua.numero, tipoChipId: esim.id, precioMensual: '5000' }));
+    expect(editada).toMatchObject({ activoId: ids.celular, tipoChipId: esim.id, precioMensual: 5000 });
+    // El tipo se marca o se desmarca desde el catálogo.
+    expect(await editarOpcionLinea('tipos-chip', esim.id, { nombre: esim.nombre, sinCelular: false })).toMatchObject({ sinCelular: false });
+  });
+
+  test('solo se asigna una línea disponible: una en un celular que tiene alguien cambia con las solicitudes', async () => {
+    const linea = await crearLinea(datos({ numero: nuevo(), activoId: ids.disponible }));
+    const asignacion = await asignarEquipo(
+      { assetId: ids.disponible!, employeeId: ids.otraPersona!, fechaEntrega: new Date(), tipoMovimiento: 'ingreso' },
+      'jsoto'
+    );
+    try {
+      await expect(reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno' }))).rejects.toMatchObject({
+        status: 409,
+        message: expect.stringContaining('con una solicitud'),
+      });
+    } finally {
+      await registrarDevolucion(asignacion.id, { fechaDevolucion: new Date(), estadoDevolucion: 'ok' }, 'jsoto');
+    }
+    // Devuelto el celular, la línea queda disponible y se puede asignar.
+    await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno' }));
+  });
+
+  test('devolución por término: las eSIM de la persona quedan disponibles; las de un celular no se tocan', async () => {
+    const esimDe = await crearLinea(datos({ numero: nuevo(), empleadoId: ids.otraPersona }));
+    const enCelular = await crearLinea(datos({ numero: nuevo(), activoId: ids.libre }));
+    const liberadas = await prisma.$transaction((tx) => liberarEsimDePersona(tx, ids.otraPersona!, { usuario: 'jsoto', detalle: 'Devolución por término' }));
+    expect(liberadas).toBeGreaterThanOrEqual(1);
+    expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: esimDe.id } })).toMatchObject({ empleadoId: null, activoId: null });
+    expect((await fichaLinea(esimDe.id)).tenencias[0]).toMatchObject({ origen: 'termino', empleadoId: null, usuario: 'jsoto', hasta: null });
+    expect((await fichaLinea(enCelular.id)).tenencias).toHaveLength(1);
+    // Ya disponible, se puede asignar a otra persona.
+    await reasignarLinea(esimDe.id, reasignacionSchema.parse({ destino: 'persona', empleadoId: ids.empleado }));
+  });
+
+  test('motivos de reasignación: vienen de base, se pueden agregar y uno usado se desactiva y deja de ofrecerse', async () => {
+    const base = (await prisma.motivoReasignacion.findMany({ where: { nombre: { in: ['Cambio de equipo', 'Cambio de persona', 'Persona desvinculada', 'Línea nueva', 'Otro'] } } })).length;
+    expect(base).toBe(5);
+    const { opcion } = await crearOpcionLinea('motivos', { nombre: `Motivo prueba ${s}` }, 'jsoto');
+    ids.opciones.push(opcion.id);
+    const linea = await crearLinea(datos({ numero: nuevo(), activoId: ids.libre }));
+    await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', motivoId: opcion.id }));
+    expect(await eliminarOpcionLinea('motivos', opcion.id, 'jsoto')).toEqual({ desactivado: true });
+    await expect(reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'telefono', activoId: ids.libre, motivoId: opcion.id }))).rejects.toMatchObject({
+      details: [{ field: 'motivoId', message: 'Elige un motivo de la lista' }],
+    });
+    // El tramo que lo usó lo conserva.
+    expect((await fichaLinea(linea.id)).tenencias[0]).toMatchObject({ motivo: { nombre: `Motivo prueba ${s}` } });
   });
 });

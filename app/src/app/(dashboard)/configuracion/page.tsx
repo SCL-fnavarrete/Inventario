@@ -26,16 +26,17 @@ const configSections = [
   },
   {
     // Antes eran dos tarjetas: Categorias y Opciones de Activos (SPEC 2.112.7).
-    title: "Catálogos de Activos",
-    description: "Categorías, marcas y opciones de sistema operativo, antivirus y licencia Microsoft 365",
+    // Marcas, sistemas operativos, antivirus y licencias estan en Activos > Equipos > Catalogos.
+    title: "Categorías de Activos",
+    description: "Tipos de equipo y la ficha que usa cada uno. Marcas, sistemas operativos, antivirus y licencias están en Activos › Catálogos",
     href: "/configuracion/catalogos",
     icon: FolderTree,
   },
   {
     // Antes estaba en Activos: la carga inicial se hace una vez (SPEC 2.116.7).
-    title: "Importar inventario",
-    description: "Carga masiva de equipos desde Excel (.xlsx), con revisión de filas antes de guardar",
-    href: "/configuracion/importar",
+    title: "Importación de datos",
+    description: "Carga masiva desde Excel (.xlsx), solo administrador: activos y líneas telefónicas, con revisión de filas antes de guardar",
+    href: "/configuracion/importacion",
     icon: Upload,
   },
   {

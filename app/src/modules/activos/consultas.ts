@@ -21,10 +21,10 @@ import { FILTROS_DATO, SIN_DATO, type FiltrosDato, type ParamFiltroDato } from '
  */
 export const ACTIVOS_VIGENTES = { deletedAt: null } satisfies Prisma.AssetWhereInput;
 
-/** Lineas activas de un celular (SPEC 2.131): el numero y el plan son de la linea, no del equipo. */
+/** Lineas vigentes de un celular (SPEC 2.131): el numero y el plan son de la linea, no del equipo. */
 export const LINEAS_DEL_EQUIPO = {
-  where: { estado: 'activa' },
-  select: { numero: true, plan: true },
+  where: { estado: { deBaja: false } },
+  select: { numero: true, plan: { select: { nombre: true } } },
   orderBy: { numero: 'asc' },
 } satisfies Prisma.Asset$lineasArgs;
 
@@ -93,6 +93,8 @@ function condicionFiltroDato(param: ParamFiltroDato, valor: string): Prisma.Asse
           ],
         };
   }
+  // Solo "Sin sede": la sede se elige en el navbar (SPEC 2.117).
+  if (param === 'sede') return valor === SIN_DATO ? { sedeId: null } : { sedeId: valor };
   const campo = CAMPO_FILTRO[param];
   return valor === SIN_DATO ? { OR: [{ [campo]: null }, { [campo]: '' }] } : { [campo]: valor };
 }

@@ -1,5 +1,6 @@
 import { logger } from "@/shared/logger";
-import { crearPersonaEnTx } from "@/modules/personas/servidor";
+import { buscarPersona, type PersonaIndexada } from "@/modules/personas";
+import { actualizarIndice, encontrarOCrearPersona } from "@/modules/personas/servidor";
 import { registrarAsignacionImportada } from "@/modules/asignaciones/servidor";
 import { registrarMantencionImportada } from "@/modules/mantenciones/servidor";
 import { parseDDMMYYYYToDate } from "@/modules/importacion/excel";
@@ -12,18 +13,19 @@ import {
   mensajeSerieDuplicada,
   resolverCondicion,
   resolverEstado,
+  asignadoSinPersona,
+  disponibleConPersona,
+  estadoFinal,
   resolverSedeParaFila,
   resolverValorCatalogo,
   tieneMicrosoft365,
 } from "@/modules/importacion/reglasFila";
-import { limpiarRut } from "@/shared/validaciones/rut";
-import { normalizarImei, validarImei } from "@/modules/activos";
+import { etiquetaEstadoActivo, normalizarImei, validarImei } from "@/modules/activos";
 import {
   crearActivoImportado,
   assetHistoryService,
   type AssetHistoryData,
 } from "@/modules/activos/servidor";
-import { Prisma } from "@prisma/client";
 import { quienHace, type SesionAutenticada } from "@/shared/auth/guard";
 import type { ValidationErrorType } from "@/modules/importacion/tipos";
 import type { prisma as prismaSingleton } from "@/shared/prisma";
@@ -66,6 +68,20 @@ export interface ContextoFila {
    * precargarEmpleadosPorRut). Se completa tambien con los que se buscan
    * fila por fila. */
   empleadosDesvinculados: Set<string>;
+  /** Todas las personas, cargadas una vez: la persona de una fila se busca por RUT o, sin RUT,
+   * por nombre, y si no existe se crea (SPEC 2.133). Sin ella solo se busca por RUT. */
+  indicePersonas?: PersonaIndexada[];
+}
+
+/** Lo que la fila hace con su persona, para avisarlo en la vista previa y el resultado. */
+export interface PersonaDeFila {
+  /** "existente" ya estaba en el sistema; "nueva" se crea con el estado indicado. */
+  accion: "existente" | "nueva";
+  estado: "activo" | "desvinculado";
+  /** Se encontro por nombre porque la fila no trae RUT. */
+  porNombre: boolean;
+  /** Datos de la persona que se completan (solo los que estaban vacios). */
+  completados: string[];
 }
 
 export interface ResultadoFilaError {
@@ -81,11 +97,19 @@ export interface ResultadoFilaError {
 export interface ResultadoFilaValida {
   status: "valid";
   data: Record<string, string>;
+  persona?: PersonaDeFila;
+  /** La fila no trae sede: el equipo queda sin sede y se completa en Editar (SPEC 2.117). */
+  sinSede?: boolean;
+  /** Decia "Activo"/"Asignado" sin persona: entra Disponible (SPEC 2.133). */
+  activoSinPersona?: boolean;
+  /** Decia "Disponible" pero trae persona: entra Asignado a ella (SPEC 2.133). */
+  disponibleConPersona?: boolean;
 }
 export interface ResultadoFilaImportada {
   status: "imported";
   data: Record<string, string>;
   assetId: string;
+  persona?: PersonaDeFila;
 }
 export type ResultadoFila = ResultadoFilaError | ResultadoFilaValida | ResultadoFilaImportada;
 
@@ -274,103 +298,163 @@ export async function procesarFila(
   }
 
   const rutEmpleado = lecturaRut.tipo === "valido" ? lecturaRut.rut : null;
-  const estado = resolverEstado(lecturaEstado, rutEmpleado !== null);
+  // La fila trae a una persona si trae RUT o, sin RUT, nombre y apellido paterno
+  // (SPEC 2.133): una persona sin RUT tambien se busca por nombre y, si no existe, se crea.
+  const nombresFila = obtener("nombre");
+  const apellidoPaternoFila = obtener("apellidoP");
+  const hayPersona = rutEmpleado !== null || (!!nombresFila && !!apellidoPaternoFila);
+  // "No devuelto" sin persona no se puede cumplir: hay que saber quien no lo devolvio.
+  if (lecturaEstado.tipo === "estado" && lecturaEstado.estado === "no_devuelto" && !hayPersona) {
+    return {
+      status: "error",
+      tipo: "missing_required_field",
+      mensaje: 'Estado "No devuelto" sin persona: indica quién no lo devolvió (RUT, o Nombre y Apellido P.).',
+      data: datosFila,
+      campo: "rut",
+    };
+  }
+  // Baja o vendido con persona: los Excel no son confiables y no se adivina cual
+  // dato esta mal (SPEC 2.133). Se detiene la fila para decidirlo.
+  if (hayPersona && estadoFinal(lecturaEstado)) {
+    return {
+      status: "error",
+      tipo: "invalid_format",
+      mensaje: `Estado "${lecturaEstado.tipo === "estado" ? etiquetaEstadoActivo(lecturaEstado.estado) : ""}" con persona: ¿se dio de baja o lo tiene alguien? Quita la persona o cambia el estado.`,
+      data: datosFila,
+      campo: "estado",
+    };
+  }
+  // Datos de una persona (cargo, correo...) sin RUT ni nombre: no se sabe a quien
+  // asignarlo. En un equipo de baja o vendido no importan (eran del ultimo usuario).
+  const datosSueltos = ["nombre", "apellidoP", "apellidoM", "correoEmpresa", "correoPersonal", "cargo"].some((k) => !!obtener(k));
+  if (!hayPersona && datosSueltos && !estadoFinal(lecturaEstado)) {
+    return {
+      status: "error",
+      tipo: "missing_required_field",
+      mensaje: "Datos de persona incompletos: trae cargo, correo o un nombre suelto, pero falta el RUT o el Nombre y Apellido P. para saber a quién asignarlo.",
+      data: datosFila,
+      campo: "rut",
+    };
+  }
+  const estado = resolverEstado(lecturaEstado, hayPersona);
+  const activoSinPersona = asignadoSinPersona(lecturaEstado, hayPersona);
+  const pasaAAsignado = disponibleConPersona(lecturaEstado, hayPersona);
   const condicion = resolverCondicion(lecturaEstado, obtener("condicion"));
-  // Un equipo "no devuelto" tambien esta en manos de una persona -- la
-  // diferencia con "asignado" es que esa persona ya se desvinculo, no que el
-  // equipo este libre. Por eso se crea igual el empleado, la asignacion y la
-  // fecha de entrega; lo unico distinto es el estado con el que queda el
-  // Activo, para no perder el rastro de quien tiene el equipo.
+  // El equipo queda en manos de la persona cuando esta asignado, en mantencion
+  // (vuelve a ella al terminar) o no devuelto -- la diferencia con "asignado" es
+  // que esa persona ya se desvinculo, no que el equipo este libre. Con la fila en
+  // otro estado (disponible, de baja...) la persona igual se crea, pero sin equipo.
   const debeAsignar =
-    rutEmpleado !== null && (estado === "asignado" || estado === "no_devuelto");
+    hayPersona && (estado === "asignado" || estado === "no_devuelto" || estado === "en_mantencion");
+  // Una persona nueva entra activa si el equipo sigue con ella; si no (lo devolvio,
+  // no lo devolvio o ya no lo tiene), entra desvinculada.
+  const estadoPersonaNueva: "activo" | "desvinculado" =
+    estado === "asignado" || estado === "en_mantencion" ? "activo" : "desvinculado";
 
-  let empleadoExistenteId: string | null =
-    rutEmpleado ? ctx.employeeCache.get(rutEmpleado) ?? null : null;
-  let datosEmpleadoNuevo: Prisma.EmployeeCreateInput | null = null;
-
-  if (debeAsignar && rutEmpleado && !empleadoExistenteId) {
-    const encontrado = await prismaClient.employee.findUnique({
-      where: { rut: rutEmpleado },
-      select: { id: true, estado: true },
-    });
-
-    if (encontrado) {
-      empleadoExistenteId = encontrado.id;
-      if (encontrado.estado === "desvinculado") ctx.empleadosDesvinculados.add(rutEmpleado);
-    } else {
-      const nombres = obtener("nombre");
-      const apellidoPaterno = obtener("apellidoP");
-
-      if (!nombres || !apellidoPaterno) {
+  let personaExistente: { id: string; desvinculada: boolean; porNombre: boolean } | null = null;
+  if (hayPersona) {
+    const enCache = rutEmpleado ? ctx.employeeCache.get(rutEmpleado) : undefined;
+    if (enCache) {
+      personaExistente = {
+        id: enCache,
+        desvinculada: !!rutEmpleado && ctx.empleadosDesvinculados.has(rutEmpleado),
+        porNombre: false,
+      };
+    } else if (ctx.indicePersonas) {
+      const busqueda = buscarPersona(ctx.indicePersonas, {
+        rut: rutEmpleado,
+        nombres: nombresFila,
+        apellidoPaterno: apellidoPaternoFila,
+        apellidoMaterno: obtener("apellidoM"),
+      });
+      if (busqueda.tipo === "ambigua") {
         return {
           status: "error",
-          tipo: "missing_employee_data",
-          mensaje: `Empleado con RUT ${rutEmpleado}: faltan campos obligatorios (Nombre o Apellido P.)`,
+          tipo: "persona_ambigua",
+          mensaje: `${nombresFila} ${apellidoPaternoFila} calza con ${busqueda.candidatas.length} personas del sistema: agrega su RUT`,
           data: datosFila,
+          campo: "rut",
         };
       }
-
-      const base = `${nombres.toLowerCase().replace(/\s+/g, ".")}.${apellidoPaterno.toLowerCase()}`;
-      let correoEmpresa = obtener("correoEmpresa") || `${base}@empresa.cl`;
-      const correoTomado = await prismaClient.employee.findUnique({
-        where: { correoEmpresa },
-        select: { id: true },
+      if (busqueda.tipo === "duplicado") {
+        const p = busqueda.persona;
+        return {
+          status: "error",
+          tipo: "persona_duplicada",
+          mensaje: `El RUT ${rutEmpleado} es nuevo, pero ${p.nombres} ${p.apellidoPaterno} ya existe con el RUT ${p.rut}: ¿RUT mal escrito?`,
+          data: datosFila,
+          campo: "rut",
+        };
+      }
+      if (busqueda.tipo === "encontrada") {
+        personaExistente = {
+          id: busqueda.persona.id,
+          desvinculada: busqueda.persona.estado === "desvinculado",
+          porNombre: busqueda.por === "nombre",
+        };
+      }
+    } else if (rutEmpleado) {
+      // Sin indice de personas (solo por RUT, una consulta por fila).
+      const encontrado = await prismaClient.employee.findUnique({
+        where: { rut: rutEmpleado },
+        select: { id: true, estado: true },
       });
-      if (correoTomado) {
-        correoEmpresa = `${base}.${limpiarRut(rutEmpleado).toLowerCase()}@empresa.cl`;
+      if (encontrado) {
+        personaExistente = { id: encontrado.id, desvinculada: encontrado.estado === "desvinculado", porNombre: false };
+        if (encontrado.estado === "desvinculado") ctx.empleadosDesvinculados.add(rutEmpleado);
       }
-
-      // El correo personal no es obligatorio en esta importacion (a
-      // diferencia del alta manual de empleado): si el Excel no lo trae,
-      // el empleado se crea igual y el dato se completa despues desde su
-      // ficha. Si lo trae pero ya esta en uso por OTRO empleado, se
-      // descarta (queda vacio) en vez de hacer fallar toda la fila -- el
-      // RUT es el identificador real de esta importacion.
-      const correoPersonalIngresado = obtener("correoPersonal") || null;
-      let correoPersonal: string | null = correoPersonalIngresado;
-      if (correoPersonal) {
-        const personalTomado = await prismaClient.employee.findUnique({
-          where: { correoPersonal },
-          select: { id: true },
-        });
-        if (personalTomado) {
-          correoPersonal = null;
-        }
-      }
-
-      datosEmpleadoNuevo = {
-        rut: rutEmpleado,
-        nombres,
-        apellidoPaterno,
-        apellidoMaterno: obtener("apellidoM") || null,
-        correoEmpresa,
-        correoPersonal,
-        cargo: obtener("cargo") || null,
-        jefatura: obtener("jefatura") || null,
-        supervisor: obtener("supervisor") || null,
-        ubicacion: obtener("comuna") || null,
-        // El Excel no dice si es contrato u honorarios: queda sin definir
-        // y se elige al editar el empleado.
-        tipoContrato: null,
-        estado: "activo",
-        sede: { connect: { id: sedeId } },
-      };
     }
   }
 
-  // Un equipo "asignado" a alguien que ya se desvinculo quedaria en manos de
-  // una persona que no esta en la empresa (auditoria 27-sep-2026, 2.9). No se
-  // decide por detras: si la planilla dice "No devuelto", pasa; si no, la
+  // Una persona que no existe se crea si la fila trae con que (nombre y apellido
+  // paterno). Si el equipo va a quedar con ella y no hay con que, la fila se corrige.
+  const puedeCrearPersona = !!nombresFila && !!apellidoPaternoFila;
+  if (hayPersona && !personaExistente && debeAsignar && !puedeCrearPersona) {
+    return {
+      status: "error",
+      tipo: "missing_employee_data",
+      mensaje: `Empleado con RUT ${rutEmpleado}: faltan campos obligatorios (Nombre o Apellido P.)`,
+      data: datosFila,
+    };
+  }
+  const crearPersona = hayPersona && !personaExistente && puedeCrearPersona;
+  const datosPersona = {
+    rut: rutEmpleado,
+    nombres: nombresFila,
+    apellidoPaterno: apellidoPaternoFila,
+    apellidoMaterno: obtener("apellidoM") || null,
+    // Sin correo queda vacio: no se inventa uno (SPEC 2.133).
+    correoEmpresa: obtener("correoEmpresa") || null,
+    correoPersonal: obtener("correoPersonal") || null,
+    cargo: obtener("cargo") || null,
+    jefatura: obtener("jefatura") || null,
+    supervisor: obtener("supervisor") || null,
+    ubicacion: obtener("comuna") || null,
+    sedeId,
+    estado: estadoPersonaNueva,
+  };
+
+  // Un equipo "asignado" o en mantencion con alguien que ya se desvinculo quedaria
+  // en manos de una persona que no esta en la empresa (auditoria 27-sep-2026, 2.9).
+  // No se decide por detras: si la planilla dice "No devuelto", pasa; si no, la
   // fila queda para que alguien la corrija.
-  if (estado === "asignado" && rutEmpleado && ctx.empleadosDesvinculados.has(rutEmpleado)) {
+  if ((estado === "asignado" || estado === "en_mantencion") && personaExistente?.desvinculada) {
     return {
       status: "error",
       tipo: "empleado_desvinculado",
       campo: "estado",
-      mensaje: `El empleado con RUT ${rutEmpleado} está desvinculado: usa el estado "No devuelto" o quita el RUT`,
+      mensaje: `La persona de la fila (${rutEmpleado ?? `${nombresFila} ${apellidoPaternoFila}`}) está desvinculada: usa el estado "No devuelto" o quita a la persona`,
       data: datosFila,
     };
   }
+  const personaDeLaFila: PersonaDeFila | undefined = hayPersona && (personaExistente || crearPersona)
+    ? {
+        accion: personaExistente ? "existente" : "nueva",
+        estado: personaExistente ? (personaExistente.desvinculada ? "desvinculado" : "activo") : estadoPersonaNueva,
+        porNombre: personaExistente?.porNombre ?? false,
+        completados: [],
+      }
+    : undefined;
 
   const procesador = obtener("procesador") || null;
   const ram = obtener("ram") || null;
@@ -470,10 +554,28 @@ export async function procesarFila(
     // archivo se valide contra esto -- mismo criterio que la escritura real.
     if (numeroSerie) ctx.existingSeriesSet.add(numeroSerie.toUpperCase());
     if (imeiFila) ctx.existingImeiSet.add(imeiFila);
-    if (rutEmpleado && !empleadoExistenteId) {
-      ctx.employeeCache.set(rutEmpleado, PLACEHOLDER_EMPLEADO_PENDIENTE);
+    if (crearPersona) {
+      // La persona nueva queda "pendiente": las filas que siguen la encuentran por RUT o por nombre.
+      if (rutEmpleado) {
+        ctx.employeeCache.set(rutEmpleado, PLACEHOLDER_EMPLEADO_PENDIENTE);
+        if (estadoPersonaNueva === "desvinculado") ctx.empleadosDesvinculados.add(rutEmpleado);
+      }
+      ctx.indicePersonas?.push({
+        id: PLACEHOLDER_EMPLEADO_PENDIENTE,
+        rut: rutEmpleado,
+        nombres: nombresFila,
+        apellidoPaterno: apellidoPaternoFila,
+        apellidoMaterno: obtener("apellidoM") || null,
+        estado: estadoPersonaNueva,
+        correoEmpresa: null,
+        correoPersonal: null,
+        cargo: null,
+        jefatura: null,
+        supervisor: null,
+        ubicacion: null,
+      });
     }
-    return { status: "valid", data: datosFila };
+    return { status: "valid", data: datosFila, persona: personaDeLaFila, sinSede: !sedeId || undefined, activoSinPersona: activoSinPersona || undefined, disponibleConPersona: pasaAAsignado || undefined };
   }
 
   // Las escrituras de una fila -activo, historial, asignacion y mantencion-
@@ -481,17 +583,27 @@ export async function procesarFila(
   // si. Sin transaccion, un fallo a mitad dejaba un activo sin su asignacion
   // o sin historial, y nada lo delataba.
   const escrito = await prismaClient.$transaction(async (tx) => {
-    let empleadoId: string | null =
-      empleadoExistenteId && empleadoExistenteId !== PLACEHOLDER_EMPLEADO_PENDIENTE
-        ? empleadoExistenteId
-        : null;
-    if (debeAsignar && !empleadoId && datosEmpleadoNuevo) {
-      const creado = await crearPersonaEnTx(tx, datosEmpleadoNuevo);
-      empleadoId = creado.id;
-      logger.log(`Empleado creado: ${datosEmpleadoNuevo.nombres} ${datosEmpleadoNuevo.apellidoPaterno}`);
-    }
-
     const usuarioImportacion = quienHace(ctx.session);
+    let empleadoId: string | null =
+      personaExistente && personaExistente.id !== PLACEHOLDER_EMPLEADO_PENDIENTE ? personaExistente.id : null;
+    let personaEscrita: Awaited<ReturnType<typeof encontrarOCrearPersona>> | null = null;
+    // Se busca de nuevo dentro de la transaccion: crea a la persona si no existe y,
+    // si existe, solo le completa los datos que tenia vacios (nunca cambia su estado).
+    if (crearPersona || (personaExistente && ctx.indicePersonas)) {
+      personaEscrita = await encontrarOCrearPersona(tx, ctx.indicePersonas ?? [], datosPersona, usuarioImportacion);
+      if (personaEscrita.tipo === "creada" || personaEscrita.tipo === "existente") {
+        empleadoId = personaEscrita.persona.id;
+        if (personaEscrita.tipo === "creada") {
+          logger.log(`Persona creada: ${datosPersona.nombres} ${datosPersona.apellidoPaterno}`);
+        }
+      } else {
+        // La vista previa ya la rechaza; esto solo ocurre si el archivo cambio entre una y otra.
+        throw new Error("No se pudo determinar la persona de la fila");
+      }
+    }
+    // El equipo solo queda con la persona si esta asignado, en mantencion o no devuelto.
+    const dueno = debeAsignar ? empleadoId : null;
+
     const asset = await crearActivoImportado(
       tx,
       {
@@ -517,7 +629,7 @@ export async function procesarFila(
         fechaCompra,
         valor,
         observaciones: obtener("observaciones") || null,
-        empleadoActualId: empleadoId,
+        empleadoActualId: dueno,
       },
       usuarioImportacion
     );
@@ -564,10 +676,10 @@ export async function procesarFila(
     // Se crea la asignacion aunque fechaEntrega sea null -- lo que la hace
     // necesaria es que haya un empleado (custodia del equipo), no que se
     // conozca la fecha exacta en que se le entrego.
-    if (empleadoId) {
+    if (dueno) {
       await registrarAsignacionImportada(tx, {
         assetId: asset.id,
-        employeeId: empleadoId,
+        employeeId: dueno,
         fechaEntrega,
         tipoMovimiento: "ingreso",
         activo: true,
@@ -585,9 +697,9 @@ export async function procesarFila(
       const ahora = new Date();
 
       let sufijoEmpleado = "";
-      if (empleadoId) {
+      if (dueno) {
         const empleado = await tx.employee.findUnique({
-          where: { id: empleadoId },
+          where: { id: dueno },
           select: { nombres: true, apellidoPaterno: true, rut: true },
         });
         if (empleado) {
@@ -657,14 +769,28 @@ export async function procesarFila(
       });
     }
 
-    return { empleadoId, assetId: asset.id };
+    return { empleadoId, assetId: asset.id, personaEscrita };
   });
 
-  if (rutEmpleado && escrito.empleadoId) {
+  // Ya con la transaccion confirmada: la persona queda en el indice y en la cache para las filas que siguen.
+  const escritaPersona = escrito.personaEscrita;
+  if (escritaPersona && (escritaPersona.tipo === "creada" || escritaPersona.tipo === "existente")) {
+    if (ctx.indicePersonas) actualizarIndice(ctx.indicePersonas, escritaPersona.persona);
+    if (rutEmpleado && escrito.empleadoId) {
+      ctx.employeeCache.set(rutEmpleado, escrito.empleadoId);
+      if (escritaPersona.persona.estado === "desvinculado") ctx.empleadosDesvinculados.add(rutEmpleado);
+    }
+  } else if (rutEmpleado && escrito.empleadoId) {
     ctx.employeeCache.set(rutEmpleado, escrito.empleadoId);
   }
   if (numeroSerie) ctx.existingSeriesSet.add(numeroSerie.toUpperCase());
   if (imeiFila) ctx.existingImeiSet.add(imeiFila);
 
-  return { status: "imported", data: datosFila, assetId: escrito.assetId };
+  const persona: PersonaDeFila | undefined = personaDeLaFila
+    ? {
+        ...personaDeLaFila,
+        completados: escritaPersona?.tipo === "existente" ? escritaPersona.completados : [],
+      }
+    : undefined;
+  return { status: "imported", data: datosFila, assetId: escrito.assetId, persona };
 }

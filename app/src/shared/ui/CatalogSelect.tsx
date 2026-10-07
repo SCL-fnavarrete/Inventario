@@ -22,6 +22,8 @@ interface CatalogSelectProps {
   /** Para unir el select a su etiqueta y marcarlo con error. */
   id?: string;
   invalido?: boolean;
+  /** Con usarId: la opcion que el registro ya tiene, para no perderla si se desactivo del catalogo. */
+  actual?: { id: string; nombre: string } | null;
 }
 
 /**
@@ -31,7 +33,7 @@ interface CatalogSelectProps {
  * plano: este componente solo controla que ese texto salga de una lista
  * cerrada en vez de tipeo libre.
  */
-export function CatalogSelect({ endpoint, value, onChange, placeholder, className, usarId, id, invalido }: CatalogSelectProps) {
+export function CatalogSelect({ endpoint, value, onChange, placeholder, className, usarId, id, invalido, actual }: CatalogSelectProps) {
   const [opciones, setOpciones] = useState<Opcion[]>([]);
   const [loading, setLoading] = useState(true);
   const [agregando, setAgregando] = useState(false);
@@ -63,11 +65,13 @@ export function CatalogSelect({ endpoint, value, onChange, placeholder, classNam
   // El valor guardado puede no estar en el catalogo (dato historico
   // importado antes de que existiera la opcion); se agrega igual a la
   // lista para no perderlo de vista aunque no este activo formalmente.
-  // Con usarId no aplica: un id que no esta en la lista no tiene nombre que mostrar.
+  // Con usarId solo se puede mostrar si el registro dice cual es (`actual`).
   const opcionesConValorActual =
     value && !usarId && !opciones.some((o) => o.nombre === value)
       ? [...opciones, { id: `__actual__${value}`, nombre: value, activo: true }]
-      : opciones;
+      : usarId && actual && value === actual.id && !opciones.some((o) => o.id === actual.id)
+        ? [...opciones, { ...actual, activo: false }]
+        : opciones;
 
   const cerrarAgregar = () => {
     setAgregando(false);

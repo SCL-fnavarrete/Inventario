@@ -6,6 +6,7 @@ import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { ActivoForm, payloadActivo, type ActivoFormValues } from "@/modules/activos/componentes";
+import { logger } from "@/shared/logger";
 
 export default function NuevoActivoPage() {
   const router = useRouter();
@@ -29,7 +30,7 @@ export default function NuevoActivoPage() {
       }
       router.push("/activos");
     } catch (err) {
-      console.error("Error creating asset:", err);
+      logger.error("Error creating asset", err);
       setError(err instanceof Error ? err.message : "Error al crear activo");
     }
   }

@@ -23,7 +23,7 @@ type Asset = {
   ram: string | null;
   discoDuro: string | null;
   sistemaOperativo: string | null;
-  lineas?: { numero: string; plan: string | null }[];
+  lineas?: { numero: string; plan: { nombre: string } | null }[];
   pulgadas: string | number | null;
   conectividad: string | null;
   estado: string;

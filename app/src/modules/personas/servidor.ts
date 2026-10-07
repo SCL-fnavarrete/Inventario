@@ -2,3 +2,4 @@
 // Las pantallas usan '@/modules/personas' (SPEC 2.118).
 export * from '@/modules/personas/servicio';
 export * from '@/modules/personas/lecturas';
+export * from '@/modules/personas/importacion';

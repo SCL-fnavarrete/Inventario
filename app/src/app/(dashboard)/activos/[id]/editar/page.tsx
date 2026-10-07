@@ -12,6 +12,7 @@ import {
   type ActivoFormValues,
 } from "@/modules/activos/componentes";
 import { identificadorActivo } from "@/modules/activos";
+import { logger } from "@/shared/logger";
 
 export default function EditarActivoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -34,7 +35,7 @@ export default function EditarActivoPage({ params }: { params: Promise<{ id: str
         const asset = await res.json();
         if (!cancelado) setInitialValues(valoresDesdeActivo(asset));
       } catch (err) {
-        console.error("Error fetching asset:", err);
+        logger.error("Error fetching asset", err);
         if (!cancelado) setError("No se pudo cargar el activo");
       } finally {
         if (!cancelado) setLoadingData(false);
@@ -63,7 +64,7 @@ export default function EditarActivoPage({ params }: { params: Promise<{ id: str
       }
       router.push(`/activos/${id}`);
     } catch (err) {
-      console.error("Error updating asset:", err);
+      logger.error("Error updating asset", err);
       setError(err instanceof Error ? err.message : "Error al actualizar activo");
     }
   }

@@ -17,13 +17,19 @@ const nextConfig: NextConfig = {
       { source: "/configuracion/categorias", destination: "/configuracion/catalogos", permanent: true },
       {
         source: "/configuracion/opciones-activos",
-        destination: "/configuracion/catalogos?tab=sistemas-operativos",
+        destination: "/activos/catalogos?tab=sistemas-operativos",
         permanent: true,
       },
       // Paginas retiradas: Proveedores (SPEC 2.35) y Kit/EPP, que vive en Activos.
       { source: "/configuracion/proveedores", destination: "/configuracion", permanent: true },
       // Importar paso de Activos a Configuracion (SPEC 2.116.7).
-      { source: "/activos/importar", destination: "/configuracion/importar", permanent: true },
+      // Toda la importacion es una sola pantalla (SPEC 2.133): las direcciones antiguas llevan a ella.
+      { source: "/activos/importar", destination: "/configuracion/importacion", permanent: true },
+      { source: "/configuracion/importar", destination: "/configuracion/importacion", permanent: true },
+      { source: "/configuracion/importar/lineas", destination: "/configuracion/importacion?que=lineas", permanent: true },
+      { source: "/configuracion/importacion/activos", destination: "/configuracion/importacion", permanent: false },
+      { source: "/configuracion/importacion/lineas", destination: "/configuracion/importacion?que=lineas", permanent: false },
+      { source: "/configuracion/importacion/historial", destination: "/configuracion/importacion?que=historial", permanent: false },
       { source: "/configuracion/kit-epp", destination: "/activos/kit-bienvenida", permanent: true },
     ];
   },

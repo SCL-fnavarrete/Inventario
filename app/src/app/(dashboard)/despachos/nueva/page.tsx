@@ -20,6 +20,7 @@ import {
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { ETIQUETAS_GUIA, validarNuevaGuia } from "@/modules/despachos";
 import { ahoraParaInputFechaHora, inputFechaHoraAISO } from "@/shared/utilidades/fechas";
+import { logger } from "@/shared/logger";
 
 type Sede = {
   id: string;
@@ -37,7 +38,7 @@ type Asset = {
   ram: string | null;
   discoDuro: string | null;
   sistemaOperativo: string | null;
-  lineas?: { numero: string; plan: string | null }[];
+  lineas?: { numero: string; plan: { nombre: string } | null }[];
   // Deben coincidir estructuralmente con el `Asset` local de
   // SelectorActivos.tsx (ambos se llaman igual, TS los trata como
   // incompatibles si no calzan campo a campo).
@@ -97,7 +98,7 @@ export default function NuevaGuiaDespachoPage() {
       const data = await res.json();
       setSedes(data);
     } catch (error) {
-      console.error("Error fetching sedes:", error);
+      logger.error("Error fetching sedes", error);
     }
   }
 

@@ -187,10 +187,11 @@ const RELACIONES_FICHA = {
     },
     orderBy: { fechaEntrega: "desc" },
   },
-  // Lineas telefonicas activas a su nombre (SPEC 2.131)
+  // Lineas activas en su telefono personal (SPEC 2.131); las de un celular
+  // de la empresa salen con ese celular.
   lineas: {
-    where: { estado: "activa" },
-    select: { id: true, numero: true, plan: true, activo: { select: { marca: true, modelo: true } } },
+    where: { estado: { deBaja: false } },
+    select: { id: true, numero: true, plan: { select: { nombre: true } } },
     orderBy: { numero: "asc" },
   },
 } satisfies Prisma.EmployeeInclude;
@@ -349,4 +350,35 @@ export async function fichaEmpleado(id: string) {
   };
 
   return ficha;
+}
+
+/**
+ * Lo que se le ha entregado a una persona a lo largo del tiempo: sus equipos
+ * (con la fecha de entrega y de devolucion) y su Kit/EPP, sin importar si ya
+ * lo devolvio (SPEC 2.132). Las lineas las lee Lineas; la ruta las junta.
+ */
+export async function asignacionesDeEmpleado(empleadoId: string) {
+  if (!(await prisma.employee.findUnique({ where: { id: empleadoId }, select: { id: true } }))) {
+    throw new NotFoundError('Empleado no encontrado');
+  }
+  const [equipos, kit] = await Promise.all([
+    prisma.assignment.findMany({
+      where: { employeeId: empleadoId },
+      select: {
+        id: true,
+        fechaEntrega: true,
+        fechaDevolucion: true,
+        estadoDevolucion: true,
+        activo: true,
+        asset: { select: { id: true, marca: true, modelo: true, numeroSerie: true, imei: true, categoria: { select: { nombre: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.kitAssignment.findMany({
+      where: { employeeId: empleadoId },
+      select: { id: true, cantidad: true, fechaEntrega: true, estado: true, item: { select: { nombre: true, categoria: true } } },
+      orderBy: { fechaEntrega: 'desc' },
+    }),
+  ]);
+  return { equipos, kit };
 }

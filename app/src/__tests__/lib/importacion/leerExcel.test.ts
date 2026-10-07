@@ -35,11 +35,20 @@ describe("leerFilasExcel", () => {
       rut: "RUT",
     });
 
-    expect(headers).toEqual(["Marca ", "N° Serie", "Fecha Compra", "RUT"]);
+    // Los encabezados vienen sin espacios sobrantes: "Marca " y "Marca" son la misma columna.
+    expect(headers).toEqual(["Marca", "N° Serie", "Fecha Compra", "RUT"]);
     expect(filas).toEqual([
       { rowNum: 2, data: { marca: "Dell", numeroSerie: "ABC1", fechaCompra: "15-03-2026", rut: "11.111.111-1" } },
       { rowNum: 3, data: { marca: "Lenovo", numeroSerie: "XYZ9", fechaCompra: "15-03-2026", rut: "" } },
     ]);
+  });
+
+  test("una columna con espacio al final en el Excel se lee igual que si se eligió por el nombre que muestra la pantalla", async () => {
+    // La pantalla muestra y manda el encabezado ya recortado; antes la columna "IMEI " se ignoraba en silencio.
+    const buffer = await crearExcel([["IMEI ", "Marca"], ["356938035643809", "Dell"]]);
+    const { headers, filas } = await leerFilasExcel(buffer, "Hoja1", { imei: "IMEI" });
+    expect(headers[0]).toBe("IMEI");
+    expect(filas[0].data.imei).toBe("356938035643809");
   });
 
   test("salta las filas vacías y conserva el número de fila real", async () => {

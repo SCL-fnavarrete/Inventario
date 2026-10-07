@@ -8,6 +8,7 @@ export * from '@/modules/activos/filtros';
 export * from '@/modules/activos/identificador';
 export * from '@/modules/activos/imei';
 export * from '@/modules/activos/maquinaEstados';
+export * from '@/modules/activos/nombreMarca';
 export * from '@/modules/activos/validaciones';
 export * from '@/modules/activos/validacionesCategoria';
 export * from '@/modules/activos/validacionesTransicion';

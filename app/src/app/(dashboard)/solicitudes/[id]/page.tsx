@@ -22,6 +22,7 @@ import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { VentanaMotivo } from '@/shared/ui/VentanaMotivo';
 import { FilaEquipoTicket, TicketSolicitud, type AsignacionFila } from '@/modules/solicitudes/componentes';
 import { documentoDeSolicitud } from '@/modules/solicitudes';
+import { logger } from "@/shared/logger";
 
 type WorkflowDetail = {
   id: string;
@@ -405,7 +406,7 @@ export default function SolicitudDetailPage() {
       });
       fetchData();
     } catch (err) {
-      console.error(err);
+      logger.error("Error en la pantalla", err);
     }
   };
 

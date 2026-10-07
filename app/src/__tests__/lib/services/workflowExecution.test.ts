@@ -36,6 +36,15 @@ function txFalso() {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     requestKitItem: { updateMany: jest.fn() },
+    // Las lineas que estan en el equipo anotan su tenencia (SPEC 2.131).
+    lineaTelefonica: { findMany: jest.fn().mockResolvedValue([]) },
+    lineaTenencia: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      updateMany: jest.fn(),
+      create: jest.fn(),
+    },
+    // Bloqueo de cada linea antes de cambiar su tramo.
+    $queryRaw: jest.fn().mockResolvedValue([]),
   };
 }
 type Tx = ReturnType<typeof txFalso>;
@@ -62,6 +71,18 @@ describe('executeAssignment', () => {
     expect(tx.assetHistory.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ tipoEvento: 'asignacion' }) })
     );
+  });
+
+  it('al entregar el equipo, sus líneas pasan a la persona y anotan su tenencia (SPEC 2.131)', async () => {
+    const tx = txFalso();
+    (tx.asset.findUnique as Fn).mockResolvedValue(equipo());
+    (tx.employee.findUnique as Fn).mockResolvedValue(empleado());
+    (tx.lineaTelefonica.findMany as Fn).mockResolvedValue([{ id: 'l1', responsable: null }]);
+    await executeAssignment(comoTx(tx), entrega);
+    expect(tx.lineaTelefonica.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ activoId: 'a1' }) }));
+    expect(tx.lineaTenencia.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ lineaId: 'l1', activoId: 'a1', empleadoId: 'e1', origen: 'entrega_telefono' }),
+    });
   });
 
   it('rechaza un equipo de otra sede como si no existiera (A01-1)', async () => {

@@ -6,14 +6,17 @@
 
 import { formatearNumero } from "@/modules/lineas";
 
+/** Linea de un celular como la traen las pantallas (LINEAS_DEL_EQUIPO). */
+export type LineaDelEquipo = { numero: string; plan: { nombre: string } | null };
+
 export type ActivoParaSpecs = {
   procesador?: string | null;
   ram?: string | null;
   discoDuro?: string | null;
   sistemaOperativo?: string | null;
   imei?: string | null;
-  // Lineas activas del celular (SPEC 2.131).
-  lineas?: { numero: string; plan: string | null }[];
+  // Lineas vigentes del celular (SPEC 2.131).
+  lineas?: LineaDelEquipo[];
   pulgadas?: string | number | null;
   conectividad?: string | null;
   tipoLicenciaMicrosoft365?: string | null;
@@ -34,8 +37,8 @@ export function etiquetaConectividad(valor: string): string {
 }
 
 /** Lineas de un celular en una frase: "+56 9 1234 5678 (Plan X)". */
-export function textoLineas(lineas: { numero: string; plan: string | null }[]): string {
-  return lineas.map((l) => formatearNumero(l.numero) + (l.plan ? ` (${l.plan})` : "")).join(", ");
+export function textoLineas(lineas: LineaDelEquipo[]): string {
+  return lineas.map((l) => formatearNumero(l.numero) + (l.plan ? ` (${l.plan.nombre})` : "")).join(", ");
 }
 
 export function especificacionesActivo(a: ActivoParaSpecs): EspecificacionEtiquetada[] {

@@ -1,3 +1,4 @@
+import { alCambiarTenedorDelTelefono } from '@/modules/lineas/servidor';
 import type { EstadoActivo, Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { ConflictError, errorRepetido, NotFoundError, ValidationError } from '@/shared/errores';
@@ -26,6 +27,10 @@ type Tx = Prisma.TransactionClient;
  * 2. Cambia el estado solo si el equipo sigue como se leyo, y cumple
  *    `exigir` (ej. sin empleado): si otro lo cambio en el intertanto, 409.
  * 3. Anota el historial, si se indica.
+ * 4. Si cambia quien tiene el equipo (entrega, devolucion, cancelacion), las
+ *    lineas que estan en el lo anotan en su tenencia (SPEC 2.131). Es el unico
+ *    camino por el que cambia el dueno de un equipo, asi que ningun cambio se
+ *    escapa.
  */
 export async function cambiarEstado(
   tx: Tx,
@@ -51,11 +56,27 @@ export async function cambiarEstado(
     if (!transicion.valid) throw new ConflictError(transicion.errors[0]);
   }
 
+  // Quien lo tiene antes de cambiar, para saber a quien pasaba la linea.
+  const nuevoTenedor = p.datos?.empleadoActualId;
+  const cambiaTenedor = typeof nuevoTenedor === 'string' || nuevoTenedor === null;
+  const tenedorAntes = cambiaTenedor
+    ? ((await tx.asset.findUnique({ where: { id: p.activo.id }, select: { empleadoActualId: true } }))?.empleadoActualId ?? null)
+    : null;
+
   const { count } = await tx.asset.updateMany({
     where: { id: p.activo.id, estado: p.activo.estado, deletedAt: null, ...p.exigir },
     data: { ...p.datos, estado: p.a },
   });
   if (count !== 1) throw new ConflictError(p.mensajeConflicto ?? MENSAJE_CAMBIO_SIMULTANEO);
+
+  if (cambiaTenedor) {
+    await alCambiarTenedorDelTelefono(tx, {
+      activoId: p.activo.id,
+      de: tenedorAntes,
+      a: nuevoTenedor as string | null,
+      detalle: p.historial?.descripcion,
+    });
+  }
 
   if (p.historial) await assetHistoryService.registrar({ assetId: p.activo.id, ...p.historial }, tx);
 }
@@ -308,6 +329,14 @@ export async function editarActivo(id: string, datos: UpdateAssetInput, usuario:
     );
   }
 
+  // Sede (SPEC 2.117): un equipo sin sede (importado sin ella) la recibe al
+  // editar, una vez; despues cambia solo con una Guia de Despacho.
+  const sedeNueva = datos.sedeId && datos.sedeId !== existente.sedeId ? datos.sedeId : null;
+  if (sedeNueva) {
+    if (existente.sedeId) throw new ConflictError('La sede del equipo cambia con una Guía de Despacho.');
+    await exigirSedeActiva(sedeNueva);
+  }
+
   // Cambios en especificaciones tecnicas, para el historial.
   const specsAnteriores: Record<string, unknown> = {};
   const specsNuevos: Record<string, unknown> = {};
@@ -343,6 +372,20 @@ export async function editarActivo(id: string, datos: UpdateAssetInput, usuario:
     // El valor se actualiza a mano; cada cambio queda en el historial (SPEC 2.124).
     if (datos.valor !== undefined && datos.valor !== existente.valor) {
       await assetHistoryService.registrarCambioValor(id, existente.valor, datos.valor, usuario, tx);
+    }
+    if (sedeNueva) {
+      const sede = await tx.sede.findUnique({ where: { id: sedeNueva }, select: { nombre: true } });
+      await assetHistoryService.registrar(
+        {
+          assetId: id,
+          tipoEvento: 'actualizacion_specs',
+          descripcion: `Sede asignada: ${sede?.nombre ?? sedeNueva} (el equipo no tenía sede)`,
+          datosAnteriores: { sedeId: null },
+          datosNuevos: { sedeId: sedeNueva, sede: sede?.nombre },
+          usuarioSistema: usuario,
+        },
+        tx
+      );
     }
 
     return tx.asset.update({
@@ -388,6 +431,7 @@ export async function editarActivo(id: string, datos: UpdateAssetInput, usuario:
         ...(datos.nombreEquipo !== undefined && { nombreEquipo: datos.nombreEquipo || null }),
         ...(datos.conectividad !== undefined && { conectividad: datos.conectividad || null }),
         ...(datos.valor !== undefined && { valor: datos.valor }),
+        ...(sedeNueva && { sedeId: sedeNueva }),
       },
     });
   });

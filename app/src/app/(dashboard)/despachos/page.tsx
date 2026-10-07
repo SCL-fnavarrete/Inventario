@@ -12,6 +12,7 @@ import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { StatCard, StatGrid } from "@/shared/ui/StatCard";
 import { Pagination } from "@/shared/ui/Pagination";
+import { logger } from "@/shared/logger";
 
 type Resumen = {
   total: number;
@@ -77,7 +78,7 @@ export default function GuiasDespachoPage() {
       setTotalPages(data.pagination?.totalPages || 1);
       setTotal(data.pagination?.total ?? 0);
     } catch (error) {
-      console.error("Error fetching guides:", error);
+      logger.error("Error fetching guides", error);
     } finally {
       setLoading(false);
     }

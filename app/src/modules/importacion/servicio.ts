@@ -88,8 +88,13 @@ export async function vistaPreviaImportacion(p: {
           ? [{ type: resultado.tipo, field: resultado.campo, message: resultado.mensaje }]
           : [],
       warnings: [],
+      persona: resultado.status === 'valid' ? resultado.persona : undefined,
+      sinSede: resultado.status === 'valid' ? resultado.sinSede : undefined,
+      activoSinPersona: resultado.status === 'valid' ? resultado.activoSinPersona : undefined,
+      disponibleConPersona: resultado.status === 'valid' ? resultado.disponibleConPersona : undefined,
     });
   }
+  const personas = rows.flatMap((r) => (r.persona ? [r.persona] : []));
 
   const conError = (tipo: string) =>
     rows.filter((r) => r.errors.some((e) => e.type === tipo)).map((r) => r.data.numeroSerie || '');
@@ -102,6 +107,15 @@ export async function vistaPreviaImportacion(p: {
     warningCount: 0,
     duplicatesInFile: conError('duplicate_in_file'),
     duplicatesInDb: conError('duplicate_in_database'),
+    personas: {
+      nuevasActivas: personas.filter((p) => p.accion === 'nueva' && p.estado === 'activo').length,
+      nuevasDesvinculadas: personas.filter((p) => p.accion === 'nueva' && p.estado === 'desvinculado').length,
+      existentes: personas.filter((p) => p.accion === 'existente').length,
+      porNombre: personas.filter((p) => p.porNombre).length,
+    },
+    sinSede: rows.filter((r) => r.sinSede).length,
+    activosSinPersona: rows.filter((r) => r.activoSinPersona).length,
+    disponiblesConPersona: rows.filter((r) => r.disponibleConPersona).length,
   };
   return resultado;
 }
@@ -159,6 +173,7 @@ export async function importarTanda(
             errors: [],
             warnings: [],
             assetId: resultado.status === 'imported' ? resultado.assetId : undefined,
+            persona: resultado.status === 'imported' ? resultado.persona : undefined,
           }
     );
   }

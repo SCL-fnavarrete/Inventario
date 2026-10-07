@@ -3,6 +3,7 @@ import { prisma } from '@/shared/prisma';
 import { NotFoundError, errorRepetido } from '@/shared/errores';
 import { auditLogService } from '@/shared/auditoria';
 import { ACTIVOS_VIGENTES } from '@/modules/activos/consultas';
+import { nombreDeMarca } from '@/modules/activos/nombreMarca';
 
 /**
  * Catalogos de opciones de los activos: marca (SPEC 2.116.4), sistema
@@ -76,7 +77,9 @@ export async function listarOpciones(
  * reactiva en vez de duplicarla. El tecnico tambien puede crear desde el
  * formulario de activos: queda en la auditoria quien fue.
  */
-export async function crearOpcion(clave: ClaveCatalogo, nombre: string, usuario?: string | null) {
+export async function crearOpcion(clave: ClaveCatalogo, nombreEscrito: string, usuario?: string | null) {
+  // Las marcas se escriben siempre igual (SPEC 2.116.4): Dell, no DELL ni dell.
+  const nombre = clave === 'marcas' ? nombreDeMarca(nombreEscrito) : nombreEscrito;
   const { etiqueta } = CATALOGOS[clave];
   const existente = await tabla(prisma, clave).findFirst({
     where: { nombre: { equals: nombre, mode: 'insensitive' } },
@@ -97,7 +100,8 @@ export async function crearOpcion(clave: ClaveCatalogo, nombre: string, usuario?
 }
 
 /** Renombra una opcion y corrige los activos que tenian el nombre anterior. */
-export async function renombrarOpcion(clave: ClaveCatalogo, id: string, nombre: string, usuario?: string | null) {
+export async function renombrarOpcion(clave: ClaveCatalogo, id: string, nombreEscrito: string, usuario?: string | null) {
+  const nombre = clave === 'marcas' ? nombreDeMarca(nombreEscrito) : nombreEscrito;
   const { campo, etiqueta } = CATALOGOS[clave];
   const actual = await tabla(prisma, clave).findUnique({ where: { id } });
   if (!actual) throw new NotFoundError('Opción no encontrada');

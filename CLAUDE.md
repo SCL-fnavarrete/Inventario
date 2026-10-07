@@ -48,7 +48,8 @@ El codigo se organiza por dominio de negocio, no por tipo tecnico:
 `@/modules/x` (reglas, validaciones y tipos, sin base de datos: sirve en
 pantallas), `@/modules/x/servidor` (servicios y consultas con base de datos) y
 `@/modules/x/componentes`; los PDF por `@/modules/solicitudes/documentos` y el Excel
-de activos por `@/modules/activos/excel`.
+de activos por `@/modules/activos/excel`; la importacion de lineas por
+`@/modules/lineas/excel` (no por `servidor`, para evitar un ciclo con Activos).
 Dentro del modulo, import libre. `shared/` no importa modulos. Lo exige ESLint
 (`eslint.config.mjs`), y `import "server-only"` en `shared/prisma.ts` hace
 fallar el build si una pantalla trae codigo de base de datos. Al exponer algo
@@ -74,7 +75,7 @@ nuevo, agregarlo a la puerta que corresponde.
 | `src/modules/<modulo>/validaciones.ts` | Zod schemas de cada entidad; las comunes en `src/shared/validaciones/` |
 | `src/shared/utilidades/rut.ts` | Chilean RUT format validation |
 | `src/proxy.ts` | Proxy de Next.js 16 (antes `middleware.ts`): exige sesión en todas las rutas salvo `/login` y `/api/auth` |
-| `prisma/schema.prisma` | 33 modelos y 25 enums (estados de activos, condiciones, contratos, workflow, accesos...) |
+| `prisma/schema.prisma` | Modelos y enums (estados de activos, condiciones, contratos, workflow, accesos...) |
 
 ### API Route Pattern
 
@@ -93,7 +94,7 @@ pantallas de servidor las llaman igual que las rutas.
 
 ### Modelos y enums
 
-Los 33 modelos y los 25 enums viven en `app/prisma/schema.prisma`, y el SPEC
+Los modelos y los enums viven en `app/prisma/schema.prisma`, y el SPEC
 documenta el proposito de cada uno. No se duplican aqui: la copia se desactualiza.
 
 ### Database Connections
@@ -129,9 +130,10 @@ En produccion (Vercel) se aplica con `npm run db:migrate:prod`.
 - **Formatting:** Prettier with semicolons, single quotes, 100 char width, es5 trailing commas
 - **UI language:** All user-facing text is in Spanish
 - **RUT handling:** RUT is optional (`String?`): when unknown it is left blank. Always use null-safe access (`employee.rut || "—"`) and optional chaining (`employee.rut?.toLowerCase()`)
-- **Sin sincronización con Microsoft:** se eliminó (SPEC 2.112). Las personas se crean solo en Onboarding.
+- **Sin sincronización con Microsoft:** se eliminó (SPEC 2.112). Las personas se crean en Onboarding y, para datos anteriores al sistema, en las importaciones (SPEC 2.133).
 - **Cada tabla tiene un solo dueño (SPEC 3.2.2):** solo su módulo la escribe; los demás llaman a sus funciones (el mapa está en `__tests__/lib/arquitectura/duenosTablas.test.ts`, que falla si alguien escribe una tabla ajena o si una tabla nueva no tiene dueño). Para cambiar el estado de un equipo se usa `cambiarEstado()` de `src/modules/activos/servicio.ts`; entregar y devolver, `executeAssignment`/`executeReturn` de Asignaciones; Kit/EPP, `entregarKit`/`executeKitReturn`; personas, las funciones de `modules/personas/servicio.ts`; cuentas de usuario, `shared/auth/cuentas.ts`.
-- **Transiciones de estado de activos:** Toda transición de estado de un activo pasa por `cambiarEstado()` (que usa `validateTransition()` de `src/modules/activos/maquinaEstados.ts`), dentro de su proceso: solicitudes (asignar, devolver, cambiar), mantenciones (la baja pasa por una mantención "No reparable": `/api/mantenciones/baja` o al completar una, SPEC 2.88; única excepción: el equipo devuelto "para dar de baja" en un cambio de equipo va directo a baja con su motivo en la devolución, SPEC 2.126) y `/api/activos/[id]/venta`. El PUT de `/api/activos/[id]` no cambia el estado: lo rechaza con 409 (SPEC 2.86)
+- **Líneas y teléfonos (SPEC 2.131):** quién tiene un teléfono lo decide solo Asignaciones; una línea nunca lo cambia. `cambiarEstado()` es el único camino que cambia `empleadoActualId` y, en la misma transacción, avisa a Líneas con `alCambiarTenedorDelTelefono` (`@/modules/lineas/servidor`) para que las líneas del teléfono anoten su nuevo tramo de tenencia. **Solo se asigna una línea disponible** (sin persona): `reasignarLinea` (botón Asignar) rechaza una asignada con 409; un chip físico va solo a un celular sin persona y una eSIM a una persona activa (también al crear). Una línea asignada cambia de persona con las solicitudes: la de un celular sigue al celular, y la devolución por término (offboarding) libera las eSIM de la persona con `liberarEsimDePersona`.
+- **Transiciones de estado de activos:** Toda transición de estado de un activo pasa por `cambiarEstado()` (que usa `validateTransition()` de `src/modules/activos/maquinaEstados.ts`), dentro de su proceso: solicitudes (asignar, devolver, cambiar), mantenciones (la baja pasa por una mantención "No reparable": `/api/mantenciones/baja` o al completar una, SPEC 2.88; única excepción: un equipo devuelto **dañado** (en un cambio de equipo, una devolución por término o una devolución manual) va directo a baja con su motivo de la lista en la devolución, sin pasar por mantención, SPEC 2.135) y `/api/activos/[id]/venta`. El PUT de `/api/activos/[id]` no cambia el estado: lo rechaza con 409 (SPEC 2.86)
 - **Workflow/Solicitudes:** El sistema de solicitudes orquesta flujos completos (onboarding, cambio equipo, devolución por término). `modules/solicitudes/maquinaEstados.ts` valida transiciones; `crear.ts` y `transicion.ts` ejecutan las acciones pidiéndoselas a sus módulos dueños (Asignaciones, Kit/EPP, Personas). Las transiciones quedan en `WorkflowTransition` para auditoría
 - **Estilos y tema:** seguir `app/docs/DESIGN_SYSTEM.md`. Nunca colores fijos para superficies o texto (`bg-white`, `text-gray-900`, hex): usar los tokens (`bg-surface`, `text-fg`, `border-line`...) para que funcione el modo oscuro. Tarjetas destacadas con `card-feature` y color derivado de un dato real (`shared/constantes/tonos.ts`); `<Tilt>` solo en pocas tarjetas, nunca en listas grandes
 - **Component structure:** los componentes de cada dominio en `src/modules/<modulo>/componentes/`; las piezas reutilizables en `src/shared/ui/`

@@ -20,6 +20,7 @@ import { CategoryIcon } from "@/modules/activos/componentes";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { aValorInputDate, hoyISO } from "@/shared/utilidades/fechas";
+import { logger } from "@/shared/logger";
 
 type Maintenance = {
   id: string;
@@ -96,7 +97,7 @@ export default function CalendarioMantencionesPage() {
 
       setMaintenances(data.data || []);
     } catch (error) {
-      console.error("Error fetching maintenances:", error);
+      logger.error("Error fetching maintenances", error);
     } finally {
       setLoading(false);
     }

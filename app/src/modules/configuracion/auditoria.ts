@@ -186,6 +186,8 @@ const CAMPO_LABEL: Record<string, string> = {
   activoId: 'Celular',
   empleadoId: 'Persona',
   responsable: 'Responsable',
+  tipoChipId: 'Tipo de chip',
+  operadorId: 'Operador',
   observaciones: 'Observaciones',
 };
 
@@ -206,7 +208,14 @@ type Nombres = Map<string, string>;
 
 /** Busca de una vez los nombres de las sedes, empleados, activos y tipos citados en la pagina. */
 async function nombresDeReferencias(filas: FilaAuditoria[]): Promise<Nombres> {
-  const ids = { sede: new Set<string>(), empleado: new Set<string>(), activo: new Set<string>(), tipo: new Set<string>() };
+  const ids = {
+    sede: new Set<string>(),
+    empleado: new Set<string>(),
+    activo: new Set<string>(),
+    tipo: new Set<string>(),
+    tipoChip: new Set<string>(),
+    operador: new Set<string>(),
+  };
   for (const f of filas) {
     for (const datos of [f.datos_anteriores, f.datos_nuevos]) {
       if (!datos || typeof datos !== 'object') continue;
@@ -219,12 +228,14 @@ async function nombresDeReferencias(filas: FilaAuditoria[]): Promise<Nombres> {
         ['activoId', 'activo'],
         ['assetId', 'activo'],
         ['tipoId', 'tipo'],
+        ['tipoChipId', 'tipoChip'],
+        ['operadorId', 'operador'],
       ] as const) {
         if (typeof d[clave] === 'string') ids[grupo].add(d[clave] as string);
       }
     }
   }
-  const [sedes, empleados, activos, tipos] = await Promise.all([
+  const [sedes, empleados, activos, tipos, tiposChip, operadores] = await Promise.all([
     ids.sede.size ? prisma.sede.findMany({ where: { id: { in: [...ids.sede] } }, select: { id: true, nombre: true } }) : [],
     ids.empleado.size
       ? prisma.employee.findMany({ where: { id: { in: [...ids.empleado] } }, select: { id: true, nombres: true, apellidoPaterno: true } })
@@ -233,12 +244,14 @@ async function nombresDeReferencias(filas: FilaAuditoria[]): Promise<Nombres> {
       ? prisma.asset.findMany({ where: { id: { in: [...ids.activo] } }, select: { id: true, marca: true, modelo: true, numeroSerie: true, imei: true } })
       : [],
     ids.tipo.size ? prisma.maintenanceType.findMany({ where: { id: { in: [...ids.tipo] } }, select: { id: true, nombre: true } }) : [],
+    ids.tipoChip.size ? prisma.tipoChip.findMany({ where: { id: { in: [...ids.tipoChip] } }, select: { id: true, nombre: true } }) : [],
+    ids.operador.size ? prisma.operadorLinea.findMany({ where: { id: { in: [...ids.operador] } }, select: { id: true, nombre: true } }) : [],
   ]);
   return new Map<string, string>([
     ...sedes.map((s) => [s.id, s.nombre] as [string, string]),
     ...empleados.map((e) => [e.id, `${e.nombres} ${e.apellidoPaterno}`] as [string, string]),
     ...activos.map((a) => [a.id, `${a.marca} ${a.modelo} (${identificadorActivo(a)})`] as [string, string]),
-    ...tipos.map((t) => [t.id, t.nombre] as [string, string]),
+    ...[...tipos, ...tiposChip, ...operadores].map((t) => [t.id, t.nombre] as [string, string]),
   ]);
 }
 

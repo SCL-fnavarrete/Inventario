@@ -26,6 +26,7 @@ import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 import { formatearFecha } from "@/shared/utilidades/fechas";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { identificadorActivo, textoLineas } from "@/modules/activos";
+import { HistorialAsignaciones } from "@/modules/personas/componentes";
 
 type NotebookAsignado = {
   asignacionId: string;
@@ -52,7 +53,7 @@ type CelularAsignado = {
   modelo: string;
   numeroSerie: string | null;
   imei: string | null;
-  lineas: { numero: string; plan: string | null }[];
+  lineas: { numero: string; plan: { nombre: string } | null }[];
   numeroActivacion: string | null;
   tieneCargador: boolean;
   estado: string;
@@ -95,7 +96,7 @@ type Ficha = {
     estado: EstadoEmpleado;
     telefonoContacto: string | null;
   };
-  lineas: { id: string; numero: string; plan: string | null; activo: { marca: string; modelo: string } | null }[];
+  lineas: { id: string; numero: string; plan: { nombre: string } | null }[];
   notebooks: NotebookAsignado[];
   celulares: CelularAsignado[];
   monitores: MonitorAsignado[];
@@ -416,13 +417,12 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
       {ficha.lineas.length > 0 && (
         <div className="card p-6">
           <h3 className="mb-4 flex items-center gap-3 text-lg font-semibold">
-            <Phone className="text-green-600" /> Líneas telefónicas
+            <Phone className="text-green-600" /> Líneas en su teléfono personal
           </h3>
           <ul className="space-y-1 text-sm">
             {ficha.lineas.map((l) => (
               <li key={l.id}>
                 <span className="font-medium">{textoLineas([l])}</span>
-                {l.activo && <span className="text-fg-subtle"> · en {l.activo.marca} {l.activo.modelo}</span>}
               </li>
             ))}
           </ul>
@@ -623,6 +623,9 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       </div>
+
+      {/* Todo lo que se le ha asignado a lo largo del tiempo (SPEC 2.132) */}
+      <HistorialAsignaciones empleadoId={ficha.empleado.id} />
     </div>
   );
 }

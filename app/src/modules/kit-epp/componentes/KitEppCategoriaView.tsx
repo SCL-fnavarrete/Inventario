@@ -13,6 +13,7 @@ import { cn } from "@/shared/cn";
 import { MensajeCampo, ResumenErrores, claseCampo } from "@/shared/ui/CampoFormulario";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { useEnvio } from "@/shared/hooks/useEnvio";
+import { logger } from "@/shared/logger";
 
 // Nombre de cada campo en el resumen de errores.
 const ETIQUETAS_KIT: Record<string, string> = { nombre: "Nombre", sedeId: "Sede" };
@@ -107,7 +108,7 @@ export function KitEppCategoriaView({
         setItems(await res.json());
       }
     } catch (err) {
-      console.error("Error fetching kit items:", err);
+      logger.error("Error fetching kit items", err);
     } finally {
       setLoading(false);
     }
@@ -120,7 +121,7 @@ export function KitEppCategoriaView({
         setSedes(await res.json());
       }
     } catch (err) {
-      console.error("Error fetching sedes:", err);
+      logger.error("Error fetching sedes", err);
     }
   };
 
@@ -165,7 +166,7 @@ export function KitEppCategoriaView({
       }
     } catch (err) {
       setError("Error al crear artículo");
-      console.error(err);
+      logger.error("Error en la pantalla", err);
     }
   };
 
@@ -193,7 +194,7 @@ export function KitEppCategoriaView({
       }
     } catch (err) {
       setError("Error al actualizar artículo");
-      console.error(err);
+      logger.error("Error en la pantalla", err);
     }
   };
 
@@ -218,7 +219,7 @@ export function KitEppCategoriaView({
       }
     } catch (err) {
       setError("Error al eliminar artículo");
-      console.error(err);
+      logger.error("Error en la pantalla", err);
     }
   };
 

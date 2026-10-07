@@ -7,6 +7,7 @@ import { nombreConUsuario } from '@/shared/auth/usuario';
 import { Loader2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/shared/cn';
 import { CategoryIcon, SelectCondicionCargador } from '@/modules/activos/componentes';
+import { CamposMotivoBaja, erroresMotivoBaja, useMotivosBaja } from '@/modules/mantenciones/componentes';
 import {
   SeleccionarCambioEquipo,
   itemCambioCompleto,
@@ -58,6 +59,7 @@ import {
 import { esCorreoValido } from '@/shared/utilidades/text';
 import { formatearFechaHora } from '@/shared/utilidades/fechas';
 import { useCampoSede, useSedeSeleccionada } from '@/shared/ui/providers/SedeSeleccionadaProvider';
+import { logger } from '@/shared/logger';
 
 
 export default function NuevaSolicitudPage() {
@@ -90,6 +92,10 @@ export default function NuevaSolicitudPage() {
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [devolucionEstados, setDevolucionEstados] = useState<Record<string, EstadoDevolucion>>({});
   const [devolucionObservaciones, setDevolucionObservaciones] = useState<Record<string, string>>({});
+  // Equipo devuelto danado: se da de baja en el acto con su motivo (SPEC 2.135).
+  const [devolucionMotivos, setDevolucionMotivos] = useState<Record<string, { motivoBajaId: string; detalle: string }>>({});
+  const motivosBaja = useMotivosBaja();
+  const motivoDe = (id: string) => devolucionMotivos[id] ?? { motivoBajaId: '', detalle: '' };
   // Condicion del cargador al devolver, solo si el equipo es un notebook
   // con tieneCargador.
   const [devolucionCargador, setDevolucionCargador] = useState<Record<string, CondicionCargador>>({});
@@ -195,7 +201,7 @@ export default function NuevaSolicitudPage() {
   // asignaciones del empleado, catalogos) se vuelve a consultar.
   const datosBorrador = {
     step, tipo, sedeId, selectedEmployee, employeeId, observaciones, idTicket,
-    devolucionEstados, devolucionObservaciones, devolucionCargador, devolucionCargadorObservaciones,
+    devolucionEstados, devolucionObservaciones, devolucionMotivos, devolucionCargador, devolucionCargadorObservaciones,
     devolucionEppEstados, devolucionEppObservaciones,
     onboardingEmp, modoEmpleadoOnboarding, cargoSolicitadoReincorporacion, tipoContratoReincorporacion,
     fechaIngreso, categoriasRequeridas, equipoSeleccionado, cargadorOnboarding,
@@ -226,6 +232,7 @@ export default function NuevaSolicitudPage() {
     poner('idTicket', setIdTicket);
     poner('devolucionEstados', setDevolucionEstados);
     poner('devolucionObservaciones', setDevolucionObservaciones);
+    poner('devolucionMotivos', setDevolucionMotivos);
     poner('devolucionCargador', setDevolucionCargador);
     poner('devolucionCargadorObservaciones', setDevolucionCargadorObservaciones);
     poner('devolucionEppEstados', setDevolucionEppEstados);
@@ -270,7 +277,7 @@ export default function NuevaSolicitudPage() {
         setEmployeeEppAssignments(eppPendiente);
       }
     } catch (err) {
-      console.error('Error fetching employee assignments:', err);
+      logger.error('Error fetching employee assignments', err);
     } finally {
       setLoadingAssignments(false);
     }
@@ -295,6 +302,7 @@ export default function NuevaSolicitudPage() {
     setEmployeeAssignments([]);
     setDevolucionEstados({});
     setDevolucionObservaciones({});
+    setDevolucionMotivos({});
     setEmployeeEppAssignments([]);
     setDevolucionEppEstados({});
     setDevolucionEppObservaciones({});
@@ -521,6 +529,16 @@ export default function NuevaSolicitudPage() {
       ) {
         errores.devoluciones = 'Marca al menos un equipo como devuelto (Buen estado o Dañado)';
       }
+      if (
+        !errores.devoluciones &&
+        employeeAssignments.some(
+          (a) =>
+            devolucionEstados[a.id] === 'danado' &&
+            Object.keys(erroresMotivoBaja(motivosBaja, motivoDe(a.id).motivoBajaId, motivoDe(a.id).detalle)).length > 0
+        )
+      ) {
+        errores.devoluciones = 'Elige el motivo de baja de cada equipo dañado (y descríbelo si es "Otro")';
+      }
       if (employeeEppAssignments.some((k) => !devolucionEppEstados[k.id])) {
         errores.devolucionesEpp = 'Califica cada artículo de EPP';
       }
@@ -688,8 +706,8 @@ export default function NuevaSolicitudPage() {
             oldAssignmentId: c.oldAssignmentId,
             newAssetId: c.newAssetId,
             estadoDevolucion: c.estadoDevolucion,
-            // Para dar de baja: el motivo de la lista (SPEC 2.126).
-            ...(c.estadoDevolucion === 'baja' && {
+            // Danado: se da de baja con el motivo de la lista (SPEC 2.135).
+            ...((c.estadoDevolucion === 'danado' || c.estadoDevolucion === 'baja') && {
               motivoBajaId: c.motivoBajaId,
               motivoBajaDetalle: c.motivoBajaDetalle.trim() || undefined,
             }),
@@ -717,6 +735,11 @@ export default function NuevaSolicitudPage() {
             .map((a) => ({
               assignmentId: a.id,
               estadoDevolucion: devolucionEstados[a.id],
+              // Danado: se da de baja con su motivo (SPEC 2.135).
+              ...(devolucionEstados[a.id] === 'danado' && {
+                motivoBajaId: motivoDe(a.id).motivoBajaId,
+                motivoBajaDetalle: motivoDe(a.id).detalle.trim() || undefined,
+              }),
               observaciones: devolucionObservaciones[a.id] || undefined,
               // Condicion del cargador, si el equipo la trae.
               condicionCargador: a.asset.tieneCargador
@@ -1480,6 +1503,22 @@ export default function NuevaSolicitudPage() {
                                     }}
                                     textoNoDevuelto={esRecuperacion ? 'Sigue sin devolver' : 'No devolvió'}
                                   />
+                                  {devolucionEstados[a.id] === 'danado' && (
+                                    <div className="space-y-2 rounded-md border border-line bg-surface p-2">
+                                      <CamposMotivoBaja
+                                        motivos={motivosBaja}
+                                        motivoBajaId={motivoDe(a.id).motivoBajaId}
+                                        detalle={motivoDe(a.id).detalle}
+                                        onMotivo={(id) => {
+                                          limpiarError('devoluciones');
+                                          setDevolucionMotivos((prev) => ({ ...prev, [a.id]: { ...motivoDe(a.id), motivoBajaId: id } }));
+                                        }}
+                                        onDetalle={(texto) => setDevolucionMotivos((prev) => ({ ...prev, [a.id]: { ...motivoDe(a.id), detalle: texto } }))}
+                                        errores={{}}
+                                      />
+                                      <p className="text-xs text-fg-subtle">El equipo queda de baja con este motivo al registrar la devolución.</p>
+                                    </div>
+                                  )}
                                   <input
                                     type="text"
                                     aria-label={`Observaciones de ${asset.marca} ${asset.modelo}`}
