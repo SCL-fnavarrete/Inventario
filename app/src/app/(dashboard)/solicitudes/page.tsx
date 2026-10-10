@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   List,
   FileText,
+  ListChecks,
 } from 'lucide-react';
 import { cn } from '@/shared/cn';
 import { Can } from "@/shared/ui/Can";
@@ -18,7 +19,7 @@ import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
-import { Pagination } from "@/shared/ui/Pagination";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { documentoDeSolicitud } from '@/modules/solicitudes';
 import { logger } from "@/shared/logger";
 
@@ -89,6 +90,8 @@ export default function SolicitudesPage() {
     totalPages: 0,
   });
   const [loading, setLoading] = useState(true);
+  // Cuantas solicitudes se ven por pagina ("Mostrar: N").
+  const [limite, setLimite] = useState(10);
   const [search, setSearch] = useState('');
   // Debounced so the search fires once typing pauses, not on every keystroke.
   const debouncedSearch = useDebouncedValue(search, 350);
@@ -104,7 +107,7 @@ export default function SolicitudesPage() {
     async (page = 1) => {
       setLoading(true);
       try {
-        const params = new URLSearchParams({ page: String(page), limit: '10' });
+        const params = new URLSearchParams({ page: String(page), limit: String(limite) });
         if (debouncedSearch) params.set('search', debouncedSearch);
         if (filterTipo) params.set('tipo', filterTipo);
         if (filterEstado) params.set('estado', filterEstado);
@@ -120,7 +123,7 @@ export default function SolicitudesPage() {
         setLoading(false);
       }
     },
-    [debouncedSearch, filterTipo, filterEstado, sedeSeleccionada]
+    [debouncedSearch, filterTipo, filterEstado, sedeSeleccionada, limite]
   );
 
   useEffect(() => {
@@ -139,6 +142,10 @@ export default function SolicitudesPage() {
         description="Gestión de solicitudes de equipos y workflows"
         actions={
           <>
+            <Link href="/solicitudes/catalogos" className={buttonClasses({ variant: 'outline' })}>
+              <ListChecks className="h-4 w-4" />
+              <span className="hidden sm:inline">Catálogos</span>
+            </Link>
             <Can recurso="solicitudes">
               <Link
                 href="/solicitudes/nueva"
@@ -242,146 +249,102 @@ export default function SolicitudesPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700" />
         </div>
       ) : viewMode === 'table' ? (
-        /* Table View */
-        <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-line">
-              <thead className="bg-surface-muted">
-                <tr>
-                  <th className="table-th px-4">
-                    Número
-                  </th>
-                  <th className="table-th px-4 hidden md:table-cell">
-                    Ticket
-                  </th>
-                  <th className="table-th px-4 hidden md:table-cell">
-                    Tipo
-                  </th>
-                  <th className="table-th px-4">
-                    Empleado
-                  </th>
-                  <th className="table-th px-4 hidden md:table-cell">
-                    Estado
-                  </th>
-                  <th className="table-th px-4 hidden md:table-cell">
-                    Responsable
-                  </th>
-                  <th className="table-th px-4 hidden md:table-cell">
-                    Fecha
-                  </th>
-                  {/* En celular el numero ya abre el detalle, donde esta la descarga. */}
-                  <th className="table-th px-4 hidden md:table-cell">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-surface divide-y divide-line">
-                {requests.map((req) => (
-                  <tr key={req.id} className="hover:bg-surface-muted">
-                    <td className="px-4 py-3 text-sm font-medium text-primary-700 whitespace-nowrap">
-                      <Link href={`/solicitudes/${req.id}`}>{req.numero}</Link>
-                      {/* En celular el ticket y el tipo van bajo el numero: dos columnas menos. */}
-                      {req.idTicket && (
-                        <span className="md:hidden mt-1 block text-xs font-normal text-fg-muted">
-                          Ticket {req.idTicket}
-                        </span>
-                      )}
-                      <span
-                        className={cn(
-                          'md:hidden mt-1 flex w-fit px-2 py-0.5 text-xs font-medium rounded-full',
-                          tipoColors[req.tipo]
-                        )}
-                      >
-                        {tipoLabels[req.tipo]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-fg-muted hidden md:table-cell wrap-anywhere">
-                      {req.idTicket || '—'}
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <span
-                        className={cn(
-                          'inline-flex px-2 py-1 text-xs font-medium rounded-full',
-                          tipoColors[req.tipo]
-                        )}
-                      >
-                        {tipoLabels[req.tipo]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-fg wrap-anywhere">
-                      {req.employee.nombres} {req.employee.apellidoPaterno}
-                      {req.employee.cargo && (
-                        <span className="block text-xs text-fg-subtle">{req.employee.cargo}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <span
-                        className={cn(
-                          'inline-flex px-2 py-1 text-xs font-medium rounded-full',
-                          req.fechaCierre
-                            ? 'bg-gray-100 text-fg-muted'
-                            : 'bg-primary-100 text-primary-900'
-                        )}
-                      >
-                        {req.fechaCierre ? 'Cerrado' : 'Abierto'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-fg-muted hidden md:table-cell">
-                      {req.responsableActual?.nombre || '—'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-fg-subtle hidden md:table-cell">
-                      {new Date(req.createdAt).toLocaleDateString('es-CL')}
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <div className="flex items-center gap-3">
-                        <Link
-                          href={`/solicitudes/${req.id}`}
-                          className="text-primary-700 hover:text-primary-900"
-                          title="Ver solicitud"
-                        >
-                          <Notebook className="h-4 w-4" />
-                        </Link>
-                        {/* Direct download of the comprobante without opening
-                            the detail view, available for all request types. */}
-                        {(() => {
-                          const doc = documentoDeSolicitud(req);
-                          if (!doc) return null;
-                          return (
-                            <a
-                              href={`/api/solicitudes/${req.id}/documento/${doc.tipo}`}
-                              className="text-fg-subtle hover:text-fg-muted"
-                              title={`Descargar ${doc.label}`}
-                            >
-                              <FileText className="h-4 w-4" />
-                            </a>
-                          );
-                        })()}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {requests.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-fg-subtle">
-                      <ClipboardList className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                      No hay solicitudes registradas
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <Pagination
-            className="px-4 py-3 border-t border-line"
-            current={pagination.page}
-            pages={pagination.totalPages}
-            total={pagination.total}
-            limit={pagination.limit}
-            itemLabel="solicitudes"
-            onPageChange={(p) => fetchRequests(p)}
-          />
-        </div>
+        <TablaDatos
+          items={requests}
+          clave={(r) => r.id}
+          compacta
+          vacio={
+            <>
+              <ClipboardList className="mx-auto mb-3 h-12 w-12 text-gray-300" />
+              No hay solicitudes registradas
+            </>
+          }
+          paginacion={{
+            current: pagination.page,
+            pages: pagination.totalPages,
+            total: pagination.total,
+            limit: pagination.limit,
+            itemLabel: 'solicitudes',
+            onPageChange: (p) => fetchRequests(p),
+            onLimitChange: setLimite,
+          }}
+          columnas={[
+            {
+              titulo: 'Número',
+              sinSalto: true,
+              className: 'px-4 py-3 font-medium text-primary-700',
+              celda: (req) => (
+                <>
+                  <Link href={`/solicitudes/${req.id}`}>{req.numero}</Link>
+                  {/* En celular el ticket y el tipo van bajo el numero: dos columnas menos. */}
+                  {req.idTicket && <span className="mt-1 block text-xs font-normal text-fg-muted md:hidden">Ticket {req.idTicket}</span>}
+                  <span className={cn('mt-1 flex w-fit rounded-full px-2 py-0.5 text-xs font-medium md:hidden', tipoColors[req.tipo])}>
+                    {tipoLabels[req.tipo]}
+                  </span>
+                </>
+              ),
+            },
+            { titulo: 'Ticket', className: 'hidden px-4 py-3 text-fg-muted wrap-anywhere md:table-cell', celda: (req) => req.idTicket || '—' },
+            {
+              titulo: 'Tipo',
+              className: 'hidden px-4 py-3 md:table-cell',
+              celda: (req) => (
+                <span className={cn('inline-flex rounded-full px-2 py-1 text-xs font-medium', tipoColors[req.tipo])}>{tipoLabels[req.tipo]}</span>
+              ),
+            },
+            {
+              titulo: 'Empleado',
+              className: 'px-4 py-3 text-fg wrap-anywhere',
+              celda: (req) => (
+                <>
+                  {req.employee.nombres} {req.employee.apellidoPaterno}
+                  {req.employee.cargo && <span className="block text-xs text-fg-subtle">{req.employee.cargo}</span>}
+                </>
+              ),
+            },
+            {
+              titulo: 'Estado',
+              className: 'hidden px-4 py-3 md:table-cell',
+              celda: (req) => (
+                <span
+                  className={cn(
+                    'inline-flex rounded-full px-2 py-1 text-xs font-medium',
+                    req.fechaCierre ? 'bg-gray-100 text-fg-muted' : 'bg-primary-100 text-primary-900'
+                  )}
+                >
+                  {req.fechaCierre ? 'Cerrado' : 'Abierto'}
+                </span>
+              ),
+            },
+            { titulo: 'Responsable', className: 'hidden px-4 py-3 text-fg-muted md:table-cell', celda: (req) => req.responsableActual?.nombre || '—' },
+            {
+              titulo: 'Fecha',
+              className: 'hidden px-4 py-3 text-fg-subtle md:table-cell',
+              celda: (req) => new Date(req.createdAt).toLocaleDateString('es-CL'),
+            },
+            {
+              // En celular el numero ya abre el detalle, donde esta la descarga.
+              titulo: 'Acciones',
+              className: 'hidden px-4 py-3 md:table-cell',
+              celda: (req) => {
+                const doc = documentoDeSolicitud(req);
+                return (
+                  <div className="flex items-center gap-3">
+                    <Link href={`/solicitudes/${req.id}`} className="text-primary-700 hover:text-primary-900" title="Ver solicitud">
+                      <Notebook className="h-4 w-4" />
+                    </Link>
+                    {/* Descarga directa del comprobante sin abrir el detalle, para todos los tipos. */}
+                    {doc && (
+                      <a href={`/api/solicitudes/${req.id}/documento/${doc.tipo}`} className="text-fg-subtle hover:text-fg-muted" title={`Descargar ${doc.label}`}>
+                        <FileText className="h-4 w-4" />
+                      </a>
+                    )}
+                  </div>
+                );
+              },
+            },
+          ]}
+        />
       ) : (
         /* Kanban View */
         <div className="flex gap-4 overflow-x-auto pb-4">

@@ -10,8 +10,7 @@ import {
 import { sedeIdParaCrear } from '@/shared/sedes/filtro';
 import { exigirSedeActiva } from '@/shared/sedes/consultas';
 import type { CreateAssetInput, UpdateAssetInput } from '@/modules/activos/validaciones';
-import type { AssetVentaInput } from '@/modules/activos/validacionesTransicion';
-import { EVENTOS_SIN_USO, etiquetaEstadoActivo, motivoSinEliminar } from '@/modules/activos/estados';
+import { EVENTOS_SIN_USO, motivoSinEliminar } from '@/modules/activos/estados';
 import { assetHistoryService, type AssetHistoryData } from '@/modules/activos/historial';
 import { auditLogService } from '@/shared/auditoria';
 import { validateTransition, type TransitionContext } from '@/modules/activos/maquinaEstados';
@@ -169,10 +168,8 @@ export async function crearActivo(
       discoDuro: datos.discoDuro || null,
       sistemaOperativo: datos.sistemaOperativo || null,
       imei: datos.imei || null,
-      numeroActivacion: datos.numeroActivacion || null,
       tieneCargador: datos.tieneCargador || false,
       pulgadas: datos.pulgadas || null,
-      ubicacionFisica: datos.ubicacionFisica || null,
       microsoft365: datos.microsoft365 || false,
       tipoLicenciaMicrosoft365: datos.tipoLicenciaMicrosoft365 || null,
       intuneEnrolled: datos.intuneEnrolled || false,
@@ -206,57 +203,6 @@ export async function registrarActivo(
 }
 
 /**
- * Venta de un equipo (POST /api/activos/[id]/venta): solo desde "baja" y sin
- * asignacion activa. Dos ventas a la vez no se registran dos veces
- * (cambiarEstado exige que siga de baja y sin empleado).
- */
-export async function venderActivo(id: string, data: AssetVentaInput, usuario: string) {
-  const asset = await prisma.asset.findUnique({
-    where: { id },
-    include: { assignments: { where: { activo: true } } },
-  });
-  if (!asset) throw new NotFoundError('Activo no encontrado');
-  // Un registro descartado es basura de importacion: no genera movimientos.
-  if (asset.deletedAt) throw new ConflictError('Este activo esta descartado y no admite movimientos');
-  if (asset.estado !== 'baja') {
-    throw new ValidationError(
-      `El activo debe estar en estado "baja" para vender. Estado actual: ${etiquetaEstadoActivo(asset.estado)}`
-    );
-  }
-  if (asset.assignments.length > 0) {
-    throw new ValidationError('El activo tiene una asignación activa. No se puede vender.');
-  }
-  const motivo = `Venta a ${data.comprador}`;
-  const transicion = validateTransition(asset.estado, 'vendido', {
-    hasActiveAssignment: false,
-    hasActiveMaintenance: false,
-    motivo,
-  });
-  if (!transicion.valid) throw new ValidationError('Transición no permitida', transicion.errors);
-
-  return prisma.$transaction(async (tx) => {
-    await cambiarEstado(tx, {
-      activo: { id, estado: 'baja' },
-      a: 'vendido',
-      contexto: { motivo },
-      datos: { fechaVenta: data.fechaVenta },
-      exigir: { empleadoActualId: null },
-    });
-    const vendido = await tx.asset.findUniqueOrThrow({ where: { id }, include: { categoria: true } });
-    await assetHistoryService.registrarVenta(
-      id,
-      data.comprador,
-      Number(data.monto),
-      usuario,
-      data.fechaVenta,
-      data.moneda,
-      tx
-    );
-    return vendido;
-  });
-}
-
-/**
  * Descarta un registro de equipo: no se borra (su historial es evidencia,
  * SPEC 2.7.7), se marca `deletedAt` y queda el motivo en su historial. Lo
  * usan el descarte de duplicados de importacion y quitar de una compra un
@@ -287,7 +233,7 @@ function leerPulgadas(value: string | number | null | undefined): number | null 
 /**
  * Edita la ficha de un equipo (PUT /api/activos/[id]). El estado no se edita
  * (SPEC 2.86): cada cambio pasa por su proceso, que deja los registros que lo
- * respaldan (solicitud, mantencion, baja, venta). Los cambios de
+ * respaldan (solicitud, mantencion, baja). Los cambios de
  * especificaciones quedan en el historial, en la misma transaccion.
  */
 export async function editarActivo(id: string, datos: UpdateAssetInput, usuario: string) {
@@ -325,7 +271,7 @@ export async function editarActivo(id: string, datos: UpdateAssetInput, usuario:
   // "disponible" con la asignacion todavia activa.
   if (datos.estado && datos.estado !== existente.estado) {
     throw new ConflictError(
-      'El estado no se edita: cambia con su proceso (solicitudes, mantenciones, baja o venta).'
+      'El estado no se edita: cambia con su proceso (solicitudes, mantenciones o baja).'
     );
   }
 
@@ -409,14 +355,8 @@ export async function editarActivo(id: string, datos: UpdateAssetInput, usuario:
           sistemaOperativo: datos.sistemaOperativo || null,
         }),
         ...(datos.imei !== undefined && { imei: datos.imei || null }),
-        ...(datos.numeroActivacion !== undefined && {
-          numeroActivacion: datos.numeroActivacion || null,
-        }),
         ...(datos.tieneCargador !== undefined && { tieneCargador: datos.tieneCargador }),
         ...(datos.pulgadas !== undefined && { pulgadas: leerPulgadas(datos.pulgadas) }),
-        ...(datos.ubicacionFisica !== undefined && {
-          ubicacionFisica: datos.ubicacionFisica || null,
-        }),
         ...(datos.microsoft365 !== undefined && { microsoft365: datos.microsoft365 }),
         ...(datos.tipoLicenciaMicrosoft365 !== undefined && {
           tipoLicenciaMicrosoft365: datos.tipoLicenciaMicrosoft365 || null,

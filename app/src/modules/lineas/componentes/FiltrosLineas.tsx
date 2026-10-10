@@ -12,8 +12,8 @@ import {
 import type { Opcion } from "@/modules/lineas/componentes/tipos";
 
 /**
- * Filtros de Activos > Lineas (SPEC 2.131): estado, asignacion, plan, tipo de
- * chip, operador y sede (todas con "Sin ..."). Se combinan; los elegidos se muestran con una X
+ * Filtros de Activos > Lineas (SPEC 2.131): estado, asignacion, tipo de
+ * chip y operador (con "Sin ..."). Se combinan; los elegidos se muestran con una X
  * para quitarlos. Los valores viven en la URL (los maneja LineasView).
  */
 
@@ -40,7 +40,6 @@ export function useOpcionesFiltroLineas(): Opciones {
 function texto(param: string, valor: string, opciones: Opciones): string {
   if (param === "estado") return ESTADO_LINEA_GRUPOS[valor as keyof typeof ESTADO_LINEA_GRUPOS] ?? opciones.estado?.find((o) => o.id === valor)?.nombre ?? valor;
   if (param === "asignacion") return ASIGNACION_LINEA[valor as keyof typeof ASIGNACION_LINEA] ?? valor;
-  if (param === "revisar") return "Para revisar";
   if (param === "q") return `"${valor}"`;
   const f = FILTROS_CATALOGO_LINEA.find((x) => x.param === param);
   if (valor === SIN_DATO_LINEA) return f?.sinDato ?? valor;
@@ -50,7 +49,6 @@ function texto(param: string, valor: string, opciones: Opciones): string {
 const ETIQUETA: Record<string, string> = {
   estado: "Estado",
   asignacion: "Asignación",
-  revisar: "Revisar",
   q: "Búsqueda",
   ...Object.fromEntries(FILTROS_CATALOGO_LINEA.map((f) => [f.param, f.etiqueta])),
 };
@@ -69,10 +67,10 @@ export function FiltrosLineas({
 
   return (
     <div className="card space-y-3 p-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
         <label className="text-xs text-fg-muted">
           Estado
-          <select value={valores.estado ?? ""} onChange={(e) => onCambio({ estado: e.target.value || null, revisar: null })} className={campo}>
+          <select value={valores.estado ?? ""} onChange={(e) => onCambio({ estado: e.target.value || null })} className={campo}>
             <option value="">Todos</option>
             {/* Un grupo que puso una tarjeta (ej. "Sin asignar" son las vigentes) se muestra mientras este elegido. */}
             {valores.estado && valores.estado in ESTADO_LINEA_GRUPOS && (

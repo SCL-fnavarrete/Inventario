@@ -4,6 +4,7 @@ import { cn } from '@/shared/cn';
 import { formatearFecha } from '@/shared/utilidades/fechas';
 import { formatearClp } from '@/shared/utilidades/moneda';
 import { etiquetaCondicionCargador } from '@/modules/activos';
+import { EnlacesLineas } from '@/modules/lineas/componentes';
 
 /** Asignacion de un ticket tal como la entrega GET /api/solicitudes/[id]. */
 export type AsignacionFila = {
@@ -27,6 +28,8 @@ export type AsignacionFila = {
     numeroSerie: string | null;
     imei?: string | null;
     categoria: { nombre: string };
+    // Lineas del celular (SPEC 2.143), con enlace a su ficha.
+    lineas?: { id: string; numero: string }[];
   };
 };
 
@@ -88,6 +91,11 @@ export function FilaEquipoTicket({
           ];
   const partes = [
     a.asset.numeroSerie ? `S/N: ${a.asset.numeroSerie}` : a.asset.imei ? `IMEI: ${a.asset.imei}` : null,
+    !!a.asset.lineas?.length && (
+      <>
+        Línea <EnlacesLineas lineas={a.asset.lineas} />
+      </>
+    ),
     ...detalle,
   ].filter(Boolean);
 
@@ -98,7 +106,7 @@ export function FilaEquipoTicket({
           {prefijo && `${prefijo}: `}
           {a.asset.categoria.nombre}
           {' — '}
-          <Link href={`/activos/${a.asset.id}`} className="hover:text-primary-700 hover:underline">
+          <Link href={`/activos/${a.asset.id}`} className="text-primary-700 hover:underline">
             {a.asset.marca} {a.asset.modelo}
           </Link>
         </span>

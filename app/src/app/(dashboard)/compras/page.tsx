@@ -7,7 +7,6 @@ import {
   Plus,
   Search,
   FileText,
-  Loader2,
   Calendar,
   RefreshCw,
   Split,
@@ -20,7 +19,7 @@ import { formatearFecha } from "@/shared/utilidades/fechas";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { StatCard, StatGrid } from "@/shared/ui/StatCard";
-import { Pagination } from "@/shared/ui/Pagination";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import {
   ESTADO_REPARTO_BADGE,
   ESTADO_REPARTO_LABEL,
@@ -60,6 +59,8 @@ export default function ComprasPage() {
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
   const [page, setPage] = useState(1);
+  // Cuantas compras se ven por pagina ("Mostrar: N").
+  const [limite, setLimite] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   // Tarjeta "Por repartir" pulsada (SPEC 2.111.3): filtra la lista.
@@ -68,14 +69,14 @@ export default function ComprasPage() {
   useEffect(() => {
     fetchPurchases();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, sedeSeleccionada, fechaDesde, fechaHasta, page, soloPorRepartir]);
+  }, [debouncedSearch, sedeSeleccionada, fechaDesde, fechaHasta, page, limite, soloPorRepartir]);
 
   async function fetchPurchases() {
     setLoading(true);
     try {
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: "10",
+        limit: String(limite),
       });
 
       if (debouncedSearch) params.append("search", debouncedSearch);
@@ -213,131 +214,86 @@ export default function ComprasPage() {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="card overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-fg-subtle" />
-          </div>
-        ) : purchases.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-fg-subtle">
-            <ShoppingCart className="h-12 w-12 mb-4 text-gray-300" />
+      {/* Tabla */}
+      <TablaDatos
+        items={purchases}
+        clave={(p) => p.id}
+        cargando={loading}
+        compacta
+        vacio={
+          <div className="flex flex-col items-center">
+            <ShoppingCart className="mb-4 h-12 w-12 text-gray-300" />
             <p>No se encontraron compras</p>
             <Can recurso="compras">
-              <Link
-                href="/compras/nueva"
-                className="mt-4 text-primary-700 hover:text-primary-900 text-sm"
-              >
+              <Link href="/compras/nueva" className="mt-4 text-sm text-primary-700 hover:text-primary-900">
                 Registrar primera compra
               </Link>
             </Can>
           </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-surface-muted border-b">
-                  <tr>
-                    <th className="table-th px-4">
-                      N° Factura
-                    </th>
-                    <th className="table-th px-4">
-                      RUT Proveedor
-                    </th>
-                    <th className="table-th px-4">
-                      Sede de llegada
-                    </th>
-                    <th className="table-th px-4">
-                      Fecha
-                    </th>
-                    <th className="table-th px-4 text-center">
-                      Equipos
-                    </th>
-                    <th className="table-th px-4">
-                      OC
-                    </th>
-                    <th className="table-th px-4">
-                      Reparto
-                    </th>
-                    <th className="table-th px-4 text-right">
-                      Acciones
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {purchases.map((purchase) => (
-                    <tr key={purchase.id} className="hover:bg-surface-muted">
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-fg-subtle" />
-                          <span className="font-medium text-sm">{purchase.numeroFactura}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-fg-subtle">
-                        {purchase.rutProveedor || "-"}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-fg-subtle">
-                        {purchase.sede?.nombre ?? "-"}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-fg-subtle">
-                        {formatearFecha(purchase.fechaFactura)}
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <span className={cn(
-                          "inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium",
-                          purchase._count.purchaseAssets > 0
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-fg-subtle"
-                        )}>
-                          {purchase._count.purchaseAssets}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-fg-subtle">
-                        {purchase.ordenCompra || "-"}
-                      </td>
-                      <td className="px-4 py-4">
-                        {purchase.reparto.estado ? (
-                          <span
-                            className={cn(
-                              "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium",
-                              ESTADO_REPARTO_BADGE[purchase.reparto.estado]
-                            )}
-                            title={`${purchase.reparto.pendiente} por repartir, ${purchase.reparto.repartido} repartido(s)`}
-                          >
-                            {ESTADO_REPARTO_LABEL[purchase.reparto.estado]}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-fg-subtle">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link
-                            href={`/compras/${purchase.id}`}
-                            className="text-primary-700 hover:text-primary-900 text-sm font-medium"
-                          >
-                            Ver detalle
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <Pagination
-              className="px-4 py-3 border-t border-line"
-              current={page}
-              pages={totalPages}
-              total={total}
-              limit={10}
-              itemLabel="compras"
-              onPageChange={setPage}
-            />
-          </>
+        }
+        paginacion={{ current: page, pages: totalPages, total,
+          limit: limite,
+          itemLabel: "compras",
+          onPageChange: setPage,
+          onLimitChange: (n) => {
+            setLimite(n);
+            setPage(1);
+          },
+        }}
+        columnas={[
+          {
+            titulo: "N° Factura",
+            className: "px-4 py-4",
+            celda: (p) => (
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-fg-subtle" />
+                <span className="text-sm font-medium">{p.numeroFactura}</span>
+              </div>
+            ),
+          },
+          { titulo: "RUT Proveedor", className: "px-4 py-4 text-fg-subtle", celda: (p) => p.rutProveedor || "-" },
+          { titulo: "Sede de llegada", className: "px-4 py-4 text-fg-subtle", celda: (p) => p.sede?.nombre ?? "-" },
+          { titulo: "Fecha", className: "px-4 py-4 text-fg-subtle", celda: (p) => formatearFecha(p.fechaFactura) },
+          {
+            titulo: "Equipos",
+            className: "px-4 py-4 text-center",
+            celda: (p) => (
+              <span
+                className={cn(
+                  "inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium",
+                  p._count.purchaseAssets > 0 ? "bg-green-100 text-green-700" : "bg-gray-100 text-fg-subtle"
+                )}
+              >
+                {p._count.purchaseAssets}
+              </span>
+            ),
+          },
+          { titulo: "OC", className: "px-4 py-4 text-fg-subtle", celda: (p) => p.ordenCompra || "-" },
+          {
+            titulo: "Reparto",
+            className: "px-4 py-4",
+            celda: (p) =>
+              p.reparto.estado ? (
+                <span
+                  className={cn(
+                    "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium",
+                    ESTADO_REPARTO_BADGE[p.reparto.estado]
+                  )}
+                  title={`${p.reparto.pendiente} por repartir, ${p.reparto.repartido} repartido(s)`}
+                >
+                  {ESTADO_REPARTO_LABEL[p.reparto.estado]}
+                </span>
+              ) : (
+                <span className="text-sm text-fg-subtle">-</span>
+              ),
+          },
+        ]}
+        acciones={(p) => (
+          <Link href={`/compras/${p.id}`} className="text-sm font-medium text-primary-700 hover:text-primary-900">
+            Ver detalle
+          </Link>
         )}
-      </div>
+      />
     </div>
   );
 }

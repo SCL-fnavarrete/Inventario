@@ -8,7 +8,6 @@ import {
   UserX,
   Wrench,
   XCircle,
-  DollarSign,
   Loader2,
   GripVertical,
   Truck,
@@ -121,15 +120,6 @@ const columns: {
     bgColor: "bg-red-50",
     borderColor: "border-red-200",
   },
-  {
-    id: "vendido",
-    label: "Vendido",
-    icon: DollarSign,
-    color: "text-fg-muted",
-    bgColor: "bg-surface-muted",
-    borderColor: "border-line",
-    soloLectura: true,
-  },
 ];
 
 export function KanbanBoard({ assets, onStatusChange, isUpdating }: KanbanBoardProps) {
@@ -177,7 +167,7 @@ export function KanbanBoard({ assets, onStatusChange, isUpdating }: KanbanBoardP
       acc[col.id] = assets.filter((a) => a.estado === col.id);
       return acc;
     },
-    { disponible: [], asignado: [], en_mantencion: [], no_devuelto: [], en_transito: [], por_repartir: [], baja: [], vendido: [] }
+    { disponible: [], asignado: [], en_mantencion: [], no_devuelto: [], en_transito: [], por_repartir: [], baja: [] }
   );
 
   return (

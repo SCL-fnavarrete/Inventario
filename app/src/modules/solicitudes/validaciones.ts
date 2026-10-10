@@ -114,6 +114,11 @@ const onboardingFields = z.object({
     )
     .optional()
     .default({}),
+  // Linea que lleva cada celular reservado: mapa assetId -> id de una linea
+  // disponible (SPEC 2.143). Un chip fisico queda en el celular y una eSIM, con la persona.
+  lineaPorAsset: z.record(z.string().uuid(), z.string().uuid()).optional().default({}),
+  // eSIM para quien usa su propio telefono (en vez de un celular de la empresa): queda con la persona.
+  lineaEsim: z.string().uuid().optional(),
   // Coordinacion de entrega: si los equipos elegidos cubren todas las
   // categorias requeridas, el ticket nace directo en "Equipos Entregados"
   // en vez de pasar por Gestion TI; si no, estos campos igual se guardan.
@@ -164,7 +169,12 @@ const cambioEquipoFields = z.object({
     .array(
       z.object({
         oldAssignmentId: z.string().uuid('ID de asignación inválido'),
-        newAssetId: z.string().uuid('ID de activo inválido'),
+        // Reemplazo: otro equipo, o nada si el celular se cambia por una eSIM (SPEC 2.143).
+        newAssetId: z.string().uuid('ID de activo inválido').optional().nullable(),
+        // Linea disponible para el celular de reemplazo (SPEC 2.143).
+        newLineaId: z.string().uuid().optional().nullable(),
+        // eSIM: el empleado usa su propio telefono, no se entrega equipo y la eSIM queda con la persona.
+        newEsimLineaId: z.string().uuid().optional().nullable(),
         // SPEC 2.135: en un cambio el equipo anterior vuelve en buen estado o
         // danado; danado (o "baja", lo mismo) se da de baja en el acto con un
         // motivo de la lista. "No devolvio" es solo de la desvinculacion.
@@ -180,9 +190,31 @@ const cambioEquipoFields = z.object({
         observacionesCargadorAnterior: z.string().optional().nullable(),
         condicionCargadorNuevo: condicionCargadorSchema.optional().nullable(),
         observacionesCargadorNuevo: z.string().optional().nullable(),
-      }).refine(conMotivoSiDanado, MOTIVO_OBLIGATORIO)
+      })
+        .refine(conMotivoSiDanado, MOTIVO_OBLIGATORIO)
+        .refine((c) => !!c.newAssetId !== !!c.newEsimLineaId, {
+          path: ['newAssetId'],
+          message: 'Elige el reemplazo: un equipo o una eSIM, no los dos',
+        })
+        .refine((c) => !(c.newEsimLineaId && c.newLineaId), {
+          path: ['newLineaId'],
+          message: 'Con eSIM no se entrega celular, así que no lleva chip físico',
+        })
     )
-    .min(1, 'Elige al menos un equipo a cambiar'),
+    .default([]),
+  // Lineas de la persona que se cambian por otra disponible (SPEC 2.143); pueden ir solas.
+  cambiosLinea: z
+    .array(
+      z.object({
+        lineaId: z.string().uuid('ID de línea inválido'),
+        // Linea nueva; con newAssetId solo si ese celular no trae linea.
+        newLineaId: z.string().uuid('ID de línea inválido').optional().nullable(),
+        // eSIM -> chip fisico: celular disponible que se le entrega (con su linea o la elegida).
+        newAssetId: z.string().uuid('ID de celular inválido').optional().nullable(),
+      }).refine((c) => !!c.newLineaId || !!c.newAssetId, { path: ['newLineaId'], message: 'Elige la línea nueva' })
+    )
+    .optional()
+    .default([]),
   // Coordinacion de cambio: permite coordinar la entrega del equipo nuevo
   // en el mismo formulario de creacion.
   fechaCambioCoordinada: z.string().optional().nullable(),
@@ -264,10 +296,21 @@ export const createWorkflowRequestSchema = z
     // Un mismo equipo no se cambia dos veces, ni un reemplazo se entrega
     // por dos equipos distintos.
     if (data.tipo === 'cambio_equipo') {
+      if (data.cambios.length + data.cambiosLinea.length === 0) {
+        ctx.addIssue({ code: 'custom', path: ['cambios'], message: 'Elige al menos un equipo o una línea a cambiar' });
+      }
+      const lineas = data.cambiosLinea.flatMap((c) => [c.lineaId, ...(c.newLineaId ? [c.newLineaId] : [])]);
+      if (new Set(lineas).size !== lineas.length) {
+        ctx.addIssue({ code: 'custom', path: ['cambiosLinea'], message: 'Una línea aparece dos veces en el cambio' });
+      }
       const viejos = data.cambios.map((c) => c.oldAssignmentId);
-      const nuevos = data.cambios.map((c) => c.newAssetId);
+      const nuevos = [...data.cambios, ...data.cambiosLinea].flatMap((c) => (c.newAssetId ? [c.newAssetId] : []));
       if (new Set(viejos).size !== viejos.length) {
         ctx.addIssue({ code: 'custom', path: ['cambios'], message: 'Un equipo aparece dos veces en el cambio' });
+      }
+      const esims = data.cambios.flatMap((c) => (c.newEsimLineaId ? [c.newEsimLineaId] : []));
+      if (new Set(esims).size !== esims.length) {
+        ctx.addIssue({ code: 'custom', path: ['cambios'], message: 'Una eSIM aparece para dos equipos' });
       }
       if (new Set(nuevos).size !== nuevos.length) {
         ctx.addIssue({ code: 'custom', path: ['cambios'], message: 'Un reemplazo aparece para dos equipos' });

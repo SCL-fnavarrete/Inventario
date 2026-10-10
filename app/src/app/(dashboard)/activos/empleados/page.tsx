@@ -4,8 +4,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Search,
-  ChevronLeft,
-  ChevronRight,
   Eye,
   Edit,
   User,
@@ -20,7 +18,7 @@ import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 import { PageHeader } from "@/shared/ui/PageHeader";
-import { COLUMNA_FIJA_CELDA, COLUMNA_FIJA_ENCABEZADO } from "@/shared/ui/tablaStyles";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { logger } from "@/shared/logger";
 
 // Read-only employee listing within Activos. Employees are created via the
@@ -116,7 +114,7 @@ export default function PersonalPage() {
   useEffect(() => {
     fetchEmployees();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.page, debouncedSearch, estadoFilter, tipoContratoFilter, sedeFilter, sedeSeleccionada]);
+  }, [pagination.page, pagination.limit, debouncedSearch, estadoFilter, tipoContratoFilter, sedeFilter, sedeSeleccionada]);
 
   useEffect(() => {
     fetchSedes();
@@ -381,182 +379,86 @@ export default function PersonalPage() {
         </form>
       </div>
 
-      {/* Table */}
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-surface-muted border-b">
-              <tr>
-                <th className="table-th">
-                  RUT
-                </th>
-                <th className="table-th">
-                  Nombre
-                </th>
-                <th className="table-th">
-                  Correo
-                </th>
-                <th className="table-th">
-                  Cargo
-                </th>
-                <th className="table-th">
-                  Jefe
-                </th>
-                <th className="table-th">
-                  Supervisor
-                </th>
-                <th className="table-th">
-                  Ubicación
-                </th>
-                <th className="table-th">
-                  Sede
-                </th>
-                <th className="table-th">
-                  Contrato
-                </th>
-                <th className="table-th">
-                  Estado
-                </th>
-                <th className="table-th">
-                  Equipos
-                </th>
-                <th className={cn("table-th text-right", COLUMNA_FIJA_ENCABEZADO)}>
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {loading ? (
-                <tr>
-                  <td colSpan={11} className="px-6 py-12 text-center text-fg-subtle">
-                    Cargando...
-                  </td>
-                </tr>
-              ) : employees.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="px-6 py-12 text-center text-fg-subtle">
-                    No se encontraron empleados
-                  </td>
-                </tr>
-              ) : (
-                employees.map((employee) => (
-                  <tr key={employee.id} className="group hover:bg-surface-muted">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-mono text-fg">
-                        {employee.rut || "—"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm font-medium text-fg">
-                        <Link
-                          href={`/empleados/${employee.id}`}
-                          className="hover:text-primary-700 hover:underline"
-                        >
-                          {employee.nombres} {employee.apellidoPaterno}
-                        </Link>
-                      </p>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-fg-muted">{employee.correoPersonal ?? employee.correoEmpresa ?? ''}</p>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-fg">
-                        {employee.cargo || "-"}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-fg-muted">{employee.jefatura || "-"}</p>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-fg-muted">{employee.supervisor || "-"}</p>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-fg-muted">{employee.ubicacion || "-"}</p>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-fg-muted">{employee.sede?.nombre || "-"}</p>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={cn(
-                          "px-2 py-1 text-xs font-medium rounded-full",
-                          employee.tipoContrato ? tipoContratoColors[employee.tipoContrato] : "bg-surface-muted text-fg-muted"
-                        )}
-                      >
-                        {employee.tipoContrato ? tipoContratoLabels[employee.tipoContrato] : "Sin definir"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={cn(
-                          "px-2 py-1 text-xs font-medium rounded-full",
-                          estadoColors[employee.estado]
-                        )}
-                      >
-                        {estadoLabels[employee.estado]}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-fg-muted">
-                        {employee._count.assignments} equipos
-                      </span>
-                    </td>
-                    <td className={cn("px-6 py-4 whitespace-nowrap text-right", COLUMNA_FIJA_CELDA)}>
-                      <div className="flex justify-end gap-2">
-                        <Link
-                          href={`/empleados/${employee.id}`}
-                          className="p-2 text-fg-subtle hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
-                          title="Ver ficha"
-                        >
-                          <Eye size={18} />
-                        </Link>
-                        <Link
-                          href={`/empleados/${employee.id}/editar`}
-                          className="p-2 text-fg-subtle hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                          title="Editar"
-                        >
-                          <Edit size={18} />
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {pagination.totalPages > 1 && (
-          <div className="px-6 py-4 border-t flex items-center justify-between">
-            <p className="text-sm text-fg-subtle">
-              Mostrando {(pagination.page - 1) * pagination.limit + 1} a{" "}
-              {Math.min(pagination.page * pagination.limit, pagination.total)} de{" "}
-              {pagination.total} empleados
-            </p>
-            <div className="flex gap-2">
-              <button aria-label="Página anterior"
-                onClick={() =>
-                  setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                }
-                disabled={pagination.page === 1}
-                className="p-2 rounded-lg border hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed"
+      {/* Tabla */}
+      <TablaDatos
+        items={employees}
+        clave={(e) => e.id}
+        cargando={loading}
+        vacio="No se encontraron empleados"
+        compacta
+        columnas={[
+          { titulo: "RUT", sinSalto: true, className: "px-6 font-mono text-fg", celda: (e) => e.rut || "—" },
+          {
+            titulo: "Nombre",
+            sinSalto: true,
+            className: "px-6 font-medium text-fg",
+            celda: (e) => (
+              <Link href={`/empleados/${e.id}`} className="hover:text-primary-700 hover:underline">
+                {e.nombres} {e.apellidoPaterno}
+              </Link>
+            ),
+          },
+          { titulo: "Correo", sinSalto: true, className: "px-6 text-fg-muted", celda: (e) => e.correoPersonal ?? e.correoEmpresa ?? "" },
+          { titulo: "Cargo", sinSalto: true, className: "px-6 text-fg", celda: (e) => e.cargo || "-" },
+          { titulo: "Jefe", sinSalto: true, className: "px-6 text-fg-muted", celda: (e) => e.jefatura || "-" },
+          { titulo: "Supervisor", sinSalto: true, className: "px-6 text-fg-muted", celda: (e) => e.supervisor || "-" },
+          { titulo: "Ubicación", sinSalto: true, className: "px-6 text-fg-muted", celda: (e) => e.ubicacion || "-" },
+          { titulo: "Sede", sinSalto: true, className: "px-6 text-fg-muted", celda: (e) => e.sede?.nombre || "-" },
+          {
+            titulo: "Contrato",
+            sinSalto: true,
+            className: "px-6",
+            celda: (e) => (
+              <span
+                className={cn(
+                  "rounded-full px-2 py-1 text-xs font-medium",
+                  e.tipoContrato ? tipoContratoColors[e.tipoContrato] : "bg-surface-muted text-fg-muted"
+                )}
               >
-                <ChevronLeft size={20} />
-              </button>
-              <button aria-label="Página siguiente"
-                onClick={() =>
-                  setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                }
-                disabled={pagination.page === pagination.totalPages}
-                className="p-2 rounded-lg border hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ChevronRight size={20} />
-              </button>
-            </div>
-          </div>
+                {e.tipoContrato ? tipoContratoLabels[e.tipoContrato] : "Sin definir"}
+              </span>
+            ),
+          },
+          {
+            titulo: "Estado",
+            sinSalto: true,
+            className: "px-6",
+            celda: (e) => (
+              <span className={cn("rounded-full px-2 py-1 text-xs font-medium", estadoColors[e.estado])}>{estadoLabels[e.estado]}</span>
+            ),
+          },
+          { titulo: "Equipos", sinSalto: true, className: "px-6 text-fg-muted", celda: (e) => `${e._count.assignments} equipos` },
+        ]}
+        acciones={(e) => (
+          <>
+            <Link
+              href={`/empleados/${e.id}`}
+              className="rounded-lg p-2 text-fg-subtle transition-colors hover:bg-primary-50 hover:text-primary-700"
+              title="Ver ficha"
+              aria-label="Ver ficha"
+            >
+              <Eye size={18} />
+            </Link>
+            <Link
+              href={`/empleados/${e.id}/editar`}
+              className="rounded-lg p-2 text-fg-subtle transition-colors hover:bg-green-50 hover:text-green-600"
+              title="Editar"
+              aria-label="Editar"
+            >
+              <Edit size={18} />
+            </Link>
+          </>
         )}
-      </div>
+        paginacion={{
+          current: pagination.page,
+          pages: pagination.totalPages,
+          total: pagination.total,
+          limit: pagination.limit,
+          itemLabel: "empleados",
+          onPageChange: (page) => setPagination((prev) => ({ ...prev, page })),
+          onLimitChange: (limit) => setPagination((prev) => ({ ...prev, limit, page: 1 })),
+        }}
+      />
     </div>
   );
 }

@@ -3,3 +3,4 @@
 export * from '@/modules/personas/servicio';
 export * from '@/modules/personas/lecturas';
 export * from '@/modules/personas/importacion';
+export * from '@/modules/personas/opciones';

@@ -14,7 +14,6 @@ import {
   mapeoSugerido,
   mismoNombre,
   opcionDelValor,
-  sedeDelTexto,
   type CampoImportacion,
   type FilaImportacion,
   type MapeoLineas,
@@ -23,7 +22,7 @@ import {
 /**
  * Importacion de lineas en Configuracion > Importar (SPEC 2.131), por pasos
  * como la de activos: 1) hojas del archivo, 2) columnas y mapeo propuesto,
- * 3) vista previa: cada linea validada y los valores de estado, plan, tipo de
+ * 3) vista previa: cada linea validada y los valores de estado, tipo de
  * chip y operador que hay que asociar a una opcion del catalogo o agregar,
  * 4) guardar en tandas. Nada se guarda hasta el paso 4.
  *
@@ -96,13 +95,12 @@ async function fechasDeBajas(buffer: ArrayBuffer) {
 /** Opciones activas de los catalogos, para proponer a que opcion va cada valor del Excel. */
 async function catalogosActivos() {
   const activos = { where: { activo: true }, select: { id: true, nombre: true } };
-  const [estado, plan, tipoChip, operador] = await Promise.all([
+  const [estado, tipoChip, operador] = await Promise.all([
     prisma.estadoLinea.findMany(activos),
-    prisma.planLinea.findMany(activos),
     prisma.tipoChip.findMany(activos),
     prisma.operadorLinea.findMany(activos),
   ]);
-  return { estado, plan, tipoChip, operador };
+  return { estado, tipoChip, operador };
 }
 
 type Entrada = {
@@ -116,12 +114,9 @@ type Entrada = {
   apellidoMaterno: string | null;
   imei: string | null;
   desde: string | null;
-  ubicacion: string | null;
   estado: string | null;
-  plan: string | null;
   tipoChip: string | null;
   operador: string | null;
-  precio: number | null;
   fechaBaja: string | null;
   observaciones: string | null;
 };
@@ -132,7 +127,7 @@ type Entrada = {
  * anterior tenia.
  */
 function juntarEntregas(grupo: Entrada[]): Entrada[] {
-  const clave = (e: Entrada) => (e.rut ?? e.nombre ?? e.ubicacion ?? '').toLowerCase();
+  const clave = (e: Entrada) => (e.rut ?? e.nombre ?? '').toLowerCase();
   const juntas: Entrada[] = [];
   for (const e of grupo) {
     const previa = juntas.at(-1);
@@ -160,19 +155,19 @@ function rutDeLaFila(indice: PersonaIndexada[], crudo: string | null): string | 
 
 /**
  * Que pasa con la persona de una entrada (SPEC 2.133): ya existe (nada que avisar), se crea
- * (aviso) o no se puede decidir (aviso, queda el nombre como responsable). Anota las que se crean.
+ * (aviso) o no se puede decidir (aviso, queda el nombre en las observaciones). Anota las que se crean.
  */
 function avisoDePersona(indice: PersonaIndexada[], e: PersonaDeEntrada, nuevas: Set<string>): string | null {
   const rut = rutDeLaFila(indice, e.rut);
   const conNombre = !!e.nombres && !!e.apellidoPaterno;
   if (!rut && !conNombre) {
-    return e.rut ? 'El RUT no es válido y la fila no trae su nombre: queda como responsable' : null;
+    return e.rut ? 'El RUT no es válido y la fila no trae su nombre: queda en las observaciones' : null;
   }
   const busqueda = buscarPersona(indice, { rut, nombres: e.nombres, apellidoPaterno: e.apellidoPaterno, apellidoMaterno: e.apellidoMaterno });
   if (busqueda.tipo === 'encontrada') return null;
-  if (busqueda.tipo === 'ambigua') return 'Su nombre calza con varias personas del sistema: agrega su RUT (queda como responsable)';
-  if (busqueda.tipo === 'duplicado') return `El RUT es nuevo, pero ${busqueda.persona.nombres} ${busqueda.persona.apellidoPaterno} ya existe con el RUT ${busqueda.persona.rut}: ¿RUT mal escrito? (queda como responsable)`;
-  if (!conNombre) return 'El RUT no está en el sistema y la fila no trae su nombre: queda como responsable';
+  if (busqueda.tipo === 'ambigua') return 'Su nombre calza con varias personas del sistema: agrega su RUT (queda en las observaciones)';
+  if (busqueda.tipo === 'duplicado') return `El RUT es nuevo, pero ${busqueda.persona.nombres} ${busqueda.persona.apellidoPaterno} ya existe con el RUT ${busqueda.persona.rut}: ¿RUT mal escrito? (queda en las observaciones)`;
+  if (!conNombre) return 'El RUT no está en el sistema y la fila no trae su nombre: queda en las observaciones';
   nuevas.add((rut ?? `${e.nombres} ${e.apellidoPaterno}`).toLowerCase());
   return rut ? 'La persona no está en el sistema: se crea' : 'La persona no está en el sistema y la fila no trae su RUT: se crea sin RUT (completarlo en Personal)';
 }
@@ -201,7 +196,6 @@ export async function vistaPreviaLineas(buffer: ArrayBuffer, hoja: string, mapeo
 
   const entradas: Entrada[] = filas.map((f) => {
     const crudo = String(valor(f, 'numero') ?? '').trim();
-    const precio = valor(f, 'precio');
     return {
       fila: f.fila,
       crudo,
@@ -213,12 +207,9 @@ export async function vistaPreviaLineas(buffer: ArrayBuffer, hoja: string, mapeo
       apellidoMaterno: texto(valor(f, 'apellidoMaterno')),
       imei: texto(valor(f, 'imei'))?.replace(/\D/g, '') || null,
       desde: fecha(valor(f, 'fechaEntrega')),
-      ubicacion: texto(valor(f, 'responsable')),
       estado: texto(valor(f, 'estado')),
-      plan: texto(valor(f, 'plan')),
       tipoChip: texto(valor(f, 'tipoChip')),
       operador: texto(valor(f, 'operador')),
-      precio: typeof precio === 'number' ? Math.round(precio) : Number(String(precio ?? '').replace(/[$.\s]/g, '')) || null,
       fechaBaja: fecha(valor(f, 'fechaBaja')),
       observaciones: texto(valor(f, 'observaciones')),
     };
@@ -232,7 +223,7 @@ export async function vistaPreviaLineas(buffer: ArrayBuffer, hoja: string, mapeo
     else lineas.set(e.numero, [...(lineas.get(e.numero) ?? []), e]);
   }
 
-  const vacia = { estado: null, plan: null, tipoChip: null, operador: null, precioMensual: null, fechaEntrega: null, fechaBaja: null, entregas: [] };
+  const vacia = { estado: null, tipoChip: null, operador: null, fechaEntrega: null, fechaBaja: null, entregas: [] };
   const conError = sueltas.map((e) => ({
     ...vacia,
     fila: e.fila,
@@ -243,7 +234,6 @@ export async function vistaPreviaLineas(buffer: ArrayBuffer, hoja: string, mapeo
     nombres: e.nombres,
     apellidoPaterno: e.apellidoPaterno,
     apellidoMaterno: e.apellidoMaterno,
-    responsable: e.ubicacion,
     imei: e.imei,
     observaciones: e.observaciones,
     errores: [e.crudo ? `"${e.crudo}" no es un celular de 9 dígitos` : 'Falta el número'],
@@ -257,10 +247,10 @@ export async function vistaPreviaLineas(buffer: ArrayBuffer, hoja: string, mapeo
     const ultima = entregas.at(-1)!;
     const avisos: string[] = [];
     // Datos de la linea que pueden venir solo en alguna fila: el ultimo que haya.
-    const ultimo = <K extends 'estado' | 'plan' | 'tipoChip' | 'operador' | 'precio' | 'fechaBaja' | 'observaciones'>(k: K) =>
+    const ultimo = <K extends 'estado' | 'tipoChip' | 'operador' | 'fechaBaja' | 'observaciones'>(k: K) =>
       [...grupo].reverse().map((e) => e[k]).find((v) => v != null) ?? null;
     const listaRuts = (ultima.rut ?? '').split('|').map((r) => r.trim()).filter(Boolean);
-    if (listaRuts.length > 1) avisos.push('Figura con más de una persona: queda el responsable para revisar');
+    if (listaRuts.length > 1) avisos.push('Figura con más de una persona: queda en las observaciones para revisar');
     else {
       const aviso = avisoDePersona(indice, ultima, personasNuevas);
       if (aviso) avisos.push(aviso);
@@ -274,13 +264,10 @@ export async function vistaPreviaLineas(buffer: ArrayBuffer, hoja: string, mapeo
       numero,
       existe: yaExisten.has(numero),
       estado: ultimo('estado'),
-      plan: ultimo('plan'),
       tipoChip: ultimo('tipoChip'),
       operador: ultimo('operador'),
-      precioMensual: ultimo('precio'),
       rut: ultima.rut,
       nombre: ultima.nombre,
-      responsable: ultima.ubicacion,
       imei: ultima.imei,
       fechaEntrega: ultima.desde,
       fechaBaja: ultimo('fechaBaja') ?? bajas.get(numero) ?? null,
@@ -288,7 +275,7 @@ export async function vistaPreviaLineas(buffer: ArrayBuffer, hoja: string, mapeo
       nombres: ultima.nombres,
       apellidoPaterno: ultima.apellidoPaterno,
       apellidoMaterno: ultima.apellidoMaterno,
-      entregas: entregas.slice(0, -1).map((e) => ({ fila: e.fila, rut: e.rut, nombre: e.nombre, nombres: e.nombres, apellidoPaterno: e.apellidoPaterno, apellidoMaterno: e.apellidoMaterno, imei: e.imei, desde: e.desde, ubicacion: e.ubicacion })),
+      entregas: entregas.slice(0, -1).map((e) => ({ fila: e.fila, rut: e.rut, nombre: e.nombre, nombres: e.nombres, apellidoPaterno: e.apellidoPaterno, apellidoMaterno: e.apellidoMaterno, imei: e.imei, desde: e.desde })),
       errores: [] as string[],
       avisos,
     };
@@ -299,22 +286,16 @@ export async function vistaPreviaLineas(buffer: ArrayBuffer, hoja: string, mapeo
   // Valores distintos de cada catalogo, con cuantas lineas los usan y la opcion que calza.
   const valores = Object.fromEntries(
     (Object.keys(CAMPOS_CATALOGO) as (keyof typeof CAMPOS_CATALOGO)[]).map((campo) => {
-      const conteo = new Map<string, { filas: number; precios: Map<number, number> }>();
+      const conteo = new Map<string, number>();
       for (const r of resultado) {
         const v = r[campo];
-        if (!v) continue;
-        const c = conteo.get(v) ?? { filas: 0, precios: new Map() };
-        c.filas++;
-        if (r.precioMensual != null) c.precios.set(r.precioMensual, (c.precios.get(r.precioMensual) ?? 0) + 1);
-        conteo.set(v, c);
+        if (v) conteo.set(v, (conteo.get(v) ?? 0) + 1);
       }
       return [
         campo,
-        [...conteo].map(([v, c]) => ({
+        [...conteo].map(([v, filas]) => ({
           valor: v,
-          filas: c.filas,
-          // Para un plan nuevo: el precio que mas se repite en sus lineas.
-          precioSugerido: [...c.precios].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
+          filas,
           opcionId: opcionDelValor(campo, v, catalogos[campo]),
         })),
       ];
@@ -363,12 +344,11 @@ function fechasEnOrden(fechas: (string | null | undefined)[], respaldo: Date): D
  */
 export async function importarTandaLineas(filas: FilaImportacion[], fechaDatos: string, usuario?: string | null) {
   const vigenteDesde = new Date(fechaDatos);
-  const ids = (campo: 'estadoId' | 'planId' | 'tipoChipId' | 'operadorId') => [...new Set(filas.map((f) => f[campo]).filter(Boolean) as string[])];
+  const ids = (campo: 'estadoId' | 'tipoChipId' | 'operadorId') => [...new Set(filas.map((f) => f[campo]).filter(Boolean) as string[])];
   const imeis = [...new Set(filas.flatMap((f) => [f.imei, ...f.entregas.map((e) => e.imei)]).filter(Boolean) as string[])];
-  const [estados, planes, tipos, operadores, activa, indice, celulares, sedes] = await Promise.all([
+  const [estados, tipos, operadores, activa, indice, celulares] = await Promise.all([
     // Solo opciones activas: una desactivada no se asigna a lineas nuevas.
     prisma.estadoLinea.findMany({ where: { id: { in: ids('estadoId') }, activo: true } }),
-    prisma.planLinea.findMany({ where: { id: { in: ids('planId') }, activo: true }, select: { id: true } }),
     prisma.tipoChip.findMany({ where: { id: { in: ids('tipoChipId') }, activo: true }, select: { id: true } }),
     prisma.operadorLinea.findMany({ where: { id: { in: ids('operadorId') }, activo: true }, select: { id: true } }),
     estadoPorClave(prisma, 'activa'),
@@ -376,7 +356,6 @@ export async function importarTandaLineas(filas: FilaImportacion[], fechaDatos: 
     imeis.length
       ? prisma.asset.findMany({ where: { imei: { in: imeis }, deletedAt: null, categoria: { tipoFicha: 'celular' } }, select: { id: true, imei: true, sedeId: true } })
       : [],
-    prisma.sede.findMany({ where: { activa: true }, select: { id: true, nombre: true } }),
   ]);
   const porImei = new Map(celulares.map((c) => [c.imei!, c]));
   const existe = (lista: { id: string }[], id: string | null) => (id && lista.some((o) => o.id === id) ? id : null);
@@ -393,8 +372,8 @@ export async function importarTandaLineas(filas: FilaImportacion[], fechaDatos: 
     try {
       const celular = f.imei ? porImei.get(f.imei) ?? null : null;
       const estado = estados.find((e) => e.id === f.estadoId) ?? activa;
-      // La sede: la que nombra el texto de ubicacion o, si no, la del celular.
-      const sedeId = sedeDelTexto(sedes, f.responsable) ?? celular?.sedeId ?? null;
+      // La persona que se cree toma la sede del celular (la linea no tiene sede propia).
+      const sedeId = celular?.sedeId ?? null;
       const r = await prisma.$transaction(async (tx) => {
         const actual = await tx.lineaTelefonica.findUnique({ where: { numero }, include: CON_NOMBRES });
 
@@ -405,7 +384,7 @@ export async function importarTandaLineas(filas: FilaImportacion[], fechaDatos: 
           sede: string | null
         ) => {
           const ruts = (e.rut ?? '').split('|').map((x) => x.trim()).filter(Boolean);
-          if (ruts.length > 1) return null; // figura con mas de una persona: queda el responsable para revisar
+          if (ruts.length > 1) return null; // figura con mas de una persona: queda en las observaciones para revisar
           const rut = rutDeLaFila(indice, ruts[0] ?? null);
           if (!rut && !(e.nombres && e.apellidoPaterno)) return null;
           const resultado = await encontrarOCrearPersona(
@@ -422,21 +401,15 @@ export async function importarTandaLineas(filas: FilaImportacion[], fechaDatos: 
 
         // Con celular, la persona es la del celular; una linea que ya tiene a alguien no cambia de persona.
         const personaId = !celular && !actual?.activoId && !actual?.empleadoId ? await personaDe(f, 'activo', sedeId) : null;
-        // Sin persona ni celular, queda el nombre que trae el archivo (o la ubicacion) como nota.
-        const nota = personaId || celular ? null : f.nombre ?? (sedeId ? null : f.responsable);
-        // Una ubicacion que no es sede ni quedo como nota pasa a las observaciones.
-        const ubicacionSuelta = f.responsable && !sedeDelTexto(sedes, f.responsable) && nota !== f.responsable ? f.responsable : null;
+        // Sin persona ni celular, el nombre que trae el archivo queda en las observaciones.
+        const nota = personaId || celular || !f.nombre ? null : `Persona del archivo: ${f.nombre}`;
         const datos = {
-          planId: existe(planes, f.planId),
-          precioMensual: f.precioMensual ?? null,
           tipoChipId: existe(tipos, f.tipoChipId),
           operadorId: existe(operadores, f.operadorId),
           activoId: celular?.id ?? null,
           // Con celular, la persona es la del celular.
           empleadoId: celular ? null : personaId,
-          sedeId,
-          responsable: nota,
-          observaciones: [f.observaciones, ubicacionSuelta].filter(Boolean).join(' · ') || null,
+          observaciones: [f.observaciones, nota].filter(Boolean).join(' · ') || null,
         };
 
         if (!actual) {
@@ -454,7 +427,7 @@ export async function importarTandaLineas(filas: FilaImportacion[], fechaDatos: 
           const personasAnteriores: (string | null)[] = [];
           for (const e of f.entregas) {
             const tel = e.imei ? porImei.get(e.imei) ?? null : null;
-            personasAnteriores.push(await personaDe(e, 'desvinculado', sedeDelTexto(sedes, e.ubicacion) ?? tel?.sedeId ?? sedeId));
+            personasAnteriores.push(await personaDe(e, 'desvinculado', tel?.sedeId ?? sedeId));
           }
           // Las entregas anteriores del archivo (historial) y la actual, desde su fecha de entrega.
           const fechas = fechasEnOrden([...f.entregas.map((e) => e.desde), f.fechaEntrega], vigenteDesde);
@@ -463,15 +436,7 @@ export async function importarTandaLineas(filas: FilaImportacion[], fechaDatos: 
             linea.id,
             f.entregas.map((e, i) => {
               const tel = e.imei ? porImei.get(e.imei) ?? null : null;
-              const persona = personasAnteriores[i];
-              return {
-                activoId: tel?.id ?? null,
-                empleadoId: persona,
-                // Una persona que no se pudo identificar queda por su nombre.
-                responsable: persona ? null : e.nombre ?? e.ubicacion,
-                sedeId: sedeDelTexto(sedes, e.ubicacion) ?? tel?.sedeId ?? null,
-                desde: fechas[i],
-              };
+              return { activoId: tel?.id ?? null, empleadoId: personasAnteriores[i], desde: fechas[i] };
             }),
             fechas[fechas.length - 1],
             usuario
@@ -480,9 +445,8 @@ export async function importarTandaLineas(filas: FilaImportacion[], fechaDatos: 
           await auditLogService.registrarCreacion('linea', linea.id, `Línea ${numero} importada`, { numero, ...datos, estado: estado.nombre }, usuario, tx);
           return 'nueva' as const;
         }
-        // Solo lo que le falta; el estado no se toca. Con celular no lleva persona ni nota.
+        // Solo lo que le falta; el estado no se toca. Con celular no lleva persona.
         const completables: Record<string, string | number | null> = { ...datos };
-        if (actual.activoId || actual.empleadoId) completables.responsable = null;
         if (actual.activoId || completables.activoId) completables.empleadoId = null;
         const faltan = Object.fromEntries(
           Object.entries(completables).filter(([k, v]) => v !== null && actual[k as keyof typeof actual] === null)
@@ -490,12 +454,12 @@ export async function importarTandaLineas(filas: FilaImportacion[], fechaDatos: 
         if (Object.keys(faltan).length === 0) return 'sin cambios' as const;
         const linea = await tx.lineaTelefonica.update({ where: { id: actual.id }, data: faltan, include: CON_NOMBRES });
         await registrarHistorial(tx, actual, linea, { usuario, vigenteDesde });
-        // Si le puso telefono, persona o sede, cambia su tramo de tenencia (desde ahora).
-        if ('activoId' in faltan || 'empleadoId' in faltan || 'responsable' in faltan || 'sedeId' in faltan) {
+        // Si le puso telefono o persona, cambia su tramo de tenencia (desde ahora).
+        if ('activoId' in faltan || 'empleadoId' in faltan) {
           await cambiarTenencia(
             tx,
             actual.id,
-            { activoId: linea.activoId, empleadoId: linea.empleadoId, responsable: linea.responsable, sedeId: linea.sedeId },
+            { activoId: linea.activoId, empleadoId: linea.empleadoId },
             { desde: new Date(), origen: 'importacion', usuario }
           );
         }

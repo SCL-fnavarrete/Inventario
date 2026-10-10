@@ -21,10 +21,10 @@ import { FILTROS_DATO, SIN_DATO, type FiltrosDato, type ParamFiltroDato } from '
  */
 export const ACTIVOS_VIGENTES = { deletedAt: null } satisfies Prisma.AssetWhereInput;
 
-/** Lineas vigentes de un celular (SPEC 2.131): el numero y el plan son de la linea, no del equipo. */
+/** Lineas vigentes de un celular (SPEC 2.131): el numero es de la linea, no del equipo. */
 export const LINEAS_DEL_EQUIPO = {
   where: { estado: { deBaja: false } },
-  select: { numero: true, plan: { select: { nombre: true } } },
+  select: { id: true, numero: true },
   orderBy: { numero: 'asc' },
 } satisfies Prisma.Asset$lineasArgs;
 
@@ -139,7 +139,6 @@ export function busquedaActivo(palabra: string): Prisma.AssetWhereInput {
       { nombreEquipo: c },
       // Numero de una linea del celular (SPEC 2.131), si lo escrito es un numero.
       ...(/^\+?\d+$/.test(palabra) ? [{ lineas: { some: { numero: { contains: palabra.replace('+', '') } } } }] : []),
-      { ubicacionFisica: c },
       { categoria: { nombre: c } },
       { empleadoActual: { nombres: c } },
       { empleadoActual: { apellidoPaterno: c } },

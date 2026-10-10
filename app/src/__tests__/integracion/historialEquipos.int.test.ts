@@ -45,7 +45,7 @@ describir('historial de equipos, en Postgres', () => {
   const archivo = async (entregas: (string | Date | null)[][]) => {
     const wb = new ExcelJS.Workbook();
     const e = wb.addWorksheet('ENTREGAS');
-    e.addRow(['IMEI', 'Marca', 'Modelo', 'RUT', 'Persona', 'Desde', 'Hasta', '¿Actual?']);
+    e.addRow(['IMEI', 'Marca', 'Modelo', 'RUT', 'Persona', 'Desde', 'Hasta', '¿Actual?', 'Observaciones']);
     entregas.forEach((f) => e.addRow(f));
     const p = wb.addWorksheet('PERSONAS');
     p.addRow(['RUT', 'Nombres', 'Apellido P.', 'Apellido M.', 'Estado', 'Correo empresa', 'Cargo']);
@@ -57,7 +57,7 @@ describir('historial de equipos, en Postgres', () => {
     return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
   };
   const FILAS = (): (string | Date | null)[][] => [
-    [imeiA, 'Motorola', 'G54', ruts.bruno, `Bruno ${apellido}Bruno Soto`, new Date('2024-02-15T00:00:00Z'), new Date('2025-01-10T00:00:00Z'), 'No'],
+    [imeiA, 'Motorola', 'G54', ruts.bruno, `Bruno ${apellido}Bruno Soto`, new Date('2024-02-15T00:00:00Z'), new Date('2025-01-10T00:00:00Z'), 'No', 'Devuelto con la pantalla trizada'],
     [imeiA, 'Motorola', 'G54', ruts.carla, `Carla ${apellido}Carla`, new Date('2025-01-10T00:00:00Z'), new Date('2025-09-01T00:00:00Z'), 'No'],
     // La actual no se importa aqui (la crea Activos) y un periodo sin persona no es una entrega.
     [imeiA, 'Motorola', 'G54', ruts.ana, `Ana ${apellido}`, new Date('2025-09-01T00:00:00Z'), null, 'Sí'],
@@ -105,6 +105,8 @@ describir('historial de equipos, en Postgres', () => {
     expect(asignaciones).toHaveLength(2);
     expect(asignaciones[0]).toMatchObject({ employeeId: bruno.id, activo: false, tipoMovimiento: 'ingreso' });
     expect([dia(asignaciones[0].fechaEntrega), dia(asignaciones[0].fechaDevolucion)]).toEqual(['2024-02-15', '2025-01-10']);
+    // El comentario de la entrega queda en el historial de la persona.
+    expect(asignaciones[0].observacionesDevolucion).toBe('Entrega anterior importada desde Excel: Devuelto con la pantalla trizada');
     expect(asignaciones[1]).toMatchObject({ employeeId: ids.carla, activo: false });
     expect([dia(asignaciones[1].fechaEntrega), dia(asignaciones[1].fechaDevolucion)]).toEqual(['2025-01-10', '2025-09-01']);
 

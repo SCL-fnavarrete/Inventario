@@ -132,6 +132,7 @@ export function guiaDeHistorial(): GuiaImportacion {
           { columna: 'Desde', obligatoria: false, descripcion: 'Fecha de entrega (dd-mm-aaaa). Sin fecha queda "fecha desconocida".', ejemplo: '15-02-2024' },
           { columna: 'Hasta', obligatoria: false, descripcion: 'Fecha en que lo devolvió o pasó a otra persona.', ejemplo: '10-01-2025' },
           { columna: '¿Actual?', obligatoria: true, descripcion: 'No = entrega anterior (se importa). Sí = quien lo tiene hoy (se ignora aquí).', ejemplo: 'No' },
+          { columna: 'Observaciones', obligatoria: false, descripcion: 'Comentario de la entrega (por ejemplo, por qué terminó). Queda en el historial de la persona.', ejemplo: 'Equipo quemado en un incendio' },
         ],
       },
       {

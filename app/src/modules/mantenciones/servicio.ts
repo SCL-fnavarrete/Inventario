@@ -15,7 +15,7 @@ import { mantencionACerrar } from '@/modules/mantenciones/utilidades';
 import { motivoParaBaja } from '@/modules/mantenciones/motivosBaja';
 import { etiquetaResultadoMantencion } from '@/modules/mantenciones/resultados';
 import type {
-  BajaPorMantencionDatos,
+  BajaEquipoDatos,
   CompleteMaintenanceInput,
   CreateMaintenanceInput,
   UpdateMaintenanceInput,
@@ -120,15 +120,67 @@ export async function tipoMantencionImportada() {
   });
 }
 
+/**
+ * Dar de baja un equipo (SPEC 2.140), dentro de una transaccion ya abierta. Sin
+ * mantencion de por medio: el equipo pasa a Baja con su motivo y su fecha, queda
+ * en su historial y en la auditoria, y sus mantenciones abiertas se cancelan.
+ * Quien llama ya reviso motivoSinBaja; la transicion la valida cambiarEstado.
+ * La usan la baja del detalle del equipo y el equipo perdido en una guia.
+ */
+export async function bajaEnTransaccion(
+  tx: PrismaTx,
+  datos: {
+    asset: { id: string; estado: EstadoActivo; marca: string; modelo: string; condicion: string };
+    /** De motivoParaBaja: el motivo de la lista y su texto (SPEC 2.116.5). */
+    motivoBajaId: string;
+    motivoTexto: string;
+    fechaBaja: Date;
+    observaciones?: string | null;
+    usuario: string;
+  }
+) {
+  const { asset, motivoTexto, usuario } = datos;
+  const obs = datos.observaciones?.trim();
+  await cambiarEstado(tx, {
+    activo: asset,
+    a: 'baja',
+    contexto: { motivo: motivoTexto },
+    datos: { fechaBaja: datos.fechaBaja, motivoBajaId: datos.motivoBajaId, motivoBaja: motivoTexto },
+    exigir: { empleadoActualId: null },
+    historial: {
+      tipoEvento: 'baja',
+      descripcion: `Activo dado de baja: ${motivoTexto}${obs ? ` (${obs})` : ''}`,
+      datosAnteriores: { estado: asset.estado },
+      datosNuevos: {
+        estado: 'baja',
+        motivo: motivoTexto,
+        condicionFinal: asset.condicion,
+        fechaBaja: datos.fechaBaja.toISOString(),
+        ...(obs && { observaciones: obs }),
+      },
+      usuarioSistema: usuario,
+    },
+  });
+  await cancelarAbiertasPorBaja(tx, asset.id);
+  await auditLogService.registrarActualizacion(
+    'activo',
+    asset.id,
+    `${asset.marca} ${asset.modelo} dado de baja: ${motivoTexto}`,
+    { estado: asset.estado },
+    { estado: 'baja', motivoBaja: motivoTexto },
+    usuario,
+    tx
+  );
+}
+
 type MantencionAbierta = { id: string; estado: EstadoMantencion; tipo: { id: string; nombre: string } };
 
 /**
- * Los pasos de dar de baja un equipo (SPEC 2.88), dentro de una transaccion
- * ya abierta. Toda baja queda como una mantencion "Sin reparación": se cierra
- * la que corresponde (en proceso o la pendiente mas antigua) o, si no hay, se
- * registra una ya cerrada del tipo indicado; las demas abiertas se cancelan.
+ * Completar una mantencion como "Sin reparación" (SPEC 2.88): cierra esa
+ * mantencion y, como el equipo no se arregla, lo da de baja con su motivo. Es
+ * lo unico que une la baja con una mantencion: dar de baja un equipo sin mas
+ * es `bajaEnTransaccion` (SPEC 2.140). Las demas abiertas se cancelan.
  * Quien llama ya reviso motivoSinBaja; la transicion la valida cambiarEstado.
- * La usan la baja por Mantenciones y el equipo perdido en una guia.
  */
 export async function darDeBajaEnTransaccion(
   tx: PrismaTx,
@@ -193,7 +245,7 @@ export async function darDeBajaEnTransaccion(
     activo: asset,
     a: 'baja',
     contexto: { motivo: motivoTexto },
-    datos: { fechaBaja: datos.fechaRealizada },
+    datos: { fechaBaja: datos.fechaRealizada, motivoBajaId: datos.motivoBajaId, motivoBaja: motivoTexto },
     exigir: { empleadoActualId: null },
   });
 
@@ -469,7 +521,7 @@ export async function eliminarMantencion(id: string, usuario: string) {
  * Completar la mantencion en proceso (SPEC 2.96); una pendiente primero se
  * inicia, que es cuando el equipo entra a mantencion. Segun el resultado:
  * - Faltan repuestos: sigue en proceso con la nota; el equipo sigue en mantencion.
- * - Sin reparacion: da de baja, con los mismos pasos que /api/mantenciones/baja.
+ * - Sin reparacion: cierra la mantencion y da de baja el equipo con su motivo (SPEC 2.88).
  * - Reparado: el equipo vuelve a servicio y, si se indica, queda programada
  *   la proxima.
  */
@@ -671,22 +723,12 @@ export async function programarMantencion(data: CreateMaintenanceInput, usuario:
 }
 
 /**
- * Dar de baja un equipo por Mantenciones (POST /api/mantenciones/baja, SPEC
- * 2.88). Toda baja pasa por una mantencion "Sin reparación": se cierra la
- * abierta o se registra una ya cerrada, en una transaccion junto con el paso
- * del equipo a "baja" (darDeBajaEnTransaccion).
+ * Dar de baja un equipo (POST /api/activos/[id]/baja, SPEC 2.140): sin
+ * mantencion, con su motivo de la lista y su fecha. Solo un equipo sin empleado
+ * asignado (SPEC 2.106).
  */
-export async function darDeBajaPorMantencion(data: BajaPorMantencionDatos, usuario: string) {
-  const asset = await prisma.asset.findUnique({
-    where: { id: data.assetId },
-    include: {
-      maintenances: {
-        where: { estado: { in: ['pendiente', 'en_proceso'] } },
-        include: { tipo: true },
-        orderBy: { createdAt: 'asc' },
-      },
-    },
-  });
+export async function darDeBajaEquipo(assetId: string, data: BajaEquipoDatos, usuario: string) {
+  const asset = await prisma.asset.findUnique({ where: { id: assetId } });
   if (!asset) throw new NotFoundError('Activo no encontrado');
   if (asset.deletedAt) throw new ConflictError('Este activo esta descartado y no admite movimientos');
   // Regla unica de la baja (SPEC 2.106): solo un equipo sin empleado asignado.
@@ -695,32 +737,17 @@ export async function darDeBajaPorMantencion(data: BajaPorMantencionDatos, usuar
 
   // Motivo de la lista (SPEC 2.116.5): "Robo" o "Otro: detalle".
   const { motivoBajaId, motivoTexto } = await motivoParaBaja(prisma, { id: data.motivoBajaId }, data.motivoDetalle);
-  const transicion = validateTransition(asset.estado, 'baja', {
-    hasActiveAssignment: !!asset.empleadoActualId,
-    hasActiveMaintenance: false,
-    motivo: motivoTexto,
-  });
-  if (!transicion.valid) throw new ConflictError(transicion.errors[0]);
-
-  // Tipo de la mantencion nueva, si no hay una abierta que cerrar.
-  const tipo = await prisma.maintenanceType.findUnique({ where: { id: data.tipoId } });
-  if (!tipo && !mantencionACerrar(asset.maintenances)) {
-    throw new NotFoundError('Tipo de mantención no encontrado');
-  }
-
-  const mantencion = await prisma.$transaction((tx) =>
-    darDeBajaEnTransaccion(tx, {
+  await prisma.$transaction((tx) =>
+    bajaEnTransaccion(tx, {
       asset,
-      tipo: tipo ?? asset.maintenances[0].tipo,
       motivoBajaId,
       motivoTexto,
-      resultado: data.observaciones?.trim() || motivoTexto,
-      fechaRealizada: data.fechaRealizada,
-      realizadoPor: data.realizadoPor,
+      fechaBaja: data.fechaBaja,
+      observaciones: data.observaciones,
       usuario,
     })
   );
-  return { mantencion, assetId: asset.id };
+  return { assetId: asset.id };
 }
 
 /**

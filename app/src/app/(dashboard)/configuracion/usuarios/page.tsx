@@ -12,7 +12,7 @@ import { formatearFechaHoraCorta } from "@/shared/utilidades/fechas";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { Button } from "@/shared/ui/Button";
 import { ActiveBadge } from "@/shared/ui/Badge";
-import { TablaAdaptable } from "@/shared/ui/TablaAdaptable";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import {
   CampoFormulario,
@@ -544,7 +544,7 @@ export default function UsuariosPage() {
       )}
 
       {/* Tabla de usuarios */}
-      <TablaAdaptable
+      <TablaDatos
         items={users}
         clave={(u) => u.id}
         vacio="No hay usuarios registrados"

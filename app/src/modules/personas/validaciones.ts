@@ -134,3 +134,29 @@ export const employeeFiltersSchema = z.object({
 export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>;
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>;
 export type EmployeeFilters = z.infer<typeof employeeFiltersSchema>;
+
+// Listas de opciones de los datos de una persona (SPEC 2.142). Cada una apunta
+// al campo de la persona donde se guarda el nombre elegido.
+export const TIPOS_OPCION_PERSONA = {
+  supervisor: { campo: "supervisor", etiqueta: "Supervisor", titulo: "Supervisores" },
+  division: { campo: "division", etiqueta: "División", titulo: "Divisiones" },
+  area: { campo: "area", etiqueta: "Área", titulo: "Áreas" },
+  sub_area: { campo: "subArea", etiqueta: "Sub-área", titulo: "Sub-áreas" },
+  lista_distribucion: { campo: "listasDistribucion", etiqueta: "Lista de distribución", titulo: "Listas de distribución" },
+} as const;
+export type TipoOpcionPersona = keyof typeof TIPOS_OPCION_PERSONA;
+export const tipoOpcionPersonaSchema = z.enum(Object.keys(TIPOS_OPCION_PERSONA) as [TipoOpcionPersona, ...TipoOpcionPersona[]]);
+
+/** Los nombres de una lista de distribucion: separados por coma. */
+export const nombresDeLista = (texto: string | null | undefined) =>
+  (texto ?? "").split(",").map((n) => n.trim()).filter(Boolean);
+
+// Una lista de distribucion se guarda separada por coma: el nombre no puede llevar una.
+export const opcionPersonaSchema = z.object({
+  nombre: z
+    .string()
+    .trim()
+    .min(1, "Escribe el nombre")
+    .max(100, "Máximo 100 caracteres")
+    .refine((n) => !n.includes(","), "No puede llevar comas"),
+});

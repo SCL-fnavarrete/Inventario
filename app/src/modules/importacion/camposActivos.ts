@@ -105,8 +105,6 @@ export const CAMPOS_ACTIVO: CampoActivo[] = [
     descripcion: 'Tamaño de la pantalla, en pulgadas.' },
 
   // ---- Celular
-  { key: 'numeroActivacion', etiqueta: 'Nro Activación', grupo: 'extra', fichas: ['celular'], columna: 'Nro Activación', ejemplo: '123456', alias: ['nro activacion', 'numero activacion', 'activacion'],
-    descripcion: 'Número de activación del plan del celular.' },
   { key: 'cargador', etiqueta: 'Cargador', grupo: 'extra', fichas: ['celular'], columna: 'Cargador', ejemplo: 'Sí', alias: [],
     descripcion: 'Si se entregó cargador junto con el celular.' },
   { key: 'lugarEntrega', etiqueta: 'Lugar Entrega', grupo: 'extra', fichas: ['celular'], columna: 'Lugar Entrega', ejemplo: 'Oficina Santiago', alias: ['lugar entrega', 'lugar'],

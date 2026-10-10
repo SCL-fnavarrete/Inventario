@@ -35,7 +35,6 @@ export const PALABRA_CANONICA_ESTADO: Record<Exclude<EstadoActivo, "en_transito"
   asignado: "asignado",
   en_mantencion: "en mantencion",
   baja: "baja",
-  vendido: "vendido",
   no_devuelto: "no devuelto",
 };
 
@@ -59,6 +58,8 @@ const SINONIMOS_ESTADO: Record<string, EstadoActivo> = {
   "en reparacion": "en_mantencion",
   "de baja": "baja",
   "dado de baja": "baja",
+  // El estado Vendido ya no existe (SPEC 2.141): un equipo vendido es uno de baja.
+  vendido: "baja",
   "no devolvio": "no_devuelto",
   "no se devolvio": "no_devuelto",
   "sin devolver": "no_devuelto",

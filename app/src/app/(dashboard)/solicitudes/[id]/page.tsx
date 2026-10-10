@@ -20,9 +20,37 @@ import { ApiErrorSummary } from '@/shared/ui/ApiErrorSummary';
 import { formatearFecha } from "@/shared/utilidades/fechas";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { VentanaMotivo } from '@/shared/ui/VentanaMotivo';
+import { formatearNumero } from '@/modules/lineas';
 import { FilaEquipoTicket, TicketSolicitud, type AsignacionFila } from '@/modules/solicitudes/componentes';
 import { documentoDeSolicitud } from '@/modules/solicitudes';
 import { logger } from "@/shared/logger";
+
+// Una linea que entrego o cambio la solicitud (SPEC 2.143).
+type LineaDeSolicitud = {
+  id: string;
+  numero: string;
+  tipoChip: { nombre: string; sinCelular: boolean } | null;
+  operador: { nombre: string } | null;
+  activo: { id: string; marca: string; modelo: string } | null;
+};
+
+/** Numero de una linea con enlace a su ficha. */
+function EnlaceLinea({ linea }: { linea: { id: string; numero: string } }) {
+  return (
+    <Link href={`/activos/lineas/${linea.id}`} className="font-medium text-primary-700 hover:underline">
+      {formatearNumero(linea.numero)}
+    </Link>
+  );
+}
+
+/** Celular donde esta una linea, con enlace a su ficha. */
+function EnlaceCelular({ activo }: { activo: { id: string; marca: string; modelo: string } }) {
+  return (
+    <Link href={`/activos/${activo.id}`} className="text-primary-700 hover:underline">
+      {activo.marca} {activo.modelo}
+    </Link>
+  );
+}
 
 type WorkflowDetail = {
   id: string;
@@ -117,6 +145,12 @@ type WorkflowDetail = {
   // Equipos de ESTE ticket (assignmentIds), no los que el empleado tiene hoy:
   // lo entregado en un onboarding y lo devuelto en una desvinculacion.
   equiposEntregados: AsignacionFila[];
+  // Lineas que entrego la solicitud: la eSIM de la persona o el chip de cada celular (SPEC 2.143).
+  lineasEntregadas: LineaDeSolicitud[];
+  // Lineas que cambio un Cambio de equipo: la anterior y la que la reemplazo (SPEC 2.143).
+  lineasCambiadas: { anterior: LineaDeSolicitud | null; nueva: LineaDeSolicitud | null }[];
+  // Lineas que volvieron dentro de los celulares devueltos en el cambio.
+  lineasDevueltas: LineaDeSolicitud[];
   equiposDevueltos: AsignacionFila[];
   // Mismo caso para el EPP devuelto en este ticket (ver kitReturnIds).
   eppDevueltos: {
@@ -585,6 +619,30 @@ export default function SolicitudDetailPage() {
             </div>
           )}
 
+          {/* Lineas entregadas: aparte de los equipos; una eSIM sola o el chip de cada celular. */}
+          {(data.tipo === 'onboarding' || data.tipo === 'cambio_equipo') && data.lineasEntregadas?.length > 0 && (
+            <div className="card p-6">
+              <h3 className="font-semibold text-fg mb-4">
+                Líneas Entregadas ({data.lineasEntregadas.length})
+              </h3>
+              <div className="space-y-2">
+                {data.lineasEntregadas.map((l) => (
+                  <div key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-muted p-3 text-sm">
+                    <div>
+                      <EnlaceLinea linea={l} />
+                      <span className="ml-2 text-xs text-fg-subtle">
+                        {[l.tipoChip?.nombre, l.operador?.nombre].filter(Boolean).join(' · ')}
+                      </span>
+                    </div>
+                    <span className="text-xs text-fg-muted">
+                      {l.activo ? <>En el celular <EnlaceCelular activo={l.activo} /></> : 'Con la persona (usa su propio teléfono)'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Equipos Devueltos: lo que ya se recibio y califico en este
               ticket de offboarding, con su estado y observaciones -- para
               que quede a la vista sin tener que ir al modulo de
@@ -656,6 +714,61 @@ export default function SolicitudDetailPage() {
                     {nuevo && (
                       <FilaEquipoTicket asignacion={nuevo} modo="entrega" prefijo="Nuevo" destacado />
                     )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Lineas Cambiadas: cada linea que salio y la que la reemplazo (SPEC 2.143). */}
+          {data.tipo === 'cambio_equipo' && data.lineasCambiadas?.length > 0 && (
+            <div className="card p-6">
+              <h3 className="font-semibold text-fg mb-4">
+                {data.lineasCambiadas.length > 1 ? `Líneas Cambiadas (${data.lineasCambiadas.length})` : 'Línea Cambiada'}
+              </h3>
+              <div className="space-y-4">
+                {data.lineasCambiadas.map(({ anterior, nueva }, i) => (
+                  <div key={anterior?.id ?? nueva?.id ?? i} className="space-y-2">
+                    {([['Anterior', anterior, false], ['Nueva', nueva, true]] as const).map(
+                      ([prefijo, l, destacada]) =>
+                        l && (
+                          <div
+                            key={prefijo}
+                            className={`flex flex-wrap items-center justify-between gap-2 rounded-lg p-3 text-sm ${destacada ? 'bg-primary-50' : 'bg-surface-muted'}`}
+                          >
+                            <div>
+                              <span className="text-xs text-fg-subtle">{prefijo}: </span>
+                              <EnlaceLinea linea={l} />
+                              <span className="ml-2 text-xs text-fg-subtle">
+                                {[l.tipoChip?.nombre, l.operador?.nombre].filter(Boolean).join(' · ')}
+                              </span>
+                            </div>
+                            <span className="text-xs text-fg-muted">
+                              {destacada
+                                ? l.activo
+                                  ? <>En el celular <EnlaceCelular activo={l.activo} /></>
+                                  : 'Con la persona (usa su propio teléfono)'
+                                : 'Quedó disponible'}
+                            </span>
+                          </div>
+                        )
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {data.tipo === 'cambio_equipo' && data.lineasDevueltas?.length > 0 && (
+            <div className="card p-6">
+              <h3 className="font-semibold text-fg mb-4">Líneas Devueltas ({data.lineasDevueltas.length})</h3>
+              <div className="space-y-2">
+                {data.lineasDevueltas.map((l) => (
+                  <div key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-muted p-3 text-sm">
+                    <EnlaceLinea linea={l} />
+                    <span className="text-xs text-fg-muted">
+                      Vuelve con el celular {l.activo && <EnlaceCelular activo={l.activo} />}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -1282,9 +1395,9 @@ export default function SolicitudDetailPage() {
               <div className="space-y-2">
                 {data.employee.assignments.map((a) => (
                   <div key={a.id} className="text-sm p-2 bg-surface-muted rounded">
-                    <span className="font-medium">
+                    <Link href={`/activos/${a.asset.id}`} className="font-medium text-primary-700 hover:underline">
                       {a.asset.marca} {a.asset.modelo}
-                    </span>
+                    </Link>
                     <span className="block text-xs text-fg-subtle">
                       {a.asset.categoria.nombre}
                       {a.asset.numeroSerie ? ` · S/N: ${a.asset.numeroSerie}` : a.asset.imei ? ` · IMEI: ${a.asset.imei}` : ""}

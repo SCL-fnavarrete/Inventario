@@ -13,15 +13,18 @@ import { CatalogSelect } from "@/shared/ui/CatalogSelect";
 
 export type MotivoBaja = { id: string; nombre: string; clave: string | null };
 
+/** Lista de motivos de baja de los equipos; la de las lineas tiene la suya (SPEC 2.140). */
+const ENDPOINT_EQUIPOS = "/api/motivos-baja";
+
 /** Motivos activos, para el selector. */
-export function useMotivosBaja() {
+export function useMotivosBaja(endpoint: string = ENDPOINT_EQUIPOS) {
   const [motivos, setMotivos] = useState<MotivoBaja[]>([]);
   useEffect(() => {
-    fetch("/api/motivos-baja?activas=true")
+    fetch(`${endpoint}?activas=true`)
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => setMotivos(Array.isArray(data) ? data : []))
       .catch(() => setMotivos([]));
-  }, []);
+  }, [endpoint]);
   return motivos;
 }
 
@@ -41,7 +44,13 @@ export function CamposMotivoBaja({
   onMotivo,
   onDetalle,
   errores,
+  endpoint = ENDPOINT_EQUIPOS,
+  de = "el equipo",
 }: {
+  /** Lista de donde sale el motivo: la de los equipos o la de las lineas. */
+  endpoint?: string;
+  /** De quien es la baja, para el texto de ayuda ("el equipo", "la línea"). */
+  de?: string;
   motivos: MotivoBaja[];
   motivoBajaId: string;
   detalle: string;
@@ -60,7 +69,7 @@ export function CamposMotivoBaja({
             sistema operativo o el antivirus de un activo. */}
         <CatalogSelect
           id={idMotivo}
-          endpoint="/api/motivos-baja"
+          endpoint={endpoint}
           usarId
           value={motivoBajaId}
           onChange={onMotivo}
@@ -75,7 +84,7 @@ export function CamposMotivoBaja({
         onChange={onDetalle}
         error={errores.motivoDetalle}
         maxLength={500}
-        placeholder={pideDetalle ? "Describe por qué se da de baja" : "Opcional: qué pasó con el equipo"}
+        placeholder={pideDetalle ? "Describe por qué se da de baja" : `Opcional: qué pasó con ${de}`}
       />
     </>
   );

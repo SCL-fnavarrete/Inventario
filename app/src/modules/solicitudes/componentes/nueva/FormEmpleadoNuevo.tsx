@@ -1,7 +1,9 @@
 "use client";
 
+import type { TipoOpcionPersona } from "@/modules/personas";
 import { CampoFormulario, CampoTexto, claseInput } from "@/shared/ui/CampoFormulario";
 import type { NEW_EMPLOYEE_INITIAL } from "@/modules/solicitudes/componentes/nueva/datos";
+import { SelectorOpcionPersona } from "@/modules/solicitudes/componentes/nueva/SelectorOpcionPersona";
 
 export type EmpleadoNuevo = typeof NEW_EMPLOYEE_INITIAL;
 
@@ -38,6 +40,10 @@ export function FormEmpleadoNuevo({
     />
   );
   const obligatorio = { obligatorio: true };
+  // Campo que se elige de una lista (SPEC 2.142), con su error y su cambio.
+  const lista = (nombre: keyof EmpleadoNuevo, tipo: TipoOpcionPersona, label: string, extra: { obligatorio?: boolean; multiple?: boolean } = {}) => (
+    <SelectorOpcionPersona tipo={tipo} label={label} value={valor[nombre]} onChange={(v) => onCambiar(nombre, v)} error={errores[nombre]} {...extra} />
+  );
 
   return (
     <div className="space-y-4">
@@ -82,17 +88,17 @@ export function FormEmpleadoNuevo({
         />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {campo("division", "División", { placeholder: "Ej: SCL" })}
-        {campo("area", "Área", { placeholder: "Ej: RPA y Soporte IT" })}
-        {campo("subArea", "Sub-Área", { placeholder: "Ej: RPA" })}
+        {lista("division", "division", "División")}
+        {lista("area", "area", "Área")}
+        {lista("subArea", "sub_area", "Sub-Área")}
       </div>
-      {campo("supervisor", "Supervisor", { obligatorio: true, placeholder: "Nombre del supervisor directo" })}
+      {lista("supervisor", "supervisor", "Supervisor", obligatorio)}
       {campo("telefonoContacto", "Celular Contacto", { obligatorio: true, placeholder: "+56 9 1234 5678" })}
       {campo("direccionParticular", "Dirección Particular", {
         obligatorio: true,
         placeholder: "Incluir comuna y región",
       })}
-      {campo("listasDistribucion", "Listas de Distribución", { placeholder: "Ej: SCL Masivo, Corporativo..." })}
+      {lista("listasDistribucion", "lista_distribucion", "Listas de Distribución", { multiple: true })}
     </div>
   );
 }

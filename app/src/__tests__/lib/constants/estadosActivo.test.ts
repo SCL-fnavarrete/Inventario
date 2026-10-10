@@ -40,9 +40,8 @@ describe('motivoSinBaja (SPEC 2.106: solo un equipo sin empleado asignado)', () 
     expect(con('no_devuelto')).toMatch(/recupéralo con una solicitud/);
   });
 
-  test('baja y vendido ya no admiten baja', () => {
+  test('uno que ya está de baja no admite otra baja', () => {
     expect(sin('baja')).toMatch(/Ya está dado de baja/);
-    expect(sin('vendido')).toMatch(/Ya fue vendido/);
   });
 });
 
@@ -53,9 +52,8 @@ describe('motivoSinMantencion', () => {
     expect(motivoSinMantencion('en_mantencion')).toBeNull();
   });
 
-  test('no devuelto, baja y vendido no, con el motivo en palabras', () => {
+  test('no devuelto y baja no, con el motivo en palabras', () => {
     expect(motivoSinMantencion('no_devuelto')).toMatch(/recupéralo con una solicitud/);
     expect(motivoSinMantencion('baja')).toMatch(/dado de baja/);
-    expect(motivoSinMantencion('vendido')).toMatch(/vendido/);
   });
 });

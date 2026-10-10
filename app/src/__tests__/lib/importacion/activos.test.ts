@@ -60,7 +60,8 @@ describe("interpretarEstado", () => {
 describe("resolverEstado", () => {
   it("respeta el estado cuando el Excel lo dice explicitamente", () => {
     expect(resolverEstado({ tipo: "estado", estado: "baja" }, true)).toBe("baja");
-    expect(resolverEstado({ tipo: "estado", estado: "vendido" }, false)).toBe("vendido");
+    // El estado Vendido ya no existe: la palabra del Excel se lee como Baja (SPEC 2.141).
+    expect(resolverEstado(interpretarEstado("Vendido"), false)).toBe("baja");
   });
 
   it("deduce el estado del RUT cuando la columna traia una condicion", () => {
@@ -89,7 +90,7 @@ describe("resolverEstado", () => {
     expect(resolverEstado(disponible, true)).toBe("asignado");
     expect(disponibleConPersona(disponible, true)).toBe(true);
     expect(resolverEstado(disponible, false)).toBe("disponible");
-    // Baja y vendido no cambian: con persona, la fila se detiene antes.
+    // Baja no cambia: con persona, la fila se detiene antes.
     expect(estadoFinal(interpretarEstado("Baja"))).toBe(true);
     expect(estadoFinal(disponible)).toBe(false);
     expect(resolverEstado({ tipo: "estado", estado: "no_devuelto" }, true)).toBe("no_devuelto");

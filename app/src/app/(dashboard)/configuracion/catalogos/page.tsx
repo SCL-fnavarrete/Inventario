@@ -23,9 +23,7 @@ function Categorias() {
   const pedida = useSearchParams().get("tab");
 
   useEffect(() => {
-    // Los motivos de baja pasaron a Mantenciones (SPEC 2.116.5).
-    if (pedida === "motivos-baja") router.replace("/mantenciones/motivos-baja");
-    else if (pedida && pedida in CATALOGOS_EQUIPO) router.replace(`/activos/catalogos?tab=${pedida}`);
+    if (pedida && pedida in CATALOGOS_EQUIPO) router.replace(`/activos/catalogos?tab=${pedida}`);
   }, [pedida, router]);
 
   return (

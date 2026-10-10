@@ -33,3 +33,4 @@ export {
   type TextosCatalogo,
 } from '@/modules/activos/componentes/OpcionesCatalogo';
 export { SelectCondicionCargador } from '@/modules/activos/componentes/SelectCondicionCargador';
+export { TablaActivos, type ActivoFila } from '@/modules/activos/componentes/TablaActivos';

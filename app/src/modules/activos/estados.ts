@@ -15,7 +15,6 @@ export const ESTADO_ACTIVO_LABEL: Record<EstadoActivo, string> = {
   en_mantencion: 'En Mantención',
   no_devuelto: 'No devuelto',
   baja: 'Baja',
-  vendido: 'Vendido',
   en_transito: 'En tránsito',
   por_repartir: 'Por repartir',
 };
@@ -27,7 +26,6 @@ export const ESTADO_ACTIVO_BADGE: Record<EstadoActivo, string> = {
   en_mantencion: 'bg-amber-50 text-amber-800 border-amber-200',
   no_devuelto: 'bg-orange-50 text-orange-800 border-orange-200',
   baja: 'bg-red-50 text-red-800 border-red-200',
-  vendido: 'bg-gray-100 text-fg-muted border-line',
   en_transito: 'bg-sky-50 text-sky-800 border-sky-200',
   por_repartir: 'bg-purple-50 text-purple-800 border-purple-200',
 };
@@ -43,7 +41,6 @@ export const ESTADO_ACTIVO_COLOR: Record<EstadoActivo, string> = {
   en_mantencion: '#f59e0b',
   no_devuelto: '#ea580c',
   baja: '#ef4444',
-  vendido: '#6b7280',
   en_transito: '#0ea5e9',
   por_repartir: '#a855f7',
 };
@@ -105,8 +102,6 @@ export function motivoSinBaja(activo: {
       return 'No fue devuelto: primero recupéralo con una solicitud de desvinculación.';
     case 'baja':
       return 'Ya está dado de baja.';
-    case 'vendido':
-      return 'Ya fue vendido.';
     case 'en_transito':
       return 'Está en tránsito en un despacho: si se perdió, márcalo en Despachos.';
     case 'por_repartir':
@@ -135,8 +130,8 @@ export function motivoSinEliminar(activo: { estado: string; usos: number }): str
 /**
  * Por que un equipo no puede recibir una mantencion, o null si puede (SPEC
  * 2.96). Sirve para programarla y para iniciarla: un equipo que no esta en
- * poder de la empresa (no devuelto) o que ya salio del inventario (baja,
- * vendido) no se mantiene. La usan la API y la pantalla Programar.
+ * poder de la empresa (no devuelto) o que ya salio del inventario (baja) no
+ * se mantiene. La usan la API y la pantalla Programar.
  */
 export function motivoSinMantencion(estado: string): string | null {
   switch (estado) {
@@ -148,8 +143,6 @@ export function motivoSinMantencion(estado: string): string | null {
       return 'No fue devuelto: primero recupéralo con una solicitud de desvinculación.';
     case 'baja':
       return 'Está dado de baja.';
-    case 'vendido':
-      return 'Fue vendido.';
     case 'en_transito':
       return 'Está en tránsito en un despacho: espera a que llegue.';
     case 'por_repartir':

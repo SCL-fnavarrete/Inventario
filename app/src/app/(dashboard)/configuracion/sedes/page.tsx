@@ -9,7 +9,7 @@ import { Button } from "@/shared/ui/Button";
 import { ActiveBadge } from "@/shared/ui/Badge";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { PageHeader } from "@/shared/ui/PageHeader";
-import { TablaAdaptable } from "@/shared/ui/TablaAdaptable";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { CampoTexto, ResumenErrores } from "@/shared/ui/CampoFormulario";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { useEnvio } from "@/shared/hooks/useEnvio";
@@ -191,7 +191,7 @@ export default function SedesPage() {
       {cargando ? (
         <p className="card px-6 py-8 text-center text-fg-subtle">Cargando...</p>
       ) : (
-        <TablaAdaptable
+        <TablaDatos
           items={sedes}
           clave={(s) => s.id}
           vacio="No hay sedes registradas"

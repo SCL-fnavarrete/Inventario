@@ -125,7 +125,6 @@ td.no { color: var(--fg-subtle); }
 .chip.mant { background: var(--warn-soft); color: var(--warn); }
 .chip.nodev { background: #fdeadb; color: #b4561a; }
 .chip.baja { background: var(--danger-soft); color: var(--danger); }
-.chip.vend { background: var(--surface-2); color: var(--fg-muted); }
 .chip.trans { background: #e1f3fb; color: #0e7aa6; }
 .chip.repar { background: #f1e6fb; color: #7a3fb4; }
 :root[data-theme="dark"] .chip.nodev, :root[data-theme="dark"] .chip.trans, :root[data-theme="dark"] .chip.repar { background: var(--surface-2); }
@@ -196,7 +195,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
           <li><a href="#programar">Programar</a></li>
           <li><a href="#completar">Completar</a></li>
           <li><a href="#baja">Dar de baja</a></li>
-          <li><a href="#tipos-motivos">Tipos y motivos</a></li>
+          <li><a href="#tipos-motivos">Tipos de mantención</a></li>
         </ol>
       </li>
       <li><a href="#compras">Compras</a></li>
@@ -263,7 +262,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
         <button class="captura larga" type="button"><img src="img/02-dashboard.jpg" alt="Dashboard con alertas, totales y gráficos" loading="lazy"></button>
         <figcaption>Alertas arriba, totales y gráficos debajo.</figcaption>
       </figure>
-      <p><b>Alertas</b>: mantenciones vencidas y próximas, stock bajo de Kit/EPP y de equipos, <b>equipos sin sede</b> y <b>líneas por confirmar</b>.</p>
+      <p><b>Alertas</b>: mantenciones vencidas y próximas, stock bajo de Kit/EPP y de equipos, <b>equipos sin sede</b> y <b>líneas para revisar</b>.</p>
     </section>
 
     <section class="capitulo" id="activos" aria-labelledby="t-activos">
@@ -301,8 +300,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
             <tr><td><span class="chip nodev">No devuelto</span></td><td>En un Offboarding, si la persona no lo devolvió.</td></tr>
             <tr><td><span class="chip trans">En tránsito</span></td><td>Con un despacho, hasta que llega.</td></tr>
             <tr><td><span class="chip repar">Por repartir</span></td><td>Recién comprado, hasta repartirlo.</td></tr>
-            <tr><td><span class="chip baja">Baja</span></td><td>Desde Mantenciones o al devolverlo <b>dañado</b> (con su motivo).</td></tr>
-            <tr><td><span class="chip vend">Vendido</span></td><td>Desde un equipo de baja, con “Registrar venta”.</td></tr>
+            <tr><td><span class="chip baja">Baja</span></td><td>Con <b>Dar de baja</b> en su ficha, al completar una mantención como <b>Sin reparación</b> o al devolverlo <b>dañado</b>. Siempre con su motivo.</td></tr>
           </tbody>
         </table>
       </div>
@@ -323,40 +321,31 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
       <ul>
         <li><b>Editar</b> corrige datos, no el estado. Si el equipo <b>no tiene sede</b>, aquí se le asigna una vez; después cambia solo con un despacho.</li>
         <li><b>Eliminar</b> (administrador) solo aparece en un equipo disponible que nunca se usó.</li>
-        <li><b>Registrar venta</b>: en un equipo de baja, con comprador, monto y fecha.</li>
       </ul>
-      <div class="dos">
-        <figure>
-          <button class="captura larga" type="button"><img src="img/08-activo-editar.jpg" alt="Editar un equipo" loading="lazy"></button>
-          <figcaption>Editar.</figcaption>
-        </figure>
-        <figure id="venta">
-          <button class="captura" type="button"><img src="img/09-activo-venta.jpg" alt="Registrar venta" loading="lazy"></button>
-          <figcaption>Registrar venta.</figcaption>
-        </figure>
-      </div>
+      <figure>
+        <button class="captura larga" type="button"><img src="img/08-activo-editar.jpg" alt="Editar un equipo" loading="lazy"></button>
+        <figcaption>Editar.</figcaption>
+      </figure>
 
       <h3 id="lineas">Líneas telefónicas</h3>
-      <p>Cada línea tiene número, plan, precio, estado, tipo de chip y operador. Un <b>chip físico</b> va en un celular y la usa quien tiene ese celular. Una <b>eSIM</b> se asocia directo a una persona. Sin persona, la línea está <b>disponible</b>.</p>
+      <p>Cada línea tiene número, operador, tipo de chip y estado (Activa o Baja). No tiene sede propia: se ve la de su celular o, en una eSIM, la de su persona. Un <b>chip físico</b> va en un celular y la usa quien tiene ese celular. Una <b>eSIM</b> se asocia directo a una persona. Sin persona, la línea está <b>disponible</b>.</p>
       <figure>
         <button class="captura" type="button"><img src="img/53-lineas.jpg" alt="Listado de líneas" loading="lazy"></button>
-        <figcaption>Tarjetas que filtran (Activas, Por confirmar, Sin asignar, Para revisar…), filtros combinables, costos y desgloses.</figcaption>
+        <figcaption>Tarjetas que filtran (Activas, Disponibles, De baja), filtros combinables (incluido el <b>motivo de baja</b>) y desgloses.</figcaption>
       </figure>
       <ul>
         <li><b>Nueva línea</b>: con un chip físico se elige un celular sin persona; con eSIM, una persona activa.</li>
-        <li><b>Editar</b> (lápiz): precio, plan o estado, indicando desde cuándo rige (así el costo mensual cuadra).</li>
+        <li><b>Editar</b> (lápiz): número, operador, tipo de chip y observaciones. También sirve para volver a activar una línea de baja.</li>
         <li><b>Asignar</b>: solo en una línea disponible. Una línea con persona cambia con las <a href="#solicitudes">solicitudes</a>: sigue a su celular, y las eSIM se liberan en el Offboarding.</li>
-        <li><b>Para revisar</b>: líneas que se pagan pero están en un celular de baja o con alguien que ya se fue.</li>
+        <li><b>Dar de baja</b>: igual que en un equipo, eliges el <b>motivo</b> de la lista (con <b>+</b> agregas uno; “Otro” pide detalle), la fecha y unas observaciones opcionales. Queda en su historial.</li>
       </ul>
       <div class="tabla">
         <table>
           <thead><tr><th>Estado de la línea</th><th>Significa</th></tr></thead>
           <tbody>
             <tr><td>Activa</td><td>Contratada y funcionando.</td></tr>
-            <tr><td>Suspendida</td><td>En pausa por un tiempo (chip perdido, falta de pago); sigue contratada.</td></tr>
-            <tr><td>En portabilidad</td><td>Cambiándose de compañía.</td></tr>
-            <tr><td>Por confirmar</td><td>No se sabe si sigue contratada o quién la usa.</td></tr>
-            <tr><td>Dada de baja</td><td>Contrato terminado; ya no se paga.</td></tr>
+            <tr><td>Baja</td><td>Contrato terminado; ya no se usa. Guarda su motivo y su fecha.</td></tr>
+            <tr><td>Disponible</td><td>No es un estado: es una línea activa sin persona, lista para asignar.</td></tr>
           </tbody>
         </table>
       </div>
@@ -411,9 +400,10 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
 
       <h3 id="onboarding">Onboarding: entregar a una persona nueva</h3>
       <ol class="pasos">
-        <li>Datos de la persona (o <b>reincorporación</b> si ya trabajó aquí) y el ID del ticket.</li>
-        <li>Elige el equipo de cada categoría (y el estado del cargador) y, si corresponde, Kit/EPP.</li>
-        <li>Coordina la entrega y pulsa <b>Crear Solicitud</b>: los equipos quedan <span class="chip asig">Asignados</span>.</li>
+        <li>Datos de la persona (o <b>reincorporación</b> si ya trabajó aquí) y el ID del ticket. Supervisor, división, área, sub-área y listas de distribución se eligen de una lista; si falta una, agrégala en <b>Solicitudes › Catálogos</b>.</li>
+        <li>Elige el equipo de cada categoría (cada una tiene su buscador) y, si corresponde, Kit/EPP. El estado del cargador se pregunta solo con notebooks y celulares. Si el celular no tiene línea, debes elegirle un chip físico (con buscador); si ya trae chip, se entrega con él. En Onboarding, al pedir un celular se elige «Chip físico» (celular de la empresa) o «eSIM» (la persona usa su propio teléfono: no se entrega equipo y la eSIM queda con ella).</li>
+        <li>Coordina la entrega e indica la <b>ubicación física</b> donde quedan los equipos con la persona (ciudad, oficina o domicilio).</li>
+        <li>Pulsa <b>Crear Solicitud</b>: los equipos quedan <span class="chip asig">Asignados</span>.</li>
       </ol>
       <figure>
         <button class="captura larga" type="button"><img src="img/19-solicitud-onboarding.jpg" alt="Formulario de onboarding" loading="lazy"></button>
@@ -421,7 +411,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
       </figure>
 
       <h3 id="cambio">Cambio de equipo</h3>
-      <p>Marca el equipo que se cambia, elige en qué estado vuelve y su reemplazo (misma categoría y sede).</p>
+      <p>Marca el equipo que se cambia, elige en qué estado vuelve y su reemplazo (misma categoría y sede; la lista tiene un <b>buscador</b> por marca, modelo, serie o IMEI).</p>
       <div class="tabla">
         <table>
           <thead><tr><th>Vuelve…</th><th>Qué pasa</th></tr></thead>
@@ -459,7 +449,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
 
     <section class="capitulo" id="mantenciones" aria-labelledby="t-mant">
       <h2 id="t-mant"><span class="num">08</span>Mantenciones</h2>
-      <p class="intro">Revisiones y reparaciones de equipos en uso, y bajas. Pestañas: Listado, Calendario, Tipos y Motivos de baja.</p>
+      <p class="intro">Revisiones y reparaciones de equipos en uso, y bajas. Pestañas: Listado, Calendario y Tipos.</p>
       <figure>
         <button class="captura" type="button"><img src="img/25-mantenciones.jpg" alt="Listado de mantenciones" loading="lazy"></button>
         <figcaption>Las tarjetas filtran vencidas, próximas, en proceso y completadas.</figcaption>
@@ -476,10 +466,10 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
       </figure>
 
       <h3 id="baja">Dar de baja</h3>
-      <p>Para un equipo sin persona asignada: desde su ficha o desde Mantenciones, elige el <b>motivo</b> (con <b>+</b> agregas uno) y pulsa <b>Dar de baja</b>. Sus mantenciones pendientes se cancelan.</p>
+      <p>Para un equipo sin persona asignada: desde su ficha (o desde Mantenciones), elige el <b>motivo</b> (con <b>+</b> agregas uno), la fecha y pulsa <b>Dar de baja</b>. No pasa por una mantención: el equipo queda en Baja con su motivo y sus mantenciones pendientes se cancelan.</p>
 
-      <h3 id="tipos-motivos">Tipos y motivos de baja</h3>
-      <p>Listas que ajustan el administrador y los técnicos. Uno que ya se usó se desactiva, no se borra.</p>
+      <h3 id="tipos-motivos">Tipos de mantención</h3>
+      <p>Lista que ajustan el administrador y los técnicos. Uno que ya se usó se desactiva, no se borra. Los <b>motivos de baja</b> de los equipos están en <b>Activos › Catálogos</b>, en la pestaña “Motivos de baja”.</p>
     </section>
 
     <section class="capitulo" id="compras" aria-labelledby="t-comp">

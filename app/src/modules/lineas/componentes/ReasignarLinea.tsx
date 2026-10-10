@@ -9,6 +9,7 @@ import {
   nombreCelular,
   nombrePersona,
   personaDe,
+  sedeDe,
   type LineaLista,
   type OpcionesLinea,
 } from "@/modules/lineas/componentes/tipos";
@@ -25,30 +26,31 @@ import { useToast } from "@/shared/ui/Toast";
  * Asignar una linea disponible (SPEC 2.131): solo una sin persona. Segun su tipo
  * de chip, un chip fisico va a un celular sin asignar (la persona la recibe
  * cuando una solicitud le entrega ese celular) y una eSIM a una persona activa;
- * tambien puede quedar sin asignar (sacar el chip). Se indica la sede. Una linea
+ * tambien puede quedar sin asignar (sacar el chip). Una linea
  * asignada cambia de persona con las solicitudes. Queda anotado, con la fecha,
  * el motivo y quien lo hizo.
  */
 
 type Destino = DestinoLinea;
 
-const ETIQUETAS = { destino: "Destino", activoId: "Teléfono", empleadoId: "Persona", sedeId: "Sede", desde: "Desde cuándo", motivoId: "Motivo" };
+const ETIQUETAS = { destino: "Destino", activoId: "Teléfono", empleadoId: "Persona", desde: "Desde cuándo", motivoId: "Motivo" };
 
 const DESTINOS: { valor: Destino; titulo: string; ayuda: string }[] = [
   { valor: "telefono", titulo: "A un celular sin asignar", ayuda: "Un celular de bodega. La persona recibe la línea cuando una solicitud le entrega ese celular." },
   { valor: "persona", titulo: "A una persona", ayuda: "Con su eSIM, en su teléfono personal." },
-  { valor: "ninguno", titulo: "Sin asignar", ayuda: "Se saca el chip: queda disponible, por ejemplo en una bodega (indica la sede)." },
+  { valor: "ninguno", titulo: "Sin asignar", ayuda: "Se saca el chip: queda disponible, por ejemplo en una bodega." },
 ];
 
 /** Donde esta la linea hoy, en una frase. */
-function dondeEsta(l: Pick<LineaLista, "activo" | "empleado" | "responsable" | "sede">) {
+function dondeEsta(l: Pick<LineaLista, "activo" | "empleado">) {
   const persona = personaDe(l);
-  const sede = l.sede ? ` · Sede ${l.sede.nombre}` : "";
+  const nombreSede = sedeDe(l);
+  const sede = nombreSede ? ` · Sede ${nombreSede}` : "";
   if (l.activo) {
     return `En ${l.activo.marca} ${l.activo.modelo} · ${persona ? `la usa ${nombrePersona(persona)}` : "sin persona"}${sede}`;
   }
   if (persona) return `Con ${nombrePersona(persona)} (teléfono personal o eSIM)${sede}`;
-  return `Sin asignar${l.responsable ? ` · ${l.responsable}` : ""}${sede}`;
+  return "Sin asignar";
 }
 
 export function ReasignarLinea({ linea, onCerrar }: { linea: LineaLista; onCerrar: (guardada: boolean) => void }) {
@@ -60,7 +62,6 @@ export function ReasignarLinea({ linea, onCerrar }: { linea: LineaLista; onCerra
   const [destino, setDestino] = useState<Destino>(permitidos[0]);
   const [activoId, setActivoId] = useState("");
   const [empleadoId, setEmpleadoId] = useState("");
-  const [sedeId, setSedeId] = useState(linea.sedeId ?? "");
   const [desde, setDesde] = useState(hoyISO());
   const [motivoId, setMotivoId] = useState("");
   const [detalle, setDetalle] = useState("");
@@ -95,7 +96,7 @@ export function ReasignarLinea({ linea, onCerrar }: { linea: LineaLista; onCerra
     const res = await fetch(`/api/lineas/${linea.id}/reasignar`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ destino, activoId, empleadoId, sedeId, desde, motivoId, detalle }),
+      body: JSON.stringify({ destino, activoId, empleadoId, desde, motivoId, detalle }),
     }).catch(() => null);
     if (!res?.ok) {
       const { message, fieldErrors } = res ? await parseApiError(res, "Error al asignar la línea") : { message: "Error al asignar la línea", fieldErrors: {} };
@@ -109,8 +110,7 @@ export function ReasignarLinea({ linea, onCerrar }: { linea: LineaLista; onCerra
   // Como quedaria la linea.
   const celularElegido = opciones.celulares.find((c) => c.id === activoId);
   const personaElegida = opciones.personas.find((p) => p.id === empleadoId);
-  const sedeNombre = opciones.sedes.find((s) => s.id === sedeId)?.nombre;
-  const baseDespues =
+  const despues =
     destino === "telefono"
       ? celularElegido
         ? `En ${celularElegido.marca} ${celularElegido.modelo} · ${celularElegido.empleadoActual ? `la usará ${nombrePersona(celularElegido.empleadoActual)}` : "sin persona (el teléfono está libre)"}`
@@ -120,7 +120,6 @@ export function ReasignarLinea({ linea, onCerrar }: { linea: LineaLista; onCerra
           ? `Con ${nombrePersona(personaElegida)} (teléfono personal o eSIM)`
           : "—"
         : "Sin asignar";
-  const despues = baseDespues + (sedeNombre ? ` · Sede ${sedeNombre}` : "");
 
   return (
     <div ref={ref} className="card scroll-mt-24 p-6">
@@ -198,24 +197,6 @@ export function ReasignarLinea({ linea, onCerrar }: { linea: LineaLista; onCerra
             opciones={opciones.personas.map((p) => ({ id: p.id, texto: nombrePersona(p) + (p.rut ? ` · ${p.rut}` : "") }))}
           />
         )}
-        <CampoFormulario label="Sede" error={errores.sedeId} htmlFor={`${idForm}-sede`}>
-          <select
-            id={`${idForm}-sede`}
-            value={sedeId}
-            onChange={(e) => {
-              setSedeId(e.target.value);
-              limpiar("sedeId");
-            }}
-            className={claseInput(errores.sedeId)}
-          >
-            <option value="">Sin sede</option>
-            {opciones.sedes.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.nombre}
-              </option>
-            ))}
-          </select>
-        </CampoFormulario>
         <CampoTexto
           label="Desde cuándo"
           type="date"

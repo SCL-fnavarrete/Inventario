@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MAX_CANTIDAD, fechaTextoOpcional, textoLibre } from '@/shared/validaciones/comunes';
+import { fechaTextoOpcional, textoLibre } from '@/shared/validaciones/comunes';
 
 /**
  * Numero de una linea como se guarda: solo digitos y con el 56 delante.
@@ -19,49 +19,36 @@ export function formatearNumero(numero: string): string {
 
 const idOpcional = z.string().uuid().optional().nullable().or(z.literal('').transform(() => null));
 
-/** Precio en pesos: vacio = sin precio (no 0). */
-export const precioOpcional = z.preprocess(
-  (v) => (v === '' || v == null ? null : v),
-  z.coerce.number().int('Debe ser un número entero').min(0, 'No puede ser negativo').max(MAX_CANTIDAD, 'Máximo 1.000.000').nullable()
-);
-
 export const lineaSchema = z.object({
   numero: z.string().transform((v, ctx) => {
     const n = normalizarNumero(v);
     if (!n) ctx.addIssue({ code: 'custom', message: 'Escribe un celular de 9 dígitos (ej: 9 1234 5678)' });
     return n ?? '';
   }),
-  planId: idOpcional,
-  precioMensual: precioOpcional,
   // Sin estado, la linea queda Activa.
   estadoId: idOpcional,
-  // Desde cuando rige un cambio de precio o de estado (por defecto, hoy).
+  // Desde cuando rige un cambio de estado (por defecto, hoy).
   vigenteDesde: fechaTextoOpcional,
   tipoChipId: idOpcional,
   // Compania de la linea (catalogo).
   operadorId: idOpcional,
   activoId: idOpcional,
   empleadoId: idOpcional,
-  // Sede donde esta la linea (el formulario propone la del navbar).
-  sedeId: idOpcional,
   observaciones: textoLibre(),
 });
 
 export type DatosLinea = z.infer<typeof lineaSchema>;
 
 /**
- * Una linea nueva creada a mano (formulario o API) lleva plan, precio, tipo de
- * chip, operador y sede (la que la registra y la gestiona). Las que vienen de
+ * Una linea nueva creada a mano (formulario o API) lleva tipo de chip y
+ * operador. Las que vienen de
  * una importacion pueden no traerlos todavia: la importacion no pasa por aqui,
  * y editar una linea que ya existe tampoco lo exige.
  */
 export const lineaNuevaSchema = lineaSchema.superRefine((d, ctx) => {
   const falta = (campo: keyof DatosLinea, message: string) => ctx.addIssue({ code: 'custom', path: [campo], message });
-  if (!d.planId) falta('planId', 'Elige el plan');
-  if (d.precioMensual == null) falta('precioMensual', 'Escribe el precio mensual');
   if (!d.tipoChipId) falta('tipoChipId', 'Elige el tipo de chip');
   if (!d.operadorId) falta('operadorId', 'Elige el operador');
-  if (!d.sedeId) falta('sedeId', 'Elige la sede');
 });
 
 /** A que se asocia una linea: un telefono de la empresa, una persona o nada. */
@@ -87,41 +74,33 @@ export function errorDeAsociacion(tipoChip: { sinCelular?: boolean } | null | un
 }
 
 /** Los catalogos de las lineas (SPEC 2.131): su segmento en la URL. */
-export const CATALOGOS_LINEA = ['planes', 'estados', 'tipos-chip', 'operadores', 'motivos'] as const;
+export const CATALOGOS_LINEA = ['estados', 'tipos-chip', 'operadores', 'motivos', 'motivos-baja'] as const;
 export type CatalogoLinea = (typeof CATALOGOS_LINEA)[number];
 
-/** Opcion de un catalogo editable (planes y tipos de chip): el nombre y, en un plan, su precio de referencia. */
+/** Opcion de un catalogo editable (tipos de chip, operadores y motivos): el nombre y, en un tipo de chip, si va sin celular. */
 export const opcionLineaSchema = z.object({
   nombre: z.string().trim().min(1, 'Escribe el nombre').max(100, 'Máximo 100 caracteres'),
-  precioMensual: precioOpcional.optional(),
   // Solo un tipo de chip: va sin celular de la empresa (eSIM / MFF).
   sinCelular: z.boolean().optional(),
 });
 export type DatosOpcionLinea = z.infer<typeof opcionLineaSchema>;
 
 /**
- * Los estados de una linea son cinco y fijos (por clave): son los de su ciclo
- * de vida, no se agregan ni se cambian. Que significa cada uno.
+ * Los estados de una linea son dos y fijos (por clave); no se agregan ni se
+ * cambian. "Disponible" no es un estado: es una linea activa sin persona.
  */
 export const DESCRIPCION_ESTADO: Record<string, string> = {
-  activa: 'La línea está contratada y funcionando. Es el estado normal. Cuenta en el costo.',
-  suspendida:
-    'Cortada o en pausa por un tiempo (por ejemplo, pérdida del chip, falta de pago o una pausa pedida por la empresa). Sigue contratada y cuenta en el costo.',
-  portabilidad:
-    'El número se está cambiando de compañía: es un trámite en curso. Al terminar pasa a Activa (llegó) o a Dada de baja (se fue). Cuenta en el costo mientras tanto.',
-  baja: 'Ya no se usa ni se paga: el contrato terminó. No cuenta en el costo y queda con su fecha de baja.',
-  por_confirmar:
-    'Está en la factura del operador, pero no se sabe quién la usa: hay que confirmarlo. Al saberlo pasa a Activa (y se asigna) o a Dada de baja. Cuenta en el costo mientras tanto.',
+  activa: 'La línea está contratada y funcionando. Si no tiene persona, está disponible para asignar.',
+  baja: 'Ya no se usa: el contrato terminó. Queda con su fecha de baja.',
 };
 
-/** Color del estado en pantalla: Activa verde, de baja gris, y lo que hay que mirar (suspendida, en portabilidad, por confirmar) ambar. */
-export const tonoEstadoLinea = (e: { deBaja: boolean; clave?: string | null }) =>
-  e.deBaja ? 'neutral' : e.clave === 'activa' ? 'success' : 'warning';
+/** Color del estado en pantalla: Activa verde, de baja gris. */
+export const tonoEstadoLinea = (e: { deBaja: boolean }) => (e.deBaja ? 'neutral' : 'success');
 
 /**
  * Reasignar una linea (SPEC 2.131): a un telefono de la empresa (la persona sale
  * de el), a una persona (eSIM o telefono personal) o sin asignar. En los tres
- * casos se indica la sede donde queda (opcional). Nunca cambia quien tiene un telefono: eso
+ * casos. Nunca cambia quien tiene un telefono: eso
  * se hace en Asignaciones.
  */
 export const reasignacionSchema = z
@@ -129,7 +108,6 @@ export const reasignacionSchema = z
     destino: z.enum(['telefono', 'persona', 'ninguno'] satisfies DestinoLinea[]),
     activoId: idOpcional,
     empleadoId: idOpcional,
-    sedeId: idOpcional,
     // Desde cuando rige (por defecto, ahora).
     desde: fechaTextoOpcional,
     motivoId: idOpcional,
@@ -140,3 +118,16 @@ export const reasignacionSchema = z
     if (d.destino === 'persona' && !d.empleadoId) ctx.addIssue({ code: 'custom', path: ['empleadoId'], message: 'Elige la persona' });
   });
 export type DatosReasignacion = z.infer<typeof reasignacionSchema>;
+
+/**
+ * Dar de baja una linea (SPEC 2.140), igual que un equipo: el motivo de la lista
+ * ("Otro" pide detalle, lo revisa el servicio que conoce la lista), la fecha (por
+ * defecto, hoy) y una observacion opcional.
+ */
+export const bajaLineaSchema = z.object({
+  motivoBajaId: z.string({ error: 'Elige el motivo de la baja' }).uuid('Elige el motivo de la baja'),
+  motivoDetalle: z.string().max(500, 'Máximo 500 caracteres').optional().nullable(),
+  observaciones: z.string().max(1000, 'Máximo 1000 caracteres').optional().nullable(),
+  fechaBaja: fechaTextoOpcional,
+});
+export type DatosBajaLinea = z.infer<typeof bajaLineaSchema>;

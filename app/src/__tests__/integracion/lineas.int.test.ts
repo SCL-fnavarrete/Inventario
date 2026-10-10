@@ -1,18 +1,18 @@
 /** @jest-environment node */
 /**
  * Lineas telefonicas contra Postgres real (SPEC 2.131): alta, edicion con
- * historial y vigencia, costo por mes, catalogos, eliminacion con auditoria
+ * historial y vigencia, catalogos, eliminacion con auditoria
  * e importacion por pasos. Solo corre contra la base de pruebas (ver
  * concurrencia.int.test.ts).
  */
 import { randomUUID } from 'crypto';
 import ExcelJS from 'exceljs';
 import { prisma } from '@/shared/prisma';
-import { lineaSchema, reasignacionSchema } from '@/modules/lineas';
+import { bajaLineaSchema, lineaSchema, reasignacionSchema } from '@/modules/lineas';
 import { columnasDeHoja, hojasDelArchivo, importarTandaLineas, vistaPreviaLineas } from '@/modules/lineas/excel';
 import { asignarEquipo, registrarDevolucion } from '@/modules/asignaciones/servidor';
 import {
-  costoPorMes,
+  darDeBajaLinea,
   crearLinea,
   crearOpcionLinea,
   editarLinea,
@@ -23,7 +23,14 @@ import {
   historialLinea,
   indicadoresLineas,
   listarLineas,
+  listarOpcionesLinea,
   reasignarLinea,
+  asociarLineaEnSolicitud,
+  asociarEsimEnSolicitud,
+  cambiarLineaEnSolicitud,
+  liberarLineaEnSolicitud,
+  lineasDePersona,
+  lineasDeSolicitud,
   tenenciasDePersona,
   alCambiarTenedorDelTelefono,
   liberarEsimDePersona,
@@ -45,6 +52,9 @@ const datos = (extra: Record<string, unknown>) =>
 
 describir('lineas telefonicas en Postgres', () => {
   const s = randomUUID().slice(0, 8);
+  // Devuelve un celular (SPEC 2.138 pide dónde queda).
+  const devolverCelular = (asignacionId: string) =>
+    registrarDevolucion(asignacionId, { fechaDevolucion: new Date(), estadoDevolucion: 'ok' }, 'jsoto');
   // Apellidos unicos de las personas que crea la importacion (SPEC 2.133), para borrarlas al final.
   const u = letras(8);
   const rut = `${10 + Math.floor(Math.random() * 80)}.${s.replace(/\D/g, '0').slice(0, 3)}.${s.replace(/\D/g, '1').slice(3, 6)}-K`;
@@ -76,8 +86,12 @@ describir('lineas telefonicas en Postgres', () => {
     numeros.push(n);
     return n;
   };
-  let suspendida: string;
+  let activa: string;
   let baja: string;
+  // Motivos de baja de la lista (SPEC 2.140).
+  let motivoCancelacion: string;
+  let motivoOtro: string;
+  const bajaDe = (extra: object = {}) => bajaLineaSchema.parse({ motivoBajaId: motivoCancelacion, ...extra });
 
   beforeAll(async () => {
     const celular = await prisma.assetCategory.create({ data: { nombre: `Cel ${s}`, tipoFicha: 'celular' } });
@@ -100,8 +114,10 @@ describir('lineas telefonicas en Postgres', () => {
     ids.telefonoBaja = (await prisma.asset.create({ data: { categoriaId: celular.id, marca: 'Samsung', modelo: `Baja ${s}`, estado: 'baja' } })).id;
     ids.sede = (await prisma.sede.create({ data: { codigo: `S${s}`, nombre: `Sede Uno ${s}` } })).id;
     ids.otraSede = (await prisma.sede.create({ data: { codigo: `T${s}`, nombre: `Sede Dos ${s}` } })).id;
-    suspendida = (await prisma.estadoLinea.findUniqueOrThrow({ where: { nombre: 'Suspendida' } })).id;
+    activa = (await prisma.estadoLinea.findUniqueOrThrow({ where: { clave: 'activa' } })).id;
     baja = (await prisma.estadoLinea.findUniqueOrThrow({ where: { clave: 'baja' } })).id;
+    motivoCancelacion = (await prisma.motivoBajaLinea.findUniqueOrThrow({ where: { nombre: 'Se canceló el servicio' } })).id;
+    motivoOtro = (await prisma.motivoBajaLinea.findUniqueOrThrow({ where: { clave: 'otro' } })).id;
     fisico = (await prisma.tipoChip.findUniqueOrThrow({ where: { nombre: 'Físico' } })).id;
     esim = (await prisma.tipoChip.findUniqueOrThrow({ where: { nombre: 'eSIM / MFF' } })).id;
   });
@@ -112,6 +128,7 @@ describir('lineas telefonicas en Postgres', () => {
     await prisma.auditLog.deleteMany({ where: { entidadId: { in: [...idsLineas, ...ids.opciones] } } });
     await prisma.lineaHistorial.deleteMany({ where: { lineaId: { in: idsLineas } } });
     await prisma.lineaTelefonica.deleteMany({ where: { numero: { in: numeros } } });
+    await prisma.motivoBajaLinea.deleteMany({ where: { nombre: { contains: s } } });
     await prisma.sede.deleteMany({ where: { id: { in: [ids.sede!, ids.otraSede!] } } });
     const creadas = await prisma.employee.findMany({ where: { apellidoPaterno: { in: [`Gomez${u}`, `Rojas${u}`] } }, select: { id: true } });
     await prisma.auditLog.deleteMany({ where: { entidadId: { in: creadas.map((e) => e.id) } } });
@@ -119,7 +136,7 @@ describir('lineas telefonicas en Postgres', () => {
     await prisma.assignment.deleteMany({ where: { assetId: ids.disponible } });
     await prisma.assetHistory.deleteMany({ where: { assetId: { in: [ids.disponible!, ids.celular!, ids.libre!] } } });
     await prisma.motivoReasignacion.deleteMany({ where: { id: { in: ids.opciones } } });
-    await prisma.planLinea.deleteMany({ where: { id: { in: ids.opciones } } });
+    await prisma.operadorLinea.deleteMany({ where: { id: { in: ids.opciones } } });
     await prisma.tipoChip.deleteMany({ where: { id: { in: ids.opciones } } });
     await prisma.estadoLinea.deleteMany({ where: { id: { in: ids.opciones } } });
     await prisma.asset.deleteMany({ where: { id: { in: [ids.celular!, ids.notebook!, ids.disponible!, ids.telefonoBaja!, ids.libre!] } } });
@@ -135,10 +152,10 @@ describir('lineas telefonicas en Postgres', () => {
       details: [{ field: 'activoId', message: expect.stringContaining('lo tiene una persona') }],
     });
     const linea = await crearLinea(
-      datos({ numero: `+56 9 ${n.slice(3, 7)} ${n.slice(7)}`, precioMensual: '18479', activoId: ids.libre, empleadoId: ids.empleado }),
+      datos({ numero: `+56 9 ${n.slice(3, 7)} ${n.slice(7)}`, activoId: ids.libre, empleadoId: ids.empleado }),
       'jsoto'
     );
-    expect(linea).toMatchObject({ numero: n, precioMensual: 18479, activoId: ids.libre, empleadoId: null, estado: { nombre: 'Activa' } });
+    expect(linea).toMatchObject({ numero: n, activoId: ids.libre, empleadoId: null, estado: { nombre: 'Activa' } });
     expect((await historialLinea(linea.id)).map((e) => e.tipo)).toEqual(['creacion']);
     expect(await prisma.auditLog.findFirst({ where: { entidadId: linea.id } })).toMatchObject({ accion: 'crear', usuarioSistema: 'jsoto' });
     const [encontrada] = await listarLineas({ estado: 'todas', q: n });
@@ -162,83 +179,83 @@ describir('lineas telefonicas en Postgres', () => {
     });
   });
 
-  test('cambiar precio y estado deja eventos con su vigencia; la baja pone esa fecha', async () => {
+  test('dar de baja pide el motivo, pone la fecha y queda en el historial; reactivarla los quita (SPEC 2.140)', async () => {
     const n = nuevo();
-    const linea = await crearLinea(datos({ numero: n, precioMensual: 10000, vigenteDesde: '2026-01-15' }), 'jsoto');
-    await editarLinea(linea.id, datos({ numero: n, precioMensual: 12000, estadoId: suspendida, vigenteDesde: '2026-03-01' }), 'jsoto');
-    const dada = await editarLinea(linea.id, datos({ numero: n, precioMensual: 12000, estadoId: baja, vigenteDesde: '2026-05-10' }));
+    const linea = await crearLinea(datos({ numero: n, vigenteDesde: '2026-01-15' }), 'jsoto');
+    // Sin motivo no se da de baja.
+    expect(() => bajaLineaSchema.parse({})).toThrow();
+    expect(() => bajaLineaSchema.parse({ motivoBajaId: 'cancelada' })).toThrow();
+    const dada = await darDeBajaLinea(linea.id, bajaDe({ fechaBaja: '2026-05-10', observaciones: 'El cliente lo pidió' }), 'jsoto');
+    expect(dada).toMatchObject({ motivoBajaId: motivoCancelacion, motivoBaja: 'Se canceló el servicio', estado: { nombre: 'Baja', deBaja: true } });
     expect(dada.fechaBaja?.toISOString().slice(0, 10)).toBe('2026-05-10');
     const eventos = await historialLinea(linea.id);
-    // Precio y estado del mismo dia se guardan juntos: su orden entre ellos da igual.
-    expect(eventos.map((e) => `${e.vigenteDesde.toISOString().slice(0, 10)} ${e.tipo}`).sort()).toEqual([
-      '2026-01-15 creacion',
-      '2026-03-01 estado',
-      '2026-03-01 precio',
-      '2026-05-10 estado',
-    ]);
-    // Reactivarla quita la fecha de baja.
-    const activa = await editarLinea(linea.id, datos({ numero: n, precioMensual: 12000, estadoId: suspendida }));
-    expect(activa.fechaBaja).toBeNull();
+    expect(eventos.map((e) => `${e.vigenteDesde.toISOString().slice(0, 10)} ${e.tipo}`).sort()).toEqual(['2026-01-15 creacion', '2026-05-10 estado']);
+    expect(eventos.find((e) => e.tipo === 'estado')?.descripcion).toContain('Motivo: Se canceló el servicio');
+    expect(eventos.find((e) => e.tipo === 'estado')?.descripcion).toContain('El cliente lo pidió');
+    // Ya de baja: no se repite.
+    await expect(darDeBajaLinea(linea.id, bajaDe())).rejects.toMatchObject({ status: 409 });
+    const reactivada = await editarLinea(linea.id, datos({ numero: n, estadoId: activa }));
+    expect(reactivada.fechaBaja).toBeNull();
+    expect(reactivada.motivoBaja).toBeNull();
+    expect(reactivada.motivoBajaId).toBeNull();
   });
 
-  test('costo por mes: cuenta el precio que regía y no cuenta los meses de baja', async () => {
+  test('el motivo "Otro" pide el detalle; un motivo que no existe o está desactivado se rechaza (SPEC 2.140)', async () => {
     const n = nuevo();
-    const hace = (meses: number) => {
-      const d = new Date();
-      d.setUTCDate(1);
-      d.setUTCMonth(d.getUTCMonth() - meses);
-      return d.toISOString().slice(0, 10);
-    };
-    const antes = await costoPorMes(4);
-    const linea = await crearLinea(datos({ numero: n, precioMensual: 1000, vigenteDesde: hace(3) }));
-    await editarLinea(linea.id, datos({ numero: n, precioMensual: 3000, vigenteDesde: hace(2) }));
-    await editarLinea(linea.id, datos({ numero: n, precioMensual: 3000, estadoId: baja, vigenteDesde: hace(1) }));
-    const despues = await costoPorMes(4);
-    expect(despues.map((m, i) => m.costo - antes[i].costo)).toEqual([1000, 3000, 0, 0]);
+    const linea = await crearLinea(datos({ numero: n }));
+    await expect(darDeBajaLinea(linea.id, bajaDe({ motivoBajaId: motivoOtro }))).rejects.toMatchObject({
+      details: [{ field: 'motivoDetalle' }],
+    });
+    await expect(darDeBajaLinea(linea.id, bajaDe({ motivoBajaId: '3f2504e0-4f89-41d3-9a0c-0305e82c3309' }))).rejects.toMatchObject({
+      details: [{ field: 'motivoBajaId' }],
+    });
+    const dada = await darDeBajaLinea(linea.id, bajaDe({ motivoBajaId: motivoOtro, motivoDetalle: 'Se la quedó el operador' }));
+    expect(dada.motivoBaja).toBe('Otro: Se la quedó el operador');
   });
 
-  test('costo por mes: una línea eliminada cuenta los meses en que existió y deja de contar desde su eliminación', async () => {
+  test('los motivos de baja son un catálogo: se agregan y uno usado se desactiva; "Otro" no se elimina', async () => {
+    const { opcion } = await crearOpcionLinea('motivos-baja', { nombre: `Motivo baja ${s}` }, 'jsoto');
     const n = nuevo();
-    const hace = (meses: number) => {
-      const d = new Date();
-      d.setUTCDate(1);
-      d.setUTCMonth(d.getUTCMonth() - meses);
-      return d.toISOString().slice(0, 10);
-    };
-    const antes = await costoPorMes(4);
-    const linea = await crearLinea(datos({ numero: n, precioMensual: 5000, vigenteDesde: hace(3) }));
-    eliminadas.push(linea.id);
-    await eliminarLinea(linea.id, 'jsoto');
-    const despues = await costoPorMes(4);
-    // Existió los tres meses anteriores y se eliminó este mes: este ya no la cuenta.
-    expect(despues.map((m, i) => m.costo - antes[i].costo)).toEqual([5000, 5000, 5000, 0]);
+    const linea = await crearLinea(datos({ numero: n }));
+    await darDeBajaLinea(linea.id, bajaDe({ motivoBajaId: opcion.id }));
+    expect(await eliminarOpcionLinea('motivos-baja', opcion.id, 'jsoto')).toEqual({ desactivado: true });
+    expect(await listarOpcionesLinea('motivos-baja', { soloActivas: true })).not.toContainEqual(expect.objectContaining({ id: opcion.id }));
+    await expect(eliminarOpcionLinea('motivos-baja', motivoOtro)).rejects.toMatchObject({ status: 409 });
+  });
+
+  test('editar o crear una línea no la da de baja: eso pide el motivo (SPEC 2.140)', async () => {
+    const n = nuevo();
+    const linea = await crearLinea(datos({ numero: n }));
+    await expect(editarLinea(linea.id, datos({ numero: n, estadoId: baja }))).rejects.toMatchObject({
+      details: [{ field: 'estadoId', message: expect.stringContaining('Dar de baja') }],
+    });
+    await expect(crearLinea(datos({ numero: nuevo(), estadoId: baja }))).rejects.toMatchObject({
+      details: [{ field: 'estadoId', message: expect.stringContaining('Dar de baja') }],
+    });
+    expect((await fichaLinea(linea.id)).linea.estado.clave).toBe('activa');
   });
 
   test('catálogos: una opción usada se desactiva y la línea la conserva', async () => {
-    const { opcion } = await crearOpcionLinea('planes', { nombre: `Plan prueba ${s}`, precioMensual: 9990 }, 'jsoto');
+    const { opcion } = await crearOpcionLinea('operadores', { nombre: `Operador prueba ${s}` }, 'jsoto');
     ids.opciones.push(opcion.id);
-    expect(opcion).toMatchObject({ precioMensual: 9990 });
     const n = nuevo();
-    const linea = await crearLinea(datos({ numero: n, planId: opcion.id }));
-    expect(await eliminarOpcionLinea('planes', opcion.id, 'jsoto')).toEqual({ desactivado: true });
-    await expect(crearLinea(datos({ numero: nuevo(), planId: opcion.id }))).rejects.toMatchObject({
-      details: [{ field: 'planId', message: 'Elige una opción de la lista' }],
+    const linea = await crearLinea(datos({ numero: n, operadorId: opcion.id }));
+    expect(await eliminarOpcionLinea('operadores', opcion.id, 'jsoto')).toEqual({ desactivado: true });
+    await expect(crearLinea(datos({ numero: nuevo(), operadorId: opcion.id }))).rejects.toMatchObject({
+      details: [{ field: 'operadorId', message: 'Elige una opción de la lista' }],
     });
-    expect(await editarLinea(linea.id, datos({ numero: n, planId: opcion.id, observaciones: 'x' }))).toMatchObject({ planId: opcion.id });
+    expect(await editarLinea(linea.id, datos({ numero: n, operadorId: opcion.id, observaciones: 'x' }))).toMatchObject({ operadorId: opcion.id });
   });
 
-  test('los estados son cinco y fijos: no se agregan, renombran ni eliminan', async () => {
+  test('los estados son dos y fijos: Activa y Baja; no se agregan, renombran ni eliminan', async () => {
     const estados = await prisma.estadoLinea.findMany({ where: { clave: { not: null } }, orderBy: { nombre: 'asc' } });
     expect(estados.map((e) => [e.nombre, e.clave, e.deBaja])).toEqual([
       ['Activa', 'activa', false],
-      ['Dada de baja', 'baja', true],
-      ['En portabilidad', 'portabilidad', false],
-      ['Por confirmar', 'por_confirmar', false],
-      ['Suspendida', 'suspendida', false],
+      ['Baja', 'baja', true],
     ]);
     await expect(crearOpcionLinea('estados', { nombre: `Otro ${s}` })).rejects.toMatchObject({ status: 409 });
     await expect(editarOpcionLinea('estados', baja, { nombre: 'Renombrada' })).rejects.toMatchObject({ status: 409 });
-    await expect(eliminarOpcionLinea('estados', suspendida)).rejects.toMatchObject({ status: 409 });
+    await expect(eliminarOpcionLinea('estados', baja)).rejects.toMatchObject({ status: 409 });
     expect(await prisma.estadoLinea.count({ where: { nombre: { in: [`Otro ${s}`, 'Renombrada'] } } })).toBe(0);
   });
 
@@ -257,8 +274,8 @@ describir('lineas telefonicas en Postgres', () => {
     const conPersona = await crearLinea(datos({ numero: nuevo(), empleadoId: ids.empleado }));
     await expect(eliminarLinea(conPersona.id, 'jsoto')).rejects.toMatchObject({ status: 409, message: expect.stringContaining('persona') });
     const n = nuevo();
-    const conCambio = await crearLinea(datos({ numero: n, precioMensual: 1000 }));
-    await editarLinea(conCambio.id, datos({ numero: n, precioMensual: 2000 }));
+    const conCambio = await crearLinea(datos({ numero: n }));
+    await darDeBajaLinea(conCambio.id, bajaDe());
     await expect(eliminarLinea(conCambio.id, 'jsoto')).rejects.toMatchObject({ status: 409, message: expect.stringContaining('cambios') });
     // Corregir sus datos no cuenta como uso.
     const m = nuevo();
@@ -271,39 +288,36 @@ describir('lineas telefonicas en Postgres', () => {
 
   test('importación: vista previa sin guardar, luego tandas con persona por RUT, celular por IMEI y sin pisar lo existente', async () => {
     const [conPersona, conCelular, duplicada, existente] = [nuevo(), nuevo(), nuevo(), nuevo()];
-    await crearLinea(datos({ numero: existente, estadoId: suspendida }));
+    const lineaExistente = await crearLinea(datos({ numero: existente }));
+    await darDeBajaLinea(lineaExistente.id, bajaDe());
     const imei = (await prisma.asset.findUniqueOrThrow({ where: { id: ids.celular } })).imei!;
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Consolidado');
     ws.addRow(['Conciliación']);
     ws.addRow([]);
-    ws.addRow(['Línea normalizada', 'Estado', 'Responsable / ubicación', 'Documento(s)', 'Precio plan', 'Descripción plan', 'IMEI']);
-    ws.addRow([conPersona, 'Coincide', 'Prueba', rut, 18479, `Plan ${s}`, null]);
-    ws.addRow([conCelular, 'Coincide', null, null, 18479, `Plan ${s}`, imei]);
-    ws.addRow([duplicada, 'Dada de baja', 'Ana | Luis', '1-9 | 2-7', 14277, null, null]);
-    ws.addRow([existente, 'Dada de baja', 'Bodega Santiago', null, 22681, null, null]);
-    ws.addRow(['123', 'No asignada', null, null, null, null, null]);
+    ws.addRow(['Línea normalizada', 'Estado', 'Documento(s)', 'IMEI', 'Observaciones']);
+    ws.addRow([conPersona, 'Coincide', rut, null, null]);
+    ws.addRow([conCelular, 'Coincide', null, imei, null]);
+    ws.addRow([duplicada, 'Baja', '1-9 | 2-7', null, null]);
+    ws.addRow([existente, 'Baja', null, null, 'Se completa']);
+    ws.addRow(['123', 'No asignada', null, null, null]);
     const buffer = (await wb.xlsx.writeBuffer()) as ArrayBuffer;
-    const mapeo = { numero: 'Línea normalizada', estado: 'Estado', responsable: 'Responsable / ubicación', rut: 'Documento(s)', precio: 'Precio plan', plan: 'Descripción plan', imei: 'IMEI' };
+    const mapeo = { numero: 'Línea normalizada', estado: 'Estado', rut: 'Documento(s)', imei: 'IMEI', observaciones: 'Observaciones' };
 
     const previa = await vistaPreviaLineas(buffer, 'Consolidado', mapeo);
     expect(previa.resumen).toMatchObject({ total: 5, nuevas: 3, existentes: 1, conError: 1, entregasAnteriores: 0 });
     expect(previa.valores.estado.map((v) => [v.valor, v.opcionId])).toEqual([
       ['Coincide', null],
-      ['Dada de baja', baja],
+      ['Baja', baja],
     ]);
-    expect(previa.valores.plan).toEqual([{ valor: `Plan ${s}`, filas: 2, precioSugerido: 18479, opcionId: null }]);
     expect(await prisma.lineaTelefonica.count({ where: { numero: { in: [conPersona, conCelular, duplicada] } } })).toBe(0);
 
-    // La pantalla agrega el plan nuevo y asocia "Coincide" a Activa (vacio).
-    const { opcion: plan } = await crearOpcionLinea('planes', { nombre: `Plan ${s}`, precioMensual: 18479 });
-    ids.opciones.push(plan.id);
+    // La pantalla asocia "Coincide" a Activa (vacio) y "Baja" a Baja.
     const filas = previa.filas
       .filter((f) => f.errores.length === 0)
-      .map(({ existe: _x, estado, plan: p, tipoChip: _t, operador: _o, errores: _e, avisos: _a, ...f }) => ({
+      .map(({ existe: _x, estado, tipoChip: _t, operador: _o, errores: _e, avisos: _a, ...f }) => ({
         ...f,
-        estadoId: estado === 'Dada de baja' ? baja : null,
-        planId: p ? plan.id : null,
+        estadoId: estado === 'Baja' ? baja : null,
         tipoChipId: null,
         operadorId: null,
       }));
@@ -313,20 +327,17 @@ describir('lineas telefonicas en Postgres', () => {
     const porNumero = new Map(
       (await prisma.lineaTelefonica.findMany({ where: { numero: { in: numeros } }, include: { estado: true } })).map((l) => [l.numero, l])
     );
-    expect(porNumero.get(conPersona)).toMatchObject({ empleadoId: ids.empleado, responsable: null, planId: plan.id, estado: { nombre: 'Activa' } });
+    expect(porNumero.get(conPersona)).toMatchObject({ empleadoId: ids.empleado, estado: { nombre: 'Activa' } });
     expect(porNumero.get(conCelular)).toMatchObject({ activoId: ids.celular, empleadoId: null });
-    expect(porNumero.get(duplicada)).toMatchObject({ empleadoId: null, responsable: 'Ana | Luis', estado: { clave: 'baja' } });
+    expect(porNumero.get(duplicada)).toMatchObject({ empleadoId: null, estado: { clave: 'baja' } });
     expect(porNumero.get(duplicada)?.fechaBaja?.toISOString().slice(0, 10)).toBe('2026-07-31');
-    // La que ya existia: el estado no cambia; solo completa precio y sede (el texto "Bodega Santiago" nombra la sede Santiago).
-    expect(porNumero.get(existente)).toMatchObject({ estadoId: suspendida, precioMensual: 22681, responsable: null, sedeId: expect.any(String) });
-    // Cada linea importada abre su tramo de tenencia; la completada cambia el suyo.
+    // La que ya existia: el estado no cambia; solo completa lo que le faltaba.
+    expect(porNumero.get(existente)).toMatchObject({ estadoId: baja, observaciones: 'Se completa' });
+    // Cada linea importada abre su tramo de tenencia.
     expect((await fichaLinea(porNumero.get(conCelular)!.id)).tenencias).toMatchObject([
       { origen: 'importacion', activoId: ids.celular, empleadoId: ids.empleado },
     ]);
-    expect((await fichaLinea(porNumero.get(existente)!.id)).tenencias).toMatchObject([
-      { origen: 'importacion', responsable: null, sedeId: expect.any(String), hasta: null },
-      { origen: 'alta', responsable: null },
-    ]);
+    expect((await fichaLinea(porNumero.get(existente)!.id)).tenencias).toMatchObject([{ origen: 'alta' }]);
     const [importada] = await historialLinea(porNumero.get(conPersona)!.id);
     expect(importada).toMatchObject({ tipo: 'importacion', usuario: 'jsoto' });
     expect(importada.vigenteDesde.toISOString().slice(0, 10)).toBe('2026-07-31');
@@ -335,7 +346,7 @@ describir('lineas telefonicas en Postgres', () => {
     expect((await importarTandaLineas(filas, '2026-07-31')).map((x) => x.resultado)).toEqual(['sin cambios', 'sin cambios', 'sin cambios', 'sin cambios']);
   });
 
-  test('importación del inventario de celulares: un número repetido es una línea con su historial, el operador y el chip salen del archivo y la ubicación va a la sede', async () => {
+  test('importación del inventario de celulares: un número repetido es una línea con su historial, el operador y el chip salen del archivo y la ubicación del equipo no se importa', async () => {
     const [numA, numB, numC] = [nuevo(), nuevo(), nuevo()];
     const imei = (await prisma.asset.findUniqueOrThrow({ where: { id: ids.celular } })).imei!;
     const wb = new ExcelJS.Workbook();
@@ -356,9 +367,10 @@ describir('lineas telefonicas en Postgres', () => {
     const { mapeo } = await columnasDeHoja(buffer, 'NORMALIZADO');
     expect(mapeo).toMatchObject({
       numero: 'N° Telefono', rut: 'RUT', imei: 'IMEI', tipoChip: 'Estado', operador: 'Operador', fechaEntrega: 'Fecha entrega',
-      responsable: 'Observación', observaciones: 'Incidencia', nombre: 'Nombre', apellidoPaterno: 'Apellido P.',
+      observaciones: 'Incidencia', nombre: 'Nombre', apellidoPaterno: 'Apellido P.',
     });
     expect(mapeo.estado).toBeUndefined();
+    expect(mapeo).not.toHaveProperty('responsable');
 
     const previa = await vistaPreviaLineas(buffer, 'NORMALIZADO', mapeo);
     expect(previa.resumen).toMatchObject({ total: 4, nuevas: 3, conError: 1, entregasAnteriores: 1 });
@@ -379,22 +391,21 @@ describir('lineas telefonicas en Postgres', () => {
 
     const filas = previa.filas
       .filter((f) => f.errores.length === 0)
-      .map(({ existe: _x, estado: _s, plan: _p, tipoChip, operador, errores: _e, avisos: _a, ...f }) => ({
+      .map(({ existe: _x, estado: _s, tipoChip, operador, errores: _e, avisos: _a, ...f }) => ({
         ...f,
         estadoId: null,
-        planId: null,
         tipoChipId: tipoChip === 'eSim' ? eSim : null,
         operadorId: operador === 'Entel' ? entel : null,
       }));
     expect((await importarTandaLineas(filas, '2026-07-31', 'jsoto')).map((x) => x.resultado)).toEqual(['nueva', 'nueva', 'nueva']);
 
     const porNumero = new Map((await prisma.lineaTelefonica.findMany({ where: { numero: { in: [numA, numB, numC] } } })).map((l) => [l.numero, l]));
-    // numA: queda en el celular de la persona de hoy, sin precio ni plan, con operador y la incidencia.
-    expect(porNumero.get(numA)).toMatchObject({ activoId: ids.celular, empleadoId: null, planId: null, precioMensual: null, operadorId: entel, observaciones: 'Falla · Rancagua' });
+    // numA: queda en el celular de la persona de hoy, con operador y la incidencia.
+    expect(porNumero.get(numA)).toMatchObject({ activoId: ids.celular, empleadoId: null, operadorId: entel, observaciones: 'Falla' });
     const tramos = (await fichaLinea(porNumero.get(numA)!.id)).tenencias;
     expect(tramos).toMatchObject([
       { activoId: ids.celular, empleadoId: ids.empleado, hasta: null, origen: 'importacion' },
-      { activoId: null, empleadoId: expect.any(String), responsable: null, origen: 'importacion', detalle: 'Entrega anterior registrada en el archivo' },
+      { activoId: null, empleadoId: expect.any(String), origen: 'importacion', detalle: 'Entrega anterior registrada en el archivo' },
     ]);
     // Quien tuvo la linea antes no estaba en el sistema: se creo desvinculado (su RUT tenia el digito verificador malo, queda sin RUT).
     expect(await prisma.employee.findUniqueOrThrow({ where: { id: tramos[1].empleadoId! } })).toMatchObject({ nombres: 'Luis', apellidoPaterno: `Gomez${u}`, estado: 'desvinculado', rut: null });
@@ -402,16 +413,16 @@ describir('lineas telefonicas en Postgres', () => {
     expect(tramos[1].hasta?.toISOString().slice(0, 10)).toBe('2025-03-01');
     expect(tramos[0].desde.toISOString().slice(0, 10)).toBe('2025-03-01');
     expect((await fichaLinea(porNumero.get(numA)!.id)).reasignaciones).toBe(1);
-    // numB: eSIM en la bodega de una sede, sin operador.
-    expect(porNumero.get(numB)).toMatchObject({ tipoChipId: eSim, operadorId: null, activoId: null, empleadoId: null, responsable: null, sedeId: expect.any(String) });
+    // numB: eSIM sin persona, sin operador.
+    expect(porNumero.get(numB)).toMatchObject({ tipoChipId: eSim, operadorId: null, activoId: null, empleadoId: null });
     // numC: sin RUT se busca por nombre y, como no esta, se crea activa sin RUT para completarlo despues.
-    expect(porNumero.get(numC)).toMatchObject({ empleadoId: expect.any(String), responsable: null });
+    expect(porNumero.get(numC)).toMatchObject({ empleadoId: expect.any(String) });
     expect(await prisma.employee.findUniqueOrThrow({ where: { id: porNumero.get(numC)!.empleadoId! } })).toMatchObject({ nombres: 'Rosa', apellidoPaterno: `Rojas${u}`, estado: 'activo', rut: null });
     // La persona de hoy ve la línea en su historial.
     expect((await tenenciasDePersona(ids.empleado!)).some((t) => t.lineaId === porNumero.get(numA)!.id)).toBe(true);
   });
 
-  test('indicadores: asignada solo con persona (celular o teléfono personal); un responsable en texto no cuenta', async () => {
+  test('indicadores: asignada solo con persona (celular o teléfono personal); sin persona está disponible', async () => {
     const antes = await indicadoresLineas();
     const [personal, delCelular] = await Promise.all([
       prisma.employee.create({ data: { nombres: 'Prueba', apellidoPaterno: `Ind${s}a`, estado: 'activo' } }),
@@ -421,21 +432,17 @@ describir('lineas telefonicas en Postgres', () => {
       data: { categoriaId: ids.categorias[0], marca: 'Samsung', modelo: `Ind ${s}`, estado: 'disponible' },
     });
     try {
-      await crearLinea(datos({ numero: nuevo(), responsable: 'Bodega Prueba' })); // solo texto
+      await crearLinea(datos({ numero: nuevo() })); // sin persona: disponible
       await crearLinea(datos({ numero: nuevo(), empleadoId: personal.id })); // teléfono personal
       await crearLinea(datos({ numero: nuevo(), activoId: celular.id })); // celular de la empresa, de bodega...
       await prisma.$transaction((tx) => alCambiarTenedorDelTelefono(tx, { activoId: celular.id, de: null, a: delCelular.id }));
       await prisma.asset.update({ where: { id: celular.id }, data: { estado: 'asignado', empleadoActualId: delCelular.id } }); // ...y se entrega
       const d = await indicadoresLineas();
-      expect(d.vigentes.lineas - antes.vigentes.lineas).toBe(3);
-      expect(d.asignadas.lineas - antes.asignadas.lineas).toBe(2);
-      expect(d.sinAsignar.lineas - antes.sinAsignar.lineas).toBe(1);
+      expect(d.tarjetas.activas.lineas - antes.tarjetas.activas.lineas).toBe(3);
+      expect(d.tarjetas.disponibles - antes.tarjetas.disponibles).toBe(1);
       // Las dos personas nuevas tienen línea, una en su teléfono personal y otra en su celular.
       expect(d.personas.activas - antes.personas.activas).toBe(2);
       expect(d.personas.conLinea - antes.personas.conLinea).toBe(2);
-      // El total es vigentes + de baja.
-      expect(d.total.lineas).toBe(d.vigentes.lineas + d.deBaja.lineas);
-      expect(d.total.costo).toBe(d.vigentes.costo + d.deBaja.costo);
     } finally {
       const enCelular = await prisma.lineaTelefonica.findMany({ where: { activoId: celular.id }, select: { id: true } });
       await prisma.lineaTenencia.deleteMany({ where: { lineaId: { in: enCelular.map((l) => l.id) } } });
@@ -474,10 +481,7 @@ describir('lineas telefonicas en Postgres', () => {
     const devuelta = await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'telefono', activoId: ids.libre }));
     expect(devuelta).toMatchObject({ activoId: ids.libre, empleadoId: null });
     expect((await fichaLinea(linea.id)).tenencias[0]).toMatchObject({ empleadoId: null, activoId: ids.libre });
-    // Sin asignar, en una sede.
-    await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', sedeId: ids.sede }));
-    expect((await fichaLinea(linea.id)).tenencias[0]).toMatchObject({ empleadoId: null, activoId: null, sedeId: ids.sede });
-    expect((await fichaLinea(linea.id)).reasignaciones).toBe(3);
+    expect((await fichaLinea(linea.id)).reasignaciones).toBe(2);
   });
 
   test('reasignar rechaza lo que no cambia, una persona desvinculada, un celular de baja, una fecha mala y una línea de baja', async () => {
@@ -502,7 +506,7 @@ describir('lineas telefonicas en Postgres', () => {
       details: [{ field: 'activoId', message: 'Elige un celular del inventario' }],
     });
     await expect(reasignar({ destino: 'telefono', activoId: ids.telefonoBaja })).rejects.toMatchObject({
-      details: [{ field: 'activoId', message: 'Ese celular está de baja o vendido' }],
+      details: [{ field: 'activoId', message: 'Ese celular está de baja' }],
     });
     await expect(reasignar({ destino: 'ninguno', desde: '2999-01-01' })).rejects.toMatchObject({
       details: [{ field: 'desde', message: 'La fecha no puede ser futura' }],
@@ -515,7 +519,7 @@ describir('lineas telefonicas en Postgres', () => {
     // Nada de lo rechazado dejó rastro.
     expect((await fichaLinea(linea.id)).tenencias).toHaveLength(1);
     // Una línea dada de baja no se reasigna.
-    await editarLinea(linea.id, datos({ numero: n, tipoChipId: fisico, estadoId: baja }));
+    await darDeBajaLinea(linea.id, bajaDe());
     await expect(reasignar({ destino: 'ninguno' })).rejects.toMatchObject({ status: 409 });
   });
 
@@ -524,9 +528,9 @@ describir('lineas telefonicas en Postgres', () => {
     const linea = await crearLinea(datos({ numero: n, activoId: ids.libre }));
     const editada = await editarLinea(
       linea.id,
-      datos({ numero: n, tipoChipId: fisico, precioMensual: 999, activoId: '', empleadoId: ids.otraPersona, responsable: 'Bodega' })
+      datos({ numero: n, tipoChipId: fisico, observaciones: 'corregida', activoId: '', empleadoId: ids.otraPersona })
     );
-    expect(editada).toMatchObject({ activoId: ids.libre, empleadoId: null, responsable: null, precioMensual: 999 });
+    expect(editada).toMatchObject({ activoId: ids.libre, empleadoId: null, observaciones: 'corregida' });
     expect((await fichaLinea(linea.id)).tenencias).toHaveLength(1);
     // El tipo de chip no se quita, y no cambia a uno que no calza con dónde está la línea.
     await expect(editarLinea(linea.id, datos({ numero: n, tipoChipId: '' }))).rejects.toMatchObject({
@@ -540,28 +544,22 @@ describir('lineas telefonicas en Postgres', () => {
     expect(await editarLinea(linea.id, datos({ numero: n, tipoChipId: esim }))).toMatchObject({ tipoChipId: esim });
   });
 
-  test('cambios simultáneos de una línea van uno tras otro: un solo tramo abierto y editar no deshace una reasignación', async () => {
+  test('cambios simultáneos de una línea van uno tras otro: un solo tramo abierto y editar no deshace una asignación', async () => {
     const n = nuevo();
-    const linea = await crearLinea(datos({ numero: n, activoId: ids.libre }));
+    // Sin asignar y con chip físico: se le asigna un celular mientras se edita.
+    const linea = await crearLinea(datos({ numero: n, tipoChipId: fisico }));
     const resultados = await Promise.allSettled([
-      reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', sedeId: ids.otraSede })),
-      reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', sedeId: ids.sede })),
-      editarLinea(linea.id, datos({ numero: n, tipoChipId: fisico, precioMensual: 555 })),
+      reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'telefono', activoId: ids.libre })),
+      editarLinea(linea.id, datos({ numero: n, tipoChipId: fisico, observaciones: 'simultánea' })),
     ]);
     // Ninguno falla: cada uno espera al anterior y parte de lo que este dejo.
-    expect(resultados.map((r) => r.status)).toEqual(['fulfilled', 'fulfilled', 'fulfilled']);
+    expect(resultados.map((r) => r.status)).toEqual(['fulfilled', 'fulfilled']);
     const { linea: final, tenencias } = await fichaLinea(linea.id);
     expect(tenencias.filter((t) => t.hasta === null)).toHaveLength(1);
-    expect(tenencias).toHaveLength(3);
-    // La linea queda donde la dejo la ultima reasignacion (la edicion no la devolvio al celular).
-    const abierto = tenencias[0];
-    expect({ activoId: final.activoId, empleadoId: final.empleadoId, sedeId: final.sedeId }).toEqual({
-      activoId: abierto.activoId,
-      empleadoId: abierto.activoId ? null : abierto.empleadoId,
-      sedeId: abierto.sedeId,
-    });
-    expect(final.activoId).toBeNull();
-    expect(Number(final.precioMensual)).toBe(555);
+    expect(tenencias).toHaveLength(2);
+    // La linea queda en el celular asignado (la edicion no lo deshizo) y con la observacion.
+    expect(final).toMatchObject({ activoId: ids.libre, observaciones: 'simultánea' });
+    expect(tenencias[0]).toMatchObject({ activoId: ids.libre, hasta: null });
   });
 
   test('cuando el teléfono cambia de manos, la línea anota su tenencia: entrega y devolución, con el historial de la persona', async () => {
@@ -578,7 +576,7 @@ describir('lineas telefonicas en Postgres', () => {
     expect(ficha.tenencias[0].detalle).toBeTruthy();
 
     // Se devuelve (como en un offboarding): queda sin persona, dentro del mismo teléfono.
-    await registrarDevolucion(asignacion.id, { fechaDevolucion: new Date(), estadoDevolucion: 'ok' }, 'jsoto');
+    await devolverCelular(asignacion.id);
     ficha = await fichaLinea(linea.id);
     expect(ficha.reasignaciones).toBe(2);
     expect(ficha.tenencias).toMatchObject([
@@ -595,35 +593,35 @@ describir('lineas telefonicas en Postgres', () => {
     const delHistorial = (await tenenciasDePersona(ids.otraPersona!)).filter((t) => t.lineaId === linea.id);
     expect(delHistorial).toMatchObject([{ cierre: 'devolucion_telefono', linea: { id: linea.id } }]);
 
-    // Reasignar el mismo día de un cambio automático funciona (queda a continuación).
+    // Asignar el mismo día de un cambio automático funciona (queda a continuación).
     const hoy = new Date().toISOString().slice(0, 10);
-    await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', sedeId: ids.sede, desde: hoy }));
-    expect((await fichaLinea(linea.id)).tenencias[0]).toMatchObject({ origen: 'reasignacion', sedeId: ids.sede });
+    await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', desde: hoy }));
+    expect((await fichaLinea(linea.id)).tenencias[0]).toMatchObject({ origen: 'reasignacion', activoId: null });
   });
 
-  test('sede: se guarda al crear, se filtra por la del navbar, editar no la cambia y Reasignar la cambia en cada tramo', async () => {
-    const linea = await crearLinea(datos({ numero: nuevo(), sedeId: ids.sede }), 'jsoto');
-    expect(linea).toMatchObject({ sedeId: ids.sede });
-    expect((await fichaLinea(linea.id)).tenencias[0]).toMatchObject({ origen: 'alta', sedeId: ids.sede });
-    expect((await listarLineas({ sedeId: ids.sede })).map((l) => l.id)).toContain(linea.id);
-    expect((await listarLineas({ sedeId: ids.otraSede })).map((l) => l.id)).not.toContain(linea.id);
-
-    // Editar no mueve la línea de sede: eso es Reasignar.
-    const editada = await editarLinea(linea.id, datos({ numero: linea.numero, precioMensual: '1000', sedeId: ids.otraSede }));
-    expect(editada.sedeId).toBe(ids.sede);
-
-    // Solo cambiar la sede ya es una reasignación; repetirla se rechaza, y una sede que no existe también.
-    await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', sedeId: ids.otraSede }));
-    const ficha = await fichaLinea(linea.id);
-    expect(ficha.reasignaciones).toBe(1);
-    expect(ficha.tenencias).toMatchObject([{ sedeId: ids.otraSede, hasta: null }, { sedeId: ids.sede }]);
-    await expect(reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', sedeId: ids.otraSede }))).rejects.toMatchObject({ status: 409 });
-    await expect(reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', sedeId: randomUUID() }))).rejects.toMatchObject({
-      details: [{ field: 'sedeId', message: 'Elige una sede de la lista' }],
+  test('sede: la línea no tiene sede propia; el navbar usa la de su celular o, sin celular, la de su persona', async () => {
+    const celular = await prisma.asset.create({
+      data: { categoriaId: ids.categorias[0], marca: 'Samsung', modelo: `Sede ${s}`, estado: 'disponible', sedeId: ids.sede },
     });
-    await expect(crearLinea(datos({ numero: nuevo(), sedeId: randomUUID() }))).rejects.toMatchObject({
-      details: [{ field: 'sedeId', message: 'Elige una sede de la lista' }],
-    });
+    const persona = await prisma.employee.create({ data: { nombres: 'Prueba', apellidoPaterno: `Sede${s}`, estado: 'activo', sedeId: ids.otraSede } });
+    try {
+      const enCelular = await crearLinea(datos({ numero: nuevo(), activoId: celular.id }));
+      const conPersona = await crearLinea(datos({ numero: nuevo(), empleadoId: persona.id }));
+      const deSede = async (sedeId: string) => (await listarLineas({ sedeId })).map((l) => l.id);
+      expect(await deSede(ids.sede!)).toContain(enCelular.id);
+      expect(await deSede(ids.sede!)).not.toContain(conPersona.id);
+      expect(await deSede(ids.otraSede!)).toContain(conPersona.id);
+      expect(await deSede(ids.otraSede!)).not.toContain(enCelular.id);
+      // La linea no guarda sede: ni en la linea ni en sus tramos.
+      expect(enCelular).not.toHaveProperty('sedeId');
+      expect((await fichaLinea(enCelular.id)).tenencias[0]).not.toHaveProperty('sedeId');
+    } finally {
+      const propias = await prisma.lineaTelefonica.findMany({ where: { OR: [{ activoId: celular.id }, { empleadoId: persona.id }] }, select: { id: true } });
+      await prisma.lineaTenencia.deleteMany({ where: { lineaId: { in: propias.map((l) => l.id) } } });
+      await prisma.lineaTelefonica.deleteMany({ where: { id: { in: propias.map((l) => l.id) } } });
+      await prisma.asset.delete({ where: { id: celular.id } });
+      await prisma.employee.delete({ where: { id: persona.id } });
+    }
   });
 
   test('eSIM: un tipo de chip "sin celular" no admite celular al crear ni al reasignar; las líneas que ya lo tenían se pueden seguir editando', async () => {
@@ -649,8 +647,8 @@ describir('lineas telefonicas en Postgres', () => {
     const antigua = await prisma.lineaTelefonica.create({
       data: { numero: nuevo(), estadoId: (await prisma.estadoLinea.findUniqueOrThrow({ where: { clave: 'activa' } })).id, tipoChipId: esim.id, activoId: ids.celular },
     });
-    const editada = await editarLinea(antigua.id, datos({ numero: antigua.numero, tipoChipId: esim.id, precioMensual: '5000' }));
-    expect(editada).toMatchObject({ activoId: ids.celular, tipoChipId: esim.id, precioMensual: 5000 });
+    const editada = await editarLinea(antigua.id, datos({ numero: antigua.numero, tipoChipId: esim.id, observaciones: 'antigua' }));
+    expect(editada).toMatchObject({ activoId: ids.celular, tipoChipId: esim.id, observaciones: 'antigua' });
     // El tipo se marca o se desmarca desde el catálogo.
     expect(await editarOpcionLinea('tipos-chip', esim.id, { nombre: esim.nombre, sinCelular: false })).toMatchObject({ sinCelular: false });
   });
@@ -667,7 +665,7 @@ describir('lineas telefonicas en Postgres', () => {
         message: expect.stringContaining('con una solicitud'),
       });
     } finally {
-      await registrarDevolucion(asignacion.id, { fechaDevolucion: new Date(), estadoDevolucion: 'ok' }, 'jsoto');
+      await devolverCelular(asignacion.id);
     }
     // Devuelto el celular, la línea queda disponible y se puede asignar.
     await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno' }));
@@ -683,6 +681,89 @@ describir('lineas telefonicas en Postgres', () => {
     expect((await fichaLinea(enCelular.id)).tenencias).toHaveLength(1);
     // Ya disponible, se puede asignar a otra persona.
     await reasignarLinea(esimDe.id, reasignacionSchema.parse({ destino: 'persona', empleadoId: ids.empleado }));
+  });
+
+  test('al entregar un celular en una solicitud se le asocia una línea disponible: el chip físico al celular, la eSIM a la persona (SPEC 2.143)', async () => {
+    const fisica = await crearLinea(datos({ numero: nuevo(), tipoChipId: fisico }));
+    const virtual = await crearLinea(datos({ numero: nuevo(), tipoChipId: esim }));
+    await prisma.$transaction(async (tx) => {
+      await asociarLineaEnSolicitud(tx, fisica.id, { activoId: ids.libre!, empleadoId: ids.empleado!, detalle: 'Onboarding - T1', usuario: 'jsoto' });
+      await asociarLineaEnSolicitud(tx, virtual.id, { activoId: ids.libre!, empleadoId: ids.empleado!, detalle: 'Onboarding - T1', usuario: 'jsoto' });
+    });
+    expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: fisica.id } })).toMatchObject({ activoId: ids.libre, empleadoId: null });
+    expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: virtual.id } })).toMatchObject({ activoId: null, empleadoId: ids.empleado });
+    expect((await fichaLinea(fisica.id)).tenencias[0]).toMatchObject({ origen: 'reasignacion', activoId: ids.libre, usuario: 'jsoto' });
+
+    // Una que ya está asignada no se toma, y si la solicitud falla no queda nada a medias.
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await asociarLineaEnSolicitud(tx, virtual.id, { activoId: ids.libre!, empleadoId: ids.empleado!, detalle: 'x', usuario: 'jsoto' });
+      })
+    ).rejects.toMatchObject({ status: 409 });
+    const otra = await crearLinea(datos({ numero: nuevo(), tipoChipId: fisico }));
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await asociarLineaEnSolicitud(tx, otra.id, { activoId: ids.libre!, empleadoId: ids.empleado!, detalle: 'x', usuario: 'jsoto' });
+        throw new Error('falla después');
+      })
+    ).rejects.toThrow('falla después');
+    expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: otra.id } })).toMatchObject({ activoId: null, empleadoId: null });
+  });
+
+  test('onboarding con eSIM: la eSIM queda con la persona y un chip físico se rechaza (SPEC 2.143)', async () => {
+    const virtual = await crearLinea(datos({ numero: nuevo(), tipoChipId: esim }));
+    const fisica = await crearLinea(datos({ numero: nuevo(), tipoChipId: fisico }));
+    await prisma.$transaction((tx) => asociarEsimEnSolicitud(tx, virtual.id, { empleadoId: ids.empleado!, detalle: 'Onboarding - T2', usuario: 'jsoto' }));
+    expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: virtual.id } })).toMatchObject({ activoId: null, empleadoId: ids.empleado });
+    // El detalle de la solicitud muestra la línea entregada.
+    expect((await lineasDeSolicitud('T2', [])).map((l) => l.id)).toEqual([virtual.id]);
+    await expect(
+      prisma.$transaction((tx) => asociarEsimEnSolicitud(tx, fisica.id, { empleadoId: ids.empleado!, detalle: 'x', usuario: 'jsoto' }))
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
+  test('cambio de equipo: una línea se cambia por otra disponible (chip en el mismo celular o eSIM) y la anterior queda libre (SPEC 2.143)', async () => {
+    // La línea ya estaba en el celular de la persona (crearla ahí no se permite: se usa la base).
+    const chip = await prisma.lineaTelefonica.create({ data: { numero: nuevo(), estadoId: activa, tipoChipId: fisico, activoId: ids.celular } });
+    const otroChip = await crearLinea(datos({ numero: nuevo(), tipoChipId: fisico }));
+    const virtual = await crearLinea(datos({ numero: nuevo(), tipoChipId: esim }));
+    const cambiar = (lineaId: string, nuevaLineaId: string, empleadoId = ids.empleado!) =>
+      prisma.$transaction((tx) => cambiarLineaEnSolicitud(tx, { lineaId, nuevaLineaId, empleadoId, detalle: 'Cambio de equipo - T3', usuario: 'jsoto' }));
+
+    // Chip -> chip: el nuevo queda en el mismo celular (que ya tiene persona) y el anterior, libre.
+    await cambiar(chip.id, otroChip.id);
+    expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: chip.id } })).toMatchObject({ activoId: null, empleadoId: null });
+    expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: otroChip.id } })).toMatchObject({ activoId: ids.celular, empleadoId: null });
+    expect((await fichaLinea(otroChip.id)).tenencias[0]).toMatchObject({ origen: 'reasignacion', empleadoId: ids.empleado, activoId: ids.celular });
+    expect((await lineasDePersona(ids.empleado!)).map((l) => l.id)).toEqual(expect.arrayContaining([otroChip.id]));
+    expect((await lineasDePersona(ids.empleado!)).map((l) => l.id)).not.toContain(chip.id);
+    // El detalle de la solicitud muestra la nueva y no la que se devolvió.
+    expect((await lineasDeSolicitud('T3', [])).map((l) => l.id)).toEqual([otroChip.id]);
+
+    // Chip -> eSIM no va por aquí: es devolver el celular con su línea (cambio del celular).
+    await expect(cambiar(otroChip.id, virtual.id)).rejects.toMatchObject({ status: 409 });
+    expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: otroChip.id } })).toMatchObject({ activoId: ids.celular });
+    // Para lo que sigue, la persona tiene una eSIM y el celular, su chip.
+    await prisma.$transaction((tx) => asociarEsimEnSolicitud(tx, virtual.id, { empleadoId: ids.empleado!, detalle: 'x', usuario: 'jsoto' }));
+
+    // eSIM -> chip físico no va por aquí: se le entrega un celular (lo arma la solicitud).
+    await expect(cambiar(virtual.id, chip.id)).rejects.toMatchObject({ status: 409 });
+    expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: virtual.id } })).toMatchObject({ empleadoId: ids.empleado });
+
+    // eSIM -> eSIM: la anterior queda libre y la nueva, con la persona.
+    const otraEsim = await crearLinea(datos({ numero: nuevo(), tipoChipId: esim }));
+    await cambiar(virtual.id, otraEsim.id);
+    expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: virtual.id } })).toMatchObject({ activoId: null, empleadoId: null });
+    expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: otraEsim.id } })).toMatchObject({ activoId: null, empleadoId: ids.empleado });
+
+    // Liberar para entregar un celular: solo una eSIM.
+    await expect(
+      prisma.$transaction((tx) => liberarLineaEnSolicitud(tx, { lineaId: otroChip.id, empleadoId: ids.empleado!, detalle: 'x', soloEsim: true }))
+    ).rejects.toMatchObject({ status: 409 });
+
+    // Una línea que no es de la persona, o una nueva ya asignada, no se cambian.
+    await expect(cambiar(otraEsim.id, virtual.id, ids.otraPersona!)).rejects.toMatchObject({ status: 409 });
+    await expect(cambiar(otraEsim.id, otraEsim.id)).rejects.toMatchObject({ status: 409 });
   });
 
   test('motivos de reasignación: vienen de base, se pueden agregar y uno usado se desactiva y deja de ofrecerse', async () => {

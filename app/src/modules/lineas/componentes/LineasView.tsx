@@ -1,29 +1,33 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
-import Link from "next/link";
-import { Edit, Eye, ListChecks, Plus, Repeat, Trash2 } from "lucide-react";
-import { ActivosTabs } from "@/modules/activos/componentes";
-import { PARAMS_FILTRO_LINEA, formatearNumero, tonoEstadoLinea } from "@/modules/lineas";
-import { FiltrosLineas, useOpcionesFiltroLineas } from "@/modules/lineas/componentes/FiltrosLineas";
-import { FormularioLinea } from "@/modules/lineas/componentes/FormularioLinea";
-import { IndicadoresLineas } from "@/modules/lineas/componentes/IndicadoresLineas";
-import { nombrePersona, personaDe, type LineaLista } from "@/modules/lineas/componentes/tipos";
-import { parseApiError } from "@/shared/utilidades/apiErrors";
-import { formatearFecha } from "@/shared/utilidades/fechas";
-import { formatearClp } from "@/shared/utilidades/moneda";
-import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
-import { useEnvio } from "@/shared/hooks/useEnvio";
-import { usePermissions } from "@/shared/hooks/usePermissions";
-import { Badge } from "@/shared/ui/Badge";
-import { Button } from "@/shared/ui/Button";
-import { buttonClasses } from "@/shared/ui/buttonStyles";
-import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
-import { PageHeader } from "@/shared/ui/PageHeader";
-import { TablaAdaptable } from "@/shared/ui/TablaAdaptable";
-import { useToast } from "@/shared/ui/Toast";
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useSedeSeleccionada } from '@/shared/ui/providers/SedeSeleccionadaProvider';
+import Link from 'next/link';
+import { Edit, Eye, ListChecks, Plus, PowerOff, Repeat, Trash2 } from 'lucide-react';
+import { ActivosTabs } from '@/modules/activos/componentes';
+import { PARAMS_FILTRO_LINEA, formatearNumero, tonoEstadoLinea } from '@/modules/lineas';
+import { FiltrosLineas, useOpcionesFiltroLineas } from '@/modules/lineas/componentes/FiltrosLineas';
+import { FormularioLinea } from '@/modules/lineas/componentes/FormularioLinea';
+import { IndicadoresLineas } from '@/modules/lineas/componentes/IndicadoresLineas';
+import {
+  nombrePersona,
+  personaDe,
+  sedeDe,
+  type LineaLista,
+} from '@/modules/lineas/componentes/tipos';
+import { parseApiError } from '@/shared/utilidades/apiErrors';
+import { formatearFecha } from '@/shared/utilidades/fechas';
+import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import { useEnvio } from '@/shared/hooks/useEnvio';
+import { usePermissions } from '@/shared/hooks/usePermissions';
+import { Badge } from '@/shared/ui/Badge';
+import { Button } from '@/shared/ui/Button';
+import { buttonClasses } from '@/shared/ui/buttonStyles';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { TablaDatos } from '@/shared/ui/TablaDatos';
+import { useToast } from '@/shared/ui/Toast';
 
 /**
  * Activos > Lineas (SPEC 2.131): el panel de indicadores y la lista. Cada
@@ -31,7 +35,7 @@ import { useToast } from "@/shared/ui/Toast";
  * quien la ha tenido. Aqui se crea y se edita en un formulario sobre la lista.
  */
 
-/** Quien tiene la linea: quien usa su celular, la persona guardada (telefono personal) o el responsable. */
+/** Quien tiene la linea: quien usa su celular o la persona guardada (telefono personal). */
 function Tenedor({ l }: { l: LineaLista }) {
   const persona = personaDe(l);
   if (persona) {
@@ -42,11 +46,15 @@ function Tenedor({ l }: { l: LineaLista }) {
         </Link>
         {!l.activo && <span className="block text-xs text-fg-subtle">Teléfono personal</span>}
         {/* Se fue de la empresa y la linea sigue a su nombre: hay que recuperarla o darla de baja. */}
-        {persona.estado === "desvinculado" && <span className="block text-xs text-red-700 dark:text-red-400">Persona desvinculada: revisar</span>}
+        {persona.estado === 'desvinculado' && (
+          <span className="block text-xs text-red-700 dark:text-red-400">
+            Persona desvinculada: revisar
+          </span>
+        )}
       </>
     );
   }
-  return <span className="text-fg-subtle">{l.responsable ?? "Sin asignar"}</span>;
+  return <span className="text-fg-subtle">Disponible</span>;
 }
 
 export function LineasView() {
@@ -61,10 +69,15 @@ export function LineasView() {
   const [lineas, setLineas] = useState<LineaLista[]>([]);
   const [cargando, setCargando] = useState(true);
   // Los filtros viven en la URL: se mantienen al recargar y se pueden compartir.
-  const valores = Object.fromEntries(PARAMS_FILTRO_LINEA.flatMap((p) => (searchParams.get(p) ? [[p, searchParams.get(p)!]] : [])));
-  const [busqueda, setBusqueda] = useState(valores.q ?? "");
+  const valores = Object.fromEntries(
+    PARAMS_FILTRO_LINEA.flatMap((p) => (searchParams.get(p) ? [[p, searchParams.get(p)!]] : []))
+  );
+  const [busqueda, setBusqueda] = useState(valores.q ?? '');
   const q = useDebouncedValue(busqueda);
-  const filtros = new URLSearchParams({ ...valores, ...(sedeSeleccionada ? { sedeId: sedeSeleccionada } : {}) }).toString();
+  const filtros = new URLSearchParams({
+    ...valores,
+    ...(sedeSeleccionada ? { sedeId: sedeSeleccionada } : {}),
+  }).toString();
 
   const filtrar = (cambios: Record<string, string | null>) => {
     const p = new URLSearchParams(searchParams.toString());
@@ -72,17 +85,17 @@ export function LineasView() {
       if (v) p.set(k, v);
       else p.delete(k);
     }
-    if ("q" in cambios) setBusqueda(cambios.q ?? "");
+    if ('q' in cambios) setBusqueda(cambios.q ?? '');
     router.replace(p.size ? `${pathname}?${p}` : pathname, { scroll: false });
   };
 
   // La busqueda escrita pasa a la URL al dejar de teclear.
   useEffect(() => {
-    if (q !== (valores.q ?? "")) filtrar({ q: q || null });
+    if (q !== (valores.q ?? '')) filtrar({ q: q || null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
   // null = cerrado, "nueva" = creando, o la linea que se edita.
-  const [abierto, setAbierto] = useState<LineaLista | "nueva" | null>(null);
+  const [abierto, setAbierto] = useState<LineaLista | 'nueva' | null>(null);
   const [aEliminar, setAEliminar] = useState<LineaLista | null>(null);
   // Cambia al guardar o eliminar, para que el panel se recalcule.
   const [version, setVersion] = useState(0);
@@ -111,32 +124,39 @@ export function LineasView() {
 
   const eliminar = async (l: LineaLista) => {
     setAEliminar(null);
-    const res = await fetch(`/api/lineas/${l.id}`, { method: "DELETE" }).catch(() => null);
+    const res = await fetch(`/api/lineas/${l.id}`, { method: 'DELETE' }).catch(() => null);
     if (!res?.ok) {
-      toast.error(res ? (await parseApiError(res, "Error al eliminar la línea")).message : "Error al eliminar la línea");
+      toast.error(
+        res
+          ? (await parseApiError(res, 'Error al eliminar la línea')).message
+          : 'Error al eliminar la línea'
+      );
       return;
     }
     await cargar();
     setVersion((v) => v + 1);
-    toast.success("Línea eliminada");
+    toast.success('Línea eliminada');
   };
 
-  const enEdicion = abierto && abierto !== "nueva" ? abierto.id : null;
+  const enEdicion = abierto && abierto !== 'nueva' ? abierto.id : null;
 
   return (
     <div className="space-y-6">
       <ActivosTabs />
       <PageHeader
         title="Líneas telefónicas"
-        description="Líneas contratadas, con su plan y costo. Cada una se asocia al celular donde está el chip, y la usa quien tiene ese celular. Una eSIM no va en un celular: se asigna a una persona. Se filtra por la sede de la barra."
+        description="Líneas con su operador y tipo de chip. Cada una se asocia al celular donde está el chip, y la usa quien tiene ese celular. Una eSIM no va en un celular: se asigna a una persona. Se filtra por la sede de la barra (la de su celular o su persona)."
         actions={
           !abierto && (
             <>
-              <Link href="/activos/lineas/catalogos" className={buttonClasses({ variant: "outline" })}>
+              <Link
+                href="/activos/lineas/catalogos"
+                className={buttonClasses({ variant: 'outline' })}
+              >
                 <ListChecks size={18} />
                 <span>Catálogos</span>
               </Link>
-              <Button leftIcon={<Plus size={18} />} onClick={() => setAbierto("nueva")}>
+              <Button leftIcon={<Plus size={18} />} onClick={() => setAbierto('nueva')}>
                 Nueva línea
               </Button>
             </>
@@ -144,11 +164,17 @@ export function LineasView() {
         }
       />
 
-      {abierto && <FormularioLinea key={abierto === "nueva" ? "nueva" : abierto.id} linea={abierto === "nueva" ? null : abierto} onCerrar={cerrarFormulario} />}
+      {abierto && (
+        <FormularioLinea
+          key={abierto === 'nueva' ? 'nueva' : abierto.id}
+          linea={abierto === 'nueva' ? null : abierto}
+          onCerrar={cerrarFormulario}
+        />
+      )}
 
       <IndicadoresLineas
         filtros={filtros}
-        actual={{ estado: valores.estado ?? null, asignacion: valores.asignacion ?? null, revisar: valores.revisar ?? null }}
+        actual={{ estado: valores.estado ?? null, asignacion: valores.asignacion ?? null }}
         version={version}
         onFiltrar={filtrar}
       />
@@ -159,100 +185,136 @@ export function LineasView() {
         <input
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por número, persona, plan, operador, celular u observación"
+          placeholder="Buscar por número, persona o celular"
           className="field-input w-full sm:max-w-sm"
           aria-label="Buscar"
         />
-        {!cargando && <p className="text-sm text-fg-muted">{lineas.length} {lineas.length === 1 ? "línea" : "líneas"}</p>}
+        {!cargando && (
+          <p className="text-sm text-fg-muted">
+            {lineas.length} {lineas.length === 1 ? 'línea' : 'líneas'}
+          </p>
+        )}
       </div>
 
-      {cargando ? (
-        <p className="card px-6 py-8 text-center text-fg-subtle">Cargando...</p>
-      ) : (
-        <TablaAdaptable
-          items={lineas}
-          clave={(l) => l.id}
-          vacio="No hay líneas con este filtro"
-          resaltada={(l) => l.estado.deBaja || enEdicion === l.id}
-          columnas={[
-            {
-              titulo: "Número",
-              celda: (l) => (
-                <Link href={`/activos/lineas/${l.id}`} className="font-mono text-brand hover:underline">
-                  {formatearNumero(l.numero)}
-                </Link>
-              ),
-            },
-            {
-              titulo: "Plan",
-              celda: (l) => (
-                <>
-                  {l.plan?.nombre ?? "—"}
-                  <span className="block text-xs text-fg-subtle">
-                    {[l.precioMensual != null && `${formatearClp(l.precioMensual)} al mes`, l.tipoChip?.nombre, l.operador?.nombre].filter(Boolean).join(" · ")}
-                  </span>
-                </>
-              ),
-            },
-            { titulo: "Persona o responsable", celda: (l) => <Tenedor l={l} /> },
-            {
-              titulo: "Celular",
-              celda: (l) =>
-                l.activo ? (
-                  <Link href={`/activos/${l.activo.id}`} className="text-brand hover:underline">
-                    {l.activo.marca} {l.activo.modelo}
-                  </Link>
-                ) : (
-                  <span className="text-fg-subtle">—</span>
-                ),
-            },
-            { titulo: "Sede", celda: (l) => l.sede?.nombre ?? <span className="text-fg-subtle">—</span> },
-            {
-              titulo: "Estado",
-              className: "text-center",
-              celda: (l) => (
-                <>
-                  <Badge variant={tonoEstadoLinea(l.estado)}>{l.estado.nombre}</Badge>
-                  {l.fechaBaja && <span className="block text-xs text-fg-subtle">{formatearFecha(l.fechaBaja)}</span>}
-                </>
-              ),
-            },
-          ]}
-          tarjeta={(l) => (
-            <>
-              <Link href={`/activos/lineas/${l.id}`} className="font-mono font-medium text-brand hover:underline">
+      <TablaDatos
+        items={lineas}
+        clave={(l) => l.id}
+        cargando={cargando}
+        vacio="No hay líneas con este filtro"
+        resaltada={(l) => l.estado.deBaja || enEdicion === l.id}
+        columnas={[
+          {
+            titulo: 'Número',
+            celda: (l) => (
+              <Link
+                href={`/activos/lineas/${l.id}`}
+                className="font-mono text-brand hover:underline"
+              >
                 {formatearNumero(l.numero)}
               </Link>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
-                <Badge variant={tonoEstadoLinea(l.estado)}>{l.estado.nombre}</Badge>
-                <Tenedor l={l} />
-                {l.plan && <span>· {l.plan.nombre}</span>}
-              </div>
-            </>
-          )}
-          acciones={(l) => (
-            <>
-              <Link href={`/activos/lineas/${l.id}`} className="rounded p-1 text-fg-muted hover:bg-surface-muted" title="Ver detalle" aria-label={`Ver detalle de ${l.numero}`}>
-                <Eye size={18} />
-              </Link>
-              {/* Solo se asigna una linea disponible: vigente y sin persona (SPEC 2.131). */}
-              {!l.estado.deBaja && !personaDe(l) && (
-                <Link href={`/activos/lineas/${l.id}?reasignar=1`} className="rounded p-1 text-fg-muted hover:bg-surface-muted" title="Asignar" aria-label={`Asignar ${l.numero}`}>
-                  <Repeat size={18} />
+            ),
+          },
+          {
+            titulo: 'Operador',
+            celda: (l) =>
+              [l.operador?.nombre, l.tipoChip?.nombre].filter(Boolean).join(' · ') || '—',
+          },
+          { titulo: 'Persona', celda: (l) => <Tenedor l={l} /> },
+          {
+            titulo: 'Celular',
+            celda: (l) =>
+              l.activo ? (
+                <Link href={`/activos/${l.activo.id}`} className="text-brand hover:underline">
+                  {l.activo.marca} {l.activo.modelo}
                 </Link>
-              )}
-              <button onClick={() => setAbierto(l)} className="rounded p-1 text-primary-700 hover:bg-primary-50" title="Editar" aria-label={`Editar ${l.numero}`}>
-                <Edit size={18} />
+              ) : (
+                <span className="text-fg-subtle">—</span>
+              ),
+          },
+          { titulo: 'Sede', celda: (l) => sedeDe(l) ?? <span className="text-fg-subtle">—</span> },
+          {
+            titulo: 'Estado',
+            className: 'text-center',
+            celda: (l) => (
+              <>
+                <Badge variant={tonoEstadoLinea(l.estado)}>{l.estado.nombre}</Badge>
+                {l.fechaBaja && (
+                  <span className="block text-xs text-fg-subtle">
+                    {formatearFecha(l.fechaBaja)}
+                  </span>
+                )}
+              </>
+            ),
+          },
+        ]}
+        tarjeta={(l) => (
+          <>
+            <Link
+              href={`/activos/lineas/${l.id}`}
+              className="font-mono font-medium text-brand hover:underline"
+            >
+              {formatearNumero(l.numero)}
+            </Link>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
+              <Badge variant={tonoEstadoLinea(l.estado)}>{l.estado.nombre}</Badge>
+              <Tenedor l={l} />
+              {l.operador && <span>· {l.operador.nombre}</span>}
+            </div>
+          </>
+        )}
+        acciones={(l) => (
+          <>
+            <Link
+              href={`/activos/lineas/${l.id}`}
+              className="rounded p-1 text-fg-muted hover:bg-surface-muted"
+              title="Ver detalle"
+              aria-label={`Ver detalle de ${l.numero}`}
+            >
+              <Eye size={18} />
+            </Link>
+            {/* Solo se asigna una linea disponible: vigente y sin persona (SPEC 2.131). */}
+            {!l.estado.deBaja && !personaDe(l) && (
+              <Link
+                href={`/activos/lineas/${l.id}?reasignar=1`}
+                className="rounded p-1 text-fg-muted hover:bg-surface-muted"
+                title="Asignar"
+                aria-label={`Asignar ${l.numero}`}
+              >
+                <Repeat size={18} />
+              </Link>
+            )}
+            <button
+              onClick={() => setAbierto(l)}
+              className="rounded p-1 text-primary-700 hover:bg-primary-50"
+              title="Editar"
+              aria-label={`Editar ${l.numero}`}
+            >
+              <Edit size={18} />
+            </button>
+            {/* Dar de baja lleva a su pantalla, con el motivo (SPEC 2.140). */}
+            {!l.estado.deBaja && (
+              <Link
+                href={`/activos/lineas/${l.id}/baja`}
+                className="rounded p-1 text-fg-muted hover:bg-surface-muted"
+                title="Dar de baja"
+                aria-label={`Dar de baja ${l.numero}`}
+              >
+                <PowerOff size={18} />
+              </Link>
+            )}
+            {permisos.can('lineas', 'delete') && (
+              <button
+                onClick={() => setAEliminar(l)}
+                className="rounded p-1 text-red-600 hover:bg-red-50"
+                title="Eliminar"
+                aria-label={`Eliminar ${l.numero}`}
+              >
+                <Trash2 size={18} />
               </button>
-              {permisos.can("lineas", "delete") && (
-                <button onClick={() => setAEliminar(l)} className="rounded p-1 text-red-600 hover:bg-red-50" title="Eliminar" aria-label={`Eliminar ${l.numero}`}>
-                  <Trash2 size={18} />
-                </button>
-              )}
-            </>
-          )}
-        />
-      )}
+            )}
+          </>
+        )}
+      />
 
       <ConfirmDialog
         isOpen={!!aEliminar}
@@ -264,8 +326,8 @@ export function LineasView() {
         title="Eliminar línea"
         message={
           aEliminar
-            ? `La línea ${formatearNumero(aEliminar.numero)} se eliminará. Úsalo solo si se ingresó por error; si ya no se usa, pásala a Dada de baja. El costo de los meses en que existió se conserva y deja de contar desde hoy. En la auditoría quedará quién la eliminó.`
-            : ""
+            ? `La línea ${formatearNumero(aEliminar.numero)} se eliminará. Úsalo solo si se ingresó por error; si ya no se usa, pásala a Baja. En la auditoría quedará quién la eliminó.`
+            : ''
         }
         confirmLabel="Eliminar"
       />

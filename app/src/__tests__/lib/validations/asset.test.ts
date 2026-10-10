@@ -12,7 +12,6 @@ describe('Asset Validation - estadoActivoEnum', () => {
       'asignado',
       'en_mantencion',
       'baja',
-      'vendido',
       'no_devuelto',
     ]
 
@@ -76,12 +75,10 @@ describe('Asset Validation - createAssetSchema', () => {
       pulgadas: 14.0,
       sistemaOperativo: 'Windows 11 Pro',
       numeroTelefono: '+56996191268',
-      numeroActivacion: '123456',
       tipoPlan: 'Full',
       tieneCargador: true,
       estado: 'disponible',
       condicion: 'nuevo',
-      ubicacionFisica: 'Bodega Santiago',
       microsoft365: true,
       intuneEnrolled: true,
       listaDistribucion: 'team@empresa.cl',

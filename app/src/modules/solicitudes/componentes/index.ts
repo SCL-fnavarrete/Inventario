@@ -10,6 +10,11 @@ export {
   type ItemCambioEquipo,
 } from '@/modules/solicitudes/componentes/SeleccionarCambioEquipo';
 export {
+  SeleccionarCambioLinea,
+  itemLineaCompleto,
+  type ItemCambioLinea,
+} from '@/modules/solicitudes/componentes/SeleccionarCambioLinea';
+export {
   BuscadorEmpleado,
   useBuscarEmpleado,
   type BuscadorEmpleadoEstado,
@@ -22,6 +27,12 @@ export {
   FormEmpleadoNuevo,
   type EmpleadoNuevo,
 } from '@/modules/solicitudes/componentes/nueva/FormEmpleadoNuevo';
+export { CatalogosSolicitud } from '@/modules/solicitudes/componentes/CatalogosSolicitud';
+export {
+  ElegirLineaCelular,
+  SIN_LINEA,
+  type EleccionLinea,
+} from '@/modules/solicitudes/componentes/nueva/ElegirLineaCelular';
 export { SeccionCoordinacion } from '@/modules/solicitudes/componentes/nueva/SeccionCoordinacion';
 export {
   SeccionKitEpp,

@@ -6,7 +6,7 @@ import { History } from "lucide-react";
 import type { ItemHistorial, TipoItemHistorial } from "@/modules/personas";
 import { formatearFecha } from "@/shared/utilidades/fechas";
 import { Badge } from "@/shared/ui/Badge";
-import { TablaAdaptable } from "@/shared/ui/TablaAdaptable";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 
 /**
  * Historial de asignaciones de una persona (SPEC 2.132): todo lo que se le ha
@@ -76,7 +76,7 @@ export function HistorialAsignaciones({ empleadoId }: { empleadoId: string }) {
         ) : !items ? (
           <p className="py-6 text-center text-sm text-fg-subtle">Cargando...</p>
         ) : (
-          <TablaAdaptable
+          <TablaDatos
             items={visibles}
             clave={(i) => i.clave}
             vacio="No hay nada que mostrar con este filtro"

@@ -37,7 +37,7 @@ export type EmployeeAssignment = {
     modelo: string;
     numeroSerie: string | null;
     imei?: string | null;
-    categoria: { nombre: string };
+    categoria: { nombre: string; tipoFicha?: string };
     tieneCargador: boolean;
   };
 };
@@ -72,7 +72,7 @@ export type EquipoDisponible = {
   discoDuro: string | null;
   sistemaOperativo: string | null;
   imei: string | null;
-  lineas?: { numero: string; plan: { nombre: string } | null }[];
+  lineas?: { numero: string }[];
   operador: string | null;
   pulgadas: string | number | null;
   // Si el equipo es nuevo o usado; sale del campo `condicion`.
@@ -164,6 +164,7 @@ export const ETIQUETAS_ERROR: Record<string, string> = {
   ciudadEntrega: 'Ubicación de destino',
   kitEpp: 'Kit de Bienvenida / EPP',
   sedeId: 'Sede',
+  lineaCelular: 'Línea del celular',
   motivoCambio: 'Motivo del cambio',
   cambioSeleccion: 'Equipos a cambiar',
   fechaCambioCoordinada: 'Fecha del cambio',

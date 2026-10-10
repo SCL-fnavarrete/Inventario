@@ -1,6 +1,7 @@
 "use client";
 
-import { StockChart, EstadosChart, AsignacionesChart } from "@/modules/dashboard/componentes/graficos";
+import type { ReactNode } from "react";
+import { AsignacionesChart, EstadosChart, SedeChart, StockChart } from "@/modules/dashboard/componentes/graficos";
 
 interface DashboardChartsProps {
   stockByCategory: {
@@ -19,38 +20,44 @@ interface DashboardChartsProps {
     asignaciones: number;
     devoluciones: number;
   }[];
+  equiposPorSede: {
+    sede: string;
+    disponibles: number;
+    asignados: number;
+    mantencion: number;
+    otros: number;
+  }[];
 }
 
-export function DashboardCharts({
-  stockByCategory,
-  estadosData,
-  asignacionesChartData,
-}: DashboardChartsProps) {
+/** Una tarjeta de grafico: titulo y una linea que dice que se esta mirando. */
+function TarjetaGrafico({ titulo, ayuda, children }: { titulo: string; ayuda: string; children: ReactNode }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-      {/* Gráfico de Stock por Categoría (Barras apiladas) */}
-      <div className="card p-6">
-        <h2 className="text-lg font-semibold text-fg mb-4">
-          Stock por Categoría
-        </h2>
-        <StockChart data={stockByCategory} />
-      </div>
+    <section className="card p-5" aria-label={titulo}>
+      <h2 className="text-base font-semibold text-fg">{titulo}</h2>
+      <p className="mb-4 text-xs text-fg-subtle">{ayuda}</p>
+      {children}
+    </section>
+  );
+}
 
-      {/* Gráfico de Estados (Pie Chart) */}
-      <div className="card p-6">
-        <h2 className="text-lg font-semibold text-fg mb-4">
-          Distribución por Estado
-        </h2>
+export function DashboardCharts({ stockByCategory, estadosData, asignacionesChartData, equiposPorSede }: DashboardChartsProps) {
+  return (
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <TarjetaGrafico titulo="Estado del parque" ayuda="Todos los equipos por estado, con su porcentaje.">
         <EstadosChart data={estadosData} />
-      </div>
+      </TarjetaGrafico>
 
-      {/* Gráfico de Asignaciones por Mes (Líneas) */}
-      <div className="card p-6 lg:col-span-2 xl:col-span-1">
-        <h2 className="text-lg font-semibold text-fg mb-4">
-          Movimientos (Últimos 6 meses)
-        </h2>
+      <TarjetaGrafico titulo="Equipos por sede" ayuda="Dónde está el stock listo para asignar (verde) y dónde falta.">
+        <SedeChart data={equiposPorSede} />
+      </TarjetaGrafico>
+
+      <TarjetaGrafico titulo="Stock por categoría" ayuda="Disponibles, asignados y en mantención de cada categoría; las más grandes arriba.">
+        <StockChart data={stockByCategory} />
+      </TarjetaGrafico>
+
+      <TarjetaGrafico titulo="Movimientos" ayuda="Entregas y devoluciones de los últimos 6 meses.">
         <AsignacionesChart data={asignacionesChartData} />
-      </div>
+      </TarjetaGrafico>
     </div>
   );
 }

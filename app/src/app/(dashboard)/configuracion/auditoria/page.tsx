@@ -2,11 +2,11 @@
 
 import { useEffect, useState, Fragment } from "react";
 import Link from "next/link";
-import { Search, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Search, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/shared/cn";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { PageHeader } from "@/shared/ui/PageHeader";
-import { Pagination } from "@/shared/ui/Pagination";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { CampoFormulario } from "@/shared/ui/CampoFormulario";
 import { formatearFechaHora } from "@/shared/utilidades/fechas";
 import { MODULOS_AUDITORIA } from "@/modules/configuracion";
@@ -136,15 +136,17 @@ export default function AuditoriaPage() {
   const [search, setSearch] = useState("");
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
+  // Cuantos eventos se ven por pagina ("Mostrar: N").
+  const [limite, setLimite] = useState(20);
   const usuarioBuscado = useDebouncedValue(usuario, 350);
   const textoBuscado = useDebouncedValue(search, 350);
 
   // La pagina vuelve a 1 al cambiar cualquier filtro.
-  const filtros = `${modulo}|${usuarioBuscado}|${textoBuscado}|${fechaDesde}|${fechaHasta}`;
+  const filtros = `${modulo}|${usuarioBuscado}|${textoBuscado}|${fechaDesde}|${fechaHasta}|${limite}`;
   const [pagina, setPagina] = useState({ filtros, n: 1 });
   const page = pagina.filtros === filtros ? pagina.n : 1;
 
-  const q = new URLSearchParams({ page: String(page), limit: "20" });
+  const q = new URLSearchParams({ page: String(page), limit: String(limite) });
   if (modulo) q.set("modulo", modulo);
   if (usuarioBuscado) q.set("usuario", usuarioBuscado);
   if (textoBuscado) q.set("search", textoBuscado);
@@ -223,116 +225,83 @@ export default function AuditoriaPage() {
         </CampoFormulario>
       </div>
 
-      <div className="card overflow-hidden">
-        {cargando && eventos.length === 0 ? (
-          <div className="px-4 py-10 text-center text-fg-subtle">
-            <Loader2 className="inline h-5 w-5 animate-spin" />
-          </div>
-        ) : eventos.length === 0 ? (
-          <p className="px-4 py-10 text-center text-fg-subtle">No hay eventos para estos filtros</p>
-        ) : (
-          <>
-            {/* Escritorio: tabla. */}
-            <table className={cn("hidden w-full md:table", cargando && "opacity-60")}>
-              <thead className="border-b bg-surface-muted">
-                <tr>
-                  <th className="table-th px-4">Fecha</th>
-                  <th className="table-th px-4">Módulo</th>
-                  <th className="table-th px-4">Acción</th>
-                  <th className="table-th px-4">Qué pasó</th>
-                  <th className="table-th px-4">Usuario</th>
-                  <th className="table-th px-4 text-right">Detalle</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {eventos.map((ev) => {
-                  const abierto = expandido === ev.id;
-                  return (
-                    <Fragment key={ev.id}>
-                      <tr className="hover:bg-surface-muted">
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-fg-subtle">
-                          {formatearFechaHora(ev.createdAt, FORMATO_FECHA)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <BadgeModulo ev={ev} />
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-fg-muted">{ev.accion}</td>
-                        <td className="px-4 py-3 text-sm">
-                          <QuePaso ev={ev} />
-                        </td>
-                        <td className="px-4 py-3 text-sm text-fg-subtle">
-                          {ev.usuario ?? "—"}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-right">
-                          {ev.cambios.length > 0 && (
-                            <button
-                              onClick={() => alternar(ev.id)}
-                              className="rounded-lg p-2 text-fg-subtle hover:bg-primary-50 hover:text-primary-700"
-                              title={abierto ? "Ocultar detalle" : "Ver qué cambió"}
-                              aria-label={abierto ? "Ocultar detalle" : "Ver qué cambió"}
-                              aria-expanded={abierto}
-                            >
-                              {abierto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                      {abierto && (
-                        <tr>
-                          <td colSpan={6} className="bg-surface-muted px-4 py-3">
-                            <Detalle cambios={ev.cambios} />
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            {/* Celular: fila compacta. */}
-            <ul className={cn("divide-y divide-line md:hidden", cargando && "opacity-60")}>
-              {eventos.map((ev) => {
-                const abierto = expandido === ev.id;
-                return (
-                  <li key={ev.id} className="space-y-1 px-4 py-3 text-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <BadgeModulo ev={ev} />
-                      <span className="text-xs text-fg-subtle">{formatearFechaHora(ev.createdAt, FORMATO_FECHA)}</span>
-                    </div>
-                    <p className="text-xs font-medium text-fg-muted">
-                      {ev.accion}
-                      {ev.usuario ? ` · ${ev.usuario}` : ""}
-                    </p>
-                    <QuePaso ev={ev} />
-                    {ev.cambios.length > 0 && (
-                      <button
-                        onClick={() => alternar(ev.id)}
-                        className="inline-flex items-center gap-1 text-xs font-medium text-primary-700"
-                        aria-expanded={abierto}
-                      >
-                        {abierto ? "Ocultar detalle" : "Ver qué cambió"}
-                        {abierto ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                      </button>
-                    )}
-                    {abierto && <Detalle cambios={ev.cambios} />}
-                  </li>
-                );
-              })}
-            </ul>
-          </>
-        )}
-
-        <Pagination
-          className="border-t border-line px-4 py-4"
-          current={page}
-          pages={paginacion.totalPages}
-          total={paginacion.total}
-          limit={paginacion.limit}
-          itemLabel="eventos"
-          onPageChange={(n) => setPagina({ filtros, n })}
-        />
-      </div>
+      <TablaDatos
+        items={eventos}
+        clave={(ev) => ev.id}
+        cargando={cargando}
+        compacta
+        vacio="No hay eventos para estos filtros"
+        paginacion={{
+          current: page,
+          pages: paginacion.totalPages,
+          total: paginacion.total,
+          limit: paginacion.limit,
+          itemLabel: "eventos",
+          onPageChange: (n) => setPagina({ filtros, n }),
+          onLimitChange: setLimite,
+        }}
+        expandible={{
+          botonPropio: true,
+          abierta: (ev) => expandido === ev.id,
+          alternar: (ev) => alternar(ev.id),
+          contenido: (ev) => <Detalle cambios={ev.cambios} />,
+        }}
+        columnas={[
+          { titulo: "Fecha", sinSalto: true, className: "px-4 text-fg-subtle", celda: (ev) => formatearFechaHora(ev.createdAt, FORMATO_FECHA) },
+          { titulo: "Módulo", className: "px-4", celda: (ev) => <BadgeModulo ev={ev} /> },
+          { titulo: "Acción", sinSalto: true, className: "px-4 text-fg-muted", celda: (ev) => ev.accion },
+          { titulo: "Qué pasó", className: "px-4", celda: (ev) => <QuePaso ev={ev} /> },
+          { titulo: "Usuario", className: "px-4 text-fg-subtle", celda: (ev) => ev.usuario ?? "—" },
+          {
+            titulo: "Detalle",
+            sinSalto: true,
+            className: "px-4 text-right",
+            celda: (ev) => {
+              const abierto = expandido === ev.id;
+              return (
+                ev.cambios.length > 0 && (
+                  <button
+                    onClick={() => alternar(ev.id)}
+                    className="rounded-lg p-2 text-fg-subtle hover:bg-primary-50 hover:text-primary-700"
+                    title={abierto ? "Ocultar detalle" : "Ver qué cambió"}
+                    aria-label={abierto ? "Ocultar detalle" : "Ver qué cambió"}
+                    aria-expanded={abierto}
+                  >
+                    {abierto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
+                )
+              );
+            },
+          },
+        ]}
+        tarjeta={(ev) => {
+          const abierto = expandido === ev.id;
+          return (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <BadgeModulo ev={ev} />
+                <span className="text-xs text-fg-subtle">{formatearFechaHora(ev.createdAt, FORMATO_FECHA)}</span>
+              </div>
+              <p className="text-xs font-medium text-fg-muted">
+                {ev.accion}
+                {ev.usuario ? ` · ${ev.usuario}` : ""}
+              </p>
+              <QuePaso ev={ev} />
+              {ev.cambios.length > 0 && (
+                <button
+                  onClick={() => alternar(ev.id)}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary-700"
+                  aria-expanded={abierto}
+                >
+                  {abierto ? "Ocultar detalle" : "Ver qué cambió"}
+                  {abierto ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+              )}
+              {abierto && <Detalle cambios={ev.cambios} />}
+            </div>
+          );
+        }}
+      />
     </div>
   );
 }

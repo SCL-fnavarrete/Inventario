@@ -7,21 +7,9 @@ import {
   Plus,
   Download,
   Search,
-  ChevronRight,
-  Eye,
-  Edit,
-  Package,
-  ChevronDown,
-  ChevronUp,
   LayoutGrid,
   LayoutList,
   Kanban,
-  Cpu,
-  HardDrive,
-  Calendar,
-  MapPin,
-  Shield,
-  User,
   Loader2,
   ListChecks
 } from "lucide-react";
@@ -36,61 +24,22 @@ import {
   FiltrosDatoActivo,
   textoFiltroDato,
   useOpcionesFiltroDato,
-  CategoryIcon,
-  AssetConditionBadge,
-  AssetStatusBadge,
+  TablaActivos,
+  type ActivoFila,
 } from "@/modules/activos/componentes";
 import {
   FILTROS_DATO,
   type ParamFiltroDato,
   etiquetaEstadoActivo,
-  identificadorActivo,
-  textoLineas,
 } from "@/modules/activos";
 import { Can } from "@/shared/ui/Can";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { CONSULTA_CELULAR, useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
-import type { EstadoActivo, CondicionActivo } from "@prisma/client";
-import { formatearFecha } from "@/shared/utilidades/fechas";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { Pagination } from "@/shared/ui/Pagination";
-import { COLUMNA_FIJA_CELDA, COLUMNA_FIJA_ENCABEZADO } from "@/shared/ui/tablaStyles";
 import { logger } from "@/shared/logger";
-
-type Asset = {
-  id: string;
-  marca: string;
-  modelo: string;
-  numeroSerie: string | null;
-  estado: EstadoActivo;
-  condicion: CondicionActivo;
-  procesador: string | null;
-  ram: string | null;
-  discoDuro: string | null;
-  sistemaOperativo: string | null;
-  microsoft365: boolean;
-  intuneEnrolled: boolean;
-  fechaCompra: Date | null;
-  fechaGarantiaFin: Date | null;
-  ubicacionFisica: string | null;
-  imei: string | null;
-  lineas?: { numero: string; plan: { nombre: string } | null }[];
-  categoria: {
-    id: string;
-    nombre: string;
-  };
-  sede: { id: string; nombre: string } | null;
-  empleadoActual: {
-    id: string;
-    nombres: string;
-    apellidoPaterno: string;
-    correoEmpresa: string; // visible identifier
-    correoPersonal?: string | null;
-    cargo: string | null;
-  } | null;
-};
 
 type StatsData = {
   total: number;
@@ -101,7 +50,6 @@ type StatsData = {
     asignado: number;
     en_mantencion: number;
     baja: number;
-    vendido: number;
     no_devuelto: number;
     en_transito: number;
     por_repartir: number;
@@ -110,33 +58,12 @@ type StatsData = {
   byCondition: Record<string, number>;
 };
 
-type ColumnConfig = {
-  id: string;
-  label: string;
-  visible: boolean;
-  required?: boolean;
-};
-
 type Pagination = {
   total: number;
   pages: number;
   current: number;
   limit: number;
 };
-
-const DEFAULT_COLUMNS: ColumnConfig[] = [
-  { id: "tipo", label: "Tipo", visible: true, required: true },
-  { id: "identificacion", label: "N\u00b0 Serie", visible: true, required: true },
-  { id: "marca", label: "Marca/Modelo", visible: true, required: true },
-  { id: "estado", label: "Estado", visible: true, required: true },
-  { id: "condicion", label: "Condici\u00f3n", visible: true },
-  { id: "asignado", label: "Asignado a", visible: true },
-  { id: "specs", label: "Especificaciones", visible: true },
-  { id: "fechaCompra", label: "Fecha Compra", visible: false },
-  { id: "sede", label: "Sede", visible: true },
-  { id: "software", label: "Software", visible: false },
-  { id: "acciones", label: "Acciones", visible: true, required: true },
-];
 
 /**
  * Filtros de la URL como parametros de la API. La lista, el tablero, las
@@ -182,8 +109,8 @@ function ActivosPageContent() {
   const opcionesDato = useOpcionesFiltroDato();
 
   // Local state
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [allAssets, setAllAssets] = useState<Asset[]>([]);
+  const [assets, setAssets] = useState<ActivoFila[]>([]);
+  const [allAssets, setAllAssets] = useState<ActivoFila[]>([]);
   const [stats, setStats] = useState<StatsData | null>(null);
   const [pagination, setPagination] = useState<Pagination>({
     total: 0,
@@ -196,7 +123,6 @@ function ActivosPageContent() {
   const [searchInput, setSearchInput] = useState(searchQuery);
   // Debounced so the URL-driven search fires automatically as the user types.
   const debouncedSearchInput = useDebouncedValue(searchInput, 350);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   // Vista elegida por la persona; mientras no elija, en celular se abren las
   // tarjetas (la tabla no cabe) y en pantallas grandes la tabla.
   const [vistaElegida, setViewMode] = useState<"table" | "cards" | "kanban" | null>(null);
@@ -341,7 +267,7 @@ function ActivosPageContent() {
         // Update local state
         setAllAssets((prev) =>
           prev.map((a) =>
-            a.id === assetId ? { ...a, estado: newStatus as Asset["estado"] } : a
+            a.id === assetId ? { ...a, estado: newStatus as ActivoFila["estado"] } : a
           )
         );
         // Refresh stats
@@ -383,16 +309,10 @@ function ActivosPageContent() {
     return;
   }
 
-  // Dar de baja: siempre por Mantenciones, con el equipo ya elegido (SPEC
-  // 2.88). Si tiene una mantencion abierta, la pagina cierra esa.
+  // Dar de baja: directo, con su motivo (SPEC 2.140). Las mantenciones
+  // abiertas del equipo se cancelan.
   if (newStatus === "baja" && (currentStatus === "en_mantencion" || currentStatus === "disponible")) {
-    router.push(`/mantenciones/baja?activoId=${assetId}`);
-    return;
-  }
-
-  //vender un activo dado de baja: necesita comprador, monto y fecha
-  if(currentStatus === "baja" && newStatus==="vendido"){
-    router.push(`/activos/${assetId}/venta`);
+    router.push(`/activos/${assetId}/baja`);
     return;
   }
 
@@ -428,18 +348,6 @@ function ActivosPageContent() {
   );
 }
 
-  function toggleRowExpansion(assetId: string) {
-    setExpandedRows((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(assetId)) {
-        newSet.delete(assetId);
-      } else {
-        newSet.add(assetId);
-      }
-      return newSet;
-    });
-  }
-
   // Build active filters for display
   const activeFilters = [];
   if (searchQuery) {
@@ -473,8 +381,6 @@ function ActivosPageContent() {
       activeFilters.push({ key: param, label: etiqueta, value: valor, displayValue: textoFiltroDato(param, valor, opcionesDato) });
     }
   }
-
-  const visibleColumns = DEFAULT_COLUMNS.filter((col) => col.visible);
 
   return (
     <div className="space-y-6">
@@ -649,420 +555,19 @@ function ActivosPageContent() {
           )}
         </div>
       ) : (
-        /* Table View */
-        <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-surface-muted border-b">
-                <tr>
-                  <th className="px-3 py-3 text-left w-12">
-                    <span className="sr-only">Expandir</span>
-                  </th>
-                  {visibleColumns.map((col) => (
-                    <th
-                      key={col.id}
-                      className={cn(
-                        "table-th px-3 whitespace-nowrap",
-                        // Acciones fija a la derecha: la tabla es mas ancha que
-                        // la pantalla y los botones quedaban fuera de vista.
-                        col.id === "acciones" && COLUMNA_FIJA_ENCABEZADO
-                      )}
-                    >
-                      {col.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {loading ? (
-                  <tr>
-                    <td
-                      colSpan={visibleColumns.length + 1}
-                      className="px-6 py-12 text-center"
-                    >
-                      <Loader2 className="w-8 h-8 animate-spin text-fg-subtle mx-auto" />
-                    </td>
-                  </tr>
-                ) : assets.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={visibleColumns.length + 1}
-                      className="px-6 py-12 text-center text-fg-subtle"
-                    >
-                      No se encontraron activos
-                    </td>
-                  </tr>
-                ) : (
-                  assets.map((asset) => {
-                    const isExpanded = expandedRows.has(asset.id);
-                    return [
-                      <tr key={asset.id} className="group hover:bg-surface-muted transition-colors">
-                        <td className="px-3 py-3 align-top">
-                          <button
-                            onClick={() => toggleRowExpansion(asset.id)}
-                            className="p-1 hover:bg-gray-200 rounded transition-colors"
-                            aria-label={isExpanded ? "Contraer" : "Expandir"}
-                          >
-                            {isExpanded ? (
-                              <ChevronUp size={16} className="text-fg-subtle" />
-                            ) : (
-                              <ChevronDown size={16} className="text-fg-subtle" />
-                            )}
-                          </button>
-                        </td>
-
-                        {/* Tipo */}
-                        {visibleColumns.find((c) => c.id === "tipo") && (
-                          <td className="px-3 py-3 whitespace-nowrap align-top">
-                            <div className="flex items-center gap-2 text-fg-muted">
-                              <CategoryIcon categoria={asset.categoria.nombre} className="h-5 w-5" />
-                              <span className="text-sm font-medium">
-                                {asset.categoria.nombre}
-                              </span>
-                            </div>
-                          </td>
-                        )}
-
-                        {/* Identificacion */}
-                        {visibleColumns.find((c) => c.id === "identificacion") && (
-                          <td className="px-3 py-3 whitespace-nowrap align-top">
-                            <div>
-                              <Link
-                                href={`/activos/${asset.id}`}
-                                className="text-sm font-medium text-fg hover:text-primary-700 hover:underline"
-                              >
-                                {identificadorActivo(asset, "-")}
-                              </Link>
-                              {asset.imei && (
-                                <p className="text-xs text-fg-subtle">IMEI: {asset.imei}</p>
-                              )}
-                            </div>
-                          </td>
-                        )}
-
-                        {/* Marca/Modelo: puede ir en dos lineas para que la tabla quepa. */}
-                        {visibleColumns.find((c) => c.id === "marca") && (
-                          <td className="px-3 py-3 align-top min-w-[9rem]">
-                            <div>
-                              <Link
-                                href={`/activos/${asset.id}`}
-                                className="block text-sm font-medium text-fg hover:text-primary-700 hover:underline"
-                              >
-                                {asset.marca}
-                              </Link>
-                              <p className="text-xs text-fg-subtle">{asset.modelo}</p>
-                            </div>
-                          </td>
-                        )}
-
-                        {/* Estado */}
-                        {visibleColumns.find((c) => c.id === "estado") && (
-                          <td className="px-3 py-3 whitespace-nowrap align-top">
-                            <AssetStatusBadge status={asset.estado} size="sm" />
-                          </td>
-                        )}
-
-                        {/* Condicion */}
-                        {visibleColumns.find((c) => c.id === "condicion") && (
-                          <td className="px-3 py-3 whitespace-nowrap align-top">
-                            <AssetConditionBadge condicion={asset.condicion} />
-                          </td>
-                        )}
-
-                        {/* Asignado */}
-                        {visibleColumns.find((c) => c.id === "asignado") && (
-                          <td className="px-3 py-3 align-top">
-                            {asset.empleadoActual ? (
-                              // 13rem: con max-w-xs la columna reservaba 320px y la
-                              // tabla no cabia; un nombre largo se corta con "...".
-                              <div className="max-w-[13rem]">
-                                <Link
-                                  href={`/empleados/${asset.empleadoActual.id}`}
-                                  className="text-sm font-medium text-fg hover:text-primary-700 hover:underline transition-colors truncate block"
-                                  title="Ver ficha del empleado"
-                                >
-                                  {asset.empleadoActual.nombres}{" "}
-                                  {asset.empleadoActual.apellidoPaterno}
-                                </Link>
-                                {asset.empleadoActual.cargo && (
-                                  <p className="text-xs text-fg-subtle truncate">
-                                    {asset.empleadoActual.cargo}
-                                  </p>
-                                )}
-                              </div>
-                            ) : (
-                              <p className="text-sm text-fg-subtle">Sin asignar</p>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Especificaciones */}
-                        {visibleColumns.find((c) => c.id === "specs") && (
-                          <td className="px-3 py-3 align-top">
-                            <div className="space-y-1 max-w-xs">
-                              {asset.procesador && (
-                                <div className="flex items-center gap-1 text-xs text-fg-muted">
-                                  <Cpu size={12} className="flex-shrink-0" />
-                                  <span className="truncate">{asset.procesador}</span>
-                                </div>
-                              )}
-                              {(asset.ram || asset.discoDuro) && (
-                                <div className="flex items-center gap-1 text-xs text-fg-muted">
-                                  <HardDrive size={12} className="flex-shrink-0" />
-                                  <span className="truncate">
-                                    {asset.ram && `${asset.ram}`}
-                                    {asset.ram && asset.discoDuro && " / "}
-                                    {asset.discoDuro && `${asset.discoDuro}`}
-                                  </span>
-                                </div>
-                              )}
-                              {asset.sistemaOperativo && (
-                                <p className="text-xs text-fg-subtle truncate">
-                                  {asset.sistemaOperativo}
-                                </p>
-                              )}
-                              {!asset.procesador &&
-                                !asset.ram &&
-                                !asset.discoDuro &&
-                                !asset.sistemaOperativo && (
-                                  <p className="text-xs text-fg-subtle">-</p>
-                                )}
-                            </div>
-                          </td>
-                        )}
-
-                        {/* Fecha Compra */}
-                        {visibleColumns.find((c) => c.id === "fechaCompra") && (
-                          <td className="px-3 py-3 whitespace-nowrap align-top">
-                            {asset.fechaCompra ? (
-                              <div className="flex items-center gap-1 text-sm text-fg-muted">
-                                <Calendar size={14} className="text-fg-subtle" />
-                                <span>
-                                  {formatearFecha(asset.fechaCompra)}
-                                </span>
-                              </div>
-                            ) : (
-                              <p className="text-sm text-fg-subtle">-</p>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Sede */}
-                        {visibleColumns.find((c) => c.id === "sede") && (
-                          <td className="px-3 py-3 whitespace-nowrap align-top">
-                            {asset.sede?.nombre ? (
-                              <div className="flex items-center gap-1 text-sm text-fg-muted">
-                                <MapPin size={14} className="text-fg-subtle" />
-                                <span>{asset.sede.nombre}</span>
-                              </div>
-                            ) : (
-                              <p className="text-sm text-fg-subtle">-</p>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Software */}
-                        {visibleColumns.find((c) => c.id === "software") && (
-                          <td className="px-3 py-3 whitespace-nowrap align-top">
-                            <div className="flex flex-wrap gap-1">
-                              {asset.microsoft365 && (
-                                <span className="px-2 py-0.5 text-xs bg-primary-50 text-primary-800 rounded border border-primary-200">
-                                  M365
-                                </span>
-                              )}
-                              {asset.intuneEnrolled && (
-                                <span className="px-2 py-0.5 text-xs bg-purple-50 text-purple-700 rounded border border-purple-200">
-                                  Intune
-                                </span>
-                              )}
-                              {!asset.microsoft365 && !asset.intuneEnrolled && (
-                                <p className="text-sm text-fg-subtle">-</p>
-                              )}
-                            </div>
-                          </td>
-                        )}
-
-                        {/* Acciones */}
-                        {visibleColumns.find((c) => c.id === "acciones") && (
-                          <td className={cn("px-3 py-3 whitespace-nowrap text-right align-top", COLUMNA_FIJA_CELDA)}>
-                            <div className="flex justify-end gap-1">
-                              <Link
-                                href={`/activos/${asset.id}`}
-                                className="p-2 text-fg-subtle hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
-                                title="Ver detalle"
-                              >
-                                <Eye size={16} />
-                              </Link>
-                              <Link
-                                href={`/activos/${asset.id}/editar`}
-                                className="p-2 text-fg-subtle hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                title="Editar"
-                              >
-                                <Edit size={16} />
-                              </Link>
-                            </div>
-                          </td>
-                        )}
-                      </tr>,
-
-                      /* Expanded Row Details */
-                      isExpanded && (
-                        <tr key={`${asset.id}-expanded`} className="bg-surface-muted">
-                          <td colSpan={visibleColumns.length + 1} className="px-4 py-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                              {/* Columna 1: Informacion General */}
-                              <div className="space-y-2">
-                                <h4 className="font-semibold text-fg-muted flex items-center gap-2">
-                                  <Package size={16} />
-                                  Información General
-                                </h4>
-                                <dl className="space-y-1">
-                                  <div className="flex justify-between">
-                                    <dt className="text-fg-subtle">Categoría:</dt>
-                                    <dd className="font-medium text-fg">
-                                      {asset.categoria.nombre}
-                                    </dd>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <dt className="text-fg-subtle">Condición:</dt>
-                                    <dd>
-                                      <AssetConditionBadge condicion={asset.condicion} />
-                                    </dd>
-                                  </div>
-                                  {asset.fechaCompra && (
-                                    <div className="flex justify-between">
-                                      <dt className="text-fg-subtle">Fecha de compra:</dt>
-                                      <dd className="text-fg">{formatearFecha(asset.fechaCompra)}</dd>
-                                    </div>
-                                  )}
-                                  {asset.fechaGarantiaFin && (
-                                    <div className="flex justify-between">
-                                      <dt className="text-fg-subtle">Garantía hasta:</dt>
-                                      <dd className="text-fg">
-                                        {formatearFecha(asset.fechaGarantiaFin)}
-                                      </dd>
-                                    </div>
-                                  )}
-                                  {!!asset.lineas?.length && (
-                                    <div className="flex justify-between">
-                                      <dt className="text-fg-subtle">Línea:</dt>
-                                      <dd className="text-fg">{textoLineas(asset.lineas)}</dd>
-                                    </div>
-                                  )}
-                                </dl>
-                              </div>
-
-                              {/* Columna 2: Asignacion */}
-                              {asset.empleadoActual && (
-                                <div className="space-y-2">
-                                  <h4 className="font-semibold text-fg-muted flex items-center gap-2">
-                                    <User size={16} />
-                                    Usuario Asignado
-                                  </h4>
-                                  <dl className="space-y-1">
-                                    <div className="flex justify-between">
-                                      <dt className="text-fg-subtle">Nombre:</dt>
-                                      <dd className="font-medium text-fg">
-                                        {asset.empleadoActual.nombres}{" "}
-                                        {asset.empleadoActual.apellidoPaterno}
-                                      </dd>
-                                    </div>
-                                    {asset.empleadoActual.cargo && (
-                                      <div className="flex justify-between">
-                                        <dt className="text-fg-subtle">Cargo:</dt>
-                                        <dd className="text-fg">
-                                          {asset.empleadoActual.cargo}
-                                        </dd>
-                                      </div>
-                                    )}
-                                    <div className="flex justify-between">
-                                      <dt className="text-fg-subtle">Email:</dt>
-                                      <dd className="text-fg truncate max-w-[200px]">
-                                        {asset.empleadoActual.correoEmpresa ?? asset.empleadoActual.correoPersonal ?? ''}
-                                      </dd>
-                                    </div>
-                                  </dl>
-                                  <Link
-                                    href={`/empleados/${asset.empleadoActual.id}`}
-                                    className="inline-flex items-center gap-1 text-sm text-primary-700 hover:text-primary-800 font-medium mt-2 transition-colors"
-                                  >
-                                    Ver ficha completa
-                                    <ChevronRight size={14} />
-                                  </Link>
-                                </div>
-                              )}
-
-                              {/* Columna 3: Software y Licencias */}
-                              <div className="space-y-2">
-                                <h4 className="font-semibold text-fg-muted flex items-center gap-2">
-                                  <Shield size={16} />
-                                  Software y Gestión
-                                </h4>
-                                <dl className="space-y-1">
-                                  <div className="flex justify-between">
-                                    <dt className="text-fg-subtle">Microsoft 365:</dt>
-                                    <dd>
-                                      <span
-                                        className={cn(
-                                          "px-2 py-0.5 text-xs font-medium rounded",
-                                          asset.microsoft365
-                                            ? "bg-green-50 text-green-700"
-                                            : "bg-surface-muted text-fg-muted"
-                                        )}
-                                      >
-                                        {asset.microsoft365 ? "S\u00ed" : "No"}
-                                      </span>
-                                    </dd>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <dt className="text-fg-subtle">Intune:</dt>
-                                    <dd>
-                                      <span
-                                        className={cn(
-                                          "px-2 py-0.5 text-xs font-medium rounded",
-                                          asset.intuneEnrolled
-                                            ? "bg-green-50 text-green-700"
-                                            : "bg-surface-muted text-fg-muted"
-                                        )}
-                                      >
-                                        {asset.intuneEnrolled ? "S\u00ed" : "No"}
-                                      </span>
-                                    </dd>
-                                  </div>
-                                  {asset.sede?.nombre && (
-                                    <div className="flex justify-between">
-                                      <dt className="text-fg-subtle">Sede:</dt>
-                                      <dd className="text-fg">{asset.sede.nombre}</dd>
-                                    </div>
-                                  )}
-                                </dl>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    ];
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {pagination.total > 0 && (
-            <div className="px-6 py-4 border-t bg-surface-muted">
-              <Pagination
-                current={pagination.current}
-                pages={pagination.pages}
-                total={pagination.total}
-                limit={pagination.limit}
-                itemLabel="activos"
-                onPageChange={(page) => updateUrlParams({ page: String(page) })}
-                onLimitChange={(limit) => updateUrlParams({ limit: String(limit), page: "1" })}
-              />
-            </div>
-          )}
-        </div>
+        <TablaActivos
+          assets={assets}
+          loading={loading}
+          paginacion={{
+            current: pagination.current,
+            pages: pagination.pages,
+            total: pagination.total,
+            limit: pagination.limit,
+            itemLabel: "activos",
+            onPageChange: (page) => updateUrlParams({ page: String(page) }),
+            onLimitChange: (limit) => updateUrlParams({ limit: String(limit), page: "1" }),
+          }}
+        />
       )}
 
       {/* Pagination for Cards View */}

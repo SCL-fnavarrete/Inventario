@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { nombreConUsuario } from '@/shared/auth/usuario';
-import { Loader2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, AlertCircle, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { cn } from '@/shared/cn';
 import { CategoryIcon, SelectCondicionCargador } from '@/modules/activos/componentes';
 import { CamposMotivoBaja, erroresMotivoBaja, useMotivosBaja } from '@/modules/mantenciones/componentes';
@@ -12,12 +12,18 @@ import {
   SeleccionarCambioEquipo,
   itemCambioCompleto,
   type ItemCambioEquipo,
+  SeleccionarCambioLinea,
+  itemLineaCompleto,
+  type ItemCambioLinea,
   SeccionCoordinacion,
   BuscadorEmpleado,
   useBuscarEmpleado,
   SeccionKitEpp,
   type ArticuloKit,
   FormEmpleadoNuevo,
+  ElegirLineaCelular,
+  SIN_LINEA,
+  type EleccionLinea,
   ElegirEstadoDevolucion,
   type EstadoDevolucion,
   CLAVES,
@@ -56,7 +62,7 @@ import {
   sinErrores,
   textoResumenErrores,
 } from '@/shared/ui/CampoFormulario';
-import { esCorreoValido } from '@/shared/utilidades/text';
+import { coincidePorPalabras, esCorreoValido } from '@/shared/utilidades/text';
 import { formatearFechaHora } from '@/shared/utilidades/fechas';
 import { useCampoSede, useSedeSeleccionada } from '@/shared/ui/providers/SedeSeleccionadaProvider';
 import { logger } from '@/shared/logger';
@@ -137,7 +143,7 @@ export default function NuevaSolicitudPage() {
 
   // Onboarding fields
   const [fechaIngreso, setFechaIngreso] = useState('');
-  const [categorias, setCategorias] = useState<{ id: string; nombre: string }[]>([]);
+  const [categorias, setCategorias] = useState<{ id: string; nombre: string; tipoFicha?: string }[]>([]);
   const [categoriasRequeridas, setCategoriasRequeridas] = useState<string[]>([]);
   // Disponibilidad de equipos por categoria, para que al tildar "Notebook" (etc.)
   // se vea de inmediato cuantos hay en stock antes de mandar la solicitud, sin
@@ -150,11 +156,20 @@ export default function NuevaSolicitudPage() {
   // (no solo la categoria) y queda reservado desde que se crea el ticket,
   // sin pasar por Gestion TI. Mapa categoriaId -> assetId elegido.
   const [equipoSeleccionado, setEquipoSeleccionado] = useState<Record<string, string>>({});
+  // Lo escrito en el buscador de la categoria abierta: acorta la lista de equipos.
+  const [busquedaEquipos, setBusquedaEquipos] = useState('');
   // Condicion del cargador del equipo elegido, por categoria; solo se pide
   // si el equipo reservado es un notebook con tieneCargador.
   const [cargadorOnboarding, setCargadorOnboarding] = useState<
     Record<string, { condicion: CondicionCargador; observaciones: string }>
   >({});
+  // Linea de cada celular reservado que llega sin linea, por categoria (SPEC 2.143).
+  const [lineaOnboarding, setLineaOnboarding] = useState<Record<string, EleccionLinea>>({});
+  // El empleado usa su propio telefono con una eSIM, en vez de un celular de la empresa.
+  const [usaEsim, setUsaEsim] = useState(false);
+  // Sin elegir hasta que se aprieta Celular y se marca una de las dos opciones.
+  const [modoCelular, setModoCelular] = useState<'' | 'chip' | 'esim'>('');
+  const [esimLineaId, setEsimLineaId] = useState('');
   // Coordinacion de entrega, cambio y devolucion: un objeto por tipo (fecha,
   // medio, lugar, OT, destino) en vez de 5 estados sueltos cada una; ver
   // modules/solicitudes/componentes/nueva/coordinacion.ts.
@@ -189,6 +204,10 @@ export default function NuevaSolicitudPage() {
   // Equipos marcados para cambiar (uno o varios, SPEC 2.84), cada uno con su
   // estado de devolucion y su reemplazo; se ejecutan al crear el ticket.
   const [cambios, setCambios] = useState<ItemCambioEquipo[]>([]);
+  // Lineas de la persona que se cambian por otra disponible (SPEC 2.143).
+  const [cambiosLinea, setCambiosLinea] = useState<ItemCambioLinea[]>([]);
+  // Una linea de celular que pasa a eSIM marca ese celular con eSIM en la seccion de equipos.
+  const [pedidoEsim, setPedidoEsim] = useState<{ activoId: string; n: number } | null>(null);
   // ejecuta de inmediato al crear el ticket; si se deja en null, el ticket
   // nace en "Incidencia Detectada" como antes.
 
@@ -204,7 +223,7 @@ export default function NuevaSolicitudPage() {
     devolucionEstados, devolucionObservaciones, devolucionMotivos, devolucionCargador, devolucionCargadorObservaciones,
     devolucionEppEstados, devolucionEppObservaciones,
     onboardingEmp, modoEmpleadoOnboarding, cargoSolicitadoReincorporacion, tipoContratoReincorporacion,
-    fechaIngreso, categoriasRequeridas, equipoSeleccionado, cargadorOnboarding,
+    fechaIngreso, categoriasRequeridas, equipoSeleccionado, cargadorOnboarding, lineaOnboarding, usaEsim, esimLineaId, modoCelular,
     kitBienvenidaSolicitado, eppSolicitado, kitCantidadesSeleccionadas,
     motivoCambio, cambios, fechaDesvinculacion,
     coordEntrega, coordCambio, coordDevolucion,
@@ -245,6 +264,10 @@ export default function NuevaSolicitudPage() {
     poner('categoriasRequeridas', setCategoriasRequeridas);
     poner('equipoSeleccionado', setEquipoSeleccionado);
     poner('cargadorOnboarding', setCargadorOnboarding);
+    poner('lineaOnboarding', setLineaOnboarding);
+    poner('usaEsim', setUsaEsim);
+    poner('modoCelular', setModoCelular);
+    poner('esimLineaId', setEsimLineaId);
     poner('kitBienvenidaSolicitado', setKitBienvenidaSolicitado);
     poner('eppSolicitado', setEppSolicitado);
     poner('kitCantidadesSeleccionadas', setKitCantidadesSeleccionadas);
@@ -307,6 +330,7 @@ export default function NuevaSolicitudPage() {
     setDevolucionEppEstados({});
     setDevolucionEppObservaciones({});
     setCambios([]);
+    setCambiosLinea([]);
   };
 
   useEffect(() => {
@@ -424,6 +448,8 @@ export default function NuevaSolicitudPage() {
 
   // Todos los obligatorios del onboarding (empleado nuevo o reincorporacion),
   // juntos, para marcar cada campo que falta de una vez y no solo el primero.
+  // En una desvinculacion, hay equipo que vuelve si alguno se califico y no es "no devolvio".
+
   const validarOnboarding = (): Record<string, string> => {
     const errores: Record<string, string> = {};
 
@@ -445,7 +471,7 @@ export default function NuevaSolicitudPage() {
 
     // Se pide al menos algo (un equipo, el Kit de Bienvenida o EPP) y todo
     // lo pedido debe tener stock.
-    if (categoriasRequeridas.length === 0 && !kitBienvenidaSolicitado && !eppSolicitado) {
+    if (categoriasRequeridas.length === 0 && !kitBienvenidaSolicitado && !eppSolicitado && !usaEsim) {
       errores.equipos =
         'Debes seleccionar al menos un equipo, el Kit de Bienvenida o EPP para crear la solicitud.';
     } else {
@@ -460,6 +486,16 @@ export default function NuevaSolicitudPage() {
         } o espera a que haya stock.`;
       }
     }
+
+    // Todo celular reservado sin linea necesita chip fisico o eSIM con su linea.
+    const celularSinLinea = categorias.some((c) => {
+      const id = equipoSeleccionado[c.id];
+      const equipo = id ? disponiblesPorCategoria[c.id]?.items.find((i) => i.id === id) : undefined;
+      const l = lineaOnboarding[c.id];
+      return c.tipoFicha === 'celular' && !!equipo && !equipo.lineas?.length && !l?.lineaId;
+    });
+    if (usaEsim && !esimLineaId) errores.lineaCelular = 'Elige la eSIM de la persona';
+    if (celularSinLinea) errores.lineaCelular = 'Elige la línea (chip físico) del celular';
 
     // Coordinacion de entrega: obligatoria si se reservo al menos un equipo.
     if (Object.values(equipoSeleccionado).length > 0) {
@@ -495,10 +531,12 @@ export default function NuevaSolicitudPage() {
     if (!selectedEmployee) errores.employeeId = 'Elige el empleado';
     if (!motivoCambio.trim()) errores.motivoCambio = DATO_OBLIGATORIO;
     if (selectedEmployee) {
-      if (cambios.length === 0) {
-        errores.cambioSeleccion = 'Marca al menos un equipo a cambiar';
+      if (cambios.length === 0 && cambiosLinea.length === 0) {
+        errores.cambioSeleccion = 'Marca al menos un equipo o una línea a cambiar';
       } else if (!cambios.every(itemCambioCompleto)) {
         errores.cambioSeleccion = 'Completa el estado de devolución y el reemplazo de cada equipo marcado';
+      } else if (!cambiosLinea.every(itemLineaCompleto)) {
+        errores.cambioSeleccion = 'Completa la línea nueva de cada línea marcada';
       }
       Object.assign(errores, erroresCoordinacion(coordCambio, CLAVES.cambio, DATO_OBLIGATORIO));
     }
@@ -641,10 +679,18 @@ export default function NuevaSolicitudPage() {
       const kitElegidos = Object.entries(kitCantidadesSeleccionadas)
         .filter(([, cantidad]) => cantidad > 0)
         .map(([itemId, cantidad]) => ({ itemId, cantidad }));
+      // Linea de cada celular (assetId -> id de la linea), solo de los reservados.
+      const lineaPorAsset: Record<string, string> = {};
+      for (const [catId, assetId] of Object.entries(equipoSeleccionado)) {
+        const eleccion = lineaOnboarding[catId];
+        if (eleccion?.lineaId) lineaPorAsset[assetId] = eleccion.lineaId;
+      }
       const entregaOnboarding = {
         categoriasRequeridas,
         assetIdsSeleccionados: Object.values(equipoSeleccionado),
         condicionCargadorPorAsset,
+        lineaPorAsset,
+        lineaEsim: usaEsim && esimLineaId ? esimLineaId : undefined,
         ...(Object.values(equipoSeleccionado).length > 0 && cuerpoCoordinacion(coordEntrega, CLAVES.entrega)),
         kitBienvenidaSolicitado,
         eppSolicitado,
@@ -704,7 +750,9 @@ export default function NuevaSolicitudPage() {
           motivoCambio,
           cambios: cambios.map((c) => ({
             oldAssignmentId: c.oldAssignmentId,
-            newAssetId: c.newAssetId,
+            newAssetId: c.modoCelular === 'esim' ? undefined : c.newAssetId,
+            newLineaId: c.lineaNueva?.lineaId || undefined,
+            newEsimLineaId: c.modoCelular === 'esim' ? c.esimLineaId : undefined,
             estadoDevolucion: c.estadoDevolucion,
             // Danado: se da de baja con el motivo de la lista (SPEC 2.135).
             ...((c.estadoDevolucion === 'danado' || c.estadoDevolucion === 'baja') && {
@@ -717,6 +765,11 @@ export default function NuevaSolicitudPage() {
             observacionesCargadorAnterior: c.observacionesCargadorAnterior || undefined,
             condicionCargadorNuevo: c.condicionCargadorNuevo || undefined,
             observacionesCargadorNuevo: c.observacionesCargadorNuevo || undefined,
+          })),
+          cambiosLinea: cambiosLinea.map((l) => ({
+            lineaId: l.lineaId,
+            newLineaId: l.newLineaId || undefined,
+            newAssetId: l.newAssetId || undefined,
           })),
           // Coordinacion de la entrega de los reemplazos, en el mismo formulario.
           ...cuerpoCoordinacion(coordCambio, CLAVES.cambio),
@@ -769,7 +822,8 @@ export default function NuevaSolicitudPage() {
         const err = await res.json();
 
         // Parse Zod validation errors into per-field messages
-        if (err.details && Array.isArray(err.details)) {
+        // Un dato repetido (409) trae details {field, message} sin path: se muestra su mensaje.
+        if (err.details && Array.isArray(err.details) && err.details.every((d: { path?: unknown }) => Array.isArray(d.path))) {
           const errors: Record<string, string> = {};
           const messages: string[] = [];
 
@@ -1066,12 +1120,16 @@ export default function NuevaSolicitudPage() {
                     ? disp?.items.find((item) => item.id === seleccionado)
                     : undefined;
                   const conStock = !!disp && disp.total > 0;
+                  // Celular: la persona usa su propio telefono con una eSIM (no se entrega equipo).
+                  const esimAqui = cat.tipoFicha === 'celular' && usaEsim;
                   // La categoria queda requerida solo al elegir un equipo
                   // concreto: la casilla va en el equipo, no en la categoria.
                   const elegirEquipo = (itemId: string | null) => {
                     // Con un equipo elegido la sede queda fijada: un cambio
                     // del navbar no debe dejarlo en otra sede.
                     if (itemId) setSedeId(sedeId);
+                    // Otro equipo, otra linea.
+                    setLineaOnboarding((prev) => ({ ...prev, [cat.id]: SIN_LINEA }));
                     setEquipoSeleccionado((prev) => {
                       const next = { ...prev };
                       if (itemId) next[cat.id] = itemId;
@@ -1083,15 +1141,30 @@ export default function NuevaSolicitudPage() {
                     );
                     limpiarError('equipos', 'fechaEntregaCoordinada', 'lugarEntrega', 'otChilexpressEntrega', 'ciudadEntrega');
                   };
+                  // Chip fisico despliega la lista de celulares; eSIM, el selector de eSIM.
+                  const elegirModoCelular = (esim: boolean) => {
+                    setModoCelular(esim ? 'esim' : 'chip');
+                    setUsaEsim(esim);
+                    if (esim !== usaEsim) setEsimLineaId('');
+                    limpiarError('lineaCelular', 'equipos');
+                    if (esim) elegirEquipo(null);
+                    else setBusquedaEquipos('');
+                  };
+                  // Celular siempre se puede abrir: aunque no haya stock, queda la eSIM.
+                  const sePuedeAbrir = conStock || cat.tipoFicha === 'celular';
                   return (
                     <div key={cat.id} className="flex flex-col">
                       <button
                         type="button"
-                        onClick={() => conStock && setCategoriaExpandida(expandida ? null : cat.id)}
-                        disabled={!conStock}
+                        onClick={() => {
+                          if (!sePuedeAbrir) return;
+                          setBusquedaEquipos('');
+                          setCategoriaExpandida(expandida ? null : cat.id);
+                        }}
+                        disabled={!sePuedeAbrir}
                         className={cn(
                           'flex items-center gap-2 w-full text-left rounded-lg px-2 py-1.5',
-                          conStock ? 'hover:bg-surface-muted' : 'cursor-not-allowed opacity-70'
+                          sePuedeAbrir ? 'hover:bg-surface-muted' : 'cursor-not-allowed opacity-70'
                         )}
                       >
                         <span className="flex items-center gap-1 text-sm flex-1">
@@ -1122,13 +1195,61 @@ export default function NuevaSolicitudPage() {
                           </span>
                         )}
                       </button>
-                      {expandida && disp && disp.items.length > 0 && (
+                      {/* Siempre se pregunta: celular de la empresa (chip fisico) o eSIM en su propio telefono. */}
+                      {cat.tipoFicha === 'celular' && (expandida || modoCelular !== '') && (
+                        <div className="ml-6 mt-1 mb-1 flex flex-wrap gap-x-4 gap-y-1">
+                          {([
+                            [false, 'Chip físico (celular de la empresa)'],
+                            [true, 'eSIM (usa su propio teléfono)'],
+                          ] as const).map(([esim, titulo]) => (
+                            <label key={titulo} className={cn('flex cursor-pointer items-center gap-1.5 text-xs', modoCelular === (esim ? 'esim' : 'chip') ? 'text-fg' : 'text-fg-muted')}>
+                              <input
+                                type="radio"
+                                name="tipo-linea-celular"
+                                checked={modoCelular === (esim ? 'esim' : 'chip')}
+                                onChange={() => elegirModoCelular(esim)}
+                                onClick={() => elegirModoCelular(esim)}
+                              />
+                              {titulo}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                      {esimAqui && (
+                        <ElegirLineaCelular
+                          tipo="esim"
+                          valor={{ modo: esimLineaId ? 'fisico' : 'ninguna', lineaId: esimLineaId }}
+                          onChange={(v) => {
+                            setEsimLineaId(v.lineaId);
+                            limpiarError('lineaCelular');
+                          }}
+                          error={fieldErrors.lineaCelular}
+                        />
+                      )}
+                      {cat.tipoFicha === 'celular' && expandida && modoCelular === 'chip' && !conStock && (
+                        <p className="ml-6 text-xs text-fg-subtle">No hay celulares disponibles.</p>
+                      )}
+                      {expandida && !esimAqui && (cat.tipoFicha !== 'celular' || modoCelular === 'chip') && disp && disp.items.length > 0 && (
                         <div className="ml-6 mt-1 mb-1 space-y-0.5">
                           <p className="text-xs text-fg-subtle">
                             Marca el equipo que se entregará (uno por categoría).
                           </p>
+                          {/* Buscador en todas las categorias, aunque haya pocos equipos. */}
+                          <div className="relative my-1.5">
+                            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-subtle" aria-hidden />
+                            <input
+                              type="search"
+                              value={busquedaEquipos}
+                              onChange={(e) => setBusquedaEquipos(e.target.value)}
+                              placeholder="Buscar por marca, modelo, serie o IMEI"
+                              aria-label={`Buscar ${cat.nombre.toLowerCase()} disponible`}
+                              className="field-input field-input-sm pl-7"
+                            />
+                          </div>
                           <ul className="text-xs text-fg-muted space-y-0.5 max-h-60 overflow-y-auto pr-1">
-                            {disp.items.map((item) => (
+                            {disp.items
+                              .filter((item) => item.id === seleccionado || coincidePorPalabras(busquedaEquipos, [item.marca, item.modelo, item.numeroSerie, item.imei, especificacionesEquipo(item)]))
+                              .map((item) => (
                               <li key={item.id}>
                                 <label className="flex items-center gap-2 cursor-pointer">
                                   <input
@@ -1155,6 +1276,9 @@ export default function NuevaSolicitudPage() {
                               </li>
                             ))}
                           </ul>
+                          {busquedaEquipos.trim() && !disp.items.some((item) => coincidePorPalabras(busquedaEquipos, [item.marca, item.modelo, item.numeroSerie, item.imei, especificacionesEquipo(item)])) && (
+                            <p className="text-fg-subtle">Ningún equipo coincide con «{busquedaEquipos}».</p>
+                          )}
                           {disp.total > disp.items.length && (
                             <p className="text-fg-subtle">y {disp.total - disp.items.length} más...</p>
                           )}
@@ -1199,6 +1323,18 @@ export default function NuevaSolicitudPage() {
                             />
                           </div>
                         )}
+                      {/* Un celular que llega sin linea: se le puede asociar una al momento (SPEC 2.143). */}
+                      {cat.tipoFicha === 'celular' && equipoElegido && !equipoElegido.lineas?.length && (
+                        <ElegirLineaCelular
+                          valor={lineaOnboarding[cat.id] ?? SIN_LINEA}
+                          onChange={(v) => {
+                            setLineaOnboarding((prev) => ({ ...prev, [cat.id]: v }));
+                            limpiarError('lineaCelular');
+                          }}
+                          excluidas={Object.entries(lineaOnboarding).filter(([id]) => id !== cat.id).map(([, l]) => l.lineaId).filter(Boolean)}
+                          error={fieldErrors.lineaCelular}
+                        />
+                      )}
                     </div>
                   );
                 })}
@@ -1375,7 +1511,7 @@ export default function NuevaSolicitudPage() {
                     'block text-sm font-medium mb-2',
                     fieldErrors.cambioSeleccion ? 'text-red-600' : 'text-fg-muted'
                   )}>
-                    Equipos a cambiar *
+                    Equipos y líneas a cambiar *
                   </label>
                   <AvisoSeccion mensaje={fieldErrors.cambioSeleccion} className="mb-2" />
                   {loadingAssignments ? (
@@ -1388,6 +1524,8 @@ export default function NuevaSolicitudPage() {
                       // Otra sede, otro inventario: se remonta el selector.
                       key={sedeId}
                       asignacionesActivas={employeeAssignments}
+                      pedidoEsim={pedidoEsim}
+                      activosElegidos={cambiosLinea.flatMap((l) => (l.newAssetId ? [l.newAssetId] : []))}
                       // Reemplazos solo de la sede de la solicitud (la del empleado).
                       sedeId={sedeId}
                       marcarIncompletos={!!fieldErrors.cambioSeleccion}
@@ -1399,6 +1537,21 @@ export default function NuevaSolicitudPage() {
                       }}
                     />
                   )}
+                  {/* Lineas de la persona: se cambian solas o junto con sus equipos. */}
+                  <p className="mt-4 mb-2 text-xs text-fg-subtle">También puedes cambiar una línea (su eSIM o la de su celular).</p>
+                  <SeleccionarCambioLinea
+                    key={selectedEmployee.id}
+                    empleadoId={selectedEmployee.id}
+                    sedeId={sedeId}
+                    activosElegidos={cambios.flatMap((c) => (c.newAssetId ? [c.newAssetId] : []))}
+                    celularesEnCambio={cambios.flatMap((c) => employeeAssignments.find((a) => a.id === c.oldAssignmentId)?.asset.id ?? [])}
+                    marcarIncompletos={!!fieldErrors.cambioSeleccion}
+                    onPasarAEsim={(activoId) => setPedidoEsim((p) => ({ activoId, n: (p?.n ?? 0) + 1 }))}
+                    onChange={(lista) => {
+                      setCambiosLinea(lista);
+                      if (lista.length > 0 && lista.every(itemLineaCompleto)) limpiarError('cambioSeleccion');
+                    }}
+                  />
                 </div>
               )}
 

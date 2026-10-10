@@ -33,6 +33,8 @@ type EntregaArchivo = {
   persona: string;
   desde: Date | null;
   hasta: Date | null;
+  /** Comentario de la entrega (ej. por que termino): queda en el historial de la persona. */
+  observaciones: string;
 };
 
 type PersonaArchivo = Omit<DatosPersonaImportada, 'sedeId'>;
@@ -102,6 +104,7 @@ async function leerArchivo(buffer: ArrayBuffer) {
       persona,
       desde: fechaDe(f.valor('desde')),
       hasta: fechaDe(f.valor('hasta')),
+      observaciones: texto(f.valor('observaciones', 'comentario')),
     });
   }
 
@@ -224,7 +227,9 @@ export async function importarHistorial(buffer: ArrayBuffer, session: SesionAute
           fechaEntrega: e.desde,
           fechaDevolucion: hasta,
           tipoMovimiento: 'ingreso',
-          observacionesDevolucion: 'Entrega anterior importada desde Excel',
+          observacionesDevolucion: e.observaciones
+            ? `Entrega anterior importada desde Excel: ${e.observaciones.slice(0, 900)}`
+            : 'Entrega anterior importada desde Excel',
           activo: false,
         });
         await assetHistoryService.registrar(

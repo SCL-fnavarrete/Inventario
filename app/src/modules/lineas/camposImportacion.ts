@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { fechaTextoOpcional } from '@/shared/validaciones/comunes';
-import { precioOpcional } from '@/modules/lineas/validaciones';
 
 /**
  * Importacion de lineas (SPEC 2.131), por pasos como la de activos: los
@@ -12,8 +11,6 @@ import { precioOpcional } from '@/modules/lineas/validaciones';
 export const CAMPOS_IMPORTACION = [
   { campo: 'numero', etiqueta: 'Número', obligatorio: true, columnas: ['línea normalizada', 'línea', 'linea', 'n° telefono', 'n° teléfono', 'nº telefono', 'número', 'numero', 'teléfono', 'telefono', 'celular'] },
   { campo: 'estado', etiqueta: 'Estado', columnas: ['estado'] },
-  { campo: 'plan', etiqueta: 'Plan', columnas: ['descripción plan', 'descripcion plan', 'plan'] },
-  { campo: 'precio', etiqueta: 'Precio mensual', columnas: ['precio plan', 'precio', 'precio mensual'] },
   { campo: 'tipoChip', etiqueta: 'Tipo de chip', columnas: ['tipo de chip', 'tipo chip', 'chip'] },
   { campo: 'operador', etiqueta: 'Operador', columnas: ['operador', 'compañía', 'compania'] },
   { campo: 'rut', etiqueta: 'RUT de la persona', columnas: ['documento(s)', 'documento', 'rut'] },
@@ -21,7 +18,6 @@ export const CAMPOS_IMPORTACION = [
   { campo: 'apellidoPaterno', etiqueta: 'Apellido paterno', columnas: ['apellido p.', 'apellido paterno'] },
   { campo: 'apellidoMaterno', etiqueta: 'Apellido materno', columnas: ['apellido m.', 'apellido materno'] },
   { campo: 'fechaEntrega', etiqueta: 'Fecha de entrega', columnas: ['fecha entrega', 'fecha de entrega'] },
-  { campo: 'responsable', etiqueta: 'Responsable o ubicación', columnas: ['responsable / ubicación', 'responsable', 'ubicación', 'ubicacion'] },
   { campo: 'imei', etiqueta: 'IMEI del celular', columnas: ['imei'] },
   { campo: 'fechaBaja', etiqueta: 'Fecha de baja', columnas: ['fecha de baja', 'fecha baja'] },
   { campo: 'observaciones', etiqueta: 'Observaciones', columnas: ['observación', 'observacion', 'observaciones'] },
@@ -32,7 +28,7 @@ export type CampoImportacion = (typeof CAMPOS_IMPORTACION)[number]['campo'];
 export type MapeoLineas = Partial<Record<CampoImportacion, string>>;
 
 /** Los campos que son catalogos: sus valores se asocian a una opcion o se agregan. */
-export const CAMPOS_CATALOGO = { estado: 'estados', plan: 'planes', tipoChip: 'tipos-chip', operador: 'operadores' } as const;
+export const CAMPOS_CATALOGO = { estado: 'estados', tipoChip: 'tipos-chip', operador: 'operadores' } as const;
 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
@@ -46,7 +42,7 @@ export function mapeoSugerido(encabezados: string[]): MapeoLineas {
   }
   // Inventario de celulares (una fila por entrega, con "Fecha entrega"): ahi "Estado" es el del
   // equipo (Nuevo, Usado, SIM, eSim), no el de la linea; sirve para el tipo de chip. La
-  // "Observación" es la ubicacion (ej. "Bodega Santiago") y la "Incidencia", las observaciones.
+  // "Observación" es la ubicacion del equipo (no se importa) y la "Incidencia", las observaciones.
   if (libres.some((l) => l.n === 'fecha entrega')) {
     const col = (n: string) => libres.find((l) => l.n === n)?.h;
     if (mapeo.estado) {
@@ -54,7 +50,6 @@ export function mapeoSugerido(encabezados: string[]): MapeoLineas {
       delete mapeo.estado;
     }
     const ubicacion = col('observacion');
-    if (ubicacion) mapeo.responsable = ubicacion;
     const incidencia = col('incidencia');
     if (incidencia) mapeo.observaciones = incidencia;
     else if (ubicacion) delete mapeo.observaciones;
@@ -93,7 +88,6 @@ export const entregaImportacionSchema = z.object({
   apellidoMaterno: z.string().trim().max(150).nullable().optional(),
   imei: z.string().max(40).nullable(),
   desde: fechaTextoOpcional,
-  ubicacion: z.string().trim().max(200).nullable(),
 });
 export type EntregaImportacion = z.infer<typeof entregaImportacionSchema>;
 
@@ -102,17 +96,14 @@ export const filaImportacionSchema = z.object({
   fila: z.number().int().min(1),
   numero: z.string().max(40),
   estadoId: z.string().uuid().nullable(),
-  planId: z.string().uuid().nullable(),
   tipoChipId: z.string().uuid().nullable(),
   operadorId: z.string().uuid().nullable(),
-  precioMensual: precioOpcional,
   rut: z.string().max(200).nullable(),
   nombre: z.string().trim().max(300).nullable(),
   // Nombre separado, para crear a la persona si no esta en el sistema (SPEC 2.133).
   nombres: z.string().trim().max(150).nullable().optional(),
   apellidoPaterno: z.string().trim().max(150).nullable().optional(),
   apellidoMaterno: z.string().trim().max(150).nullable().optional(),
-  responsable: z.string().trim().max(200).nullable(),
   imei: z.string().max(40).nullable(),
   // Cuando se entrego (la ultima entrega de la linea): desde ahi es de esa persona.
   fechaEntrega: fechaTextoOpcional,
@@ -127,24 +118,12 @@ export type FilaImportacion = z.infer<typeof filaImportacionSchema>;
 export const LINEAS_POR_TANDA = 25;
 
 export const tandaImportacionSchema = z.object({
-  // Fecha de los datos del archivo: desde ahi rigen el precio y el estado importados.
+  // Fecha de los datos del archivo: desde ahi rige el estado importado.
   fechaDatos: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Fecha inválida'),
   filas: z.array(filaImportacionSchema).min(1).max(LINEAS_POR_TANDA),
 });
 
 /** Mapeo que llega como texto JSON: solo campos conocidos; un JSON roto es un 400, no un 500. */
-/**
- * La unica sede cuyo nombre aparece en el texto de ubicacion ("Bodega
- * Concepción" → Concepción), sin distinguir tildes ni mayusculas. Si el texto
- * nombra varias o ninguna, no hay sede (null) y el texto queda como nota.
- */
-export function sedeDelTexto(sedes: { id: string; nombre: string }[], texto: string | null | undefined): string | null {
-  if (!texto) return null;
-  const t = sinTildes(texto);
-  const coinciden = sedes.filter((s) => t.includes(sinTildes(s.nombre)));
-  return coinciden.length === 1 ? coinciden[0].id : null;
-}
-
 export const mapeoLineasSchema = z
   .string()
   .max(5000)

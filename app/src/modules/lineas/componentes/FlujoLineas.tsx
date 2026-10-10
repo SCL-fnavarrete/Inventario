@@ -17,7 +17,6 @@ import { AvanceImportacion, BloquePaso, CargaArchivo, MapeoColumnas, Pasos, Resu
 import type { Fallo } from "@/modules/importacion";
 import { parseApiError } from "@/shared/utilidades/apiErrors";
 import { hoyISO } from "@/shared/utilidades/fechas";
-import { formatearClp, leerClp } from "@/shared/utilidades/moneda";
 import { Button } from "@/shared/ui/Button";
 import { CampoFormulario, CampoTexto, ResumenErrores, claseInput } from "@/shared/ui/CampoFormulario";
 import { StatCard, StatGrid } from "@/shared/ui/StatCard";
@@ -25,18 +24,17 @@ import { StatCard, StatGrid } from "@/shared/ui/StatCard";
 /**
  * Importacion de lineas dentro del asistente de Importacion de datos (SPEC 2.133):
  * 1) archivo, hoja y fecha de los datos; 2) columnas; 3) revision: valores de
- * estado, plan, tipo de chip y operador (asociarlos a una opcion o agregarlos),
+ * estado, tipo de chip y operador (asociarlos a una opcion o agregarlos),
  * por que fallan las filas con error y cada linea (un numero repetido es una sola
  * linea con sus entregas anteriores); 4) guardar en tandas, con el avance. Nada se
  * guarda hasta el paso 4.
  */
 
 type CampoCatalogo = keyof typeof CAMPOS_CATALOGO;
-type Valor = { valor: string; filas: number; precioSugerido: number | null; opcionId: string | null };
-type FilaPrevia = Omit<FilaImportacion, "estadoId" | "planId" | "tipoChipId" | "operadorId"> & {
+type Valor = { valor: string; filas: number; opcionId: string | null };
+type FilaPrevia = Omit<FilaImportacion, "estadoId" | "tipoChipId" | "operadorId"> & {
   existe: boolean;
   estado: string | null;
-  plan: string | null;
   tipoChip: string | null;
   operador: string | null;
   errores: string[];
@@ -49,16 +47,16 @@ type VistaPrevia = {
 };
 type Opcion = { id: string; nombre: string; clave?: string | null };
 /** Que hacer con un valor del Excel: el id de una opcion, "nuevo" (agregarla; no en los estados, que son fijos) o "" (dejar vacio). */
-type Decision = { opcion: string; precio: string };
+type Decision = { opcion: string };
 type Resultado = { fila: number; numero: string; resultado: "nueva" | "completada" | "sin cambios" | "error"; mensaje?: string };
 
 const NUEVO = "nuevo";
-const ETIQUETA_CATALOGO: Record<CampoCatalogo, string> = { estado: "Estado", plan: "Plan", tipoChip: "Tipo de chip", operador: "Operador" };
+const ETIQUETA_CATALOGO: Record<CampoCatalogo, string> = { estado: "Estado", tipoChip: "Tipo de chip", operador: "Operador" };
 
 /** Las columnas del Excel, en dos grupos para que el paso no sea una lista larga. */
 const GRUPOS_CAMPOS: { titulo: string; descripcion: string; campos: CampoImportacion[] }[] = [
-  { titulo: "La línea", descripcion: "Los datos de la línea misma. Solo el número es obligatorio.", campos: ["numero", "estado", "plan", "precio", "tipoChip", "operador", "fechaBaja", "observaciones"] },
-  { titulo: "Quién la tiene y dónde está", descripcion: "La persona se busca por RUT (o por nombre); si no existe, se crea.", campos: ["rut", "nombre", "apellidoPaterno", "apellidoMaterno", "fechaEntrega", "responsable", "imei"] },
+  { titulo: "La línea", descripcion: "Los datos de la línea misma. Solo el número es obligatorio.", campos: ["numero", "estado", "tipoChip", "operador", "fechaBaja", "observaciones"] },
+  { titulo: "Quién la tiene y dónde está", descripcion: "La persona se busca por RUT (o por nombre); si no existe, se crea.", campos: ["rut", "nombre", "apellidoPaterno", "apellidoMaterno", "fechaEntrega", "imei"] },
 ];
 
 /** Envia un formulario con el archivo; devuelve el JSON o lanza el mensaje de error. */
@@ -80,7 +78,7 @@ export function FlujoLineas() {
   const [mapeo, setMapeo] = useState<MapeoLineas>({});
   const [previa, setPrevia] = useState<VistaPrevia | null>(null);
   const [decisiones, setDecisiones] = useState<Record<string, Decision>>({});
-  const [catalogos, setCatalogos] = useState<Record<CampoCatalogo, Opcion[]>>({ estado: [], plan: [], tipoChip: [], operador: [] });
+  const [catalogos, setCatalogos] = useState<Record<CampoCatalogo, Opcion[]>>({ estado: [], tipoChip: [], operador: [] });
   const [filtro, setFiltro] = useState<"problemas" | "todas">("problemas");
   const [progreso, setProgreso] = useState<{ hechas: number; total: number } | null>(null);
   const [resultados, setResultados] = useState<Resultado[] | null>(null);
@@ -90,8 +88,8 @@ export function FlujoLineas() {
   // Opciones activas de los catalogos, para asociar los valores del Excel.
   const cargarCatalogos = async () => {
     const leer = async (c: CatalogoLinea) => (await fetch(`/api/lineas/catalogos/${c}?activas=true`)).json();
-    const [estado, plan, tipoChip, operador] = await Promise.all([leer("estados"), leer("planes"), leer("tipos-chip"), leer("operadores")]);
-    setCatalogos({ estado, plan, tipoChip, operador });
+    const [estado, tipoChip, operador] = await Promise.all([leer("estados"), leer("tipos-chip"), leer("operadores")]);
+    setCatalogos({ estado, tipoChip, operador });
   };
   useEffect(() => {
     cargarCatalogos();
@@ -145,16 +143,15 @@ export function FlujoLineas() {
       if (!mapeo.numero) throw new Error("Elige la columna del número");
       const r = await enviar<VistaPrevia>("/api/lineas/importar/vista-previa", { file: archivo!, hoja, mapeo: JSON.stringify(mapeo) });
       setPrevia(r);
-      // Por defecto: la opcion que calza por nombre; si no hay, agregarla (plan y operador). Un tipo de
+      // Por defecto: la opcion que calza por nombre; si no hay, agregarla (operador). Un tipo de
       // chip que no calza (ej. "Usado", "Nuevo": son del equipo) se deja vacio.
-      // Los estados son fijos: lo que diga "baja" va a Dada de baja y lo demas queda Activa.
+      // Los estados son fijos: lo que diga "baja" va a Baja y lo demas queda Activa.
       const baja = catalogos.estado.find((e) => e.clave === "baja")?.id ?? "";
       const d: Record<string, Decision> = {};
       for (const campo of Object.keys(CAMPOS_CATALOGO) as CampoCatalogo[]) {
         for (const v of r.valores[campo]) {
           d[`${campo}:${v.valor}`] = {
             opcion: v.opcionId ?? (campo === "estado" ? (/baja/i.test(v.valor) ? baja : "") : campo === "tipoChip" ? "" : NUEVO),
-            precio: v.precioSugerido?.toString() ?? "",
           };
         }
       }
@@ -171,7 +168,7 @@ export function FlujoLineas() {
         for (const v of previa.valores[campo]) {
           const clave = `${campo}:${v.valor}`;
           const d = decisiones[clave];
-          // Un estado nunca se crea: es uno de los cuatro fijos o queda Activa.
+          // Un estado nunca se crea: es uno de los dos fijos o queda Activa.
           if (d.opcion !== NUEVO || campo === "estado") {
             ids[clave] = d.opcion === NUEVO ? null : d.opcion || null;
             continue;
@@ -179,10 +176,7 @@ export function FlujoLineas() {
           const res = await fetch(`/api/lineas/catalogos/${CAMPOS_CATALOGO[campo]}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              nombre: v.valor,
-              ...(campo === "plan" && { precioMensual: leerClp(d.precio) }),
-            }),
+            body: JSON.stringify({ nombre: v.valor }),
           });
           if (!res.ok) throw new Error(`${ETIQUETA_CATALOGO[campo]} "${v.valor}": ${(await parseApiError(res, "no se pudo agregar")).message}`);
           ids[clave] = (await res.json()).id;
@@ -191,10 +185,9 @@ export function FlujoLineas() {
       // 2) Guarda las filas sin error en tandas, mostrando el avance.
       const filas: FilaImportacion[] = previa.filas
         .filter((f) => f.errores.length === 0)
-        .map(({ existe: _x, estado, plan, tipoChip, operador, errores: _e, avisos: _a, ...f }) => ({
+        .map(({ existe: _x, estado, tipoChip, operador, errores: _e, avisos: _a, ...f }) => ({
           ...f,
           estadoId: estado ? ids[`estado:${estado}`] ?? null : null,
-          planId: plan ? ids[`plan:${plan}`] ?? null : null,
           tipoChipId: tipoChip ? ids[`tipoChip:${tipoChip}`] ?? null : null,
           operadorId: operador ? ids[`operador:${operador}`] ?? null : null,
         }));
@@ -247,7 +240,7 @@ export function FlujoLineas() {
                 max={hoyISO()}
                 value={fechaDatos}
                 onChange={setFechaDatos}
-                ayuda="Desde esta fecha rigen el precio y el estado importados (costo por mes)."
+                ayuda="Desde esta fecha rige el estado importado."
               />
             </div>
           )}
@@ -349,9 +342,6 @@ export function FlujoLineas() {
                             </option>
                           ))}
                         </select>
-                        {d.opcion === NUEVO && campo === "plan" && (
-                          <input value={d.precio} onChange={(e) => poner({ precio: e.target.value })} placeholder="Precio" inputMode="numeric" className={claseInput()} aria-label="Precio del plan nuevo" />
-                        )}
                       </div>
                     );
                   })}
@@ -372,7 +362,7 @@ export function FlujoLineas() {
               <table className="min-w-full text-sm">
                 <thead className="bg-surface-muted">
                   <tr>
-                    {["Fila", "Número", "Plan", "Precio", "Chip", "Operador", "Persona / ubicación", "Historial", "Revisión"].map((t) => (
+                    {["Fila", "Número", "Chip", "Operador", "Persona", "Historial", "Revisión"].map((t) => (
                       <th key={t} className="table-th">
                         {t}
                       </th>
@@ -384,12 +374,10 @@ export function FlujoLineas() {
                     <tr key={f.fila} className={f.errores.length ? "bg-red-50 dark:bg-red-950/30" : ""}>
                       <td className="px-3 py-2 text-fg-subtle">{f.fila}</td>
                       <td className="px-3 py-2 font-mono">{f.numero}</td>
-                      <td className="px-3 py-2">{f.plan ?? "—"}</td>
-                      <td className="px-3 py-2">{f.precioMensual != null ? formatearClp(f.precioMensual) : "—"}</td>
                       <td className="px-3 py-2">{f.tipoChip ?? "—"}</td>
                       <td className="px-3 py-2">{f.operador ?? "—"}</td>
                       <td className="px-3 py-2">
-                        {f.nombre ?? f.responsable ?? "—"}
+                        {f.nombre ?? "—"}
                         {f.rut && <span className="block text-xs text-fg-subtle">{f.rut}</span>}
                       </td>
                       <td className="px-3 py-2 text-fg-subtle">{f.entregas.length ? `+${f.entregas.length} anteriores` : ""}</td>
@@ -405,7 +393,7 @@ export function FlujoLineas() {
                   ))}
                   {visibles.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-3 py-6 text-center text-fg-subtle">
+                      <td colSpan={7} className="px-3 py-6 text-center text-fg-subtle">
                         Ninguna fila con error o aviso.
                       </td>
                     </tr>

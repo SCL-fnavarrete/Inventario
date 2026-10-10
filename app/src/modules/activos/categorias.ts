@@ -51,7 +51,6 @@ export const TIPOS_FICHA: { valor: TipoFicha; label: string; campos: CampoFicha[
     campos: [
       { nombre: "IMEI", obligatorio: true },
       { nombre: "Número de teléfono" },
-      { nombre: "N° de activación" },
       { nombre: "Tipo de plan" },
       { nombre: "Procesador" },
       { nombre: "RAM" },

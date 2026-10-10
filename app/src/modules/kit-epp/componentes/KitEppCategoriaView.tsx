@@ -7,6 +7,7 @@ import { ActivosTabs } from "@/modules/activos/componentes";
 import { useCampoSede, useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { Button } from "@/shared/ui/Button";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { cn } from "@/shared/cn";
@@ -391,149 +392,105 @@ export function KitEppCategoriaView({
             </div>
           )}
 
-          <div className="card overflow-x-auto">
-            <table className="min-w-full divide-y divide-line">
-              <thead className="bg-surface-muted">
-                <tr>
-                  <th className="table-th">
-                    Nombre
-                  </th>
-                  {/* En que sede quedo cada articulo. */}
-                  <th className="table-th">
-                    Sede
-                  </th>
-                  <th className="table-th text-center">
-                    Stock disponible
-                  </th>
-                  <th className="table-th text-center">
-                    Stock mínimo
-                  </th>
-                  <th className="table-th text-right">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-surface divide-y divide-line">
-                {items.map((item) => (
-                  <tr key={item.id}>
-                    {editingId === item.id ? (
-                      <>
-                        <td className="px-6 py-4">
-                          <input
-                            type="text"
-                            value={formData.nombre}
-                            onChange={(e) => {
-                              setFormData({ ...formData, nombre: e.target.value });
-                              limpiar("nombre");
-                            }}
-                            aria-invalid={!!errores.nombre}
-                            className={cn(
-                              "w-full px-2 py-1 border rounded focus:ring-2 focus:ring-primary-500",
-                              errores.nombre ? "border-red-500 bg-red-50" : "border-line-strong"
-                            )}
-                          />
-                          <MensajeCampo mensaje={errores.nombre} />
-                        </td>
-                        <td className="px-6 py-4 text-sm text-fg-subtle">
-                          {item.sede?.nombre ?? "Sin sede"}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <input
-                            type="number"
-                            min={0}
-                            value={formData.cantidad}
-                            onChange={(e) => setFormData({ ...formData, cantidad: parseInt(e.target.value, 10) || 0 })}
-                            className="w-24 px-2 py-1 border border-line-strong rounded focus:ring-2 focus:ring-primary-500 text-center"
-                          />
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <input
-                            type="number"
-                            min={0}
-                            value={formData.stockMinimo}
-                            onChange={(e) => setFormData({ ...formData, stockMinimo: parseInt(e.target.value, 10) || 0 })}
-                            className="w-24 px-2 py-1 border border-line-strong rounded focus:ring-2 focus:ring-primary-500 text-center"
-                          />
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button aria-label="Guardar"
-                              onClick={() => ejecutar(() => handleUpdate(item.id))}
-                              disabled={enviando}
-                              className="p-1 text-green-600 hover:bg-green-50 rounded"
-                              title="Guardar"
-                            >
-                              <Save size={18} />
-                            </button>
-                            <button aria-label="Cancelar"
-                              onClick={cancelEdit}
-                              className="p-1 text-fg-muted hover:bg-gray-100 rounded"
-                              title="Cancelar"
-                            >
-                              <X size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-6 py-4 whitespace-nowrap font-medium text-fg">
-                          {item.nombre}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-fg-subtle">
-                          {item.sede?.nombre ?? "Sin sede"}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span
-                            className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                              item.cantidad === 0
-                                ? "bg-red-100 text-red-800"
-                                : item.cantidad <= item.stockMinimo
-                                ? "bg-orange-100 text-orange-800"
-                                : "bg-green-100 text-green-800"
-                            }`}
-                          >
-                            {item.cantidad}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-center text-fg-subtle">
-                          {item.stockMinimo}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button aria-label="Editar"
-                              onClick={() => startEdit(item)}
-                              className="p-1 text-primary-700 hover:bg-primary-50 rounded"
-                              title="Editar"
-                            >
-                              <Edit size={18} />
-                            </button>
-                            {/* Oculto sin permiso, en vez de un 403. */}
-                            {puedeEliminar && (
-                              <button aria-label="Eliminar"
-                                onClick={() => pedirEliminar(item)}
-                                className="p-1 text-red-600 hover:bg-red-50 rounded"
-                                title="Eliminar"
-                              >
-                                <Trash2 size={18} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                ))}
-                {items.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-fg-subtle">
-                      No hay artículos registrados en {titulo.toLowerCase()}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <TablaDatos
+            items={items}
+            clave={(i) => i.id}
+            vacio={`No hay artículos registrados en ${titulo.toLowerCase()}`}
+            columnas={[
+              {
+                titulo: "Nombre",
+                celda: (i) =>
+                  editingId === i.id ? (
+                    <>
+                      <input
+                        type="text"
+                        value={formData.nombre}
+                        onChange={(e) => {
+                          setFormData({ ...formData, nombre: e.target.value });
+                          limpiar("nombre");
+                        }}
+                        aria-invalid={!!errores.nombre}
+                        className={cn(
+                          "w-full rounded border px-2 py-1 focus:ring-2 focus:ring-primary-500",
+                          errores.nombre ? "border-red-500 bg-red-50" : "border-line-strong"
+                        )}
+                      />
+                      <MensajeCampo mensaje={errores.nombre} />
+                    </>
+                  ) : (
+                    <span className="whitespace-nowrap font-medium text-fg">{i.nombre}</span>
+                  ),
+              },
+              // En que sede quedo cada articulo.
+              { titulo: "Sede", className: "text-fg-subtle", celda: (i) => i.sede?.nombre ?? "Sin sede" },
+              {
+                titulo: "Stock disponible",
+                className: "text-center",
+                celda: (i) =>
+                  editingId === i.id ? (
+                    <input
+                      type="number"
+                      min={0}
+                      value={formData.cantidad}
+                      onChange={(e) => setFormData({ ...formData, cantidad: parseInt(e.target.value, 10) || 0 })}
+                      className="w-24 rounded border border-line-strong px-2 py-1 text-center focus:ring-2 focus:ring-primary-500"
+                    />
+                  ) : (
+                    <span
+                      className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                        i.cantidad === 0
+                          ? "bg-red-100 text-red-800"
+                          : i.cantidad <= i.stockMinimo
+                            ? "bg-orange-100 text-orange-800"
+                            : "bg-green-100 text-green-800"
+                      }`}
+                    >
+                      {i.cantidad}
+                    </span>
+                  ),
+              },
+              {
+                titulo: "Stock mínimo",
+                className: "text-center text-fg-subtle",
+                celda: (i) =>
+                  editingId === i.id ? (
+                    <input
+                      type="number"
+                      min={0}
+                      value={formData.stockMinimo}
+                      onChange={(e) => setFormData({ ...formData, stockMinimo: parseInt(e.target.value, 10) || 0 })}
+                      className="w-24 rounded border border-line-strong px-2 py-1 text-center focus:ring-2 focus:ring-primary-500"
+                    />
+                  ) : (
+                    i.stockMinimo
+                  ),
+              },
+            ]}
+            acciones={(i) =>
+              editingId === i.id ? (
+                <>
+                  <button aria-label="Guardar" onClick={() => ejecutar(() => handleUpdate(i.id))} disabled={enviando} className="rounded p-1 text-green-600 hover:bg-green-50" title="Guardar">
+                    <Save size={18} />
+                  </button>
+                  <button aria-label="Cancelar" onClick={cancelEdit} className="rounded p-1 text-fg-muted hover:bg-gray-100" title="Cancelar">
+                    <X size={18} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button aria-label="Editar" onClick={() => startEdit(i)} className="rounded p-1 text-primary-700 hover:bg-primary-50" title="Editar">
+                    <Edit size={18} />
+                  </button>
+                  {/* Oculto sin permiso, en vez de un 403. */}
+                  {puedeEliminar && (
+                    <button aria-label="Eliminar" onClick={() => pedirEliminar(i)} className="rounded p-1 text-red-600 hover:bg-red-50" title="Eliminar">
+                      <Trash2 size={18} />
+                    </button>
+                  )}
+                </>
+              )
+            }
+          />
         </>
       )}
 

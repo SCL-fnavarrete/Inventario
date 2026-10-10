@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ActivosTabs } from "@/modules/activos/componentes/ActivosTabs";
-import { OpcionesCatalogo } from "@/modules/activos/componentes/OpcionesCatalogo";
+import { OpcionesCatalogo, type TextosCatalogo } from "@/modules/activos/componentes/OpcionesCatalogo";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { Tabs } from "@/shared/ui/Tabs";
@@ -14,11 +14,25 @@ import { Tabs } from "@/shared/ui/Tabs";
  * no estan aqui: son de Configuracion (solo admin). La pestaña queda en la
  * direccion (?tab=) para volver o compartir el enlace.
  */
+/** Textos de los motivos de baja (SPEC 2.116.5): se cuentan bajas, no equipos con el dato. */
+const bajas = (n: number) => `${n} baja${n === 1 ? "" : "s"}`;
+const TEXTOS_MOTIVOS_BAJA: TextosCatalogo = {
+  unidad: bajas,
+  ayuda:
+    "Motivos que se eligen al dar de baja un equipo. Renombrar cambia el nombre también en las bajas ya hechas. Uno que ya se usó se desactiva en vez de eliminarse. Extravío y Otro los usa el sistema: solo se pueden renombrar.",
+  renombrada: () => "Motivo renombrado",
+  avisoEliminar: (nombre, n) =>
+    n > 0
+      ? `"${nombre}" ya se usó en ${bajas(n)} (todas las sedes). Se desactivará: deja de ofrecerse y esas bajas conservan su motivo. ¿Continuar?`
+      : `¿Eliminar el motivo "${nombre}"?`,
+};
+
 export const CATALOGOS_EQUIPO = {
   marcas: { titulo: "Marcas", placeholder: "Ej: Lenovo" },
   "sistemas-operativos": { titulo: "Sistemas operativos", placeholder: "Ej: Windows 11 Pro" },
   antivirus: { titulo: "Antivirus", placeholder: "Ej: Windows Defender" },
   "licencias-m365": { titulo: "Licencias Microsoft 365", placeholder: "Ej: Microsoft 365 Business Premium" },
+  "motivos-baja": { titulo: "Motivos de baja", placeholder: "Ej: Daño por líquido" },
 } as const;
 
 type Catalogo = keyof typeof CATALOGOS_EQUIPO;
@@ -49,6 +63,7 @@ export function CatalogosEquipo() {
         titulo={titulo}
         placeholder={placeholder}
         puedeEliminar={permisos.can("activos", "delete")}
+        textos={catalogo === "motivos-baja" ? TEXTOS_MOTIVOS_BAJA : undefined}
       />
     </div>
   );

@@ -10,7 +10,6 @@ import {
   AlertCircle,
   MapPin,
   Trash2,
-  DollarSign,
   Wrench,
 } from "lucide-react";
 import { cn } from "@/shared/cn";
@@ -27,9 +26,9 @@ import {
   motivoSinEliminar,
   motivoSinMantencion,
   identificadorActivo,
-  textoLineas,
 } from "@/modules/activos";
 import { Can } from "@/shared/ui/Can";
+import { EnlacesLineas } from "@/modules/lineas/componentes";
 
 // Covers the full TipoEvento enum so no event type renders as raw text
 // in the audit history.
@@ -41,7 +40,6 @@ const tipoEventoLabels: Record<TipoEvento, string> = {
   cambio_estado: "Cambio de Estado",
   actualizacion_specs: "Edición de datos",
   baja: "Baja",
-  venta: "Venta",
   solicitud_workflow: "Solicitud",
   traslado: "Traslado",
   // Emitted when linking existing assets to a Compra.
@@ -63,7 +61,7 @@ export default async function DetalleActivoPage({
   // Builds the specs object from whichever schema fields are set, without
   // assuming a fixed set per category (assets of the same category may
   // have different fields filled depending on when they were created).
-  const especificaciones: Record<string, string> = {};
+  const especificaciones: Record<string, React.ReactNode> = {};
   if (asset.procesador) especificaciones.procesador = asset.procesador;
   if (asset.discoDuro) especificaciones.discoDuro = asset.discoDuro;
   if (asset.ram) especificaciones.ram = asset.ram;
@@ -71,7 +69,7 @@ export default async function DetalleActivoPage({
   if (asset.sistemaOperativo) especificaciones.sistemaOperativo = asset.sistemaOperativo;
   if (asset.antivirus) especificaciones.antivirus = asset.antivirus;
   if (asset.nombreEquipo) especificaciones.nombreEquipo = asset.nombreEquipo;
-  if (asset.lineas.length) especificaciones["Línea"] = textoLineas(asset.lineas);
+  if (asset.lineas.length) especificaciones["Línea"] = <EnlacesLineas lineas={asset.lineas} />;
   if (asset.conectividad) especificaciones.conectividad = asset.conectividad;
   // Name of the Microsoft 365 plan (e.g. "Premium").
   if (asset.tipoLicenciaMicrosoft365) {
@@ -120,17 +118,10 @@ export default async function DetalleActivoPage({
                 </Link>
               </Can>
             )}
-            {/* La baja pasa siempre por Mantenciones (SPEC 2.88). Si no se
+            {/* Dar de baja es directo, con su motivo (SPEC 2.140). Si no se
                 puede, el boton queda desactivado y dice por que. */}
-            {asset.estado === "baja" ? (
+            {asset.estado !== "baja" ? (
               <Can recurso="activos">
-                <Link href={`/activos/${asset.id}/venta`} className={buttonClasses({ variant: "outline" })}>
-                  <DollarSign size={18} />
-                  <span>Registrar venta</span>
-                </Link>
-              </Can>
-            ) : asset.estado !== "vendido" ? (
-              <Can recurso="mantenciones">
                 {bloqueoBaja ? (
                   <span
                     aria-disabled="true"
@@ -142,7 +133,7 @@ export default async function DetalleActivoPage({
                   </span>
                 ) : (
                   <Link
-                    href={`/mantenciones/baja?activoId=${asset.id}`}
+                    href={`/activos/${asset.id}/baja`}
                     className={buttonClasses({ variant: "outline" })}
                   >
                     <Trash2 size={18} />
@@ -260,12 +251,19 @@ export default async function DetalleActivoPage({
                 <dt className="text-sm text-fg-subtle">Valor</dt>
                 <dd className="font-medium text-fg">{formatearClp(asset.valor)}</dd>
               </div>
-              <div>
-                <dt className="text-sm text-fg-subtle">Ubicación Física</dt>
-                <dd className="font-medium text-fg">
-                  {asset.ubicacionFisica || "-"}
-                </dd>
-              </div>
+              {/* SPEC 2.140: por que se dio de baja y cuando. */}
+              {asset.estado === "baja" && (
+                <>
+                  <div>
+                    <dt className="text-sm text-fg-subtle">Motivo de la baja</dt>
+                    <dd className="font-medium text-fg">{asset.motivoBaja || "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-fg-subtle">Fecha de la baja</dt>
+                    <dd className="font-medium text-fg">{formatearFecha(asset.fechaBaja, {}, "-")}</dd>
+                  </div>
+                </>
+              )}
             </dl>
           </div>
 

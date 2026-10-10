@@ -13,6 +13,7 @@ import { MensajeCampo, ResumenErrores, claseCampo } from "@/shared/ui/CampoFormu
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { useEnvio } from "@/shared/hooks/useEnvio";
 import { Button } from "@/shared/ui/Button";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { logger } from "@/shared/logger";
 
 // Maintenance types are an editable catalog (not a fixed enum), manageable
@@ -296,126 +297,84 @@ export default function TiposMantencionPage() {
       )}
 
       {/* Tabla de tipos */}
-      <div className="card overflow-x-auto">
-        <table className="min-w-full divide-y divide-line">
-          <thead className="bg-surface-muted">
-            <tr>
-              <th className="table-th">
-                Nombre
-              </th>
-              <th className="table-th">
-                Descripción
-              </th>
-              <th className="table-th text-center">
-                Estado
-              </th>
-              <th className="table-th text-center">
-                Mantenciones
-              </th>
-              <th className="table-th text-right">
-                Acciones
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-surface divide-y divide-line">
-            {tipos.map((tipo) => (
-              <tr key={tipo.id}>
-                {editingId === tipo.id ? (
-                  <>
-                    <td className="px-6 py-4">
-                      <input
-                        type="text"
-                        value={formData.nombre}
-                        onChange={(e) => cambiarNombre(e.target.value)}
-                        aria-invalid={!!errores.nombre}
-                        className={claseCampo(errores.nombre)}
-                      />
-                      <MensajeCampo mensaje={errores.nombre} />
-                    </td>
-                    <td className="px-6 py-4">
-                      <input
-                        type="text"
-                        value={formData.descripcion}
-                        onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                        className="w-full px-2 py-1 border border-line-strong rounded focus:ring-2 focus:ring-primary-500"
-                      />
-                    </td>
-                    <td className="px-6 py-4 text-center text-fg-subtle">-</td>
-                    <td className="px-6 py-4 text-center text-fg-subtle">
-                      {tipo._count?.maintenances || 0}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button aria-label="Guardar"
-                          onClick={() => ejecutar(() => handleUpdate(tipo.id))}
-                          disabled={enviando}
-                          className="p-1 text-green-600 hover:bg-green-50 rounded"
-                          title="Guardar"
-                        >
-                          <Save size={18} />
-                        </button>
-                        <button aria-label="Cancelar"
-                          onClick={cancelEdit}
-                          className="p-1 text-fg-muted hover:bg-gray-100 rounded"
-                          title="Cancelar"
-                        >
-                          <X size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td className="px-6 py-4 whitespace-nowrap font-medium text-fg">
-                      {tipo.nombre}
-                    </td>
-                    <td className="px-6 py-4 text-fg-subtle">{tipo.descripcion || "-"}</td>
-                    <td className="px-6 py-4 text-center">
-                      <ActiveBadge activo={tipo.activo} onToggle={() => ejecutar(() => handleToggleActivo(tipo))} />
-                    </td>
-                    <td className="px-6 py-4 text-center text-fg-subtle">
-                      {tipo._count?.maintenances || 0}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button aria-label="Editar"
-                          onClick={() => startEdit(tipo)}
-                          className="p-1 text-primary-700 hover:bg-primary-50 rounded"
-                          title="Editar"
-                        >
-                          <Edit size={18} />
-                        </button>
-                        <button aria-label="Eliminar"
-                          onClick={() => pedirEliminar(tipo)}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded"
-                          title={
-                            (tipo._count?.maintenances || 0) > 0
-                              ? "Tiene mantenciones asociadas: desactívalo en vez de eliminarlo"
-                              : "Eliminar"
-                          }
-                          disabled={(tipo._count?.maintenances || 0) > 0}
-                        >
-                          <Trash2
-                            size={18}
-                            className={(tipo._count?.maintenances || 0) > 0 ? "opacity-30" : ""}
-                          />
-                        </button>
-                      </div>
-                    </td>
-                  </>
-                )}
-              </tr>
-            ))}
-            {tipos.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-fg-subtle">
-                  No hay tipos de mantención registrados
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <TablaDatos
+        items={tipos}
+        clave={(t) => t.id}
+        vacio="No hay tipos de mantención registrados"
+        columnas={[
+          {
+            titulo: "Nombre",
+            celda: (t) =>
+              editingId === t.id ? (
+                <>
+                  <input
+                    type="text"
+                    value={formData.nombre}
+                    onChange={(e) => cambiarNombre(e.target.value)}
+                    aria-invalid={!!errores.nombre}
+                    className={claseCampo(errores.nombre)}
+                  />
+                  <MensajeCampo mensaje={errores.nombre} />
+                </>
+              ) : (
+                <span className="whitespace-nowrap font-medium text-fg">{t.nombre}</span>
+              ),
+          },
+          {
+            titulo: "Descripción",
+            className: "text-fg-subtle",
+            celda: (t) =>
+              editingId === t.id ? (
+                <input
+                  type="text"
+                  value={formData.descripcion}
+                  onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                  className="w-full rounded border border-line-strong px-2 py-1 focus:ring-2 focus:ring-primary-500"
+                />
+              ) : (
+                t.descripcion || "-"
+              ),
+          },
+          {
+            titulo: "Estado",
+            className: "text-center",
+            celda: (t) =>
+              editingId === t.id ? (
+                <span className="text-fg-subtle">-</span>
+              ) : (
+                <ActiveBadge activo={t.activo} onToggle={() => ejecutar(() => handleToggleActivo(t))} />
+              ),
+          },
+          { titulo: "Mantenciones", className: "text-center text-fg-subtle", celda: (t) => t._count?.maintenances || 0 },
+        ]}
+        acciones={(t) =>
+          editingId === t.id ? (
+            <>
+              <button aria-label="Guardar" onClick={() => ejecutar(() => handleUpdate(t.id))} disabled={enviando} className="rounded p-1 text-green-600 hover:bg-green-50" title="Guardar">
+                <Save size={18} />
+              </button>
+              <button aria-label="Cancelar" onClick={cancelEdit} className="rounded p-1 text-fg-muted hover:bg-gray-100" title="Cancelar">
+                <X size={18} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button aria-label="Editar" onClick={() => startEdit(t)} className="rounded p-1 text-primary-700 hover:bg-primary-50" title="Editar">
+                <Edit size={18} />
+              </button>
+              <button
+                aria-label="Eliminar"
+                onClick={() => pedirEliminar(t)}
+                className="rounded p-1 text-red-600 hover:bg-red-50"
+                title={(t._count?.maintenances || 0) > 0 ? "Tiene mantenciones asociadas: desactívalo en vez de eliminarlo" : "Eliminar"}
+                disabled={(t._count?.maintenances || 0) > 0}
+              >
+                <Trash2 size={18} className={(t._count?.maintenances || 0) > 0 ? "opacity-30" : ""} />
+              </button>
+            </>
+          )
+        }
+      />
 
       {/* Delete confirmation modal, matching the rest of the system's style. */}
       <ConfirmDialog

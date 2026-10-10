@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { NotFoundError } from '@/shared/errores';
 import { filtroSede } from '@/shared/sedes/filtro';
+import { lineasDeEquipos, lineasDeSolicitud, lineasPorId } from '@/modules/lineas/servidor';
 import { coincideBusqueda } from '@/shared/utilidades/text';
 import { ordenarComo, paginarCoincidencias } from '@/shared/utilidades/busquedaEnMemoria';
 import type { WorkflowFilters } from '@/modules/solicitudes/validaciones';
@@ -195,12 +196,35 @@ export async function detalleSolicitud(id: string) {
         })
       : [];
 
+  const paresCambio = solicitud.tipo === 'cambio_equipo' ? paresDeCambio(solicitud.assignmentIds, asignacionesTicket) : [];
+  // Lineas entregadas (onboarding y cambio): las asociadas al crear y las que ya traian los celulares nuevos.
+  const entregados =
+    solicitud.tipo === 'onboarding'
+      ? asignacionesTicket.map((a) => a.asset.id)
+      : paresCambio.flatMap((p) => (p.nuevo ? [p.nuevo.asset.id] : []));
+  // Lineas cambiadas (SPEC 2.143): pares [anterior, nueva]; la nueva no se repite en las entregadas.
+  const lineasUnidas = solicitud.tipo === 'cambio_equipo' ? await lineasPorId(solicitud.lineaIds) : [];
+  const lineasCambiadas = Array.from({ length: Math.ceil(lineasUnidas.length / 2) }, (_, i) => ({
+    anterior: lineasUnidas[2 * i] ?? null,
+    nueva: lineasUnidas[2 * i + 1] ?? null,
+  }));
+  const nuevasCambiadas = new Set(solicitud.lineaIds.filter((_, i) => i % 2 === 1));
+  // Las lineas que vuelven dentro de los celulares devueltos.
+  const lineasDevueltas = await lineasDeEquipos(paresCambio.flatMap((p) => (p.anterior ? [p.anterior.asset.id] : [])));
+  const lineasEntregadas =
+    solicitud.tipo === 'onboarding' || solicitud.tipo === 'cambio_equipo'
+      ? (await lineasDeSolicitud(solicitud.numero, entregados)).filter((l) => !nuevasCambiadas.has(l.id))
+      : [];
+
   return {
     ...solicitud,
+    lineasEntregadas,
+    lineasCambiadas,
+    lineasDevueltas,
     equiposEntregados: solicitud.tipo === 'onboarding' ? asignacionesTicket : [],
     equiposDevueltos: solicitud.tipo === 'offboarding' ? asignacionesTicket : [],
     eppDevueltos,
-    paresCambio: solicitud.tipo === 'cambio_equipo' ? paresDeCambio(solicitud.assignmentIds, asignacionesTicket) : [],
+    paresCambio,
     tieneActa,
   };
 }

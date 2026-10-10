@@ -104,7 +104,7 @@ describe('lo que se rechaza', () => {
     expect(r).toMatchObject({ status: 'error', tipo: 'missing_employee_data' });
   });
 
-  test('Baja o vendido con persona se detiene: no se adivina cuál dato está mal', async () => {
+  test('Baja con persona se detiene: no se adivina cuál dato está mal', async () => {
     const r = await procesarFila(fila({ ...ANA, estado: 'Baja' }), ctx(), prismaFalso, true);
     expect(r).toMatchObject({ status: 'error', campo: 'estado', mensaje: expect.stringContaining('con persona') });
   });

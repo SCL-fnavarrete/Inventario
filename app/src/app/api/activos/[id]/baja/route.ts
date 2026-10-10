@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { assetVentaSchema } from '@/modules/activos';
-import { venderActivo } from '@/modules/activos/servidor';
+import { bajaEquipoSchema } from '@/modules/mantenciones';
+import { darDeBajaEquipo } from '@/modules/mantenciones/servidor';
 import { requirePermission, handleApiError, respuestaDatosInvalidos, quienHace } from '@/shared/auth/guard';
 
-// Venta de un equipo dado de baja.
+// POST /api/activos/[id]/baja - Dar de baja un equipo, sin mantencion (SPEC 2.140).
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requirePermission('activos', 'write');
     const { id } = await params;
-    const parsed = assetVentaSchema.safeParse(await request.json());
+    const parsed = bajaEquipoSchema.safeParse(await request.json());
     if (!parsed.success) return respuestaDatosInvalidos(parsed.error);
-    return NextResponse.json(await venderActivo(id, parsed.data, quienHace(session)));
+    return NextResponse.json(await darDeBajaEquipo(id, parsed.data, quienHace(session)), { status: 201 });
   } catch (error) {
-    return handleApiError(error, 'Error al registrar la venta');
+    return handleApiError(error, 'Error al dar de baja el equipo');
   }
 }

@@ -24,7 +24,9 @@ import {
   identificadorActivo,
 } from "@/modules/activos";
 import { SelectCondicionCargador } from "@/modules/activos/componentes";
+import { SelectorBuscable } from "@/shared/ui/SelectorBuscable";
 import { CamposMotivoBaja, useMotivosBaja } from "@/modules/mantenciones/componentes";
+import { ElegirLineaCelular, SIN_LINEA, type EleccionLinea } from "@/modules/solicitudes/componentes/nueva/ElegirLineaCelular";
 
 type AsignacionActiva = {
   id: string;
@@ -35,7 +37,7 @@ type AsignacionActiva = {
     modelo: string;
     numeroSerie: string | null;
     imei?: string | null;
-    categoria: { nombre: string };
+    categoria: { nombre: string; tipoFicha?: string };
     tieneCargador: boolean;
   };
 };
@@ -50,7 +52,7 @@ type ActivoDisponible = {
   discoDuro: string | null;
   sistemaOperativo: string | null;
   imei: string | null;
-  lineas?: { numero: string; plan: { nombre: string } | null }[];
+  lineas?: { numero: string }[];
   pulgadas: string | number | null;
   conectividad: string | null;
   tipoLicenciaMicrosoft365: string | null;
@@ -84,6 +86,14 @@ export type ItemCambioEquipo = {
   observacionesCargadorAnterior: string;
   condicionCargadorNuevo: CondicionCargador | "";
   observacionesCargadorNuevo: string;
+  // Linea del celular de reemplazo, si llega sin linea (SPEC 2.143).
+  lineaNueva: EleccionLinea;
+  // El reemplazo es un celular sin linea: hay que elegirle una (SPEC 2.143).
+  pideLinea: boolean;
+  // Celular: chip fisico (se entrega otro celular) o eSIM (el empleado usa su telefono; SPEC 2.143).
+  esCelular: boolean;
+  modoCelular: "" | "chip" | "esim";
+  esimLineaId: string;
 };
 
 /** Lo que le falta a un equipo marcado, o null si esta completo. */
@@ -92,7 +102,10 @@ export function faltaEnCambio(item: ItemCambioEquipo): string | null {
     !item.estadoDevolucion && "el estado de devolución",
     item.estadoDevolucion === "danado" && !item.motivoBajaId && "el motivo de la baja",
     item.estadoDevolucion === "danado" && item.motivoPideDetalle && !item.motivoBajaDetalle.trim() && "el detalle del motivo",
-    !item.newAssetId && "el reemplazo",
+    item.esCelular && !item.modoCelular && "si es chip físico o eSIM",
+    item.modoCelular !== "esim" && !item.newAssetId && "el reemplazo",
+    item.modoCelular === "esim" && !item.esimLineaId && "la eSIM",
+    item.pideLinea && !item.lineaNueva.lineaId && "la línea (chip físico) del celular",
   ].filter(Boolean);
   return faltan.length ? faltan.join(" y ") : null;
 }
@@ -112,6 +125,11 @@ const ITEM_VACIO: Omit<ItemCambioEquipo, "oldAssignmentId"> = {
   observacionesCargadorAnterior: "",
   condicionCargadorNuevo: "",
   observacionesCargadorNuevo: "",
+  lineaNueva: SIN_LINEA,
+  pideLinea: false,
+  esCelular: false,
+  modoCelular: "",
+  esimLineaId: "",
 };
 
 const ICONOS: Record<string, React.ReactNode> = {
@@ -150,8 +168,14 @@ export function SeleccionarCambioEquipo({
   sedeId,
   onChange,
   marcarIncompletos = false,
+  pedidoEsim = null,
+  activosElegidos = [],
 }: {
   asignacionesActivas: AsignacionActiva[];
+  /** Una linea de celular pidio pasar a eSIM: se marca ese celular con eSIM (n cambia en cada pedido). */
+  pedidoEsim?: { activoId: string; n: number } | null;
+  /** Celulares ya elegidos en la seccion de lineas (eSIM -> chip fisico): no se ofrecen aqui. */
+  activosElegidos?: string[];
   /** Sede de la SOLICITUD: solo se ofrecen equipos de esa bodega. */
   sedeId?: string | null;
   onChange: (items: ItemCambioEquipo[]) => void;
@@ -168,6 +192,26 @@ export function SeleccionarCambioEquipo({
   const motivosBaja = useMotivosBaja();
 
   const activas = asignacionesActivas.filter((a) => a.activo);
+
+  // Pasar a eSIM desde la linea: se devuelve el celular con su linea (SPEC 2.143).
+  const [pedidoVisto, setPedidoVisto] = useState(pedidoEsim?.n);
+  if (pedidoEsim && pedidoEsim.n !== pedidoVisto) {
+    setPedidoVisto(pedidoEsim.n);
+    const asignacion = activas.find((a) => a.asset.id === pedidoEsim.activoId);
+    if (asignacion) {
+      setItems((prev) => ({
+        ...prev,
+        [asignacion.id]: {
+          ...(prev[asignacion.id] ?? { oldAssignmentId: asignacion.id, ...ITEM_VACIO }),
+          esCelular: true,
+          modoCelular: "esim",
+          newAssetId: "",
+          lineaNueva: SIN_LINEA,
+          pideLinea: false,
+        },
+      }));
+    }
+  }
 
   async function cargarCategoria(nombre: string) {
     if (disponibles[nombre] || cargando[nombre]) return;
@@ -227,7 +271,10 @@ export function SeleccionarCambioEquipo({
   const alternar = (id: string, marcado: boolean) => {
     setItems((prev) => {
       const next = { ...prev };
-      if (marcado) next[id] = { oldAssignmentId: id, ...ITEM_VACIO };
+      if (marcado) {
+        const esCelular = activas.find((a) => a.id === id)?.asset.categoria.tipoFicha === "celular";
+        next[id] = { oldAssignmentId: id, ...ITEM_VACIO, esCelular };
+      }
       else delete next[id];
       return next;
     });
@@ -263,11 +310,12 @@ export function SeleccionarCambioEquipo({
         const categoria = a.asset.categoria.nombre;
         const incompleto = !!item && marcarIncompletos && !itemCambioCompleto(item);
         // Reemplazos ya elegidos para otros equipos no se ofrecen aca.
-        const usados = new Set(
-          Object.values(items)
+        const usados = new Set([
+          ...activosElegidos,
+          ...Object.values(items)
             .filter((it) => it.oldAssignmentId !== a.id && it.newAssetId)
-            .map((it) => it.newAssetId)
-        );
+            .map((it) => it.newAssetId),
+        ]);
         const opciones = (disponibles[categoria] || []).filter((d) => !usados.has(d.id));
         const nuevo = item ? disponibleDe(item) : undefined;
 
@@ -390,7 +438,45 @@ export function SeleccionarCambioEquipo({
                     Nuevo {categoria.toLowerCase()}
                     <ArrowRight className="h-3.5 w-3.5 text-fg-subtle" />
                   </p>
-                  {cargando[categoria] || !disponibles[categoria] ? (
+                  {/* Celular: primero se elige chip físico o eSIM; eSIM no entrega otro celular. */}
+                  {item.esCelular && (
+                    <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1">
+                      {([["chip", "Chip físico"], ["esim", "eSIM"]] as const).map(([modo, titulo]) => (
+                        <label key={modo} className={cn("flex cursor-pointer items-center gap-1.5 text-xs", item.modoCelular === modo ? "text-fg" : "text-fg-muted")}>
+                          <input
+                            type="radio"
+                            name={`modo-cambio-${a.id}`}
+                            checked={item.modoCelular === modo}
+                            onChange={() => {
+                              // Marcado desde "Pasar a eSIM" de la linea, el inventario aun no se cargo.
+                              if (modo === "chip") cargarCategoria(categoria);
+                              actualizar(a.id, {
+                                modoCelular: modo,
+                                newAssetId: "",
+                                condicionCargadorNuevo: "",
+                                lineaNueva: SIN_LINEA,
+                                pideLinea: false,
+                                esimLineaId: "",
+                              });
+                            }}
+                          />
+                          {titulo}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {item.modoCelular === "esim" && (
+                    <>
+                      <ElegirLineaCelular
+                        tipo="esim"
+                        valor={{ modo: item.esimLineaId ? "fisico" : "ninguna", lineaId: item.esimLineaId }}
+                        onChange={(v) => actualizar(a.id, { esimLineaId: v.lineaId })}
+                        excluidas={Object.values(items).filter((i) => i.oldAssignmentId !== a.id && i.esimLineaId).map((i) => i.esimLineaId)}
+                      />
+                      <p className="mt-1 text-xs text-fg-subtle">No se entrega otro celular: el empleado usa su teléfono propio.</p>
+                    </>
+                  )}
+                  {(!item.esCelular || item.modoCelular === "chip") && (cargando[categoria] || !disponibles[categoria] ? (
                     <div className="flex items-center gap-2 py-2 text-sm text-fg-subtle">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Cargando inventario disponible...
@@ -402,25 +488,45 @@ export function SeleccionarCambioEquipo({
                     </p>
                   ) : (
                     <>
-                      <select
+                      {/* Con buscador: se escribe marca, modelo, serie o IMEI y la lista se acorta. */}
+                      <SelectorBuscable
+                        opciones={opciones}
                         value={item.newAssetId}
-                        onChange={(e) =>
-                          actualizar(a.id, { newAssetId: e.target.value, condicionCargadorNuevo: "" })
-                        }
-                        className="field-input field-input-sm"
-                      >
-                        <option value="">Seleccionar equipo nuevo...</option>
-                        {opciones.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.marca} {d.modelo} · {identificadorActivo(d, "s/serie")}
-                            {especificaciones(d) ? ` · ${especificaciones(d)}` : ""}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(id) => {
+                          const elegido = opciones.find((o) => o.id === id);
+                          actualizar(a.id, {
+                            newAssetId: id,
+                            condicionCargadorNuevo: "",
+                            lineaNueva: SIN_LINEA,
+                            pideLinea: a.asset.categoria.tipoFicha === "celular" && !!elegido && !elegido.lineas?.length,
+                          });
+                        }}
+                        textoDe={(d) => [d.marca, d.modelo, d.numeroSerie, d.imei, especificaciones(d)]}
+                        etiquetaElegida={(d) => `${d.marca} ${d.modelo} · ${identificadorActivo(d, "s/serie")}`}
+                        renderOpcion={(d) => (
+                          <>
+                            <span className="block font-medium text-fg">
+                              {d.marca} {d.modelo} · {identificadorActivo(d, "s/serie")}
+                            </span>
+                            {especificaciones(d) && <span className="block text-xs text-fg-subtle">{especificaciones(d)}</span>}
+                          </>
+                        )}
+                        placeholder="Seleccionar equipo nuevo..."
+                        buscar="Buscar por marca, modelo, serie o IMEI"
+                        vacio="No hay equipos disponibles"
+                      />
                       {nuevo && (
                         <div className="mt-2 rounded-lg bg-surface-muted p-2 text-xs text-fg-subtle">
                           {especificaciones(nuevo) || "Sin especificaciones registradas"}
                         </div>
+                      )}
+                      {/* Un celular que llega sin linea: se elige chip fisico o eSIM y su linea (SPEC 2.143). */}
+                      {a.asset.categoria.tipoFicha === "celular" && nuevo && !nuevo.lineas?.length && (
+                        <ElegirLineaCelular
+                          valor={item.lineaNueva ?? SIN_LINEA}
+                          onChange={(v) => actualizar(a.id, { lineaNueva: v })}
+                          excluidas={Object.entries(items).filter(([id]) => id !== a.id).map(([, i]) => i.lineaNueva?.lineaId).filter(Boolean) as string[]}
+                        />
                       )}
                       {nuevo?.tieneCargador && (
                         <div className="mt-2 rounded-lg border border-line bg-surface p-3">
@@ -445,7 +551,7 @@ export function SeleccionarCambioEquipo({
                         </div>
                       )}
                     </>
-                  )}
+                  ))}
                 </div>
               </div>
             )}

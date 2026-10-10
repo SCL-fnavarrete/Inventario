@@ -18,14 +18,13 @@ jest.mock('@/shared/auditoria', () => ({
   auditLogService: { registrarActualizacion: jest.fn() },
 }));
 jest.mock('@/modules/mantenciones/servicio', () => ({
-  tipoCorrectivaPorDefecto: jest.fn().mockResolvedValue({ id: 't1', nombre: 'Correctiva' }),
-  darDeBajaEnTransaccion: jest.fn(),
+  bajaEnTransaccion: jest.fn(),
 }));
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/shared/prisma';
 import { requirePermission } from '@/shared/auth/guard';
-import { darDeBajaEnTransaccion } from '@/modules/mantenciones/servicio';
+import { bajaEnTransaccion } from '@/modules/mantenciones/servicio';
 import { PATCH as recibir } from '@/app/api/guias-despacho/[id]/route';
 import { POST as resolverItem } from '@/app/api/guias-despacho/[id]/items/[itemId]/route';
 import { POST as anular } from '@/app/api/guias-despacho/[id]/anular/route';
@@ -113,7 +112,7 @@ beforeEach(() => {
     dispatchGuide: { update: jest.fn(), findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'g1' }) },
   };
   (prisma.$transaction as jest.Mock).mockReset().mockImplementation((fn) => fn(tx));
-  (darDeBajaEnTransaccion as jest.Mock).mockClear();
+  (bajaEnTransaccion as jest.Mock).mockClear();
 });
 
 const buscarGuia = (g: ReturnType<typeof guia>) =>
@@ -202,7 +201,7 @@ describe('POST /api/guias-despacho/[id]/items/[itemId] (resolver faltante)', () 
     buscarGuia(guia('recibida_parcial', [item('i1'), item('i2', 'recibido')]));
     const res = await resolverItem(pedir('POST', { accion: 'perdido', motivo: 'No venía en la caja' }), ctxItem);
     expect(res.status).toBe(200);
-    expect(darDeBajaEnTransaccion).toHaveBeenCalledWith(
+    expect(bajaEnTransaccion).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({
         motivoBajaId: 'mb-extravio',
@@ -219,7 +218,7 @@ describe('POST /api/guias-despacho/[id]/items/[itemId] (resolver faltante)', () 
     buscarGuia(guia('en_transito'));
     const res = await resolverItem(pedir('POST', { accion: 'perdido', motivo: ' ' }), ctxItem);
     expect(res.status).toBe(400);
-    expect(darDeBajaEnTransaccion).not.toHaveBeenCalled();
+    expect(bajaEnTransaccion).not.toHaveBeenCalled();
   });
 
   test('un equipo ya resuelto no se resuelve de nuevo: 409', async () => {
@@ -373,14 +372,6 @@ describe('"Apareció" de un equipo perdido en el despacho', () => {
     expect(tx.dispatchGuideItem.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'i1' }, data: expect.objectContaining({ estado: 'recibido' }) })
     );
-  });
-
-  test('si el equipo ya se vendió: 409', async () => {
-    comoDestino();
-    buscarGuia(guia('recibida', [item('i1', 'perdido', 'vendido')]));
-    const res = await resolverItem(pedir('POST', { accion: 'aparecio' }), ctxItem);
-    expect(res.status).toBe(409);
-    expect((await res.json()).error).toMatch(/vendido/);
   });
 
   test('un equipo que no está perdido no "aparece": 409', async () => {

@@ -43,6 +43,7 @@ import { CategoryIcon } from "@/modules/activos/componentes";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { Modal } from "@/shared/ui/Modal";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { VentanaMotivo } from "@/shared/ui/VentanaMotivo";
 import { VentanaKitDespacho, type AccionKitDespacho } from "@/modules/despachos/componentes";
@@ -250,6 +251,37 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
     mostrarAcciones && (k.cantidadPerdida > 0 || (resolverFaltantes && pendienteKit(k) > 0));
   const columnaEquipos = guide.items.some(accionEquipo);
   const columnaKit = guide.kitItems.some(accionKit);
+
+  // "Llegó" / "Se perdió" / "Apareció" de un equipo: en escritorio en su columna;
+  // en celular bajo el equipo, a lo ancho y faciles de tocar.
+  const botonesItem = (item: (typeof guide.items)[number], clase: string) =>
+    mostrarAcciones && item.estado === "perdido" ? (
+      <div className={clase}>
+        <button
+          onClick={() => setAparecio(item)}
+          className={buttonClasses({ size: "sm", variant: "outline", className: "flex-1 md:flex-none whitespace-nowrap" })}
+        >
+          Apareció
+        </button>
+      </div>
+    ) : resolverFaltantes && item.estado === "en_transito" ? (
+      <div className={clase}>
+        {guide.estado === "recibida_parcial" && (
+          <button
+            onClick={() => setLlego(item)}
+            className={buttonClasses({ size: "sm", className: cn(BOTON_EXITO, "flex-1 md:flex-none whitespace-nowrap") })}
+          >
+            Llegó
+          </button>
+        )}
+        <button
+          onClick={() => setPerdido(item)}
+          className={buttonClasses({ size: "sm", variant: "outline", className: "text-red-600 border-red-300 flex-1 md:flex-none whitespace-nowrap" })}
+        >
+          Se perdió
+        </button>
+      </div>
+    ) : null;
   const deReparto = !!guide.purchaseId;
   const faltantesTexto = [
     pendientes.length > 0 && (pendientes.length === 1 ? "1 equipo" : `${pendientes.length} equipos`),
@@ -393,100 +425,67 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
           <Package className="text-primary-700" size={20} />
           Equipos ({guide.items.length})
         </h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-line">
-            <thead className="bg-surface-muted">
-              <tr>
-                <th className="table-th px-4 hidden md:table-cell">Tipo</th>
-                <th className="table-th px-4">
+        <TablaDatos
+          sinMarco
+          compacta
+          items={guide.items}
+          clave={(item) => item.id}
+          vacio="Sin equipos"
+          columnas={[
+            {
+              titulo: "Tipo",
+              className: "hidden px-4 md:table-cell",
+              celda: ({ asset }) => (
+                <div className="flex items-center gap-2">
+                  <CategoryIcon categoria={asset.categoria.nombre} className="h-5 w-5 text-fg-subtle" />
+                  <span className="text-sm">{asset.categoria.nombre}</span>
+                </div>
+              ),
+            },
+            {
+              titulo: (
+                <>
                   <span className="md:hidden">Equipo</span>
                   <span className="hidden md:inline">Marca / Modelo</span>
-                </th>
-                <th className="table-th px-4 hidden md:table-cell">N° Serie</th>
-                <th className="table-th px-4 hidden md:table-cell">Especificaciones</th>
-                <th className="table-th px-4">Estado</th>
-                {columnaEquipos && <th className="table-th px-4 text-right hidden md:table-cell">Acciones</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {guide.items.map((item) => {
-                const asset = item.asset;
-                // "Llegó" / "Se perdió": en escritorio en su columna; en
-                // celular bajo el equipo, a lo ancho y faciles de tocar.
-                const acciones = (clase: string) =>
-                  mostrarAcciones && item.estado === "perdido" ? (
-                    <div className={clase}>
-                      <button
-                        onClick={() => setAparecio(item)}
-                        className={buttonClasses({ size: "sm", variant: "outline", className: "flex-1 md:flex-none whitespace-nowrap" })}
-                      >
-                        Apareció
-                      </button>
-                    </div>
-                  ) : resolverFaltantes && item.estado === "en_transito" ? (
-                    <div className={clase}>
-                      {guide.estado === "recibida_parcial" && (
-                        <button
-                          onClick={() => setLlego(item)}
-                          className={buttonClasses({ size: "sm", className: cn(BOTON_EXITO, "flex-1 md:flex-none whitespace-nowrap") })}
-                        >
-                          Llegó
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setPerdido(item)}
-                        className={buttonClasses({
-                          size: "sm",
-                          variant: "outline",
-                          className: "text-red-600 border-red-300 flex-1 md:flex-none whitespace-nowrap",
-                        })}
-                      >
-                        Se perdió
-                      </button>
-                    </div>
-                  ) : null;
-                return (
-                  <tr key={item.id} className="hover:bg-surface-muted">
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <div className="flex items-center gap-2">
-                        <CategoryIcon categoria={asset.categoria.nombre} className="h-5 w-5 text-fg-subtle" />
-                        <span className="text-sm">{asset.categoria.nombre}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link href={`/activos/${asset.id}`} className="font-medium hover:text-primary-700">
-                        {asset.marca} {asset.modelo}
-                      </Link>
-                      <div className="md:hidden text-xs text-fg-muted font-mono break-all">
-                        {identificadorActivo(asset, "-")}
-                      </div>
-                      {acciones("md:hidden mt-2 flex gap-2")}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-fg-muted font-mono hidden md:table-cell">
-                      {identificadorActivo(asset, "-")}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-fg-muted hidden md:table-cell">
-                      {especificacionesActivoTexto(asset) || "-"}
-                    </td>
-                    <td className="px-4 py-3 align-top md:align-middle">
-                      <span
-                        className={cn("inline-flex px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap", ESTADO_ITEM_GUIA_COLORS[item.estado])}
-                        title={item.estado === "perdido" ? item.observaciones ?? undefined : undefined}
-                      >
-                        {ESTADO_ITEM_GUIA_LABELS[item.estado]}
-                      </span>
-                    </td>
-                    {columnaEquipos && (
-                      <td className="px-4 py-3 text-right whitespace-nowrap hidden md:table-cell">
-                        {acciones("flex justify-end gap-2")}
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </>
+              ),
+              className: "px-4",
+              celda: (item) => (
+                <>
+                  <Link href={`/activos/${item.asset.id}`} className="font-medium hover:text-primary-700">
+                    {item.asset.marca} {item.asset.modelo}
+                  </Link>
+                  <div className="break-all font-mono text-xs text-fg-muted md:hidden">{identificadorActivo(item.asset, "-")}</div>
+                  {botonesItem(item, "md:hidden mt-2 flex gap-2")}
+                </>
+              ),
+            },
+            { titulo: "N° Serie", className: "hidden px-4 font-mono text-fg-muted md:table-cell", celda: ({ asset }) => identificadorActivo(asset, "-") },
+            { titulo: "Especificaciones", className: "hidden px-4 text-fg-muted md:table-cell", celda: ({ asset }) => especificacionesActivoTexto(asset) || "-" },
+            {
+              titulo: "Estado",
+              className: "px-4 align-top md:align-middle",
+              celda: (item) => (
+                <span
+                  className={cn("inline-flex whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium", ESTADO_ITEM_GUIA_COLORS[item.estado])}
+                  title={item.estado === "perdido" ? item.observaciones ?? undefined : undefined}
+                >
+                  {ESTADO_ITEM_GUIA_LABELS[item.estado]}
+                </span>
+              ),
+            },
+            ...(columnaEquipos
+              ? [
+                  {
+                    titulo: "Acciones",
+                    sinSalto: true,
+                    className: "hidden px-4 text-right md:table-cell",
+                    celda: (item: (typeof guide.items)[number]) => botonesItem(item, "flex justify-end gap-2"),
+                  },
+                ]
+              : []),
+          ]}
+        />
       </div>
       )}
 
@@ -497,87 +496,85 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
             <Shirt className="text-primary-700" size={20} />
             Kit/EPP ({guide.kitItems.length})
           </h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-line">
-              <thead className="bg-surface-muted">
-                <tr>
-                  <th className="table-th px-4">Artículo</th>
-                  <th className="table-th px-4 text-center">Enviado</th>
-                  <th className="table-th px-4 text-center hidden sm:table-cell">Recibido</th>
-                  <th className="table-th px-4 text-center hidden sm:table-cell">Perdido</th>
-                  <th className="table-th px-4 text-center">Pendiente</th>
-                  {columnaKit && <th className="table-th px-4 text-right">Acciones</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {guide.kitItems.map((k) => {
+          <TablaDatos
+            sinMarco
+            compacta
+            items={guide.kitItems}
+            clave={(k) => k.id}
+            vacio="Sin artículos"
+            columnas={[
+              {
+                titulo: "Artículo",
+                className: "px-4",
+                celda: (k) => (
+                  <>
+                    <p className="text-sm font-medium">{k.item.nombre}</p>
+                    <p className="text-xs text-fg-subtle">
+                      {k.item.categoria === "epp" ? "EPP" : "Kit Bienvenida"}
+                      <span className="sm:hidden">
+                        {" "}• recibido {k.cantidadRecibida}
+                        {k.cantidadPerdida > 0 && `, perdido ${k.cantidadPerdida}`}
+                      </span>
+                    </p>
+                    {k.motivoPerdida && (
+                      <p className="text-xs text-red-700" title="Perdido">
+                        Perdido: {k.motivoPerdida}
+                      </p>
+                    )}
+                  </>
+                ),
+              },
+              { titulo: "Enviado", className: "px-4 text-center", celda: (k) => k.cantidad },
+              { titulo: "Recibido", className: "hidden px-4 text-center sm:table-cell", celda: (k) => k.cantidadRecibida },
+              {
+                titulo: "Perdido",
+                className: "hidden px-4 text-center sm:table-cell",
+                celda: (k) => <span className={k.cantidadPerdida > 0 ? "font-medium text-red-700" : ""}>{k.cantidadPerdida}</span>,
+              },
+              {
+                titulo: "Pendiente",
+                className: "px-4 text-center",
+                celda: (k) => {
                   const pendiente = pendienteKit(k);
-                  const abrir = (accion: AccionKitDespacho) => setKitVentana({ linea: k, accion });
-                  return (
-                    <tr key={k.id} className="hover:bg-surface-muted">
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-sm">{k.item.nombre}</p>
-                        <p className="text-xs text-fg-subtle">
-                          {k.item.categoria === "epp" ? "EPP" : "Kit Bienvenida"}
-                          <span className="sm:hidden">
-                            {" "}• recibido {k.cantidadRecibida}
-                            {k.cantidadPerdida > 0 && `, perdido ${k.cantidadPerdida}`}
-                          </span>
-                        </p>
-                        {k.motivoPerdida && (
-                          <p className="text-xs text-red-700" title="Perdido">
-                            Perdido: {k.motivoPerdida}
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center text-sm">{k.cantidad}</td>
-                      <td className="px-4 py-3 text-center text-sm hidden sm:table-cell">{k.cantidadRecibida}</td>
-                      <td className="px-4 py-3 text-center text-sm hidden sm:table-cell">
-                        <span className={k.cantidadPerdida > 0 ? "font-medium text-red-700" : ""}>{k.cantidadPerdida}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center text-sm">
-                        <span className={pendiente > 0 ? "font-medium text-sky-700" : "text-fg-subtle"}>{pendiente}</span>
-                      </td>
-                      {columnaKit && (
-                        <td className="px-4 py-3">
+                  return <span className={pendiente > 0 ? "font-medium text-sky-700" : "text-fg-subtle"}>{pendiente}</span>;
+                },
+              },
+              ...(columnaKit
+                ? [
+                    {
+                      titulo: "Acciones",
+                      className: "px-4 text-right",
+                      celda: (k: (typeof guide.kitItems)[number]) => {
+                        const pendiente = pendienteKit(k);
+                        const abrir = (accion: AccionKitDespacho) => setKitVentana({ linea: k, accion });
+                        return (
                           <div className="flex flex-wrap justify-end gap-2">
                             {pendiente > 0 && guide.estado === "recibida_parcial" && (
-                              <button
-                                onClick={() => abrir("llego")}
-                                className={buttonClasses({ size: "sm", className: cn(BOTON_EXITO, "whitespace-nowrap") })}
-                              >
+                              <button onClick={() => abrir("llego")} className={buttonClasses({ size: "sm", className: cn(BOTON_EXITO, "whitespace-nowrap") })}>
                                 Llegó
                               </button>
                             )}
                             {pendiente > 0 && resolverFaltantes && (
                               <button
                                 onClick={() => abrir("perdido")}
-                                className={buttonClasses({
-                                  size: "sm",
-                                  variant: "outline",
-                                  className: "text-red-600 border-red-300 whitespace-nowrap",
-                                })}
+                                className={buttonClasses({ size: "sm", variant: "outline", className: "whitespace-nowrap border-red-300 text-red-600" })}
                               >
                                 Se perdió
                               </button>
                             )}
                             {k.cantidadPerdida > 0 && (
-                              <button
-                                onClick={() => abrir("aparecio")}
-                                className={buttonClasses({ size: "sm", variant: "outline", className: "whitespace-nowrap" })}
-                              >
+                              <button onClick={() => abrir("aparecio")} className={buttonClasses({ size: "sm", variant: "outline", className: "whitespace-nowrap" })}>
                                 Apareció
                               </button>
                             )}
                           </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        );
+                      },
+                    },
+                  ]
+                : []),
+            ]}
+          />
         </div>
       )}
 
@@ -711,7 +708,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
         titulo="Marcar como perdido"
         descripcion={
           perdido
-            ? `${perdido.asset.marca} ${perdido.asset.modelo} se da de baja por Extravío. Queda registrado como una mantención "Sin reparación".`
+            ? `${perdido.asset.marca} ${perdido.asset.modelo} se da de baja por Extravío, con el motivo que escribas.`
             : undefined
         }
         etiqueta="Qué pasó"

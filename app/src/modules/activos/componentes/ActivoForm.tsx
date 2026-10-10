@@ -49,7 +49,6 @@ export type ActivoFormValues = {
   almacenamiento: string;
   sistemaOperativo: string;
   imei: string;
-  numeroActivacion: string;
   // "si" | "no"; "" al crear = el valor por defecto de su tipo (ver
   // cargadorAlGuardar).
   tieneCargador: string;
@@ -58,6 +57,7 @@ export type ActivoFormValues = {
   antivirus: string;
   incidencia: string;
   nombreEquipo: string;
+  // Lugar fisico donde esta el equipo (SPEC 2.138): editable en cualquier momento.
   conectividad: string;
   tipoLicenciaMicrosoft365: string;
 };
@@ -78,7 +78,6 @@ export const ACTIVO_FORM_VACIO: ActivoFormValues = {
   almacenamiento: "",
   sistemaOperativo: "",
   imei: "",
-  numeroActivacion: "",
   tieneCargador: "",
   pulgadas: "",
   observaciones: "",
@@ -117,7 +116,6 @@ export function valoresDesdeActivo(asset: Record<string, unknown>): ActivoFormVa
     almacenamiento: txt("discoDuro"),
     sistemaOperativo: txt("sistemaOperativo"),
     imei: txt("imei"),
-    numeroActivacion: txt("numeroActivacion"),
     tieneCargador: asset.tieneCargador == null ? "" : asset.tieneCargador ? "si" : "no",
     pulgadas: txt("pulgadas"),
     observaciones: txt("observaciones"),
@@ -150,7 +148,6 @@ export function payloadActivo(v: ActivoFormValues, modo: Modo) {
     discoDuro: v.almacenamiento || null,
     sistemaOperativo: v.sistemaOperativo || null,
     imei: v.imei || null,
-    numeroActivacion: v.numeroActivacion || null,
     // Sin indicar no se envia: no pisa lo que ya tenia.
     ...(v.tieneCargador ? { tieneCargador: v.tieneCargador === "si" } : {}),
     pulgadas: v.pulgadas || null,
@@ -377,7 +374,7 @@ export function ActivoForm({
           </p>
           {!crear && (
             <p className="mt-1 text-xs text-fg-subtle">
-              El estado cambia con su proceso: solicitudes, mantenciones, baja o venta.
+              El estado cambia con su proceso: solicitudes, mantenciones o baja.
             </p>
           )}
         </Campo>
@@ -500,9 +497,6 @@ export function ActivoForm({
         <Seccion titulo={`Especificaciones Técnicas - ${categoriaElegida?.nombre}`}>
           <Campo label="IMEI *" error={error("imei")} hint="15 números. Se ve marcando *#06# en el teléfono.">
             <input type="text" inputMode="numeric" {...bind("imei")} required />
-          </Campo>
-          <Campo label="N° de Activación">
-            <input type="text" {...bind("numeroActivacion")} />
           </Campo>
           <Campo label="Procesador">
             <input type="text" {...bind("procesador")} placeholder="ej: Snapdragon 8 Gen 2" />

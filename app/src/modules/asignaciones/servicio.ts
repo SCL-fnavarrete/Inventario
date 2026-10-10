@@ -6,6 +6,7 @@ import { coincideBusqueda } from '@/shared/utilidades/text';
 import { formatearFecha } from '@/shared/utilidades/fechas';
 import { LINEAS_DEL_EQUIPO } from '@/modules/activos';
 import { cambiarEstado } from '@/modules/activos/servidor';
+import { desdeTenenciaActual, listarLineas } from '@/modules/lineas/servidor';
 import { executeAssignment, executeReturn } from '@/modules/asignaciones/ejecucion';
 import type {
   AssignmentFilters,
@@ -69,6 +70,48 @@ export async function listarAsignaciones(filters: AssignmentFilters, sedeId: str
     ]);
   }
   return { data, pagination: { page: filters.page, limit: filters.limit, total, totalPages: Math.ceil(total / filters.limit) } };
+}
+
+/**
+ * Asignaciones vigentes con las lineas (Activos > Asignaciones, SPEC 2.143): los equipos
+ * entregados y, en la misma lista, las lineas que hoy tienen persona (en su celular o
+ * eSIM / telefono propio). Una busqueda encuentra equipos y lineas; orden por fecha.
+ */
+export async function listarAsignacionesConLineas(filters: AssignmentFilters, sedeId: string | null) {
+  const termino = filters.search?.trim() ?? '';
+  const [equipos, lineas] = await Promise.all([
+    listarAsignaciones({ ...filters, activo: true, page: 1, limit: 100000 }, sedeId),
+    listarLineas({ asignacion: 'con', estado: 'vigentes', ...(sedeId && { sedeId }) }),
+  ]);
+  const conPersona = lineas.flatMap((l) => {
+    const persona = l.activo ? l.activo.empleadoActual : l.empleado;
+    return persona ? [{ linea: l, persona }] : [];
+  });
+  const encontradas = termino
+    ? conPersona.filter(({ linea: l, persona: p }) =>
+        coincideBusqueda(termino, {
+          rut: p.rut,
+          campos: [p.nombres, p.apellidoPaterno, l.numero, l.operador?.nombre, l.tipoChip?.nombre, l.activo?.marca, l.activo?.modelo, l.activo?.imei],
+        })
+      )
+    : conPersona;
+  const desde = await desdeTenenciaActual(encontradas.map(({ linea }) => linea.id));
+  const filas = [
+    ...equipos.data.map((a) => ({ ...a, clase: 'equipo' as const })),
+    ...encontradas.map(({ linea: l, persona }) => ({
+      clase: 'linea' as const,
+      id: l.id,
+      fechaEntrega: desde.get(l.id) ?? null,
+      linea: { numero: l.numero, operador: l.operador?.nombre ?? null, tipoChip: l.tipoChip?.nombre ?? null },
+      activo: l.activo ? { id: l.activo.id, marca: l.activo.marca, modelo: l.activo.modelo } : null,
+      employee: { id: persona.id, rut: persona.rut, nombres: persona.nombres, apellidoPaterno: persona.apellidoPaterno },
+    })),
+  ].sort((a, b) => (b.fechaEntrega ? new Date(b.fechaEntrega).getTime() : 0) - (a.fechaEntrega ? new Date(a.fechaEntrega).getTime() : 0));
+  const skip = (filters.page - 1) * filters.limit;
+  return {
+    data: filas.slice(skip, skip + filters.limit),
+    pagination: { page: filters.page, limit: filters.limit, total: filas.length, totalPages: Math.ceil(filas.length / filters.limit) },
+  };
 }
 
 /** Detalle de una asignacion, con el historial reciente del equipo. */

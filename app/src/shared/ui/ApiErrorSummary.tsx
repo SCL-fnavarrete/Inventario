@@ -30,7 +30,6 @@ const ETIQUETAS_BASE: Record<string, string> = {
   condicion: "Condición",
   fechaCompra: "Fecha de compra",
   fechaGarantiaFin: "Fin de garantía",
-  fechaVenta: "Fecha de venta",
   observaciones: "Observaciones",
   incidencia: "Incidencia",
   sedeId: "Sede",

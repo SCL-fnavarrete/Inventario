@@ -44,13 +44,10 @@ const COLUMNAS: ColumnaDef[] = [
   { header: "Modelo", key: "modelo", width: 20, grupo: "identificacion" },
   { header: "IMEI", key: "imei", width: 18, grupo: "identificacion" },
   { header: "N° Teléfono", key: "numeroTelefono", width: 15, grupo: "identificacion" },
-  { header: "N° Activación", key: "numeroActivacion", width: 14, grupo: "identificacion" },
-  { header: "Tipo Plan", key: "tipoPlan", width: 12, grupo: "identificacion" },
   // Estado y ubicacion
   { header: "Sede", key: "sede", width: 14, grupo: "estadoUbicacion" },
   { header: "Estado", key: "estado", width: 12, grupo: "estadoUbicacion" },
   { header: "Condición", key: "condicion", width: 10, grupo: "estadoUbicacion" },
-  { header: "Ubicación Física", key: "ubicacionFisica", width: 15, grupo: "estadoUbicacion" },
   // Asignacion
   { header: "Asignado a", key: "asignadoA", width: 25, grupo: "asignacion" },
   { header: "RUT Asignado", key: "rutAsignado", width: 15, grupo: "asignacion" },
@@ -81,7 +78,6 @@ const COLUMNAS: ColumnaDef[] = [
   { header: "Valor (CLP)", key: "valor", width: 14, grupo: "fechas" },
   { header: "Fin Garantía", key: "finGarantia", width: 12, grupo: "fechas" },
   { header: "Fecha Baja", key: "fechaBaja", width: 12, grupo: "fechas" },
-  { header: "Fecha Venta", key: "fechaVenta", width: 12, grupo: "fechas" },
   { header: "Fecha Creación", key: "fechaCreacion", width: 12, grupo: "fechas" },
   // Otros
   { header: "Incidencia", key: "incidencia", width: 25, grupo: "otros" },
@@ -234,14 +230,11 @@ export async function excelDeActivos(filtros: FiltrosActivos) {
       marca: asset.marca,
       modelo: asset.modelo,
       imei: asset.imei || "",
-      // El numero y el plan son de las lineas del celular (SPEC 2.131).
+      // El numero es de las lineas del celular (SPEC 2.131).
       numeroTelefono: asset.lineas.map((l) => formatearNumero(l.numero)).join(", "),
-      numeroActivacion: asset.numeroActivacion || "",
-      tipoPlan: asset.lineas.map((l) => l.plan?.nombre).filter(Boolean).join(", "),
       sede: asset.sede?.nombre || "",
       estado: ESTADO_ACTIVO_LABEL[asset.estado] || asset.estado,
       condicion: CONDICION_ACTIVO_LABEL[asset.condicion] || asset.condicion,
-      ubicacionFisica: asset.ubicacionFisica || "",
       asignadoA: asset.empleadoActual
         ? `${asset.empleadoActual.nombres} ${asset.empleadoActual.apellidoPaterno}`
         : "",
@@ -270,7 +263,6 @@ export async function excelDeActivos(filtros: FiltrosActivos) {
       valor: asset.valor ?? "",
       finGarantia: asset.fechaGarantiaFin ? formatearFecha(asset.fechaGarantiaFin) : "",
       fechaBaja: asset.fechaBaja ? formatearFecha(asset.fechaBaja) : "",
-      fechaVenta: asset.fechaVenta ? formatearFecha(asset.fechaVenta) : "",
       fechaCreacion: formatearFecha(asset.createdAt),
       incidencia: asset.incidencia || "",
       observaciones: asset.observaciones || "",

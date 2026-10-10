@@ -2,12 +2,12 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { LogIn, ShieldX, Lock, UserX, Search, Loader2 } from "lucide-react";
+import { LogIn, ShieldX, Lock, UserX, Search } from "lucide-react";
 import type { ResultadoAcceso } from "@prisma/client";
 import { cn } from "@/shared/cn";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { StatCard, StatGrid } from "@/shared/ui/StatCard";
-import { Pagination } from "@/shared/ui/Pagination";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { formatearFechaHora } from "@/shared/utilidades/fechas";
 import {
@@ -72,14 +72,16 @@ function Accesos() {
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [cargando, setCargando] = useState(true);
   const [paginacion, setPaginacion] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
+  // Cuantos accesos se ven por pagina ("Mostrar: N").
+  const [limite, setLimite] = useState(25);
 
   // La pagina vuelve a 1 al cambiar cualquier filtro.
-  const filtros = `${buscar}|${resultado}|${fechaDesde}|${fechaHasta}|${vista}`;
+  const filtros = `${buscar}|${resultado}|${fechaDesde}|${fechaHasta}|${vista}|${limite}`;
   const [pagina, setPagina] = useState({ filtros, n: 1 });
   const page = pagina.filtros === filtros ? pagina.n : 1;
 
   useEffect(() => {
-    const q = new URLSearchParams({ page: String(page), limit: "25" });
+    const q = new URLSearchParams({ page: String(page), limit: String(limite) });
     if (buscar) q.set("usuario", buscar);
     if (resultado) q.set("resultado", resultado);
     if (fechaDesde) q.set("fechaDesde", fechaDesde);
@@ -98,7 +100,7 @@ function Accesos() {
     return () => {
       vigente = false;
     };
-  }, [page, buscar, resultado, fechaDesde, fechaHasta, vista]);
+  }, [page, limite, buscar, resultado, fechaDesde, fechaHasta, vista]);
 
   return (
     <div className="space-y-6">
@@ -158,78 +160,73 @@ function Accesos() {
         </label>
       </div>
 
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-line">
-            <thead className="bg-surface-muted">
-              <tr>
-                <th className="table-th px-4 hidden sm:table-cell">Fecha y hora</th>
-                <th className="table-th px-4">Usuario</th>
-                <th className="table-th px-4">Resultado</th>
-                <th className="table-th px-4 hidden md:table-cell">Dirección de red</th>
-                <th className="table-th px-4 hidden md:table-cell">Navegador</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {cargando ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-fg-subtle">
-                    <Loader2 className="inline h-5 w-5 animate-spin" />
-                  </td>
-                </tr>
-              ) : registros.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-fg-subtle">
-                    No hay accesos para estos filtros
-                  </td>
-                </tr>
-              ) : (
-                registros.map((r) => (
-                  <tr key={r.id} className="hover:bg-surface-muted">
-                    <td className="hidden whitespace-nowrap px-4 py-3 text-sm text-fg-muted sm:table-cell">
-                      {formatearFechaHora(r.createdAt, FORMATO_FECHA)}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      {/* En celular, fila compacta: la fecha va aqui arriba. */}
-                      <p className="text-xs text-fg-muted sm:hidden">{formatearFechaHora(r.createdAt, FORMATO_FECHA)}</p>
-                      <p className="break-all font-medium text-fg">{r.usuario?.nombre ?? r.usuarioIngresado}</p>
-                      {r.usuario && <p className="break-all text-xs text-fg-subtle">{r.usuarioIngresado}</p>}
-                      <p className="text-xs text-fg-subtle md:hidden">
-                        {navegadorLegible(r.navegador)}
-                        {r.ip ? ` • ${ipLegible(r.ip)}` : ""}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={cn(
-                          "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium",
-                          RESULTADO_ACCESO_BADGE[r.resultado]
-                        )}
-                      >
-                        {RESULTADO_ACCESO_LABEL[r.resultado]}
-                      </span>
-                      {r.detalle && <p className="mt-1 text-xs text-fg-subtle">{r.detalle}</p>}
-                    </td>
-                    <td className="hidden px-4 py-3 font-mono text-xs text-fg-muted md:table-cell">{ipLegible(r.ip)}</td>
-                    <td className="hidden px-4 py-3 text-sm text-fg-muted md:table-cell" title={r.navegador ?? undefined}>
-                      {navegadorLegible(r.navegador)}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        <Pagination
-          className="border-t border-line px-4 py-3"
-          current={page}
-          pages={paginacion.totalPages}
-          total={paginacion.total}
-          limit={paginacion.limit}
-          itemLabel="accesos"
-          onPageChange={(n) => setPagina({ filtros, n })}
-        />
-      </div>
+      <TablaDatos
+        items={registros}
+        clave={(r) => r.id}
+        cargando={cargando}
+        compacta
+        vacio="No hay accesos para estos filtros"
+        paginacion={{
+          current: page,
+          pages: paginacion.totalPages,
+          total: paginacion.total,
+          limit: paginacion.limit,
+          itemLabel: "accesos",
+          onPageChange: (n) => setPagina({ filtros, n }),
+          onLimitChange: setLimite,
+        }}
+        columnas={[
+          {
+            titulo: "Fecha y hora",
+            sinSalto: true,
+            className: "hidden px-4 text-fg-muted sm:table-cell",
+            celda: (r) => formatearFechaHora(r.createdAt, FORMATO_FECHA),
+          },
+          {
+            titulo: "Usuario",
+            className: "px-4",
+            celda: (r) => (
+              <>
+                {/* En celular, fila compacta: la fecha va aqui arriba. */}
+                <p className="text-xs text-fg-muted sm:hidden">{formatearFechaHora(r.createdAt, FORMATO_FECHA)}</p>
+                <p className="break-all font-medium text-fg">{r.usuario?.nombre ?? r.usuarioIngresado}</p>
+                {r.usuario && <p className="break-all text-xs text-fg-subtle">{r.usuarioIngresado}</p>}
+                <p className="text-xs text-fg-subtle md:hidden">
+                  {navegadorLegible(r.navegador)}
+                  {r.ip ? ` • ${ipLegible(r.ip)}` : ""}
+                </p>
+              </>
+            ),
+          },
+          {
+            titulo: "Resultado",
+            className: "px-4",
+            celda: (r) => (
+              <>
+                <span
+                  className={cn(
+                    "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium",
+                    RESULTADO_ACCESO_BADGE[r.resultado]
+                  )}
+                >
+                  {RESULTADO_ACCESO_LABEL[r.resultado]}
+                </span>
+                {r.detalle && <p className="mt-1 text-xs text-fg-subtle">{r.detalle}</p>}
+              </>
+            ),
+          },
+          {
+            titulo: "Dirección de red",
+            className: "hidden px-4 font-mono text-xs text-fg-muted md:table-cell",
+            celda: (r) => ipLegible(r.ip),
+          },
+          {
+            titulo: "Navegador",
+            className: "hidden px-4 text-fg-muted md:table-cell",
+            celda: (r) => <span title={r.navegador ?? undefined}>{navegadorLegible(r.navegador)}</span>,
+          },
+        ]}
+      />
     </div>
   );
 }

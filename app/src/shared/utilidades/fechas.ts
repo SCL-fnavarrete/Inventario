@@ -192,3 +192,23 @@ export function rangoDiasChile(desde?: string | null, hasta?: string | null) {
   }
   return Object.keys(rango).length > 0 ? rango : undefined;
 }
+
+/**
+ * Hace cuanto paso algo, en palabras ("hace 5 min", "ayer", "hace 3 días"). Para
+ * una marca de tiempo real (createdAt...); pasada una semana muestra la fecha.
+ * `ahora` se puede pasar para probarla.
+ */
+export function tiempoRelativo(valor: ValorFecha, ahora: Date = new Date()): string {
+  const fecha = aDate(valor);
+  if (!fecha) return "";
+  const segundos = Math.max(0, Math.round((ahora.getTime() - fecha.getTime()) / 1000));
+  if (segundos < 60) return "justo ahora";
+  const minutos = Math.floor(segundos / 60);
+  if (minutos < 60) return `hace ${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `hace ${horas} h`;
+  const dias = Math.floor(horas / 24);
+  if (dias === 1) return "ayer";
+  if (dias < 7) return `hace ${dias} días`;
+  return formatearFechaHora(fecha, { day: "2-digit", month: "2-digit", year: "numeric" });
+}

@@ -66,10 +66,15 @@ export function StatCard({
 
   const contenido = (
     <>
-      <div className="min-w-0">
-        <p className="text-sm text-fg-subtle">{label}</p>
-        <p className={cn("text-2xl font-bold", t.valor)}>{value}</p>
-        {hint && <p className="mt-0.5 text-xs text-fg-subtle">{hint}</p>}
+      {/* @container: el texto se achica segun el ancho real de la tarjeta (junto al icono) */}
+      <div className="@container min-w-0 flex-1">
+        <p className="text-[clamp(0.7rem,8cqi,0.875rem)] leading-tight text-fg-subtle [overflow-wrap:anywhere]">
+          {label}
+        </p>
+        <p className={cn("text-[clamp(1.25rem,14cqi,1.5rem)] font-bold leading-tight", t.valor)}>
+          {value}
+        </p>
+        {hint && <p className="mt-0.5 text-xs text-fg-subtle [overflow-wrap:anywhere]">{hint}</p>}
       </div>
       {Icon && (
         <div className={cn("flex-shrink-0 rounded-full p-3", t.icono)}>
@@ -104,14 +109,13 @@ export function StatCard({
   return tilt ? <Tilt className={className}>{tarjeta}</Tilt> : tarjeta;
 }
 
-// 5 columnas desde lg (1024px); 6 recien en xl, donde cada tarjeta aun
-// tiene ancho para numero + icono.
+// 6 tarjetas: 3 por fila (dos filas); en una sola fila el texto no cabe.
 const gridCols = {
   2: "grid-cols-2",
   3: "grid-cols-1 sm:grid-cols-3",
   4: "grid-cols-2 md:grid-cols-4",
   5: "grid-cols-2 md:grid-cols-3 lg:grid-cols-5",
-  6: "grid-cols-2 md:grid-cols-3 xl:grid-cols-6",
+  6: "grid-cols-2 md:grid-cols-3",
 } as const;
 
 /** Grilla responsive para una fila de StatCard. */

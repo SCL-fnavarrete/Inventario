@@ -6,7 +6,6 @@ import {
   UserCheck,
   Wrench,
   XCircle,
-  DollarSign,
   UserX,
   Truck,
   PackageOpen,
@@ -29,7 +28,6 @@ interface StatsData {
     asignado: number;
     en_mantencion: number;
     baja: number;
-    vendido: number;
     no_devuelto: number;
     en_transito: number;
     por_repartir: number;
@@ -59,7 +57,6 @@ const statusConfig: Record<
   // Recien comprados, esperan su reparto (SPEC 2.111).
   por_repartir: { label: "Por repartir", icon: PackageOpen, tono: ESTADO_ACTIVO_TONO.por_repartir },
   baja: { label: "Baja", icon: XCircle, tono: ESTADO_ACTIVO_TONO.baja },
-  vendido: { label: "Vendido", icon: DollarSign, tono: ESTADO_ACTIVO_TONO.vendido },
 };
 
 export function StatsBar({ data, isLoading, selectedStatus, onStatusClick }: StatsBarProps) {
@@ -84,7 +81,6 @@ export function StatsBar({ data, isLoading, selectedStatus, onStatusClick }: Sta
     // Solo cuando hay algo por repartir: es un estado de paso.
     ...(data.porRepartir > 0 ? [{ key: "por_repartir", value: data.porRepartir } as const] : []),
     { key: "baja", value: data.byStatus.baja },
-    { key: "vendido", value: data.byStatus.vendido },
   ] as const;
 
   return (

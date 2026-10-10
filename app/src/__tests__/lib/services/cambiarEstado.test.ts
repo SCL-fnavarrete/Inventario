@@ -39,7 +39,7 @@ test('cambia el estado solo si el equipo sigue como se leyó, junto con sus dato
 test('una transición que la máquina de estados no permite responde 409 y no escribe', async () => {
   const tx = txFalso();
   await expect(
-    cambiarEstado(comoTx(tx), { activo: { id: 'a1', estado: 'vendido' }, a: 'disponible' })
+    cambiarEstado(comoTx(tx), { activo: { id: 'a1', estado: 'baja' }, a: 'asignado' })
   ).rejects.toMatchObject({ status: 409 });
   expect(tx.asset.updateMany).not.toHaveBeenCalled();
 });
@@ -67,8 +67,8 @@ test('las condiciones extra también deben seguir iguales', async () => {
   const tx = txFalso();
   await cambiarEstado(comoTx(tx), {
     activo: { id: 'a1', estado: 'baja' },
-    a: 'vendido',
-    contexto: { motivo: 'Venta a Juan' },
+    a: 'disponible',
+    contexto: { aparecioEnDespacho: true },
     exigir: { empleadoActualId: null },
   });
   expect(tx.asset.updateMany.mock.calls[0][0].where).toEqual({

@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Plus, Save, Pencil, Trash2, X, Check } from "lucide-react";
 import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { Button } from "@/shared/ui/Button";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { useToast } from "@/shared/ui/Toast";
 import { CampoTexto, MensajeCampo, ResumenErrores, claseCampo } from "@/shared/ui/CampoFormulario";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
@@ -89,13 +90,20 @@ export function OpcionesCatalogo({
 
   const { sedeSeleccionada } = useSedeSeleccionada();
 
+  // La sede llega despues del primer render (se lee de localStorage), asi que se
+  // pide la lista dos veces: solo vale la ultima respuesta, nunca una vieja.
+  const ultimaPeticion = useRef(0);
   const cargar = useCallback(async () => {
+    const numero = ++ultimaPeticion.current;
     try {
       const sede = sedeSeleccionada ? `&sedeId=${sedeSeleccionada}` : "";
-      const res = await fetch(`${endpoint}?conUso=true${sede}`);
-      if (res.ok) setOpciones(await res.json());
+      const res = await fetch(`${endpoint}?conUso=true${sede}`, { cache: "no-store" });
+      if (res.ok) {
+        const datos = await res.json();
+        if (numero === ultimaPeticion.current) setOpciones(datos);
+      }
     } finally {
-      setCargando(false);
+      if (numero === ultimaPeticion.current) setCargando(false);
     }
   }, [endpoint, sedeSeleccionada]);
 
@@ -221,127 +229,88 @@ export function OpcionesCatalogo({
         </div>
       )}
 
-      <div className="card overflow-x-auto">
-        <table className="min-w-full divide-y divide-line">
-          <thead className="bg-surface-muted">
-            <tr>
-              <th className="table-th">Nombre</th>
-              <th className="table-th text-center">En uso</th>
-              <th className="table-th text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line bg-surface">
-            {cargando ? (
-              <tr>
-                <td colSpan={3} className="px-6 py-8 text-center text-fg-subtle">
-                  Cargando...
-                </td>
-              </tr>
-            ) : opciones.length === 0 ? (
-              <tr>
-                <td colSpan={3} className="px-6 py-8 text-center text-fg-subtle">
-                  No hay opciones registradas en {titulo.toLowerCase()}
-                </td>
-              </tr>
-            ) : (
-              opciones.map((opcion) => {
-                const editando = editandoId === opcion.id;
-                return (
-                  <tr key={opcion.id}>
-                    <td className="px-6 py-4 font-medium text-fg">
-                      {editando ? (
-                        <>
-                          <input
-                            type="text"
-                            autoFocus
-                            aria-label={`Nuevo nombre de ${opcion.nombre}`}
-                            value={nombreEditado}
-                            onChange={(e) => {
-                              setNombreEditado(e.target.value);
-                              limpiar("nombre");
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                ejecutar(() => renombrar(opcion));
-                              }
-                              if (e.key === "Escape") setEditandoId(null);
-                            }}
-                            aria-invalid={!!errores.nombre}
-                            className={claseCampo(errores.nombre)}
-                          />
-                          <MensajeCampo mensaje={errores.nombre} />
-                        </>
-                      ) : (
-                        <>
-                          {opcion.nombre}
-                          {!opcion.activo && (
-                            <span className="ml-2 text-xs font-normal text-fg-subtle">(desactivada)</span>
-                          )}
-                        </>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-center text-sm text-fg-muted">
-                      {opcion.enSede > 0 ? textos.unidad(opcion.enSede) : "—"}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        {editando ? (
-                          <>
-                            <button
-                              aria-label="Guardar"
-                              onClick={() => ejecutar(() => renombrar(opcion))}
-                              disabled={enviando}
-                              className="rounded p-1 text-green-600 hover:bg-green-50"
-                              title="Guardar"
-                            >
-                              <Check size={18} />
-                            </button>
-                            <button
-                              aria-label="Cancelar"
-                              onClick={() => setEditandoId(null)}
-                              className="rounded p-1 text-fg-subtle hover:bg-surface-muted"
-                              title="Cancelar"
-                            >
-                              <X size={18} />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => {
-                                setEditandoId(opcion.id);
-                                setNombreEditado(opcion.nombre);
-                                setCreando(false);
-                                limpiarErrores();
-                              }}
-                              className="rounded p-1 text-primary-700 hover:bg-primary-50"
-                              title="Editar nombre"
-                              aria-label={`Editar ${opcion.nombre}`}
-                            >
-                              <Pencil size={18} />
-                            </button>
-                            {puedeEliminar && !opcion.protegido && opcion.activo && (
-                              <button
-                                onClick={() => setAEliminar(opcion)}
-                                className="rounded p-1 text-red-600 hover:bg-red-50"
-                                title="Eliminar"
-                                aria-label={`Eliminar ${opcion.nombre}`}
-                              >
-                                <Trash2 size={18} />
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      <TablaDatos
+        items={opciones}
+        clave={(o) => o.id}
+        cargando={cargando}
+        vacio={`No hay opciones registradas en ${titulo.toLowerCase()}`}
+        columnas={[
+          {
+            titulo: "Nombre",
+            className: "font-medium text-fg",
+            celda: (o) =>
+              editandoId === o.id ? (
+                <>
+                  <input
+                    type="text"
+                    autoFocus
+                    aria-label={`Nuevo nombre de ${o.nombre}`}
+                    value={nombreEditado}
+                    onChange={(e) => {
+                      setNombreEditado(e.target.value);
+                      limpiar("nombre");
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        ejecutar(() => renombrar(o));
+                      }
+                      if (e.key === "Escape") setEditandoId(null);
+                    }}
+                    aria-invalid={!!errores.nombre}
+                    className={claseCampo(errores.nombre)}
+                  />
+                  <MensajeCampo mensaje={errores.nombre} />
+                </>
+              ) : (
+                <>
+                  {o.nombre}
+                  {!o.activo && <span className="ml-2 text-xs font-normal text-fg-subtle">(desactivada)</span>}
+                </>
+              ),
+          },
+          { titulo: "En uso", className: "text-center text-fg-muted", celda: (o) => (o.enSede > 0 ? textos.unidad(o.enSede) : "—") },
+        ]}
+        acciones={(o) =>
+          editandoId === o.id ? (
+            <>
+              <button
+                aria-label="Guardar"
+                onClick={() => ejecutar(() => renombrar(o))}
+                disabled={enviando}
+                className="rounded p-1 text-green-600 hover:bg-green-50"
+                title="Guardar"
+              >
+                <Check size={18} />
+              </button>
+              <button aria-label="Cancelar" onClick={() => setEditandoId(null)} className="rounded p-1 text-fg-subtle hover:bg-surface-muted" title="Cancelar">
+                <X size={18} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => {
+                  setEditandoId(o.id);
+                  setNombreEditado(o.nombre);
+                  setCreando(false);
+                  limpiarErrores();
+                }}
+                className="rounded p-1 text-primary-700 hover:bg-primary-50"
+                title="Editar nombre"
+                aria-label={`Editar ${o.nombre}`}
+              >
+                <Pencil size={18} />
+              </button>
+              {puedeEliminar && !o.protegido && o.activo && (
+                <button onClick={() => setAEliminar(o)} className="rounded p-1 text-red-600 hover:bg-red-50" title="Eliminar" aria-label={`Eliminar ${o.nombre}`}>
+                  <Trash2 size={18} />
+                </button>
+              )}
+            </>
+          )
+        }
+      />
 
       <ConfirmDialog
         isOpen={aEliminar !== null}

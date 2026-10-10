@@ -43,6 +43,7 @@ import {
 } from "@/modules/compras";
 import { CamposFactura, VentanaReparto } from "@/modules/compras/componentes";
 import { Modal } from "@/shared/ui/Modal";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { cn } from "@/shared/cn";
 import { ESTADO_GUIA_COLORS, ESTADO_GUIA_LABELS } from "@/modules/despachos";
 import type { EstadoGuia } from "@prisma/client";
@@ -772,90 +773,64 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
-        {purchase.purchaseAssets.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-surface-muted border-b">
-                <tr>
-                  <th className="table-th px-4">
-                    Activo
-                  </th>
-                  <th className="table-th px-4">
-                    Serie
-                  </th>
-                  <th className="table-th px-4">
-                    Sede
-                  </th>
-                  <th className="table-th px-4 text-right">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {purchase.purchaseAssets.map((pa) => {
-                  return (
-                    <tr key={pa.id} className="hover:bg-surface-muted">
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-3">
-                          <span className="text-fg-subtle">
-                            <CategoryIcon categoria={pa.asset.categoria.nombre} className="h-4 w-4" />
-                          </span>
-                          <div>
-                            <p className="font-medium text-sm">
-                              {pa.asset.marca} {pa.asset.modelo}
-                            </p>
-                            <p className="text-xs text-fg-subtle">
-                              {pa.asset.categoria.nombre}
-                              {!pa.llegoConCompra && " • ya existía, solo vinculado"}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-fg-subtle">
-                        {identificadorActivo(pa.asset, "-")}
-                      </td>
-                      {/* Compras muestra a qué sede se repartió cada equipo;
-                          ni su estado ni a quién está asignado (SPEC 2.111.6):
-                          eso se ve en la ficha del activo. */}
-                      <td className="px-4 py-4 text-sm text-fg-subtle">
-                        {pa.asset.sede?.nombre ?? "-"}
-                      </td>
-                      <td className="px-4 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link
-                            href={`/activos/${pa.assetId}`}
-                            className="p-1.5 text-fg-subtle hover:text-primary-700"
-                            title="Ver activo"
-                          >
-                            <Eye size={18} />
-                          </Link>
-                          {/* Uno comprado y ya repartido no se quita: la compra es su comprobante. */}
-                          {(!pa.llegoConCompra || pa.asset.estado === "por_repartir") && (
-                            <Can recurso="compras" accion="delete">
-                              <button
-                                onClick={() => pedirDesvincularActivo(pa)}
-                                className="p-1.5 text-fg-subtle hover:text-red-600"
-                                title={pa.llegoConCompra ? "Quitar de la compra" : "Desvincular"}
-                                aria-label={pa.llegoConCompra ? "Quitar de la compra" : "Desvincular"}
-                              >
-                                <X size={18} />
-                              </button>
-                            </Can>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="text-center py-12 text-fg-subtle">
-            <Package className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-            <p>No hay equipos en esta compra</p>
-          </div>
-        )}
+        <TablaDatos
+          sinMarco
+          compacta
+          items={purchase.purchaseAssets}
+          clave={(pa) => pa.id}
+          vacio={
+            <div className="py-2">
+              <Package className="mx-auto mb-2 h-12 w-12 text-gray-300" />
+              <p>No hay equipos en esta compra</p>
+            </div>
+          }
+          columnas={[
+            {
+              titulo: "Activo",
+              className: "px-4 py-4",
+              celda: (pa) => (
+                <div className="flex items-center gap-3">
+                  <span className="text-fg-subtle">
+                    <CategoryIcon categoria={pa.asset.categoria.nombre} className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium">
+                      {pa.asset.marca} {pa.asset.modelo}
+                    </p>
+                    <p className="text-xs text-fg-subtle">
+                      {pa.asset.categoria.nombre}
+                      {!pa.llegoConCompra && " • ya existía, solo vinculado"}
+                    </p>
+                  </div>
+                </div>
+              ),
+            },
+            { titulo: "Serie", className: "px-4 py-4 text-fg-subtle", celda: (pa) => identificadorActivo(pa.asset, "-") },
+            // Compras muestra a que sede se repartio cada equipo; ni su estado ni a quien esta asignado
+            // (SPEC 2.111.6): eso se ve en la ficha del activo.
+            { titulo: "Sede", className: "px-4 py-4 text-fg-subtle", celda: (pa) => pa.asset.sede?.nombre ?? "-" },
+          ]}
+          acciones={(pa) => (
+            <>
+              <Link href={`/activos/${pa.assetId}`} className="p-1.5 text-fg-subtle hover:text-primary-700" title="Ver activo" aria-label="Ver activo">
+                <Eye size={18} />
+              </Link>
+              {/* Uno comprado y ya repartido no se quita: la compra es su comprobante. */}
+              {(!pa.llegoConCompra || pa.asset.estado === "por_repartir") && (
+                <Can recurso="compras" accion="delete">
+                  <button
+                    onClick={() => pedirDesvincularActivo(pa)}
+                    className="p-1.5 text-fg-subtle hover:text-red-600"
+                    title={pa.llegoConCompra ? "Quitar de la compra" : "Desvincular"}
+                    aria-label={pa.llegoConCompra ? "Quitar de la compra" : "Desvincular"}
+                  >
+                    <X size={18} />
+                  </button>
+                </Can>
+              )}
+            </>
+          )}
+        />
       </div>
 
       {/* Kit/EPP Vinculados */}
@@ -930,87 +905,72 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
-        {purchase.purchaseKitItems.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-surface-muted border-b">
-                <tr>
-                  <th className="table-th px-4">
-                    Artículo
-                  </th>
-                  <th className="table-th px-4">
-                    Comprado
-                  </th>
-                  <th className="table-th px-4">
-                    Por repartir
-                  </th>
-                  <th className="table-th px-4 text-right">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {purchase.purchaseKitItems.map((pk) => (
-                  <tr key={pk.id} className="hover:bg-surface-muted">
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <Shirt className="h-4 w-4 text-fg-subtle" />
-                        <div>
-                          <p className="font-medium text-sm">{pk.item.nombre}</p>
-                          <p className="text-xs text-fg-subtle">
-                            {pk.item.categoria === "epp" ? "EPP" : "Kit Bienvenida"}
-                          </p>
-                          {/* A donde fue cada parte (SPEC 2.111). */}
-                          {pk.repartos.map((r) => (
-                            <p key={r.id} className="text-xs text-fg-muted">
-                              {r.cantidad} → {r.sede.nombre}
-                              {r.guide && (
-                                <>
-                                  {" "}
-                                  (
-                                  <Link href={`/despachos/${r.guide.id}`} className="text-primary-700 hover:underline">
-                                    {r.guide.numero}
-                                  </Link>
-                                  {r.guide.estado === "anulada" && ", anulado"})
-                                </>
-                              )}
-                            </p>
-                          ))}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-sm text-fg-muted">{pk.cantidad}</td>
-                    <td className="px-4 py-4 text-sm">
-                      <span className={pk.cantidadPorRepartir > 0 ? "font-medium text-purple-700" : "text-fg-subtle"}>
-                        {pk.cantidadPorRepartir}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      {/* Solo sin repartir: todavia no sumo stock. */}
-                      {pk.cantidadPorRepartir === pk.cantidad && (
-                        <Can recurso="compras" accion="delete">
-                          <button
-                            onClick={() => pedirDesvincularKitItem(pk.id)}
-                            className="p-1.5 text-fg-subtle hover:text-red-600"
-                            title="Quitar de la compra"
-                            aria-label="Quitar de la compra"
-                          >
-                            <X size={18} />
-                          </button>
-                        </Can>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="text-center py-12 text-fg-subtle">
-            <Shirt className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-            <p>No hay artículos de Kit/EPP en esta compra</p>
-          </div>
-        )}
+        <TablaDatos
+          sinMarco
+          compacta
+          items={purchase.purchaseKitItems}
+          clave={(pk) => pk.id}
+          vacio={
+            <div className="py-2">
+              <Shirt className="mx-auto mb-2 h-12 w-12 text-gray-300" />
+              <p>No hay artículos de Kit/EPP en esta compra</p>
+            </div>
+          }
+          columnas={[
+            {
+              titulo: "Artículo",
+              className: "px-4 py-4",
+              celda: (pk) => (
+                <div className="flex items-center gap-3">
+                  <Shirt className="h-4 w-4 text-fg-subtle" />
+                  <div>
+                    <p className="text-sm font-medium">{pk.item.nombre}</p>
+                    <p className="text-xs text-fg-subtle">{pk.item.categoria === "epp" ? "EPP" : "Kit Bienvenida"}</p>
+                    {/* A donde fue cada parte (SPEC 2.111). */}
+                    {pk.repartos.map((r) => (
+                      <p key={r.id} className="text-xs text-fg-muted">
+                        {r.cantidad} → {r.sede.nombre}
+                        {r.guide && (
+                          <>
+                            {" "}
+                            (
+                            <Link href={`/despachos/${r.guide.id}`} className="text-primary-700 hover:underline">
+                              {r.guide.numero}
+                            </Link>
+                            {r.guide.estado === "anulada" && ", anulado"})
+                          </>
+                        )}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ),
+            },
+            { titulo: "Comprado", className: "px-4 py-4 text-fg-muted", celda: (pk) => pk.cantidad },
+            {
+              titulo: "Por repartir",
+              className: "px-4 py-4",
+              celda: (pk) => (
+                <span className={pk.cantidadPorRepartir > 0 ? "font-medium text-purple-700" : "text-fg-subtle"}>{pk.cantidadPorRepartir}</span>
+              ),
+            },
+          ]}
+          acciones={(pk) =>
+            // Solo sin repartir: todavia no sumo stock.
+            pk.cantidadPorRepartir === pk.cantidad && (
+              <Can recurso="compras" accion="delete">
+                <button
+                  onClick={() => pedirDesvincularKitItem(pk.id)}
+                  className="p-1.5 text-fg-subtle hover:text-red-600"
+                  title="Quitar de la compra"
+                  aria-label="Quitar de la compra"
+                >
+                  <X size={18} />
+                </button>
+              </Can>
+            )
+          }
+        />
       </div>
 
       {/* Despachos que creo el reparto hacia otras sedes */}

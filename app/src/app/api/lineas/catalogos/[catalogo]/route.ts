@@ -4,7 +4,7 @@ import { requirePermission, handleApiError, quienHace } from '@/shared/auth/guar
 import { CATALOGOS_LINEA, opcionLineaSchema } from '@/modules/lineas';
 import { crearOpcionLinea, listarOpcionesLinea } from '@/modules/lineas/servidor';
 
-// Catalogos de las lineas: planes, estados y tipos de chip (SPEC 2.131).
+// Catalogos de las lineas: estados, tipos de chip, operadores y motivos (SPEC 2.131).
 type Params = { params: Promise<{ catalogo: string }> };
 const catalogoSchema = z.enum(CATALOGOS_LINEA);
 

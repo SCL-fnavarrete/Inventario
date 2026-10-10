@@ -4,7 +4,7 @@
  * tarjetas y las tablas cuentan lo mismo. Es puro.
  */
 
-/** Busca las lineas que no tienen ese dato ("Sin plan", "Sin sede"...). */
+/** Busca las lineas que no tienen ese dato ("Sin operador"...). */
 export const SIN_DATO_LINEA = 'sin_dato';
 
 /** Estado: el id de un estado del catalogo (sin dato, todas). Los grupos los usan las tarjetas. */
@@ -12,35 +12,31 @@ export const ESTADO_LINEA_GRUPOS = { vigentes: 'Vigentes', baja: 'De baja', toda
 
 export const ASIGNACION_LINEA = {
   con: 'Con persona',
-  sin: 'Sin persona',
-  desvinculada: 'Persona desvinculada',
+  sin: 'Disponible',
 } as const;
 export type AsignacionLinea = keyof typeof ASIGNACION_LINEA;
 
 /**
- * Filtros de catalogo: el valor es el id de la opcion, o SIN_DATO_LINEA. La sede
- * se combina con la del navbar (las dos se aplican).
+ * Filtros de catalogo: el valor es el id de la opcion, o SIN_DATO_LINEA.
  */
 export const FILTROS_CATALOGO_LINEA = [
-  { param: 'plan', etiqueta: 'Plan', endpoint: '/api/lineas/catalogos/planes', sinDato: 'Sin plan' },
   { param: 'tipoChip', etiqueta: 'Tipo de chip', endpoint: '/api/lineas/catalogos/tipos-chip', sinDato: 'Sin indicar' },
   { param: 'operador', etiqueta: 'Operador', endpoint: '/api/lineas/catalogos/operadores', sinDato: 'Sin operador' },
-  { param: 'sede', etiqueta: 'Sede', endpoint: '/api/sedes', sinDato: 'Sin sede' },
+  // Solo las de baja tienen motivo; "Baja sin motivo" son las dadas de baja antes de que se pidiera (SPEC 2.140).
+  { param: 'motivoBaja', etiqueta: 'Motivo de baja', endpoint: '/api/lineas/catalogos/motivos-baja', sinDato: 'Baja sin motivo' },
 ] as const;
 export type ParamCatalogoLinea = (typeof FILTROS_CATALOGO_LINEA)[number]['param'];
 
 export type FiltrosLineas = Partial<Record<ParamCatalogoLinea, string>> & {
   estado?: string;
   asignacion?: AsignacionLinea;
-  /** Vigentes en un celular de baja o vendido, o con una persona desvinculada: se pagan sin uso. */
-  revisar?: boolean;
   q?: string;
-  /** Sede del navbar. */
+  /** Sede del navbar: la del celular o, sin celular, la de la persona. */
   sedeId?: string;
 };
 
 /** Parametros de la URL que son filtros (los demas se ignoran). */
-export const PARAMS_FILTRO_LINEA = ['estado', 'asignacion', 'revisar', 'q', ...FILTROS_CATALOGO_LINEA.map((f) => f.param)] as const;
+export const PARAMS_FILTRO_LINEA = ['estado', 'asignacion', 'q', ...FILTROS_CATALOGO_LINEA.map((f) => f.param)] as const;
 
 /** Los filtros de la URL, sin vacios y con tope de largo. */
 export function leerFiltrosLineas(sp: URLSearchParams): FiltrosLineas {
@@ -49,7 +45,6 @@ export function leerFiltrosLineas(sp: URLSearchParams): FiltrosLineas {
   const f: FiltrosLineas = {
     estado: leer('estado'),
     asignacion: asignacion && asignacion in ASIGNACION_LINEA ? (asignacion as AsignacionLinea) : undefined,
-    revisar: sp.get('revisar') === '1' || undefined,
     q: leer('q'),
     sedeId: leer('sedeId'),
   };

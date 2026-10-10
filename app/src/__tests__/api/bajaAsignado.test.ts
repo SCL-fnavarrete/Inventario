@@ -21,7 +21,7 @@ jest.mock('@/shared/auth/guard', () => {
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/shared/prisma';
-import { POST as darDeBaja } from '@/app/api/mantenciones/baja/route';
+import { POST as darDeBaja } from '@/app/api/activos/[id]/baja/route';
 import { POST as completar } from '@/app/api/mantenciones/[id]/completar/route';
 
 const transaccion = prisma.$transaction as jest.Mock;
@@ -53,18 +53,14 @@ beforeEach(() => {
   buscarMotivo.mockReset().mockResolvedValue({ id: MOTIVO_ID, nombre: 'Falla irreparable', clave: null });
 });
 
-describe('POST /api/mantenciones/baja', () => {
-  const body = {
-    assetId: '11111111-1111-4111-8111-111111111111',
-    tipoId: '22222222-2222-4222-8222-222222222222',
-    motivoBajaId: MOTIVO_ID,
-    fechaRealizada: '2026-09-25',
-    realizadoPor: 'QA',
-  };
+describe('POST /api/activos/[id]/baja', () => {
+  const ASSET_ID = '11111111-1111-4111-8111-111111111111';
+  const body = { motivoBajaId: MOTIVO_ID, fechaBaja: '2026-09-25' };
+  const params = { params: Promise.resolve({ id: ASSET_ID }) };
 
   test('en mantencion y asignado: 409 con el motivo, y no toca la base', async () => {
     buscarActivo.mockResolvedValue(activo('emp-1'));
-    const res = await darDeBaja(peticion('/api/mantenciones/baja', body));
+    const res = await darDeBaja(peticion(`/api/activos/${ASSET_ID}/baja`, body), params);
     expect(res.status).toBe(409);
     expect((await res.json()).error).toMatch(/Está asignado a un empleado/);
     expect(transaccion).not.toHaveBeenCalled();
@@ -72,8 +68,7 @@ describe('POST /api/mantenciones/baja', () => {
 
   test('en mantencion sin dueño (devuelto dañado): se da de baja', async () => {
     buscarActivo.mockResolvedValue(activo(null));
-    (prisma.maintenanceType.findUnique as jest.Mock).mockResolvedValue({ id: 't1', nombre: 'Correctiva' });
-    const res = await darDeBaja(peticion('/api/mantenciones/baja', body));
+    const res = await darDeBaja(peticion(`/api/activos/${ASSET_ID}/baja`, body), params);
     expect(res.status).toBe(201);
     expect(transaccion).toHaveBeenCalled();
   });
@@ -81,7 +76,7 @@ describe('POST /api/mantenciones/baja', () => {
   test('"Otro" sin detalle: 400 en el campo del detalle', async () => {
     buscarActivo.mockResolvedValue(activo(null));
     buscarMotivo.mockResolvedValue({ id: MOTIVO_ID, nombre: 'Otro', clave: 'otro' });
-    const res = await darDeBaja(peticion('/api/mantenciones/baja', body));
+    const res = await darDeBaja(peticion(`/api/activos/${ASSET_ID}/baja`, body), params);
     expect(res.status).toBe(400);
     expect(JSON.stringify(await res.json())).toMatch(/motivoDetalle/);
     expect(transaccion).not.toHaveBeenCalled();
@@ -90,7 +85,7 @@ describe('POST /api/mantenciones/baja', () => {
   test('un motivo desactivado o que no existe: 400', async () => {
     buscarActivo.mockResolvedValue(activo(null));
     buscarMotivo.mockResolvedValue(null);
-    const res = await darDeBaja(peticion('/api/mantenciones/baja', body));
+    const res = await darDeBaja(peticion(`/api/activos/${ASSET_ID}/baja`, body), params);
     expect(res.status).toBe(400);
     expect(buscarMotivo).toHaveBeenCalledWith({ where: { id: MOTIVO_ID, activo: true } });
   });

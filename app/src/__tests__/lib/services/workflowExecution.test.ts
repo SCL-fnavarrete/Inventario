@@ -93,7 +93,7 @@ describe('executeAssignment', () => {
     expect(tx.assignment.create).not.toHaveBeenCalled();
   });
 
-  it.each(['asignado', 'en_mantencion', 'baja', 'vendido', 'no_devuelto', 'en_transito', 'por_repartir'])(
+  it.each(['asignado', 'en_mantencion', 'baja', 'no_devuelto', 'en_transito', 'por_repartir'])(
     'no entrega un equipo en estado %s',
     async (estado) => {
       const tx = txFalso();

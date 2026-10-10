@@ -73,6 +73,7 @@ describe('createWorkflowRequestSchema — onboarding', () => {
     });
     expect(result.success).toBe(false);
   });
+
 });
 
 // ============================================================
@@ -168,6 +169,32 @@ describe('createWorkflowRequestSchema — cambio_equipo (SPEC 2.84)', () => {
       cambios: [cambio(1, 2), cambio(3, 2)],
     });
     expect(result.success).toBe(false);
+  });
+
+  test('un celular se puede cambiar por una eSIM: sin equipo nuevo y sin chip físico (SPEC 2.143)', () => {
+    const esim = { oldAssignmentId: uuid(1), newEsimLineaId: uuid(7), estadoDevolucion: 'ok' as const };
+    const con = (cambios: object[]) => createWorkflowRequestSchema.safeParse({ ...validCambio, cambios });
+    expect(con([esim]).success).toBe(true);
+    // Ni equipo ni eSIM, o los dos a la vez.
+    expect(con([{ oldAssignmentId: uuid(1), estadoDevolucion: 'ok' }]).success).toBe(false);
+    expect(con([{ ...esim, newAssetId: uuid(2) }]).success).toBe(false);
+    // Con eSIM no hay celular: no lleva chip físico.
+    expect(con([{ ...esim, newLineaId: uuid(8) }]).success).toBe(false);
+    // La misma eSIM no sirve para dos equipos.
+    expect(con([esim, { ...esim, oldAssignmentId: uuid(3) }]).success).toBe(false);
+  });
+
+  test('se pueden cambiar solo líneas; sin equipos ni líneas, o con una línea repetida, se rechaza (SPEC 2.143)', () => {
+    const con = (extra: object) => createWorkflowRequestSchema.safeParse({ ...validCambio, cambios: [], ...extra });
+    expect(con({ cambiosLinea: [{ lineaId: uuid(1), newLineaId: uuid(2) }] }).success).toBe(true);
+    // eSIM -> chip físico: un celular que se entrega, con su línea o con la elegida.
+    expect(con({ cambiosLinea: [{ lineaId: uuid(1), newAssetId: uuid(3) }] }).success).toBe(true);
+    expect(con({ cambiosLinea: [{ lineaId: uuid(1), newAssetId: uuid(3), newLineaId: uuid(2) }] }).success).toBe(true);
+    expect(con({ cambiosLinea: [{ lineaId: uuid(1) }] }).success).toBe(false);
+    // El mismo celular no va para una línea y como reemplazo de un equipo.
+    expect(con({ cambios: [cambio(4, 3)], cambiosLinea: [{ lineaId: uuid(1), newAssetId: uuid(3) }] }).success).toBe(false);
+    expect(con({}).success).toBe(false);
+    expect(con({ cambiosLinea: [{ lineaId: uuid(1), newLineaId: uuid(2) }, { lineaId: uuid(3), newLineaId: uuid(2) }] }).success).toBe(false);
   });
 
   test('rechaza cambio_equipo sin motivoCambio o con motivo vacío', () => {

@@ -243,35 +243,6 @@ export const assetHistoryService = {
   },
 
   /**
-   * Registra la venta de un activo.
-   *
-   * `fechaVenta` es la fecha ingresada en el formulario, no la fecha del
-   * servidor.
-   */
-  async registrarVenta(
-    assetId: string,
-    comprador: string | undefined,
-    monto: number | undefined,
-    usuario: string | undefined,
-    fechaVenta: Date,
-    moneda?: string,
-    tx?: PrismaTx
-  ) {
-    return this.registrar({
-      assetId,
-      tipoEvento: 'venta',
-      descripcion: `Activo vendido${comprador ? ` a ${comprador}` : ''}${monto ? ` por ${moneda || 'CLP'} ${monto.toLocaleString('es-CL')}` : ''}`,
-      datosNuevos: {
-        comprador,
-        monto,
-        moneda,
-        fechaVenta: fechaVenta.toISOString(),
-      },
-      usuarioSistema: usuario,
-    }, tx)
-  },
-
-  /**
    * Registra la vinculación de un activo ya existente a una compra/factura.
    * La creación de un activo nuevo ya registra su propio evento `creacion`.
    */

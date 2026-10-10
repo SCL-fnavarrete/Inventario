@@ -49,11 +49,9 @@ const ASSET_TRANSITIONS: Record<EstadoActivo, TransitionRule[]> = {
     { to: 'baja', description: 'Mantención: no reparable' },
   ],
   baja: [
-    { to: 'vendido', description: 'Registrar venta' },
     // SPEC 2.111.4: solo un equipo perdido en un despacho que aparecio.
     { to: 'disponible', description: 'Apareció un equipo perdido en un despacho' },
   ],
-  vendido: [], // Estado terminal
   // SPEC 2.108: llega (disponible en la sede destino), se anula la guia
   // (disponible en origen) o se pierde (baja por Extravio).
   en_transito: [
@@ -124,13 +122,6 @@ const TRANSITION_PRECONDITIONS: Record<string, (ctx: TransitionContext) => strin
       errors.push(
         'Una baja solo se revierte si el equipo se perdió en un despacho y apareció (se hace desde el despacho)'
       );
-    }
-    return errors;
-  },
-  'baja→vendido': (ctx) => {
-    const errors: string[] = [];
-    if (!ctx.motivo) {
-      errors.push('Requiere datos de venta (comprador, monto, fecha)');
     }
     return errors;
   },

@@ -3,7 +3,7 @@ import { prisma } from '@/shared/prisma';
 import { filtroSede } from '@/shared/sedes/filtro';
 import { inicioDeHoy } from '@/shared/utilidades/fechas';
 import { ACTIVOS_VIGENTES, ESTADO_ACTIVO_COLOR } from '@/modules/activos';
-import { lineasPorConfirmar } from '@/modules/lineas/servidor';
+import { resumenLineasDashboard } from '@/modules/lineas/servidor';
 
 /**
  * Trae todos los datos del Resumen del Dashboard en un unico batch de
@@ -69,10 +69,13 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
     totalMantencionesPendientes,
     movimientosPorMes,
     recentAssignments,
-    solicitudesAbiertas,
     kitItems,
     equiposSinSede,
-    lineasSinConfirmar,
+    equiposPorSedeYEstado,
+    sedes,
+    pendientesDeDevolucion,
+    actividadReciente,
+    lineas,
   ] = await Promise.all([
     prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sw } }),
     prisma.asset.groupBy({
@@ -103,9 +106,6 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
       ) movimientos
       GROUP BY mes`,
     prisma.assignment.count({ where: { fechaEntrega: { gte: treintaDiasAtras }, ...swAsset } }),
-    prisma.workflowRequest.count({
-      where: { fechaCierre: null, ...sw },
-    }),
     prisma.welcomeKitItem.findMany({
       where: sw,
       orderBy: { nombre: 'asc' },
@@ -114,8 +114,39 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
     // Equipos importados sin sede (SPEC 2.117): una tarea pendiente, se cuenta
     // con cualquier sede elegida en el navbar (por definicion no son de ninguna).
     prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, sedeId: null } }),
-    // Lineas por confirmar (SPEC 2.131): tambien una tarea pendiente, de todas las sedes.
-    lineasPorConfirmar(),
+    // Equipos por sede y estado: dice donde esta el stock y donde falta.
+    prisma.asset.groupBy({ by: ["sedeId", "estado"], where: { ...ACTIVOS_VIGENTES, ...sw }, _count: true }),
+    prisma.sede.findMany({ select: { id: true, nombre: true } }),
+    // Equipos que se quedo una persona que ya no esta (No devuelto): los de quien se fue hace mas tiempo, primero.
+    prisma.asset.findMany({
+      where: { ...ACTIVOS_VIGENTES, ...sw, estado: "no_devuelto" },
+      orderBy: [{ empleadoActual: { fechaTermino: "asc" } }, { updatedAt: "asc" }],
+      take: PENDIENTES_EN_PANEL,
+      select: {
+        id: true,
+        marca: true,
+        modelo: true,
+        numeroSerie: true,
+        imei: true,
+        updatedAt: true,
+        empleadoActual: { select: { id: true, nombres: true, apellidoPaterno: true, fechaTermino: true } },
+      },
+    }),
+    // Lo ultimo que paso con los equipos (entregas, devoluciones, bajas...).
+    prisma.assetHistory.findMany({
+      where: { asset: { ...sw, ...ACTIVOS_VIGENTES } },
+      orderBy: { createdAt: "desc" },
+      take: EVENTOS_EN_PANEL,
+      select: {
+        id: true,
+        tipoEvento: true,
+        descripcion: true,
+        usuarioSistema: true,
+        createdAt: true,
+        asset: { select: { id: true, marca: true, modelo: true, numeroSerie: true, imei: true } },
+      },
+    }),
+    resumenLineasDashboard(sedeIdFiltro),
   ]);
 
   // Desglose de activos por categoria + estado, agregado en memoria a
@@ -137,9 +168,6 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
   const assignedAssets = totalPorEstado("asignado");
   const maintenanceAssets = totalPorEstado("en_mantencion");
   const bajaAssets = totalPorEstado("baja");
-  // Un activo vendido ya no forma parte del parque operativo, por eso no
-  // suma en las tarjetas de arriba ni en "Stock por Categoria".
-  const vendidoAssets = totalPorEstado("vendido");
 
   // Equipos que quedaron en manos de alguien desvinculado que no los
   // devolvio; se cuentan aparte de "asignado".
@@ -153,8 +181,8 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
     return { id: cat.id, nombre: cat.nombre, stockMinimo: cat.stockMinimo, total };
   });
 
-  // "Stock por Categoria" (grafico de barras apiladas): "vendido" queda
-  // fuera de este calculo porque no es stock disponible.
+  // "Stock por Categoria" (grafico de barras apiladas): solo disponible,
+  // asignado y en mantencion.
   const stockByCategory = categoriesRaw.map((cat) => {
     const conteos = conteosPorCategoria.get(cat.id) ?? {};
     return {
@@ -177,14 +205,36 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
     .filter((c) => c.disponibles > 0 && c.disponibles <= c.stockMinimo)
     .map((c) => ({ id: c.categoriaId, nombre: c.categoria, disponibles: c.disponibles, stockMinimo: c.stockMinimo }));
 
-  // Estados para el pie chart, incluyendo "vendido".
+  const enTransitoAssets = totalPorEstado("en_transito");
+  const porRepartirAssets = totalPorEstado("por_repartir");
+
+  // Equipos por sede: solo el stock operativo (baja no cuenta). Una
+  // sede sin equipos no aparece; los que no tienen sede salen como "Sin sede".
+  const nombreSede = new Map(sedes.map((s) => [s.id, s.nombre]));
+  const porSedeMapa = new Map<string, { sede: string; disponibles: number; asignados: number; mantencion: number; otros: number }>();
+  for (const f of equiposPorSedeYEstado) {
+    if (f.estado === "baja") continue;
+    const clave = f.sedeId ?? "sin_sede";
+    const fila = porSedeMapa.get(clave) ?? { sede: f.sedeId ? (nombreSede.get(f.sedeId) ?? "Sede") : "Sin sede", disponibles: 0, asignados: 0, mantencion: 0, otros: 0 };
+    if (f.estado === "disponible") fila.disponibles += f._count;
+    else if (f.estado === "asignado") fila.asignados += f._count;
+    else if (f.estado === "en_mantencion") fila.mantencion += f._count;
+    else fila.otros += f._count;
+    porSedeMapa.set(clave, fila);
+  }
+  const equiposPorSede = [...porSedeMapa.values()].sort(
+    (a, b) => b.disponibles + b.asignados + b.mantencion + b.otros - (a.disponibles + a.asignados + a.mantencion + a.otros)
+  );
+
+  // Estados para la dona.
   const estadosData = [
     { estado: "disponible", cantidad: availableAssets, color: ESTADO_ACTIVO_COLOR.disponible },
     { estado: "asignado", cantidad: assignedAssets, color: ESTADO_ACTIVO_COLOR.asignado },
     { estado: "en_mantencion", cantidad: maintenanceAssets, color: ESTADO_ACTIVO_COLOR.en_mantencion },
     { estado: "no_devuelto", cantidad: noDevueltoAssets, color: ESTADO_ACTIVO_COLOR.no_devuelto },
+    { estado: "en_transito", cantidad: enTransitoAssets, color: ESTADO_ACTIVO_COLOR.en_transito },
+    { estado: "por_repartir", cantidad: porRepartirAssets, color: ESTADO_ACTIVO_COLOR.por_repartir },
     { estado: "baja", cantidad: bajaAssets, color: ESTADO_ACTIVO_COLOR.baja },
-    { estado: "vendido", cantidad: vendidoAssets, color: ESTADO_ACTIVO_COLOR.vendido },
   ].filter((e) => e.cantidad > 0);
 
   const pendingMaintenance = totalMantencionesPendientes;
@@ -238,7 +288,6 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
     assignedAssets,
     maintenanceAssets,
     bajaAssets,
-    vendidoAssets,
     noDevueltoAssets,
     pendingMaintenance,
     recentAssignments,
@@ -246,7 +295,7 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
     stockByCategory,
     estadosData,
     asignacionesChartData,
-    solicitudesAbiertas,
+    enCaminoAssets: enTransitoAssets + porRepartirAssets,
     kitBienvenidaItems,
     eppItems,
     sinStockCategorias,
@@ -258,12 +307,19 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
     totalVencidas,
     totalProximas,
     equiposSinSede,
-    lineasPorConfirmar: lineasSinConfirmar,
+    equiposPorSede,
+    pendientesDeDevolucion,
+    actividadReciente,
+    lineas,
   };
 }
 
 /** Cuantas mantenciones de cada grupo (vencidas, proximas) muestra el panel. */
 export const ALERTAS_POR_GRUPO = 5;
+
+/** Cuantos pendientes de devolucion y cuantos eventos recientes muestra el Dashboard. */
+export const PENDIENTES_EN_PANEL = 5;
+export const EVENTOS_EN_PANEL = 8;
 
 /** Filtro de sede para las consultas SQL del resumen (vacio = todas). */
 function soloSede(sedeId: string | null) {

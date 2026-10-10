@@ -25,8 +25,11 @@ import { cn } from "@/shared/cn";
 import type { EstadoEmpleado, TipoContrato } from "@prisma/client";
 import { formatearFecha } from "@/shared/utilidades/fechas";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { identificadorActivo, textoLineas } from "@/modules/activos";
+import { EnlacesLineas } from "@/modules/lineas/componentes";
 import { HistorialAsignaciones } from "@/modules/personas/componentes";
+import { CategoryIcon } from "@/modules/activos/componentes";
 
 type NotebookAsignado = {
   asignacionId: string;
@@ -53,8 +56,7 @@ type CelularAsignado = {
   modelo: string;
   numeroSerie: string | null;
   imei: string | null;
-  lineas: { numero: string; plan: { nombre: string } | null }[];
-  numeroActivacion: string | null;
+  lineas: { id: string; numero: string }[];
   tieneCargador: boolean;
   estado: string;
   condicion: string;
@@ -96,7 +98,7 @@ type Ficha = {
     estado: EstadoEmpleado;
     telefonoContacto: string | null;
   };
-  lineas: { id: string; numero: string; plan: { nombre: string } | null }[];
+  lineas: { id: string; numero: string }[];
   notebooks: NotebookAsignado[];
   celulares: CelularAsignado[];
   monitores: MonitorAsignado[];
@@ -192,6 +194,22 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
       </div>
     );
   }
+
+  // Tarjetas del resumen: lo que la persona tiene hoy (equipos y lineas), no categorias fijas.
+  const icono = (categoria: string) => <CategoryIcon categoria={categoria} className="h-5 w-5" />;
+  const tarjetas = [
+    ...ficha.notebooks.map((e) => ({ clave: e.asignacionId, categoria: "Notebook", icono: icono("Notebook"), titulo: `${e.marca} ${e.modelo}`, detalle: identificadorActivo(e, "-") })),
+    ...ficha.celulares.map((e) => ({
+      clave: e.asignacionId,
+      categoria: "Celular",
+      icono: icono("Celular"),
+      titulo: `${e.marca} ${e.modelo}`,
+      detalle: e.lineas.length ? textoLineas(e.lineas) : "Sin línea",
+    })),
+    ...ficha.monitores.map((e) => ({ clave: e.asignacionId, categoria: "Monitor", icono: icono("Monitor"), titulo: `${e.marca} ${e.modelo}`, detalle: identificadorActivo(e, "-") })),
+    ...ficha.otrosEquipos.map((e) => ({ clave: e.asignacionId, categoria: e.categoria, icono: icono(e.categoria), titulo: `${e.marca} ${e.modelo}`, detalle: identificadorActivo(e, "-") })),
+    ...ficha.lineas.map((l) => ({ clave: l.id, categoria: "Línea", icono: <Phone className="h-5 w-5" />, titulo: textoLineas([l]), detalle: "Su propio teléfono (eSIM)" })),
+  ];
 
   return (
     <div className="space-y-6">
@@ -290,38 +308,27 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      {/* Resumen de equipos */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className={cn(
-          "bg-surface rounded-lg shadow p-4 flex items-center gap-3",
-          ficha.resumen.tieneNotebook ? "border-l-4 border-green-500" : "border-l-4 border-line-strong"
-        )}>
-          <Laptop className={ficha.resumen.tieneNotebook ? "text-green-500" : "text-fg-subtle"} />
-          <div>
-            <p className="text-sm text-fg-subtle">Notebook</p>
-            <p className="font-semibold">{ficha.resumen.tieneNotebook ? "Asignado" : "Sin asignar"}</p>
+      {/* Resumen: una tarjeta por cada equipo y linea asignados (segun lo que tenga), mas el estado de Kit y EPP */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {tarjetas.map((c) => (
+          <div key={c.clave} className="bg-surface rounded-lg shadow p-4 flex items-center gap-3 border-l-4 border-green-500">
+            <span className="text-green-500">{c.icono}</span>
+            <div className="min-w-0">
+              <p className="text-sm text-fg-subtle">{c.categoria}</p>
+              <p className="font-semibold truncate">{c.titulo}</p>
+              <p className="text-xs text-fg-subtle truncate">{c.detalle}</p>
+            </div>
           </div>
-        </div>
-        <div className={cn(
-          "bg-surface rounded-lg shadow p-4 flex items-center gap-3",
-          ficha.resumen.tieneCelular ? "border-l-4 border-green-500" : "border-l-4 border-line-strong"
-        )}>
-          <Smartphone className={ficha.resumen.tieneCelular ? "text-green-500" : "text-fg-subtle"} />
-          <div>
-            <p className="text-sm text-fg-subtle">Celular</p>
-            <p className="font-semibold">{ficha.resumen.tieneCelular ? "Asignado" : "Sin asignar"}</p>
+        ))}
+        {tarjetas.length === 0 && (
+          <div className="bg-surface rounded-lg shadow p-4 flex items-center gap-3 border-l-4 border-line-strong">
+            <Package className="text-fg-subtle" />
+            <div>
+              <p className="text-sm text-fg-subtle">Equipos</p>
+              <p className="font-semibold">Sin equipos asignados</p>
+            </div>
           </div>
-        </div>
-        <div className={cn(
-          "bg-surface rounded-lg shadow p-4 flex items-center gap-3",
-          ficha.resumen.tieneMonitor ? "border-l-4 border-green-500" : "border-l-4 border-line-strong"
-        )}>
-          <Monitor className={ficha.resumen.tieneMonitor ? "text-green-500" : "text-fg-subtle"} />
-          <div>
-            <p className="text-sm text-fg-subtle">Monitor</p>
-            <p className="font-semibold">{ficha.resumen.tieneMonitor ? "Asignado" : "Sin asignar"}</p>
-          </div>
-        </div>
+        )}
         <div className={cn(
           "bg-surface rounded-lg shadow p-4 flex items-center gap-3",
           ficha.resumen.kitBienvenidaEntregado ? "border-l-4 border-green-500" : "border-l-4 border-line-strong"
@@ -422,7 +429,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
           <ul className="space-y-1 text-sm">
             {ficha.lineas.map((l) => (
               <li key={l.id}>
-                <span className="font-medium">{textoLineas([l])}</span>
+                <span className="font-medium"><EnlacesLineas lineas={[l]} /></span>
               </li>
             ))}
           </ul>
@@ -463,7 +470,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                   </div>
                   <div>
                     <p className="text-sm text-fg-subtle">Línea</p>
-                    <p className="font-medium">{celular.lineas.length ? textoLineas(celular.lineas) : "-"}</p>
+                    <p className="font-medium"><EnlacesLineas lineas={celular.lineas} /></p>
                   </div>
                   <div>
                     <p className="text-sm text-fg-subtle">Cargador</p>
@@ -541,28 +548,18 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
             <h3 className="text-lg font-semibold">Otros Equipos</h3>
           </div>
           <div className="p-6">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-surface-muted">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-fg-subtle uppercase">Tipo</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-fg-subtle uppercase">Marca/Modelo</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-fg-subtle uppercase">N° Serie</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-fg-subtle uppercase">Fecha Entrega</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {ficha.otrosEquipos.map((equipo) => (
-                    <tr key={equipo.asignacionId}>
-                      <td className="px-4 py-2">{equipo.categoria}</td>
-                      <td className="px-4 py-2">{equipo.marca} {equipo.modelo}</td>
-                      <td className="px-4 py-2 font-mono">{identificadorActivo(equipo, "-")}</td>
-                      <td className="px-4 py-2">{formatearFecha(equipo.fechaEntrega, {}, "-")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <TablaDatos
+              sinMarco
+              items={ficha.otrosEquipos}
+              clave={(e) => e.asignacionId}
+              vacio="Sin otros equipos"
+              columnas={[
+                { titulo: "Tipo", celda: (e) => e.categoria },
+                { titulo: "Marca/Modelo", celda: (e) => `${e.marca} ${e.modelo}` },
+                { titulo: "N° Serie", className: "font-mono", celda: (e) => identificadorActivo(e, "-") },
+                { titulo: "Fecha Entrega", celda: (e) => formatearFecha(e.fechaEntrega, {}, "-") },
+              ]}
+            />
           </div>
         </div>
       )}

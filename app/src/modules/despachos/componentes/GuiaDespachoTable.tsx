@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FileText, Eye } from "lucide-react";
 import { cn } from "@/shared/cn";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import {
   ESTADO_GUIA_LABELS,
   ESTADO_GUIA_COLORS,
@@ -20,113 +21,80 @@ interface GuiaDespachoTableProps {
 const soloEscritorio = "hidden md:table-cell";
 
 export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
-  if (loading) {
-    return (
-      <div className="card overflow-hidden">
-        <div className="p-8 text-center text-fg-subtle">
-          <div className="animate-pulse flex flex-col items-center">
-            <div className="h-8 w-8 bg-gray-200 rounded-full mb-4"></div>
-            <div className="h-4 w-32 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (guides.length === 0) {
-    return (
-      <div className="card overflow-hidden">
-        <div className="p-8 text-center text-fg-subtle">
-          <FileText className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-          <p>No hay despachos</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="card overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-line">
-          <thead className="bg-surface-muted">
-            <tr>
-              <th className="table-th">N° Despacho</th>
-              <th className={cn("table-th", soloEscritorio)}>Fecha</th>
-              <th className={cn("table-th", soloEscritorio)}>OT Chilexpress</th>
-              <th className={cn("table-th", soloEscritorio)}>Sede origen</th>
-              <th className={cn("table-th", soloEscritorio)}>Sede destino</th>
-              <th className={cn("table-th", soloEscritorio)}>Receptor</th>
-              <th className={cn("table-th", soloEscritorio)}>Items</th>
-              <th className="table-th">Estado</th>
-              <th className={cn("table-th text-right", soloEscritorio)}>Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="bg-surface divide-y divide-line">
-            {guides.map((guide) => (
-              <tr key={guide.id} className="hover:bg-surface-muted">
-                <td className="px-4 py-3 md:px-6 md:py-4 md:whitespace-nowrap">
-                  <Link
-                    href={`/despachos/${guide.id}`}
-                    className="text-primary-700 hover:text-primary-900 font-medium"
-                  >
-                    {guide.numero}
-                  </Link>
-                  <div className="md:hidden mt-1 text-sm text-fg-muted">
-                    {guide.sede?.nombre || "-"} → {guide.sedeDestino?.nombre || "-"}
-                  </div>
-                  <div className="md:hidden text-xs text-fg-subtle">
-                    {formatearFechaCorta(guide.fechaDespacho)} · {guide._count.items}{" "}
-                    {guide._count.items === 1 ? "equipo" : "equipos"}
-                    {guide._count.kitItems > 0 && ` + Kit/EPP`}
-                  </div>
-                </td>
-                <td className={cn("px-6 py-4 whitespace-nowrap text-sm text-fg-subtle", soloEscritorio)}>
-                  {formatearFechaCorta(guide.fechaDespacho)}
-                </td>
-                <td className={cn("px-6 py-4 whitespace-nowrap text-sm text-fg font-mono", soloEscritorio)}>
-                  {guide.otChilexpress}
-                </td>
-                <td className={cn("px-6 py-4 whitespace-nowrap text-sm text-fg", soloEscritorio)}>
-                  {guide.sede?.nombre || "-"}
-                </td>
-                <td className={cn("px-6 py-4 whitespace-nowrap text-sm text-fg", soloEscritorio)}>
-                  {guide.sedeDestino?.nombre || "-"}
-                </td>
-                <td className={cn("px-6 py-4 whitespace-nowrap text-sm text-fg", soloEscritorio)}>
-                  {guide.receptorNombre}
-                </td>
-                <td className={cn("px-6 py-4 whitespace-nowrap text-sm text-fg-subtle", soloEscritorio)}>
-                  {guide._count.items}
-                  {guide._count.kitItems > 0 && (
-                    <span className="block text-xs">+ {guide._count.kitItems} Kit/EPP</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap align-top md:align-middle">
-                  <span
-                    className={cn(
-                      "inline-flex px-2 py-1 text-xs font-medium rounded-full",
-                      ESTADO_GUIA_COLORS[guide.estado]
-                    )}
-                  >
-                    {ESTADO_GUIA_LABELS[guide.estado]}
-                  </span>
-                </td>
-                <td className={cn("px-6 py-4 whitespace-nowrap text-right text-sm font-medium", soloEscritorio)}>
-                  <div className="flex items-center justify-end gap-2">
-                    <Link
-                      href={`/despachos/${guide.id}`}
-                      className="p-2 text-fg-subtle hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
-                      title="Ver detalle"
-                    >
-                      <Eye size={18} />
-                    </Link>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <TablaDatos
+      items={guides}
+      clave={(g) => g.id}
+      cargando={loading}
+      vacio={
+        <>
+          <FileText className="mx-auto mb-4 h-12 w-12 text-gray-300" />
+          <p>No hay despachos</p>
+        </>
+      }
+      columnas={[
+        {
+          titulo: "N° Despacho",
+          className: "px-4 py-3 md:px-6 md:py-4 md:whitespace-nowrap",
+          celda: (g) => (
+            <>
+              <Link href={`/despachos/${g.id}`} className="font-medium text-primary-700 hover:text-primary-900">
+                {g.numero}
+              </Link>
+              <div className="mt-1 text-sm text-fg-muted md:hidden">
+                {g.sede?.nombre || "-"} → {g.sedeDestino?.nombre || "-"}
+              </div>
+              <div className="text-xs text-fg-subtle md:hidden">
+                {formatearFechaCorta(g.fechaDespacho)} · {g._count.items} {g._count.items === 1 ? "equipo" : "equipos"}
+                {g._count.kitItems > 0 && ` + Kit/EPP`}
+              </div>
+            </>
+          ),
+        },
+        { titulo: "Fecha", sinSalto: true, className: cn(soloEscritorio, "text-fg-subtle"), celda: (g) => formatearFechaCorta(g.fechaDespacho) },
+        { titulo: "OT Chilexpress", sinSalto: true, className: cn(soloEscritorio, "font-mono text-fg"), celda: (g) => g.otChilexpress },
+        { titulo: "Sede origen", sinSalto: true, className: cn(soloEscritorio, "text-fg"), celda: (g) => g.sede?.nombre || "-" },
+        { titulo: "Sede destino", sinSalto: true, className: cn(soloEscritorio, "text-fg"), celda: (g) => g.sedeDestino?.nombre || "-" },
+        { titulo: "Receptor", sinSalto: true, className: cn(soloEscritorio, "text-fg"), celda: (g) => g.receptorNombre },
+        {
+          titulo: "Items",
+          sinSalto: true,
+          className: cn(soloEscritorio, "text-fg-subtle"),
+          celda: (g) => (
+            <>
+              {g._count.items}
+              {g._count.kitItems > 0 && <span className="block text-xs">+ {g._count.kitItems} Kit/EPP</span>}
+            </>
+          ),
+        },
+        {
+          titulo: "Estado",
+          sinSalto: true,
+          className: "px-4 py-3 align-top md:px-6 md:py-4 md:align-middle",
+          celda: (g) => (
+            <span className={cn("inline-flex rounded-full px-2 py-1 text-xs font-medium", ESTADO_GUIA_COLORS[g.estado])}>
+              {ESTADO_GUIA_LABELS[g.estado]}
+            </span>
+          ),
+        },
+        {
+          titulo: "Acciones",
+          sinSalto: true,
+          className: cn(soloEscritorio, "text-right font-medium"),
+          celda: (g) => (
+            <div className="flex items-center justify-end gap-2">
+              <Link
+                href={`/despachos/${g.id}`}
+                className="rounded-lg p-2 text-fg-subtle transition-colors hover:bg-primary-50 hover:text-primary-700"
+                title="Ver detalle"
+                aria-label="Ver detalle"
+              >
+                <Eye size={18} />
+              </Link>
+            </div>
+          ),
+        },
+      ]}
+    />
   );
 }

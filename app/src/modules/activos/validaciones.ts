@@ -18,7 +18,6 @@ export const estadoActivoEnum = z.enum([
   "en_mantencion",
   "por_repartir",
   "baja",
-  "vendido",
   "no_devuelto",
   "en_transito",
 ]);
@@ -70,7 +69,6 @@ export const assetSchema = z.object({
   nombreEquipo: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
 
   // Specs Celular
-  numeroActivacion: z.string().max(20, "Máximo 20 caracteres").optional().nullable(),
   tieneCargador: z.boolean().optional(),
 
   // Conectividad compartida: Mouse, Teclado, Webcam, Audifonos
@@ -79,7 +77,6 @@ export const assetSchema = z.object({
   // Estado y ubicacion
   estado: estadoActivoEnum.optional().default("disponible"),
   condicion: condicionActivoEnum.optional().default("nuevo"),
-  ubicacionFisica: z.string().max(100, "Máximo 100 caracteres").optional().nullable(),
 
   // Software/Licencias
   microsoft365: z.boolean().optional(),

@@ -12,7 +12,15 @@ import {
   crearPersonaEnTx,
   desvincularPersona,
 } from '@/modules/personas/servidor';
-import { liberarEsimDePersona } from '@/modules/lineas/servidor';
+import {
+  asociarEsimEnSolicitud,
+  asociarLineaEnSolicitud,
+  cambiarLineaEnSolicitud,
+  liberarEsimDePersona,
+  liberarLineaEnSolicitud,
+  lineasDeEquipos,
+} from '@/modules/lineas/servidor';
+import { CONDICION_CARGADOR_POR_DEFECTO } from '@/modules/activos';
 import { generarNumeroSolicitud } from '@/modules/solicitudes/numero';
 import type { CreateWorkflowRequestInput } from '@/modules/solicitudes/validaciones';
 
@@ -226,6 +234,8 @@ export async function crearSolicitud(
       let estadoReal = estadoInicial;
       let cierraDeInmediato = false;
       const assignmentIds: string[] = [];
+      // Lineas cambiadas, en pares [anterior, nueva] (SPEC 2.143).
+      const lineaIds: string[] = [];
       let categoriasAsignadas: string[] = [];
 
       if (
@@ -245,6 +255,11 @@ export async function crearSolicitud(
 
         for (const assetId of data.assetIdsSeleccionados) {
           const cargador = data.condicionCargadorPorAsset?.[assetId];
+          // La linea del celular se asocia antes de entregarlo (SPEC 2.143).
+          const lineaId = data.lineaPorAsset?.[assetId];
+          if (lineaId) {
+            await asociarLineaEnSolicitud(tx, lineaId, { activoId: assetId, empleadoId: empId, detalle: `Onboarding - ${numero}`, usuario: systemUser.usuario });
+          }
           const assignment = await executeAssignment(tx, {
             sedeId: sedeId,
             assetId,
@@ -262,6 +277,10 @@ export async function crearSolicitud(
         }
 
         categoriasAsignadas = asignados.map((a) => a.categoria.nombre);
+      }
+
+      if (data.tipo === 'onboarding' && data.lineaEsim) {
+        await asociarEsimEnSolicitud(tx, data.lineaEsim, { empleadoId: empId, detalle: `Onboarding - ${numero}`, usuario: systemUser.usuario });
       }
 
       if (data.tipo === 'onboarding') {
@@ -391,14 +410,22 @@ export async function crearSolicitud(
             tx.assignment.findUnique({
               where: { id: cambio.oldAssignmentId },
               select: {
-                asset: { select: { categoriaId: true, categoria: { select: { nombre: true } } } },
+                asset: {
+                  select: { categoriaId: true, categoria: { select: { nombre: true, tipoFicha: true } } },
+                },
               },
             }),
-            tx.asset.findUnique({
-              where: { id: cambio.newAssetId },
-              select: { sedeId: true, categoriaId: true },
-            }),
+            cambio.newAssetId
+              ? tx.asset.findUnique({
+                  where: { id: cambio.newAssetId },
+                  select: { sedeId: true, categoriaId: true },
+                })
+              : null,
           ]);
+          // eSIM: solo un celular se cambia por una eSIM (SPEC 2.143).
+          if (cambio.newEsimLineaId && viejo?.asset.categoria.tipoFicha !== 'celular') {
+            throw new ValidationError('Solo un celular se puede cambiar por una eSIM');
+          }
           if (viejo && reemplazo) {
             if (reemplazo.categoriaId !== viejo.asset.categoriaId) {
               const nombre = viejo.asset.categoria.nombre;
@@ -426,6 +453,25 @@ export async function crearSolicitud(
             expectedEmployeeId: empId,
             contexto: 'cambio',
           });
+          // eSIM: no se entrega equipo; la eSIM queda con la persona. En assignmentIds el
+          // par lleva '' en lugar del equipo nuevo para no perder el orden [viejo, nuevo].
+          if (!cambio.newAssetId) {
+            await asociarEsimEnSolicitud(tx, cambio.newEsimLineaId!, {
+              empleadoId: empId,
+              detalle: `Cambio de equipo - ${numero}`,
+              usuario: systemUser.usuario,
+            });
+            assignmentIds.push(cambio.oldAssignmentId, '');
+            continue;
+          }
+          if (cambio.newLineaId) {
+            await asociarLineaEnSolicitud(tx, cambio.newLineaId, {
+              activoId: cambio.newAssetId,
+              empleadoId: empId,
+              detalle: `Cambio de equipo - ${numero}`,
+              usuario: systemUser.usuario,
+            });
+          }
           const nuevaAsignacion = await executeAssignment(tx, {
             sedeId: sedeId,
             assetId: cambio.newAssetId,
@@ -442,6 +488,45 @@ export async function crearSolicitud(
           assignmentIds.push(cambio.oldAssignmentId, nuevaAsignacion.id);
         }
 
+        // Lineas de la persona (SPEC 2.143): la anterior queda disponible y entra la nueva.
+        for (const cl of data.cambiosLinea) {
+          const detalle = `Cambio de equipo - ${numero}`;
+          if (!cl.newAssetId) {
+            await cambiarLineaEnSolicitud(tx, { lineaId: cl.lineaId, nuevaLineaId: cl.newLineaId!, empleadoId: empId, detalle, usuario: systemUser.usuario });
+            lineaIds.push(cl.lineaId, cl.newLineaId!);
+            continue;
+          }
+          // eSIM -> chip fisico: se libera la eSIM y se entrega un celular disponible con su linea
+          // (la que trae o la elegida, como en Onboarding). En assignmentIds el par es ['', nuevo].
+          const celular = await tx.asset.findUnique({
+            where: { id: cl.newAssetId },
+            select: { sedeId: true, tieneCargador: true, categoria: { select: { tipoFicha: true } } },
+          });
+          if (celular?.categoria.tipoFicha !== 'celular') throw new ValidationError('Para pasar de eSIM a chip físico se entrega un celular');
+          if (celular.sedeId !== sedeId) throw new ValidationError('El celular debe ser de la sede de la solicitud');
+          await liberarLineaEnSolicitud(tx, { lineaId: cl.lineaId, empleadoId: empId, detalle, usuario: systemUser.usuario, soloEsim: true });
+          if (cl.newLineaId) {
+            await asociarLineaEnSolicitud(tx, cl.newLineaId, { activoId: cl.newAssetId, empleadoId: empId, detalle, usuario: systemUser.usuario });
+          }
+          const lineaDelCelular = cl.newLineaId ?? (await lineasDeEquipos([cl.newAssetId], tx))[0]?.id;
+          if (!lineaDelCelular) throw new ValidationError('El celular no tiene línea: elige una disponible con chip físico');
+          const entrega = await executeAssignment(tx, {
+            sedeId: sedeId,
+            assetId: cl.newAssetId,
+            employeeId: empId,
+            fechaEntrega: new Date(),
+            lugarEntrega: null,
+            entregadoPor: systemUser.nombre,
+            usuarioSistema: systemUser.usuario,
+            tipoMovimiento: 'cambio',
+            motivo: detalle,
+            condicionCargadorEntrega: celular.tieneCargador ? CONDICION_CARGADOR_POR_DEFECTO : null,
+            observacionesCargador: null,
+          });
+          assignmentIds.push('', entrega.id);
+          lineaIds.push(cl.lineaId, lineaDelCelular);
+        }
+
         estadoReal = 'confirmacion_rrhh';
         cierraDeInmediato = true;
       }
@@ -453,6 +538,7 @@ export async function crearSolicitud(
           employee: { connect: { id: empId } },
           estado: estadoReal,
           assignmentIds,
+          lineaIds,
           kitReturnIds,
           ...(cierraDeInmediato && { fechaCierre: new Date() }),
         },

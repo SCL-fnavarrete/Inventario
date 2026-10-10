@@ -5,7 +5,7 @@ import { auditLogService } from '@/shared/auditoria';
 import { sedeIdParaCrear } from '@/shared/sedes/filtro';
 import { ACTIVOS_VIGENTES, etiquetaEstadoActivo, identificadorActivo, validateTransition } from '@/modules/activos';
 import { cambiarEstado } from '@/modules/activos/servidor';
-import { darDeBajaEnTransaccion, motivoParaBaja, tipoCorrectivaPorDefecto } from '@/modules/mantenciones/servidor';
+import { bajaEnTransaccion, motivoParaBaja } from '@/modules/mantenciones/servidor';
 import { ETIQUETAS_GUIA, validarNuevaGuia, validarRecepcion } from '@/modules/despachos/validaciones';
 import {
   INCLUDE_DETALLE_GUIA,
@@ -225,7 +225,7 @@ export async function resolverEquipoDespacho(id: string, itemId: string, accion:
       aparecioEnDespacho: true,
     });
     if (!transicion.valid) {
-      throw new ConflictError(item.asset.estado === 'vendido' ? 'El equipo ya fue vendido' : transicion.errors[0]);
+      throw new ConflictError(transicion.errors[0]);
     }
     return prisma.$transaction(async (tx) => {
       await cambiarEstado(tx, {
@@ -285,30 +285,14 @@ export async function resolverEquipoDespacho(id: string, itemId: string, accion:
     if (!transicion.valid) throw new ConflictError(transicion.errors[0]);
 
     return prisma.$transaction(async (tx) => {
-      const tipo = await tipoCorrectivaPorDefecto(tx);
-      if (!tipo) {
-        throw new ConflictError('No hay tipos de mantención activos para registrar la baja. Crea uno en Mantenciones > Tipos.');
-      }
-      const asset = await tx.asset.findUniqueOrThrow({
-        where: { id: item.assetId },
-        include: {
-          maintenances: {
-            where: { estado: { in: ['pendiente', 'en_proceso'] } },
-            include: { tipo: true },
-            orderBy: { createdAt: 'asc' },
-          },
-        },
-      });
-      await darDeBajaEnTransaccion(tx, {
+      const asset = await tx.asset.findUniqueOrThrow({ where: { id: item.assetId } });
+      await bajaEnTransaccion(tx, {
         asset,
-        tipo,
         motivoBajaId,
         motivoTexto,
-        resultado: `Perdido en el despacho (despacho ${guia.numero}): ${detalle}`,
-        fechaRealizada: new Date(),
-        realizadoPor: quien.nombre || usuario,
+        fechaBaja: new Date(),
+        observaciones: `Perdido en el despacho ${guia.numero}: ${detalle}`,
         usuario,
-        descripcion: `Perdido en el despacho ${guia.numero}`,
       });
       await tx.dispatchGuideItem.update({
         where: { id: itemId },

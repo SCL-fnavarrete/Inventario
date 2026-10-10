@@ -42,15 +42,15 @@ export function disponibleConPersona(lectura: LecturaEstado, tieneEmpleado: bool
   return lectura.tipo === "estado" && lectura.estado === "disponible" && tieneEmpleado;
 }
 
-/** Baja o vendido: estados finales, que una persona en la fila no cambia. */
+/** Baja: estado final, que una persona en la fila no cambia. */
 export function estadoFinal(lectura: LecturaEstado): boolean {
-  return lectura.tipo === "estado" && (lectura.estado === "baja" || lectura.estado === "vendido");
+  return lectura.tipo === "estado" && lectura.estado === "baja";
 }
 
 /**
  * Estado final del activo (SPEC 2.133). Si la fila trae persona, el equipo es
  * suyo (Asignado, salvo que diga No devuelto o En mantencion); si no la trae,
- * nadie lo tiene ("Asignado" pasa a Disponible). Baja y vendido se respetan
+ * nadie lo tiene ("Asignado" pasa a Disponible). Baja se respeta
  * (con persona la fila se detiene antes, ver procesarFila).
  */
 export function resolverEstado(lectura: LecturaEstado, tieneEmpleado: boolean): EstadoActivo {

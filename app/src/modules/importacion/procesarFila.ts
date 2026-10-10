@@ -491,8 +491,6 @@ export async function procesarFila(
   }
   const antivirus = resolucionAntivirus.valor;
 
-  const ubicacionFisica = obtener("comuna") || null;
-
   const resolucionM365 = resolverValorCatalogo(obtener("microsoft365"), ctx.mapaLicenciasM365);
   if ("error" in resolucionM365) {
     return {
@@ -623,7 +621,6 @@ export async function procesarFila(
         pulgadas,
         sistemaOperativo,
         antivirus,
-        ubicacionFisica,
         microsoft365,
         tipoLicenciaMicrosoft365,
         fechaCompra,

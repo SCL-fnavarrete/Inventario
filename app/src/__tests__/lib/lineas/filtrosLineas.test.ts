@@ -1,11 +1,11 @@
 import { SIN_DATO_LINEA, leerFiltrosLineas } from '@/modules/lineas';
-import { whereFiltrosLineas } from '@/modules/lineas/consultas';
+import { deSede, whereFiltrosLineas } from '@/modules/lineas/consultas';
 
 // Filtros de Activos > Lineas (SPEC 2.131).
 describe('leerFiltrosLineas', () => {
   it('lee los filtros de la URL, sin vacíos ni valores desconocidos', () => {
-    const f = leerFiltrosLineas(new URLSearchParams('estado=baja&plan=&asignacion=otra&revisar=1&tipoChip=t1&sede=sin_dato&q=  ana  &x=1'));
-    expect(f).toEqual({ estado: 'baja', revisar: true, tipoChip: 't1', sede: 'sin_dato', q: 'ana' });
+    const f = leerFiltrosLineas(new URLSearchParams('estado=baja&plan=x&asignacion=otra&revisar=1&tipoChip=t1&sede=sin_dato&q=  ana  &x=1'));
+    expect(f).toEqual({ estado: 'baja', tipoChip: 't1', q: 'ana' });
   });
 });
 
@@ -18,16 +18,21 @@ describe('whereFiltrosLineas', () => {
     expect(partes(whereFiltrosLineas({ estado: 'e1' }))).toEqual([{ estadoId: 'e1' }]);
   });
 
-  it('"Sin ..." busca las que no tienen el dato; la sede del filtro se suma a la del navbar', () => {
-    const w = partes(whereFiltrosLineas({ estado: 'todas', plan: SIN_DATO_LINEA, operador: 'op1', sede: SIN_DATO_LINEA, sedeId: 's1' }));
-    expect(w).toEqual(expect.arrayContaining([{ sedeId: 's1' }, { planId: null }, { operadorId: 'op1' }, { sedeId: null }]));
+  it('"Sin ..." busca las que no tienen el dato; la sede del navbar es la del celular o, sin celular, la de la persona', () => {
+    const w = partes(whereFiltrosLineas({ estado: 'todas', tipoChip: SIN_DATO_LINEA, operador: 'op1', sedeId: 's1' }));
+    expect(w).toEqual(expect.arrayContaining([deSede('s1'), { tipoChipId: null }, { operadorId: 'op1' }]));
+    expect(deSede('s1')).toEqual({ OR: [{ activo: { sedeId: 's1' } }, { activoId: null, empleado: { sedeId: 's1' } }] });
+    expect(deSede(undefined)).toEqual({});
     expect(w).not.toContainEqual({ estado: { deBaja: false } });
   });
 
-  it('"para revisar" reemplaza el estado; las tarjetas cuentan sin estado, asignación ni revisar', () => {
-    const revisar = partes(whereFiltrosLineas({ estado: 'baja', revisar: true }));
-    expect(revisar).not.toContainEqual({ estado: { deBaja: true } });
-    expect(JSON.stringify(revisar)).toContain('"baja","vendido"');
-    expect(partes(whereFiltrosLineas({ estado: 'baja', asignacion: 'sin', revisar: true, plan: 'p1' }, { sinTarjeta: true }))).toEqual([{ planId: 'p1' }]);
+  it('el motivo de baja filtra por el elegido; "Baja sin motivo" son las de baja que no lo tienen', () => {
+    expect(partes(whereFiltrosLineas({ motivoBaja: 'm1' }))).toEqual([{ motivoBajaId: 'm1' }]);
+    expect(partes(whereFiltrosLineas({ motivoBaja: SIN_DATO_LINEA }))).toEqual([{ estado: { deBaja: true }, motivoBajaId: null }]);
+    expect(leerFiltrosLineas(new URLSearchParams('motivoBaja=m1'))).toEqual({ motivoBaja: 'm1' });
+  });
+
+  it('las tarjetas cuentan sin estado ni asignación', () => {
+    expect(partes(whereFiltrosLineas({ estado: 'baja', asignacion: 'sin', tipoChip: 't1' }, { sinTarjeta: true }))).toEqual([{ tipoChipId: 't1' }]);
   });
 });

@@ -126,19 +126,14 @@ export const completeMaintenanceSchema = z
     path: ["motivoBajaId"],
   });
 
-// Dar de baja un equipo por mantencion (SPEC 2.88): cierra su mantencion
-// abierta, o registra una ya cerrada, como "Sin reparación".
-export const bajaPorMantencionSchema = z
-  .object({
-    assetId: z.string().uuid("Equipo inválido"),
-    // Se usa solo si el equipo no tiene una mantencion abierta.
-    tipoId: tipoIdSchema,
-    ...motivoBajaCampos,
-    motivoBajaId: z.string({ error: "Elige el motivo de la baja" }).uuid("Elige el motivo de la baja"),
-    observaciones: z.string().max(1000, "Máximo 1000 caracteres").optional().nullable(),
-    fechaRealizada: fechaRequerida("Fecha requerida"),
-    realizadoPor: z.string().min(1, "Requerido").max(100, "Máximo 100 caracteres"),
-  });
+// Dar de baja un equipo (SPEC 2.140): sin mantencion, con el motivo de la lista,
+// la fecha y, si se quiere, una observacion.
+export const bajaEquipoSchema = z.object({
+  ...motivoBajaCampos,
+  motivoBajaId: z.string({ error: "Elige el motivo de la baja" }).uuid("Elige el motivo de la baja"),
+  observaciones: z.string().max(1000, "Máximo 1000 caracteres").optional().nullable(),
+  fechaBaja: fechaRequerida("Fecha requerida"),
+});
 
 // Schema para filtros de búsqueda
 export const maintenanceFiltersSchema = z.object({
@@ -169,8 +164,8 @@ export const maintenanceFiltersSchema = z.object({
 export type CreateMaintenanceInput = z.infer<typeof createMaintenanceSchema>;
 export type UpdateMaintenanceInput = z.infer<typeof updateMaintenanceSchema>;
 export type CompleteMaintenanceInput = z.infer<typeof completeMaintenanceSchema>;
-export type BajaPorMantencionInput = z.input<typeof bajaPorMantencionSchema>;
-export type BajaPorMantencionDatos = z.infer<typeof bajaPorMantencionSchema>;
+export type BajaEquipoInput = z.input<typeof bajaEquipoSchema>;
+export type BajaEquipoDatos = z.infer<typeof bajaEquipoSchema>;
 export type MaintenanceFilters = z.infer<typeof maintenanceFiltersSchema>;
 /** Tarjeta de resumen pulsada en Mantenciones (SPEC 2.107). */
 export type VistaMantencion = NonNullable<MaintenanceFilters["vista"]>;

@@ -8,7 +8,7 @@ import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { Button } from "@/shared/ui/Button";
 import { useToast } from "@/shared/ui/Toast";
-import { TablaAdaptable } from "@/shared/ui/TablaAdaptable";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { CampoFormulario, CampoTexto, ResumenErrores, claseCampo } from "@/shared/ui/CampoFormulario";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { useEnvio } from "@/shared/hooks/useEnvio";
@@ -257,7 +257,7 @@ export function CategoriasCatalogo() {
       {cargando ? (
         <p className="card px-6 py-8 text-center text-fg-subtle">Cargando...</p>
       ) : (
-        <TablaAdaptable
+        <TablaDatos
           items={categorias}
           clave={(c) => c.id}
           vacio="No hay categorías registradas"

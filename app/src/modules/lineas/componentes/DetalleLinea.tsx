@@ -3,22 +3,22 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Edit, Repeat, Trash2 } from "lucide-react";
+import { Edit, PowerOff, Repeat, Trash2 } from "lucide-react";
 import { ActivosTabs } from "@/modules/activos/componentes";
 import { DESCRIPCION_ESTADO, formatearNumero, tonoEstadoLinea } from "@/modules/lineas";
 import { FormularioLinea } from "@/modules/lineas/componentes/FormularioLinea";
 import { ReasignarLinea } from "@/modules/lineas/componentes/ReasignarLinea";
-import { ORIGEN_TENENCIA, nombrePersona, personaDe, type FichaLinea } from "@/modules/lineas/componentes/tipos";
+import { ORIGEN_TENENCIA, nombrePersona, personaDe, sedeDe, type FichaLinea } from "@/modules/lineas/componentes/tipos";
 import { parseApiError } from "@/shared/utilidades/apiErrors";
 import { formatearFecha, formatearFechaHoraCorta } from "@/shared/utilidades/fechas";
-import { formatearClp } from "@/shared/utilidades/moneda";
 import { useEnvio } from "@/shared/hooks/useEnvio";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import { Badge } from "@/shared/ui/Badge";
 import { Button } from "@/shared/ui/Button";
+import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { PageHeader } from "@/shared/ui/PageHeader";
-import { TablaAdaptable } from "@/shared/ui/TablaAdaptable";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { useToast } from "@/shared/ui/Toast";
 
 /**
@@ -41,7 +41,7 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
   const toast = useToast();
   const permisos = usePermissions();
   const { ejecutar } = useEnvio();
-  const { linea, tenencias, historial, reasignaciones } = ficha;
+  const { linea, tenencias, historial, personas } = ficha;
   const deBaja = linea.estado.deBaja;
   const persona = personaDe(linea);
   // Solo se asigna una linea disponible: vigente y sin persona (SPEC 2.131).
@@ -80,7 +80,7 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
             <Badge variant={tonoEstadoLinea(linea.estado)}>{linea.estado.nombre}</Badge>
           </span>
         }
-        description={[linea.plan?.nombre, linea.precioMensual != null && `${formatearClp(linea.precioMensual)} al mes`, linea.tipoChip?.nombre].filter(Boolean).join(" · ") || "Línea telefónica"}
+        description={[linea.operador?.nombre, linea.tipoChip?.nombre].filter(Boolean).join(" · ") || "Línea telefónica"}
         actions={
           !modo && (
             <>
@@ -92,6 +92,12 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
               <Button variant="outline" leftIcon={<Edit size={18} />} onClick={() => setModo("editar")}>
                 Editar
               </Button>
+              {!deBaja && (
+                <Link href={`/activos/lineas/${linea.id}/baja`} className={buttonClasses({ variant: "outline" })}>
+                  <PowerOff size={18} />
+                  <span>Dar de baja</span>
+                </Link>
+              )}
               {permisos.can("lineas", "delete") && (
                 <Button variant="danger" leftIcon={<Trash2 size={18} />} onClick={() => setAEliminar(true)}>
                   Eliminar
@@ -107,10 +113,8 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <div className="card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-fg">Plan y costo</h3>
+          <h3 className="mb-3 text-sm font-semibold text-fg">Chip y operador</h3>
           <dl className="space-y-2">
-            <Dato titulo="Plan">{linea.plan?.nombre ?? "—"}</Dato>
-            <Dato titulo="Precio mensual">{formatearClp(linea.precioMensual)}</Dato>
             <Dato titulo="Tipo de chip">{linea.tipoChip?.nombre ?? "Sin indicar"}</Dato>
             <Dato titulo="Operador">{linea.operador?.nombre ?? "Sin indicar"}</Dato>
           </dl>
@@ -146,18 +150,18 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
                   {persona.estado === "desvinculado" && <span className="block text-xs text-red-700 dark:text-red-400">Persona desvinculada: revisar</span>}
                 </>
               ) : (
-                <span className="text-fg-subtle">Sin persona{linea.responsable ? ` · ${linea.responsable}` : ""}</span>
+                <span className="text-fg-subtle">Sin persona (disponible)</span>
               )}
             </Dato>
-            <Dato titulo="Sede">{linea.sede?.nombre ?? <span className="text-fg-subtle">Sin sede</span>}</Dato>
+            <Dato titulo="Sede (la de su celular o persona)">{sedeDe(linea) ?? <span className="text-fg-subtle">Sin sede</span>}</Dato>
             {tramoActual && !tramoActual.hasta && <Dato titulo="Desde">{formatearFecha(tramoActual.desde)}</Dato>}
           </dl>
         </div>
 
         <div className="card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-fg">Cambios</h3>
-          <p className="text-3xl font-bold text-fg">{reasignaciones}</p>
-          <p className="mb-3 text-xs text-fg-subtle">{reasignaciones === 1 ? "vez cambió de lugar o de persona" : "veces cambió de lugar o de persona"}</p>
+          <h3 className="mb-3 text-sm font-semibold text-fg">Personas</h3>
+          <p className="text-3xl font-bold text-fg">{personas}</p>
+          <p className="mb-3 text-xs text-fg-subtle">{personas === 1 ? "persona ha usado esta línea" : "personas han usado esta línea"}</p>
           <dl>
             <Dato titulo="Propietario anterior">
               {anterior?.empleado ? (
@@ -186,7 +190,7 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
         <h2 id="quien-la-tuvo" className="text-lg font-semibold text-fg">
           Quién la ha tenido
         </h2>
-        <TablaAdaptable
+        <TablaDatos
           items={tenencias}
           clave={(t) => t.id}
           vacio="Todavía no hay registro de quién la ha tenido"
@@ -214,7 +218,7 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
                     {nombrePersona(t.empleado)}
                   </Link>
                 ) : (
-                  <span className="text-fg-subtle">Sin persona{t.responsable ? ` · ${t.responsable}` : ""}</span>
+                  <span className="text-fg-subtle">Sin persona</span>
                 ),
             },
             {
@@ -228,7 +232,6 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
                   <span className="text-fg-subtle">{t.empleado ? "Personal o eSIM" : "—"}</span>
                 ),
             },
-            { titulo: "Sede", celda: (t) => t.sede?.nombre ?? <span className="text-fg-subtle">—</span> },
             {
               titulo: "Cómo empezó",
               celda: (t) => (
@@ -245,7 +248,7 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
           tarjeta={(t) => (
             <>
               <p className="font-medium text-fg">
-                {t.empleado ? nombrePersona(t.empleado) : `Sin persona${t.responsable ? ` · ${t.responsable}` : ""}`}
+                {t.empleado ? nombrePersona(t.empleado) : "Sin persona"}
               </p>
               <p className="text-xs text-fg-muted">
                 {formatearFecha(t.desde)} → {t.hasta ? formatearFecha(t.hasta) : "actual"} · {ORIGEN_TENENCIA[t.origen] ?? t.origen}
@@ -282,7 +285,7 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
         onConfirm={() => ejecutar(eliminar)}
         variant="danger"
         title="Eliminar línea"
-        message={`La línea ${formatearNumero(linea.numero)} se eliminará. Úsalo solo si se ingresó por error; si ya no se usa, pásala a Dada de baja. El costo de los meses en que existió se conserva y deja de contar desde hoy. En la auditoría quedará quién la eliminó.`}
+        message={`La línea ${formatearNumero(linea.numero)} se eliminará. Úsalo solo si se ingresó por error; si ya no se usa, pásala a Baja. En la auditoría quedará quién la eliminó.`}
         confirmLabel="Eliminar"
       />
     </div>

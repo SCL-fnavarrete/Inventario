@@ -31,7 +31,6 @@ const ACCION_LABEL: Record<string, string> = {
   cambio_estado: 'Cambio de estado',
   actualizacion_specs: 'Edición de datos',
   baja: 'Baja',
-  venta: 'Venta',
   solicitud_workflow: 'Solicitud',
   traslado: 'Traslado',
   compra: 'Compra',

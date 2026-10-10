@@ -287,7 +287,11 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
     datos: {
       ...(danado && { condicion: 'danado' }),
       ...(params.estadoDevolucion === 'ok' && { condicion: 'usado' }),
-      ...(paraBaja && { fechaBaja: params.fechaDevolucion }),
+      ...(paraBaja && {
+        fechaBaja: params.fechaDevolucion,
+        motivoBajaId: motivo?.motivoBajaId,
+        motivoBaja: motivo?.motivoTexto,
+      }),
       empleadoActualId: null,
     },
     historial: {

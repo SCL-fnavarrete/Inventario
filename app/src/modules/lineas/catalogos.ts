@@ -5,26 +5,25 @@ import { auditLogService } from '@/shared/auditoria';
 import type { CatalogoLinea, DatosOpcionLinea } from '@/modules/lineas/validaciones';
 
 /**
- * Catalogos de las lineas (SPEC 2.131): planes (con precio de referencia),
- * tipos de chip y operadores se pueden agregar, renombrar y quitar; los estados son cuatro y
- * fijos (Activa, Suspendida, En portabilidad, Por confirmar, Dada de baja): solo se leen. La
+ * Catalogos de las lineas (SPEC 2.131): tipos de chip, operadores, motivos de
+ * reasignacion y motivos de baja (2.140) se pueden agregar, renombrar y quitar; los estados son dos y
+ * fijos (Activa y Baja): solo se leen. La
  * linea apunta por id: renombrar no toca las lineas y una opcion ya usada se
  * desactiva en vez de borrarse.
  */
 // `uso`: la relacion que cuenta donde se usa cada opcion (lineas, o tramos de tenencia).
 const CATALOGOS = {
-  planes: { modelo: 'planLinea', etiqueta: 'Plan de línea', uso: 'lineas' },
   estados: { modelo: 'estadoLinea', etiqueta: 'Estado de línea', uso: 'lineas' },
   'tipos-chip': { modelo: 'tipoChip', etiqueta: 'Tipo de chip', uso: 'lineas' },
   operadores: { modelo: 'operadorLinea', etiqueta: 'Operador de línea', uso: 'lineas' },
   motivos: { modelo: 'motivoReasignacion', etiqueta: 'Motivo de reasignación', uso: 'tenencias' },
+  'motivos-baja': { modelo: 'motivoBajaLinea', etiqueta: 'Motivo de baja de línea', uso: 'lineas' },
 } as const;
 
 type Opcion = {
   id: string;
   nombre: string;
   activo: boolean;
-  precioMensual?: number | null;
   deBaja?: boolean;
   sinCelular?: boolean;
   clave?: string | null;
@@ -47,13 +46,12 @@ const tabla = (cliente: Prisma.TransactionClient, catalogo: CatalogoLinea) =>
 /** Los estados no se tocan: son los del ciclo de vida de una linea. */
 function exigirEditable(catalogo: CatalogoLinea) {
   if (catalogo === 'estados') {
-    throw new ConflictError('Los estados de una línea son fijos: Activa, Suspendida, En portabilidad, Por confirmar y Dada de baja');
+    throw new ConflictError('Los estados de una línea son fijos: Activa y Baja');
   }
 }
 
-/** El dato propio de cada catalogo: el precio de referencia de un plan; en un tipo de chip, si va sin celular. */
+/** El dato propio de cada catalogo: en un tipo de chip, si va sin celular. */
 function extras(catalogo: CatalogoLinea, datos: DatosOpcionLinea) {
-  if (catalogo === 'planes' && datos.precioMensual !== undefined) return { precioMensual: datos.precioMensual };
   if (catalogo === 'tipos-chip' && datos.sinCelular !== undefined) return { sinCelular: datos.sinCelular };
   return {};
 }
@@ -62,7 +60,6 @@ function extras(catalogo: CatalogoLinea, datos: DatosOpcionLinea) {
 const foto = (catalogo: CatalogoLinea, o: Opcion) => ({
   catalogo: CATALOGOS[catalogo].etiqueta,
   nombre: o.nombre,
-  ...(o.precioMensual !== undefined && { precioMensual: o.precioMensual }),
   ...(o.sinCelular !== undefined && { sinCelular: o.sinCelular }),
 });
 
@@ -103,7 +100,7 @@ export async function crearOpcionLinea(catalogo: CatalogoLinea, datos: DatosOpci
   return { opcion, creada: !existente };
 }
 
-/** Renombra y cambia el precio del plan. Las lineas apuntan por id. */
+/** Renombra una opcion. Las lineas apuntan por id. */
 export async function editarOpcionLinea(
   catalogo: CatalogoLinea,
   id: string,
@@ -135,6 +132,7 @@ export async function eliminarOpcionLinea(catalogo: CatalogoLinea, id: string, u
   const uso = CATALOGOS[catalogo].uso;
   const actual = await t.findUnique({ where: { id }, include: { _count: { select: { [uso]: true } } } });
   if (!actual) throw new NotFoundError('Opción no encontrada');
+  if (actual.clave) throw new ConflictError(`"${actual.nombre}" lo usa el sistema: se puede renombrar, pero no eliminar`);
   const desactivado = (actual._count?.[uso] ?? 0) > 0;
   if (desactivado) await t.update({ where: { id }, data: { activo: false } });
   else await t.delete({ where: { id } });

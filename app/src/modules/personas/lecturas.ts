@@ -191,7 +191,7 @@ const RELACIONES_FICHA = {
   // de la empresa salen con ese celular.
   lineas: {
     where: { estado: { deBaja: false } },
-    select: { id: true, numero: true, plan: { select: { nombre: true } } },
+    select: { id: true, numero: true },
     orderBy: { numero: "asc" },
   },
 } satisfies Prisma.EmployeeInclude;
@@ -289,7 +289,6 @@ export async function fichaEmpleado(id: string) {
       numeroSerie: celular.asset.numeroSerie,
       imei: celular.asset.imei,
       lineas: celular.asset.lineas,
-      numeroActivacion: celular.asset.numeroActivacion,
       tieneCargador: celular.asset.tieneCargador,
       estado: celular.asset.estado,
       condicion: celular.asset.condicion,

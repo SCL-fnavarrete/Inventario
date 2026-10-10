@@ -32,8 +32,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/shared/prisma';
 import { executeAssignment, executeReturn } from '@/modules/asignaciones/ejecucion';
 import { executeKitDelivery } from '@/modules/solicitudes/ejecucion';
-import { POST as vender } from '@/app/api/activos/[id]/venta/route';
-import { POST as darDeBaja } from '@/app/api/mantenciones/baja/route';
+import { POST as darDeBaja } from '@/app/api/activos/[id]/baja/route';
 import { POST as completar } from '@/app/api/mantenciones/[id]/completar/route';
 
 const hayBaseDePrueba = (process.env.DATABASE_URL ?? '').includes('_test');
@@ -183,24 +182,15 @@ describir('concurrencia real en Postgres', () => {
     expect((await prisma.welcomeKitItem.findUnique({ where: { id: item.id } }))?.cantidad).toBe(0);
   });
 
-  // Auditoria 28-sep-2026 (7.A-1): venta, baja y mantenciones.
-  test('dos ventas del mismo equipo a la vez: se registra una sola', async () => {
-    const assetId = await nuevoActivo();
-    await prisma.asset.update({ where: { id: assetId }, data: { estado: 'baja' } });
-    const venta = { comprador: 'Juan', monto: 1000, moneda: 'CLP', fechaVenta: '2026-09-28' };
-    unaGanaOtra409(await Promise.all([post(vender, venta, { id: assetId }), post(vender, venta, { id: assetId })]));
-    expect(await prisma.assetHistory.count({ where: { assetId, tipoEvento: 'venta' } })).toBe(1);
-  });
-
-  test('dos bajas del mismo equipo a la vez: queda una sola mantención de baja', async () => {
+  // Auditoria 28-sep-2026 (7.A-1): baja y mantenciones.
+  test('dos bajas del mismo equipo a la vez: se registra una sola', async () => {
     const assetId = await nuevoActivo();
     // Motivo de la lista que carga la migracion (SPEC 2.116.5).
     const motivo = await prisma.motivoBaja.findUniqueOrThrow({ where: { nombre: 'Obsolescencia' } });
-    const baja = {
-      assetId, tipoId: ids.tipoId, motivoBajaId: motivo.id, fechaRealizada: '2026-09-28', realizadoPor: 'Técnico',
-    };
-    unaGanaOtra409(await Promise.all([post(darDeBaja, baja), post(darDeBaja, baja)]));
-    expect(await prisma.maintenance.count({ where: { assetId, resultadoTipo: 'no_reparable', motivoBajaId: motivo.id } })).toBe(1);
+    const baja = { motivoBajaId: motivo.id, fechaBaja: '2026-09-28' };
+    unaGanaOtra409(await Promise.all([post(darDeBaja, baja, { id: assetId }), post(darDeBaja, baja, { id: assetId })]));
+    expect(await prisma.assetHistory.count({ where: { assetId, tipoEvento: 'baja' } })).toBe(1);
+    expect(await prisma.asset.findUnique({ where: { id: assetId } })).toMatchObject({ estado: 'baja', motivoBajaId: motivo.id });
   });
 
   test('completar la misma mantención dos veces a la vez: se completa una vez', async () => {

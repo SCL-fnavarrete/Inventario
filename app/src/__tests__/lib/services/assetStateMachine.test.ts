@@ -23,7 +23,6 @@ describe('assetStateMachine — canTransitionAsset', () => {
     ['en_mantencion', 'disponible'],
     ['en_mantencion', 'asignado'],
     ['en_mantencion', 'baja'],
-    ['baja', 'vendido'],
     // SPEC 2.111.4: solo si aparecio un equipo perdido en un despacho (precondicion).
     ['baja', 'disponible'],
     // 20-sep-2026 (SPEC 2.57): desvinculacion sin devolucion del equipo.
@@ -40,18 +39,11 @@ describe('assetStateMachine — canTransitionAsset', () => {
 
   // Transiciones inválidas
   const invalidTransitions: [EstadoActivo, EstadoActivo][] = [
-    ['disponible', 'vendido'],
-    ['asignado', 'vendido'],
-    ['en_mantencion', 'vendido'],
     ['baja', 'asignado'],
     ['baja', 'en_mantencion'],
-    ['vendido', 'disponible'],
-    ['vendido', 'asignado'],
-    ['vendido', 'baja'],
     ['disponible', 'no_devuelto'],
     ['en_mantencion', 'no_devuelto'],
     ['no_devuelto', 'asignado'],
-    ['no_devuelto', 'vendido'],
   ];
 
   test.each(invalidTransitions)('%s → %s es inválida', (from, to) => {
@@ -92,21 +84,13 @@ describe('assetStateMachine — getValidTransitions', () => {
     expect(getValidTransitions('en_mantencion')).toEqual(['disponible', 'asignado', 'baja']);
   });
 
-  test('baja puede ir a vendido, o a disponible si aparece un equipo perdido en un despacho', () => {
-    expect(getValidTransitions('baja')).toEqual(['vendido', 'disponible']);
-  });
-
-  test('vendido no tiene transiciones (terminal)', () => {
-    expect(getValidTransitions('vendido')).toEqual([]);
+  test('baja solo vuelve a disponible si aparece un equipo perdido en un despacho', () => {
+    expect(getValidTransitions('baja')).toEqual(['disponible']);
   });
 });
 
 describe('assetStateMachine — isTerminalState', () => {
-  test('vendido es estado terminal', () => {
-    expect(isTerminalState('vendido')).toBe(true);
-  });
-
-  test('baja NO es estado terminal (puede ir a vendido)', () => {
+  test('baja NO es estado terminal (puede volver si el equipo perdido aparece)', () => {
     expect(isTerminalState('baja')).toBe(false);
   });
 
@@ -125,7 +109,7 @@ describe('assetStateMachine — getTransitionDescription', () => {
   });
 
   test('retorna mensaje por defecto para transición inválida', () => {
-    expect(getTransitionDescription('vendido', 'disponible')).toBe('Transición no válida');
+    expect(getTransitionDescription('baja', 'asignado')).toBe('Transición no válida');
   });
 });
 
@@ -143,7 +127,7 @@ describe('assetStateMachine — validateTransition', () => {
   });
 
   test('transición inválida retorna valid=false con error', () => {
-    const result = validateTransition('disponible', 'vendido', baseContext);
+    const result = validateTransition('baja', 'asignado', baseContext);
     expect(result.valid).toBe(false);
     expect(result.errors[0]).toContain('no permitida');
   });
@@ -248,19 +232,6 @@ describe('assetStateMachine — validateTransition', () => {
     expect(result.valid).toBe(true);
   });
 
-  // SPEC 2.7.4: baja→vendido requiere datos de venta
-  test('baja→vendido sin motivo (datos venta) es inválida', () => {
-    const result = validateTransition('baja', 'vendido', baseContext);
-    expect(result.valid).toBe(false);
-  });
-
-  test('baja→vendido con motivo (datos venta) es válida', () => {
-    const result = validateTransition('baja', 'vendido', {
-      ...baseContext,
-      motivo: 'venta registrada',
-    });
-    expect(result.valid).toBe(true);
-  });
 });
 
 // Auditoria 27-sep-2026 (5.1-A): transiciones con precondicion de motivo que

@@ -10,7 +10,6 @@ import {
   Calendar,
   AlertTriangle,
   CheckCircle,
-  Loader2,
   ListChecks,
 } from "lucide-react";
 import type { VistaMantencion } from "@/modules/mantenciones";
@@ -26,7 +25,7 @@ import { CategoryIcon } from "@/modules/activos/componentes";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { StatCard, StatGrid } from "@/shared/ui/StatCard";
-import { Pagination } from "@/shared/ui/Pagination";
+import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { logger } from "@/shared/logger";
 
 type TipoMantencion = {
@@ -115,12 +114,12 @@ function AccionesMantencion({ m }: { m: Maintenance }) {
       >
         Ver detalle
       </Link>
-      {/* Baja por mantencion (SPEC 2.88): cierra esta misma. Solo si el
-          equipo se puede dar de baja (no asignado ni no devuelto). */}
+      {/* Dar de baja el equipo (SPEC 2.140): cancela esta mantencion. Solo si
+          el equipo se puede dar de baja (no asignado ni no devuelto). */}
       {abierta && !motivoSinBaja(m.asset) && (
-        <Can recurso="mantenciones">
+        <Can recurso="activos">
           <Link
-            href={`/mantenciones/baja?activoId=${m.asset.id}`}
+            href={`/activos/${m.asset.id}/baja`}
             className="ml-3 text-red-600 hover:text-red-800 text-sm font-medium"
           >
             Dar de baja
@@ -159,6 +158,8 @@ function Mantenciones() {
   // regla que cuenta su numero. null = todas ("Total").
   const [vista, setVista] = useState<VistaMantencion | null>(vistaInicial);
   const [page, setPage] = useState(1);
+  // Cuantas mantenciones se ven por pagina ("Mostrar: N").
+  const [limite, setLimite] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   // Selecting a sede in the nav also filters this screen.
@@ -175,7 +176,7 @@ function Mantenciones() {
   useEffect(() => {
     fetchMaintenances();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, filterTipoId, filterEstado, vista, page, sedeSeleccionada, periodo]);
+  }, [debouncedSearch, filterTipoId, filterEstado, vista, page, limite, sedeSeleccionada, periodo]);
 
   useEffect(() => {
     fetchStats();
@@ -197,7 +198,7 @@ function Mantenciones() {
     try {
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: "10",
+        limit: String(limite),
       });
 
       if (debouncedSearch) params.append("search", debouncedSearch);
@@ -406,139 +407,89 @@ function Mantenciones() {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="card overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-fg-subtle" />
-          </div>
-        ) : maintenances.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-fg-subtle">
-            <Wrench className="h-12 w-12 mb-4 text-gray-300" />
+      {/* Tabla (en celular, una tarjeta por mantencion con todo a la vista) */}
+      <TablaDatos
+        items={maintenances}
+        clave={(m) => m.id}
+        cargando={loading}
+        compacta
+        vacio={
+          <div className="flex flex-col items-center">
+            <Wrench className="mb-4 h-12 w-12 text-gray-300" />
             <p>No se encontraron mantenciones</p>
           </div>
-        ) : (
-          <>
-            {/* Celular: una tarjeta por mantencion, con todo a la vista. */}
-            <ul className="md:hidden divide-y divide-line">
-              {maintenances.map((m) => (
-                <li key={m.id} className={cn("p-4 space-y-2", estaVencida(m) && "bg-red-50")}>
-                  <div className="flex items-start justify-between gap-3">
-                    <Link href={`/mantenciones/${m.id}`} className="flex items-center gap-2 min-w-0">
-                      <span className="text-fg-subtle flex-shrink-0">
-                        <CategoryIcon categoria={m.asset.categoria.nombre} className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block font-medium text-sm text-fg truncate">
-                          {m.asset.marca} {m.asset.modelo}
-                        </span>
-                        <span className="block text-xs text-fg-subtle truncate">
-                          {m.tipo.nombre} · {identificadorActivo(m.asset, "Sin serie")}
-                        </span>
-                      </span>
-                    </Link>
-                    <EstadoMantencionBadge mantencion={m} />
-                  </div>
-                  <p className="text-sm text-fg-muted line-clamp-2">{m.descripcion}</p>
-                  <div className="flex items-center justify-between gap-3">
-                    <FechaProgramada m={m} />
-                    <span className="text-right">
-                      <AccionesMantencion m={m} />
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-surface-muted border-b">
-                  <tr>
-                    <th className="table-th px-4">
-                      Activo
-                    </th>
-                    <th className="table-th px-4">
-                      Tipo
-                    </th>
-                    <th className="table-th px-4">
-                      Descripción
-                    </th>
-                    <th className="table-th px-4">
-                      Fecha Programada
-                    </th>
-                    <th className="table-th px-4">
-                      Estado
-                    </th>
-                    <th className="table-th px-4">
-                      Técnico
-                    </th>
-                    <th className="table-th px-4 text-right">
-                      Acciones
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {maintenances.map((maintenance) => {
-                    const overdue = estaVencida(maintenance);
-
-                    return (
-                      <tr key={maintenance.id} className={cn("hover:bg-surface-muted", overdue && "bg-red-50")}>
-                        <td className="px-4 py-4">
-                          <Link href={`/mantenciones/${maintenance.id}`} className="flex items-center gap-3 group">
-                            <span className="text-fg-subtle">
-                              <CategoryIcon categoria={maintenance.asset.categoria.nombre} className="h-4 w-4" />
-                            </span>
-                            <div>
-                              <p className="font-medium text-sm group-hover:text-primary-700">
-                                {maintenance.asset.marca} {maintenance.asset.modelo}
-                              </p>
-                              <p className="text-xs text-fg-subtle">
-                                {identificadorActivo(maintenance.asset, "Sin serie")}
-                              </p>
-                            </div>
-                          </Link>
-                        </td>
-                        <td className="px-4 py-4">
-                          <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-fg-muted rounded">
-                            {maintenance.tipo.nombre}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4">
-                          <p className="text-sm text-fg line-clamp-2 max-w-xs">
-                            {maintenance.descripcion}
-                          </p>
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <FechaProgramada m={maintenance} />
-                        </td>
-                        <td className="px-4 py-4">
-                          <EstadoMantencionBadge mantencion={maintenance} />
-                        </td>
-                        <td className="px-4 py-4 text-sm text-fg-subtle">
-                          {maintenance.realizadoPor || "-"}
-                        </td>
-                        <td className="px-4 py-4 text-right whitespace-nowrap">
-                          <AccionesMantencion m={maintenance} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+        }
+        claseFila={(m) => estaVencida(m) && "bg-red-50"}
+        paginacion={{ current: page, pages: totalPages, total,
+          limit: limite,
+          itemLabel: "mantenciones",
+          onPageChange: setPage,
+          onLimitChange: (n) => {
+            setLimite(n);
+            setPage(1);
+          },
+        }}
+        tarjeta={(m) => (
+          <div className="space-y-2">
+            <div className="flex items-start justify-between gap-3">
+              <Link href={`/mantenciones/${m.id}`} className="flex min-w-0 items-center gap-2">
+                <span className="flex-shrink-0 text-fg-subtle">
+                  <CategoryIcon categoria={m.asset.categoria.nombre} className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-fg">
+                    {m.asset.marca} {m.asset.modelo}
+                  </span>
+                  <span className="block truncate text-xs text-fg-subtle">
+                    {m.tipo.nombre} · {identificadorActivo(m.asset, "Sin serie")}
+                  </span>
+                </span>
+              </Link>
+              <EstadoMantencionBadge mantencion={m} />
             </div>
-
-            <Pagination
-              className="px-4 py-3 border-t border-line"
-              current={page}
-              pages={totalPages}
-              total={total}
-              limit={10}
-              itemLabel="mantenciones"
-              onPageChange={setPage}
-            />
-          </>
+            <p className="line-clamp-2 text-sm text-fg-muted">{m.descripcion}</p>
+            <div className="flex items-center justify-between gap-3">
+              <FechaProgramada m={m} />
+              <span className="text-right">
+                <AccionesMantencion m={m} />
+              </span>
+            </div>
+          </div>
         )}
-      </div>
+        columnas={[
+          {
+            titulo: "Activo",
+            className: "px-4 py-4",
+            celda: (m) => (
+              <Link href={`/mantenciones/${m.id}`} className="group flex items-center gap-3">
+                <span className="text-fg-subtle">
+                  <CategoryIcon categoria={m.asset.categoria.nombre} className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium group-hover:text-primary-700">
+                    {m.asset.marca} {m.asset.modelo}
+                  </p>
+                  <p className="text-xs text-fg-subtle">{identificadorActivo(m.asset, "Sin serie")}</p>
+                </div>
+              </Link>
+            ),
+          },
+          {
+            titulo: "Tipo",
+            className: "px-4 py-4",
+            celda: (m) => <span className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-fg-muted">{m.tipo.nombre}</span>,
+          },
+          {
+            titulo: "Descripción",
+            className: "px-4 py-4",
+            celda: (m) => <p className="line-clamp-2 max-w-xs text-sm text-fg">{m.descripcion}</p>,
+          },
+          { titulo: "Fecha Programada", sinSalto: true, className: "px-4 py-4", celda: (m) => <FechaProgramada m={m} /> },
+          { titulo: "Estado", className: "px-4 py-4", celda: (m) => <EstadoMantencionBadge mantencion={m} /> },
+          { titulo: "Técnico", className: "px-4 py-4 text-fg-subtle", celda: (m) => m.realizadoPor || "-" },
+        ]}
+        acciones={(m) => <AccionesMantencion m={m} />}
+      />
     </div>
   );
 }

@@ -16,7 +16,7 @@ import type { DatosReasignacion } from '@/modules/lineas/validaciones';
 type Tx = Prisma.TransactionClient;
 
 /** Donde y con quien esta una linea (lo que cambia entre un tramo y otro). */
-type Ubicacion = { activoId: string | null; empleadoId: string | null; responsable: string | null; sedeId: string | null };
+type Ubicacion = { activoId: string | null; empleadoId: string | null };
 
 type Cambio = {
   desde: Date;
@@ -62,7 +62,7 @@ export async function exigirCelularDisponible(tx: Pick<Tx, 'asset'>, activoId: s
     select: { estado: true, empleadoActualId: true, categoria: { select: { tipoFicha: true } } },
   });
   if (telefono?.categoria.tipoFicha !== 'celular') throw errorDeCampo('activoId', 'Elige un celular del inventario');
-  if (telefono.estado === 'baja' || telefono.estado === 'vendido') throw errorDeCampo('activoId', 'Ese celular está de baja o vendido');
+  if (telefono.estado === 'baja') throw errorDeCampo('activoId', 'Ese celular está de baja');
   if (telefono.empleadoActualId) {
     throw errorDeCampo('activoId', 'Ese celular lo tiene una persona: elige uno sin asignar. La persona recibe la línea cuando una solicitud le entrega el celular.');
   }
@@ -76,14 +76,14 @@ export async function exigirCelularDisponible(tx: Pick<Tx, 'asset'>, activoId: s
 export async function liberarEsimDePersona(tx: Tx, empleadoId: string, c: { usuario?: string | null; detalle?: string | null } = {}) {
   const lineas = await tx.lineaTelefonica.findMany({
     where: { empleadoId, activoId: null, estado: { deBaja: false } },
-    select: { id: true, responsable: true, sedeId: true },
+    select: { id: true },
   });
   for (const l of lineas) {
     await tx.lineaTelefonica.update({ where: { id: l.id }, data: { empleadoId: null } });
     await cerrarYAbrir(
       tx,
       l.id,
-      { activoId: null, empleadoId: null, responsable: l.responsable, sedeId: l.sedeId },
+      { activoId: null, empleadoId: null },
       { desde: new Date(), origen: 'termino', usuario: c.usuario, detalle: c.detalle }
     );
   }
@@ -117,8 +117,6 @@ async function cerrarYAbrir(tx: Tx, lineaId: string, nuevo: Ubicacion, c: Cambio
       lineaId,
       activoId: nuevo.activoId,
       empleadoId: nuevo.empleadoId,
-      responsable: nuevo.responsable,
-      sedeId: nuevo.sedeId,
       desde,
       origen: c.origen,
       motivoId: c.motivoId ?? null,
@@ -131,11 +129,11 @@ async function cerrarYAbrir(tx: Tx, lineaId: string, nuevo: Ubicacion, c: Cambio
 /** Primer tramo de una linea recien creada o importada: con quien y donde esta desde el alta. */
 export async function abrirTenencia(
   tx: Tx,
-  linea: { id: string; activoId: string | null; empleadoId: string | null; responsable: string | null; sedeId: string | null },
+  linea: { id: string; activoId: string | null; empleadoId: string | null },
   c: Cambio
 ) {
   const empleadoId = await personaDe(tx, linea);
-  await cerrarYAbrir(tx, linea.id, { activoId: linea.activoId, empleadoId, responsable: linea.responsable, sedeId: linea.sedeId }, c);
+  await cerrarYAbrir(tx, linea.id, { activoId: linea.activoId, empleadoId }, c);
 }
 
 /**
@@ -158,8 +156,6 @@ export async function registrarEntregasAnteriores(
         lineaId,
         activoId: e.activoId,
         empleadoId: e.empleadoId,
-        responsable: e.responsable,
-        sedeId: e.sedeId,
         desde: e.desde,
         hasta: fin < e.desde ? e.desde : fin,
         origen: 'importacion',
@@ -189,13 +185,13 @@ export async function alCambiarTenedorDelTelefono(
   if (p.de === p.a) return;
   const lineas = await tx.lineaTelefonica.findMany({
     where: { activoId: p.activoId, estado: { deBaja: false } },
-    select: { id: true, responsable: true, sedeId: true },
+    select: { id: true },
   });
   for (const l of lineas) {
     await cerrarYAbrir(
       tx,
       l.id,
-      { activoId: p.activoId, empleadoId: p.a, responsable: l.responsable, sedeId: l.sedeId },
+      { activoId: p.activoId, empleadoId: p.a },
       { desde: new Date(), origen: p.a ? 'entrega_telefono' : 'devolucion_telefono', detalle: p.detalle }
     );
   }
@@ -204,27 +200,20 @@ export async function alCambiarTenedorDelTelefono(
 /**
  * Valida el destino de una reasignacion y devuelve donde queda la linea: en un
  * telefono de la empresa (la persona sale de el), con una persona (eSIM o
- * telefono personal) o sin asignar. La sede es la elegida (opcional).
+ * telefono personal) o sin asignar.
  */
 export async function destinoDeReasignacion(tx: Tx, d: DatosReasignacion): Promise<Ubicacion> {
   if (d.destino === 'telefono') {
     await exigirCelularDisponible(tx, d.activoId!);
-    return { activoId: d.activoId!, empleadoId: null, responsable: null, sedeId: d.sedeId || null };
+    return { activoId: d.activoId!, empleadoId: null };
   }
   if (d.destino === 'persona') {
     const persona = await tx.employee.findUnique({ where: { id: d.empleadoId! }, select: { estado: true } });
     if (!persona) throw errorDeCampo('empleadoId', 'La persona no existe');
     if (persona.estado === 'desvinculado') throw errorDeCampo('empleadoId', 'La persona está desvinculada');
-    return { activoId: null, empleadoId: d.empleadoId!, responsable: null, sedeId: d.sedeId || null };
+    return { activoId: null, empleadoId: d.empleadoId! };
   }
-  return { activoId: null, empleadoId: null, responsable: null, sedeId: d.sedeId || null };
-}
-
-/** La sede elegida tiene que existir y estar activa, salvo que la linea ya la tuviera. */
-export async function exigirSede(tx: Pick<Tx, 'sede'>, sedeId: string | null | undefined, actual: string | null) {
-  if (!sedeId || sedeId === actual) return;
-  const sede = await tx.sede.findUnique({ where: { id: sedeId }, select: { activa: true } });
-  if (!sede?.activa) throw errorDeCampo('sedeId', 'Elige una sede de la lista');
+  return { activoId: null, empleadoId: null };
 }
 
 /** El motivo elegido tiene que existir y estar activo. */
@@ -236,13 +225,8 @@ export async function exigirMotivo(tx: Tx, motivoId: string | null | undefined) 
 
 /** Si la reasignacion no cambia nada se rechaza: seria un tramo igual al anterior. */
 export function exigirCambio(antes: Ubicacion, despues: Ubicacion) {
-  if (
-    antes.activoId === despues.activoId &&
-    antes.empleadoId === despues.empleadoId &&
-    antes.responsable === despues.responsable &&
-    antes.sedeId === despues.sedeId
-  ) {
-    throw new ConflictError('La línea ya está así: elige otro teléfono, persona o sede');
+  if (antes.activoId === despues.activoId && antes.empleadoId === despues.empleadoId) {
+    throw new ConflictError('La línea ya está así: elige otro teléfono o persona');
   }
 }
 
@@ -250,7 +234,6 @@ const DETALLE = {
   activo: { select: { id: true, marca: true, modelo: true, imei: true } },
   empleado: { select: { id: true, nombres: true, apellidoPaterno: true, rut: true } },
   motivo: { select: { nombre: true } },
-  sede: { select: { id: true, nombre: true } },
 } satisfies Prisma.LineaTenenciaInclude;
 
 /** Los tramos de una linea, del mas nuevo al mas antiguo (el primero es el actual). */
@@ -293,4 +276,10 @@ export async function tenenciasDePersona(empleadoId: string) {
     ultimoDeLinea.set(o.lineaId, o.id);
   }
   return tramos.map((t) => ({ ...t, cierre: t.hasta ? (siguiente.get(t.id) ?? null) : null }));
+}
+
+/** Desde cuando tiene cada linea su tramo actual (el abierto): la fecha en que quedo con su persona. */
+export async function desdeTenenciaActual(lineaIds: string[]) {
+  const tramos = await prisma.lineaTenencia.findMany({ where: { lineaId: { in: lineaIds }, hasta: null }, select: { lineaId: true, desde: true } });
+  return new Map(tramos.map((t) => [t.lineaId, t.desde]));
 }

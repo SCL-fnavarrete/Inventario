@@ -29,16 +29,10 @@ export async function listarMotivosBaja({
   const conProtegido = motivos.map((m) => ({ ...m, protegido: !!m.clave }));
   if (!conUso || motivos.length === 0) return conProtegido;
 
-  // Las bajas por Mantenciones y las directas de un cambio de equipo, que
-  // guardan el motivo en la devolucion (SPEC 2.126).
+  // Cada equipo dado de baja guarda su motivo (SPEC 2.140).
   const contar = async (asset: Prisma.AssetWhereInput) => {
-    const [enMantenciones, enDevoluciones] = await Promise.all([
-      prisma.maintenance.groupBy({ by: ['motivoBajaId'], where: { motivoBajaId: { not: null }, asset }, _count: true }),
-      prisma.assignment.groupBy({ by: ['motivoBajaId'], where: { motivoBajaId: { not: null }, asset }, _count: true }),
-    ]);
-    const cuenta = new Map<string | null, number>();
-    for (const f of [...enMantenciones, ...enDevoluciones]) cuenta.set(f.motivoBajaId, (cuenta.get(f.motivoBajaId) ?? 0) + f._count);
-    return cuenta;
+    const filas = await prisma.asset.groupBy({ by: ['motivoBajaId'], where: { ...asset, motivoBajaId: { not: null } }, _count: true });
+    return new Map<string | null, number>(filas.map((f) => [f.motivoBajaId, f._count]));
   };
   const [total, sede] = await Promise.all([contar({}), contar(whereSede)]);
   return conProtegido.map((m) => ({ ...m, enUso: total.get(m.id) ?? 0, enSede: sede.get(m.id) ?? 0 }));
@@ -92,14 +86,14 @@ export async function renombrarMotivoBaja(id: string, nombre: string, usuario?: 
 export async function eliminarMotivoBaja(id: string, usuario?: string | null) {
   const actual = await prisma.motivoBaja.findUnique({
     where: { id },
-    include: { _count: { select: { maintenances: true, assignments: true } } },
+    include: { _count: { select: { maintenances: true, assignments: true, assets: true } } },
   });
   if (!actual) throw new NotFoundError('Motivo no encontrado');
   if (actual.clave) {
     throw new ConflictError(`"${actual.nombre}" lo usa el sistema: se puede renombrar, pero no eliminar`);
   }
 
-  const desactivado = actual._count.maintenances + actual._count.assignments > 0;
+  const desactivado = actual._count.maintenances + actual._count.assignments + actual._count.assets > 0;
   if (desactivado) {
     await prisma.motivoBaja.update({ where: { id }, data: { activo: false } });
   } else {

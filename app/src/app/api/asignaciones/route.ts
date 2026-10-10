@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAssignmentSchema, assignmentFiltersSchema } from "@/modules/asignaciones";
-import { asignarEquipo, listarAsignaciones } from "@/modules/asignaciones/servidor";
+import { asignarEquipo, listarAsignaciones, listarAsignacionesConLineas } from "@/modules/asignaciones/servidor";
 import { requirePermission, handleApiError, respuestaDatosInvalidos, quienHace } from '@/shared/auth/guard';
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +30,12 @@ export async function GET(request: NextRequest) {
       return respuestaDatosInvalidos(filtersResult.error);
     }
 
-    const resultado = await listarAsignaciones(filtersResult.data, searchParams.get("sedeId"));
+    // La tabla de Activos > Asignaciones trae tambien las lineas (SPEC 2.143).
+    const conLineas = searchParams.get("incluirLineas") === "true";
+    if (conLineas) await requirePermission('lineas', 'read');
+    const resultado = conLineas
+      ? await listarAsignacionesConLineas(filtersResult.data, searchParams.get("sedeId"))
+      : await listarAsignaciones(filtersResult.data, searchParams.get("sedeId"));
     return NextResponse.json(resultado, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
     return handleApiError(error, 'Error al obtener asignaciones');
