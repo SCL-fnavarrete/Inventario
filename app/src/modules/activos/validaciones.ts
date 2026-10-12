@@ -113,8 +113,9 @@ export const assetSchema = z.object({
 
 /**
  * El fin de garantia no puede caer antes de la compra. Se exporta porque
- * `.omit()` descarta los refinamientos: quien derive de createAssetSchema
- * (ej. los equipos de una compra) debe volver a aplicarla.
+ * zod no deja usar `.omit()` sobre un esquema con refinamientos: quien derive
+ * de los datos del alta (ej. los equipos de una compra) parte de
+ * createAssetBase y la vuelve a aplicar.
  */
 export function revisarOrdenGarantia(
   datos: { fechaCompra?: string | null; fechaGarantiaFin?: string | null },
@@ -129,8 +130,9 @@ export function revisarOrdenGarantia(
   }
 }
 
-// Schema para crear activo (campos requeridos)
-export const createAssetSchema = assetSchema.extend({
+// Datos del alta (campos requeridos), sin la regla de fechas: base de createAssetSchema
+// y de lo que derive de el con `.omit()`.
+export const createAssetBase = assetSchema.extend({
   categoriaId: z.string().uuid("ID de categoría inválido"),
   marca: z.string().trim().min(1, "La marca es requerida").max(50, "Máximo 50 caracteres"),
   modelo: z.string().trim().min(1, "El modelo es requerido").max(100, "Máximo 100 caracteres"),
@@ -139,7 +141,10 @@ export const createAssetSchema = assetSchema.extend({
   // asignacion, eso lo hace la importacion, no el alta manual.
   // El desgaste fisico no va aqui: para eso esta el campo condicion.
   estado: z.literal("disponible").optional().default("disponible"),
-}).superRefine(revisarOrdenGarantia);
+});
+
+// Schema para crear activo
+export const createAssetSchema = createAssetBase.superRefine(revisarOrdenGarantia);
 
 // Schema para actualizar activo (todos opcionales). El orden compra/garantia
 // lo revisa la ruta, que conoce la fecha ya guardada si solo llega una.

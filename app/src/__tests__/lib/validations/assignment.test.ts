@@ -213,6 +213,15 @@ describe('Assignment Validation - returnAssignmentSchema', () => {
     })
     expect(result.success).toBe(false)
   })
+
+  // Dañado se da de baja en el acto: el motivo de la lista es obligatorio (SPEC 2.135).
+  test('devolver dañado pide el motivo de baja; con motivo es válido', () => {
+    const danado = { ...validReturn, estadoDevolucion: 'danado' as const }
+    const sinMotivo = returnAssignmentSchema.safeParse(danado)
+    expect(sinMotivo.success).toBe(false)
+    const motivoBajaId = '550e8400-e29b-41d4-a716-446655440000'
+    expect(returnAssignmentSchema.safeParse({ ...danado, motivoBajaId }).success).toBe(true)
+  })
 })
 
 describe('Assignment Validation - assignmentFiltersSchema', () => {

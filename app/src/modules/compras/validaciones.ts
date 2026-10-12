@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { cantidad } from "@/shared/validaciones/comunes";
 import { rutOptionalSchema } from "@/shared/validaciones/rut";
-import { createAssetSchema, revisarOrdenGarantia } from "@/modules/activos";
+import { createAssetBase, revisarOrdenGarantia } from "@/modules/activos";
 
 export const TipoCompraEnum = z.enum(["FACTURA", "GASTO_MENOR"]);
 
@@ -58,9 +58,9 @@ export const updatePurchaseSchema = z.object({
 // Equipo comprado (SPEC 2.111): los mismos datos y reglas que Activos >
 // Nuevo. La sede y el estado no se eligen: nace "Por repartir" en la sede
 // de llegada.
-// `.omit()` descarta el refinamiento de fechas de createAssetSchema: se
-// vuelve a aplicar aqui.
-export const equipoNuevoCompraSchema = createAssetSchema
+// Parte de createAssetBase (sin refinamientos, que zod no deja omitir) y vuelve
+// a aplicar la regla de fechas.
+export const equipoNuevoCompraSchema = createAssetBase
   .omit({ estado: true })
   .superRefine(revisarOrdenGarantia);
 

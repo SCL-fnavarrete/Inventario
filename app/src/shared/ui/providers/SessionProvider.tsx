@@ -82,7 +82,6 @@ function SalirSiNoHaySesion() {
     // El aviso se quita solo cuando la sesion VUELVE (de sin sesion a con
     // sesion). Un guardado puede fallar antes de que la revision periodica
     // note que la sesion vencio, y ahi el estado todavia dice "authenticated".
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- la sesion volvio: el aviso ya no corresponde
     if (status === "authenticated" && anterior === "unauthenticated") setGuardadoSinSesion(false);
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- recarga completa: borra el estado de la pantalla sin sesion
     else if (status === "unauthenticated" && !guardadoSinSesion) window.location.href = "/login?sesion=cerrada";

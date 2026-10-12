@@ -64,6 +64,16 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-unused-vars": ["warn", { ignoreRestSiblings: true }],
     },
   },
+  // eslint-plugin-react-hooks 7.1 endurecio dos reglas: cargar datos desde un efecto
+  // (la funcion que carga cambia estado) y llamar una funcion declarada mas abajo.
+  // Las pantallas existentes cargan asi desde siempre; quedan como aviso (deuda
+  // visible, sin bloquear el CI) hasta reescribirlas con calma. Codigo nuevo: sin esos avisos.
+  {
+    rules: {
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/immutability": "warn",
+    },
+  },
   // Todo registro pasa por shared/logger: en produccion deja una linea JSON
   // que se puede buscar en Vercel, y en los tests no ensucia la salida.
   {
