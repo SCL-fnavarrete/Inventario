@@ -210,7 +210,13 @@ export async function detalleSolicitud(id: string) {
   }));
   const nuevasCambiadas = new Set(solicitud.lineaIds.filter((_, i) => i % 2 === 1));
   // Las lineas que vuelven dentro de los celulares devueltos.
-  const lineasDevueltas = await lineasDeEquipos(paresCambio.flatMap((p) => (p.anterior ? [p.anterior.asset.id] : [])));
+  const lineasDevueltas = await lineasDeEquipos(
+    solicitud.tipo === 'offboarding'
+      ? asignacionesTicket.filter((a) => devueltaEnTicket(a, recuperadas)).map((a) => a.asset.id)
+      : paresCambio.flatMap((p) => (p.anterior ? [p.anterior.asset.id] : []))
+  );
+  // eSIM que quedaron disponibles al desvincular a la persona (SPEC 2.143).
+  const esimLiberadas = solicitud.tipo === 'offboarding' ? await lineasPorId(solicitud.lineaIds) : [];
   const lineasEntregadas =
     solicitud.tipo === 'onboarding' || solicitud.tipo === 'cambio_equipo'
       ? (await lineasDeSolicitud(solicitud.numero, entregados)).filter((l) => !nuevasCambiadas.has(l.id))
@@ -221,6 +227,7 @@ export async function detalleSolicitud(id: string) {
     lineasEntregadas,
     lineasCambiadas,
     lineasDevueltas,
+    esimLiberadas,
     equiposEntregados: solicitud.tipo === 'onboarding' ? asignacionesTicket : [],
     equiposDevueltos: solicitud.tipo === 'offboarding' ? asignacionesTicket : [],
     eppDevueltos,

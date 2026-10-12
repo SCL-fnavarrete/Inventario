@@ -28,6 +28,7 @@ import {
   identificadorActivo,
 } from "@/modules/activos";
 import { Can } from "@/shared/ui/Can";
+import { TablaAsignaciones, type FilaAsignacion } from "@/shared/ui/TablaAsignaciones";
 import { EnlacesLineas } from "@/modules/lineas/componentes";
 
 // Covers the full TipoEvento enum so no event type renders as raw text
@@ -87,6 +88,36 @@ export default async function DetalleActivoPage({
     asset.purchaseAssets.length +
     asset.history.filter((e) => !(EVENTOS_SIN_USO as readonly string[]).includes(e.tipoEvento)).length;
   const sePuedeEliminar = !motivoSinEliminar({ estado: asset.estado, usos });
+
+  // Asignaciones reales y filas historicas del import sin persona (se muestran
+  // con "Persona no registrada" en vez de inventar una).
+  const filasAsignaciones: FilaAsignacion[] = [
+    ...asset.assignments.map((asig) => ({
+      id: asig.id,
+      desde: asig.fechaEntrega,
+      hasta: asig.fechaDevolucion,
+      vigente: asig.activo,
+      persona: {
+        nombre: `${asig.employee.nombres} ${asig.employee.apellidoPaterno}`,
+        enlace: `/empleados/${asig.employeeId}`,
+        detalle: `RUT: ${asig.employee.rut || "—"}`,
+      },
+    })),
+    ...asset.historialAsignacionesSinPersona.map((evento) => {
+      const datos = evento.datosNuevos as { indice?: number; total?: number } | null;
+      return {
+        id: evento.id,
+        desde: null,
+        hasta: null,
+        vigente: false,
+        etiqueta: "Histórica (sin datos)",
+        persona: {
+          nombre: `Persona no registrada${datos?.indice && datos?.total && datos.total > 1 ? ` (${datos.indice} de ${datos.total})` : ""}`,
+          detalle: "RUT: No registrado",
+        },
+      };
+    }),
+  ];
 
   return (
     <div className="space-y-6">
@@ -305,65 +336,7 @@ export default async function DetalleActivoPage({
               <h2 className="text-lg font-semibold text-fg mb-4">
                 Historial de Asignaciones
               </h2>
-              <div className="space-y-3">
-                {asset.assignments.map((asig) => (
-                  <div
-                    key={asig.id}
-                    className="flex items-center justify-between p-3 bg-surface-muted rounded-lg"
-                  >
-                    <div>
-                      <p className="font-medium text-fg">
-                        {asig.employee.nombres} {asig.employee.apellidoPaterno}
-                      </p>
-                      <p className="text-sm text-fg-subtle">
-                        RUT: {asig.employee.rut}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-fg">
-                        {formatearFecha(asig.fechaEntrega)}
-                      </p>
-                      <span
-                        className={cn(
-                          "px-2 py-0.5 text-xs font-medium rounded-full",
-                          asig.activo
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-fg"
-                        )}
-                      >
-                        {asig.activo ? "Activa" : "Finalizada"}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {asset.historialAsignacionesSinPersona.map((evento) => {
-                  const datos = evento.datosNuevos as { indice?: number; total?: number } | null;
-                  return (
-                    <div
-                      key={evento.id}
-                      className="flex items-center justify-between p-3 bg-surface-muted rounded-lg border border-dashed border-line-strong"
-                    >
-                      <div>
-                        <p className="font-medium text-fg-subtle italic">
-                          Persona no registrada
-                          {datos?.indice && datos?.total && datos.total > 1 ? ` (${datos.indice} de ${datos.total})` : ""}
-                        </p>
-                        <p className="text-sm text-fg-subtle">
-                          RUT: No registrado
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-fg-subtle">
-                          Fecha no registrada
-                        </p>
-                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-fg-subtle">
-                          Histórica (sin datos)
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <TablaAsignaciones vacio="Sin asignaciones" filas={filasAsignaciones} />
             </div>
           )}
         </div>

@@ -3,12 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Edit, PowerOff, Repeat, Trash2 } from "lucide-react";
+import { Edit, MapPin, Phone, PowerOff, Repeat, Smartphone, Tag, Trash2, User, Users } from "lucide-react";
 import { ActivosTabs } from "@/modules/activos/componentes";
 import { DESCRIPCION_ESTADO, formatearNumero, tonoEstadoLinea } from "@/modules/lineas";
 import { FormularioLinea } from "@/modules/lineas/componentes/FormularioLinea";
 import { ReasignarLinea } from "@/modules/lineas/componentes/ReasignarLinea";
-import { ORIGEN_TENENCIA, nombrePersona, personaDe, sedeDe, type FichaLinea } from "@/modules/lineas/componentes/tipos";
+import { nombrePersona, personaDe, sedeDe, type FichaLinea } from "@/modules/lineas/componentes/tipos";
 import { parseApiError } from "@/shared/utilidades/apiErrors";
 import { formatearFecha, formatearFechaHoraCorta } from "@/shared/utilidades/fechas";
 import { useEnvio } from "@/shared/hooks/useEnvio";
@@ -18,7 +18,7 @@ import { Button } from "@/shared/ui/Button";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { PageHeader } from "@/shared/ui/PageHeader";
-import { TablaDatos } from "@/shared/ui/TablaDatos";
+import { TablaAsignaciones } from "@/shared/ui/TablaAsignaciones";
 import { useToast } from "@/shared/ui/Toast";
 
 /**
@@ -26,15 +26,6 @@ import { useToast } from "@/shared/ui/Toast";
  * ha tenido (con cuantas veces se reasigno y el propietario anterior) y el
  * historial de sus cambios. Desde aqui se edita, se reasigna y se elimina.
  */
-
-function Dato({ titulo, children }: { titulo: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs uppercase text-fg-subtle">{titulo}</dt>
-      <dd className="text-sm text-fg">{children}</dd>
-    </div>
-  );
-}
 
 export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLinea; abrirReasignar?: boolean }) {
   const router = useRouter();
@@ -50,6 +41,8 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
   const [aEliminar, setAEliminar] = useState(false);
 
   const tramoActual = tenencias[0];
+  // Historial de Asignaciones: solo las veces que se asignó a una persona.
+  const asignaciones = tenencias.filter((t) => t.empleado);
   // El ultimo que la tuvo antes de quien la tiene ahora.
   const anterior = tenencias.slice(1).find((t) => t.empleado && t.empleadoId !== persona?.id);
 
@@ -74,12 +67,12 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
       <ActivosTabs />
       <PageHeader
         backHref="/activos/lineas"
-        title={
-          <span className="flex flex-wrap items-center gap-3">
-            <span className="font-mono">{formatearNumero(linea.numero)}</span>
-            <Badge variant={tonoEstadoLinea(linea.estado)}>{linea.estado.nombre}</Badge>
-          </span>
+        leading={
+          <div className="rounded-card bg-primary-50 p-3 text-primary-700">
+            <Phone className="h-8 w-8" />
+          </div>
         }
+        title={<span className="font-mono">{formatearNumero(linea.numero)}</span>}
         description={[linea.operador?.nombre, linea.tipoChip?.nombre].filter(Boolean).join(" · ") || "Línea telefónica"}
         actions={
           !modo && (
@@ -111,173 +104,182 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
       {modo === "editar" && <FormularioLinea linea={linea} onCerrar={cerrar} />}
       {modo === "reasignar" && <ReasignarLinea linea={linea} onCerrar={cerrar} />}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Tarjetas de resumen, como en la ficha de un equipo */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-fg">Chip y operador</h3>
-          <dl className="space-y-2">
-            <Dato titulo="Tipo de chip">{linea.tipoChip?.nombre ?? "Sin indicar"}</Dato>
-            <Dato titulo="Operador">{linea.operador?.nombre ?? "Sin indicar"}</Dato>
-          </dl>
+          <div className="flex items-center gap-3">
+            <Tag className="h-5 w-5 text-fg-subtle" />
+            <div>
+              <p className="text-sm text-fg-subtle">Estado</p>
+              <Badge variant={tonoEstadoLinea(linea.estado)}>{linea.estado.nombre}</Badge>
+            </div>
+          </div>
         </div>
-
         <div className="card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-fg">Estado</h3>
-          <dl className="space-y-2">
-            <Dato titulo="Estado">{linea.estado.nombre}</Dato>
-            <p className="text-xs text-fg-subtle">{DESCRIPCION_ESTADO[linea.estado.clave ?? ""]}</p>
-            {linea.fechaBaja && <Dato titulo="Fecha de baja">{formatearFecha(linea.fechaBaja)}</Dato>}
-          </dl>
+          <div className="flex items-center gap-3">
+            <Smartphone className="h-5 w-5 text-fg-subtle" />
+            <div>
+              <p className="text-sm text-fg-subtle">Teléfono</p>
+              <p className="font-medium text-fg">
+                {linea.activo ? (
+                  <Link href={`/activos/${linea.activo.id}`} className="text-brand hover:underline">
+                    {linea.activo.marca} {linea.activo.modelo}
+                  </Link>
+                ) : (
+                  <span className="text-fg-subtle">Ninguno</span>
+                )}
+              </p>
+            </div>
+          </div>
         </div>
-
         <div className="card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-fg">Dónde está y quién la tiene</h3>
-          <dl className="space-y-2">
-            <Dato titulo="Teléfono de la empresa">
-              {linea.activo ? (
-                <Link href={`/activos/${linea.activo.id}`} className="text-brand hover:underline">
-                  {linea.activo.marca} {linea.activo.modelo}
-                </Link>
-              ) : (
-                <span className="text-fg-subtle">{persona ? "Ninguno (eSIM o teléfono personal)" : "Ninguno"}</span>
-              )}
-            </Dato>
-            <Dato titulo="Persona">
-              {persona ? (
-                <>
+          <div className="flex items-center gap-3">
+            <User className="h-5 w-5 text-fg-subtle" />
+            <div>
+              <p className="text-sm text-fg-subtle">Asignada a</p>
+              <p className="font-medium text-fg">
+                {persona ? (
                   <Link href={`/empleados/${persona.id}`} className="text-brand hover:underline">
                     {nombrePersona(persona)}
                   </Link>
-                  {persona.estado === "desvinculado" && <span className="block text-xs text-red-700 dark:text-red-400">Persona desvinculada: revisar</span>}
-                </>
-              ) : (
-                <span className="text-fg-subtle">Sin persona (disponible)</span>
-              )}
-            </Dato>
-            <Dato titulo="Sede (la de su celular o persona)">{sedeDe(linea) ?? <span className="text-fg-subtle">Sin sede</span>}</Dato>
-            {tramoActual && !tramoActual.hasta && <Dato titulo="Desde">{formatearFecha(tramoActual.desde)}</Dato>}
-          </dl>
+                ) : (
+                  <span className="text-fg-subtle">Disponible</span>
+                )}
+              </p>
+              {persona?.estado === "desvinculado" && <p className="text-xs text-red-700 dark:text-red-400">Desvinculada: revisar</p>}
+            </div>
+          </div>
         </div>
-
         <div className="card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-fg">Personas</h3>
-          <p className="text-3xl font-bold text-fg">{personas}</p>
-          <p className="mb-3 text-xs text-fg-subtle">{personas === 1 ? "persona ha usado esta línea" : "personas han usado esta línea"}</p>
-          <dl>
-            <Dato titulo="Propietario anterior">
-              {anterior?.empleado ? (
-                <>
-                  <Link href={`/empleados/${anterior.empleado.id}`} className="text-brand hover:underline">
-                    {nombrePersona(anterior.empleado)}
-                  </Link>
-                  {anterior.hasta && <span className="block text-xs text-fg-subtle">hasta el {formatearFecha(anterior.hasta)}</span>}
-                </>
-              ) : (
-                <span className="text-fg-subtle">—</span>
-              )}
-            </Dato>
-          </dl>
+          <div className="flex items-center gap-3">
+            <MapPin className="h-5 w-5 text-fg-subtle" />
+            <div>
+              <p className="text-sm text-fg-subtle">Sede</p>
+              <p className="font-medium text-fg">{sedeDe(linea) ?? "Sin sede"}</p>
+            </div>
+          </div>
+        </div>
+        <div className="card p-4">
+          <div className="flex items-center gap-3">
+            <Users className="h-5 w-5 text-fg-subtle" />
+            <div>
+              <p className="text-sm text-fg-subtle">Personas</p>
+              <p className="font-medium text-fg">
+                {personas} {personas === 1 ? "la ha usado" : "la han usado"}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {linea.observaciones && (
-        <div className="card p-4">
-          <h3 className="mb-2 text-sm font-semibold text-fg">Observaciones</h3>
-          <p className="whitespace-pre-wrap text-sm text-fg-muted">{linea.observaciones}</p>
-        </div>
-      )}
-
-      <section aria-labelledby="quien-la-tuvo" className="space-y-3">
-        <h2 id="quien-la-tuvo" className="text-lg font-semibold text-fg">
-          Quién la ha tenido
-        </h2>
-        <TablaDatos
-          items={tenencias}
-          clave={(t) => t.id}
-          vacio="Todavía no hay registro de quién la ha tenido"
-          resaltada={(t) => !t.hasta}
-          columnas={[
-            {
-              titulo: "Desde",
-              celda: (t) => (
-                <>
-                  {formatearFecha(t.desde)}
-                  {!t.hasta && (
-                    <span className="ml-2">
-                      <Badge variant="success">Actual</Badge>
-                    </span>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <div className="card p-6">
+            <h2 className="mb-4 text-lg font-semibold text-fg">Información General</h2>
+            <dl className="grid grid-cols-2 gap-4">
+              <div>
+                <dt className="text-sm text-fg-subtle">Número</dt>
+                <dd className="font-mono font-medium text-fg">{formatearNumero(linea.numero)}</dd>
+              </div>
+              <div>
+                <dt className="text-sm text-fg-subtle">Operador</dt>
+                <dd className="font-medium text-fg">{linea.operador?.nombre ?? "Sin indicar"}</dd>
+              </div>
+              <div>
+                <dt className="text-sm text-fg-subtle">Tipo de chip</dt>
+                <dd className="font-medium text-fg">{linea.tipoChip?.nombre ?? "Sin indicar"}</dd>
+              </div>
+              <div>
+                <dt className="text-sm text-fg-subtle">Estado</dt>
+                <dd className="font-medium text-fg">
+                  {linea.estado.nombre}
+                  <span className="block text-xs font-normal text-fg-subtle">{DESCRIPCION_ESTADO[linea.estado.clave ?? ""]}</span>
+                </dd>
+              </div>
+              {tramoActual && !tramoActual.hasta && (
+                <div>
+                  <dt className="text-sm text-fg-subtle">Con este destino desde</dt>
+                  <dd className="font-medium text-fg">{formatearFecha(tramoActual.desde)}</dd>
+                </div>
+              )}
+              <div>
+                <dt className="text-sm text-fg-subtle">Propietario anterior</dt>
+                <dd className="font-medium text-fg">
+                  {anterior?.empleado ? (
+                    <>
+                      <Link href={`/empleados/${anterior.empleado.id}`} className="text-brand hover:underline">
+                        {nombrePersona(anterior.empleado)}
+                      </Link>
+                      {anterior.hasta && <span className="block text-xs font-normal text-fg-subtle">hasta el {formatearFecha(anterior.hasta)}</span>}
+                    </>
+                  ) : (
+                    "—"
                   )}
-                </>
-              ),
-            },
-            { titulo: "Hasta", celda: (t) => (t.hasta ? formatearFecha(t.hasta) : "—") },
-            {
-              titulo: "Persona",
-              celda: (t) =>
-                t.empleado ? (
-                  <Link href={`/empleados/${t.empleado.id}`} className="text-brand hover:underline">
-                    {nombrePersona(t.empleado)}
-                  </Link>
-                ) : (
-                  <span className="text-fg-subtle">Sin persona</span>
-                ),
-            },
-            {
-              titulo: "Teléfono",
-              celda: (t) =>
-                t.activo ? (
+                </dd>
+              </div>
+              {linea.fechaBaja && (
+                <div>
+                  <dt className="text-sm text-fg-subtle">Fecha de baja</dt>
+                  <dd className="font-medium text-fg">{formatearFecha(linea.fechaBaja)}</dd>
+                </div>
+              )}
+            </dl>
+          </div>
+
+          {linea.observaciones && (
+            <div className="card p-6">
+              <h2 className="mb-4 text-lg font-semibold text-fg">Observaciones</h2>
+              <p className="whitespace-pre-wrap text-fg-muted">{linea.observaciones}</p>
+            </div>
+          )}
+
+          <section aria-labelledby="quien-la-tuvo" className="card space-y-3 p-6">
+            <h2 id="quien-la-tuvo" className="text-lg font-semibold text-fg">
+              Historial de Asignaciones
+            </h2>
+            <TablaAsignaciones
+              vacio="Todavía no se ha asignado a ninguna persona"
+              tituloExtra="Teléfono"
+              filas={asignaciones.map((t) => ({
+                id: t.id,
+                desde: t.desde,
+                hasta: t.hasta,
+                vigente: !t.hasta,
+                persona: { nombre: nombrePersona(t.empleado!), enlace: `/empleados/${t.empleado!.id}` },
+                extra: t.activo ? (
                   <Link href={`/activos/${t.activo.id}`} className="text-brand hover:underline">
                     {t.activo.marca} {t.activo.modelo}
                   </Link>
                 ) : (
-                  <span className="text-fg-subtle">{t.empleado ? "Personal o eSIM" : "—"}</span>
+                  <span className="text-fg-subtle">Personal o eSIM</span>
                 ),
-            },
-            {
-              titulo: "Cómo empezó",
-              celda: (t) => (
-                <>
-                  {ORIGEN_TENENCIA[t.origen] ?? t.origen}
-                  {(t.motivo || t.detalle) && (
-                    <span className="block text-xs text-fg-subtle">{[t.motivo?.nombre, t.detalle].filter(Boolean).join(" · ")}</span>
-                  )}
-                </>
-              ),
-            },
-            { titulo: "Registrado por", celda: (t) => <span className="text-fg-subtle">{t.usuario ?? "Automático"}</span> },
-          ]}
-          tarjeta={(t) => (
-            <>
-              <p className="font-medium text-fg">
-                {t.empleado ? nombrePersona(t.empleado) : "Sin persona"}
-              </p>
-              <p className="text-xs text-fg-muted">
-                {formatearFecha(t.desde)} → {t.hasta ? formatearFecha(t.hasta) : "actual"} · {ORIGEN_TENENCIA[t.origen] ?? t.origen}
-              </p>
-            </>
-          )}
-        />
-      </section>
+              }))}
+            />
+          </section>
+        </div>
 
-      <section aria-labelledby="historial-cambios" className="space-y-3">
-        <h2 id="historial-cambios" className="text-lg font-semibold text-fg">
-          Historial de cambios
-        </h2>
-        {historial.length === 0 ? (
-          <p className="card px-6 py-6 text-center text-fg-subtle">Sin eventos.</p>
-        ) : (
-          <ol className="card space-y-3 p-4">
-            {historial.map((e) => (
-              <li key={e.id} className="border-l-2 border-line pl-3">
-                <p className="text-sm text-fg">{e.descripcion}</p>
-                <p className="text-xs text-fg-subtle">
-                  Rige desde {formatearFecha(e.vigenteDesde)} · registrado {formatearFechaHoraCorta(e.createdAt)}
-                  {e.usuario && ` por ${e.usuario}`}
-                </p>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
+        <div className="space-y-6">
+          <div className="card p-6">
+            <h2 className="mb-4 text-lg font-semibold text-fg">Historial de Eventos</h2>
+            {historial.length === 0 ? (
+              <p className="py-4 text-center text-fg-subtle">No hay eventos registrados</p>
+            ) : (
+              <div className="space-y-4">
+                {historial.map((e) => (
+                  <div key={e.id} className="relative border-l-2 border-line pb-4 pl-6 last:pb-0">
+                    <div className="absolute -left-2 top-0 h-4 w-4 rounded-full bg-primary-500" />
+                    <p className="text-sm text-fg">{e.descripcion}</p>
+                    <p className="mt-1 text-xs text-fg-subtle">
+                      Rige desde {formatearFecha(e.vigenteDesde)} · registrado {formatearFechaHoraCorta(e.createdAt)}
+                      {e.usuario && ` por ${e.usuario}`}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       <ConfirmDialog
         isOpen={aEliminar}

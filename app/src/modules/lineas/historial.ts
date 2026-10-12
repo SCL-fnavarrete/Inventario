@@ -105,6 +105,53 @@ export async function registrarHistorial(
   });
 }
 
+const ETIQUETA_ORIGEN: Record<string, string> = {
+  entrega_telefono: 'Se entregó el teléfono',
+  devolucion_telefono: 'Se devolvió el teléfono',
+  termino: 'Devolución por término',
+};
+
+type Lugar = { activoId: string | null; empleadoId: string | null };
+
+/**
+ * Anota en el historial que la linea cambio de lugar (SPEC 2.131): a quien se
+ * asigno y en que celular, o que quedo disponible. Lo llama la tenencia en cada
+ * cambio, asi el historial recoge tambien las asignaciones hechas por Reasignar
+ * o por las solicitudes.
+ */
+export async function registrarMovimiento(
+  tx: Prisma.TransactionClient,
+  lineaId: string,
+  antes: Lugar,
+  despues: Lugar,
+  c: { desde: Date; origen: string; usuario?: string | null; motivoId?: string | null; detalle?: string | null }
+) {
+  const [persona, celular, motivo] = await Promise.all([
+    despues.empleadoId ? tx.employee.findUnique({ where: { id: despues.empleadoId }, select: { nombres: true, apellidoPaterno: true } }) : null,
+    despues.activoId ? tx.asset.findUnique({ where: { id: despues.activoId }, select: { marca: true, modelo: true } }) : null,
+    c.motivoId ? tx.motivoReasignacion.findUnique({ where: { id: c.motivoId }, select: { nombre: true } }) : null,
+  ]);
+  const nombre = persona ? `${persona.nombres} ${persona.apellidoPaterno}` : '';
+  const equipo = celular ? `${celular.marca} ${celular.modelo}` : '';
+  const que = persona
+    ? `Asignada a ${nombre}${equipo ? ` en el celular ${equipo}` : ' (eSIM o teléfono personal)'}`
+    : equipo
+      ? `Queda en el celular ${equipo}, sin persona`
+      : 'Queda disponible (sin persona ni celular)';
+  const porque = [motivo?.nombre, c.detalle].filter(Boolean).join(' · ') || ETIQUETA_ORIGEN[c.origen];
+  await tx.lineaHistorial.create({
+    data: {
+      lineaId,
+      tipo: antes.activoId !== despues.activoId ? 'celular' : 'persona',
+      descripcion: porque ? `${que}. ${porque}` : que,
+      datosAnteriores: { activoId: antes.activoId, empleadoId: antes.empleadoId },
+      datosNuevos: { activoId: despues.activoId, empleadoId: despues.empleadoId },
+      vigenteDesde: c.desde,
+      usuario: c.usuario ?? null,
+    },
+  });
+}
+
 /**
  * Al eliminar una linea (se llama antes de borrarla), su historial queda con un
  * evento de cierre.

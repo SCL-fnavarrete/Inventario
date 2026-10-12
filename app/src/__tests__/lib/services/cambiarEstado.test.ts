@@ -17,6 +17,9 @@ function txFalso(filas = 1, tenedorAntes: string | null = null) {
     // Las lineas que estan en el equipo anotan su tenencia (SPEC 2.131).
     lineaTelefonica: { findMany: jest.fn().mockResolvedValue([{ id: 'l1', responsable: null }]) },
     lineaTenencia: { findFirst: jest.fn().mockResolvedValue(null), updateMany: jest.fn(), create: jest.fn() },
+    // Cada cambio de lugar queda tambien en el historial de eventos de la linea.
+    lineaHistorial: { create: jest.fn() },
+    employee: { findUnique: jest.fn().mockResolvedValue(null) },
     // Bloqueo de cada linea antes de cambiar su tramo.
     $queryRaw: jest.fn().mockResolvedValue([]),
   };
@@ -137,6 +140,9 @@ describe('cambio de quien tiene el equipo (SPEC 2.131)', () => {
     );
     expect(tx.lineaTenencia.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ lineaId: 'l1', empleadoId: null, origen: 'devolucion_telefono' }),
+    });
+    expect(tx.lineaHistorial.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ lineaId: 'l1', descripcion: expect.stringContaining('Queda'), datosNuevos: { activoId: 'a1', empleadoId: null } }),
     });
   });
 

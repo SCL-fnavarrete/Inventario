@@ -14,6 +14,7 @@ export {
   itemLineaCompleto,
   type ItemCambioLinea,
 } from '@/modules/solicitudes/componentes/SeleccionarCambioLinea';
+export { LineasAlDesvincular } from '@/modules/solicitudes/componentes/LineasAlDesvincular';
 export {
   BuscadorEmpleado,
   useBuscarEmpleado,

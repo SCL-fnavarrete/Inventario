@@ -2,6 +2,7 @@ import type { OrigenTenencia, Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { ConflictError, errorDeCampo } from '@/shared/errores';
 import type { DatosReasignacion } from '@/modules/lineas/validaciones';
+import { registrarMovimiento } from '@/modules/lineas/historial';
 
 /**
  * Tenencia de las lineas (SPEC 2.131): cada tramo de tiempo en que una linea
@@ -71,7 +72,7 @@ export async function exigirCelularDisponible(tx: Pick<Tx, 'asset'>, activoId: s
 /**
  * Devolucion por termino (SPEC 2.131): las eSIM vigentes de la persona quedan
  * disponibles (sin persona), con su tramo de tenencia. Las de un celular no se
- * tocan: siguen a su celular, que vuelve con la devolucion. Devuelve cuantas libero.
+ * tocan: siguen a su celular, que vuelve con la devolucion. Devuelve los ids de las que libero.
  */
 export async function liberarEsimDePersona(tx: Tx, empleadoId: string, c: { usuario?: string | null; detalle?: string | null } = {}) {
   const lineas = await tx.lineaTelefonica.findMany({
@@ -87,7 +88,7 @@ export async function liberarEsimDePersona(tx: Tx, empleadoId: string, c: { usua
       { desde: new Date(), origen: 'termino', usuario: c.usuario, detalle: c.detalle }
     );
   }
-  return lineas.length;
+  return lineas.map((l) => l.id);
 }
 
 /**
@@ -124,6 +125,11 @@ async function cerrarYAbrir(tx: Tx, lineaId: string, nuevo: Ubicacion, c: Cambio
       usuario: c.usuario ?? null,
     },
   });
+  // Un cambio de lugar queda en el historial de eventos. El alta y la importacion ya
+  // dejan el suyo (registrarHistorial); el primer tramo no es un cambio.
+  if (abierto && c.origen !== 'alta' && c.origen !== 'importacion') {
+    await registrarMovimiento(tx, lineaId, { activoId: abierto.activoId, empleadoId: abierto.empleadoId }, nuevo, { ...c, desde });
+  }
 }
 
 /** Primer tramo de una linea recien creada o importada: con quien y donde esta desde el alta. */

@@ -30,6 +30,7 @@ import {
   cambiarLineaEnSolicitud,
   liberarLineaEnSolicitud,
   lineasDePersona,
+  lineasDeEquipos,
   lineasDeSolicitud,
   tenenciasDePersona,
   alCambiarTenedorDelTelefono,
@@ -675,12 +676,23 @@ describir('lineas telefonicas en Postgres', () => {
     const esimDe = await crearLinea(datos({ numero: nuevo(), empleadoId: ids.otraPersona }));
     const enCelular = await crearLinea(datos({ numero: nuevo(), activoId: ids.libre }));
     const liberadas = await prisma.$transaction((tx) => liberarEsimDePersona(tx, ids.otraPersona!, { usuario: 'jsoto', detalle: 'Devolución por término' }));
-    expect(liberadas).toBeGreaterThanOrEqual(1);
+    expect(liberadas).toContain(esimDe.id);
+    expect(liberadas).not.toContain(enCelular.id);
     expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: esimDe.id } })).toMatchObject({ empleadoId: null, activoId: null });
     expect((await fichaLinea(esimDe.id)).tenencias[0]).toMatchObject({ origen: 'termino', empleadoId: null, usuario: 'jsoto', hasta: null });
     expect((await fichaLinea(enCelular.id)).tenencias).toHaveLength(1);
+    // La persona queda registrada en la línea: su tramo se cierra, no se borra.
+    const ficha = await fichaLinea(esimDe.id);
+    expect(ficha.tenencias[1]).toMatchObject({ empleadoId: ids.otraPersona });
+    expect(ficha.tenencias[1].hasta).not.toBeNull();
+    expect(ficha.personas).toBe(1);
+    // El celular devuelto sigue mostrando su línea (el detalle de la desvinculación la lista).
+    expect((await lineasDeEquipos([ids.libre!])).map((l) => l.id)).toContain(enCelular.id);
+    // Cada cambio de lugar queda en el historial de eventos.
+    expect(ficha.historial.map((e) => e.descripcion)).toEqual(expect.arrayContaining([expect.stringContaining('Queda disponible')]));
     // Ya disponible, se puede asignar a otra persona.
     await reasignarLinea(esimDe.id, reasignacionSchema.parse({ destino: 'persona', empleadoId: ids.empleado }));
+    expect((await fichaLinea(esimDe.id)).historial[0].descripcion).toMatch(/^Asignada a .*Prueba/);
   });
 
   test('al entregar un celular en una solicitud se le asocia una línea disponible: el chip físico al celular, la eSIM a la persona (SPEC 2.143)', async () => {

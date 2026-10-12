@@ -453,7 +453,10 @@ export async function aplicarTransicion(
     if (isFinal && workflowRequest.tipo === 'offboarding') {
       await desvincularPersona(tx, workflowRequest.employeeId);
       // Sus eSIM quedan disponibles; las de un celular siguen al celular (SPEC 2.131).
-      await liberarEsimDePersona(tx, workflowRequest.employeeId, { usuario: systemUser.usuario, detalle: 'Devolución por término' });
+      const esimLiberadas = await liberarEsimDePersona(tx, workflowRequest.employeeId, { usuario: systemUser.usuario, detalle: 'Devolución por término' });
+      if (esimLiberadas.length > 0) {
+        await tx.workflowRequest.update({ where: { id }, data: { lineaIds: esimLiberadas } });
+      }
     }
 
     // Log the transition

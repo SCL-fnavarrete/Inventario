@@ -354,7 +354,7 @@ async function motivoSinEliminarLinea(tx: Prisma.TransactionClient, id: string) 
   const [conPersona, tramos, cambios] = await Promise.all([
     tx.lineaTenencia.count({ where: { lineaId: id, empleadoId: { not: null } } }),
     tx.lineaTenencia.count({ where: { lineaId: id } }),
-    tx.lineaHistorial.count({ where: { lineaId: id, tipo: { notIn: ['creacion', 'importacion', 'datos'] } } }),
+    tx.lineaHistorial.count({ where: { lineaId: id, tipo: 'estado' } }),
   ]);
   if (conPersona > 0) return 'ya la ha usado una persona';
   if (tramos > 1) return 'ya se cambió de lugar';

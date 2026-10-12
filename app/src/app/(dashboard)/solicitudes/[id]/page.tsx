@@ -149,8 +149,10 @@ type WorkflowDetail = {
   lineasEntregadas: LineaDeSolicitud[];
   // Lineas que cambio un Cambio de equipo: la anterior y la que la reemplazo (SPEC 2.143).
   lineasCambiadas: { anterior: LineaDeSolicitud | null; nueva: LineaDeSolicitud | null }[];
-  // Lineas que volvieron dentro de los celulares devueltos en el cambio.
+  // Lineas que volvieron dentro de los celulares devueltos (cambio de equipo y offboarding).
   lineasDevueltas: LineaDeSolicitud[];
+  // eSIM de la persona que quedaron disponibles al desvincularla.
+  esimLiberadas: LineaDeSolicitud[];
   equiposDevueltos: AsignacionFila[];
   // Mismo caso para el EPP devuelto en este ticket (ver kitReturnIds).
   eppDevueltos: {
@@ -759,7 +761,7 @@ export default function SolicitudDetailPage() {
             </div>
           )}
 
-          {data.tipo === 'cambio_equipo' && data.lineasDevueltas?.length > 0 && (
+          {data.tipo !== 'onboarding' && data.lineasDevueltas?.length > 0 && (
             <div className="card p-6">
               <h3 className="font-semibold text-fg mb-4">Líneas Devueltas ({data.lineasDevueltas.length})</h3>
               <div className="space-y-2">
@@ -769,6 +771,20 @@ export default function SolicitudDetailPage() {
                     <span className="text-xs text-fg-muted">
                       Vuelve con el celular {l.activo && <EnlaceCelular activo={l.activo} />}
                     </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {data.tipo === 'offboarding' && data.esimLiberadas?.length > 0 && (
+            <div className="card p-6">
+              <h3 className="font-semibold text-fg mb-4">eSIM Liberadas ({data.esimLiberadas.length})</h3>
+              <div className="space-y-2">
+                {data.esimLiberadas.map((l) => (
+                  <div key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-muted p-3 text-sm">
+                    <EnlaceLinea linea={l} />
+                    <span className="text-xs text-fg-muted">Queda disponible</span>
                   </div>
                 ))}
               </div>

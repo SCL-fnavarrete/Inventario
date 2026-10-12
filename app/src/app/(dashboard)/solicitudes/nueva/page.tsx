@@ -13,6 +13,7 @@ import {
   itemCambioCompleto,
   type ItemCambioEquipo,
   SeleccionarCambioLinea,
+  LineasAlDesvincular,
   itemLineaCompleto,
   type ItemCambioLinea,
   SeccionCoordinacion,
@@ -1729,6 +1730,10 @@ export default function NuevaSolicitudPage() {
                   )}
                 </div>
               )}
+
+              {/* Lineas de la persona: solo para verlas (vuelven con el celular o
+                  quedan disponibles al cerrar). En una recuperacion ya no aplica. */}
+              {selectedEmployee && !esRecuperacion && <LineasAlDesvincular empleadoId={selectedEmployee.id} />}
 
               {/* EPP entregado y pendiente de devolver. El Kit de Bienvenida
                   no se pide de vuelta -- es consumible. */}
