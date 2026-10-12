@@ -22,7 +22,7 @@
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "db:test:migrate": "node --env-file=.env scripts/con-base-test.mjs npx prisma migrate deploy",
-    "test:integracion": "node --env-file=.env scripts/con-base-test.mjs npx jest src/__tests__/integracion"
+    "test:integracion": "node --env-file=.env scripts/con-base-test.mjs npx jest src/__tests__/integracion --runInBand"
   },
   "prisma": {
     "seed": "npx ts-node --project prisma/tsconfig.seed.json prisma/seed.ts"

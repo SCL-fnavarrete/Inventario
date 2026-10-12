@@ -115,8 +115,11 @@ jobs:
       - name: El schema coincide con las migraciones
         run: npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code
 
+      # Uno tras otro (--runInBand): comparten una sola base y algunos tests cuentan
+      # filas de toda la tabla (ej. los indicadores de lineas); en paralelo, los
+      # archivos se pisan y el resultado depende de la velocidad de la maquina.
       - name: Tests de integracion
-        run: npx jest src/__tests__/integracion --ci
+        run: npx jest src/__tests__/integracion --ci --runInBand
 
   spec-guard:
     name: SPEC primero
