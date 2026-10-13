@@ -198,7 +198,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
           <li><a href="#tipos-motivos">Tipos de mantención</a></li>
         </ol>
       </li>
-      <li><a href="#compras">Compras</a></li>
+      <li><a href="#compras">Compras de activos</a></li>
       <li><a href="#despachos">Despachos</a></li>
       <li><a href="#configuracion">Configuración</a>
         <ol>
@@ -220,7 +220,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
       <span class="etiqueta">SCL Consultores · Soporte TI</span>
       <h1>Manual de usuario del sistema de Inventario IT</h1>
       <p class="bajada">Lo esencial para registrar los equipos, entregarlos y recibirlos, programar mantenciones, moverlos entre sedes y llevar las líneas telefónicas.</p>
-      <div class="datos-doc"><span><b>Versión del sistema:</b> SPEC v2.68</span><span><b>Fecha:</b> octubre de 2026</span><span><b>Capturas:</b> con datos de ejemplo</span></div>
+      <div class="datos-doc"><span><b>Versión del sistema:</b> SPEC v2.70</span><span><b>Fecha:</b> octubre de 2026</span><span><b>Capturas:</b> con datos de ejemplo</span></div>
     </header>
 
     <section class="capitulo" aria-labelledby="t-inicio">
@@ -234,12 +234,13 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
       <p><b>Eliminar</b> solo borra lo ingresado por error que <b>no tiene nada registrado</b> (un equipo que nunca se usó, una línea recién creada…) y queda en la Auditoría. Lo que ya tiene historia no se borra: un equipo se da de <b>baja</b>. Las sedes no limitan lo que ves: todos trabajan con todas.</p>
 
       <h3 id="entrar">Iniciar y cerrar sesión</h3>
-      <p>Entra con tu <b>usuario</b> (por ejemplo <code>jsoto</code>, no tu correo) y tu contraseña. Para salir, pulsa tus iniciales (arriba a la derecha) › <b>Cerrar sesión</b>.</p>
+      <p>Entra con tu <b>usuario</b> (el que te dio el administrador, no tu correo) y tu contraseña. Para salir, pulsa tus iniciales (arriba a la derecha) › <b>Cerrar sesión</b>.</p>
       <figure>
         <button class="captura" type="button"><img src="img/01-login.jpg" alt="Pantalla de inicio de sesión" loading="lazy"></button>
         <figcaption>Tras varios intentos fallidos la cuenta se bloquea unos minutos.</figcaption>
       </figure>
       <div class="aviso nota"><b class="titulo">Una sola sesión por usuario</b><p>Si entras desde otro equipo, la sesión anterior se cierra. ¿Olvidaste tu contraseña? Pídele una nueva a un administrador.</p></div>
+      <p>Si el sistema no puede conectarse (por ejemplo, el servidor está en mantención), verás un aviso simple como “No se pudo iniciar sesión por un problema del servidor. Intenta de nuevo en unos minutos.”: espera y vuelve a intentar.</p>
 
       <h3 id="menu">Menú, sedes y tema</h3>
       <p>Arriba están los módulos y, a la derecha, el <b>selector de sede</b> (filtra lo que ves; “Todas las sedes” incluye los equipos sin sede), el modo claro/oscuro y tu cuenta.</p>
@@ -263,6 +264,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
         <figcaption>Alertas arriba, totales y gráficos debajo.</figcaption>
       </figure>
       <p><b>Alertas</b>: mantenciones vencidas y próximas, stock bajo de Kit/EPP y de equipos, <b>equipos sin sede</b> y <b>líneas para revisar</b>.</p>
+      <p><b>Garantías por vencer</b> (en morado): equipos cuya garantía termina en los próximos 30 días. Es solo un aviso: no suma al contador de alertas ni cambia nada del equipo. Pulsa uno para abrir su ficha.</p>
     </section>
 
     <section class="capitulo" id="activos" aria-labelledby="t-activos">
@@ -309,7 +311,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
       <p>Pulsa <b>Nuevo</b>, elige la categoría (los campos se adaptan: specs en un notebook, IMEI en un celular, pulgadas en un monitor), completa marca, modelo, N° de serie (o IMEI) y sede, y pulsa <b>Guardar</b>. Queda <span class="chip disp">Disponible</span>.</p>
       <figure>
         <button class="captura" type="button"><img src="img/07-activo-nuevo.jpg" alt="Formulario de equipo nuevo" loading="lazy"></button>
-        <figcaption>Los campos con * son obligatorios. Si llega con factura, regístralo desde Compras.</figcaption>
+        <figcaption>Los campos con * son obligatorios. Si llega con factura, regístralo desde Compras de activos.</figcaption>
       </figure>
 
       <h3 id="ficha">Ficha del equipo</h3>
@@ -456,10 +458,11 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
       </figure>
 
       <h3 id="programar">Programar</h3>
-      <p>Pulsa <b>Programar Mantención</b>, elige el equipo, el tipo y la fecha. Marca <b>Iniciar ahora</b> si empieza hoy (el equipo pasa a <span class="chip mant">En Mantención</span>).</p>
+      <p>Pulsa <b>Programar Mantención</b>, elige el equipo, el tipo y la fecha. El buscador solo muestra equipos <span class="chip disp">Disponibles</span> o asignados: los de baja, en tránsito o por repartir no van a mantención. Marca <b>Iniciar ahora</b> si empieza hoy (el equipo pasa a <span class="chip mant">En Mantención</span>). Un equipo asignado sigue a nombre de su persona mientras está en mantención y vuelve a ella al repararse.</p>
 
       <h3 id="completar">Completar</h3>
       <p>En una mantención en proceso, elige el resultado: <b>Reparado</b> (vuelve a uso), <b>En espera de repuestos</b> o <b>Sin reparación</b> (pide el motivo y queda de <span class="chip baja">Baja</span>).</p>
+      <div class="aviso nota"><b class="titulo">Equipo asignado a una persona</b><p>No puede quedar <b>en espera de repuestos</b> ni darse de baja: la persona quedaría sin equipo. Primero cámbiale el equipo con una solicitud de <b>Cambio de equipo</b>; si lo reparas en el momento, ciérrala como <b>Reparado</b>. Tampoco se puede cambiar un equipo mientras está en mantención: complétala o cancélala antes.</p></div>
       <figure>
         <button class="captura" type="button"><img src="img/28-mantencion-detalle.jpg" alt="Mantención en proceso" loading="lazy"></button>
         <figcaption>Completar una mantención.</figcaption>
@@ -473,13 +476,18 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
     </section>
 
     <section class="capitulo" id="compras" aria-labelledby="t-comp">
-      <h2 id="t-comp"><span class="num">09</span>Compras</h2>
-      <p class="intro">Las facturas y lo que llegó con ellas. Lo comprado llega a una sede y desde ahí se reparte.</p>
+      <h2 id="t-comp"><span class="num">09</span>Compras de activos</h2>
+      <p class="intro">Las facturas y lo que llegó con ellas. Lo comprado llega a una sede y desde ahí se reparte. La usan administradores y técnicos.</p>
       <ol class="pasos">
-        <li><b>Nueva Compra</b>: sede de llegada, N° y fecha de factura.</li>
-        <li>Agrega los equipos (nuevos o ya registrados) y el Kit/EPP comprado, y guarda. Queda <span class="chip repar">Por repartir</span>.</li>
+        <li><b>Nueva Compra</b>: sede de llegada, N° y fecha de factura (el N° es obligatorio y no se repite).</li>
+        <li>Agrega los <b>equipos comprados</b> (mismo formulario que Activos › Nuevo), los <b>equipos ya registrados</b> que trae la factura (búscalos en la lista; solo se vinculan) y el <b>Kit/EPP</b> comprado. Cada equipo o artículo agregado se puede corregir con el lápiz antes de guardar. Al guardar queda <span class="chip repar">Por repartir</span>.</li>
         <li>En el detalle, <b>Repartir</b>: a la misma sede queda disponible; a otra, se crea un despacho.</li>
       </ol>
+      <ul>
+        <li>Si un artículo de Kit/EPP aún no existe, usa <b>“¿No está en la lista? Crear artículo nuevo”</b>: se crea en el catálogo de la sede de llegada con stock 0, y el stock sube al repartir.</li>
+        <li>La garantía del equipo es opcional; si la escribes, no puede terminar antes de la fecha de la factura.</li>
+        <li>Una compra se edita o elimina solo mientras no se haya repartido nada.</li>
+      </ul>
       <figure>
         <button class="captura" type="button"><img src="img/35-compra-detalle.jpg" alt="Detalle de una compra" loading="lazy"></button>
         <figcaption>Una compra repartida en parte.</figcaption>
@@ -488,12 +496,13 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
 
     <section class="capitulo" id="despachos" aria-labelledby="t-desp">
       <h2 id="t-desp"><span class="num">10</span>Despachos</h2>
-      <p class="intro">Equipos que viajan entre sedes. Un equipo cambia de sede solo cuando el destino confirma que llegó.</p>
+      <p class="intro">Equipos y Kit/EPP que viajan entre sedes. Un equipo cambia de sede solo cuando el destino confirma que llegó. Cualquier usuario puede crear, recibir o anular un despacho de cualquier sede.</p>
       <ol class="pasos">
-        <li><b>Nuevo despacho</b>: sede origen, equipos disponibles a enviar, OT de Chilexpress, sede destino y quién recibe.</li>
+        <li><b>Nuevo despacho</b>: sede origen, equipos disponibles y/o Kit/EPP a enviar (el stock sale de la sede origen), OT de Chilexpress, sede destino y quién recibe.</li>
         <li>Los equipos quedan <span class="chip trans">En tránsito</span>.</li>
-        <li>En el destino, <b>Confirmar recepción</b>: lo que llegó queda disponible ahí. Lo que no llegó se marca perdido (baja por Extravío) y se puede recuperar si aparece.</li>
+        <li>En el destino, <b>Confirmar recepción</b>: lo que llegó queda disponible ahí. Lo que no llegó se marca perdido (baja por Extravío) y se puede recuperar si aparece. Cuando ya no queda nada en camino, el despacho queda <b>Completado</b>.</li>
       </ol>
+      <p><b>Descargar guía</b>: en el detalle del despacho se baja la guía de despacho en PDF (en cualquier estado), con el origen, el destino, quién recibe, la OT y lo que viaja. Una guía anulada lo indica.</p>
       <figure>
         <button class="captura" type="button"><img src="img/38-despacho-detalle.jpg" alt="Detalle de un despacho" loading="lazy"></button>
         <figcaption>Mientras viaja, un despacho hecho por error se puede anular.</figcaption>
@@ -565,11 +574,13 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
       <p>Se importaron sin ese dato. Búscalos con el filtro “Sin sede” y asígnala en Editar.</p>
       <h4>No puedo asignar una línea.</h4>
       <p>Ya la usa alguien: cambia con una solicitud (sigue a su celular; una eSIM se libera en el Offboarding).</p>
+      <h4>Aparece “El sistema no puede conectarse en este momento”.</h4>
+      <p>El servidor o la base de datos no responden. No es un error tuyo: espera unos minutos y vuelve a intentar. Si se repite, avisa a soporte.</p>
       <h4>Me sacó del sistema.</h4>
       <p>Tu sesión venció o se abrió en otro equipo. Vuelve a entrar; si no reconoces el otro ingreso, cambia tu contraseña.</p>
     </section>
 
-    <footer>Manual de usuario · Inventario IT de SCL Consultores · Octubre de 2026 · Capturas con datos de ejemplo.</footer>
+    <footer>Manual de usuario · Inventario IT de SCL Consultores · 13 de octubre de 2026 · Capturas con datos de ejemplo.</footer>
   </main>
 </div>
 

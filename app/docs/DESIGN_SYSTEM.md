@@ -47,6 +47,8 @@ pueden usar para estados. En modo oscuro se ajustan solas:
 - **50–300** (fondos suaves de badges y avisos) → tintes translúcidos.
 - **700–950** (texto de color) → tonos claros legibles.
 - **400–600** no cambian: sirven como relleno sólido o ícono.
+- Como **texto**, `text-*-600` usa el tono 700 de su escala (regla en `globals.css`, SPEC 2.158): así se lee en ambos temas.
+- Solo se usan escalas con versión oscura (`paletaTemas.test.ts`): nada de `violet`, `indigo`, `fuchsia` ni `pink`.
 
 Ejemplo correcto de badge: `bg-emerald-50 text-emerald-800 border-emerald-200`.
 Mejor aún: usa `ESTADO_ACTIVO_BADGE` de `lib/constants/estadosActivo.ts`.
