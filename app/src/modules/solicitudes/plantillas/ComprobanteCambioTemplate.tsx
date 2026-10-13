@@ -3,6 +3,7 @@ import { Document, Page, Text, View } from '@react-pdf/renderer';
 import { EMPRESA } from '@/modules/solicitudes/plantillas/pdfStyles';
 import { sclStyles as styles, LogoSCL } from '@/modules/solicitudes/plantillas/pdfSclBrand';
 import { TablaEquipoActa, type FilaEquipoActa } from '@/modules/solicitudes/plantillas/TablaEquipoActa';
+import { TablaLineasActa, type FilaLineaActa } from '@/modules/solicitudes/plantillas/TablaLineasActa';
 
 type Props = {
   empleadoNombre: string;
@@ -14,6 +15,8 @@ type Props = {
   /** Un equipo por cada par del cambio (SPEC 2.84), en el mismo orden. */
   equiposAnteriores: FilaEquipoActa[];
   equiposNuevos: FilaEquipoActa[];
+  /** Lineas que se asignan, cambian o vuelven con el celular (SPEC 2.143). */
+  lineas?: FilaLineaActa[];
   gestionadoPor: string;
 };
 
@@ -31,6 +34,7 @@ export function ComprobanteCambioTemplate({
   otNumero,
   equiposAnteriores,
   equiposNuevos,
+  lineas = [],
   gestionadoPor,
 }: Props) {
   return (
@@ -57,20 +61,25 @@ export function ComprobanteCambioTemplate({
 
         {/* Dos tablas compactas, cada una con los cargadores de sus equipos en
             su propia fila, para que todo (firmas incluidas) quepa en una hoja. */}
-        <TablaEquipoActa
-          titulo={equiposNuevos.length > 1 ? 'Equipos asignados (nuevos):' : 'Equipo asignado (nuevo):'}
-          columnaEstado="Estado"
-          filas={equiposNuevos}
-          compacta
-        />
-        <TablaEquipoActa
-          titulo={
-            equiposAnteriores.length > 1 ? 'Equipos devueltos (anteriores):' : 'Equipo devuelto (anterior):'
-          }
-          columnaEstado="Estado"
-          filas={equiposAnteriores}
-          compacta
-        />
+        {equiposNuevos.length > 0 && (
+          <TablaEquipoActa
+            titulo={equiposNuevos.length > 1 ? 'Equipos asignados (nuevos):' : 'Equipo asignado (nuevo):'}
+            columnaEstado="Estado"
+            filas={equiposNuevos}
+            compacta
+          />
+        )}
+        {equiposAnteriores.length > 0 && (
+          <TablaEquipoActa
+            titulo={
+              equiposAnteriores.length > 1 ? 'Equipos devueltos (anteriores):' : 'Equipo devuelto (anterior):'
+            }
+            columnaEstado="Estado"
+            filas={equiposAnteriores}
+            compacta
+          />
+        )}
+        <TablaLineasActa titulo="Líneas telefónicas:" filas={lineas} compacta />
 
         <Text style={styles.docObsCompacto}>
           <Text style={styles.italic}>

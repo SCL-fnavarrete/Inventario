@@ -221,9 +221,13 @@ export default async function DetalleActivoPage({
             <div>
               <p className="text-sm text-fg-subtle">Asignado a</p>
               <p className="font-medium text-fg">
-                {asset.empleadoActual
-                  ? `${asset.empleadoActual.nombres} ${asset.empleadoActual.apellidoPaterno}`
-                  : "Sin asignar"}
+                {asset.empleadoActual ? (
+                  <Link href={`/empleados/${asset.empleadoActualId}`} className="text-primary-700 hover:underline">
+                    {asset.empleadoActual.nombres} {asset.empleadoActual.apellidoPaterno}
+                  </Link>
+                ) : (
+                  "Sin asignar"
+                )}
               </p>
             </div>
           </div>

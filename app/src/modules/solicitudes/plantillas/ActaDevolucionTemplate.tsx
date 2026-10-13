@@ -3,6 +3,7 @@ import { Document, Page, Text, View } from '@react-pdf/renderer';
 import { EMPRESA } from '@/modules/solicitudes/plantillas/pdfStyles';
 import { sclStyles as styles, LogoSCL } from '@/modules/solicitudes/plantillas/pdfSclBrand';
 import { TablaEquipoActa, type FilaEquipoActa } from '@/modules/solicitudes/plantillas/TablaEquipoActa';
+import { TablaLineasActa, type FilaLineaActa } from '@/modules/solicitudes/plantillas/TablaLineasActa';
 
 type Props = {
   empleadoNombre: string;
@@ -12,6 +13,8 @@ type Props = {
   /** N° de OT si la devolucion fue por despacho (Chilexpress). */
   otNumero: string | null;
   assets: FilaEquipoActa[];
+  /** Lineas que vuelven con los celulares y eSIM que quedan disponibles (SPEC 2.143). */
+  lineas?: FilaLineaActa[];
   observacion: string;
   recibidoPor: string;
 };
@@ -30,6 +33,7 @@ export function ActaDevolucionTemplate({
   fechaDevolucion,
   otNumero,
   assets,
+  lineas = [],
   observacion,
   recibidoPor,
 }: Props) {
@@ -57,6 +61,7 @@ export function ActaDevolucionTemplate({
         </Text>
 
         <TablaEquipoActa titulo="Equipo devuelto:" columnaEstado="Estado" filas={assets} />
+        <TablaLineasActa titulo={lineas.length > 1 ? 'Líneas devueltas:' : 'Línea devuelta:'} filas={lineas} />
 
         <Text style={styles.docObs}>
           <Text style={styles.bold}>Observación: </Text>

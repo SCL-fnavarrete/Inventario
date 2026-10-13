@@ -3,6 +3,7 @@ import { Document, Page, Text, View } from '@react-pdf/renderer';
 import { EMPRESA } from '@/modules/solicitudes/plantillas/pdfStyles';
 import { sclStyles as styles, LogoSCL } from '@/modules/solicitudes/plantillas/pdfSclBrand';
 import { TablaEquipoActa, type FilaEquipoActa } from '@/modules/solicitudes/plantillas/TablaEquipoActa';
+import { TablaLineasActa, type FilaLineaActa } from '@/modules/solicitudes/plantillas/TablaLineasActa';
 
 type Props = {
   empleadoNombre: string;
@@ -10,6 +11,8 @@ type Props = {
   fecha: string;
   otNumero: string | null;
   assets: FilaEquipoActa[];
+  /** Lineas que se entregan con el equipo o a la persona (SPEC 2.143). */
+  lineas?: FilaLineaActa[];
   observacion: string;
   gestionadoPor: string;
 };
@@ -27,6 +30,7 @@ export function ComprobanteEntregaTemplate({
   fecha,
   otNumero,
   assets,
+  lineas = [],
   observacion,
   gestionadoPor,
 }: Props) {
@@ -52,6 +56,7 @@ export function ComprobanteEntregaTemplate({
         </Text>
 
         <TablaEquipoActa titulo="Equipo asignado:" columnaEstado="Entregado" filas={assets} />
+        <TablaLineasActa titulo={lineas.length > 1 ? 'Líneas asignadas:' : 'Línea asignada:'} filas={lineas} />
 
         <Text style={styles.docObs}>
           <Text style={styles.bold}>Observación: </Text>

@@ -224,8 +224,10 @@ export default function AsignacionDetailPage({
               </div>
               <div>
                 <p className="font-semibold text-lg">
-                  {assignment.employee.nombres} {assignment.employee.apellidoPaterno}{" "}
-                  {assignment.employee.apellidoMaterno}
+                  <Link href={`/empleados/${assignment.employee.id}`} className="text-primary-700 hover:underline">
+                    {assignment.employee.nombres} {assignment.employee.apellidoPaterno}{" "}
+                    {assignment.employee.apellidoMaterno}
+                  </Link>
                 </p>
                 <p className="text-fg-subtle font-mono">{assignment.employee.rut}</p>
               </div>

@@ -112,12 +112,6 @@ type Ficha = {
     condicion: string;
     fechaEntrega: string | null;
   }>;
-  kitBienvenida: {
-    entregado: boolean;
-  };
-  epp: {
-    entregado: boolean;
-  };
   resumen: {
     totalEquiposAsignados: number;
     cantidadNotebooks: number;
@@ -563,63 +557,6 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       )}
-
-      {/* Kit Bienvenida y EPP */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Kit Bienvenida */}
-        <div className="card">
-          <div className="px-6 py-4 border-b flex items-center gap-3 bg-surface-muted">
-            <Gift className="text-pink-600" />
-            <h3 className="text-lg font-semibold">Kit de Bienvenida</h3>
-          </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-fg-subtle">Estado</span>
-                <span className={cn(
-                  "px-3 py-1 text-sm font-medium rounded-full flex items-center gap-1",
-                  ficha.kitBienvenida.entregado
-                    ? "bg-green-100 text-green-800"
-                    : "bg-gray-100 text-fg"
-                )}>
-                  {ficha.kitBienvenida.entregado ? (
-                    <><CheckCircle size={16} /> Entregado</>
-                  ) : (
-                    <><XCircle size={16} /> Pendiente</>
-                  )}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* EPP */}
-        <div className="card">
-          <div className="px-6 py-4 border-b flex items-center gap-3 bg-surface-muted">
-            <HardHat className="text-yellow-600" />
-            <h3 className="text-lg font-semibold">EPP</h3>
-          </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-fg-subtle">Estado</span>
-                <span className={cn(
-                  "px-3 py-1 text-sm font-medium rounded-full flex items-center gap-1",
-                  ficha.epp.entregado
-                    ? "bg-green-100 text-green-800"
-                    : "bg-gray-100 text-fg"
-                )}>
-                  {ficha.epp.entregado ? (
-                    <><CheckCircle size={16} /> Entregado</>
-                  ) : (
-                    <><XCircle size={16} /> Pendiente</>
-                  )}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Todo lo que se le ha asignado a lo largo del tiempo (SPEC 2.132) */}
       <HistorialAsignaciones empleadoId={ficha.empleado.id} />

@@ -1278,7 +1278,9 @@ export default function SolicitudDetailPage() {
               <div>
                 <dt className="text-fg-subtle">Empleado</dt>
                 <dd className="font-medium text-fg">
-                  {data.employee.nombres} {data.employee.apellidoPaterno}
+                  <Link href={`/empleados/${data.employee.id}`} className="text-primary-700 hover:underline">
+                    {data.employee.nombres} {data.employee.apellidoPaterno}
+                  </Link>
                 </dd>
                 <dd className="text-xs text-fg-subtle">
                   {data.employee.rut || '—'} · {data.employee.correoPersonal}

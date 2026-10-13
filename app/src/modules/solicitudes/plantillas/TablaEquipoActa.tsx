@@ -37,6 +37,9 @@ const CELDA_COMPACTA = { fontSize: 8, padding: 3, lineHeight: 1.25 } as const;
 // la linea siguiente entre palabras.
 const palabraEntera = (palabra: string) => [palabra];
 
+// El estado va una palabra por linea ("Buen" / "estado") y sin cortar palabras.
+const unaPalabraPorLinea = (texto: string) => texto.split(' ').join(String.fromCharCode(10));
+
 /**
  * Tabla de equipos compartida por el Comprobante de Entrega, el Acta de
  * Devolucion y el Comprobante de Cambio. El titulo de la ultima columna
@@ -112,8 +115,11 @@ export function TablaEquipoActa({
               <Text style={[styles.tableCell, celda, { width: ANCHO.especificaciones }]}>
                 {fila.especificaciones || '—'}
               </Text>
-              <Text style={[styles.tableCell, celda, { width: ANCHO.estado, textAlign: 'center' }]}>
-                {fila.estado}
+              <Text
+                hyphenationCallback={palabraEntera}
+                style={[styles.tableCell, celda, { width: ANCHO.estado, textAlign: 'center' }]}
+              >
+                {unaPalabraPorLinea(fila.estado)}
               </Text>
             </View>
             {fila.cargador && (
@@ -134,7 +140,7 @@ export function TablaEquipoActa({
                   {fila.cargador.observacion || '—'}
                 </Text>
                 <Text hyphenationCallback={palabraEntera} style={[styles.tableCell, celda, { width: ANCHO.estado, textAlign: 'center' }]}>
-                  {fila.cargador.condicion}
+                  {unaPalabraPorLinea(fila.cargador.condicion)}
                 </Text>
               </View>
             )}

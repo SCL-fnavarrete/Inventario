@@ -6,6 +6,9 @@ import { ComprobanteEntregaTemplate } from '@/modules/solicitudes/plantillas/Com
 import { ComprobanteCambioTemplate } from '@/modules/solicitudes/plantillas/ComprobanteCambioTemplate';
 import { ActaDevolucionTemplate } from '@/modules/solicitudes/plantillas/ActaDevolucionTemplate';
 import type { FilaEquipoActa } from '@/modules/solicitudes/plantillas/TablaEquipoActa';
+import type { FilaLineaActa } from '@/modules/solicitudes/plantillas/TablaLineasActa';
+import { detalleSolicitud } from '@/modules/solicitudes/lecturas';
+import { formatearNumero } from '@/modules/lineas';
 import { prisma } from '@/shared/prisma';
 import {
   asignacionesDelTicket,
@@ -19,6 +22,7 @@ import {
   LINEAS_DEL_EQUIPO,
   type ActivoParaSpecs,
   etiquetaCondicionCargador,
+  etiquetaEstadoDevolucion,
   type ContextoCargador,
 } from '@/modules/activos';
 import { formatearFecha } from "@/shared/utilidades/fechas";
@@ -86,16 +90,42 @@ export function filaEquipo(
   };
 }
 
-// Fila vacia para un equipo que no se encontro (ticket sin asignacion).
-const FILA_VACIA: FilaEquipoActa = {
-  equipo: '—',
-  marca: '—',
-  numeroSerie: null,
-  descripcion: '—',
-  especificaciones: '',
-  estado: '—',
-  cargador: null,
+// Linea para su fila en la tabla de lineas del acta (SPEC 2.143).
+type LineaDelDocumento = {
+  numero: string;
+  tipoChip: { nombre: string; sinCelular: boolean } | null;
+  operador: { nombre: string } | null;
+  activo: { marca: string; modelo: string } | null;
 };
+function filaLinea(l: LineaDelDocumento, movimiento: string): FilaLineaActa {
+  return {
+    numero: formatearNumero(l.numero),
+    tipoChip: l.tipoChip?.nombre ?? '—',
+    operador: l.operador?.nombre ?? '—',
+    ubicacion: l.activo ? `${l.activo.marca} ${l.activo.modelo}` : l.tipoChip?.sinCelular ? 'eSIM de la persona' : 'Sin celular',
+    movimiento,
+  };
+}
+
+/**
+ * Las lineas que la solicitud entrego, cambio o devolvio, con lo que paso con
+ * cada una: salen del mismo detalle que ve el tecnico, asi el acta y la
+ * pantalla dicen lo mismo. Sin lineas, el acta no imprime la tabla.
+ */
+async function lineasDelDocumento(solicitudId: string): Promise<FilaLineaActa[]> {
+  const d = await detalleSolicitud(solicitudId);
+  const asignada = d.lineasEntregadas.map((l) => filaLinea(l, 'Asignada'));
+  const conCelular = d.lineasDevueltas.map((l) => filaLinea(l, 'Devuelta con el celular'));
+  if (d.tipo === 'offboarding') return [...conCelular, ...d.esimLiberadas.flatMap((l) => (l ? [filaLinea(l, 'eSIM liberada')] : []))];
+  if (d.tipo === 'cambio_equipo') {
+    const cambiadas = d.lineasCambiadas.flatMap(({ anterior, nueva }) => [
+      ...(anterior ? [filaLinea(anterior, 'Devuelta (queda disponible)')] : []),
+      ...(nueva ? [filaLinea(nueva, 'Asignada')] : []),
+    ]);
+    return [...cambiadas, ...conCelular, ...asignada];
+  }
+  return asignada;
+}
 
 // Cargador para su fila en la tabla del acta: la condicion y la observacion
 // del momento que muestra el acta, entrega o devolucion (SPEC 2.121: cada una
@@ -191,7 +221,7 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
       ? await asignacionesDelTicket(solicitud.assignmentIds)
       : solicitud.employee.assignments;
   const assets = asignaciones.map((a) =>
-    filaEquipo(a.asset, 'OK', textoCargador(a, 'entrega'))
+    filaEquipo(a.asset, etiquetaEstadoDevolucion('ok'), textoCargador(a, 'entrega'))
   );
 
   // Coordinacion "por OT": se agrega la clausula de OT a la intro cuando
@@ -205,6 +235,7 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
     fecha: fechaDocumentoLarga(solicitud.fechaEntregaCoordinada ?? solicitud.createdAt),
     otNumero,
     assets,
+    lineas: await lineasDelDocumento(solicitudId),
     observacion: solicitud.observaciones || 'n/a',
     // Firma solo con nombre y empresa, sin correo.
     gestionadoPor: (solicitud.responsableActual || solicitud.solicitante).nombre,
@@ -229,26 +260,16 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
     await asignacionesDelTicket(solicitud.assignmentIds)
   );
 
-  const equiposNuevos = pares.map(({ nuevo: a }) =>
-    a
-      ? filaEquipo(a.asset, 'Entregado OK', textoCargador(a, 'entrega'))
-      : FILA_VACIA
+  // Un cambio solo de lineas, o de un celular por eSIM, no tiene equipo nuevo (o anterior):
+  // esa tabla no se imprime en vez de llevar una fila vacia.
+  const equiposNuevos = pares.flatMap(({ nuevo: a }) =>
+    a ? [filaEquipo(a.asset, etiquetaEstadoDevolucion('ok'), textoCargador(a, 'entrega'))] : []
   );
-  // El estado es el real de la devolucion (antes decia siempre "Devolución OK").
-  const equiposAnteriores = pares.map(({ anterior: a }) =>
+  // El estado es el real de la devolucion, con las mismas palabras de toda la app.
+  const equiposAnteriores = pares.flatMap(({ anterior: a }) =>
     a
-      ? filaEquipo(
-          a.asset,
-          a.estadoDevolucion === 'danado'
-            ? 'Devuelto dañado'
-            : a.estadoDevolucion === 'no_devuelto'
-              ? 'No devuelto'
-              : a.estadoDevolucion === 'baja'
-                ? 'Baja'
-                : 'Devolución OK',
-          textoCargador(a, 'devolucion')
-        )
-      : FILA_VACIA
+      ? [filaEquipo(a.asset, etiquetaEstadoDevolucion(a.estadoDevolucion ?? 'ok'), textoCargador(a, 'devolucion'))]
+      : []
   );
 
   // Coordinacion "por OT": clausula de OT en la intro, igual que la entrega.
@@ -260,8 +281,9 @@ export async function generateComprobanteCambio(solicitudId: string): Promise<Bu
     fecha: fechaDocumento(solicitud.fechaCambioCoordinada ?? solicitud.createdAt),
     motivoCambio: solicitud.motivoCambio || '—',
     otNumero,
-    equiposNuevos: equiposNuevos.length > 0 ? equiposNuevos : [FILA_VACIA],
-    equiposAnteriores: equiposAnteriores.length > 0 ? equiposAnteriores : [FILA_VACIA],
+    equiposNuevos,
+    equiposAnteriores,
+    lineas: await lineasDelDocumento(solicitudId),
     // Solo el nombre, sin correo entre parentesis -- mismo criterio que
     // el Comprobante de Entrega.
     gestionadoPor: (solicitud.responsableActual || solicitud.solicitante).nombre,
@@ -311,13 +333,7 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
   const assets = returnedAssignments.map((a) =>
     filaEquipo(
       a.asset,
-      a.estadoDevolucion === 'ok'
-        ? 'OK'
-        : a.estadoDevolucion === 'danado'
-          ? 'No OK'
-          : a.estadoDevolucion === 'no_devuelto'
-            ? 'No devuelto'
-            : a.estadoDevolucion || 'OK',
+      etiquetaEstadoDevolucion(a.estadoDevolucion ?? 'ok'),
       textoCargador(a, 'devolucion')
     )
   );
@@ -332,6 +348,7 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
     fechaDevolucion: fechaDocumento(solicitud.fechaDevolucionCoordinada ?? solicitud.createdAt),
     otNumero,
     assets,
+    lineas: await lineasDelDocumento(solicitudId),
     observacion: solicitud.observaciones || 'n/a',
     // Solo nombre, sin correo -- mismo criterio que el resto de los
     // documentos.

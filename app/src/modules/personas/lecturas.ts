@@ -324,15 +324,6 @@ export async function fichaEmpleado(id: string) {
       fechaEntrega: a.fechaEntrega,
     })),
 
-    // Kit de bienvenida y EPP: solo el estado de entrega.
-    kitBienvenida: {
-      entregado: kitEntregado,
-    },
-
-    epp: {
-      entregado: eppEntregado,
-    },
-
     // Resumen
     resumen: {
       totalEquiposAsignados: activeAssignments.length,
