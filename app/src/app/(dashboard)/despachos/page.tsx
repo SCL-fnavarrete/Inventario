@@ -22,7 +22,17 @@ type Resumen = {
   anuladas: number;
   porRecibir: number;
   equiposEnTransito: number;
+  kitEnTransito: number;
 };
+
+/** Lo que viaja, para la tarjeta "En tránsito": equipos y unidades de Kit/EPP. */
+function queViaja(equipos: number, kit: number): string {
+  const partes = [
+    equipos > 0 && `${equipos} equipo${equipos === 1 ? "" : "s"}`,
+    kit > 0 && `${kit} unidad${kit === 1 ? "" : "es"} de Kit/EPP`,
+  ].filter(Boolean);
+  return partes.length > 0 ? `${partes.join(" y ")} viajando` : "Nada viajando";
+}
 
 export default function GuiasDespachoPage() {
   const [guides, setGuides] = useState<DispatchGuideListItem[]>([]);
@@ -121,7 +131,7 @@ export default function GuiasDespachoPage() {
           tilt
           label="En tránsito"
           value={resumen?.enTransito ?? 0}
-          hint={`${resumen?.equiposEnTransito ?? 0} equipo${resumen?.equiposEnTransito === 1 ? "" : "s"} viajando`}
+          hint={queViaja(resumen?.equiposEnTransito ?? 0, resumen?.kitEnTransito ?? 0)}
           tone="primary"
           icon={Truck}
           {...tarjeta("en_transito")}

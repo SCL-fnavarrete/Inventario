@@ -5,7 +5,7 @@
  */
 import { randomUUID } from 'crypto';
 import { prisma } from '@/shared/prisma';
-import { registrarDespacho, confirmarRecepcion, anularDespacho } from '@/modules/despachos/servidor';
+import { registrarDespacho, confirmarRecepcion, anularDespacho, resumenDespachos } from '@/modules/despachos/servidor';
 
 const hayBaseDePrueba = (process.env.DATABASE_URL ?? '').includes('_test');
 const describir = hayBaseDePrueba ? describe : describe.skip;
@@ -89,5 +89,14 @@ describir('despacho con Kit/EPP, en Postgres', () => {
     expect(await stock(ids.item)).toBe(5);
     const destino = await prisma.welcomeKitItem.findFirstOrThrow({ where: { sedeId: ids.destino, nombre: ids.nombre } });
     expect(destino.cantidad).toBe(5);
+  });
+
+  test('la tarjeta "En tránsito" cuenta las unidades de Kit/EPP que viajan', async () => {
+    const antes = (await resumenDespachos(ids.destino)).kitEnTransito;
+    const guia = await despachar({ kit: [{ itemId: ids.item, cantidad: 4 }] });
+    expect((await resumenDespachos(ids.destino)).kitEnTransito).toBe(antes + 4);
+    const linea = await prisma.dispatchGuideKitItem.findFirstOrThrow({ where: { guideId: guia.id } });
+    await confirmarRecepcion(guia.id, { fechaRecepcion: new Date().toISOString(), kitRecibido: [{ lineaId: linea.id, cantidad: 4 }] }, quien);
+    expect((await resumenDespachos(ids.destino)).kitEnTransito).toBe(antes);
   });
 });

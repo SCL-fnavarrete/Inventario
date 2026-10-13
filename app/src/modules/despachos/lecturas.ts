@@ -72,7 +72,7 @@ export async function resumenDespachos(sedeId: string) {
   const base = porSede(sedeId);
   const contar = (condicion?: Prisma.DispatchGuideWhereInput) =>
     prisma.dispatchGuide.count({ where: { AND: condicion ? [...base, condicion] : base } });
-  const [total, enTransito, conFaltantes, recibidas, anuladas, porRecibir, equiposEnTransito] = await Promise.all([
+  const [total, enTransito, conFaltantes, recibidas, anuladas, porRecibir, equiposEnTransito, kit] = await Promise.all([
     contar(),
     contar(VISTAS_GUIA.en_transito()),
     contar(VISTAS_GUIA.recibida_parcial()),
@@ -84,6 +84,13 @@ export async function resumenDespachos(sedeId: string) {
     prisma.dispatchGuideItem.count({
       where: { estado: 'en_transito', guide: { AND: [...base, { estado: { not: 'anulada' } }] } },
     }),
+    // Unidades de Kit/EPP que siguen viajando: lo enviado menos lo recibido y lo perdido.
+    prisma.dispatchGuideKitItem.aggregate({
+      where: { guide: { AND: [...base, { estado: { not: 'anulada' } }] } },
+      _sum: { cantidad: true, cantidadRecibida: true, cantidadPerdida: true },
+    }),
   ]);
-  return { total, enTransito, conFaltantes, recibidas, anuladas, porRecibir, equiposEnTransito };
+  const kitEnTransito =
+    (kit._sum.cantidad ?? 0) - (kit._sum.cantidadRecibida ?? 0) - (kit._sum.cantidadPerdida ?? 0);
+  return { total, enTransito, conFaltantes, recibidas, anuladas, porRecibir, equiposEnTransito, kitEnTransito };
 }

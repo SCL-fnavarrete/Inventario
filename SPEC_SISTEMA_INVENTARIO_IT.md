@@ -4193,6 +4193,11 @@ La guía en PDF (`GET /api/guias-despacho/[id]/documento`) ya no usa el formato 
 ### 2.158 Texto de color legible en claro y oscuro (13-oct-2026)
 Los tonos `-600` de las escalas de estado sirven como relleno e ícono, pero como **texto** no llegaban al contraste mínimo de 4,5:1 (medido: `text-green-600` 3,3 y `text-amber-600` 3,2 en claro; `text-red-600` 3,6 y `text-purple-600` 3,3 en oscuro). En `globals.css`, fuera de `@layer`, `text-{red,green,emerald,orange,amber,yellow,purple,blue,sky,primary}-600` usan el tono `-700` de su escala: en claro queda entre 4,9 y 7,0, y en oscuro el `-700` ya es un tono claro. Los rellenos (`bg-*-600`) no cambian. Además, `paletaTemas.test.ts` impide usar en pantallas una escala sin versión oscura (violet, indigo, fuchsia, pink): en Auditoría se cambiaron fucsia e índigo por celeste y azul.
 
+### 2.159 Tarjeta "En tránsito" con Kit/EPP, y fecha del acta de devolución (13-oct-2026)
+- La tarjeta "En tránsito" de Despachos decía "N equipos viajando" y no contaba el Kit/EPP: un despacho solo de Kit/EPP mostraba "0 equipos". Ahora `resumenDespachos` devuelve también `kitEnTransito` (unidades enviadas menos recibidas y perdidas, de despachos no anulados) y la tarjeta dice, por ejemplo, "2 equipos y 5 unidades de Kit/EPP viajando" (o "Nada viajando").
+- **Decisión del usuario:** el acta de devolución usa la **fecha coordinada** de la devolución (o la de creación de la solicitud si no hay), no la del cierre. Se mantiene así a propósito.
+- **Decisión del usuario:** el borrador de Nueva solicitud no necesita recordar las líneas elegidas.
+
 ## Changelog SPEC
 - **v2.70 (2026-10-13):**
   - 2.147: Programar mantención solo busca equipos disponibles y asignados; el filtro `estado` de Activos acepta varios separados por coma.
@@ -4203,6 +4208,7 @@ Los tonos `-600` de las escalas de estado sirven como relleno e ícono, pero com
   - 2.157: guía de despacho en PDF con diseño sobrio, sin firmas.
   - 2.158: texto de color legible en ambos temas y prueba de la paleta.
   - Login sin usuario ni contraseña de ejemplo; ventana de reparto más grande.
+  - 2.159: la tarjeta "En tránsito" cuenta también el Kit/EPP que viaja; fecha del acta de devolución = fecha coordinada (decisión).
 - **v2.69 (2026-10-07):**
   - Sección 2.138: **sin ubicación física en el equipo** (migración `quitar_ubicacion_fisica`): ningún proceso la pide y sale de Crear/Editar, ficha, búsqueda, exportación e importación; la ubicación es la sede del equipo y la de la persona asignada. Buscador (`SelectorBuscable`) al elegir equipos en Cambio de equipo y Onboarding, y al elegir teléfono o persona en Líneas.
   - Sección 2.139 (nueva): **`TablaDatos`**, una sola tabla para todas las listas (acciones fijas, fila expandible, lista compacta en celular, cargando y vacío), y una sola paginación con números de página. Sin cambios en datos ni filtros.
