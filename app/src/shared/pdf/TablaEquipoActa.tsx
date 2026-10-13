@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, View } from '@react-pdf/renderer';
-import { sclStyles as styles } from '@/modules/solicitudes/plantillas/pdfSclBrand';
+import { sclStyles as styles } from '@/shared/pdf/pdfSclBrand';
 
 /** Una fila de la tabla de equipos de un acta o comprobante. */
 export type FilaEquipoActa = {

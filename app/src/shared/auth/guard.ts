@@ -230,6 +230,21 @@ export function handleApiError(
     return NextResponse.json({ error: 'Algún dato enviado no es válido' }, { status: 400 });
   }
 
+  // Base de datos que no responde (apagada, sin red, conexiones agotadas): la
+  // persona ve un aviso simple, sin direcciones ni datos del servidor.
+  if (
+    error instanceof Prisma.PrismaClientInitializationError ||
+    error instanceof Prisma.PrismaClientRustPanicError ||
+    (error instanceof Prisma.PrismaClientKnownRequestError &&
+      ['P1001', 'P1002', 'P1008', 'P1017', 'P2024'].includes(error.code))
+  ) {
+    logger.error('[api] Base de datos no disponible', error);
+    return NextResponse.json(
+      { error: 'El sistema no puede conectarse en este momento. Intenta de nuevo en unos minutos.' },
+      { status: 503 }
+    );
+  }
+
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === 'P2002') {
       const camposArr = (error.meta?.target as string[] | undefined) ?? [];

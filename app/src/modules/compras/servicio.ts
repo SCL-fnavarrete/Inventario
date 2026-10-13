@@ -31,8 +31,8 @@ type Tx = Prisma.TransactionClient;
 
 /**
  * Compras (SPEC 2.111): primero se compra, despues se reparte. Lo comprado
- * espera "Por repartir" en la sede de llegada; el reparto lo hace el admin
- * desde la compra. Aqui vive lo que comparten las rutas de una compra.
+ * espera "Por repartir" en la sede de llegada; el reparto se hace
+ * desde la compra (admin y técnico). Aqui vive lo que comparten las rutas de una compra.
  */
 
 type CompraBase = { id: string; sedeId: string | null; numeroFactura: string | null; fechaFactura: Date };
@@ -421,6 +421,15 @@ export async function editarCompra(
     if (!sede) throw new NotFoundError('La sede de llegada no existe');
   }
 
+  // Una factura no puede quedar sin numero; solo un gasto menor.
+  const tipoFinal = data.tipoCompra ?? existente.tipoCompra;
+  const numeroFinal = data.numeroFactura === undefined ? existente.numeroFactura : data.numeroFactura;
+  if (tipoFinal === 'FACTURA' && !numeroFinal?.trim()) {
+    throw new ValidationError('Datos inválidos', [
+      { field: 'numeroFactura', message: 'Escribe el número de factura' },
+    ]);
+  }
+
   if (data.numeroFactura) {
     const duplicada = await prisma.purchase.findFirst({
       where: { numeroFactura: data.numeroFactura, id: { not: id } },
@@ -518,7 +527,7 @@ export async function eliminarCompra(id: string, usuario: string) {
 }
 
 /**
- * Registrar una compra (POST /api/compras, SPEC 2.111.1, solo admin). Lo
+ * Registrar una compra (POST /api/compras, SPEC 2.111.1; admin y técnico). Lo
  * comprado queda "Por repartir" en la sede de llegada: los equipos nuevos se
  * crean aqui mismo y el Kit/EPP no suma stock hasta repartirlo. Todo en una
  * transaccion: si un equipo no se puede crear (N° de serie repetido), no

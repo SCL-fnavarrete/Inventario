@@ -175,9 +175,10 @@ const PIXEL_ROWS = [
   ['transparent', '#e84545', '#2a8fd9'],
 ];
 
-export function LogoSCL() {
+/** `margenInferior`: espacio bajo el logo (las actas dejan 38; la guia de despacho usa 0). */
+export function LogoSCL({ margenInferior = 38 }: { margenInferior?: number } = {}) {
   return (
-    <View style={sclStyles.docHeader}>
+    <View style={[sclStyles.docHeader, { marginBottom: margenInferior }]}>
       <View style={sclStyles.logoBlock}>
         <View style={sclStyles.logoPixelsCol}>
           {PIXEL_ROWS.map((row, i) => (

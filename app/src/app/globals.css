@@ -582,3 +582,23 @@ textarea::placeholder {
 :focus:not(:focus-visible) {
   outline: none;
 }
+
+/* ========================================
+   TEXTO DE COLOR LEGIBLE EN AMBOS TEMAS (SPEC 2.158)
+   Los tonos 600 sirven para rellenos e iconos, pero como texto no llegaban
+   al contraste minimo (4,5:1): verde, naranjo, ambar y amarillo en claro;
+   rojo, morado, azul y celeste en oscuro. Como texto se usa el tono 700 de
+   la misma escala: en claro es mas oscuro y en oscuro ya es un tono claro.
+   Va fuera de @layer para ganarle a la utilidad generada; los rellenos
+   (bg-*-600) no cambian.
+   ======================================== */
+.text-red-600 { color: var(--color-red-700); }
+.text-green-600 { color: var(--color-green-700); }
+.text-emerald-600 { color: var(--color-emerald-700); }
+.text-orange-600 { color: var(--color-orange-700); }
+.text-amber-600 { color: var(--color-amber-700); }
+.text-yellow-600 { color: var(--color-yellow-700); }
+.text-purple-600 { color: var(--color-purple-700); }
+.text-blue-600 { color: var(--color-blue-700); }
+.text-sky-600 { color: var(--color-sky-700); }
+.text-primary-600 { color: var(--color-primary-700); }

@@ -188,4 +188,18 @@ describe('createPurchaseWithAssetsSchema', () => {
   test('una compra con equipos nuevos es válida', () => {
     expect(createPurchaseWithAssetsSchema.safeParse({ ...base, equiposNuevos: [eq('S1')] }).success).toBe(true);
   });
+  test('una factura sin número no es válida', () => {
+    const r = createPurchaseWithAssetsSchema.safeParse({ ...base, numeroFactura: ' ', equiposNuevos: [eq('S1')] });
+    expect(r.error?.issues.map((i) => i.path[0])).toContain('numeroFactura');
+  });
+
+  test('un gasto menor puede ir sin número de factura', () => {
+    const r = createPurchaseWithAssetsSchema.safeParse({
+      ...base,
+      tipoCompra: 'GASTO_MENOR',
+      numeroFactura: undefined,
+      equiposNuevos: [eq('S1')],
+    });
+    expect(r.success).toBe(true);
+  });
 });

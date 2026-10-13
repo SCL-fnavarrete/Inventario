@@ -17,6 +17,7 @@ import {
 import {
   estadoTrasMantencion,
   motivoSinBaja,
+  motivoSinEsperaDeRepuestos,
   etiquetaCondicionActivo,
   etiquetaEstadoActivo,
   identificadorActivo,
@@ -361,6 +362,7 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
   // "Sin reparación" da de baja: misma regla que el servidor, avisada antes
   // (SPEC 2.106). Un equipo que sigue asignado a su dueño no se da de baja.
   const bloqueoBaja = motivoSinBaja(maintenance.asset);
+  const bloqueoRepuestos = motivoSinEsperaDeRepuestos(maintenance.asset);
   const opcionElegida =
     OPCIONES_RESULTADO.find((o) => o.valor === completeForm.resultadoTipo) ?? OPCIONES_RESULTADO[0];
 
@@ -528,7 +530,12 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
                     {OPCIONES_RESULTADO.map((o) => {
                       const elegido = completeForm.resultadoTipo === o.valor;
                       const Icono = o.icono;
-                      const bloqueo = o.valor === "no_reparable" ? bloqueoBaja : null;
+                      const bloqueo =
+                        o.valor === "no_reparable"
+                          ? bloqueoBaja
+                          : o.valor === "pendiente_repuestos"
+                            ? bloqueoRepuestos
+                            : null;
                       return (
                         <button
                           key={o.valor}

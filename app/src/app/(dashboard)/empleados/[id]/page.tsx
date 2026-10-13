@@ -1,5 +1,6 @@
 "use client";
 
+import { mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import {
@@ -152,7 +153,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
       const data = await res.json();
       setFicha(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(mensajeDeError(err, "Error desconocido"));
     } finally {
       setLoading(false);
     }

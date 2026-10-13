@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { parseApiError, type FieldErrors, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { ActivoForm, payloadActivo, type ActivoFormValues } from "@/modules/activos/componentes";
@@ -31,7 +31,7 @@ export default function NuevoActivoPage() {
       router.push("/activos");
     } catch (err) {
       logger.error("Error creating asset", err);
-      setError(err instanceof Error ? err.message : "Error al crear activo");
+      setError(mensajeDeError(err, "Error al crear activo"));
     }
   }
 

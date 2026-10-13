@@ -5,3 +5,4 @@ export {
   VentanaKitDespacho,
   type AccionKitDespacho,
 } from '@/modules/despachos/componentes/VentanaKitDespacho';
+export { SelectorKit } from '@/modules/despachos/componentes/SelectorKit';

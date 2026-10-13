@@ -20,6 +20,15 @@ interface GuiaDespachoTableProps {
 // (mismo patron que Solicitudes). Tocar el numero abre el detalle.
 const soloEscritorio = "hidden md:table-cell";
 
+/** Qué lleva el despacho, sin contar en cero: "2 equipos", "1 artículo de Kit/EPP". */
+function contenido(g: { _count: { items: number; kitItems: number } }) {
+  const { items, kitItems } = g._count;
+  return [
+    items > 0 && `${items} ${items === 1 ? "equipo" : "equipos"}`,
+    kitItems > 0 && `${kitItems} ${kitItems === 1 ? "artículo" : "artículos"} de Kit/EPP`,
+  ].filter(Boolean) as string[];
+}
+
 export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
   return (
     <TablaDatos
@@ -45,8 +54,7 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
                 {g.sede?.nombre || "-"} → {g.sedeDestino?.nombre || "-"}
               </div>
               <div className="text-xs text-fg-subtle md:hidden">
-                {formatearFechaCorta(g.fechaDespacho)} · {g._count.items} {g._count.items === 1 ? "equipo" : "equipos"}
-                {g._count.kitItems > 0 && ` + Kit/EPP`}
+                {formatearFechaCorta(g.fechaDespacho)} · {contenido(g).join(" + ")}
               </div>
             </>
           ),
@@ -57,15 +65,10 @@ export function GuiaDespachoTable({ guides, loading }: GuiaDespachoTableProps) {
         { titulo: "Sede destino", sinSalto: true, className: cn(soloEscritorio, "text-fg"), celda: (g) => g.sedeDestino?.nombre || "-" },
         { titulo: "Receptor", sinSalto: true, className: cn(soloEscritorio, "text-fg"), celda: (g) => g.receptorNombre },
         {
-          titulo: "Items",
+          titulo: "Contenido",
           sinSalto: true,
           className: cn(soloEscritorio, "text-fg-subtle"),
-          celda: (g) => (
-            <>
-              {g._count.items}
-              {g._count.kitItems > 0 && <span className="block text-xs">+ {g._count.kitItems} Kit/EPP</span>}
-            </>
-          ),
+          celda: (g) => contenido(g).map((c) => <span key={c} className="block">{c}</span>),
         },
         {
           titulo: "Estado",

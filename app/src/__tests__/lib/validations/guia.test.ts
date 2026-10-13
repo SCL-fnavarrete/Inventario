@@ -35,21 +35,17 @@ describe('validarNuevaGuia', () => {
 describe('validarRecepcion', () => {
   const envio = '2026-09-25T13:30:00.000Z';
 
-  test('con quien recibio y fecha posterior al envio no hay errores', () => {
-    expect(validarRecepcion({ recibidoPor: 'Ana', fechaRecepcion: '2026-09-26T10:00:00.000Z' }, envio)).toEqual({});
+  test('con fecha posterior al envio no hay errores', () => {
+    expect(validarRecepcion({ fechaRecepcion: '2026-09-26T10:00:00.000Z' }, envio)).toEqual({});
   });
 
   test('sin fecha de recepcion se acepta (se usa ahora)', () => {
-    expect(validarRecepcion({ recibidoPor: 'Ana' }, envio)).toEqual({});
-  });
-
-  test('falta quien recibio', () => {
-    expect(validarRecepcion({ recibidoPor: '  ' }, envio).recibidoPor).toMatch(/quién recibió/);
+    expect(validarRecepcion({}, envio)).toEqual({});
   });
 
   test('la recepcion no puede ser anterior al envio', () => {
     expect(
-      validarRecepcion({ recibidoPor: 'Ana', fechaRecepcion: '2026-09-25T13:00:00.000Z' }, envio).fechaRecepcion
+      validarRecepcion({ fechaRecepcion: '2026-09-25T13:00:00.000Z' }, envio).fechaRecepcion
     ).toMatch(/anterior/);
   });
 });

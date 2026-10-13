@@ -10,7 +10,7 @@ import {
 } from '@/modules/compras/servicio';
 
 /**
- * Lo que se agrega o se quita de una compra ya registrada (solo admin):
+ * Lo que se agrega o se quita de una compra ya registrada (admin y técnico):
  * equipos y lineas de Kit/EPP (SPEC 2.111).
  */
 

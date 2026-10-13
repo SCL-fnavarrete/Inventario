@@ -16,6 +16,32 @@ interface ApiErrorBody {
   details?: unknown;
 }
 
+export const MENSAJE_SIN_CONEXION =
+  'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.';
+
+/**
+ * Mensaje de un error capturado en una pantalla. Los que vienen de la API ya
+ * son simples y se muestran tal cual; los técnicos del navegador ("Failed to
+ * fetch", "Unexpected token <"...) o con datos internos (Prisma, rutas) se
+ * cambian por un aviso que la persona entienda.
+ */
+export function mensajeDeError(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) return fallback;
+  const texto = error.message?.trim();
+  if (!texto) return fallback;
+  if (/failed to fetch|networkerror|load failed|network request failed|fetch failed/i.test(texto)) {
+    return MENSAJE_SIN_CONEXION;
+  }
+  if (
+    error.name === 'SyntaxError' ||
+    /unexpected token|is not valid json|invocation|prisma|econnrefused|[a-z]:\|\.next|at \S+ \(/i.test(texto) ||
+    texto.length > 300
+  ) {
+    return fallback;
+  }
+  return texto;
+}
+
 /** Convierte `details` (en cualquiera de los dos formatos soportados) a un mapa campo -> mensaje. */
 export function parseFieldErrors(details: unknown): FieldErrors {
   const result: FieldErrors = {};

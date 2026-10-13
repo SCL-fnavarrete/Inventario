@@ -1,6 +1,6 @@
 import React from 'react';
 import { Document, Page, Text, View } from '@react-pdf/renderer';
-import { styles, EMPRESA } from '@/modules/solicitudes/plantillas/pdfStyles';
+import { styles, EMPRESA } from '@/shared/pdf/pdfStyles';
 
 type AssetInfo = {
   tipo: string;

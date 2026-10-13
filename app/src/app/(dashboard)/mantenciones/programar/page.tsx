@@ -8,7 +8,7 @@ import { motivoSinMantencion, identificadorActivo } from "@/modules/activos";
 import { cn } from "@/shared/cn";
 import { hoyISO } from "@/shared/utilidades/fechas";
 import { avisoFechaPasada } from "@/modules/mantenciones";
-import { parseApiError } from "@/shared/utilidades/apiErrors";
+import { parseApiError, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { useSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
@@ -107,7 +107,11 @@ export default function ProgramarMantencionPage() {
   // palabras, en marca, modelo, serie y persona asignada).
   useEffect(() => {
     if (equipo) return;
-    const params = new URLSearchParams({ limit: String(LIMITE_RESULTADOS) });
+    // Solo equipos que pueden ir a mantencion: disponibles y asignados.
+    const params = new URLSearchParams({
+      limit: String(LIMITE_RESULTADOS),
+      estado: "disponible,asignado",
+    });
     if (busquedaDiferida.trim()) params.set("search", busquedaDiferida.trim());
     if (categoriaId) params.set("categoriaId", categoriaId);
     if (sedeSeleccionada) params.set("sedeId", sedeSeleccionada);
@@ -140,7 +144,7 @@ export default function ProgramarMantencionPage() {
       })
       .then(elegirEquipo)
       .catch((err) =>
-        setError(`${err instanceof Error ? err.message : "Activo no encontrado"}. Búscalo en la lista.`)
+        setError(`${mensajeDeError(err, "Activo no encontrado")}. Búscalo en la lista.`)
       )
       .finally(() => setCargandoEquipo(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps

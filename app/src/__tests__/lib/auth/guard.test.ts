@@ -118,6 +118,25 @@ describe('handleApiError — errores de Prisma', () => {
   });
 });
 
+describe('handleApiError — base de datos caída', () => {
+  test('sin conexión responde 503 con un aviso simple, sin datos del servidor', async () => {
+    const error = new Prisma.PrismaClientInitializationError(
+      "Can't reach database server at `127.0.0.1:5433`",
+      '5.22.0'
+    );
+    const res = handleApiError(error);
+    const cuerpo = await cuerpoDe(res);
+    expect(res.status).toBe(503);
+    expect(cuerpo.error).toMatch(/no puede conectarse/);
+    expect(cuerpo.error).not.toContain('5433');
+  });
+
+  test('P1001 (servidor inalcanzable) también responde 503', async () => {
+    const error = new Prisma.PrismaClientKnownRequestError('x', { code: 'P1001', clientVersion: '5.22.0' });
+    expect(handleApiError(error).status).toBe(503);
+  });
+});
+
 describe('handleApiError — fallo genérico', () => {
   test('un error desconocido responde 500', async () => {
     expect(handleApiError(new Error('boom')).status).toBe(500);

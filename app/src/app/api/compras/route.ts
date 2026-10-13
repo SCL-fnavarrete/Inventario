@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/compras - Registrar una compra (SPEC 2.111.1, solo admin)
+// POST /api/compras - Registrar una compra (SPEC 2.111.1; admin y técnico)
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePermission('compras', 'write');

@@ -153,6 +153,10 @@ export const createPurchaseWithAssetsSchema = createPurchaseSchema
           "Agrega al menos un equipo o un artículo de Kit/EPP: una factura sin nada asociado no registra nada.",
       });
     }
+    // Una factura lleva su numero; solo un gasto menor puede no tenerlo.
+    if (data.tipoCompra === "FACTURA" && !data.numeroFactura?.trim()) {
+      ctx.addIssue({ code: "custom", path: ["numeroFactura"], message: "Escribe el número de factura" });
+    }
     revisarSeriesRepetidas(data.equiposNuevos, ctx);
   });
 

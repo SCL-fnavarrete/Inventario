@@ -12,7 +12,7 @@ import {
   claseCampo,
 } from "@/shared/ui/CampoFormulario";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
-import { parseApiError } from "@/shared/utilidades/apiErrors";
+import { parseApiError, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { ahoraParaInputFechaHora, inputFechaHoraAISO } from "@/shared/utilidades/fechas";
 import { ETIQUETAS_GUIA, validarDatosDespacho } from "@/modules/despachos";
 import { identificadorActivo } from "@/modules/activos";
@@ -41,7 +41,7 @@ const ETIQUETAS = { ...ETIQUETAS_GUIA, reparto: "Qué se reparte", kit: "Kit/EPP
  */
 export function VentanaReparto({ isOpen, onClose, ...resto }: Props) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Repartir a una sede" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Repartir a una sede" size="2xl">
       {/* Se monta al abrir: cada reparto parte limpio. */}
       {isOpen && <ContenidoReparto onClose={onClose} {...resto} />}
     </Modal>
@@ -124,14 +124,14 @@ function ContenidoReparto({
       const { despacho } = await res.json();
       onRepartido(despacho);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al repartir");
+      setError(mensajeDeError(err, "Error al repartir"));
     } finally {
       setEnviando(false);
     }
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <ResumenErrores mensaje={resumen} />
       {error && <AvisoSeccion mensaje={error} />}
 
@@ -181,10 +181,10 @@ function ContenidoReparto({
         {equipos.length === 0 ? (
           <p className="text-sm text-fg-subtle">No quedan equipos por repartir.</p>
         ) : (
-          <div className="max-h-56 overflow-y-auto rounded-control border border-line divide-y divide-line">
+          <div className="max-h-[40vh] overflow-y-auto rounded-control border border-line divide-y divide-line">
             {equipos.map((e) => (
-              <label key={e.id} className="flex items-center gap-3 px-3 py-2 hover:bg-surface-muted cursor-pointer">
-                <input type="checkbox" checked={elegidos.has(e.id)} onChange={() => alternar(e.id)} />
+              <label key={e.id} className="flex items-center gap-4 px-4 py-3 hover:bg-surface-muted cursor-pointer">
+                <input type="checkbox" className="h-4 w-4" checked={elegidos.has(e.id)} onChange={() => alternar(e.id)} />
                 <span className="min-w-0 flex-1 text-sm">
                   <span className="font-medium">
                     {e.marca} {e.modelo}
@@ -204,7 +204,7 @@ function ContenidoReparto({
           <p className="field-label">Kit/EPP por repartir</p>
           <div className="rounded-control border border-line divide-y divide-line">
             {lineas.map((l) => (
-              <div key={l.id} className="flex items-center gap-3 px-3 py-2">
+              <div key={l.id} className="flex items-center gap-4 px-4 py-3">
                 <span className="flex-1 text-sm">
                   {l.nombre}
                   <span className="block text-xs text-fg-subtle">Quedan {l.porRepartir} por repartir</span>
@@ -222,7 +222,7 @@ function ContenidoReparto({
                     limpiar("reparto");
                     setCantidades((prev) => ({ ...prev, [l.id]: ev.target.value }));
                   }}
-                  className="field-input field-input-sm w-24 text-center"
+                  className="field-input w-28 text-center"
                 />
               </div>
             ))}
@@ -233,11 +233,11 @@ function ContenidoReparto({
       <AvisoSeccion mensaje={errores.reparto} />
 
       {!aLaLlegada && (
-        <div className="space-y-4 rounded-control border border-line p-4">
+        <div className="space-y-5 rounded-control border border-line p-5">
           <p className="flex items-center gap-2 text-sm font-medium text-fg">
             <Truck size={16} /> Datos del despacho a {nombreDestino}
           </p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <CampoTexto
               label="OT Chilexpress"
               obligatorio
@@ -273,7 +273,7 @@ function ContenidoReparto({
         </div>
       )}
 
-      <div className="flex justify-end gap-3 pt-2">
+      <div className="flex justify-end gap-3 border-t border-line pt-4">
         <button type="button" onClick={onClose} className={buttonClasses({ variant: "outline" })}>
           Cancelar
         </button>

@@ -103,7 +103,7 @@ export default function ComprasPage() {
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
-        title="Compras y Facturas"
+        title="Compras de activos"
         description="Lo que se compra llega a una sede y desde ahí se reparte a las sedes"
         actions={
           <>
@@ -124,7 +124,7 @@ export default function ComprasPage() {
       <StatGrid cols={2} className="grid-cols-1 sm:grid-cols-2">
         <StatCard
           tilt
-          label="Total Facturas"
+          label="Total compras"
           value={stats?.totalCompras || 0}
           tone="primary"
           icon={FileText}

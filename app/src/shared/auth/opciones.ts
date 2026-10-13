@@ -78,6 +78,28 @@ async function getConfigSeguridad() {
   }
 }
 
+/** Mensaje que la persona ve en el login cuando algo falla por dentro. */
+const MENSAJE_FALLO_LOGIN = "No se pudo iniciar sesión por un problema del servidor. Intenta de nuevo en unos minutos.";
+
+/** Error pensado para mostrarse tal cual en el login (credenciales, bloqueo...). */
+class ErrorDeLogin extends Error {}
+
+/**
+ * Cualquier otro error (base caida, fallo de red...) se anota en el registro
+ * del servidor y la persona ve un aviso simple, sin datos internos.
+ */
+function conAvisoSimple<A extends unknown[], R>(fn: (...args: A) => Promise<R>) {
+  return async (...args: A): Promise<R> => {
+    try {
+      return await fn(...args);
+    } catch (error) {
+      if (error instanceof ErrorDeLogin) throw error;
+      logger.error("[auth] Fallo inesperado al iniciar sesion", error);
+      throw new ErrorDeLogin(MENSAJE_FALLO_LOGIN);
+    }
+  };
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -86,9 +108,9 @@ export const authOptions: NextAuthOptions = {
         usuario: { label: "Usuario", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials, req) {
+      authorize: conAvisoSimple(async (credentials, req) => {
         if (!credentials?.usuario || !credentials?.password) {
-          throw new Error("Usuario y contraseña son requeridos");
+          throw new ErrorDeLogin("Usuario y contraseña son requeridos");
         }
 
         // Se inicia sesion con el usuario, no con el correo (SPEC 2.122).
@@ -125,7 +147,7 @@ export const authOptions: NextAuthOptions = {
                   ? "Demasiados intentos contra esta cuenta desde distintos equipos"
                   : null,
           });
-          throw new Error(`Demasiados intentos. Intente en ${bloqueo} minuto${bloqueo === 1 ? "" : "s"}`);
+          throw new ErrorDeLogin(`Demasiados intentos. Intente en ${bloqueo} minuto${bloqueo === 1 ? "" : "s"}`);
         }
 
         // Mismo mensaje para "el usuario no existe", "la cuenta esta
@@ -138,7 +160,7 @@ export const authOptions: NextAuthOptions = {
         // una mas larga solo sirve para gastar CPU en bcrypt. Cuenta como fallo.
         if (credentials.password.length > LARGO_MAXIMO_CLAVE) {
           await cerrarIntento({ resultado: "clave_incorrecta", detalle: "Contraseña demasiado larga" });
-          throw new Error(CREDENCIALES_INVALIDAS);
+          throw new ErrorDeLogin(CREDENCIALES_INVALIDAS);
         }
 
         const user = await prisma.systemUser.findUnique({
@@ -151,23 +173,23 @@ export const authOptions: NextAuthOptions = {
 
         if (!user) {
           await cerrarIntento({ resultado: "usuario_inexistente" });
-          throw new Error(CREDENCIALES_INVALIDAS);
+          throw new ErrorDeLogin(CREDENCIALES_INVALIDAS);
         }
         if (!user.activo) {
           await cerrarIntento({ usuarioId: user.id, resultado: "usuario_inactivo" });
-          throw new Error(CREDENCIALES_INVALIDAS);
+          throw new ErrorDeLogin(CREDENCIALES_INVALIDAS);
         }
 
         if (!isPasswordValid) {
           await cerrarIntento({ usuarioId: user.id, resultado: "clave_incorrecta" });
-          throw new Error(CREDENCIALES_INVALIDAS);
+          throw new ErrorDeLogin(CREDENCIALES_INVALIDAS);
         }
 
         // Tecnico de una sede desactivada (SPEC 2.112.6). Aqui la contrasena
         // ya es correcta, asi que se le dice el motivo.
         if (user.rol !== "admin" && user.sede && !user.sede.activa) {
           await cerrarIntento({ usuarioId: user.id, resultado: "sede_inactiva" });
-          throw new Error("Tu sede está desactivada. Pide a un administrador que te cambie de sede.");
+          throw new ErrorDeLogin("Tu sede está desactivada. Pide a un administrador que te cambie de sede.");
         }
 
         await anotarIngreso(user.id);
@@ -203,7 +225,7 @@ export const authOptions: NextAuthOptions = {
           sesionId,
           otraSesionCerrada,
         };
-      },
+      }),
     }),
   ],
   callbacks: {

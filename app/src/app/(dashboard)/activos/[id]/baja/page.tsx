@@ -7,7 +7,7 @@ import { XCircle } from "lucide-react";
 import { etiquetaEstadoActivo, motivoSinBaja, identificadorActivo } from "@/modules/activos";
 import { CamposMotivoBaja, erroresMotivoBaja, useMotivosBaja } from "@/modules/mantenciones/componentes";
 import { hoyISO } from "@/shared/utilidades/fechas";
-import { parseApiError } from "@/shared/utilidades/apiErrors";
+import { parseApiError, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { CampoFormulario, CampoTexto, ResumenErrores, claseInput } from "@/shared/ui/CampoFormulario";
 import { PageHeader } from "@/shared/ui/PageHeader";
@@ -102,7 +102,7 @@ export default function DarDeBajaPage() {
       router.push(`/activos/${activo.id}`);
       router.refresh();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(mensajeDeError(err, "Error desconocido"));
     } finally {
       setEnviando(false);
     }

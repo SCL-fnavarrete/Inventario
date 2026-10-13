@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Check, Loader2, Package, MapPin, User, CheckCircle } from "lucide-react";
-import { SelectorActivos } from "@/modules/despachos/componentes";
-import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { SelectorActivos, SelectorKit } from "@/modules/despachos/componentes";
+import { parseApiError, type FieldErrors, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
@@ -70,6 +70,11 @@ export default function NuevaGuiaDespachoPage() {
   const [sedeOrigenId, setSedeOrigenId] = useCampoSede();
 
   const [selectedAssets, setSelectedAssets] = useState<Asset[]>([]);
+  // Kit/EPP: cantidad por articulo (texto de cada campo); 0 o vacio no se envia.
+  const [kitCantidades, setKitCantidades] = useState<Record<string, string>>({});
+  const kitElegido = Object.entries(kitCantidades)
+    .map(([itemId, texto]) => ({ itemId, cantidad: Number(texto) }))
+    .filter((k) => k.cantidad !== 0);
 
   // Datos del despacho. El dato principal es la OT de Chilexpress -- todo
   // despacho pasa por ahi. El emisor no se pide: se autocompleta con el
@@ -118,6 +123,7 @@ export default function NuevaGuiaDespachoPage() {
       ...(!sedeOrigenId && { sedeId: "Elige la sede origen" }),
       ...validarNuevaGuia({
         assetIds: selectedAssets,
+        kit: kitElegido,
         ...dispatchData,
         receptorNombre: receptor.nombre,
         receptorRut: receptor.rut,
@@ -138,6 +144,7 @@ export default function NuevaGuiaDespachoPage() {
         observaciones: dispatchData.observaciones || null,
         sedeDestinoId: dispatchData.sedeDestinoId,
         assetIds: selectedAssets.map((a) => a.id),
+        kit: kitElegido,
         receptorNombre: receptor.nombre,
         receptorRut: receptor.rut,
         // Siempre se manda explicita -- ver sedeIdParaCrear.
@@ -164,7 +171,7 @@ export default function NuevaGuiaDespachoPage() {
         numero: data.numero,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(mensajeDeError(err, "Error desconocido"));
     } finally {
       setSubmitting(false);
     }
@@ -185,8 +192,8 @@ export default function NuevaGuiaDespachoPage() {
               Número de despacho: <strong>{result.numero}</strong>
             </p>
             <p className="text-sm text-green-700 mb-2">
-              Los equipos quedaron En tránsito: pasan a la sede destino cuando esta confirme que
-              llegaron.
+              Lo despachado quedó En tránsito: pasa a la sede destino cuando se confirme que
+              llegó.
             </p>
             <div className="mt-6 flex justify-center gap-4">
               <Link
@@ -213,7 +220,7 @@ export default function NuevaGuiaDespachoPage() {
       <PageHeader
         backHref="/despachos"
         title="Nuevo despacho"
-        description="Registra los equipos que se envían a otra sede"
+        description="Registra los equipos y el Kit/EPP que se envían a otra sede"
       />
 
       <ApiErrorSummary error={error} fieldErrors={fieldErrors} />
@@ -229,7 +236,7 @@ export default function NuevaGuiaDespachoPage() {
           label="Sede origen"
           obligatorio
           error={errores.sedeId}
-          ayuda="Obligatorio: desde cuál sede sale este despacho, para no mezclar equipos de sedes distintas en un mismo despacho."
+          ayuda="Obligatorio: desde cuál sede sale este despacho. Los equipos y el Kit/EPP deben ser de esa sede; un despacho no mezcla sedes."
         >
           <select
             value={sedeOrigenId}
@@ -240,6 +247,7 @@ export default function NuevaGuiaDespachoPage() {
               // la nueva -- se limpian para no arrastrar una seleccion
               // que ya no corresponde. Y el destino no puede ser el origen.
               setSelectedAssets([]);
+              setKitCantidades({});
               if (dispatchData.sedeDestinoId === e.target.value) cambiarDespacho("sedeDestinoId", "");
             }}
             aria-invalid={!!errores.sedeId}
@@ -280,6 +288,31 @@ export default function NuevaGuiaDespachoPage() {
             }}
             sedeId={sedeOrigenId}
           />
+        )}
+      </div>
+
+      {/* Sección: Kit / EPP (SPEC 2.145) */}
+      <div className="card p-6 space-y-4">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <Package className="text-primary-700" size={20} />
+          Kit / EPP a despachar
+        </h2>
+        <p className="text-sm text-fg-subtle">
+          Opcional. Sale del stock de la sede origen y suma al de la sede destino cuando se confirma que llegó.
+        </p>
+        <AvisoSeccion mensaje={errores.kit} />
+        {sedeOrigenId ? (
+          <SelectorKit
+            sedeId={sedeOrigenId}
+            cantidades={kitCantidades}
+            onChange={(c) => {
+              setKitCantidades(c);
+              limpiar("kit");
+              limpiar("assetIds");
+            }}
+          />
+        ) : (
+          <p className="text-sm text-fg-subtle">Selecciona primero la sede origen.</p>
         )}
       </div>
 
@@ -392,9 +425,9 @@ export default function NuevaGuiaDespachoPage() {
         </h2>
 
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-          Los equipos quedarán <strong>En tránsito</strong>: siguen en la sede origen hasta que{" "}
-          <strong>{sedeDestinoNombre || "la sede destino"}</strong> confirme que llegaron. Mientras viajan,
-          puedes anular el despacho.
+          Lo despachado quedará <strong>En tránsito</strong>: los equipos siguen en la sede origen (y el Kit/EPP sale de
+          su stock) hasta que se confirme su llegada a <strong>{sedeDestinoNombre || "la sede destino"}</strong>. Mientras viajan, puedes anular
+          el despacho.
         </div>
 
         <div className="flex justify-end gap-3">

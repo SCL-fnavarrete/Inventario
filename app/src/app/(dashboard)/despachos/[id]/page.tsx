@@ -16,7 +16,7 @@ import {
   Shirt,
 } from "lucide-react";
 import { cn } from "@/shared/cn";
-import { parseApiError } from "@/shared/utilidades/apiErrors";
+import { parseApiError, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { especificacionesActivoTexto, identificadorActivo } from "@/modules/activos";
 import {
   ESTADO_GUIA_LABELS,
@@ -52,9 +52,9 @@ const BOTON_EXITO = "bg-success hover:bg-success-hover disabled:hover:bg-success
 
 /**
  * Detalle de una guia de despacho (SPEC 2.108). Los equipos viajan "En
- * transito" hasta que la sede destino confirma cuales llegaron; los que
- * faltan se resuelven despues uno a uno (llego / se perdio). La sede que
- * despacho puede anularla mientras va en transito.
+ * transito" hasta que se confirma cuales llegaron a la sede destino; los que
+ * faltan se resuelven despues uno a uno (llego / se perdio). Cualquiera con
+ * permiso puede confirmarla o anularla (SPEC 2.117); se baja en PDF.
  */
 export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -77,7 +77,6 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
   );
 
   const [recepcion, setRecepcion] = useState({
-    recibidoPor: "",
     fechaRecepcion: ahoraParaInputFechaHora(),
     llegaron: [] as string[],
     // Unidades de Kit/EPP que llegaron, por linea.
@@ -93,7 +92,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
       if (!res.ok) throw new Error((await parseApiError(res, "Error al cargar el despacho")).message);
       setGuide(await res.json());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al cargar el despacho");
+      setError(mensajeDeError(err, "Error al cargar el despacho"));
     } finally {
       setLoading(false);
     }
@@ -125,13 +124,13 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
 
   function abrirRecepcion() {
     if (!guide) return;
-    // Parte con el receptor de la guia y todos los equipos marcados.
+    // Parte con el receptor de la guia y lo que sigue en transito marcado: un
+    // equipo o unidades de Kit/EPP ya dados por perdidos no se vuelven a recibir.
     setRecepcion({
-      recibidoPor: guide.receptorNombre,
       fechaRecepcion: ahoraParaInputFechaHora(),
-      llegaron: guide.items.map((i) => i.id),
-      // Parte con todo lo enviado; se corrige si llego menos.
-      kit: Object.fromEntries(guide.kitItems.map((k) => [k.id, String(k.cantidad)])),
+      llegaron: guide.items.filter((i) => i.estado === "en_transito").map((i) => i.id),
+      // Parte con todo lo pendiente; se corrige si llego menos.
+      kit: Object.fromEntries(guide.kitItems.map((k) => [k.id, String(pendienteKit(k))])),
     });
     reportar({});
     setRecibiendo(true);
@@ -141,28 +140,30 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
     if (!guide) return;
     const fechaISO = inputFechaHoraAISO(recepcion.fechaRecepcion);
     const faltan = validarRecepcion(
-      { recibidoPor: recepcion.recibidoPor, fechaRecepcion: fechaISO },
+      { fechaRecepcion: fechaISO },
       guide.fechaDespacho
     );
-    const kitRecibido = guide.kitItems.map((k) => ({
+    const kitRecibido = guide.kitItems.filter((k) => pendienteKit(k) > 0).map((k) => ({
       lineaId: k.id,
       cantidad: parseInt(recepcion.kit[k.id] || "0", 10) || 0,
       linea: k,
     }));
-    const excedida = kitRecibido.find((k) => k.cantidad > k.linea.cantidad || k.cantidad < 0);
-    if (excedida) faltan.kit = `De ${excedida.linea.item.nombre} se enviaron ${excedida.linea.cantidad}`;
+    const excedida = kitRecibido.find((k) => k.cantidad > pendienteKit(k.linea) || k.cantidad < 0);
+    if (excedida) faltan.kit = `De ${excedida.linea.item.nombre} quedan ${pendienteKit(excedida.linea)} por recibir`;
     if (recepcion.llegaron.length === 0 && kitRecibido.every((k) => k.cantidad === 0)) {
+      const conEquipos = guide.items.some((i) => i.estado === "en_transito");
       faltan.llegaron =
-        guide.kitItems.length > 0
+        conEquipos && kitRecibido.length > 0
           ? "Marca al menos un equipo o una cantidad de Kit/EPP que llegó"
-          : "Marca al menos un equipo que llegó";
+          : kitRecibido.length > 0
+            ? "Indica cuánto Kit/EPP llegó"
+            : "Marca al menos un equipo que llegó";
     }
     if (reportar(faltan)) return;
     const r = await enviar(
       `/api/guias-despacho/${id}`,
       "PATCH",
       {
-        recibidoPor: recepcion.recibidoPor,
         fechaRecepcion: fechaISO,
         llegaron: recepcion.llegaron,
         kitRecibido: kitRecibido.filter((k) => k.cantidad > 0).map(({ lineaId, cantidad }) => ({ lineaId, cantidad })),
@@ -283,6 +284,17 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
       </div>
     ) : null;
   const deReparto = !!guide.purchaseId;
+  // Qué pasa con lo despachado al anular: los equipos a Disponible y el Kit/EPP al stock de la sede origen.
+  const sedeOrigen = guide.sede?.nombre ?? "la sede de origen";
+  const queVuelve = (singular: string, plural: string) => {
+    const partes = [
+      guide.items.length > 0 &&
+        `${guide.items.length === 1 ? "el equipo" : `los ${guide.items.length} equipos`} ${guide.items.length === 1 ? singular : plural} a Disponible en ${sedeOrigen}`,
+      guide.kitItems.length > 0 && `el Kit/EPP ${singular} al stock de ${sedeOrigen}`,
+    ].filter(Boolean) as string[];
+    const texto = partes.join(" y ");
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+  };
   const faltantesTexto = [
     pendientes.length > 0 && (pendientes.length === 1 ? "1 equipo" : `${pendientes.length} equipos`),
     kitPendiente > 0 && `${kitPendiente} unidad(es) de Kit/EPP`,
@@ -305,6 +317,9 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
         description={`Creada el ${formatearFechaHoraCorta(guide.createdAt, "-")}`}
         actions={
           <>
+            <a href={`/api/guias-despacho/${guide.id}/documento`} className={buttonClasses({ variant: "outline" })}>
+              <FileText size={18} /> Descargar guía
+            </a>
             {guide.estado === "en_transito" && puedeRecibir && (
               <button onClick={abrirRecepcion} className={buttonClasses({ className: BOTON_EXITO })}>
                 <CheckCircle size={18} /> Confirmar recepción
@@ -330,8 +345,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
           <Truck className="h-5 w-5 shrink-0 mt-0.5" />
           <p className="text-sm">
             Lo despachado viaja hacia <strong>{guide.sedeDestino.nombre}</strong>. Sigue en{" "}
-            {guide.sede?.nombre ?? "la sede de origen"} hasta que {guide.sedeDestino.nombre} confirme qué
-            llegó.
+            {guide.sede?.nombre ?? "la sede de origen"} hasta que se confirme qué llegó.
           </p>
         </div>
       )}
@@ -350,9 +364,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
           <p className="text-sm">
             Anulado el {formatearFechaHoraCorta(guide.fechaAnulacion, "-")} por {guide.anuladaPor ?? "-"}:{" "}
             {guide.motivoAnulacion}.{" "}
-            {deReparto
-              ? "Lo despachado volvió a Por repartir en su compra."
-              : `Los equipos volvieron a Disponible en ${guide.sede?.nombre ?? "su sede"}.`}
+            {deReparto ? "Lo despachado volvió a Por repartir en su compra." : `${queVuelve("volvió", "volvieron")}.`}
           </p>
         </div>
       )}
@@ -584,16 +596,6 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
           <ResumenErrores mensaje={resumen} />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <CampoTexto
-              label="Recibido por"
-              obligatorio
-              value={recepcion.recibidoPor}
-              onChange={(v) => {
-                setRecepcion((prev) => ({ ...prev, recibidoPor: v }));
-                limpiar("recibidoPor");
-              }}
-              error={errores.recibidoPor}
-            />
-            <CampoTexto
               label="Fecha de recepción"
               type="datetime-local"
               value={recepcion.fechaRecepcion}
@@ -605,11 +607,11 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
             />
           </div>
           <AvisoSeccion mensaje={errores.llegaron} />
-          {guide.items.length > 0 && (
+          {guide.items.some((i) => i.estado === "en_transito") && (
           <div>
             <p className="field-label">Marca los equipos que llegaron</p>
             <ul className="border border-line rounded-lg divide-y divide-line max-h-72 overflow-y-auto">
-              {guide.items.map((item) => (
+              {guide.items.filter((i) => i.estado === "en_transito").map((item) => (
                 <li key={item.id}>
                   <label className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-muted">
                     <input
@@ -641,20 +643,23 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
             </p>
           </div>
           )}
-          {guide.kitItems.length > 0 && (
+          {guide.kitItems.some((k) => pendienteKit(k) > 0) && (
             <div>
               <p className="field-label">Cuánto Kit/EPP llegó</p>
               <ul className="border border-line rounded-lg divide-y divide-line">
-                {guide.kitItems.map((k) => (
+                {guide.kitItems.filter((k) => pendienteKit(k) > 0).map((k) => (
                   <li key={k.id} className="flex items-center gap-3 px-3 py-2">
                     <span className="flex-1 text-sm">
                       {k.item.nombre}
-                      <span className="block text-xs text-fg-subtle">Se enviaron {k.cantidad}</span>
+                      <span className="block text-xs text-fg-subtle">
+                        Se enviaron {k.cantidad}
+                        {pendienteKit(k) < k.cantidad && ` · quedan ${pendienteKit(k)} por recibir`}
+                      </span>
                     </span>
                     <input
                       type="number"
                       min={0}
-                      max={k.cantidad}
+                      max={pendienteKit(k)}
                       inputMode="numeric"
                       aria-label={`Llegaron de ${k.item.nombre}`}
                       value={recepcion.kit[k.id] ?? ""}
@@ -759,7 +764,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
         descripcion={
           deReparto
             ? "Lo despachado vuelve a Por repartir en su compra, para repartirlo de nuevo. El despacho queda anulado."
-            : `Los ${guide.items.length} equipos vuelven a Disponible en ${guide.sede?.nombre ?? "la sede de origen"}. El despacho queda anulado.`
+            : `${queVuelve("vuelve", "vuelven")}. El despacho queda anulado.`
         }
         placeholder="Ej: El paquete no salió, se envió a la sede equivocada..."
         textoConfirmar="Anular despacho"

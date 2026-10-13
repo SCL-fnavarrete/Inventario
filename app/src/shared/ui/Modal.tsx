@@ -17,7 +17,7 @@ interface ModalProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   title?: ReactNode;
   description?: ReactNode;
   footer?: ReactNode;
-  size?: "sm" | "md" | "lg" | "xl" | "full";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "full";
   closeOnOverlayClick?: boolean;
   closeOnEscape?: boolean;
   showCloseButton?: boolean;
@@ -29,6 +29,7 @@ const sizeStyles: Record<string, string> = {
   md: "max-w-md",
   lg: "max-w-lg",
   xl: "max-w-xl",
+  "2xl": "max-w-4xl",
   full: "max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)]",
 };
 
@@ -53,16 +54,24 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
     const modalRef = useRef<HTMLDivElement>(null);
     const previousActiveElement = useRef<HTMLElement | null>(null);
 
+    // Las pantallas suelen pasar `onClose` escrito en linea (una funcion nueva
+    // en cada dibujo). Se guarda en una referencia para que el efecto de abajo
+    // dependa solo de `isOpen`: si dependiera de la funcion, cada letra
+    // escrita en un campo de la ventana lo repetiria y le quitaria el foco.
+    const onCloseRef = useRef(onClose);
+    const closeOnEscapeRef = useRef(closeOnEscape);
+    useEffect(() => {
+      onCloseRef.current = onClose;
+      closeOnEscapeRef.current = closeOnEscape;
+    });
+
     // Handle escape key
-    const handleKeyDown = useCallback(
-      (event: KeyboardEvent) => {
-        if (closeOnEscape && event.key === "Escape") {
-          event.preventDefault();
-          onClose();
-        }
-      },
-      [closeOnEscape, onClose]
-    );
+    const handleKeyDown = useCallback((event: KeyboardEvent) => {
+      if (closeOnEscapeRef.current && event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+      }
+    }, []);
 
     // Focus trap
     const handleTabKey = useCallback((event: KeyboardEvent) => {
@@ -224,7 +233,7 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
           )}
 
           {/* Body */}
-          <div className="px-6 pb-6 max-h-[60vh] overflow-y-auto">{children}</div>
+          <div className="px-6 pb-6 max-h-[calc(100vh-12rem)] overflow-y-auto">{children}</div>
 
           {/* Footer */}
           {footer && (

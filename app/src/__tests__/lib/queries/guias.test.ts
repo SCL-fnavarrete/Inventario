@@ -12,8 +12,8 @@ describe('filtros de guias', () => {
     });
   });
 
-  test('sin sede, "Por recibir" y "Por llegar" no traen nada', () => {
-    expect(VISTAS_GUIA.por_recibir(null).sedeDestinoId).toBe('__sin_sede__');
+  test('sin sede, "Por recibir" cuenta todo lo pendiente y "Por llegar" no trae nada', () => {
+    expect(VISTAS_GUIA.por_recibir(null)).toEqual({ estado: { in: ['en_transito', 'recibida_parcial'] } });
     expect(whereActivosPorLlegar(null)).toMatchObject({
       dispatchItems: { some: { guide: { sedeDestinoId: '__sin_sede__' } } },
     });

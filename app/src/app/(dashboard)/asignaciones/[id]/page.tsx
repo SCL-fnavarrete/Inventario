@@ -1,5 +1,6 @@
 "use client";
 
+import { mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import {
@@ -120,7 +121,7 @@ export default function AsignacionDetailPage({
       const data = await res.json();
       setAssignment(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al cargar asignación");
+      setError(mensajeDeError(err, "Error al cargar asignación"));
     } finally {
       setLoading(false);
     }

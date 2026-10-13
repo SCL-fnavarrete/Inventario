@@ -15,7 +15,7 @@ import {
   Download,
 } from 'lucide-react';
 import { cn } from '@/shared/cn';
-import { parseApiError, type FieldErrors } from '@/shared/utilidades/apiErrors';
+import { parseApiError, type FieldErrors, mensajeDeError } from '@/shared/utilidades/apiErrors';
 import { ApiErrorSummary } from '@/shared/ui/ApiErrorSummary';
 import { formatearFecha } from "@/shared/utilidades/fechas";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
@@ -261,7 +261,7 @@ export default function SolicitudDetailPage() {
       setData(detail);
       return detail;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error');
+      setError(mensajeDeError(err, 'Error'));
       return null;
     } finally {
       setLoading(false);
@@ -317,7 +317,7 @@ export default function SolicitudDetailPage() {
           .catch(() => {});
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error');
+      setError(mensajeDeError(err, 'Error'));
     } finally {
       setEntregandoKit(null);
     }
@@ -349,7 +349,7 @@ export default function SolicitudDetailPage() {
       setNoAplicaId(null);
       await fetchData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error');
+      setError(mensajeDeError(err, 'Error'));
       setNoAplicaId(null);
     } finally {
       setMarcandoNoAplica(null);
@@ -376,7 +376,7 @@ export default function SolicitudDetailPage() {
       setCommentInternal(false);
       fetchData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error');
+      setError(mensajeDeError(err, 'Error'));
     } finally {
       setSubmittingComment(false);
     }
@@ -399,7 +399,7 @@ export default function SolicitudDetailPage() {
       }
       fetchData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error');
+      setError(mensajeDeError(err, 'Error'));
     } finally {
       setTransitioning(false);
     }
@@ -427,7 +427,7 @@ export default function SolicitudDetailPage() {
       setShowCancelModal(false);
       fetchData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error');
+      setError(mensajeDeError(err, 'Error'));
     } finally {
       setCancelling(false);
     }

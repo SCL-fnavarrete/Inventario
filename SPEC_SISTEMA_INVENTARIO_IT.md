@@ -956,6 +956,8 @@ A diferencia del resto de los módulos con aislamiento por sede (2.8), una guía
 
 ### 2.9.5 Sin documento PDF
 
+> **Reemplazado por 2.145 (12-oct-2026):** la guía ahora se descarga en PDF.
+
 La guía es solo un registro dentro del sistema (listado + detalle) — no genera ningún documento PDF descargable.
 
 ### 2.9.6 Fix UI: nombre de categoría oculto en el selector de equipos (18-sep-2026)
@@ -3371,6 +3373,7 @@ Idea de Javier: *"que haya una sede destino y una de emisión… cuando se gener
 **Quién ve y quién hace qué** (`lib/auth/permisosGuia.ts`, lo usan servidor y pantallas: un botón visible nunca lleva a un rechazo).
 - Ver: la sede origen, la sede destino y admin. Otra sede recibe 404.
 - Confirmar recepción y resolver faltantes: sede destino y admin. Anular: sede origen y admin.
+- **Reemplazado por 2.145:** hoy cualquier sede ve, confirma, resuelve y anula cualquier despacho.
 - El técnico ve y trabaja solo con los datos de su sede; se corrige el texto de ayuda de Usuarios, que decía que veía todas.
 
 **Pantallas.**
@@ -4131,11 +4134,82 @@ Pedido de Javier: *"si se asigna un teléfono sin número, sin línea, que me pe
 ### 2.144 Se quita el N° de activación del celular (09-oct-2026)
 Pedido de Javier: *"ese campo no es necesario"*. El número y el plan viven en Líneas, así que `Asset.numeroActivacion` se elimina (migración `quitar_numero_activacion`): sale del formulario del celular, la ficha, el Excel de activos, la plantilla de importación y la lista de campos de la categoría Celular. Una columna «Nro Activación» en un Excel antiguo simplemente no se usa.
 
+### 2.145 Despachos: cualquiera confirma y anula, sin importar la sede; guía en PDF (12-oct-2026)
+Pedido de Javier: *"todos puedan confirmar y hacer despachos sin importar las sedes… alguien de Concepción o Santiago puede confirmar o hacer despachos de sedes que no son suyas"*, y *"que pueda generar una guía de despacho, con el aspecto de las actas"*. Sigue la regla de 2.117 (la sede es un dato, no un candado).
+- **Quién puede:** el permiso `guias` (admin y técnico) decide ver, crear, confirmar la recepción, resolver faltantes y anular. La sede ya no limita nada; `recibidoPor` y el emisor son nombres, no la sede del usuario. Se mantiene solo anular (con motivo): un despacho **no se elimina**, para conservar el historial de los equipos.
+- **Textos:** ya no dicen que "la sede destino confirma" ni que "la sede origen anula"; dicen que se confirma la llegada a la sede destino.
+- **Listado:** el selector de sede del navbar es un **filtro opcional** (lo que sale de esa sede o llega a ella); sin sede se ven todos. La tarjeta "Por recibir" (antes "Por recibir en mi sede", que sin sede no aparecía) cuenta todo lo que falta recibir, o lo que va hacia la sede elegida.
+- **Mensajes adaptados:** hablan de "equipos y Kit/EPP" y no de la sede que confirma o anula. El campo de la lista de nuevo despacho se llama "Equipos o Kit / EPP" y su error es "Elige al menos un equipo o un artículo de Kit/EPP"; al confirmar sin nada marcado se pide según lo que lleva el despacho (equipo, Kit/EPP o ambos); el aviso de despacho anulado y el cuadro de anular dicen qué vuelve y adónde (equipos a Disponible y Kit/EPP al stock de la sede origen); el texto de "creado" y el del listado incluyen el Kit/EPP.
+- **Estado "Completado":** el estado `recibida` se muestra como **Completado** (y la tarjeta "Recibidos" como "Completados"), porque un despacho también se cierra cuando lo último que quedaba en tránsito se marca como perdido: no llegó nada, pero ya no hay nada por resolver. Solo cambia el texto; el valor guardado sigue siendo `recibida`.
+- **Kit/EPP en un despacho normal:** antes solo salía en el reparto de una compra. "Nuevo despacho" tiene la sección "Kit / EPP" con los artículos de la sede origen, su stock y una cantidad por artículo; un despacho lleva equipos, Kit/EPP o ambos (al menos uno). El servidor revisa que los artículos sean de la sede origen, que las cantidades sean enteras (≥ 1) y que no pasen el stock (`kit` en `POST /api/guias-despacho`, `[{ itemId, cantidad }]`). **El stock sale de la sede origen al crear** (`restarStockKit`, atómico y con auditoría del artículo) y suma a la destino al recibirlo; **al anular, vuelve a la sede origen**. Lo perdido no vuelve. El reparto de una compra no cambia (su Kit/EPP no estaba en el stock).
+- **Sin "Recibido por":** la ventana de confirmar recepción ya no pregunta quién recibió; se guarda el receptor indicado al crear el despacho (`receptorNombre`). Solo pide la fecha de recepción (opcional, por defecto ahora).
+- **Recepción con perdidos:** la ventana "Confirmar recepción" lista solo los equipos que siguen En tránsito y, del Kit/EPP, solo lo pendiente (enviado menos recibido y perdido); lo ya perdido no aparece ni se puede marcar como llegado. Antes aparecía todo lo enviado, y marcar solo un equipo perdido daba un error confuso.
+- **Guía de despacho en PDF:** botón "Descargar guía" en el detalle, en cualquier estado (una anulada lleva la marca ANULADA y el motivo); ruta `GET /api/guias-despacho/[id]/documento` (permiso `guias`/lectura). Mismo aspecto que las actas: logo SCL, texto con fecha (hora de Chile), sede origen y destino, receptor con RUT, OT de Chilexpress y llegada estimada; tabla de equipos (la de las actas), tabla de Kit/EPP, observación y firmas de quien despacha y de quien recibe. Se genera en `modules/despachos/documentos.ts` (puerta `@/modules/despachos/documentos`). Los estilos y la tabla de equipos de los PDF pasan a `shared/pdf/` (`pdfSclBrand`, `pdfStyles`, `TablaEquipoActa`) para que los usen Solicitudes y Despachos.
+
+### 2.146 Filtro "Motivo de baja" de Activos encuentra las bajas directas (13-oct-2026)
+Error: el filtro buscaba el motivo solo en la mantención o en la devolución, pero desde la baja directa (2.140) el motivo está en el propio equipo (`Asset.motivoBajaId`), así que no salía ningún equipo dado de baja por ese camino (ni el perdido en un despacho) y "Baja sin motivo" los contaba mal. Ahora el filtro mira primero el equipo y mantiene mantención y devolución para las bajas anteriores; "Baja sin motivo" exige que no haya motivo en ninguno de los tres.
+
+### 2.147 Programar mantención solo busca equipos disponibles y asignados (13-oct-2026)
+El buscador de `/mantenciones/programar` pide a `/api/activos` solo los estados `disponible` y `asignado` (los únicos que pueden ir a mantención). El filtro `estado` de la lista de activos acepta uno o varios estados separados por coma (`estado=disponible,asignado`); los desconocidos se ignoran.
+
+### 2.148 Mantención de un equipo asignado: reglas de bloqueo (13-oct-2026)
+- **Baja:** un equipo asignado no se da de baja (ya regía, 2.106): primero se le cambia el equipo a la persona.
+- **Espera de repuestos:** una mantención de un equipo asignado no puede quedar "en espera de repuestos" (`motivoSinEsperaDeRepuestos`); la API responde 409 y la opción sale bloqueada. Si se repara de inmediato, se cierra como "Reparado, vuelve a uso".
+- **Cambio de equipo:** no se puede cambiar un equipo que está en mantención (409): primero se completa o cancela la mantención.
+
+### 2.149 Errores del sistema nunca se muestran crudos (13-oct-2026)
+Con la base apagada el login mostraba el error técnico de Prisma (ruta de la carpeta, servidor y puerto). Regla: la persona nunca ve trazas, rutas ni direcciones.
+- **Login:** cualquier fallo inesperado de `authorize` se anota en el registro del servidor y se muestra "No se pudo iniciar sesión por un problema del servidor. Intenta de nuevo en unos minutos." Solo los mensajes pensados (credenciales, bloqueo, sede desactivada) salen tal cual.
+- **API:** `handleApiError` responde 503 "El sistema no puede conectarse en este momento. Intenta de nuevo en unos minutos." cuando la base no responde (`PrismaClientInitializationError`, P1001, P1002, P1008, P1017, P2024).
+- **Pantallas:** `mensajeDeError(error, respaldo)` (`shared/utilidades/apiErrors.ts`) reemplaza a `err.message` en los formularios: muestra el mensaje simple de la API, cambia "Failed to fetch" por un aviso de conexión y usa el respaldo si el texto es técnico (JSON inválido, Prisma, rutas). Las filas de una importación usan lo mismo.
+- Se mantienen las pantallas `error.tsx` y `global-error.tsx`, que ya mostraban un aviso simple con código.
+
+### 2.150 El módulo Compras se llama "Compras de activos" (13-oct-2026)
+Antes la pantalla decía "Compras y Facturas". Ahora el título de la pantalla y la entrada del menú dicen **Compras de activos**, y la tarjeta "Total Facturas" pasa a "Total compras" (cuenta compras, no facturas). El N° y la fecha de factura siguen siendo datos de la compra. No cambia ninguna ruta ni permiso (`/compras`, recurso `compras`).
+
+### 2.151 Compras de activos: quién la usa y N° de factura (13-oct-2026)
+- **Quién:** admin y técnico ven, registran, editan, reparten y eliminan compras (matriz de permisos; donde el SPEC o el código decían "solo admin" en 2.111, rige este punto).
+- **N° de factura:** es obligatorio cuando la compra es de tipo Factura (la pantalla ya lo exigía; ahora también la API, al crear y al editar). Solo un Gasto menor puede no tenerlo. Sigue siendo único en todo el sistema.
+
+### 2.152 Compras: crear un artículo de Kit/EPP nuevo desde la compra (13-oct-2026)
+En Nueva compra y en el detalle de la compra, el selector de Kit/EPP tiene "¿No está en la lista? Crear artículo nuevo" (`NuevoArticuloKit`): pide nombre y tipo (Kit Bienvenida o EPP) y crea el artículo en el catálogo de la **sede de llegada** con stock 0 (`POST /api/kit-items`, mismas reglas: nombre único por tipo y sede). Queda elegido para agregarlo a la compra. El stock sube al repartir lo comprado, como siempre. Si la compra no se guarda, el artículo queda en el catálogo con stock 0.
+
+### 2.153 Compras: error de garantía en un equipo nuevo (13-oct-2026)
+Al guardar una compra con un equipo cuyo fin de garantía era anterior a la fecha de la factura, salía "Faltan o están incorrectos: equiposNuevos.0.fec…". La garantía es opcional, pero si se escribe no puede terminar antes de la compra. Ahora: el formulario del equipo (`ActivoForm`) lo avisa en el campo "Fin de garantía"; Nueva compra revisa cada equipo contra la fecha de la factura y dice "Equipo N (marca modelo): …"; la fecha de compra de cada equipo que se envía es la de la factura (como la guarda el servidor); y un error del servidor de un equipo se muestra como "Equipo N: mensaje".
+
+### 2.154 Nueva compra: editar lo agregado antes de guardar (13-oct-2026)
+Antes, un error en un equipo o en un artículo de Kit/EPP agregado obligaba a quitarlo y volver a crearlo. Ahora cada equipo de la lista tiene un botón Editar (lápiz) que abre el mismo formulario con sus datos, y cada línea de Kit/EPP tiene un lápiz para cambiar su cantidad. Es solo de la pantalla Nueva compra: nada se guarda hasta pulsar Guardar compra, y las revisiones de N° de serie e IMEI repetidos no cuentan el equipo que se está editando.
+
+### 2.155 Ventanas que roban el foco, y mini buscador de equipo existente (13-oct-2026)
+- **Error del foco:** en las ventanas (`Modal`), cada letra escrita llevaba el cursor al botón que abrió la ventana, porque el efecto del modal se repetía cada vez que la pantalla se dibujaba de nuevo (la función de cerrar es nueva en cada dibujo). Ahora el efecto depende solo de que la ventana esté abierta: el foco se mueve al abrir y vuelve al botón al cerrar, nunca mientras se escribe. Vale para todas las ventanas.
+- **Vincular un equipo existente a una compra** (Nueva compra y detalle): `BuscadorEquipoExistente`, un buscador pequeño con lista con scroll que aparece al abrir (sin pedir escribir), se filtra por serie, IMEI, marca o modelo (con espera de 300 ms), muestra solo equipos de la sede de la compra con su estado, y deja fuera los que ya están en ella.
+
+### 2.156 Dashboard: aviso de garantías por vencer (13-oct-2026)
+En el panel "Alertas y Notificaciones" aparece "Garantía por vencer" para los equipos cuyo fin de garantía cae dentro de los próximos **30 días** (`DIAS_AVISO_GARANTIA`), incluido hoy. Es solo informativo: va en **morado** (`purple`, distinto del rojo, el amarillo y el azul de las otras alertas; antes era `violet`, que no tiene versión oscura), no suma al contador rojo de alertas y no cambia nada del equipo. Reglas: equipos vigentes de la sede elegida en el navbar, sin los dados de baja ni los que ya vencieron; se muestran los 5 que vencen antes (con "Vence en N días" y su fecha) y "…y N garantías más" si hay más. Cada aviso abre el equipo.
+
+### 2.157 Guía de despacho: diseño sobrio y sin firmas (13-oct-2026)
+La guía en PDF (`GET /api/guias-despacho/[id]/documento`) ya no usa el formato de las actas ni lleva firmas: es solo informativa de lo que se despacha. Diseño sobrio y profesional (sin chips de colores, tarjetas redondeadas ni acentos llamativos): logo SCL y número de guía con una línea azul, **Origen** y **Destino** en dos columnas (quién despacha, quién recibe y su RUT), fecha de despacho, transporte (Chilexpress), OT y llegada estimada, tabla de **equipos** (N°, equipo con su cargador, serie/IMEI, especificaciones y estado en texto; solo "Perdido" va en rojo), tabla de **Kit/EPP** con cantidades, observaciones solo si las hay, y un pie con la empresa, el número de guía y "Página x de y". Una guía anulada lleva un recuadro rojo con la fecha y el motivo. Las tablas repiten su encabezado en cada hoja. Nota técnica: la hoja no define `lineHeight` (con él, el texto con número de página del pie no se dibuja).
+
+### 2.158 Texto de color legible en claro y oscuro (13-oct-2026)
+Los tonos `-600` de las escalas de estado sirven como relleno e ícono, pero como **texto** no llegaban al contraste mínimo de 4,5:1 (medido: `text-green-600` 3,3 y `text-amber-600` 3,2 en claro; `text-red-600` 3,6 y `text-purple-600` 3,3 en oscuro). En `globals.css`, fuera de `@layer`, `text-{red,green,emerald,orange,amber,yellow,purple,blue,sky,primary}-600` usan el tono `-700` de su escala: en claro queda entre 4,9 y 7,0, y en oscuro el `-700` ya es un tono claro. Los rellenos (`bg-*-600`) no cambian. Además, `paletaTemas.test.ts` impide usar en pantallas una escala sin versión oscura (violet, indigo, fuchsia, pink): en Auditoría se cambiaron fucsia e índigo por celeste y azul.
+
 ## Changelog SPEC
+- **v2.70 (2026-10-13):**
+  - 2.147: Programar mantención solo busca equipos disponibles y asignados; el filtro `estado` de Activos acepta varios separados por coma.
+  - 2.148: un equipo asignado no queda "en espera de repuestos" y no se cambia un equipo en mantención.
+  - 2.149: ningún error técnico se muestra a la persona (login, API con base caída = 503, `mensajeDeError` en las pantallas).
+  - 2.150 a 2.155: Compras pasa a llamarse **Compras de activos**; N° de factura obligatorio salvo gasto menor; crear un artículo de Kit/EPP desde la compra; aviso de garantía mal puesta; editar lo agregado en Nueva compra; buscador de equipo existente con lista; ventanas que ya no roban el foco al escribir.
+  - 2.156: aviso informativo de garantías por vencer (30 días) en el Dashboard.
+  - 2.157: guía de despacho en PDF con diseño sobrio, sin firmas.
+  - 2.158: texto de color legible en ambos temas y prueba de la paleta.
+  - Login sin usuario ni contraseña de ejemplo; ventana de reparto más grande.
 - **v2.69 (2026-10-07):**
   - Sección 2.138: **sin ubicación física en el equipo** (migración `quitar_ubicacion_fisica`): ningún proceso la pide y sale de Crear/Editar, ficha, búsqueda, exportación e importación; la ubicación es la sede del equipo y la de la persona asignada. Buscador (`SelectorBuscable`) al elegir equipos en Cambio de equipo y Onboarding, y al elegir teléfono o persona en Líneas.
   - Sección 2.139 (nueva): **`TablaDatos`**, una sola tabla para todas las listas (acciones fijas, fila expandible, lista compacta en celular, cargando y vacío), y una sola paginación con números de página. Sin cambios en datos ni filtros.
   - Sección 2.143: Cambio de equipo pregunta **chip físico o eSIM** al cambiar un celular, y permite **cambiar líneas** de la persona (solas o con equipos, de cualquier tipo; la anterior queda disponible). El detalle muestra todo lo cambiado. Migración `solicitud_linea_ids` (`WorkflowRequest.lineaIds`); ruta `GET /api/empleados/[id]/lineas`.
+  - Sección 2.146: el filtro "Motivo de baja" de Activos encuentra las bajas directas (el motivo está en el equipo).
+  - Sección 2.145: un despacho puede llevar Kit/EPP (descuenta el stock de la sede origen y lo devuelve al anular), además de equipos.
+  - Sección 2.145: Despachos sin límite por sede (cualquiera confirma, resuelve y anula), listado con sede opcional y tarjeta "Por recibir" global, y **guía de despacho en PDF** (`GET /api/guias-despacho/[id]/documento`). Los estilos de PDF pasan a `shared/pdf/`.
   - Sección 2.143: el detalle de la Desvinculación muestra las eSIM liberadas y las líneas de los celulares devueltos, con enlaces; las eSIM liberadas quedan en `WorkflowRequest.lineaIds`. El formulario de crear muestra las líneas de la persona (informativo).
   - Cuadro «Historial de Asignaciones» de la ficha del equipo: cada asignación muestra **Desde** (entrega) y **Hasta** (devolución, o «—» si sigue activa), para ver cuánto tiempo lo tuvo cada persona.
   - La ficha de una línea (`/activos/lineas/[id]`) se rediseña con el formato de la ficha de un equipo: tarjetas de resumen, «Información General», «Historial de Asignaciones» y «Historial de Eventos» en la columna lateral. Mismos datos y botones.

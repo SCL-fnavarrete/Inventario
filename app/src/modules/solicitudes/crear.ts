@@ -411,7 +411,7 @@ export async function crearSolicitud(
               where: { id: cambio.oldAssignmentId },
               select: {
                 asset: {
-                  select: { categoriaId: true, categoria: { select: { nombre: true, tipoFicha: true } } },
+                  select: { categoriaId: true, estado: true, categoria: { select: { nombre: true, tipoFicha: true } } },
                 },
               },
             }),
@@ -425,6 +425,11 @@ export async function crearSolicitud(
           // eSIM: solo un celular se cambia por una eSIM (SPEC 2.143).
           if (cambio.newEsimLineaId && viejo?.asset.categoria.tipoFicha !== 'celular') {
             throw new ValidationError('Solo un celular se puede cambiar por una eSIM');
+          }
+          if (viejo?.asset.estado === 'en_mantencion') {
+            throw new ConflictError(
+              'Un equipo está en mantención: complétala o cancélala antes de cambiarlo'
+            );
           }
           if (viejo && reemplazo) {
             if (reemplazo.categoriaId !== viejo.asset.categoriaId) {

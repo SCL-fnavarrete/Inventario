@@ -5,7 +5,7 @@ import { AnexoEntregaTemplate } from '@/modules/solicitudes/plantillas/AnexoEntr
 import { ComprobanteEntregaTemplate } from '@/modules/solicitudes/plantillas/ComprobanteEntregaTemplate';
 import { ComprobanteCambioTemplate } from '@/modules/solicitudes/plantillas/ComprobanteCambioTemplate';
 import { ActaDevolucionTemplate } from '@/modules/solicitudes/plantillas/ActaDevolucionTemplate';
-import type { FilaEquipoActa } from '@/modules/solicitudes/plantillas/TablaEquipoActa';
+import type { FilaEquipoActa } from '@/shared/pdf/TablaEquipoActa';
 import type { FilaLineaActa } from '@/modules/solicitudes/plantillas/TablaLineasActa';
 import { detalleSolicitud } from '@/modules/solicitudes/lecturas';
 import { formatearNumero } from '@/modules/lineas';

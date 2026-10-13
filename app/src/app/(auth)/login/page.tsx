@@ -108,7 +108,6 @@ export default function LoginPage() {
               spellCheck={false}
               aria-invalid={!!errores.usuario}
               className={claseCampo(errores.usuario)}
-              placeholder="jsoto"
             />
             <MensajeCampo mensaje={errores.usuario} />
           </div>
@@ -127,7 +126,6 @@ export default function LoginPage() {
               autoComplete="current-password"
               aria-invalid={!!errores.password}
               className={claseCampo(errores.password)}
-              placeholder="••••••••"
             />
             <MensajeCampo mensaje={errores.password} />
           </div>

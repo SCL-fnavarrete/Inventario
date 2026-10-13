@@ -15,7 +15,7 @@ import {
 } from "@/modules/lineas";
 import { AvanceImportacion, BloquePaso, CargaArchivo, MapeoColumnas, Pasos, ResumenFallos, type GrupoMapeo } from "@/modules/importacion/componentes";
 import type { Fallo } from "@/modules/importacion";
-import { parseApiError } from "@/shared/utilidades/apiErrors";
+import { parseApiError, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { hoyISO } from "@/shared/utilidades/fechas";
 import { Button } from "@/shared/ui/Button";
 import { CampoFormulario, CampoTexto, ResumenErrores, claseInput } from "@/shared/ui/CampoFormulario";
@@ -102,7 +102,7 @@ export function FlujoLineas() {
     try {
       await accion();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error inesperado");
+      setError(mensajeDeError(e, "Error inesperado"));
     } finally {
       setOcupado(false);
     }

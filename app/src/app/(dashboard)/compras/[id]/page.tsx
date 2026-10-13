@@ -11,7 +11,6 @@ import {
   Package,
   Plus,
   X,
-  Search,
   Eye,
   Shirt,
   Pencil,
@@ -20,7 +19,7 @@ import {
   Truck,
   CheckCircle } from "lucide-react";
 import { Can } from "@/shared/ui/Can";
-import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { parseApiError, type FieldErrors, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { formatearFechaLarga } from "@/shared/utilidades/fechas";
 import {
@@ -41,7 +40,7 @@ import {
   ESTADO_REPARTO_LABEL,
   type AvanceReparto,
 } from "@/modules/compras";
-import { CamposFactura, VentanaReparto } from "@/modules/compras/componentes";
+import { BuscadorEquipoExistente, CamposFactura, NuevoArticuloKit, VentanaReparto } from "@/modules/compras/componentes";
 import { Modal } from "@/shared/ui/Modal";
 import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { cn } from "@/shared/cn";
@@ -179,9 +178,6 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
   // Para vincular un equipo que ya existia
   const [showAssetSearch, setShowAssetSearch] = useState(false);
-  const [assetSearch, setAssetSearch] = useState("");
-  const [availableAssets, setAvailableAssets] = useState<Asset[]>([]);
-  const [loadingAssets, setLoadingAssets] = useState(false);
   const [addingAsset, setAddingAsset] = useState(false);
 
   // Para agregar Kit/EPP
@@ -204,7 +200,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       const data = await res.json();
       setPurchase(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(mensajeDeError(err, "Error desconocido"));
     } finally {
       setLoading(false);
     }
@@ -270,37 +266,9 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
     }
   }
 
-  const searchAssets = useCallback(async () => {
-    setLoadingAssets(true);
-    try {
-      // Acotado a la sede de la compra, igual que el catalogo de Kit/EPP
-      // de mas abajo.
-      const params = new URLSearchParams({
-        search: assetSearch,
-        limit: "20",
-      });
-      if (purchase?.sede?.id) params.set("sedeId", purchase.sede.id);
-      const res = await fetch(`/api/activos?${params}`);
-      const data = await res.json();
-      // Filter out already linked assets
-      const linkedIds = new Set(purchase?.purchaseAssets.map((pa) => pa.assetId) || []);
-      setAvailableAssets((data.data || []).filter((a: Asset) => !linkedIds.has(a.id)));
-    } catch (error) {
-      logger.error("Error searching assets", error);
-    } finally {
-      setLoadingAssets(false);
-    }
-  }, [assetSearch, purchase]);
-
   useEffect(() => {
     fetchPurchase();
   }, [fetchPurchase]);
-
-  useEffect(() => {
-    if (assetSearch.length >= 2) {
-      searchAssets();
-    }
-  }, [assetSearch, searchAssets]);
 
   async function agregarEquipoComprado(values: ActivoFormValues) {
     setNewAssetError(null);
@@ -320,7 +288,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       setShowNewAssetForm(false);
       await fetchPurchase();
     } catch (err) {
-      setNewAssetError(err instanceof Error ? err.message : "Error al agregar el equipo");
+      setNewAssetError(mensajeDeError(err, "Error al agregar el equipo"));
     }
   }
 
@@ -343,11 +311,9 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
       // Refrescar datos
       await fetchPurchase();
-      setAssetSearch("");
       setShowAssetSearch(false);
-      setAvailableAssets([]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al vincular activo");
+      setError(mensajeDeError(err, "Error al vincular activo"));
     } finally {
       setAddingAsset(false);
     }
@@ -392,7 +358,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       // Refrescar datos
       await fetchPurchase();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al desvincular activo");
+      setError(mensajeDeError(err, "Error al desvincular activo"));
     }
   }
 
@@ -430,7 +396,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
       setKitItemCantidad("1");
       setShowKitItemPicker(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al agregar artículo de Kit/EPP");
+      setError(mensajeDeError(err, "Error al agregar artículo de Kit/EPP"));
     } finally {
       setAddingKitItem(false);
     }
@@ -464,7 +430,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
       await fetchPurchase();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al desvincular artículo de Kit/EPP");
+      setError(mensajeDeError(err, "Error al desvincular artículo de Kit/EPP"));
     }
   }
 
@@ -487,7 +453,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
       router.push("/compras");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(mensajeDeError(err, "Error desconocido"));
       setDeleting(false);
     }
   }
@@ -712,64 +678,15 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
         </div>
 
         {/* Búsqueda de activos */}
-        {showAssetSearch && (
-          <div className="p-4 bg-surface-muted border-b">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-fg-subtle" />
-              <input
-                type="text"
-                value={assetSearch}
-                onChange={(e) => setAssetSearch(e.target.value)}
-                placeholder="Buscar activo por serie, marca, modelo..."
-                autoFocus
-                className="field-input pl-10 pr-4"
-              />
-              <button aria-label="Cerrar búsqueda"
-                type="button"
-                onClick={() => {
-                  setShowAssetSearch(false);
-                  setAssetSearch("");
-                  setAvailableAssets([]);
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg-muted"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {loadingAssets && (
-              <div className="mt-2 flex items-center justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-fg-subtle" />
-              </div>
-            )}
-
-            {!loadingAssets && availableAssets.length > 0 && (
-              <div className="mt-2 max-h-48 overflow-y-auto border border-line rounded-lg bg-surface">
-                {availableAssets.map((asset) => (
-                  <button
-                    key={asset.id}
-                    type="button"
-                    onClick={() => addAssetToPurchase(asset)}
-                    disabled={addingAsset}
-                    className="w-full px-4 py-2 text-left hover:bg-surface-muted flex items-center justify-between border-b last:border-b-0 disabled:opacity-50"
-                  >
-                    <div>
-                      <p className="font-medium text-sm">
-                        {asset.marca} {asset.modelo}
-                      </p>
-                      <p className="text-xs text-fg-subtle">
-                        {asset.categoria.nombre} • {identificadorActivo(asset, "Sin serie")}
-                      </p>
-                    </div>
-                    {addingAsset ? (
-                      <Loader2 size={18} className="animate-spin text-primary-700" />
-                    ) : (
-                      <Plus size={18} className="text-primary-700" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
+        {showAssetSearch && purchase.sede?.id && (
+          <div className="px-4 pt-4">
+            <BuscadorEquipoExistente
+              sedeId={purchase.sede.id}
+              excluirIds={purchase.purchaseAssets.map((pa) => pa.assetId)}
+              ocupado={addingAsset}
+              onElegir={addAssetToPurchase}
+              onCerrar={() => setShowAssetSearch(false)}
+            />
           </div>
         )}
 
@@ -875,6 +792,16 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                 ))}
               </select>
               {errores.kitItem && <p className="mt-1 text-xs text-red-600">{errores.kitItem}</p>}
+              {purchase.sede?.id && (
+                <NuevoArticuloKit
+                  sedeId={purchase.sede.id}
+                  onCreado={(item) => {
+                    setKitItemsCatalogo((prev) => [...prev, item]);
+                    setKitItemToAdd(item.id);
+                    limpiar("kitItem");
+                  }}
+                />
+              )}
             </div>
             <div className="w-full sm:w-28">
               <label className="block text-xs font-medium text-fg-muted mb-1">Cantidad</label>
@@ -1041,7 +968,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
         isOpen={showNewAssetForm}
         onClose={() => setShowNewAssetForm(false)}
         title="Agregar equipo comprado"
-        size="xl"
+        size="2xl"
       >
         <p className="text-sm text-fg-subtle mb-4">
           Queda en Activos como &quot;Por repartir&quot; en {purchase.sede?.nombre ?? "la sede de llegada"},

@@ -68,12 +68,13 @@ describe('filtros por marca, sistema operativo, antivirus, licencia y motivo de 
     expect(where.AND).toEqual([{ OR: [{ antivirus: null }, { antivirus: '' }] }]);
   });
 
-  test('motivo de baja: por la mantencion de baja, o bajas sin motivo', () => {
+  test('motivo de baja: en el equipo (baja directa), la mantencion o la devolucion; o bajas sin motivo', () => {
     expect(whereFiltrosActivos({ datos: { motivoBaja: 'm1' } }).AND).toEqual([
-      // El motivo esta en la mantencion de la baja o en la devolucion de un cambio (SPEC 2.126).
+      // Baja directa (SPEC 2.140); las anteriores, en la mantencion o en la devolucion (SPEC 2.126).
       {
         estado: 'baja',
         OR: [
+          { motivoBajaId: 'm1' },
           { maintenances: { some: { motivoBajaId: 'm1' } } },
           { assignments: { some: { motivoBajaId: 'm1' } } },
         ],
@@ -82,6 +83,7 @@ describe('filtros por marca, sistema operativo, antivirus, licencia y motivo de 
     expect(whereFiltrosActivos({ datos: { motivoBaja: SIN_DATO } }).AND).toEqual([
       {
         estado: 'baja',
+        motivoBajaId: null,
         maintenances: { none: { motivoBajaId: { not: null } } },
         assignments: { none: { motivoBajaId: { not: null } } },
       },

@@ -1,5 +1,6 @@
 import type { EstadoItemGuia, Prisma, WelcomeKitItem } from '@prisma/client';
 import { auditLogService } from '@/shared/auditoria';
+import { ConflictError } from '@/shared/errores';
 
 type Tx = Prisma.TransactionClient;
 
@@ -44,6 +45,35 @@ export async function sumarStockKit(
     itemId,
     `${descripcion}: +${cantidad} ${item.nombre}`,
     { cantidad: item.cantidad - cantidad },
+    { cantidad: item.cantidad },
+    usuario,
+    tx
+  );
+  return item;
+}
+
+/**
+ * Resta stock de un articulo (sale en un despacho). Solo si alcanza: la resta
+ * es atomica, asi dos despachos a la vez no dejan el stock en negativo.
+ */
+export async function restarStockKit(
+  tx: Tx,
+  itemId: string,
+  cantidad: number,
+  descripcion: string,
+  usuario: string
+) {
+  const { count } = await tx.welcomeKitItem.updateMany({
+    where: { id: itemId, cantidad: { gte: cantidad } },
+    data: { cantidad: { decrement: cantidad } },
+  });
+  if (count !== 1) throw new ConflictError('El stock cambió y ya no alcanza. Vuelve a elegir las cantidades.');
+  const item = await tx.welcomeKitItem.findUniqueOrThrow({ where: { id: itemId } });
+  await auditLogService.registrarActualizacion(
+    'kit_item',
+    itemId,
+    `${descripcion}: -${cantidad} ${item.nombre}`,
+    { cantidad: item.cantidad + cantidad },
     { cantidad: item.cantidad },
     usuario,
     tx

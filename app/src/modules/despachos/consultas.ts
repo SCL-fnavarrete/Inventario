@@ -8,10 +8,10 @@ export const VISTAS_GUIA = {
   recibida_parcial: (): Prisma.DispatchGuideWhereInput => ({ estado: 'recibida_parcial' }),
   recibida: (): Prisma.DispatchGuideWhereInput => ({ estado: 'recibida' }),
   anulada: (): Prisma.DispatchGuideWhereInput => ({ estado: 'anulada' }),
-  /** Lo que la sede tiene que atender: en camino hacia ella o con faltantes. */
+  /** Lo que falta recibir: en camino o con faltantes; con sede elegida, solo lo que va hacia ella. */
   por_recibir: (sedeId: string | null): Prisma.DispatchGuideWhereInput => ({
     estado: { in: ['en_transito', 'recibida_parcial'] },
-    sedeDestinoId: sedeId ?? '__sin_sede__',
+    ...(sedeId ? { sedeDestinoId: sedeId } : {}),
   }),
 } as const;
 

@@ -18,7 +18,7 @@ import {
   type ImportBatchResult,
   type ImportPreviewResult,
 } from "@/modules/importacion";
-import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { parseApiError, type FieldErrors, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { Button } from "@/shared/ui/Button";
 import { CampoFormulario, ResumenErrores, claseInput } from "@/shared/ui/CampoFormulario";
@@ -117,7 +117,7 @@ export function FlujoEquipos({ categoria, ficha, nombreCategoria }: { categoria:
       setAvailableSheets(data.sheets);
       setSheetName(data.sheets.length === 1 ? data.sheets[0] : "");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al procesar archivo");
+      setError(mensajeDeError(err, "Error al procesar archivo"));
     } finally {
       setParsing(false);
     }
@@ -152,7 +152,7 @@ export function FlujoEquipos({ categoria, ficha, nombreCategoria }: { categoria:
       setPreview(data);
       setColumnMapping(mapeoSugerido(data.headers, campos));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al leer la hoja");
+      setError(mensajeDeError(err, "Error al leer la hoja"));
     } finally {
       setParsing(false);
     }
@@ -206,7 +206,7 @@ export function FlujoEquipos({ categoria, ficha, nombreCategoria }: { categoria:
         setValidationVersion((v) => v + 1);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al validar los datos");
+      setError(mensajeDeError(err, "Error al validar los datos"));
     } finally {
       setValidating(false);
     }
@@ -228,7 +228,7 @@ export function FlujoEquipos({ categoria, ficha, nombreCategoria }: { categoria:
         setCorrections({});
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al validar los datos");
+      setError(mensajeDeError(err, "Error al validar los datos"));
     } finally {
       setValidating(false);
     }
@@ -286,7 +286,7 @@ export function FlujoEquipos({ categoria, ficha, nombreCategoria }: { categoria:
       }
       mostrarResultado();
     } catch (err) {
-      setError(avisoParcial(err instanceof Error ? err.message : "Error al importar"));
+      setError(avisoParcial(mensajeDeError(err, "Error al importar")));
       mostrarResultado();
     } finally {
       setCommitting(false);

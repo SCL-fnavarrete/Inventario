@@ -4,7 +4,7 @@ import { coincideBusqueda } from '@/shared/utilidades/text';
 import { ordenarComo, paginarCoincidencias } from '@/shared/utilidades/busquedaEnMemoria';
 import { VISTAS_GUIA, type VistaGuia } from '@/modules/despachos/consultas';
 
-/** La sede del menu filtra por AMBAS puntas: una guia interesa a la que despacha y a la que recibe. */
+/** La sede del menu es un filtro opcional (SPEC 2.117): muestra lo que sale de ella o llega a ella. */
 const porSede = (sedeId: string): Prisma.DispatchGuideWhereInput[] =>
   sedeId ? [{ OR: [{ sedeId }, { sedeDestinoId: sedeId }] }] : [];
 
@@ -78,8 +78,8 @@ export async function resumenDespachos(sedeId: string) {
     contar(VISTAS_GUIA.recibida_parcial()),
     contar(VISTAS_GUIA.recibida()),
     contar(VISTAS_GUIA.anulada()),
-    // "Por recibir": lo que va hacia la sede elegida; sin sede, no aplica.
-    sedeId ? contar(VISTAS_GUIA.por_recibir(sedeId)) : Promise.resolve(null),
+    // "Por recibir": todo lo que falta recibir, o lo que va hacia la sede elegida.
+    contar(VISTAS_GUIA.por_recibir(sedeId || null)),
     // Equipos que viajan, de las guias que se ven.
     prisma.dispatchGuideItem.count({
       where: { estado: 'en_transito', guide: { AND: [...base, { estado: { not: 'anulada' } }] } },

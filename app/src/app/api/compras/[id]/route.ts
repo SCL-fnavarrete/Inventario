@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// PUT /api/compras/[id] - Editar los datos de la factura (solo admin). La
+// PUT /api/compras/[id] - Editar los datos de la factura (admin y técnico). La
 // sede de llegada solo cambia mientras no se haya repartido nada.
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
@@ -35,7 +35,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/compras/[id] - Eliminar una compra (solo admin), solo si no se
+// DELETE /api/compras/[id] - Eliminar una compra (admin y técnico), solo si no se
 // repartio nada (SPEC 2.111.7).
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {

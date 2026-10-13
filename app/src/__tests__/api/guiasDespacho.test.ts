@@ -124,7 +124,7 @@ const ctx = { params: Promise.resolve({ id: 'g1' }) };
 const ctxItem = { params: Promise.resolve({ id: 'g1', itemId: 'i1' }) };
 
 describe('PATCH /api/guias-despacho/[id] (confirmar recepcion)', () => {
-  const body = { recibidoPor: 'Ana', fechaRecepcion: '2026-09-26T10:00:00.000Z', llegaron: ['i1', 'i2'] };
+  const body = { fechaRecepcion: '2026-09-26T10:00:00.000Z', llegaron: ['i1', 'i2'] };
 
   test('la sede destino recibe todo: los equipos pasan a su sede y la guia queda Recibida', async () => {
     comoDestino();
@@ -161,7 +161,7 @@ describe('PATCH /api/guias-despacho/[id] (confirmar recepcion)', () => {
     comoDestino();
     buscarGuia(guia('en_transito'));
     const res = await recibir(
-      pedir('PATCH', { recibidoPor: 'Ana', fechaRecepcion: '2026-09-24T10:00:00.000Z', llegaron: [] }),
+      pedir('PATCH', { fechaRecepcion: '2026-09-24T10:00:00.000Z', llegaron: [] }),
       ctx
     );
     expect(res.status).toBe(400);
@@ -279,7 +279,7 @@ describe('recepción con Kit/EPP', () => {
     tx.dispatchGuideKitItem.findFirst.mockResolvedValue(lineaKit(4));
     kitPendiente = 1;
     const res = await recibir(
-      pedir('PATCH', { recibidoPor: 'Ana', llegaron: [], kitRecibido: [{ lineaId: 'k1', cantidad: 3 }] }),
+      pedir('PATCH', { llegaron: [], kitRecibido: [{ lineaId: 'k1', cantidad: 3 }] }),
       ctx
     );
     expect(res.status).toBe(200);
@@ -299,7 +299,7 @@ describe('recepción con Kit/EPP', () => {
   test('sin equipos ni cantidades: 400', async () => {
     comoDestino();
     buscarGuia(guia('en_transito', [], [lineaKit(4)]));
-    const res = await recibir(pedir('PATCH', { recibidoPor: 'Ana', llegaron: [], kitRecibido: [] }), ctx);
+    const res = await recibir(pedir('PATCH', { llegaron: [], kitRecibido: [] }), ctx);
     expect(res.status).toBe(400);
   });
 });

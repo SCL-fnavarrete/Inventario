@@ -6,6 +6,7 @@ import { formatearFechaConHora, formatearFechaCorta } from '@/shared/utilidades/
 import {
   estadoTrasMantencion,
   motivoSinBaja,
+  motivoSinEsperaDeRepuestos,
   motivoSinMantencion,
   validateTransition,
 } from '@/modules/activos';
@@ -541,6 +542,8 @@ export async function completarMantencion(
   }
 
   if (data.resultadoTipo === 'pendiente_repuestos') {
+    const bloqueoRepuestos = motivoSinEsperaDeRepuestos(asset);
+    if (bloqueoRepuestos) throw new ConflictError(bloqueoRepuestos);
     return prisma.$transaction(async (tx) => {
       const actualizada = await siSigueIgual(
         tx.maintenance.update({

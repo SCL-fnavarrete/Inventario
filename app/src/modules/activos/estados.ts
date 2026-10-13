@@ -111,6 +111,17 @@ export function motivoSinBaja(activo: {
   }
 }
 
+/**
+ * Por que una mantencion de un equipo asignado no puede quedar "en espera de
+ * repuestos", o null si puede: la persona quedaria sin equipo sin fecha. Debe
+ * cambiarsele el equipo, o cerrar la mantencion como reparada.
+ */
+export function motivoSinEsperaDeRepuestos(activo: { empleadoActualId: string | null }): string | null {
+  return activo.empleadoActualId
+    ? 'El equipo está asignado a una persona: primero cámbiale el equipo con una solicitud de cambio de equipo. Si lo reparas ahora, ciérrala como "Reparado, vuelve a uso".'
+    : null;
+}
+
 /** Eventos del historial que no cuentan como uso: el alta y sus correcciones. */
 export const EVENTOS_SIN_USO = ['creacion', 'actualizacion_specs'] as const;
 

@@ -9,8 +9,9 @@ import {
   Package,
   ChevronRight,
   MapPinOff,
+  ShieldCheck,
 } from "lucide-react";
-import { formatearFechaConHora } from "@/shared/utilidades/fechas";
+import { formatearFecha, formatearFechaConHora } from "@/shared/utilidades/fechas";
 import { identificadorActivo } from "@/modules/activos";
 
 interface Maintenance {
@@ -25,6 +26,17 @@ interface Maintenance {
     modelo: string;
     sede: { nombre: string } | null;
   };
+}
+
+interface GarantiaPorVencer {
+  id: string;
+  marca: string;
+  modelo: string;
+  numeroSerie: string | null;
+  imei?: string | null;
+  fechaGarantiaFin: Date | null;
+  diasRestantes: number;
+  sede: { nombre: string } | null;
 }
 
 interface KitItemSinStock {
@@ -61,6 +73,9 @@ interface AlertsPanelProps {
   bajoStockCategorias: CategoriaBajoStock[];
   /** Equipos sin sede (importados sin ella, SPEC 2.117): se completan en Editar. */
   equiposSinSede: number;
+  /** Aviso informativo (no cuenta como alerta): garantias que vencen pronto. */
+  garantiasPorVencer: GarantiaPorVencer[];
+  totalGarantiasPorVencer: number;
 }
 
 const categoriaKitLabels: Record<KitItemSinStock["categoria"], string> = {
@@ -115,6 +130,8 @@ export function AlertsPanel({
   sinStockCategorias,
   bajoStockCategorias,
   equiposSinSede,
+  garantiasPorVencer,
+  totalGarantiasPorVencer,
 }: AlertsPanelProps) {
   const totalAlertas =
     (equiposSinSede > 0 ? 1 : 0) +
@@ -138,7 +155,7 @@ export function AlertsPanel({
         )}
       </div>
 
-      {totalAlertas === 0 ? (
+      {totalAlertas === 0 && totalGarantiasPorVencer === 0 ? (
         <div className="text-center py-8 text-fg-subtle">
           <AlertCircle className="h-12 w-12 mx-auto mb-2 text-gray-300" />
           <p>No hay alertas pendientes</p>
@@ -162,6 +179,38 @@ export function AlertsPanel({
               </div>
               <ChevronRight className="h-4 w-4 text-blue-400 shrink-0" />
             </Link>
+          )}
+
+          {/* Garantias por vencer: solo informativo, por eso va en morado y no suma a las alertas */}
+          {garantiasPorVencer.map((a) => (
+            <Link
+              key={`garantia-${a.id}`}
+              href={`/activos/${a.id}`}
+              className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+            >
+              <div className="p-2 bg-purple-100 rounded-full shrink-0">
+                <ShieldCheck className="h-4 w-4 text-purple-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-purple-900">Garantía por vencer</p>
+                <p className="text-xs text-purple-700 break-words">
+                  {a.marca} {a.modelo} ({identificadorActivo(a)})
+                </p>
+                <p className="text-xs text-purple-800">
+                  {a.diasRestantes === 0
+                    ? "Vence hoy"
+                    : `Vence en ${a.diasRestantes} ${a.diasRestantes === 1 ? "día" : "días"}`}
+                  {a.fechaGarantiaFin ? ` (${formatearFecha(a.fechaGarantiaFin)})` : ""}
+                </p>
+                <EtiquetaSede nombre={a.sede?.nombre ?? null} />
+              </div>
+              <ChevronRight className="h-4 w-4 text-purple-400 shrink-0" />
+            </Link>
+          ))}
+          {totalGarantiasPorVencer > garantiasPorVencer.length && (
+            <p className="px-3 text-sm text-fg-muted">
+              …y {(totalGarantiasPorVencer - garantiasPorVencer.length).toLocaleString("es-CL")} garantías más por vencer
+            </p>
           )}
 
           {/* Mantenciones Vencidas */}

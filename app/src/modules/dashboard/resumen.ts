@@ -29,6 +29,17 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
   const ahora = new Date();
   const sixMonthsAgo = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth() - 5, 1));
 
+  // Garantias que vencen pronto (aviso informativo, SPEC 2.156): equipos en uso
+  // o en stock cuyo fin de garantia cae en los proximos DIAS_AVISO_GARANTIA dias.
+  const finAvisoGarantia = new Date(today);
+  finAvisoGarantia.setUTCDate(finAvisoGarantia.getUTCDate() + DIAS_AVISO_GARANTIA);
+  const garantiaPorVencer = {
+    ...ACTIVOS_VIGENTES,
+    ...sw,
+    estado: { not: "baja" as const },
+    fechaGarantiaFin: { gte: today, lte: finAvisoGarantia },
+  };
+
   // Mantenciones del panel de alertas (SPEC 2.125): solo las mas urgentes de
   // cada grupo; el resto se cuenta en la base. Asi el Dashboard cuesta lo
   // mismo con 10 que con 10.000 (antes traia todas y dibujaba una tarjeta
@@ -76,6 +87,8 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
     pendientesDeDevolucion,
     actividadReciente,
     lineas,
+    garantiasPorVencerRaw,
+    totalGarantiasPorVencer,
   ] = await Promise.all([
     prisma.asset.count({ where: { ...ACTIVOS_VIGENTES, ...sw } }),
     prisma.asset.groupBy({
@@ -147,7 +160,28 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
       },
     }),
     resumenLineasDashboard(sedeIdFiltro),
+    prisma.asset.findMany({
+      where: garantiaPorVencer,
+      orderBy: { fechaGarantiaFin: "asc" },
+      take: ALERTAS_POR_GRUPO,
+      select: {
+        id: true,
+        marca: true,
+        modelo: true,
+        numeroSerie: true,
+        imei: true,
+        fechaGarantiaFin: true,
+        sede: { select: { nombre: true } },
+      },
+    }),
+    prisma.asset.count({ where: garantiaPorVencer }),
   ]);
+
+  // Dias que le quedan a cada garantia (0 = vence hoy).
+  const garantiasPorVencer = garantiasPorVencerRaw.map((a) => ({
+    ...a,
+    diasRestantes: Math.round((a.fechaGarantiaFin!.getTime() - today.getTime()) / 86_400_000),
+  }));
 
   // Desglose de activos por categoria + estado, agregado en memoria a
   // partir del groupBy.
@@ -307,12 +341,17 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
     totalVencidas,
     totalProximas,
     equiposSinSede,
+    garantiasPorVencer,
+    totalGarantiasPorVencer,
     equiposPorSede,
     pendientesDeDevolucion,
     actividadReciente,
     lineas,
   };
 }
+
+/** Con cuantos dias de anticipacion avisa que una garantia esta por vencer. */
+export const DIAS_AVISO_GARANTIA = 30;
 
 /** Cuantas mantenciones de cada grupo (vencidas, proximas) muestra el panel. */
 export const ALERTAS_POR_GRUPO = 5;

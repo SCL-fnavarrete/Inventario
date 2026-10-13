@@ -8,7 +8,7 @@ interface RouteParams {
 }
 
 // POST /api/compras/[id]/repartir - Repartir parte de una compra a una sede
-// (SPEC 2.111.3, solo admin). A la sede de llegada queda disponible en el
+// (SPEC 2.111.3; admin y técnico). A la sede de llegada queda disponible en el
 // momento; a otra sede sale en un despacho vinculado a la compra.
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {

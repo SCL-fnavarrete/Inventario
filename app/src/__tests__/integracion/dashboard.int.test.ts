@@ -97,4 +97,30 @@ describir('resumen del Dashboard en Postgres', () => {
       await prisma.sede.delete({ where: { id: otra.id } });
     }
   });
+
+  test('avisa de las garantías que vencen en los próximos 30 días (solo informativo)', async () => {
+    const equipo = (garantia: Date | null, estado: 'disponible' | 'baja' = 'disponible') =>
+      prisma.asset.create({
+        data: {
+          categoriaId: ids.categoriaId!, sedeId: ids.sedeId!, marca: 'HP', modelo: `Gar ${s}`,
+          estado, fechaGarantiaFin: garantia,
+        },
+      });
+    const creados = await Promise.all([
+      equipo(dias(10)), // entra: faltan 10 dias
+      equipo(dias(0)), // entra: vence hoy
+      equipo(dias(60)), // no: falta mucho
+      equipo(dias(-3)), // no: ya vencio
+      equipo(dias(5), 'baja'), // no: esta de baja
+      equipo(null), // no: sin garantia
+    ]);
+    try {
+      const r = await resumenDashboard(ids.sedeId!);
+      expect(r.totalGarantiasPorVencer).toBe(2);
+      // La que vence antes, primero.
+      expect(r.garantiasPorVencer.map((g) => g.diasRestantes)).toEqual([0, 10]);
+    } finally {
+      await prisma.asset.deleteMany({ where: { id: { in: creados.map((c) => c.id) } } });
+    }
+  });
 });

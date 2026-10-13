@@ -27,7 +27,7 @@ export function CamposFactura({
   errores: Record<string, string>;
   onChange: (campo: keyof DatosFactura, valor: string) => void;
   sedes: { id: string; nombre: string }[];
-  /** Solo admin elige o cambia la sede de una compra. */
+  /** Quien puede editar la compra elige o cambia su sede. */
   puedeElegirSede: boolean;
   ayudaSede: string;
 }) {

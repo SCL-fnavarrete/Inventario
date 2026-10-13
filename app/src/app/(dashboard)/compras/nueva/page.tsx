@@ -10,12 +10,13 @@ import {
   Package,
   Plus,
   X,
-  Search,
   AlertCircle,
   PackagePlus,
   Shirt,
+  Pencil,
+  Check,
 } from "lucide-react";
-import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { parseApiError, type FieldErrors, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
@@ -36,7 +37,8 @@ import {
 } from "@/shared/ui/CampoFormulario";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { ETIQUETAS_FACTURA, validarDatosFactura } from "@/modules/compras";
-import { CamposFactura, type DatosFactura } from "@/modules/compras/componentes";
+import { terminaAntesDeEmpezar } from "@/shared/validaciones/ordenFechas";
+import { BuscadorEquipoExistente, CamposFactura, NuevoArticuloKit, type DatosFactura } from "@/modules/compras/componentes";
 import { logger } from "@/shared/logger";
 
 type Sede = {
@@ -93,21 +95,22 @@ type SelectedKitItem = {
 
 export default function NuevaCompraPage() {
   const router = useRouter();
-  // La factura y lo que llego con ella; solo admin llega aqui (layout.tsx).
+  // La factura y lo que llego con ella; quien puede registrar llega aqui (layout.tsx).
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [availableAssets, setAvailableAssets] = useState<Asset[]>([]);
-  const [loadingAssets, setLoadingAssets] = useState(false);
-  const [assetSearch, setAssetSearch] = useState("");
   const [showAssetSearch, setShowAssetSearch] = useState(false);
 
   // Equipo comprado: el mismo formulario de Activos > Nuevo (SPEC 2.103), en
   // una ventana. Se anota en la lista y se crea al guardar la compra.
   const [showNewAssetForm, setShowNewAssetForm] = useState(false);
   const [equiposNuevos, setEquiposNuevos] = useState<EquipoNuevo[]>([]);
+  // Equipo de la lista que se esta corrigiendo (null = agregando uno nuevo).
+  const [editandoClave, setEditandoClave] = useState<number | null>(null);
+  // Linea de Kit/EPP cuya cantidad se esta corrigiendo.
+  const [editandoKitId, setEditandoKitId] = useState<string | null>(null);
   const [newAssetFieldErrors, setNewAssetFieldErrors] = useState<FieldErrors>({});
   const [newAssetError, setNewAssetError] = useState<string | null>(null);
 
@@ -215,35 +218,6 @@ export default function NuevaCompraPage() {
     }
   }
 
-  useEffect(() => {
-    if (assetSearch.length >= 2) {
-      searchAssets();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assetSearch, sedeId]);
-
-  async function searchAssets() {
-    setLoadingAssets(true);
-    try {
-      // Scoped to the purchase's own sede field (not the nav's view filter),
-      // so assets can't be linked across sedes.
-      const params = new URLSearchParams({
-        search: assetSearch,
-        limit: "20",
-      });
-      if (sedeId) params.set("sedeId", sedeId);
-      const res = await fetch(`/api/activos?${params}`);
-      const data = await res.json();
-      // Filter out already selected assets
-      const selectedIds = new Set(selectedAssets.map((a) => a.assetId));
-      setAvailableAssets((data.data || []).filter((a: Asset) => !selectedIds.has(a.id)));
-    } catch (error) {
-      logger.error("Error searching assets", error);
-    } finally {
-      setLoadingAssets(false);
-    }
-  }
-
   function addAsset(asset: Asset) {
     setSedeId(sedeId);
     limpiar("lineas");
@@ -254,9 +228,7 @@ export default function NuevaCompraPage() {
         asset,
       },
     ]);
-    setAssetSearch("");
     setShowAssetSearch(false);
-    setAvailableAssets([]);
   }
 
   function removeAsset(assetId: string) {
@@ -278,7 +250,7 @@ export default function NuevaCompraPage() {
       const repetido = (mensaje: string) => setNewAssetFieldErrors({ [campo]: mensaje });
       const mismo = (otro: string | null | undefined) =>
         (campo === "imei" ? normalizarImei(otro) : (otro ?? "").trim().toUpperCase()) === valor;
-      if (equiposNuevos.some((e) => mismo(e.valores[campo]))) {
+      if (equiposNuevos.some((e) => e.clave !== editandoClave && mismo(e.valores[campo]))) {
         return repetido(`Ya agregaste un equipo con este ${nombre}`);
       }
       try {
@@ -291,16 +263,27 @@ export default function NuevaCompraPage() {
         // Sin conexion: lo revisa el servidor al guardar.
       }
     }
-    setEquiposNuevos((prev) => [
-      ...prev,
-      {
-        clave: Date.now(),
-        valores: values,
-        categoria: categories.find((c) => c.id === values.categoriaId)?.nombre ?? "",
-      },
-    ]);
+    const categoria = categories.find((c) => c.id === values.categoriaId)?.nombre ?? "";
+    setEquiposNuevos((prev) =>
+      editandoClave === null
+        ? [...prev, { clave: Date.now(), valores: values, categoria }]
+        : prev.map((e) => (e.clave === editandoClave ? { ...e, valores: values, categoria } : e))
+    );
     limpiar("lineas");
+    cerrarVentanaEquipo();
+  }
+
+  function cerrarVentanaEquipo() {
     setShowNewAssetForm(false);
+    setEditandoClave(null);
+  }
+
+  function editarEquipoNuevo(clave: number) {
+    setShowAssetSearch(false);
+    setNewAssetError(null);
+    setNewAssetFieldErrors({});
+    setEditandoClave(clave);
+    setShowNewAssetForm(true);
   }
 
   function quitarEquipoNuevo(clave: number) {
@@ -330,7 +313,15 @@ export default function NuevaCompraPage() {
     e.preventDefault();
     const faltan = validarDatosFactura({ sedeId, ...formData });
     if (sinLineas) faltan.lineas = "Agrega al menos un equipo o un artículo de Kit/EPP";
-    if (reportar(faltan)) return;
+    // La garantia de un equipo no puede terminar antes de la factura.
+    const garantiaMal = equiposNuevos.findIndex((e) =>
+      terminaAntesDeEmpezar(formData.fechaFactura, e.valores.fechaGarantiaFin)
+    );
+    if (garantiaMal >= 0) {
+      const { marca, modelo } = equiposNuevos[garantiaMal].valores;
+      setError(`Equipo ${garantiaMal + 1} (${marca} ${modelo}): el fin de la garantía no puede ser anterior a la fecha de la factura.`);
+    }
+    if (reportar(faltan) || garantiaMal >= 0) return;
     setSaving(true);
     setError(null);
     setFieldErrors({});
@@ -343,7 +334,11 @@ export default function NuevaCompraPage() {
         fechaFactura: formData.fechaFactura,
         rutProveedor: formData.rutProveedor || null,
         ordenCompra: formData.ordenCompra || null,
-        equiposNuevos: equiposNuevos.map((e) => payloadActivo(e.valores, "crear")),
+        // La fecha de compra de cada equipo es la de la factura (asi lo guarda el servidor).
+        equiposNuevos: equiposNuevos.map((e) => ({
+          ...payloadActivo(e.valores, "crear"),
+          fechaCompra: formData.fechaFactura || null,
+        })),
         assets: selectedAssets.map((a) => ({
           assetId: a.assetId,
         })),
@@ -361,14 +356,20 @@ export default function NuevaCompraPage() {
 
       if (!res.ok) {
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al crear la compra");
-        if (!reportarServidor(fe)) setError(message);
+        // Un error de un equipo ("equiposNuevos.0.campo") se dice con su numero, no con el nombre interno.
+        const deEquipos = Object.entries(fe).filter(([k]) => k.startsWith("equiposNuevos."));
+        if (deEquipos.length > 0) {
+          setError(
+            deEquipos.map(([k, v]) => `Equipo ${Number(k.split(".")[1]) + 1}: ${v}`).join(" ")
+          );
+        } else if (!reportarServidor(fe)) setError(message);
         return;
       }
 
       const purchase = await res.json();
       router.push(`/compras/${purchase.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(mensajeDeError(err, "Error desconocido"));
     } finally {
       setSaving(false);
     }
@@ -418,6 +419,7 @@ export default function NuevaCompraPage() {
                   setShowAssetSearch(false);
                   setNewAssetError(null);
                   setNewAssetFieldErrors({});
+                  setEditandoClave(null);
                   setShowNewAssetForm(true);
                 }}
                 disabled={!sedeId}
@@ -456,65 +458,12 @@ export default function NuevaCompraPage() {
 
           {/* Búsqueda de activos */}
           {showAssetSearch && (
-            <div className="mb-4 p-4 bg-surface-muted rounded-lg">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-fg-subtle" />
-                <input
-                  type="text"
-                  value={assetSearch}
-                  onChange={(e) => setAssetSearch(e.target.value)}
-                  placeholder="Buscar activo por serie, marca, modelo..."
-                  autoFocus
-                  className="field-input pl-10 pr-4"
-                />
-                <button aria-label="Cerrar búsqueda"
-                  type="button"
-                  onClick={() => {
-                    setShowAssetSearch(false);
-                    setAssetSearch("");
-                    setAvailableAssets([]);
-                  }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg-muted"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              {loadingAssets && (
-                <div className="mt-2 flex items-center justify-center py-4">
-                  <Loader2 className="h-5 w-5 animate-spin text-fg-subtle" />
-                </div>
-              )}
-
-              {!loadingAssets && availableAssets.length > 0 && (
-                <div className="mt-2 max-h-48 overflow-y-auto border border-line rounded-lg bg-surface">
-                  {availableAssets.map((asset) => (
-                    <button
-                      key={asset.id}
-                      type="button"
-                      onClick={() => addAsset(asset)}
-                      className="w-full px-4 py-2 text-left hover:bg-surface-muted flex items-center justify-between border-b last:border-b-0"
-                    >
-                      <div>
-                        <p className="font-medium text-sm">
-                          {asset.marca} {asset.modelo}
-                        </p>
-                        <p className="text-xs text-fg-subtle">
-                          {asset.categoria.nombre} • {identificadorActivo(asset, "Sin serie")}
-                        </p>
-                      </div>
-                      <Plus size={18} className="text-primary-700" />
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {!loadingAssets && assetSearch.length >= 2 && availableAssets.length === 0 && (
-                <p className="mt-2 text-sm text-fg-subtle text-center py-4">
-                  No se encontraron activos
-                </p>
-              )}
-            </div>
+            <BuscadorEquipoExistente
+              sedeId={sedeId}
+              excluirIds={selectedAssets.map((a) => a.assetId)}
+              onElegir={addAsset}
+              onCerrar={() => setShowAssetSearch(false)}
+            />
           )}
 
           {/* Equipos comprados y equipos existentes vinculados */}
@@ -533,6 +482,14 @@ export default function NuevaCompraPage() {
                   <span className="shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium bg-purple-50 text-purple-800 border-purple-200">
                     Por repartir
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => editarEquipoNuevo(e.clave)}
+                    aria-label={`Editar ${e.valores.marca} ${e.valores.modelo}`}
+                    className="p-1.5 text-primary-700 hover:bg-primary-50 rounded"
+                  >
+                    <Pencil size={18} />
+                  </button>
                   <button
                     type="button"
                     onClick={() => quitarEquipoNuevo(e.clave)}
@@ -635,9 +592,17 @@ export default function NuevaCompraPage() {
                 {errores.kitItem && <p className="mt-1 text-xs text-red-600">{errores.kitItem}</p>}
                 {kitItemsCatalogo.length === 0 && (
                   <p className="text-xs text-fg-subtle mt-1">
-                    No hay artículos en el catálogo de esta sede. Se crean desde Activos &gt; Kit de Bienvenida.
+                    No hay artículos en el catálogo de esta sede. Crea el primero aquí abajo.
                   </p>
                 )}
+                <NuevoArticuloKit
+                  sedeId={sedeId}
+                  onCreado={(item) => {
+                    setKitItemsCatalogo((prev) => [...prev, item]);
+                    setKitItemToAdd(item.id);
+                    limpiar("kitItem");
+                  }}
+                />
               </div>
               <div className="w-full sm:w-28">
                 <label className="block text-xs font-medium text-fg-muted mb-1">Cantidad</label>
@@ -673,13 +638,45 @@ export default function NuevaCompraPage() {
                       {k.item.categoria === "epp" ? "EPP" : "Kit Bienvenida"} • queda por repartir
                     </p>
                   </div>
-                  <input
-                    type="number"
-                    min={1}
-                    value={k.cantidad}
-                    onChange={(e) => updateKitItemCantidad(k.itemId, parseInt(e.target.value, 10) || 1)}
-                    className="w-20 px-2 py-1 text-sm border border-line-strong rounded-lg text-center"
-                  />
+                  {editandoKitId === k.itemId ? (
+                    <>
+                      <input
+                        type="number"
+                        min={1}
+                        autoFocus
+                        aria-label={`Cantidad de ${k.item.nombre}`}
+                        value={k.cantidad}
+                        onChange={(e) => updateKitItemCantidad(k.itemId, parseInt(e.target.value, 10) || 1)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            setEditandoKitId(null);
+                          }
+                        }}
+                        className="w-20 px-2 py-1 text-sm border border-line-strong rounded-lg text-center"
+                      />
+                      <button
+                        type="button"
+                        aria-label="Listo"
+                        onClick={() => setEditandoKitId(null)}
+                        className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                      >
+                        <Check size={18} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="w-20 text-center text-sm font-medium">{k.cantidad}</span>
+                      <button
+                        type="button"
+                        aria-label={`Editar la cantidad de ${k.item.nombre}`}
+                        onClick={() => setEditandoKitId(k.itemId)}
+                        className="p-1.5 text-primary-700 hover:bg-primary-50 rounded"
+                      >
+                        <Pencil size={18} />
+                      </button>
+                    </>
+                  )}
                   <button aria-label="Quitar artículo"
                     type="button"
                     onClick={() => removeKitItem(k.itemId)}
@@ -733,23 +730,31 @@ export default function NuevaCompraPage() {
 
       <Modal
         isOpen={showNewAssetForm}
-        onClose={() => setShowNewAssetForm(false)}
-        title="Agregar equipo comprado"
-        size="xl"
+        onClose={cerrarVentanaEquipo}
+        title={editandoClave === null ? "Agregar equipo comprado" : "Editar equipo comprado"}
+        size="2xl"
       >
         <p className="text-sm text-fg-subtle mb-4">
           El equipo se crea al guardar la compra: queda en Activos como &quot;Por repartir&quot; en la
           sede de llegada, vinculado a esta factura.
         </p>
         <ApiErrorSummary error={newAssetError} fieldErrors={newAssetFieldErrors} />
-        <ActivoForm
-          modo="crear"
-          sedeFija={sedeId}
-          initialValues={{ ...ACTIVO_FORM_VACIO, fechaCompra: formData.fechaFactura }}
-          onSubmit={anotarEquipo}
-          onCancel={() => setShowNewAssetForm(false)}
-          erroresServidor={newAssetFieldErrors}
-        />
+        {showNewAssetForm && (
+          <ActivoForm
+            key={editandoClave ?? "nuevo"}
+            modo="crear"
+            sedeFija={sedeId}
+            initialValues={
+              equiposNuevos.find((e) => e.clave === editandoClave)?.valores ?? {
+                ...ACTIVO_FORM_VACIO,
+                fechaCompra: formData.fechaFactura,
+              }
+            }
+            onSubmit={anotarEquipo}
+            onCancel={cerrarVentanaEquipo}
+            erroresServidor={newAssetFieldErrors}
+          />
+        )}
       </Modal>
     </div>
   );

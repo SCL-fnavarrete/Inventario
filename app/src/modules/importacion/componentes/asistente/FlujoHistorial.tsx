@@ -6,7 +6,7 @@ import type { Fallo } from "@/modules/importacion";
 import type { ResumenHistorial } from "@/modules/importacion/historial";
 import { AvanceImportacion, BloquePaso, CargaArchivo, Pasos } from "@/modules/importacion/componentes/asistente/piezas";
 import { ResumenFallos } from "@/modules/importacion/componentes/asistente/ResumenFallos";
-import { parseApiError } from "@/shared/utilidades/apiErrors";
+import { parseApiError, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { Button } from "@/shared/ui/Button";
 import { ResumenErrores } from "@/shared/ui/CampoFormulario";
 import { StatCard, StatGrid } from "@/shared/ui/StatCard";
@@ -45,7 +45,7 @@ export function FlujoHistorial() {
     try {
       setResumen(await enviar(archivo, confirmar));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al leer el archivo");
+      setError(mensajeDeError(e, "Error al leer el archivo"));
     } finally {
       setOcupado(false);
     }

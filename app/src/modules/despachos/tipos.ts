@@ -111,7 +111,7 @@ export interface DispatchGuideDetail {
 export const ESTADO_GUIA_LABELS: Record<EstadoGuia, string> = {
   en_transito: "En tránsito",
   recibida_parcial: "Recibido con faltantes",
-  recibida: "Recibido",
+  recibida: "Completado",
   anulada: "Anulado",
 };
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { parseApiError, type FieldErrors, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import {
@@ -65,7 +65,7 @@ export default function EditarActivoPage({ params }: { params: Promise<{ id: str
       router.push(`/activos/${id}`);
     } catch (err) {
       logger.error("Error updating asset", err);
-      setError(err instanceof Error ? err.message : "Error al actualizar activo");
+      setError(mensajeDeError(err, "Error al actualizar activo"));
     }
   }
 

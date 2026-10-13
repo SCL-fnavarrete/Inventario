@@ -3,6 +3,7 @@ import {
   etiquetaEstadoActivo,
   etiquetaEstadoDevolucion,
   motivoSinBaja,
+  motivoSinEsperaDeRepuestos,
   motivoSinMantencion,
 } from '@/modules/activos/estados';
 
@@ -55,5 +56,15 @@ describe('motivoSinMantencion', () => {
   test('no devuelto y baja no, con el motivo en palabras', () => {
     expect(motivoSinMantencion('no_devuelto')).toMatch(/recupéralo con una solicitud/);
     expect(motivoSinMantencion('baja')).toMatch(/dado de baja/);
+  });
+});
+
+describe('motivoSinEsperaDeRepuestos (SPEC 2.148)', () => {
+  test('un equipo asignado no queda en espera de repuestos', () => {
+    expect(motivoSinEsperaDeRepuestos({ empleadoActualId: 'emp-1' })).toMatch(/cambio de equipo/);
+  });
+
+  test('sin persona si puede', () => {
+    expect(motivoSinEsperaDeRepuestos({ empleadoActualId: null })).toBeNull();
   });
 });

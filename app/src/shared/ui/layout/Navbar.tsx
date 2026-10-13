@@ -52,7 +52,7 @@ const menuItems: Array<{
   { href: "/solicitudes", label: "Solicitudes", icon: ClipboardList, recurso: "solicitudes" },
   { href: "/despachos", label: "Despachos", icon: Truck, recurso: "guias" },
   { href: "/mantenciones", label: "Mantenciones", icon: Wrench, recurso: "mantenciones" },
-  { href: "/compras", label: "Compras", icon: ShoppingCart, recurso: "compras" },
+  { href: "/compras", label: "Compras de activos", icon: ShoppingCart, recurso: "compras" },
   { href: "/configuracion", label: "Configuración", icon: Settings, recurso: "configuracion" },
 ];
 

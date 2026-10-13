@@ -8,7 +8,7 @@ import { formatearNumero } from "@/modules/lineas";
 import { nombrePersona, personaDe, type FichaLinea } from "@/modules/lineas/componentes/tipos";
 import { CamposMotivoBaja, erroresMotivoBaja, useMotivosBaja } from "@/modules/mantenciones/componentes";
 import { hoyISO } from "@/shared/utilidades/fechas";
-import { parseApiError } from "@/shared/utilidades/apiErrors";
+import { parseApiError, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { CampoFormulario, CampoTexto, ResumenErrores, claseInput } from "@/shared/ui/CampoFormulario";
 import { PageHeader } from "@/shared/ui/PageHeader";
@@ -97,7 +97,7 @@ export function DarDeBajaLinea() {
       router.push(`/activos/lineas/${linea.id}`);
       router.refresh();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(mensajeDeError(err, "Error desconocido"));
     } finally {
       setEnviando(false);
     }

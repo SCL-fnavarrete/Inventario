@@ -1,3 +1,4 @@
+import { mensajeDeError } from '@/shared/utilidades/apiErrors';
 import { quienHace, type SesionAutenticada } from '@/shared/auth/guard';
 import { prisma } from '@/shared/prisma';
 import { logger } from '@/shared/logger';
@@ -151,7 +152,7 @@ export async function importarTanda(
     const resultado = await procesarFila(row.data, ctx, prisma, false).catch((error) => ({
       status: 'error' as const,
       tipo: 'unknown_error' as const,
-      mensaje: error instanceof Error ? error.message : 'Error desconocido',
+      mensaje: mensajeDeError(error, 'Error desconocido'),
       data: row.data,
       campo: undefined as string | undefined,
     }));

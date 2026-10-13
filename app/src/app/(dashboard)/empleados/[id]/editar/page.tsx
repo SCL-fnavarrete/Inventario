@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Save, Loader2 } from "lucide-react";
-import { parseApiError, type FieldErrors } from "@/shared/utilidades/apiErrors";
+import { parseApiError, type FieldErrors, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
@@ -131,7 +131,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
         sedeId: employee.sedeId || "",
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(mensajeDeError(err, "Error desconocido"));
     } finally {
       setLoading(false);
     }
@@ -194,7 +194,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
 
       router.push(`/empleados/${id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(mensajeDeError(err, "Error desconocido"));
     } finally {
       setSaving(false);
     }

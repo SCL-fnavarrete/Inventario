@@ -45,9 +45,9 @@ const COLOR_MODULO: Record<string, string> = {
   kit_item: "bg-lime-100 text-lime-800",
   sede: "bg-amber-100 text-amber-800",
   categoria: "bg-primary-100 text-primary-900",
-  tipo_mantencion: "bg-fuchsia-100 text-fuchsia-800",
+  tipo_mantencion: "bg-sky-100 text-sky-800",
   configuracion: "bg-slate-100 text-slate-800",
-  catalogo: "bg-indigo-100 text-indigo-800",
+  catalogo: "bg-blue-100 text-blue-800",
 };
 
 const FORMATO_FECHA: Intl.DateTimeFormatOptions = {

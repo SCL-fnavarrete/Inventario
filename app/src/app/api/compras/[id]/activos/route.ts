@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// POST /api/compras/[id]/activos - Agregar equipos a una compra (solo admin)
+// POST /api/compras/[id]/activos - Agregar equipos a una compra (admin y técnico)
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('compras', 'write');
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/compras/[id]/activos?assetIds=... - Quitar equipos de una compra (solo admin)
+// DELETE /api/compras/[id]/activos?assetIds=... - Quitar equipos de una compra (admin y técnico)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await requirePermission('compras', 'delete');

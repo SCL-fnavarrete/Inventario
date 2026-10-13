@@ -5,6 +5,7 @@ import { auditLogService } from '@/shared/auditoria';
 import { sedeIdParaCrear } from '@/shared/sedes/filtro';
 import { ACTIVOS_VIGENTES, etiquetaEstadoActivo, identificadorActivo, validateTransition } from '@/modules/activos';
 import { cambiarEstado } from '@/modules/activos/servidor';
+import { restarStockKit, sumarStockKit } from '@/modules/kit-epp/servidor';
 import { bajaEnTransaccion, motivoParaBaja } from '@/modules/mantenciones/servidor';
 import { ETIQUETAS_GUIA, validarNuevaGuia, validarRecepcion } from '@/modules/despachos/validaciones';
 import {
@@ -30,7 +31,7 @@ export type Quien = { usuario: string; nombre?: string | null };
 
 /**
  * Crear un despacho. Los equipos quedan "En tránsito" en la sede de origen y
- * pasan a la destino recien cuando esta confirma que llegaron.
+ * pasan a la destino recien cuando se confirma que llegaron.
  */
 export async function registrarDespacho(body: Record<string, unknown>, quien: Quien) {
   // Mismas reglas que la pantalla (SPEC 2.104), con el campo de cada error.
@@ -38,7 +39,7 @@ export async function registrarDespacho(body: Record<string, unknown>, quien: Qu
   const { otChilexpress, fechaDespacho, fechaEstimadaLlegada, receptorNombre, receptorRut, observaciones, sedeDestinoId } =
     body as Record<string, string>;
   // Un equipo repetido en la lista se despacha una sola vez.
-  const assetIds = [...new Set(body.assetIds as string[])];
+  const assetIds = [...new Set((body.assetIds as string[] | undefined) ?? [])];
 
   // Solo equipos disponibles: puede haber cambiado mientras se llenaba el formulario.
   const assets = await prisma.asset.findMany({
@@ -65,48 +66,80 @@ export async function registrarDespacho(body: Record<string, unknown>, quien: Qu
   }
   // Existe, esta activa y no es la de origen.
   const sedeDestino = await sedeDestinoValida(sedeDestinoId, sedeId);
+  const kit = await kitDelDespacho(body.kit, sedeId);
 
   // El numero se toma dentro de la transaccion y se reintenta si otra guia lo
   // uso (crearGuiaConNumero); la creacion es la misma del reparto de una compra.
-  return crearGuiaConNumero((numero, tx) =>
-    crearDespacho(tx, numero, {
+  return crearGuiaConNumero(async (numero, tx) => {
+    const guia = await crearDespacho(tx, numero, {
       envio: { otChilexpress, fechaDespacho, fechaEstimadaLlegada, receptorNombre, receptorRut, observaciones },
       sedeId,
       sedeDestino,
       equipos: assets.map((a) => ({ id: a.id, estado: a.estado, sedeId: a.sedeId })),
+      kit: kit.map((k) => ({ itemId: k.id, cantidad: k.cantidad })),
       emisor: quien.nombre || quien.usuario,
       usuario: quien.usuario,
-    })
-  );
+    });
+    // El Kit/EPP sale del stock de la sede origen; llega al de la destino al recibirlo.
+    for (const k of kit) {
+      await restarStockKit(tx, k.id, k.cantidad, `Salió en el despacho ${numero}`, quien.usuario);
+    }
+    return guia;
+  });
 }
 
 /**
- * Confirmar la recepcion. La sede destino marca los equipos que llegaron (y
+ * Kit/EPP elegido para un despacho (SPEC 2.145): artículos de la sede origen,
+ * con cantidades enteras y sin pasar su stock. Un artículo repetido se suma.
+ */
+async function kitDelDespacho(kit: unknown, sedeId: string | null) {
+  const pedido = new Map<string, number>();
+  for (const k of Array.isArray(kit) ? (kit as { itemId?: unknown; cantidad?: unknown }[]) : []) {
+    const n = Number(k.cantidad);
+    if (typeof k.itemId !== 'string' || !Number.isInteger(n) || n < 1) {
+      throw errorDeCampo('kit', 'Cada artículo de Kit/EPP necesita una cantidad entera de al menos 1');
+    }
+    pedido.set(k.itemId, (pedido.get(k.itemId) ?? 0) + n);
+  }
+  if (pedido.size === 0) return [];
+  const articulos = await prisma.welcomeKitItem.findMany({ where: { id: { in: [...pedido.keys()] }, sedeId } });
+  if (articulos.length !== pedido.size) {
+    throw errorDeCampo('kit', 'Uno o más artículos de Kit/EPP no son de la sede origen. Vuelve a elegirlos.');
+  }
+  const sinStock = articulos.filter((a) => pedido.get(a.id)! > a.cantidad);
+  if (sinStock.length > 0) {
+    const detalle = sinStock.map((a) => `${a.nombre} (hay ${a.cantidad}, pediste ${pedido.get(a.id)})`).join('; ');
+    throw errorDeCampo('kit', `No alcanza el stock de la sede origen: ${detalle}`);
+  }
+  return articulos.map((a) => ({ id: a.id, cantidad: pedido.get(a.id)! }));
+}
+
+/**
+ * Confirmar la recepcion. Quien la confirma marca los equipos que llegaron (y
  * cuanto Kit/EPP): esos pasan a su inventario. Los que no, siguen "En
  * tránsito" y la guia queda "con faltantes" hasta resolverlos uno a uno.
  */
 export async function confirmarRecepcion(
   id: string,
-  datos: { recibidoPor?: string; fechaRecepcion?: string; llegaron?: unknown; kitRecibido?: unknown },
+  datos: { fechaRecepcion?: string; llegaron?: unknown; kitRecibido?: unknown },
   quien: Quien
 ) {
-  const { recibidoPor, fechaRecepcion } = datos;
+  const { fechaRecepcion } = datos;
   const guia = await buscarGuia(id);
+  // Quien recibe es el receptor que se indico al crear el despacho: no se vuelve a preguntar.
+  const recibidoPor = guia.receptorNombre;
   if (guia.estado !== 'en_transito') {
     throw new ConflictError('Este despacho ya no está en tránsito: su recepción ya se confirmó o se anuló');
   }
 
-  const errores = validarRecepcion({ recibidoPor, fechaRecepcion }, guia.fechaDespacho);
+  const errores = validarRecepcion({ fechaRecepcion }, guia.fechaDespacho);
   const idsLlegaron = Array.isArray(datos.llegaron) ? (datos.llegaron as string[]) : [];
   // Kit/EPP (SPEC 2.111.4): cuantas unidades de cada linea llegaron.
   const kitLlego = (Array.isArray(datos.kitRecibido) ? (datos.kitRecibido as { lineaId: string; cantidad: number }[]) : [])
     .map((k) => ({ lineaId: String(k.lineaId), cantidad: Number(k.cantidad) }))
     .filter((k) => k.cantidad > 0);
   if (idsLlegaron.length === 0 && kitLlego.length === 0) {
-    errores.llegaron =
-      guia.kitItems.length > 0
-        ? 'Marca al menos un equipo o una cantidad de Kit/EPP que llegó'
-        : 'Marca al menos un equipo que llegó';
+    errores.llegaron = mensajeNadaLlego(guia.items.length > 0, guia.kitItems.length > 0);
   }
   exigirSinErroresCampos(errores, ETIQUETAS_GUIA);
 
@@ -114,7 +147,7 @@ export async function confirmarRecepcion(
   return prisma.$transaction(async (tx) => {
     const recibidos = await recibirEquipos(tx, guia, idsLlegaron, usuario);
     if (idsLlegaron.length > 0 && recibidos === 0) {
-      throw new NotFoundError('Los equipos marcados no son de este despacho');
+      throw new NotFoundError('Los equipos marcados no son de este despacho o ya no están en tránsito');
     }
     for (const k of kitLlego) await resolverKit(tx, guia, k.lineaId, 'llego', k.cantidad, usuario);
     const unidadesKit = kitLlego.reduce((s, k) => s + k.cantidad, 0);
@@ -137,6 +170,12 @@ export async function confirmarRecepcion(
     );
     return tx.dispatchGuide.findUniqueOrThrow({ where: { id }, include: INCLUDE_DETALLE_GUIA });
   });
+}
+
+/** Qué pedir al confirmar la recepción sin nada marcado, según lo que lleva el despacho. */
+function mensajeNadaLlego(conEquipos: boolean, conKit: boolean) {
+  if (conEquipos && conKit) return 'Marca al menos un equipo o una cantidad de Kit/EPP que llegó';
+  return conKit ? 'Indica cuánto Kit/EPP llegó' : 'Marca al menos un equipo que llegó';
 }
 
 /**
@@ -183,6 +222,12 @@ export async function anularDespacho(
     }
     // Kit/EPP del reparto: Compras lo devuelve a lo pendiente de la compra.
     if (guia.purchaseId) await devolverKitDeReparto(tx, guia.id);
+    // Kit/EPP de un despacho normal: vuelve al stock de la sede origen (SPEC 2.145).
+    else {
+      for (const k of guia.kitItems) {
+        await sumarStockKit(tx, k.itemId, k.cantidad, `Despacho ${guia.numero} anulado: vuelve a ${guia.sede?.nombre ?? 'su sede'}`, usuario);
+      }
+    }
     await tx.dispatchGuide.update({
       where: { id },
       data: { estado: 'anulada', fechaAnulacion: new Date(), anuladaPor: quien.nombre || usuario, motivoAnulacion: detalle },

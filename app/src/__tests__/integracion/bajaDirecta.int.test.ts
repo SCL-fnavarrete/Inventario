@@ -7,6 +7,7 @@
 import { randomUUID } from 'crypto';
 import { prisma } from '@/shared/prisma';
 import { bajaEquipoSchema } from '@/modules/mantenciones';
+import { whereFiltrosActivos } from '@/modules/activos/consultas';
 import { darDeBajaEquipo, listarMotivosBaja } from '@/modules/mantenciones/servidor';
 
 const hayBaseDePrueba = (process.env.DATABASE_URL ?? '').includes('_test');
@@ -95,5 +96,15 @@ describir('baja directa de un equipo, en Postgres', () => {
     const antes = await enUso();
     await darDeBajaEquipo(id, baja(), 'jsoto');
     expect((await enUso()) - antes).toBe(1);
+  });
+
+  test('el filtro de Activos "motivo de baja" encuentra una baja directa', async () => {
+    const id = await nuevoEquipo();
+    await darDeBajaEquipo(id, baja(), 'jsoto');
+    const buscar = (motivo: string) =>
+      prisma.asset.findMany({ where: { id, ...whereFiltrosActivos({ datos: { motivoBaja: motivo } }) }, select: { id: true } });
+    expect(await buscar(ids.motivo)).toHaveLength(1);
+    expect(await buscar(ids.otro)).toHaveLength(0);
+    expect(await buscar('sin_dato')).toHaveLength(0);
   });
 });

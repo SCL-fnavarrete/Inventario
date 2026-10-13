@@ -7,7 +7,8 @@ import { validarDigitoVerificador } from "@/shared/validaciones/rut";
  */
 export const ETIQUETAS_GUIA: Record<string, string> = {
   sedeId: "Sede origen",
-  assetIds: "Equipos a despachar",
+  assetIds: "Equipos o Kit / EPP",
+  kit: "Kit / EPP",
   otChilexpress: "OT Chilexpress",
   sedeDestinoId: "Sede destino",
   fechaDespacho: "Fecha de envío",
@@ -15,12 +16,14 @@ export const ETIQUETAS_GUIA: Record<string, string> = {
   receptorRut: "RUT del receptor",
   recibidoPor: "Recibido por",
   fechaRecepcion: "Fecha de recepción",
-  llegaron: "Equipos que llegaron",
+  llegaron: "Lo que llegó",
   motivo: "Motivo",
 };
 
 type DatosGuia = {
   assetIds?: unknown[] | null;
+  /** Kit/EPP que sale con el despacho (SPEC 2.145). */
+  kit?: unknown[] | null;
   otChilexpress?: string | null;
   sedeDestinoId?: string | null;
   fechaDespacho?: string | null;
@@ -31,7 +34,8 @@ type DatosGuia = {
 /** Errores por campo de una guia nueva (vacio si esta completa). */
 export function validarNuevaGuia(d: DatosGuia): Record<string, string> {
   const e: Record<string, string> = {};
-  if (!d.assetIds || d.assetIds.length === 0) e.assetIds = "Elige al menos un equipo";
+  // Un despacho lleva equipos, Kit/EPP o ambos (SPEC 2.145).
+  if (!d.assetIds?.length && !d.kit?.length) e.assetIds = "Elige al menos un equipo o un artículo de Kit/EPP";
   return { ...e, ...validarDatosDespacho(d) };
 }
 
@@ -40,7 +44,7 @@ export function validarNuevaGuia(d: DatosGuia): Record<string, string> {
  * el despacho que crea el reparto de una compra (SPEC 2.111), que puede
  * llevar solo Kit/EPP.
  */
-export function validarDatosDespacho(d: Omit<DatosGuia, "assetIds">): Record<string, string> {
+export function validarDatosDespacho(d: Omit<DatosGuia, "assetIds" | "kit">): Record<string, string> {
   const e: Record<string, string> = {};
   if (!d.otChilexpress?.trim()) e.otChilexpress = "Escribe la OT de Chilexpress";
   if (!d.sedeDestinoId) e.sedeDestinoId = "Elige la sede destino";
@@ -54,16 +58,14 @@ export function validarDatosDespacho(d: Omit<DatosGuia, "assetIds">): Record<str
 }
 
 /**
- * Confirmar la recepcion (SPEC 2.108): quien recibio es obligatorio y la
- * fecha de recepcion no puede ser anterior al envio (un paquete no llega
+ * Confirmar la recepcion (SPEC 2.108): la fecha de recepcion no puede ser anterior al envio (un paquete no llega
  * antes de salir). Las fechas son instantes exactos (ISO) o Date.
  */
 export function validarRecepcion(
-  d: { recibidoPor?: string | null; fechaRecepcion?: string | Date | null },
+  d: { fechaRecepcion?: string | Date | null },
   fechaDespacho: string | Date
 ): Record<string, string> {
   const e: Record<string, string> = {};
-  if (!d.recibidoPor?.trim()) e.recibidoPor = "Escribe quién recibió";
   if (d.fechaRecepcion && new Date(d.fechaRecepcion) < new Date(fechaDespacho)) {
     e.fechaRecepcion = "La recepción no puede ser anterior a la fecha de envío";
   }

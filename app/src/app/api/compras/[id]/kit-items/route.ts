@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// POST /api/compras/[id]/kit-items - Agregar Kit/EPP a una compra (solo admin)
+// POST /api/compras/[id]/kit-items - Agregar Kit/EPP a una compra (admin y técnico)
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     await requirePermission('compras', 'write');
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/compras/[id]/kit-items?lineIds=... - Quitar líneas no repartidas (solo admin)
+// DELETE /api/compras/[id]/kit-items?lineIds=... - Quitar líneas no repartidas (admin y técnico)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     await requirePermission('compras', 'delete');

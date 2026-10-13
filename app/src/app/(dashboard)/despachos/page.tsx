@@ -20,7 +20,7 @@ type Resumen = {
   conFaltantes: number;
   recibidas: number;
   anuladas: number;
-  porRecibir: number | null;
+  porRecibir: number;
   equiposEnTransito: number;
 };
 
@@ -95,7 +95,7 @@ export default function GuiasDespachoPage() {
       {/* Header */}
       <PageHeader
         title="Despachos"
-        description="Equipos que viajan entre sedes: pasan a la sede destino cuando esta confirma que llegaron"
+        description="Equipos y Kit/EPP que viajan entre sedes: pasan a la sede destino cuando se confirma que llegaron"
         actions={
           <Can recurso="guias">
             <Link href="/despachos/nueva" className={buttonClasses()}>
@@ -107,18 +107,16 @@ export default function GuiasDespachoPage() {
       />
 
       {/* Cada tarjeta filtra la lista al pulsarla (SPEC 2.108). */}
-      <StatGrid cols={resumen?.porRecibir != null ? 6 : 5}>
+      <StatGrid cols={6}>
         <StatCard tilt label="Total" value={resumen?.total ?? 0} tone="neutral" icon={FileText} {...tarjeta(null)} />
-        {resumen?.porRecibir != null && (
-          <StatCard
-            tilt
-            label="Por recibir en mi sede"
-            value={resumen.porRecibir}
-            tone="primary"
-            icon={PackageOpen}
-            {...tarjeta("por_recibir")}
-          />
-        )}
+        <StatCard
+          tilt
+          label="Por recibir"
+          value={resumen?.porRecibir ?? 0}
+          tone="primary"
+          icon={PackageOpen}
+          {...tarjeta("por_recibir")}
+        />
         <StatCard
           tilt
           label="En tránsito"
@@ -138,7 +136,7 @@ export default function GuiasDespachoPage() {
         />
         <StatCard
           tilt
-          label="Recibidos"
+          label="Completados"
           value={resumen?.recibidas ?? 0}
           tone="success"
           icon={CheckCircle}

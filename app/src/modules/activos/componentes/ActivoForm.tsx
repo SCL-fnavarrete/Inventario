@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { TipoFicha } from "@prisma/client";
 import { normalizarImei, validarImei } from "@/modules/activos/imei";
 import Link from "next/link";
@@ -15,6 +15,7 @@ import {
   etiquetaEstadoActivo,
 } from "@/modules/activos/estados";
 import { cn } from "@/shared/cn";
+import { MENSAJE_GARANTIA_ANTES_DE_COMPRA, terminaAntesDeEmpezar } from "@/shared/validaciones/ordenFechas";
 import { MensajeCampo, ResumenErrores, claseCampo } from "@/shared/ui/CampoFormulario";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { leerClp, VALOR_MAXIMO_CLP } from "@/shared/utilidades/moneda";
@@ -197,18 +198,25 @@ const ETIQUETAS_ACTIVO: Record<string, string> = {
   imei: "IMEI",
   sedeId: "Sede",
   valor: "Valor",
+  fechaGarantiaFin: "Fin de garantía",
 };
 
+/** Formulario dentro de una ventana: tarjetas y espacios mas chicos. */
+const EnVentanaContext = createContext(false);
+
 function Seccion({ titulo, cols = 3, children }: { titulo: string; cols?: 2 | 3; children: ReactNode }) {
+  const enVentana = useContext(EnVentanaContext);
   return (
-    <div className="card p-6">
-      <h2 className="mb-4 text-lg font-semibold text-fg">{titulo}</h2>
+    <div className={enVentana ? "rounded-lg border border-line p-4" : "card p-6"}>
+      <h2 className={enVentana ? "mb-3 text-base font-semibold text-fg" : "mb-4 text-lg font-semibold text-fg"}>
+        {titulo}
+      </h2>
       <div
-        className={
-          cols === 3
-            ? "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
-            : "grid grid-cols-1 gap-4 md:grid-cols-2"
-        }
+        className={cn(
+          "grid grid-cols-1 md:grid-cols-2",
+          enVentana ? "gap-3" : "gap-4",
+          cols === 3 && "lg:grid-cols-3"
+        )}
       >
         {children}
       </div>
@@ -295,6 +303,10 @@ export function ActivoForm({
     if (esCelular && !normalizarImei(values.imei)) e.imei = "Escribe el IMEI del celular";
     else if (values.imei.trim() && validarImei(values.imei)) e.imei = validarImei(values.imei)!;
     if (crear && !sedeId) e.sedeId = "Elige la sede";
+    // La garantia es opcional, pero si se escribe no puede terminar antes de la compra.
+    if (terminaAntesDeEmpezar(values.fechaCompra, values.fechaGarantiaFin)) {
+      e.fechaGarantiaFin = MENSAJE_GARANTIA_ANTES_DE_COMPRA;
+    }
     const valor = leerClp(values.valor);
     if (valor !== null && (Number.isNaN(valor) || valor > VALOR_MAXIMO_CLP)) {
       e.valor = "Escribe un monto en pesos, sin decimales (máximo $999.999.999)";
@@ -334,8 +346,8 @@ export function ActivoForm({
     </Campo>
   );
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+  const formulario = (
+    <form onSubmit={handleSubmit} className={onCancel ? "space-y-4" : "space-y-6"} noValidate>
       <ResumenErrores mensaje={resumen} />
       <Seccion titulo="Información General">
         <Campo label="Categoría *" error={error("categoriaId")}>
@@ -540,9 +552,9 @@ export function ActivoForm({
         </Seccion>
       )}
 
-      <div className="card p-6">
-        <h2 className="mb-4 text-lg font-semibold text-fg">Observaciones</h2>
-        <textarea {...bind("observaciones")} rows={4} placeholder="Notas adicionales sobre el activo..." />
+      <div className={onCancel ? "rounded-lg border border-line p-4" : "card p-6"}>
+        <h2 className={onCancel ? "mb-3 text-base font-semibold text-fg" : "mb-4 text-lg font-semibold text-fg"}>Observaciones</h2>
+        <textarea {...bind("observaciones")} rows={onCancel ? 2 : 4} placeholder="Notas adicionales sobre el activo..." />
         <div className="mt-4">
           <Campo label="Incidencia">
             <textarea
@@ -570,6 +582,8 @@ export function ActivoForm({
       </div>
     </form>
   );
+
+  return <EnVentanaContext.Provider value={!!onCancel}>{formulario}</EnVentanaContext.Provider>;
 }
 
 export default ActivoForm;

@@ -51,8 +51,13 @@ export function whereFiltrosActivos(f: FiltrosActivos): Prisma.AssetWhereInput {
   const where: Prisma.AssetWhereInput = f.porLlegar
     ? whereActivosPorLlegar(f.sedeIdFiltro || null)
     : { ...ACTIVOS_VIGENTES, ...filtroSede(f.sedeIdFiltro) };
-  const estado = estadoActivoEnum.safeParse(f.estado);
-  if (estado.success) where.estado = estado.data;
+  // Uno o varios estados separados por coma ("disponible,asignado").
+  const estados = (f.estado ?? '')
+    .split(',')
+    .map((e) => estadoActivoEnum.safeParse(e.trim()))
+    .flatMap((r) => (r.success ? [r.data] : []));
+  if (estados.length === 1) where.estado = estados[0];
+  else if (estados.length > 1) where.estado = { in: estados };
   if (f.categoriaId) where.categoriaId = f.categoriaId;
 
   const y = [
@@ -66,7 +71,7 @@ export function whereFiltrosActivos(f: FiltrosActivos): Prisma.AssetWhereInput {
   return where;
 }
 
-// Campo del activo de cada filtro por dato (el motivo de baja vive en la mantencion).
+// Campo del activo de cada filtro por dato (el motivo de baja tiene su propia condicion, mas abajo).
 const CAMPO_FILTRO = {
   marca: 'marca',
   so: 'sistemaOperativo',
@@ -80,14 +85,16 @@ function condicionFiltroDato(param: ParamFiltroDato, valor: string): Prisma.Asse
     return valor === SIN_DATO
       ? {
           estado: 'baja',
+          motivoBajaId: null,
           maintenances: { none: { motivoBajaId: { not: null } } },
           assignments: { none: { motivoBajaId: { not: null } } },
         }
-      : // El motivo esta en la mantencion de la baja o, si se dio de baja en
-        // un cambio de equipo, en la devolucion (SPEC 2.126).
+      : // Desde la baja directa (SPEC 2.140) el motivo esta en el propio equipo; las bajas
+        // anteriores lo tienen en la mantencion o, en un cambio de equipo, en la devolucion (SPEC 2.126).
         {
           estado: 'baja',
           OR: [
+            { motivoBajaId: valor },
             { maintenances: { some: { motivoBajaId: valor } } },
             { assignments: { some: { motivoBajaId: valor } } },
           ],

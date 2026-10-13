@@ -1,8 +1,8 @@
 import React from 'react';
 import { Document, Page, Text, View } from '@react-pdf/renderer';
-import { EMPRESA } from '@/modules/solicitudes/plantillas/pdfStyles';
-import { sclStyles as styles, LogoSCL } from '@/modules/solicitudes/plantillas/pdfSclBrand';
-import { TablaEquipoActa, type FilaEquipoActa } from '@/modules/solicitudes/plantillas/TablaEquipoActa';
+import { EMPRESA } from '@/shared/pdf/pdfStyles';
+import { sclStyles as styles, LogoSCL } from '@/shared/pdf/pdfSclBrand';
+import { TablaEquipoActa, type FilaEquipoActa } from '@/shared/pdf/TablaEquipoActa';
 import { TablaLineasActa, type FilaLineaActa } from '@/modules/solicitudes/plantillas/TablaLineasActa';
 
 type Props = {

@@ -1,5 +1,6 @@
 'use client';
 
+import { mensajeDeError } from '@/shared/utilidades/apiErrors';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -848,7 +849,7 @@ export default function NuevaSolicitudPage() {
       borrador.limpiar();
       router.push(`/solicitudes/${data.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al crear solicitud');
+      setError(mensajeDeError(err, 'Error al crear solicitud'));
     } finally {
       setSubmitting(false);
     }
