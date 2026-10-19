@@ -1,13 +1,16 @@
 /** @jest-environment node */
 // Auditoria 27-sep-2026, 2.5 y 2.9: reglas de negocio de empleados, sedes
 // desactivadas y numero de solicitud.
-jest.mock('@/shared/prisma', () => ({
-  prisma: {
+jest.mock('@/shared/prisma', () => {
+  const prisma: Record<string, unknown> = {
     employee: { findUnique: jest.fn(), update: jest.fn() },
     assignment: { count: jest.fn() },
     sede: { findUnique: jest.fn() },
-  },
-}));
+  };
+  // Editar una persona guarda dentro de una transaccion (SPEC 2.171): corre con el mismo mock.
+  prisma.$transaction = jest.fn((fn: (tx: unknown) => unknown) => fn(prisma));
+  return { prisma };
+});
 jest.mock('@/shared/auth/guard', () => {
   const real = jest.requireActual('@/shared/auth/guard');
   return { ...real, requirePermission: jest.fn() };

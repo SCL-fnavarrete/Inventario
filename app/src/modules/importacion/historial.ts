@@ -280,5 +280,6 @@ function personaPendiente(rut: string, p: PersonaArchivo): PersonaIndexada {
     jefatura: null,
     supervisor: null,
     ubicacion: null,
+    sedeId: null,
   };
 }

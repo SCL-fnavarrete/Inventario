@@ -7,7 +7,7 @@ import type { PersonaIndexada } from '@/modules/personas';
 // existe, se crea siempre que la fila la traiga (sin importar el estado del equipo).
 const persona = (id: string, rut: string | null, nombres: string, paterno: string, materno: string | null, estado: PersonaIndexada['estado'] = 'activo'): PersonaIndexada => ({
   id, rut, nombres, apellidoPaterno: paterno, apellidoMaterno: materno, estado,
-  correoEmpresa: null, correoPersonal: null, cargo: null, jefatura: null, supervisor: null, ubicacion: null,
+  correoEmpresa: null, correoPersonal: null, cargo: null, jefatura: null, supervisor: null, ubicacion: null, sedeId: null,
 });
 
 const ctx = (indice: PersonaIndexada[] = []): ContextoFila => ({

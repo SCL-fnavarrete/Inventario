@@ -19,6 +19,8 @@ export type PersonaIndexada = {
   jefatura: string | null;
   supervisor: string | null;
   ubicacion: string | null;
+  /** Si la fila no trae sede, el equipo que queda con la persona toma la suya (SPEC 2.171). */
+  sedeId: string | null;
 };
 
 export type ConsultaPersona = {

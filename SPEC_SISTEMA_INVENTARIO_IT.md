@@ -4298,8 +4298,15 @@ Pedido de Javier: Seguridad *"es suficiente con la duración de sesión en horas
 - **Reemplaza:** en 2.112.6 lo de sede desactivada y bloqueo por equipo; en 2.114 "nada nuevo nace en una sede desactivada"; los filtros de Auditoría de 2.34 y 2.112.8.
 - **Tests:** `eliminarSede.int.test.ts` (nuevo), `seguridadConfiguracion.test.ts`, `auditoria.test.ts`, `reglasNegocioAuditoria.test.ts`, `repartirCompra.test.ts`.
 
+### 2.171 Sede de un equipo que llega sin sede: la de su persona (19-oct-2026)
+Pedido de Javier: *"en los documentos de importación muchos equipos, en este caso teléfonos, no tienen sede: ¿no es posible ponerle la sede de acuerdo a la ubicación del empleado que lo tiene?"*. En desarrollo había 55 celulares sin sede; 48 con persona, pero ninguna de esas 47 personas tenía sede ni comuna (el Excel de celulares no trae lugar y la persona nace con la sede de la fila).
+- **Importación:** si la fila no trae sede y el equipo queda con una persona (asignado, en mantención o no devuelto) que ya tiene sede, el equipo toma la suya (`procesarFila`; el índice de personas guarda `sedeId`). Sirve, por ejemplo, al importar los celulares después de los notebooks. Sin persona o sin sede de la persona, el equipo sigue entrando sin sede.
+- **Primera sede de una persona:** a una persona **sin sede** se le puede dar sede aunque tenga equipos (antes lo bloqueaba la regla de traslado de 2.117); sus equipos sin sede la toman en la misma transacción, con su evento en el historial (`darSedeAEquiposDePersona` de Activos). Se rechaza solo si alguno de sus equipos ya está en otra sede. Trasladar de una sede a otra con equipos sigue bloqueado.
+- **Tests:** `sedeDeLaPersona.int.test.ts` (nuevo).
+
 ## Changelog SPEC
 - **v2.71 (2026-10-16):**
+  - 2.171: un equipo sin sede toma la de su persona (al importar y al darle su primera sede a la persona).
   - 2.170: Configuración simplificada: Seguridad sin bloqueo por equipo; Registro de accesos con una tarjeta (cuentas desactivadas); Sedes sin desactivar, se eliminan solo si nada las usa; Auditoría como visor de eventos (usuario y fechas).
   - 2.169: revisión responsiva de todo el sitio (320 a 1920 px): más margen a los lados en celular, el perfil ya no se sale de la barra en 1280 px, Personal con tarjetas en celular y correcciones de diseño en celular y tablet.
   - 2.168: normalización con llaves foráneas: marca, sistema operativo, antivirus y licencia del equipo apuntan a sus catálogos; se quita `dispatchGuideId` sin uso de la solicitud.

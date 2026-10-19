@@ -275,7 +275,8 @@ export async function procesarFila(
       data: datosFila,
     };
   }
-  const sedeId = resolucionSede.sedeId;
+  // `let`: sin sede en la fila, el equipo puede tomar la de su persona (mas abajo).
+  let sedeId = resolucionSede.sedeId;
 
   // --- Interpretacion de la fila -------------------------------------------
   const lecturaEstado = interpretarEstado(obtener("estado"));
@@ -353,6 +354,8 @@ export async function procesarFila(
     estado === "asignado" || estado === "en_mantencion" ? "activo" : "desvinculado";
 
   let personaExistente: { id: string; desvinculada: boolean; porNombre: boolean } | null = null;
+  // Sede de la persona que ya existe (o que una fila anterior del archivo crea).
+  let sedePersona: string | null = null;
   if (hayPersona) {
     const enCache = rutEmpleado ? ctx.employeeCache.get(rutEmpleado) : undefined;
     if (enCache) {
@@ -361,6 +364,11 @@ export async function procesarFila(
         desvinculada: !!rutEmpleado && ctx.empleadosDesvinculados.has(rutEmpleado),
         porNombre: false,
       };
+      sedePersona = ctx.indicePersonas
+        ? (ctx.indicePersonas.find((p) => p.rut === rutEmpleado)?.sedeId ?? null)
+        : enCache === PLACEHOLDER_EMPLEADO_PENDIENTE
+          ? null
+          : ((await prismaClient.employee.findUnique({ where: { id: enCache }, select: { sedeId: true } }))?.sedeId ?? null);
     } else if (ctx.indicePersonas) {
       const busqueda = buscarPersona(ctx.indicePersonas, {
         rut: rutEmpleado,
@@ -393,19 +401,26 @@ export async function procesarFila(
           desvinculada: busqueda.persona.estado === "desvinculado",
           porNombre: busqueda.por === "nombre",
         };
+        sedePersona = busqueda.persona.sedeId;
       }
     } else if (rutEmpleado) {
       // Sin indice de personas (solo por RUT, una consulta por fila).
       const encontrado = await prismaClient.employee.findUnique({
         where: { rut: rutEmpleado },
-        select: { id: true, estado: true },
+        select: { id: true, estado: true, sedeId: true },
       });
       if (encontrado) {
         personaExistente = { id: encontrado.id, desvinculada: encontrado.estado === "desvinculado", porNombre: false };
+        sedePersona = encontrado.sedeId;
         if (encontrado.estado === "desvinculado") ctx.empleadosDesvinculados.add(rutEmpleado);
       }
     }
   }
+
+  // La fila no trae sede y el equipo queda con una persona que si tiene: toma la
+  // suya (SPEC 2.171). Asi un celular sin lugar en el Excel queda donde esta quien lo usa.
+  const sedeDeLaPersona = !sedeId && debeAsignar && !!sedePersona;
+  if (sedeDeLaPersona) sedeId = sedePersona;
 
   // Una persona que no existe se crea si la fila trae con que (nombre y apellido
   // paterno). Si el equipo va a quedar con ella y no hay con que, la fila se corrige.
@@ -572,6 +587,7 @@ export async function procesarFila(
         jefatura: null,
         supervisor: null,
         ubicacion: null,
+        sedeId,
       });
     }
     return { status: "valid", data: datosFila, persona: personaDeLaFila, sinSede: !sedeId || undefined, activoSinPersona: activoSinPersona || undefined, disponibleConPersona: pasaAAsignado || undefined };

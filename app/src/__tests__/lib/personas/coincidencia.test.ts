@@ -14,6 +14,7 @@ const persona = (id: string, rut: string | null, nombres: string, paterno: strin
   jefatura: null,
   supervisor: null,
   ubicacion: null,
+  sedeId: null,
 });
 
 const INDICE = [

@@ -46,6 +46,7 @@ const CAMPOS_INDICE = {
   jefatura: true,
   supervisor: true,
   ubicacion: true,
+  sedeId: true,
 } satisfies Prisma.EmployeeSelect;
 
 /** Todas las personas, una vez por importacion o tanda: se busca en memoria (`buscarPersona`). */

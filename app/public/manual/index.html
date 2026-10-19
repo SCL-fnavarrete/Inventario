@@ -551,7 +551,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
           <tbody>
             <tr><td>Trae una persona (RUT, o nombre y apellido)</td><td>El equipo queda <b>Asignado</b> a ella, aunque diga Disponible. Si no existe, se crea.</td></tr>
             <tr><td>No trae persona</td><td>Queda <b>Disponible</b>, aunque diga Activo.</td></tr>
-            <tr><td>No trae sede</td><td>Entra <b>sin sede</b>; se asigna después en Editar.</td></tr>
+            <tr><td>No trae sede</td><td>Si el equipo queda con una persona que ya tiene sede, toma la suya; si no, entra <b>sin sede</b> y se asigna después.</td></tr>
             <tr><td>Dice Baja con persona, o trae cargo/correo sin nombre</td><td>Se <b>detiene</b> para que decidas.</td></tr>
             <tr><td>Es una línea sin IMEI</td><td>Se toma como <b>eSIM</b> de la persona.</td></tr>
           </tbody>
@@ -574,7 +574,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
       <h4>Devolví un equipo dañado y quedó de baja.</h4>
       <p>Es lo esperado: los equipos devueltos dañados no se reparan, se dan de baja con su motivo.</p>
       <h4>¿Por qué hay equipos “sin sede”?</h4>
-      <p>Se importaron sin ese dato. Búscalos con el filtro “Sin sede” y asígnala en Editar.</p>
+      <p>Se importaron sin ese dato y sin una persona con sede. Búscalos con el filtro “Sin sede” y asígnala en Editar. Si el equipo lo tiene una persona sin sede, basta con darle la sede a la persona (Personal › Editar): sus equipos sin sede toman la misma.</p>
       <h4>No puedo asignar una línea.</h4>
       <p>Ya la usa alguien: cambia con una solicitud (sigue a su celular; una eSIM se libera en el Offboarding).</p>
       <h4>Aparece “El sistema no puede conectarse en este momento”.</h4>

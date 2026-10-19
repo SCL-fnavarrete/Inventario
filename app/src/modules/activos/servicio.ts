@@ -15,6 +15,7 @@ import { assetHistoryService, type AssetHistoryData } from '@/modules/activos/hi
 import { auditLogService } from '@/shared/auditoria';
 import { validateTransition, type TransitionContext } from '@/modules/activos/maquinaEstados';
 import { idsDeCatalogos } from '@/modules/activos/catalogos';
+import { ACTIVOS_VIGENTES } from '@/modules/activos/consultas';
 import { MARCA_MODELO, NOMBRE, marcaModelo, type CampoCatalogo, type LlaveCatalogo } from '@/modules/activos/camposCatalogo';
 
 type Tx = Prisma.TransactionClient;
@@ -112,6 +113,39 @@ export async function fijarFechaCompra(tx: Tx, ids: string[], fechaCompra: Date)
 /** Equipos "Por repartir" que siguen a su compra cuando cambia la sede de llegada (SPEC 2.111). */
 export async function moverSedeDeCompra(tx: Tx, ids: string[], sedeId: string) {
   await tx.asset.updateMany({ where: { id: { in: ids } }, data: { sedeId } });
+}
+
+/**
+ * Una persona sin sede recibe su primera sede (SPEC 2.171): los equipos que
+ * tiene y no tenian sede (ej. celulares importados sin lugar) toman la suya, con
+ * su evento en el historial. Los que ya tienen sede no se tocan. Devuelve cuantos.
+ */
+export async function darSedeAEquiposDePersona(
+  tx: Tx,
+  empleadoId: string,
+  sede: { id: string; nombre: string },
+  usuario: string | null | undefined
+) {
+  const equipos = await tx.asset.findMany({
+    where: { ...ACTIVOS_VIGENTES, empleadoActualId: empleadoId, sedeId: null },
+    select: { id: true },
+  });
+  if (equipos.length === 0) return 0;
+  await tx.asset.updateMany({ where: { id: { in: equipos.map((e) => e.id) } }, data: { sedeId: sede.id } });
+  for (const { id } of equipos) {
+    await assetHistoryService.registrar(
+      {
+        assetId: id,
+        tipoEvento: 'actualizacion_specs',
+        descripcion: `Sede asignada: ${sede.nombre} (la de su persona; el equipo no tenía sede)`,
+        datosAnteriores: { sedeId: null },
+        datosNuevos: { sedeId: sede.id, sede: sede.nombre },
+        usuarioSistema: usuario ?? null,
+      },
+      tx
+    );
+  }
+  return equipos.length;
 }
 
 /**
