@@ -20,7 +20,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/shared/prisma';
 import { requirePermission } from '@/shared/auth/guard';
 import { PUT as editarEmpleado } from '@/app/api/empleados/[id]/route';
-import { exigirSedeActiva } from '@/shared/sedes/consultas';
+import { exigirSedeExistente } from '@/shared/sedes/consultas';
 import { generarNumeroSolicitud } from '@/modules/solicitudes/numero';
 
 const db = prisma as unknown as Record<string, Record<string, jest.Mock>>;
@@ -52,7 +52,7 @@ beforeEach(() => {
 describe('editar empleado', () => {
   test('no se traslada de sede si tiene equipos asignados', async () => {
     db.employee.findUnique.mockResolvedValue(empleado());
-    db.sede.findUnique.mockResolvedValue({ id: S2, activa: true });
+    db.sede.findUnique.mockResolvedValue({ id: S2 });
     db.assignment.count.mockResolvedValue(2);
     const res = await editarEmpleado(pedir({ sedeId: S2 }), ctx);
     expect(res.status).toBe(409);
@@ -62,17 +62,16 @@ describe('editar empleado', () => {
     expect(db.employee.update).not.toHaveBeenCalled();
   });
 
-  test('no se traslada a una sede desactivada', async () => {
+  test('no se traslada a una sede que no existe', async () => {
     db.employee.findUnique.mockResolvedValue(empleado());
-    db.sede.findUnique.mockResolvedValue({ id: S2, activa: false });
+    db.sede.findUnique.mockResolvedValue(null);
     const res = await editarEmpleado(pedir({ sedeId: S2 }), ctx);
-    expect(res.status).toBe(409);
-    expect((await res.json()).error).toMatch(/desactivada/);
+    expect(res.status).toBe(404);
   });
 
-  test('sin equipos y a una sede activa, se traslada', async () => {
+  test('sin equipos, se traslada', async () => {
     db.employee.findUnique.mockResolvedValue(empleado());
-    db.sede.findUnique.mockResolvedValue({ id: S2, activa: true });
+    db.sede.findUnique.mockResolvedValue({ id: S2 });
     db.assignment.count.mockResolvedValue(0);
     const res = await editarEmpleado(pedir({ sedeId: S2 }), ctx);
     expect(res.status).toBe(200);
@@ -108,17 +107,15 @@ describe('editar empleado', () => {
   });
 });
 
-describe('exigirSedeActiva', () => {
-  test('rechaza una sede desactivada o que no existe', async () => {
-    db.sede.findUnique.mockResolvedValueOnce({ activa: false });
-    await expect(exigirSedeActiva(S1)).rejects.toMatchObject({ status: 409 });
+describe('exigirSedeExistente', () => {
+  test('rechaza una sede que no existe (SPEC 2.170: ya no hay sedes desactivadas)', async () => {
     db.sede.findUnique.mockResolvedValueOnce(null);
-    await expect(exigirSedeActiva(S1)).rejects.toMatchObject({ status: 409 });
+    await expect(exigirSedeExistente(S1)).rejects.toMatchObject({ status: 409 });
   });
 
-  test('deja pasar una activa', async () => {
-    db.sede.findUnique.mockResolvedValueOnce({ activa: true });
-    await expect(exigirSedeActiva(S1)).resolves.toBeUndefined();
+  test('deja pasar una que existe', async () => {
+    db.sede.findUnique.mockResolvedValueOnce({ id: S1 });
+    await expect(exigirSedeExistente(S1)).resolves.toBeUndefined();
   });
 });
 

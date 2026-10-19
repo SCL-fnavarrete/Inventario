@@ -2,7 +2,7 @@ import { Prisma, Employee } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { ConflictError, NotFoundError, ValidationError } from '@/shared/errores';
 import { sedeIdParaCrear } from '@/shared/sedes/filtro';
-import { exigirSedeActiva } from '@/shared/sedes/consultas';
+import { exigirSedeExistente } from '@/shared/sedes/consultas';
 import { getInitialState } from '@/modules/solicitudes/maquinaEstados';
 import { executeAssignment, executeReturn } from '@/modules/asignaciones/servidor';
 import { executeKitReturn } from '@/modules/kit-epp/servidor';
@@ -107,9 +107,8 @@ export async function crearSolicitud(
   const sedeId = sedeIdParaCrear(sedeIdPedido, {
     requerido: true,
   });
-  // Un ingreso nuevo no puede nacer en una sede desactivada (auditoria
-  // 27-sep-2026, 2.9). Desvincular o cambiar equipo si: la persona ya esta ahi.
-  if (data.tipo === 'onboarding' && sedeId) await exigirSedeActiva(sedeId);
+  // Un ingreso nuevo nace en una sede que existe.
+  if (data.tipo === 'onboarding' && sedeId) await exigirSedeExistente(sedeId);
 
   // Campos comunes a los tres tipos. "employee" y "numero" se agregan recien
   // dentro de la transaccion (el id puede ser de un empleado recien creado;

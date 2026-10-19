@@ -4,15 +4,12 @@ import { crearSedeSchema } from '@/modules/configuracion';
 import { crearSede, listarSedes } from '@/modules/configuracion/servidor';
 
 // GET /api/sedes - Listar sedes. Con ?conUso=true (Configuracion > Sedes)
-// trae cuantos tecnicos activos y equipos tiene cada una (SPEC 2.112.6).
+// trae cuanto la usa cada una: solo se elimina una sin uso (SPEC 2.170).
 export async function GET(request: NextRequest) {
   try {
     await requirePermission('sedes', 'read');
     const searchParams = request.nextUrl.searchParams;
-    const sedes = await listarSedes({
-      soloActivas: searchParams.get('activas') === 'true',
-      conUso: searchParams.get('conUso') === 'true',
-    });
+    const sedes = await listarSedes({ conUso: searchParams.get('conUso') === 'true' });
     return NextResponse.json(sedes);
   } catch (error) {
     return handleApiError(error, "Error al obtener sedes");

@@ -235,6 +235,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
 
       <h3 id="entrar">Iniciar y cerrar sesión</h3>
       <p>Entra con tu <b>usuario</b> (el que te dio el administrador, no tu correo) y tu contraseña. Para salir, pulsa tus iniciales (arriba a la derecha) › <b>Cerrar sesión</b>.</p>
+      <p>El sistema se usa también desde el <b>celular</b> o la tablet: el menú, la sede y Cerrar sesión están en el botón <b>☰</b> de arriba a la derecha. Las listas más usadas (equipos, personal, líneas y mantenciones) se ven como tarjetas, y las tablas anchas se deslizan de lado.</p>
       <figure>
         <button class="captura" type="button"><img src="img/01-login.jpg" alt="Pantalla de inicio de sesión" loading="lazy"></button>
         <figcaption>Tras varios intentos fallidos la cuenta se bloquea unos minutos.</figcaption>
@@ -523,13 +524,13 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
       <p><b>Nuevo Usuario</b>: nombre (el usuario se arma solo, ej. <code>pcontreras</code>, y luego no se cambia), contraseña de 12+ caracteres con mayúscula, minúscula, número y símbolo, rol y, para un técnico, su sede. Las cuentas no se borran: se <b>desactivan</b>. También puedes cerrar la sesión de alguien.</p>
 
       <h3 id="sedes">Sedes</h3>
-      <p>Santiago, Concepción, Perú… Una sede desactivada no recibe equipos nuevos.</p>
+      <p>Santiago, Concepción, Perú… Puedes crear una sede y <b>editar</b> su nombre (el código no cambia). Una sede solo se <b>elimina</b> si nada la usa: ni equipos, personas, usuarios, líneas, Kit/EPP, despachos, compras ni solicitudes. Si algo la usa, el botón de eliminar dice qué.</p>
 
       <h3 id="catalogos">Catálogos</h3>
       <p>Categorías (con qué campos pide cada una y su stock mínimo), marcas, sistemas operativos, antivirus y licencias. Los equipos están enlazados a su opción, así que <b>renombrarla</b> la cambia en todos ellos. Una opción en uso <b>se desactiva, no se borra</b>: los equipos que ya la tienen la conservan, pero no se ofrece para equipos nuevos. La importación sí la acepta, porque trae datos históricos.</p>
 
       <h3 id="seguridad">Seguridad</h3>
-      <p>Duración de la sesión y bloqueo por intentos fallidos.</p>
+      <p>Tres valores: <b>duración de la sesión</b> en horas, <b>intentos máximos</b> de inicio de sesión de cada usuario y <b>minutos de bloqueo</b> cuando se superan.</p>
 
       <h3 id="importar">Importación de datos</h3>
       <p>Carga datos desde Excel en cuatro pasos: <b>Archivo › Columnas › Revisión › Importar</b>. Arriba eliges qué importar: una categoría de equipos, el historial de equipos o las líneas. Nada se guarda hasta el último paso.</p>
@@ -559,7 +560,7 @@ footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
       <p>Una persona que ya existe no cambia de estado. Importar dos veces no duplica nada.</p>
 
       <h3 id="accesos">Registro de accesos y auditoría</h3>
-      <p><b>Accesos</b>: quién entró, cuándo y con qué resultado. <b id="auditoria">Auditoría</b>: quién hizo qué y qué datos cambiaron, con filtros por módulo, usuario y fechas.</p>
+      <p><b>Accesos</b>: quién entró, cuándo y con qué resultado; la tarjeta <b>Cuentas desactivadas</b> muestra los intentos de hoy con una cuenta desactivada. <b id="auditoria">Auditoría</b>: un visor de eventos con quién hizo qué y qué datos cambiaron; se filtra por <b>usuario</b> (de la lista) y por <b>fechas</b>.</p>
     </section>
 
     <section class="capitulo" id="preguntas" aria-labelledby="t-faq">

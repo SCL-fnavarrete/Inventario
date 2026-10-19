@@ -1,7 +1,7 @@
 import type { SesionAutenticada } from "@/shared/auth/guard";
 import { prisma } from "@/shared/prisma";
 import { sedeIdParaCrear } from "@/shared/sedes/filtro";
-import { exigirSedeActiva } from "@/shared/sedes/consultas";
+import { exigirSedeExistente } from "@/shared/sedes/consultas";
 import { construirMapaCatalogo, construirMapaSedes } from "@/modules/importacion/reglasFila";
 import { precargarEmpleadosPorRut, type ContextoFila } from "@/modules/importacion/procesarFila";
 import { normalizarImei } from "@/modules/activos";
@@ -23,12 +23,11 @@ export async function armarContextoImportacion(datos: {
   tipoMantencionId: string;
 }): Promise<ContextoFila> {
   const sedeIdExplicita = sedeIdParaCrear(datos.sedeIdSolicitada, { requerido: false });
-  if (sedeIdExplicita) await exigirSedeActiva(sedeIdExplicita);
+  if (sedeIdExplicita) await exigirSedeExistente(sedeIdExplicita);
 
   // Todo lo que no depende de las filas, en paralelo.
   const [sedes, marcas, sistemas, antivirus, licencias, existentes, empleados, indicePersonas] = await Promise.all([
-    // Solo sedes activas: una fila no trae equipos a una sede desactivada (2.9).
-    prisma.sede.findMany({ where: { activa: true }, select: { id: true, nombre: true, codigo: true } }),
+    prisma.sede.findMany({ select: { id: true, nombre: true, codigo: true } }),
     // Catalogos administrables: se validan fila por fila sin texto fijo.
     prisma.marca.findMany({ select: { nombre: true } }),
     prisma.sistemaOperativo.findMany({ select: { nombre: true } }),

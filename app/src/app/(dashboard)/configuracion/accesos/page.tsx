@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { LogIn, ShieldX, Lock, UserX, Search } from "lucide-react";
+import { UserX, Search } from "lucide-react";
 import type { ResultadoAcceso } from "@prisma/client";
 import { cn } from "@/shared/cn";
 import { PageHeader } from "@/shared/ui/PageHeader";
@@ -38,19 +38,13 @@ const FORMATO_FECHA: Intl.DateTimeFormatOptions = {
   second: "2-digit",
 };
 
-type Resumen = { ingresos_hoy: number; fallidos_hoy: number; bloqueos_hoy: number; desactivados_hoy: number };
+// Una sola tarjeta (SPEC 2.170): lo demas se ve con el filtro de resultado.
+type Resumen = { desactivados_hoy: number };
 type Vista = keyof Resumen | "";
-
-const TARJETAS: { vista: keyof Resumen; label: string; hint: string; tone: "success" | "warning" | "danger" | "purple"; icon: typeof LogIn }[] = [
-  { vista: "ingresos_hoy", label: "Ingresos de hoy", hint: "Inicios de sesión correctos", tone: "success", icon: LogIn },
-  { vista: "fallidos_hoy", label: "Intentos fallidos de hoy", hint: "Contraseña o usuario incorrecto", tone: "warning", icon: ShieldX },
-  { vista: "bloqueos_hoy", label: "Bloqueos de hoy", hint: "Por superar los intentos", tone: "danger", icon: Lock },
-  { vista: "desactivados_hoy", label: "Cuentas desactivadas", hint: "Cuenta o sede desactivada, hoy", tone: "purple", icon: UserX },
-];
 
 /**
  * Configuracion > Registro de accesos (SPEC 2.112): quien intento entrar,
- * cuando, desde donde y con que resultado. Cada tarjeta filtra la lista.
+ * cuando, desde donde y con que resultado. La tarjeta filtra la lista.
  */
 export default function AccesosPage() {
   return (
@@ -111,18 +105,15 @@ function Accesos() {
       />
 
       <StatGrid cols={4}>
-        {TARJETAS.map((t) => (
-          <StatCard
-            key={t.vista}
-            label={t.label}
-            hint={t.hint}
-            value={resumen?.[t.vista] ?? 0}
-            tone={t.tone}
-            icon={t.icon}
-            activa={vista === t.vista}
-            onClick={() => setVista(vista === t.vista ? "" : t.vista)}
-          />
-        ))}
+        <StatCard
+          label="Cuentas desactivadas"
+          hint="Intentos de entrar con una cuenta desactivada, hoy"
+          value={resumen?.desactivados_hoy ?? 0}
+          tone="purple"
+          icon={UserX}
+          activa={vista === "desactivados_hoy"}
+          onClick={() => setVista(vista === "desactivados_hoy" ? "" : "desactivados_hoy")}
+        />
       </StatGrid>
 
       <div className="card grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -189,7 +180,7 @@ function Accesos() {
               <>
                 {/* En celular, fila compacta: la fecha va aqui arriba. */}
                 <p className="text-xs text-fg-muted sm:hidden">{formatearFechaHora(r.createdAt, FORMATO_FECHA)}</p>
-                <p className="break-all font-medium text-fg">{r.usuario?.nombre ?? r.usuarioIngresado}</p>
+                <p className="break-words font-medium text-fg">{r.usuario?.nombre ?? r.usuarioIngresado}</p>
                 {r.usuario && <p className="break-all text-xs text-fg-subtle">{r.usuarioIngresado}</p>}
                 <p className="text-xs text-fg-subtle md:hidden">
                   {navegadorLegible(r.navegador)}

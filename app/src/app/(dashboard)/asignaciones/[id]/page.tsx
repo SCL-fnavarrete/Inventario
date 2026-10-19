@@ -234,10 +234,10 @@ export default function AsignacionDetailPage({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-              <div className="flex items-center gap-2 text-sm">
-                <Mail className="h-4 w-4 text-fg-subtle" />
-                <span className="text-fg-muted">{assignment.employee.correoEmpresa ?? assignment.employee.correoPersonal ?? ''}</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">
+              <div className="flex min-w-0 items-center gap-2 text-sm">
+                <Mail className="h-4 w-4 shrink-0 text-fg-subtle" />
+                <span className="break-all text-fg-muted">{assignment.employee.correoEmpresa ?? assignment.employee.correoPersonal ?? ''}</span>
               </div>
               {assignment.employee.cargo && (
                 <div className="flex items-center gap-2 text-sm">

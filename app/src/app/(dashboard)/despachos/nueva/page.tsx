@@ -99,7 +99,7 @@ export default function NuevaGuiaDespachoPage() {
 
   async function fetchSedes() {
     try {
-      const res = await fetch("/api/sedes?activas=true");
+      const res = await fetch("/api/sedes");
       const data = await res.json();
       setSedes(data);
     } catch (error) {

@@ -117,7 +117,7 @@ export function KitEppCategoriaView({
 
   const fetchSedes = async () => {
     try {
-      const res = await fetch("/api/sedes?activas=true");
+      const res = await fetch("/api/sedes");
       if (res.ok) {
         setSedes(await res.json());
       }

@@ -126,7 +126,7 @@ export default function PersonalPage() {
 
   async function fetchSedes() {
     try {
-      const res = await fetch("/api/sedes?activas=true");
+      const res = await fetch("/api/sedes");
       const data = await res.json();
       setSedes(data);
     } catch (error) {
@@ -386,6 +386,24 @@ export default function PersonalPage() {
         cargando={loading}
         vacio="No se encontraron empleados"
         compacta
+        // En celular, una tarjeta por persona: la tabla de 11 columnas no se lee.
+        tarjeta={(e) => (
+          <>
+            <div className="flex items-start justify-between gap-2">
+              <Link href={`/empleados/${e.id}`} className="font-medium text-fg hover:text-primary-700">
+                {e.nombres} {e.apellidoPaterno}
+              </Link>
+              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-medium", estadoColors[e.estado])}>{estadoLabels[e.estado]}</span>
+            </div>
+            <p className="font-mono text-xs text-fg-subtle">{e.rut || "—"}</p>
+            {(e.correoPersonal ?? e.correoEmpresa) && (
+              <p className="truncate text-xs text-fg-muted">{e.correoPersonal ?? e.correoEmpresa}</p>
+            )}
+            <p className="text-xs text-fg-subtle">
+              {e.sede?.nombre || "Sin sede"} · {e._count.assignments} equipos
+            </p>
+          </>
+        )}
         columnas={[
           { titulo: "RUT", sinSalto: true, className: "px-6 font-mono text-fg", celda: (e) => e.rut || "—" },
           {

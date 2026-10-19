@@ -225,7 +225,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
   async function fetchSedes() {
     try {
-      const res = await fetch("/api/sedes?activas=true");
+      const res = await fetch("/api/sedes");
       const data = await res.json();
       setSedes(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -646,7 +646,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
       {/* Activos Vinculados */}
       <div className="card">
-        <div className="p-6 border-b flex items-center justify-between">
+        <div className="p-6 border-b flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
             <Package className="h-5 w-5 text-fg-subtle" />
             Equipos ({purchase.purchaseAssets.length})
@@ -706,7 +706,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
               titulo: "Activo",
               className: "px-4 py-4",
               celda: (pa) => (
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-[11rem] items-center gap-3">
                   <span className="text-fg-subtle">
                     <CategoryIcon categoria={pa.asset.categoria.nombre} className="h-4 w-4" />
                   </span>
@@ -752,7 +752,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
 
       {/* Kit/EPP Vinculados */}
       <div className="card">
-        <div className="p-6 border-b flex items-center justify-between">
+        <div className="p-6 border-b flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
             <Shirt className="h-5 w-5 text-fg-subtle" />
             Kit de Bienvenida / EPP Comprado ({purchase.purchaseKitItems.length})

@@ -2,14 +2,12 @@
 
 import { useEffect, useState, Fragment } from "react";
 import Link from "next/link";
-import { Search, ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/shared/cn";
-import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { TablaDatos } from "@/shared/ui/TablaDatos";
 import { CampoFormulario } from "@/shared/ui/CampoFormulario";
 import { formatearFechaHora } from "@/shared/utilidades/fechas";
-import { MODULOS_AUDITORIA } from "@/modules/configuracion";
 
 /**
  * Configuracion > Auditoria (SPEC 2.112.8): quien hizo que y cuando, en todos
@@ -19,6 +17,9 @@ import { MODULOS_AUDITORIA } from "@/modules/configuracion";
  */
 
 type Cambio = { campo: string; antes: string | null; despues: string | null };
+
+/** Cuenta del sistema para el filtro "Usuario" (todas, tambien las desactivadas). */
+type CuentaUsuario = { id: string; usuario: string; nombre: string; activo: boolean };
 
 type Evento = {
   id: string;
@@ -78,14 +79,14 @@ function QuePaso({ ev }: { ev: Evento }) {
       <p className="text-fg">{ev.descripcion}</p>
       {ev.contexto &&
         (ev.enlace ? (
-          <Link href={ev.enlace} className="text-xs text-primary-700 hover:underline">
+          <Link href={ev.enlace} className="block w-fit text-xs text-primary-700 hover:underline">
             {ev.contexto}
           </Link>
         ) : (
           <p className="text-xs text-fg-subtle">{ev.contexto}</p>
         ))}
       {!ev.contexto && ev.enlace && (
-        <Link href={ev.enlace} className="text-xs text-primary-700 hover:underline">
+        <Link href={ev.enlace} className="block w-fit text-xs text-primary-700 hover:underline">
           Ver registro
         </Link>
       )}
@@ -131,25 +132,27 @@ export default function AuditoriaPage() {
   } | null>(null);
   const [expandido, setExpandido] = useState<string | null>(null);
 
-  const [modulo, setModulo] = useState("");
+  // Visor de eventos (SPEC 2.170): solo usuario (de la lista) y fechas.
   const [usuario, setUsuario] = useState("");
-  const [search, setSearch] = useState("");
+  const [usuarios, setUsuarios] = useState<CuentaUsuario[]>([]);
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
   // Cuantos eventos se ven por pagina ("Mostrar: N").
   const [limite, setLimite] = useState(20);
-  const usuarioBuscado = useDebouncedValue(usuario, 350);
-  const textoBuscado = useDebouncedValue(search, 350);
+
+  useEffect(() => {
+    fetch("/api/usuarios")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((lista: CuentaUsuario[]) => setUsuarios([...lista].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))));
+  }, []);
 
   // La pagina vuelve a 1 al cambiar cualquier filtro.
-  const filtros = `${modulo}|${usuarioBuscado}|${textoBuscado}|${fechaDesde}|${fechaHasta}|${limite}`;
+  const filtros = `${usuario}|${fechaDesde}|${fechaHasta}|${limite}`;
   const [pagina, setPagina] = useState({ filtros, n: 1 });
   const page = pagina.filtros === filtros ? pagina.n : 1;
 
   const q = new URLSearchParams({ page: String(page), limit: String(limite) });
-  if (modulo) q.set("modulo", modulo);
-  if (usuarioBuscado) q.set("usuario", usuarioBuscado);
-  if (textoBuscado) q.set("search", textoBuscado);
+  if (usuario) q.set("usuario", usuario);
   if (fechaDesde) q.set("fechaDesde", fechaDesde);
   if (fechaHasta) q.set("fechaHasta", fechaHasta);
   const consulta = q.toString();
@@ -177,45 +180,19 @@ export default function AuditoriaPage() {
       <PageHeader
         backHref="/configuracion"
         title="Auditoría"
-        description="Quién hizo qué y cuándo, en todos los módulos"
+        description="Visor de eventos: quién hizo qué y cuándo, en todos los módulos"
       />
 
-      <div className="card grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
-        <CampoFormulario label="Módulo">
-          <select value={modulo} onChange={(e) => setModulo(e.target.value)} className="field-input">
-            <option value="">Todos los módulos</option>
-            {Object.entries(MODULOS_AUDITORIA).map(([valor, label]) => (
-              <option key={valor} value={valor}>
-                {label}
+      <div className="card grid grid-cols-1 gap-3 p-4 sm:grid-cols-3">
+        <CampoFormulario label="Usuario">
+          <select value={usuario} onChange={(e) => setUsuario(e.target.value)} className="field-input">
+            <option value="">Todos los usuarios</option>
+            {usuarios.map((u) => (
+              <option key={u.id} value={u.usuario}>
+                {u.nombre} ({u.usuario}){u.activo ? "" : " · desactivado"}
               </option>
             ))}
           </select>
-        </CampoFormulario>
-        <CampoFormulario label="Usuario">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
-            <input
-              type="text"
-              aria-label="Usuario"
-              placeholder="Usuario o nombre..."
-              value={usuario}
-              onChange={(e) => setUsuario(e.target.value)}
-              className="field-input pl-9"
-            />
-          </div>
-        </CampoFormulario>
-        <CampoFormulario label="Buscar">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
-            <input
-              type="text"
-              aria-label="Buscar"
-              placeholder="Qué pasó, N° de serie o solicitud..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="field-input pl-9"
-            />
-          </div>
         </CampoFormulario>
         <CampoFormulario label="Desde">
           <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="field-input" />

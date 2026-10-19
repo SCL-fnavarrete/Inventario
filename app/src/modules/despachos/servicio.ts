@@ -173,13 +173,12 @@ export type DatosEnvio = {
 };
 
 /**
- * La sede destino existe, esta activa y no es la de origen (SPEC 2.108). La
+ * La sede destino existe y no es la de origen (SPEC 2.108). La
  * usan el despacho del modulo y el reparto de una compra (SPEC 2.111).
  */
 export async function sedeDestinoValida(sedeDestinoId: string, sedeOrigenId: string | null) {
   const sede = await prisma.sede.findUnique({ where: { id: sedeDestinoId } });
   if (!sede) throw errorDeCampo('sedeDestinoId', 'La sede destino no existe');
-  if (!sede.activa) throw errorDeCampo('sedeDestinoId', `La sede ${sede.nombre} está inactiva`);
   if (sedeOrigenId && sede.id === sedeOrigenId) {
     throw errorDeCampo('sedeDestinoId', 'La sede destino debe ser distinta de la sede origen');
   }

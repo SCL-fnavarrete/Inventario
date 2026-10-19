@@ -58,7 +58,6 @@ type Sede = {
   id: string;
   codigo: string;
   nombre: string;
-  activa: boolean;
 };
 
 type SystemUser = {
@@ -71,7 +70,7 @@ type SystemUser = {
   ultimoLogin: string | null;
   createdAt: string;
   sedeId: string | null;
-  sede: { id: string; codigo: string; nombre: string; activa: boolean } | null;
+  sede: { id: string; codigo: string; nombre: string } | null;
 };
 
 const roleLabels: Record<string, string> = {
@@ -103,17 +102,10 @@ function RolBadge({ rol }: { rol: SystemUser["rol"] }) {
   return <span className={`inline-flex px-2 py-1 text-xs rounded-full ${roleColors[rol]}`}>{roleLabels[rol]}</span>;
 }
 
-/** Sede a la que pertenece el usuario. Avisa si esta desactivada (SPEC 2.112.6). */
+/** Sede a la que pertenece el usuario. */
 function SedeUsuario({ user }: { user: SystemUser }) {
   if (user.rol === "admin") return <span className="text-fg-subtle">—</span>;
-  return (
-    <>
-      {user.sede?.nombre || <span className="text-red-500">Sin asignar</span>}
-      {user.sede && !user.sede.activa && (
-        <span className="mt-0.5 block text-xs text-red-600">Sede desactivada: no puede entrar</span>
-      )}
-    </>
-  );
+  return <>{user.sede?.nombre || <span className="text-red-500">Sin asignar</span>}</>;
 }
 
 export default function UsuariosPage() {
@@ -127,10 +119,6 @@ export default function UsuariosPage() {
   // dos veces ni muestra "el correo ya existe" (auditoria 27-sep-2026, 6.2).
   const { enviando: guardando, ejecutar } = useEnvio();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const editandoSedeInactiva = (() => {
-    const sede = users.find((u) => u.id === editingId)?.sede;
-    return sede && !sede.activa ? sede : null;
-  })();
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState(FORMULARIO_VACIO);
   // Al crear, el usuario se arma solo con el nombre (SPEC 2.122) hasta que
@@ -203,7 +191,7 @@ export default function UsuariosPage() {
 
   const fetchSedes = async () => {
     try {
-      const res = await fetch("/api/sedes?activas=true");
+      const res = await fetch("/api/sedes");
       if (res.ok) {
         setSedes(await res.json());
       }
@@ -518,13 +506,6 @@ export default function UsuariosPage() {
                       {sede.nombre}
                     </option>
                   ))}
-                  {/* La sede actual del usuario ya no esta activa: se muestra
-                      para que se vea, pero no se puede volver a elegir. */}
-                  {editandoSedeInactiva && (
-                    <option value={editandoSedeInactiva.id} disabled>
-                      {editandoSedeInactiva.nombre} (desactivada)
-                    </option>
-                  )}
                 </select>
               </CampoFormulario>
             )}

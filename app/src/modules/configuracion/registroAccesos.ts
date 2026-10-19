@@ -1,17 +1,15 @@
 import type { Prisma, ResultadoAcceso } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
-import { RESULTADOS_FALLIDOS } from '@/shared/auth/accesos';
 import { hoyISO, inicioDiaChile, rangoDiasChile } from '@/shared/utilidades/fechas';
 
 /**
- * Configuracion > Registro de accesos (SPEC 2.112, solo admin). Cada tarjeta
+ * Configuracion > Registro de accesos (SPEC 2.112, solo admin). La tarjeta
  * es un filtro: la misma condicion la cuenta y filtra la lista al pulsarla.
+ * Solo queda la de cuentas desactivadas (SPEC 2.170): ingresos, fallos y
+ * bloqueos se ven con el filtro de resultado.
  */
 const VISTAS: Record<string, (hoy: Date) => Prisma.AccessLogWhereInput> = {
-  ingresos_hoy: (hoy) => ({ resultado: 'exito', createdAt: { gte: hoy } }),
-  fallidos_hoy: (hoy) => ({ resultado: { in: RESULTADOS_FALLIDOS }, createdAt: { gte: hoy } }),
-  bloqueos_hoy: (hoy) => ({ resultado: 'bloqueado', createdAt: { gte: hoy } }),
-  desactivados_hoy: (hoy) => ({ resultado: { in: ['usuario_inactivo', 'sede_inactiva'] }, createdAt: { gte: hoy } }),
+  desactivados_hoy: (hoy) => ({ resultado: 'usuario_inactivo', createdAt: { gte: hoy } }),
 };
 
 const RESULTADOS: ResultadoAcceso[] = [

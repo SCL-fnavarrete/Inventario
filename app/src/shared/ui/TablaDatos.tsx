@@ -43,6 +43,7 @@ export function TablaDatos<T>({
   acciones,
   tituloAcciones = "Acciones",
   tarjeta,
+  tarjetaConAcciones = false,
   cargando = false,
   vacio,
   compacta = false,
@@ -62,6 +63,8 @@ export function TablaDatos<T>({
   tituloAcciones?: string;
   /** Resumen de la fila en celular. Sin esto la tabla se desliza de lado en celular. */
   tarjeta?: (item: T) => ReactNode;
+  /** La tarjeta ya muestra sus acciones: no se repiten a su lado (le quitarian ancho). */
+  tarjetaConAcciones?: boolean;
   cargando?: boolean;
   /** Lo que se dice cuando no hay filas. */
   vacio: ReactNode;
@@ -180,7 +183,7 @@ export function TablaDatos<T>({
                 className={cn("flex items-start justify-between gap-3 px-4 py-3 text-sm", resaltada?.(item) && "bg-surface-muted", claseFila?.(item))}
               >
                 <div className="min-w-0 flex-1 space-y-1">{tarjeta(item)}</div>
-                {acciones && <div className="flex shrink-0 gap-1">{acciones(item)}</div>}
+                {acciones && !tarjetaConAcciones && <div className="flex shrink-0 gap-1">{acciones(item)}</div>}
               </li>
             ))
           )}

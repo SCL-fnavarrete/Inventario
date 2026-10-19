@@ -323,17 +323,21 @@ export default function TiposMantencionPage() {
           {
             titulo: "Descripción",
             className: "text-fg-subtle",
-            celda: (t) =>
-              editingId === t.id ? (
-                <input
-                  type="text"
-                  value={formData.descripcion}
-                  onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                  className="w-full rounded border border-line-strong px-2 py-1 focus:ring-2 focus:ring-primary-500"
-                />
-              ) : (
-                t.descripcion || "-"
-              ),
+            // Ancho minimo para leerla en celular (la tabla se desliza de lado).
+            celda: (t) => (
+              <div className="min-w-[12rem]">
+                {editingId === t.id ? (
+                  <input
+                    type="text"
+                    value={formData.descripcion}
+                    onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                    className="w-full rounded border border-line-strong px-2 py-1 focus:ring-2 focus:ring-primary-500"
+                  />
+                ) : (
+                  t.descripcion || "-"
+                )}
+              </div>
+            ),
           },
           {
             titulo: "Estado",

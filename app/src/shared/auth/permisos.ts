@@ -159,7 +159,7 @@ export const RESOURCE_PERMISSIONS: Record<Recurso, Record<Accion, readonly Syste
   },
 
   // Datos maestros de sedes. Tecnico necesita leer la lista (ej. para
-  // elegir la sede en los formularios); solo admin crea/edita/desactiva sedes.
+  // elegir la sede en los formularios); solo admin crea, edita y elimina sedes.
   sedes: {
     read: AMBOS,
     write: ADMIN,

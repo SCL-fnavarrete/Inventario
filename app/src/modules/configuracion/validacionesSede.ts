@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 /**
- * Reglas de Configuracion > Sedes (SPEC 2.112.6). El nombre repetido se
- * revisa en la ruta, contra la base.
+ * Reglas de Configuracion > Sedes (SPEC 2.112.6, 2.170: sin desactivar). El
+ * nombre repetido se revisa en el servicio, contra la base.
  */
 const nombre = z
   .string({ error: 'Escribe el nombre' })
@@ -19,14 +19,10 @@ export const crearSedeSchema = z.object({
     .regex(/^[A-Za-z0-9_-]+$/, 'Solo letras, números, guion y guion bajo')
     .transform((c) => c.toUpperCase()),
   nombre,
-  activa: z.boolean().optional(),
 });
 
 // El codigo no se edita: es la referencia estable de la sede.
-export const editarSedeSchema = z.object({
-  nombre: nombre.optional(),
-  activa: z.boolean({ error: 'Valor inválido' }).optional(),
-});
+export const editarSedeSchema = z.object({ nombre });
 
 export type CrearSedeInput = z.infer<typeof crearSedeSchema>;
 export type EditarSedeInput = z.infer<typeof editarSedeSchema>;

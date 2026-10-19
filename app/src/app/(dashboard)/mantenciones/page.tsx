@@ -337,8 +337,8 @@ function Mantenciones() {
 
       {/* Filters */}
       <div className="card p-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
+        <div className="flex flex-col md:flex-row md:flex-wrap gap-4">
+          <div className="relative md:min-w-[16rem] md:flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-fg-subtle" />
             <input
               type="text"
@@ -429,6 +429,7 @@ function Mantenciones() {
             setPage(1);
           },
         }}
+        tarjetaConAcciones
         tarjeta={(m) => (
           <div className="space-y-2">
             <div className="flex items-start justify-between gap-3">

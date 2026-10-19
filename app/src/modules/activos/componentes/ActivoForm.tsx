@@ -273,7 +273,7 @@ export function ActivoForm({
       .then((data) => setCategories(Array.isArray(data) ? data : []))
       .catch(() => setCategories([]));
     if (crear || initialValues.sinSede) {
-      fetch("/api/sedes?activas=true")
+      fetch("/api/sedes")
         .then((r) => r.json())
         .then((data) => setSedes(Array.isArray(data) ? data : []))
         .catch(() => setSedes([]));

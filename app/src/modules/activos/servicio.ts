@@ -8,7 +8,7 @@ import {
   terminaAntesDeEmpezar,
 } from '@/shared/validaciones/ordenFechas';
 import { sedeIdParaCrear } from '@/shared/sedes/filtro';
-import { exigirSedeActiva } from '@/shared/sedes/consultas';
+import { exigirSedeExistente } from '@/shared/sedes/consultas';
 import type { CreateAssetInput, UpdateAssetInput } from '@/modules/activos/validaciones';
 import { EVENTOS_SIN_USO, motivoSinEliminar } from '@/modules/activos/estados';
 import { assetHistoryService, type AssetHistoryData } from '@/modules/activos/historial';
@@ -208,7 +208,7 @@ export async function registrarActivo(
   usuario: string
 ) {
   const sedeId = sedeIdParaCrear(sedeIdPedido, { requerido: true });
-  if (sedeId) await exigirSedeActiva(sedeId);
+  if (sedeId) await exigirSedeExistente(sedeId);
   return prisma.$transaction((tx) => crearActivo(tx, datos, { sedeId, usuario }));
 }
 
@@ -290,7 +290,7 @@ export async function editarActivo(id: string, datos: UpdateAssetInput, usuario:
   const sedeNueva = datos.sedeId && datos.sedeId !== existente.sedeId ? datos.sedeId : null;
   if (sedeNueva) {
     if (existente.sedeId) throw new ConflictError('La sede del equipo cambia con una Guía de Despacho.');
-    await exigirSedeActiva(sedeNueva);
+    await exigirSedeExistente(sedeNueva);
   }
 
   // Cambios en especificaciones tecnicas, para el historial.

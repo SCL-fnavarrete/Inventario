@@ -5,7 +5,7 @@ import { ConflictError, errorDeCampo, errorRepetido, NotFoundError } from '@/sha
 import { auditLogService } from '@/shared/auditoria';
 import { registrarAcceso, sesionSeguiaAbierta } from '@/shared/auth/accesos';
 import { actualizarCuenta, crearCuenta, fijarSesionVigente } from '@/shared/auth/cuentas';
-import { exigirSedeActiva } from '@/shared/sedes/consultas';
+import { exigirSedeExistente } from '@/shared/sedes/consultas';
 import { SELECT_USUARIO } from '@/modules/configuracion/consultasUsuarios';
 import type { CrearUsuarioInput, EditarUsuarioInput } from '@/modules/configuracion/validacionesUsuario';
 
@@ -31,7 +31,7 @@ export async function crearUsuario(datos: CrearUsuarioInput, quien: string | nul
   await exigirLibres(usuario, email);
   if (rol !== 'admin') {
     if (!sedeId) throw errorDeCampo('sedeId', 'Este rol necesita una sede asignada');
-    await exigirSedeActiva(sedeId);
+    await exigirSedeExistente(sedeId);
   }
   const user = await crearCuenta(
     {
@@ -123,7 +123,7 @@ export async function editarUsuario(
     const sedeFinal = sedeId !== undefined ? sedeId : existente.sedeId;
     if (!sedeFinal) throw errorDeCampo('sedeId', 'Este rol necesita una sede asignada');
     if (sedeFinal !== existente.sedeId) {
-      await exigirSedeActiva(sedeFinal);
+      await exigirSedeExistente(sedeFinal);
       cambios.sede = { connect: { id: sedeFinal } };
     }
   }

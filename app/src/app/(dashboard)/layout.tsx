@@ -38,7 +38,7 @@ export default async function DashboardLayout({
           </a>
           <div className="min-h-screen">
             <Navbar />
-            <main id="main-content" className="mx-auto w-full max-w-screen-2xl px-4 pt-4 pb-8 lg:px-8">
+            <main id="main-content" className="mx-auto w-full max-w-screen-2xl px-5 pt-4 pb-8 sm:px-6 lg:px-8">
               {children}
             </main>
           </div>

@@ -2,7 +2,7 @@ import { prisma } from '@/shared/prisma';
 import { errorRepetido, NotFoundError, ValidationError } from '@/shared/errores';
 import { auditLogService } from '@/shared/auditoria';
 import { filtroSede, sedeIdParaCrear } from '@/shared/sedes/filtro';
-import { exigirSedeActiva } from '@/shared/sedes/consultas';
+import { exigirSedeExistente } from '@/shared/sedes/consultas';
 import type { CreateKitItemInput, UpdateKitItemInput } from '@/modules/kit-epp/validaciones';
 
 /**
@@ -29,7 +29,7 @@ export function listarArticulosKit(p: { categoria: string | null; sedeId: string
  */
 export async function crearArticuloKit(datos: CreateKitItemInput, usuario: string | null | undefined) {
   const sedeId = sedeIdParaCrear(datos.sedeId, { requerido: true });
-  if (sedeId) await exigirSedeActiva(sedeId);
+  if (sedeId) await exigirSedeExistente(sedeId);
   const repetido = await prisma.welcomeKitItem.findFirst({
     where: { nombre: { equals: datos.nombre, mode: 'insensitive' }, categoria: datos.categoria, sedeId },
   });

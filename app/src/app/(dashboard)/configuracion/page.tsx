@@ -53,13 +53,13 @@ const configSections = [
   },
   {
     title: "Registro de accesos",
-    description: "Inicios de sesión, intentos fallidos, bloqueos y cierres de sesión",
+    description: "Inicios de sesión, intentos fallidos, bloqueos y cierres de sesión, y cuentas desactivadas",
     href: "/configuracion/accesos",
     icon: KeyRound,
   },
   {
     title: "Auditoría",
-    description: "Historial completo de todos los módulos: quién hizo qué y cuándo",
+    description: "Visor de eventos de todos los módulos: quién hizo qué y cuándo",
     href: "/configuracion/auditoria",
     icon: History,
   },

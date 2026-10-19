@@ -140,7 +140,7 @@ export async function sesionSeguiaAbierta(sesionId: string, horasSesion: number,
  *
  * x-forwarded-for lo puede escribir cualquiera: sin un proxy de confianza
  * delante, basta con inventar una direccion distinta en cada intento para
- * esquivar el bloqueo por equipo (auditoria 27-sep-2026, 2.6). Por eso solo
+ * esquivar el bloqueo por usuario desde este equipo (auditoria 27-sep-2026, 2.6). Por eso solo
  * se lee:
  * - en Vercel, que reemplaza la cabecera con la direccion real (la primera);
  * - con TRUST_PROXY=true (un proxy propio, ej. nginx), tomando la ultima
@@ -237,23 +237,6 @@ export async function minutosDeBloqueo(
   );
   const minutos = Math.max(porEquipo, global);
   return { minutos, motivo: minutos === 0 ? null : porEquipo >= global ? 'equipo' : 'global' };
-}
-
-/**
- * Bloqueo por equipo (SPEC 2.112.6): los intentos fallidos desde una misma
- * direccion de red dentro de la ventana, pruebe el usuario que pruebe. Frena
- * a quien prueba muchos usuarios. Un ingreso correcto de otra persona desde
- * la misma red (una oficina) no lo reinicia.
- */
-export async function minutosDeBloqueoEquipo(
-  ip: string | null,
-  maxIntentos: number,
-  minutosBloqueo: number,
-  enCurso = 0
-): Promise<number> {
-  if (!ip) return 0;
-  const desde = new Date(Date.now() - minutosBloqueo * 60_000);
-  return minutosBloqueados({ ip }, desde, maxIntentos + enCurso, minutosBloqueo);
 }
 
 /** Cuanto se guarda el registro de accesos (decision de Javier, SPEC 2.112.6). */

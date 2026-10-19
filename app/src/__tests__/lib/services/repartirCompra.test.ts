@@ -56,7 +56,7 @@ beforeEach(() => {
   };
   (prisma.$transaction as jest.Mock).mockReset().mockImplementation((fn) => fn(tx));
   (prisma.purchase.findUnique as jest.Mock).mockReset();
-  (prisma.sede.findUnique as jest.Mock).mockReset().mockResolvedValue({ id: CONCE, nombre: 'Concepción', activa: true });
+  (prisma.sede.findUnique as jest.Mock).mockReset().mockResolvedValue({ id: CONCE, nombre: 'Concepción' });
 });
 
 const envio = {
@@ -137,12 +137,12 @@ describe('repartir a otra sede', () => {
     expect(tx.dispatchGuide.create).not.toHaveBeenCalled();
   });
 
-  test('una sede destino inactiva se rechaza', async () => {
+  test('una sede destino que no existe se rechaza', async () => {
     (prisma.purchase.findUnique as jest.Mock).mockResolvedValue(compra());
-    (prisma.sede.findUnique as jest.Mock).mockResolvedValue({ id: CONCE, nombre: 'Concepción', activa: false });
+    (prisma.sede.findUnique as jest.Mock).mockResolvedValue(null);
     await expect(
       repartirCompra('c1', { sedeDestinoId: CONCE, equipos: ['a1'], kit: [], envio }, quien)
-    ).rejects.toThrow(/inactiva/);
+    ).rejects.toThrow(/no existe/);
   });
 });
 

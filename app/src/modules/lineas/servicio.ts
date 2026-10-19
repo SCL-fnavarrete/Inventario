@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { ConflictError, NotFoundError, errorDeCampo, errorRepetido } from '@/shared/errores';
 import { auditLogService } from '@/shared/auditoria';
+import { exigirSedeExistente } from '@/shared/sedes/consultas';
 import { estadoPorClave } from '@/modules/lineas/catalogos';
 import { whereFiltrosLineas } from '@/modules/lineas/consultas';
 import type { FiltrosLineas } from '@/modules/lineas/filtros';
@@ -98,10 +99,7 @@ async function validarAsociados(datos: DatosLinea, actual?: LineaConNombres) {
   }
   // Al crear: un celular sin otra linea (SPEC 2.164) o, una eSIM, una persona activa (SPEC 2.131).
   if (!actual && datos.activoId) await exigirCelularDisponible(prisma, datos.activoId);
-  if (!actual && datos.sedeId) {
-    const sede = await prisma.sede.findUnique({ where: { id: datos.sedeId }, select: { activa: true } });
-    if (!sede?.activa) throw errorDeCampo('sedeId', 'Elige una sede activa');
-  }
+  if (!actual && datos.sedeId) await exigirSedeExistente(datos.sedeId);
   if (!actual && datos.empleadoId && !datos.activoId) {
     const persona = await prisma.employee.findUnique({ where: { id: datos.empleadoId }, select: { estado: true } });
     if (!persona) throw errorDeCampo('empleadoId', 'La persona no existe');
@@ -466,7 +464,7 @@ export async function opcionesLinea() {
     prisma.tipoChip.findMany({ ...activos, select: { id: true, nombre: true, sinCelular: true } }),
     prisma.estadoLinea.findMany({ ...activos, select: { id: true, nombre: true, deBaja: true, clave: true } }),
     prisma.operadorLinea.findMany({ ...activos, select: { id: true, nombre: true } }),
-    prisma.sede.findMany({ where: { activa: true }, select: { id: true, nombre: true }, orderBy: { nombre: 'asc' } }),
+    prisma.sede.findMany({ select: { id: true, nombre: true }, orderBy: { nombre: 'asc' } }),
   ]);
   return { celulares, personas, tiposChip, estados, operadores, sedes };
 }

@@ -102,7 +102,7 @@ export function Navbar() {
   // Selector de sede global: filtra los listados de cualquier pantalla y
   // permite acotar la vista a una sede a la vez.
   useEffect(() => {
-    fetch("/api/sedes?activas=true")
+    fetch("/api/sedes")
       .then((res) => res.json())
       .then((data) => setSedes(Array.isArray(data) ? data : []))
       .catch(() => setSedes([]));
@@ -162,7 +162,7 @@ export function Navbar() {
           : "border-transparent bg-transparent"
       )}
     >
-      <div className="mx-auto flex h-16 max-w-screen-2xl items-center gap-4 px-4 lg:px-8">
+      <div className="mx-auto flex h-16 max-w-screen-2xl items-center gap-4 px-5 sm:px-6 lg:px-8">
         <Link href="/" aria-label="Ir al Dashboard" className="shrink-0 rounded-control">
           <Logo className="h-8" priority />
         </Link>
@@ -177,7 +177,8 @@ export function Navbar() {
                     href={item.href}
                     aria-current={activo ? "page" : undefined}
                     className={cn(
-                      "relative flex items-center rounded-full px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
+                      // Menos aire entre 1280 y 1536 px: asi el menu, la sede y el perfil caben en la barra.
+                      "relative flex items-center rounded-full px-2 py-1.5 text-sm font-medium whitespace-nowrap transition-colors 2xl:px-3",
                       activo
                         ? "bg-primary-50 text-primary-700 after:absolute after:-bottom-1 after:left-1/2 after:h-1 after:w-1 after:-translate-x-1/2 after:rounded-full after:bg-accent"
                         : "text-fg-muted hover:bg-surface-muted hover:text-fg"
@@ -191,7 +192,7 @@ export function Navbar() {
           </ul>
         </nav>
 
-        <div className="ml-auto flex items-center gap-2 xl:ml-0">
+        <div className="ml-auto flex shrink-0 items-center gap-2 xl:ml-0">
           {selectorSede("selector-sede", "hidden w-48 md:block")}
           <ThemeToggle />
 
@@ -256,7 +257,7 @@ export function Navbar() {
       {menuMovilAbierto && (
         <div
           id="menu-movil"
-          className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-line px-4 pb-4 xl:hidden"
+          className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-line px-5 pb-4 sm:px-6 xl:hidden"
         >
           {selectorSede("selector-sede-movil", "mt-3 md:hidden")}
           <nav aria-label="Principal" className="mt-3">

@@ -68,7 +68,8 @@ export function StatCard({
     <>
       {/* @container: el texto se achica segun el ancho real de la tarjeta (junto al icono) */}
       <div className="@container min-w-0 flex-1">
-        <p className="text-[clamp(0.7rem,8cqi,0.875rem)] leading-tight text-fg-subtle [overflow-wrap:anywhere]">
+        {/* hyphens-auto: una palabra larga se corta con guion ("Manten-ciones"), no en cualquier letra. */}
+        <p className="text-[clamp(0.7rem,8cqi,0.875rem)] leading-tight text-fg-subtle hyphens-auto [overflow-wrap:anywhere]">
           {label}
         </p>
         <p className={cn("text-[clamp(1.25rem,14cqi,1.5rem)] font-bold leading-tight", t.valor)}>
@@ -77,14 +78,14 @@ export function StatCard({
         {hint && <p className="mt-0.5 text-xs text-fg-subtle [overflow-wrap:anywhere]">{hint}</p>}
       </div>
       {Icon && (
-        <div className={cn("flex-shrink-0 rounded-full p-3", t.icono)}>
+        <div className={cn("flex-shrink-0 rounded-full p-2 sm:p-3", t.icono)}>
           <Icon className="h-5 w-5" />
         </div>
       )}
     </>
   );
   const base = cn(
-    "card-feature flex h-full items-center justify-between gap-3 p-4",
+    "card-feature flex h-full items-center justify-between gap-2 p-4 sm:gap-3",
     TONO_ACENTO[tone],
     activa && "ring-2 ring-primary-500 ring-offset-2 ring-offset-surface"
   );

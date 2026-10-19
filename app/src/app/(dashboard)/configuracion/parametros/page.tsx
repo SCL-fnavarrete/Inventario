@@ -18,7 +18,7 @@ import {
 } from "@/modules/configuracion";
 
 // Configuracion > Seguridad (SPEC 2.112): duracion de la sesion y bloqueo por
-// intentos fallidos, por cuenta y por equipo (2.112.6). Se guarda en SystemConfig (fila unica). Antes esta pagina
+// intentos fallidos de cada cuenta (sin bloqueo por equipo, SPEC 2.170). Se guarda en SystemConfig (fila unica). Antes esta pagina
 // tambien tenia "Datos de la empresa", que no se usaban en ninguna parte.
 
 type Campo = CampoSeguridad;
@@ -35,14 +35,6 @@ const CAMPOS: { campo: Campo; ayuda: string }[] = [
   {
     campo: "minutosBloqueoLogin",
     ayuda: "Cuánto dura el bloqueo después de superar los intentos.",
-  },
-  {
-    campo: "maxIntentosIp",
-    ayuda: "Intentos fallidos desde un mismo equipo, con cualquier correo, antes de bloquear ese equipo. Frena a quien prueba muchos correos. Una oficina comparte la misma dirección: no lo dejes muy bajo.",
-  },
-  {
-    campo: "minutosBloqueoIp",
-    ayuda: "Cuánto dura el bloqueo del equipo.",
   },
 ];
 
@@ -110,7 +102,7 @@ export default function SeguridadPage() {
       <PageHeader
         backHref="/configuracion"
         title="Seguridad"
-        description="Duración de la sesión y bloqueo por intentos fallidos, por cuenta y por equipo"
+        description="Duración de la sesión y bloqueo de cada cuenta por intentos fallidos"
       />
 
       <ResumenErrores mensaje={resumen} />

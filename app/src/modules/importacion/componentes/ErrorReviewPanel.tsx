@@ -59,7 +59,7 @@ export function ErrorReviewPanel({
     let cancelado = false;
     async function cargarSedes() {
       try {
-        const res = await fetch("/api/sedes?activas=true");
+        const res = await fetch("/api/sedes");
         const data = await res.json();
         if (!cancelado) setSedes(Array.isArray(data) ? data : []);
       } catch {

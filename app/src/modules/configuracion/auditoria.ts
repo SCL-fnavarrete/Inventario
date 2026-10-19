@@ -37,10 +37,12 @@ const ACCION_LABEL: Record<string, string> = {
   compra: 'Compra',
 };
 
+/**
+ * Visor de eventos (SPEC 2.170): se filtra por usuario (su cuenta, elegida de
+ * la lista) y por dias; sin modulo ni busqueda de texto.
+ */
 export type FiltrosAuditoria = {
-  modulo?: string;
   usuario?: string;
-  search?: string;
   rango?: { gte?: Date; lt?: Date };
   page: number;
   limit: number;
@@ -84,20 +86,10 @@ const EVENTOS = Prisma.sql`
   FROM workflow_transitions t JOIN system_users u ON u.id = t.ejecutado_por_id JOIN workflow_requests r ON r.id = t.request_id
 `;
 
-/** "Contiene" para ILIKE: `%`, `_` y `\` del usuario se buscan tal cual, no como comodines. */
-export const contiene = (texto: string) => `%${texto.replace(/[\\%_]/g, "\\$&")}%`;
-
 function condiciones(f: FiltrosAuditoria): Prisma.Sql {
   const y: Prisma.Sql[] = [];
-  if (f.modulo) y.push(Prisma.sql`e.modulo = ${f.modulo}`);
-  if (f.usuario) {
-    const patron = contiene(f.usuario);
-    y.push(Prisma.sql`(e.usuario_registrado ILIKE ${patron} OR e.usuario_nombre ILIKE ${patron} OR e.usuario_cuenta ILIKE ${patron})`);
-  }
-  if (f.search) {
-    const patron = contiene(f.search);
-    y.push(Prisma.sql`(e.descripcion ILIKE ${patron} OR e.contexto ILIKE ${patron})`);
-  }
+  // La cuenta del usuario: tambien encuentra los registros que anotaron su correo (antes de SPEC 2.122).
+  if (f.usuario) y.push(Prisma.sql`e.usuario_cuenta = ${f.usuario}`);
   if (f.rango?.gte) y.push(Prisma.sql`e.created_at >= ${f.rango.gte}`);
   if (f.rango?.lt) y.push(Prisma.sql`e.created_at < ${f.rango.lt}`);
   return y.length ? Prisma.sql`WHERE ${Prisma.join(y, ' AND ')}` : Prisma.empty;
@@ -174,6 +166,7 @@ const CAMPO_LABEL: Record<string, string> = {
   duracionSesionHoras: 'Duración de sesión (horas)',
   maxIntentosLogin: 'Intentos máximos',
   minutosBloqueoLogin: 'Minutos de bloqueo',
+  // Ya no existen (SPEC 2.170); quedan para leer los cambios antiguos.
   maxIntentosIp: 'Intentos por equipo',
   minutosBloqueoIp: 'Minutos de bloqueo del equipo',
   catalogo: 'Catálogo',

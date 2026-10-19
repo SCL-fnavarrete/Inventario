@@ -9,5 +9,5 @@ export const SELECT_USUARIO = {
   ultimoLogin: true,
   createdAt: true,
   sedeId: true,
-  sede: { select: { id: true, codigo: true, nombre: true, activa: true } },
+  sede: { select: { id: true, codigo: true, nombre: true } },
 } as const;

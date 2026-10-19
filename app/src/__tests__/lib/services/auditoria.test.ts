@@ -20,7 +20,7 @@ import { NextRequest } from 'next/server';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { requirePermission } from '@/shared/auth/guard';
-import { cambiosLegibles, consultarAuditoria, contiene, valorLegible } from '@/modules/configuracion/auditoria';
+import { cambiosLegibles, consultarAuditoria, valorLegible } from '@/modules/configuracion/auditoria';
 import { GET } from '@/app/api/auditoria/route';
 
 const db = prisma as unknown as Record<string, jest.Mock & Record<string, jest.Mock>>;
@@ -77,12 +77,12 @@ describe('una sola consulta con páginas exactas', () => {
     expect(valoresDe(db.$queryRaw.mock.calls[0])).toEqual(expect.arrayContaining([20, 40]));
   });
 
-  test('filtros de módulo, usuario, texto y días de Chile', async () => {
+  test('filtros de usuario (su cuenta) y días de Chile (SPEC 2.170)', async () => {
     db.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([{ total: 0 }]);
     const gte = new Date('2026-09-25T03:00:00Z');
     const lt = new Date('2026-09-26T03:00:00Z');
-    await consultarAuditoria({ modulo: 'sede', usuario: 'ana', search: 'QA', rango: { gte, lt }, page: 1, limit: 20 });
-    expect(valoresDe(db.$queryRaw.mock.calls[0])).toEqual(expect.arrayContaining(['sede', '%ana%', '%QA%', gte, lt]));
+    await consultarAuditoria({ usuario: 'ana', rango: { gte, lt }, page: 1, limit: 20 });
+    expect(valoresDe(db.$queryRaw.mock.calls[0])).toEqual(expect.arrayContaining(['ana', gte, lt]));
   });
 
   test('traduce la acción y arma el enlace al registro', async () => {
@@ -106,17 +106,12 @@ describe('una sola consulta con páginas exactas', () => {
     expect(data[1]).toMatchObject({ accion: 'Eliminó', usuario: 'a@x.cl', enlace: null });
   });
 
-  test('un módulo desconocido -> 400', async () => {
-    const res = await GET(new NextRequest('http://localhost/api/auditoria?modulo=no_existe'));
-    expect(res.status).toBe(400);
-    expect(db.$queryRaw).not.toHaveBeenCalled();
+  test('la ruta pasa el usuario y las fechas; ya no filtra por módulo ni texto (SPEC 2.170)', async () => {
+    db.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([{ total: 0 }]);
+    const res = await GET(new NextRequest('http://localhost/api/auditoria?usuario=ana&modulo=sede&search=QA'));
+    expect(res.status).toBe(200);
+    const valores = valoresDe(db.$queryRaw.mock.calls[0]);
+    expect(valores).toContain('ana');
+    expect(valores).not.toContain('sede');
   });
-});
-
-// Auditoria 28-sep-2026: lo que escribe el usuario no actua como comodin.
-test('la búsqueda escapa %, _ y la barra invertida', () => {
-  expect(contiene('ana')).toBe('%ana%');
-  expect(contiene('100%')).toBe('%100\\%%');
-  expect(contiene('a_b')).toBe('%a\\_b%');
-  expect(contiene('c:\\x')).toBe('%c:\\\\x%');
 });

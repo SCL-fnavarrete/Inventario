@@ -80,7 +80,7 @@ export function FlujoEquipos({ categoria, ficha, nombreCategoria }: { categoria:
   const paso = batchResult || committing ? 4 : validation ? 3 : preview ? 2 : 1;
 
   useEffect(() => {
-    fetch("/api/sedes?activas=true")
+    fetch("/api/sedes")
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => setSedes(Array.isArray(data) ? data : []))
       .catch(() => setSedes([]));

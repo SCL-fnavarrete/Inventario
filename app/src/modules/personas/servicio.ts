@@ -75,12 +75,11 @@ export async function editarEmpleado(
     );
   }
 
-  // Trasladar de sede (SPEC 2.117): ni a una sede desactivada, ni con equipos
-  // en la mano (quedarian en una sede y la persona en otra).
+  // Trasladar de sede (SPEC 2.117): no con equipos en la mano (quedarian en
+  // una sede y la persona en otra).
   if (data.sedeId && data.sedeId !== existente.sedeId) {
     const sedeDestino = await prisma.sede.findUnique({ where: { id: data.sedeId } });
     if (!sedeDestino) throw new NotFoundError('Sede no encontrada');
-    if (!sedeDestino.activa) throw errorDeCampo('sedeId', 'La sede elegida está desactivada');
     const equipos = await prisma.assignment.count({ where: { employeeId: id, activo: true } });
     if (equipos > 0) {
       const s = equipos === 1 ? '' : 's';

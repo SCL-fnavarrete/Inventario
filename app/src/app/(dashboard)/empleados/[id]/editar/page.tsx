@@ -40,7 +40,7 @@ const empleadoFieldLabels: Record<string, string> = {
   telefonoContacto: "Teléfono de Contacto",
   sedeId: "Sede" };
 
-type Sede = { id: string; nombre: string; codigo: string; activa: boolean };
+type Sede = { id: string; nombre: string; codigo: string };
 
 type FormData = {
   rut: string;
@@ -95,7 +95,7 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
 
   // Cualquiera puede trasladar a una persona de sede (SPEC 2.117).
   useEffect(() => {
-    fetch("/api/sedes?activas=true")
+    fetch("/api/sedes")
       .then((res) => res.json())
       .then((data) => setSedes(Array.isArray(data) ? data : []))
       .catch(() => setSedes([]));

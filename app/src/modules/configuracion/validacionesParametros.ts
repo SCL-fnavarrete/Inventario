@@ -9,9 +9,6 @@ export const LIMITES_SEGURIDAD = {
   duracionSesionHoras: { etiqueta: "Duración de sesión (horas)", min: 1, max: 720 },
   maxIntentosLogin: { etiqueta: "Intentos máximos de inicio de sesión", min: 1, max: 20 },
   minutosBloqueoLogin: { etiqueta: "Minutos de bloqueo", min: 1, max: 1440 },
-  // Bloqueo por equipo (SPEC 2.112.6).
-  maxIntentosIp: { etiqueta: "Intentos máximos desde un mismo equipo", min: 5, max: 200 },
-  minutosBloqueoIp: { etiqueta: "Minutos de bloqueo del equipo", min: 1, max: 1440 },
 } as const;
 
 export type CampoSeguridad = keyof typeof LIMITES_SEGURIDAD;
@@ -22,8 +19,6 @@ export const SEGURIDAD_POR_DEFECTO: Record<CampoSeguridad, number> = {
   duracionSesionHoras: 24,
   maxIntentosLogin: 5,
   minutosBloqueoLogin: 15,
-  maxIntentosIp: 20,
-  minutosBloqueoIp: 15,
 };
 
 export const ETIQUETAS_PARAMETROS: Record<string, string> = Object.fromEntries(

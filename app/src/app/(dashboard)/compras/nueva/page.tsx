@@ -45,7 +45,6 @@ type Sede = {
   id: string;
   nombre: string;
   codigo: string;
-  activa: boolean;
 };
 
 type Category = {
@@ -200,7 +199,7 @@ export default function NuevaCompraPage() {
 
   async function fetchSedes() {
     try {
-      const res = await fetch("/api/sedes?activas=true");
+      const res = await fetch("/api/sedes");
       const data = await res.json();
       setSedes(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -407,7 +406,7 @@ export default function NuevaCompraPage() {
 
         {/* Vincular Activos */}
         <div className="card p-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
               <Package className="h-5 w-5 text-fg-subtle" />
               Equipos
@@ -545,7 +544,7 @@ export default function NuevaCompraPage() {
         {/* Kit/EPP: articulo del catalogo de la sede de llegada y cantidad.
             Queda por repartir; el stock sube al repartirlo. */}
         <div className="card p-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h2 className="text-lg font-semibold text-fg flex items-center gap-2">
               <Shirt className="h-5 w-5 text-fg-subtle" />
               Kit de Bienvenida / EPP Comprado

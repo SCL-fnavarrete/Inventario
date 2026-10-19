@@ -269,7 +269,7 @@ export function OpcionesCatalogo({
                 </>
               ),
           },
-          { titulo: "En uso", className: "text-center text-fg-muted", celda: (o) => (o.enSede > 0 ? textos.unidad(o.enSede) : "—") },
+          { titulo: "En uso", sinSalto: true, className: "text-center text-fg-muted", celda: (o) => (o.enSede > 0 ? textos.unidad(o.enSede) : "—") },
         ]}
         acciones={(o) =>
           editandoId === o.id ? (

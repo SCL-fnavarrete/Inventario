@@ -161,8 +161,8 @@ export default function SolicitudesPage() {
 
       {/* Search and Filters */}
       <div className="card p-4 space-y-4">
-        <div className="flex gap-3">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap gap-3">
+          <div className="relative w-full sm:w-auto sm:flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle" />
             <input
               type="text"

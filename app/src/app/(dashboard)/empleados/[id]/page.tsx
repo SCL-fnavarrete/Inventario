@@ -237,9 +237,9 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
 
       {/* Ficha Azul - Datos del Empleado */}
       <div className="bg-brand rounded-lg shadow-lg text-white p-6">
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center">
+        <div className="flex flex-wrap-reverse items-start justify-between gap-3 mb-6">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="w-16 h-16 shrink-0 bg-primary-500 rounded-full flex items-center justify-center">
               <User size={32} />
             </div>
             <div>

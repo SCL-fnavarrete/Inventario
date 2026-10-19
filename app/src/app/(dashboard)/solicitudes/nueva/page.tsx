@@ -337,7 +337,7 @@ export default function NuevaSolicitudPage() {
 
   useEffect(() => {
     let cancelado = false;
-    fetch('/api/sedes?activas=true')
+    fetch('/api/sedes')
       .then((res) => res.json())
       .then((data) => {
         if (!cancelado) setSedes(data);
