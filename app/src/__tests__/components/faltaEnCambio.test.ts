@@ -25,6 +25,7 @@ const base: ItemCambioEquipo = {
   modoCelular: 'chip',
   esimLineaId: '',
   convertirEsim: false,
+  pasarLinea: false,
 };
 
 describe('faltaEnCambio', () => {

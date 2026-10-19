@@ -20,6 +20,7 @@ import {
   liberarEsimDePersona,
   liberarLineaEnSolicitud,
   lineasDeEquipos,
+  pasarLineaAlCelularNuevoEnSolicitud,
 } from '@/modules/lineas/servidor';
 import { CONDICION_CARGADOR_POR_DEFECTO } from '@/modules/activos';
 import { generarNumeroSolicitud } from '@/modules/solicitudes/numero';
@@ -468,13 +469,17 @@ export async function crearSolicitud(
             assignmentIds.push(cambio.oldAssignmentId, '');
             continue;
           }
+          const lineaAlNuevo = {
+            activoId: cambio.newAssetId,
+            empleadoId: empId,
+            detalle: `Cambio de equipo - ${numero}`,
+            usuario: systemUser.usuario,
+          };
           if (cambio.newLineaId) {
-            await asociarLineaEnSolicitud(tx, cambio.newLineaId, {
-              activoId: cambio.newAssetId,
-              empleadoId: empId,
-              detalle: `Cambio de equipo - ${numero}`,
-              usuario: systemUser.usuario,
-            });
+            await asociarLineaEnSolicitud(tx, cambio.newLineaId, lineaAlNuevo);
+          } else if (cambio.pasarLineaAlNuevo) {
+            // Su mismo chip pasa del celular devuelto al nuevo (SPEC 2.172).
+            await pasarLineaAlCelularNuevoEnSolicitud(tx, { ...lineaAlNuevo, activoAnteriorId: viejo!.asset.id });
           }
           const nuevaAsignacion = await executeAssignment(tx, {
             sedeId: sedeId,

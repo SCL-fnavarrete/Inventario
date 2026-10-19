@@ -330,6 +330,26 @@ export async function convertirLineaAEsimEnSolicitud(
   return linea;
 }
 
+/**
+ * Cambio de equipo, celular -> otro celular con el mismo numero (SPEC 2.172): el chip del
+ * celular que se devuelve pasa al celular nuevo. Se llama despues de devolver el anterior (su
+ * linea ya quedo sin persona) y antes de entregar el nuevo, con las reglas de Asignar. El
+ * anterior debe tener una sola linea.
+ */
+export async function pasarLineaAlCelularNuevoEnSolicitud(
+  tx: Prisma.TransactionClient,
+  c: { activoAnteriorId: string; activoId: string; empleadoId: string; detalle: string; usuario?: string | null }
+) {
+  const enCelular = await tx.lineaTelefonica.findMany({ where: { activoId: c.activoAnteriorId, estado: { deBaja: false } }, select: { id: true } });
+  if (enCelular.length !== 1) {
+    throw errorDeCampo(
+      'pasarLineaAlNuevo',
+      enCelular.length ? 'El celular tiene más de una línea: elige la línea del celular nuevo' : 'El celular que se devuelve no tiene línea para pasar'
+    );
+  }
+  return asociarLineaEnSolicitud(tx, enCelular[0].id, c);
+}
+
 /** Una eSIM queda con la persona que usa su propio telefono (onboarding, SPEC 2.143). */
 export async function asociarEsimEnSolicitud(
   tx: Prisma.TransactionClient,

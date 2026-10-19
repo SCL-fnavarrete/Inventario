@@ -131,4 +131,34 @@ describir('acta de cambio con lineas en Postgres', () => {
     expect(acta.props.lineas.map((l) => l.movimiento).sort()).toEqual(['Asignada', 'Devuelta con el celular']);
     expect(chip.id).toBeTruthy();
   });
+
+  test('celular -> otro celular con su misma línea: el chip pasa al nuevo y el acta lo muestra asignado (SPEC 2.172)', async () => {
+    const viejo = await celular('Viejo');
+    const chip = await linea({ tipoChipId: fisico, activoId: viejo.id });
+    await prisma.asset.update({ where: { id: viejo.id }, data: { estado: 'asignado', empleadoActualId: ids.persona } });
+    const asignacion = await prisma.assignment.create({
+      data: { assetId: viejo.id, employeeId: ids.persona, fechaEntrega: new Date(), tipoMovimiento: 'ingreso', activo: true },
+    });
+    const reemplazo = await celular('Reemplazo');
+
+    const creada = await crearSolicitud(
+      pedido({ cambios: [{ oldAssignmentId: asignacion.id, newAssetId: reemplazo.id, pasarLineaAlNuevo: true, estadoDevolucion: 'ok' }] }),
+      ids.sede,
+      usuario()
+    );
+    expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: chip.id } })).toMatchObject({ activoId: reemplazo.id });
+    expect(await prisma.asset.findUniqueOrThrow({ where: { id: reemplazo.id } })).toMatchObject({ estado: 'asignado', empleadoActualId: ids.persona });
+
+    const acta = (await generateComprobanteCambio(creada.id)) as unknown as { props: { lineas: { numero: string; movimiento: string; ubicacion: string }[] } };
+    expect(acta.props.lineas).toMatchObject([{ numero: expect.any(String), movimiento: 'Asignada' }]);
+    expect(acta.props.lineas[0].ubicacion).toContain(`Reemplazo ${s}`);
+  });
+
+  test('pasar su misma línea pide un celular nuevo y no otra línea a la vez', () => {
+    const r = createWorkflowRequestSchema.safeParse({
+      tipo: 'cambio_equipo', idTicket: 'T', employeeId: ids.persona ?? randomUUID(), motivoCambio: 'x', cambiosLinea: [],
+      cambios: [{ oldAssignmentId: randomUUID(), newAssetId: randomUUID(), newLineaId: randomUUID(), pasarLineaAlNuevo: true, estadoDevolucion: 'ok' }],
+    });
+    expect(r.success).toBe(false);
+  });
 });

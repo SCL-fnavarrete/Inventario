@@ -97,6 +97,8 @@ export type ItemCambioEquipo = {
   esimLineaId: string;
   // eSIM con su misma linea: la del celular que vuelve pasa a eSIM (SPEC 2.166).
   convertirEsim: boolean;
+  // Otro celular con su misma linea: el chip del que vuelve pasa al nuevo (SPEC 2.172).
+  pasarLinea: boolean;
 };
 
 /** Lo que le falta a un equipo marcado, o null si esta completo. */
@@ -132,6 +134,7 @@ const ITEM_VACIO: Omit<ItemCambioEquipo, "oldAssignmentId"> = {
   modoCelular: "",
   esimLineaId: "",
   convertirEsim: false,
+  pasarLinea: false,
 };
 
 const ICONOS: Record<string, React.ReactNode> = {
@@ -458,6 +461,7 @@ export function SeleccionarCambioEquipo({
                                 newAssetId: "",
                                 condicionCargadorNuevo: "",
                                 lineaNueva: SIN_LINEA,
+                                pasarLinea: false,
                                 esimLineaId: "",
                                 // Con una sola linea, por defecto pasa esa misma a eSIM (SPEC 2.166).
                                 convertirEsim: modo === "esim" && a.asset.lineas?.length === 1,
@@ -516,7 +520,15 @@ export function SeleccionarCambioEquipo({
                       <SelectorBuscable
                         opciones={opciones}
                         value={item.newAssetId}
-                        onChange={(id) => actualizar(a.id, { newAssetId: id, condicionCargadorNuevo: "", lineaNueva: SIN_LINEA })}
+                        onChange={(id) =>
+                          actualizar(a.id, {
+                            newAssetId: id,
+                            condicionCargadorNuevo: "",
+                            lineaNueva: SIN_LINEA,
+                            // Con una sola linea y un celular nuevo sin linea, por defecto pasa ese chip (SPEC 2.172).
+                            pasarLinea: a.asset.lineas?.length === 1 && !opciones.find((o) => o.id === id)?.lineas?.length,
+                          })
+                        }
                         textoDe={(d) => [d.marca.nombre, d.modelo, d.numeroSerie, d.imei, especificaciones(d)]}
                         etiquetaElegida={(d) => `${d.marca.nombre} ${d.modelo} · ${identificadorActivo(d, "s/serie")}`}
                         renderOpcion={(d) => (
@@ -536,8 +548,26 @@ export function SeleccionarCambioEquipo({
                           {especificaciones(nuevo) || "Sin especificaciones registradas"}
                         </div>
                       )}
-                      {/* Un celular que llega sin linea: se le puede elegir una, o entregarlo sin linea (SPEC 2.160). */}
-                      {a.asset.categoria.tipoFicha === "celular" && nuevo && !nuevo.lineas?.length && (
+                      {/* Un celular que llega sin linea: su mismo chip (SPEC 2.172), otra linea, o sin linea (SPEC 2.160). */}
+                      {a.asset.categoria.tipoFicha === "celular" && nuevo && !nuevo.lineas?.length && a.asset.lineas?.length === 1 && (
+                        <div className="mt-2 space-y-1">
+                          {([[true, `Su misma línea ${formatearNumero(a.asset.lineas[0].numero)}, pasa al celular nuevo`], [false, "Otra línea, o sin línea"]] as const).map(([pasar, titulo]) => (
+                            <label key={titulo} className={cn("flex cursor-pointer items-center gap-1.5 text-xs", item.pasarLinea === pasar ? "text-fg" : "text-fg-muted")}>
+                              <input
+                                type="radio"
+                                name={`linea-cambio-${a.id}`}
+                                checked={item.pasarLinea === pasar}
+                                onChange={() => actualizar(a.id, { pasarLinea: pasar, lineaNueva: SIN_LINEA })}
+                              />
+                              {titulo}
+                            </label>
+                          ))}
+                          {item.pasarLinea && (
+                            <p className="text-xs text-fg-subtle">El celular anterior se devuelve sin chip y el mismo número sigue con la persona en el celular nuevo.</p>
+                          )}
+                        </div>
+                      )}
+                      {a.asset.categoria.tipoFicha === "celular" && nuevo && !nuevo.lineas?.length && !item.pasarLinea && (
                         <ElegirLineaCelular
                           valor={item.lineaNueva ?? SIN_LINEA}
                           onChange={(v) => actualizar(a.id, { lineaNueva: v })}

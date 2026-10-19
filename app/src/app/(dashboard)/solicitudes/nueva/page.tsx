@@ -746,7 +746,9 @@ export default function NuevaSolicitudPage() {
           cambios: cambios.map((c) => ({
             oldAssignmentId: c.oldAssignmentId,
             newAssetId: c.modoCelular === 'esim' ? undefined : c.newAssetId,
-            newLineaId: c.lineaNueva?.lineaId || undefined,
+            newLineaId: (!c.pasarLinea && c.lineaNueva?.lineaId) || undefined,
+            // Su mismo chip pasa al celular nuevo (SPEC 2.172).
+            pasarLineaAlNuevo: c.modoCelular !== 'esim' && c.pasarLinea ? true : undefined,
             newEsimLineaId: c.modoCelular === 'esim' && !c.convertirEsim ? c.esimLineaId : undefined,
             // Su misma linea pasa a eSIM (SPEC 2.166).
             convertirLineaEsim: c.modoCelular === 'esim' && c.convertirEsim ? true : undefined,

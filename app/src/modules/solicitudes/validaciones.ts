@@ -177,6 +177,8 @@ const cambioEquipoFields = z.object({
         newEsimLineaId: z.string().uuid().optional().nullable(),
         // eSIM con el mismo numero: la linea del celular que vuelve pasa a eSIM (SPEC 2.166).
         convertirLineaEsim: z.boolean().optional().default(false),
+        // Celular por otro celular con el mismo numero: su chip pasa al nuevo (SPEC 2.172).
+        pasarLineaAlNuevo: z.boolean().optional().default(false),
         // SPEC 2.135: en un cambio el equipo anterior vuelve en buen estado o
         // danado; danado (o "baja", lo mismo) se da de baja en el acto con un
         // motivo de la lista. "No devolvio" es solo de la desvinculacion.
@@ -201,6 +203,10 @@ const cambioEquipoFields = z.object({
         .refine((c) => !((c.newEsimLineaId || c.convertirLineaEsim) && c.newLineaId), {
           path: ['newLineaId'],
           message: 'Con eSIM no se entrega celular, así que no lleva chip físico',
+        })
+        .refine((c) => !c.pasarLineaAlNuevo || (!!c.newAssetId && !c.newLineaId), {
+          path: ['pasarLineaAlNuevo'],
+          message: 'Su misma línea pasa solo a un celular nuevo, sin elegir otra línea',
         })
     )
     .default([]),

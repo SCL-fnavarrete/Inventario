@@ -30,6 +30,7 @@ import {
   asociarEsimEnSolicitud,
   cambiarLineaEnSolicitud,
   convertirLineaAEsimEnSolicitud,
+  pasarLineaAlCelularNuevoEnSolicitud,
   liberarLineaEnSolicitud,
   lineasDePersona,
   lineasDeEquipos,
@@ -860,6 +861,34 @@ describir('lineas telefonicas en Postgres', () => {
     await prisma.lineaHistorial.deleteMany({ where: { lineaId: chip.id } });
     await prisma.lineaTelefonica.delete({ where: { id: chip.id } });
     await prisma.asset.delete({ where: { id: devuelto.id } });
+  });
+
+  test('cambio de equipo a otro celular con su misma línea: el chip del devuelto pasa al nuevo (SPEC 2.172)', async () => {
+    const { categoriaId } = await prisma.asset.findUniqueOrThrow({ where: { id: ids.libre! }, select: { categoriaId: true } });
+    const devuelto = await crearEquipo({ categoriaId, marca: 'Xiaomi', modelo: `Devuelto ${nuevo()}`, estado: 'disponible' });
+    const nuevoCel = await crearEquipo({ categoriaId, marca: 'Xiaomi', modelo: `Nuevo ${nuevo()}`, estado: 'disponible' });
+    const chip = await prisma.lineaTelefonica.create({ data: { numero: nuevo(), estadoId: activa, tipoChipId: fisico, activoId: devuelto.id } });
+    await prisma.lineaTenencia.create({ data: { lineaId: chip.id, activoId: devuelto.id, desde: new Date(Date.now() - 60_000), origen: 'alta' } });
+
+    await prisma.$transaction((tx) =>
+      pasarLineaAlCelularNuevoEnSolicitud(tx, { activoAnteriorId: devuelto.id, activoId: nuevoCel.id, empleadoId: ids.empleado!, detalle: 'Cambio de equipo - T9', usuario: 'jsoto' })
+    );
+    expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: chip.id } })).toMatchObject({ numero: chip.numero, activoId: nuevoCel.id });
+    expect((await fichaLinea(chip.id)).tenencias[0]).toMatchObject({ origen: 'reasignacion', activoId: nuevoCel.id, detalle: 'Cambio de equipo - T9' });
+    // El detalle de la solicitud la muestra como entregada en el celular nuevo.
+    expect((await lineasDeSolicitud('T9', [nuevoCel.id])).map((l) => l.id)).toContain(chip.id);
+
+    // El devuelto ya no tiene línea que pasar.
+    await expect(
+      prisma.$transaction((tx) => pasarLineaAlCelularNuevoEnSolicitud(tx, { activoAnteriorId: devuelto.id, activoId: nuevoCel.id, empleadoId: ids.empleado!, detalle: 'x' }))
+    ).rejects.toMatchObject({ details: [{ field: 'pasarLineaAlNuevo', message: expect.stringContaining('no tiene línea') }] });
+
+    await prisma.auditLog.deleteMany({ where: { entidadId: chip.id } });
+    await prisma.lineaHistorial.deleteMany({ where: { lineaId: chip.id } });
+    await prisma.lineaTenencia.deleteMany({ where: { lineaId: chip.id } });
+    await prisma.lineaTelefonica.delete({ where: { id: chip.id } });
+    await prisma.assetHistory.deleteMany({ where: { assetId: { in: [devuelto.id, nuevoCel.id] } } });
+    await prisma.asset.deleteMany({ where: { id: { in: [devuelto.id, nuevoCel.id] } } });
   });
 
   test('onboarding con eSIM: la eSIM queda con la persona y un chip físico se rechaza (SPEC 2.143)', async () => {

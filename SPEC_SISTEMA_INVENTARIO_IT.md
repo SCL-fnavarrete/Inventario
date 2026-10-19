@@ -4304,8 +4304,16 @@ Pedido de Javier: *"en los documentos de importación muchos equipos, en este ca
 - **Primera sede de una persona:** a una persona **sin sede** se le puede dar sede aunque tenga equipos (antes lo bloqueaba la regla de traslado de 2.117); sus equipos sin sede la toman en la misma transacción, con su evento en el historial (`darSedeAEquiposDePersona` de Activos). Se rechaza solo si alguno de sus equipos ya está en otra sede. Trasladar de una sede a otra con equipos sigue bloqueado.
 - **Tests:** `sedeDeLaPersona.int.test.ts` (nuevo).
 
+### 2.172 Cambio de equipo: el mismo chip pasa al celular nuevo (19-oct-2026)
+Pedido de Javier: *"actualmente en el cambio de equipo no se puede pasar un chip a otro teléfono?"*. Antes el celular devuelto volvía con su chip y el buscador de la línea del nuevo no lo ofrecía (al cargar, la persona aún lo usaba); había que moverlo después desde la ficha de la línea.
+- **Formulario:** al cambiar un celular con **una** línea por otro celular **sin línea**, se elige «Su misma línea +56 9 …, pasa al celular nuevo» (marcada por defecto) u «Otra línea, o sin línea» (el buscador de siempre, 2.143/2.160). Igual que la eSIM con su misma línea de 2.166.
+- **Servidor:** `cambios[].pasarLineaAlNuevo` (exige `newAssetId` y no admite `newLineaId`). Tras devolver el celular anterior (su línea queda sin persona) y antes de entregar el nuevo, `pasarLineaAlCelularNuevoEnSolicitud` (Líneas) asocia su única línea al celular nuevo con las reglas de Asignar; si no tiene una sola línea, 409 en `pasarLineaAlNuevo`. La tenencia queda «reasignación» con el detalle de la solicitud.
+- **Detalle y acta:** la línea sale como **Asignada** en el celular nuevo (no como devuelta con el anterior).
+- **Tests:** `lineas.int.test.ts` y `actaCambioLineas.int.test.ts` (flujo completo y validación).
+
 ## Changelog SPEC
 - **v2.71 (2026-10-16):**
+  - 2.172: en un Cambio de equipo, el chip del celular devuelto puede pasar al celular nuevo (mismo número).
   - 2.171: un equipo sin sede toma la de su persona (al importar y al darle su primera sede a la persona).
   - 2.170: Configuración simplificada: Seguridad sin bloqueo por equipo; Registro de accesos con una tarjeta (cuentas desactivadas); Sedes sin desactivar, se eliminan solo si nada las usa; Auditoría como visor de eventos (usuario y fechas).
   - 2.169: revisión responsiva de todo el sitio (320 a 1920 px): más margen a los lados en celular, el perfil ya no se sale de la barra en 1280 px, Personal con tarjetas en celular y correcciones de diseño en celular y tablet.
