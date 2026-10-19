@@ -60,12 +60,13 @@ describe('filtros por marca, sistema operativo, antivirus, licencia y motivo de 
     });
     expect(where).toMatchObject({ estado: 'disponible', categoriaId: 'c1' });
     expect(where.AND).toHaveLength(3);
-    expect(where.AND).toEqual(expect.arrayContaining([{ marca: 'HP' }, { sistemaOperativo: 'Windows 11 Pro' }]));
+    // El filtro trae el nombre; el equipo referencia la opcion por su llave (SPEC 2.168).
+    expect(where.AND).toEqual(expect.arrayContaining([{ marca: { nombre: 'HP' } }, { sistemaOperativo: { nombre: 'Windows 11 Pro' } }]));
   });
 
   test('"Sin ..." busca los que no tienen el dato', () => {
     const where = whereFiltrosActivos({ datos: { antivirus: SIN_DATO } });
-    expect(where.AND).toEqual([{ OR: [{ antivirus: null }, { antivirus: '' }] }]);
+    expect(where.AND).toEqual([{ antivirusId: null }]);
   });
 
   test('motivo de baja: en el equipo (baja directa), la mantencion o la devolucion; o bajas sin motivo', () => {

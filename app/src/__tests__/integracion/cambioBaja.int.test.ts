@@ -8,6 +8,7 @@
 import { randomUUID } from 'crypto';
 import { prisma } from '@/shared/prisma';
 import { executeReturn } from '@/modules/asignaciones/ejecucion';
+import { crearEquipo } from '@/test-utils/catalogos';
 
 const hayBaseDePrueba = (process.env.DATABASE_URL ?? '').includes('_test');
 const describir = hayBaseDePrueba ? describe : describe.skip;
@@ -24,12 +25,10 @@ describir('devolver para dar de baja, en Postgres', () => {
     });
     const motivo = await prisma.motivoBaja.create({ data: { nombre: `Robo ${s}` } });
     const tipo = await prisma.maintenanceType.create({ data: { nombre: `Baja ${s}` } });
-    const activo = await prisma.asset.create({
-      data: {
+    const activo = await crearEquipo({
         categoriaId: categoria.id, sedeId: sede.id, marca: 'Dell', modelo: `Baja ${s}`,
         estado: 'asignado', empleadoActualId: empleado.id,
-      },
-    });
+      });
     const asignacion = await prisma.assignment.create({
       data: { assetId: activo.id, employeeId: empleado.id, tipoMovimiento: 'ingreso', fechaEntrega: new Date(), activo: true },
     });
@@ -108,9 +107,7 @@ describir('devolver para dar de baja, en Postgres', () => {
   });
 
   test('devuelto "Dañado" también se da de baja en el acto: pide el motivo y no abre mantención (SPEC 2.135)', async () => {
-    const otro = await prisma.asset.create({
-      data: { categoriaId: ids.categoria, sedeId: ids.sede, marca: 'Dell', modelo: `Danado ${s}`, estado: 'asignado', empleadoActualId: ids.empleado },
-    });
+    const otro = await crearEquipo({ categoriaId: ids.categoria, sedeId: ids.sede, marca: 'Dell', modelo: `Danado ${s}`, estado: 'asignado', empleadoActualId: ids.empleado });
     const asignacion = await prisma.assignment.create({
       data: { assetId: otro.id, employeeId: ids.empleado, tipoMovimiento: 'ingreso', fechaEntrega: new Date(), activo: true },
     });

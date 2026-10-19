@@ -5,7 +5,7 @@ import { filtroSede } from '@/shared/sedes/filtro';
 import { coincideBusqueda } from '@/shared/utilidades/text';
 import { formatearRut, limpiarRut, validarDigitoVerificador } from '@/shared/validaciones/rut';
 import type { EmployeeFilters } from '@/modules/personas/validaciones';
-import { LINEAS_DEL_EQUIPO } from '@/modules/activos';
+import { LINEAS_DEL_EQUIPO, NOMBRE, CON_CATALOGOS } from '@/modules/activos';
 
 /**
  * Lecturas de Personas contra la base (SPEC 3.2.2): la lista, la busqueda por
@@ -126,9 +126,10 @@ export async function listarEmpleados(filters: EmployeeFilters, sedeId: string |
 
 /** Lo que traen el detalle de una persona y la busqueda por RUT. */
 const CON_EQUIPOS = {
-  assignments: { include: { asset: { include: { categoria: true } } }, orderBy: { fechaEntrega: 'desc' } },
+  // Con las lineas de cada equipo: el Cambio de equipo ofrece pasar la del celular a eSIM (SPEC 2.166).
+  assignments: { include: { asset: { include: { ...CON_CATALOGOS, categoria: true, lineas: LINEAS_DEL_EQUIPO } } }, orderBy: { fechaEntrega: 'desc' } },
   kitAssignments: { include: { item: true } },
-  activosActuales: { include: { categoria: true } },
+  activosActuales: { include: { ...CON_CATALOGOS, categoria: true } },
 } satisfies Prisma.EmployeeInclude;
 
 /** Detalle de una persona por id o, si no, por RUT (GET /api/empleados/[id]). */
@@ -153,9 +154,9 @@ export async function buscarEmpleadoPorRut(rut: string) {
       OR: [{ rut: rutFormateado }, { rut: rutLimpio }, { rut: { contains: rutLimpio.slice(0, -1) } }],
     },
     include: {
-      assignments: { where: { activo: true }, include: { asset: { include: { categoria: true } } } },
+      assignments: { where: { activo: true }, include: { asset: { include: { ...CON_CATALOGOS, categoria: true } } } },
       kitAssignments: { where: { estado: 'entregado' }, include: { item: true } },
-      activosActuales: { include: { categoria: true } },
+      activosActuales: { include: { ...CON_CATALOGOS, categoria: true } },
     },
   });
   return { empleado, rutFormateado };
@@ -173,6 +174,7 @@ const RELACIONES_FICHA = {
     include: {
       asset: {
         include: {
+          ...CON_CATALOGOS,
           categoria: true,
           lineas: LINEAS_DEL_EQUIPO,
         },
@@ -271,7 +273,7 @@ export async function fichaEmpleado(id: string) {
       sistemaOperativo: notebook.asset.sistemaOperativo,
       microsoft365: notebook.asset.microsoft365,
       // Nombre del plan de licencia, no solo si tiene o no Microsoft 365.
-      tipoLicenciaMicrosoft365: notebook.asset.tipoLicenciaMicrosoft365,
+      licenciaMicrosoft365: notebook.asset.licenciaMicrosoft365,
       estado: notebook.asset.estado,
       condicion: notebook.asset.condicion,
       fechaEntrega: notebook.fechaEntrega,
@@ -360,7 +362,7 @@ export async function asignacionesDeEmpleado(empleadoId: string) {
         fechaDevolucion: true,
         estadoDevolucion: true,
         activo: true,
-        asset: { select: { id: true, marca: true, modelo: true, numeroSerie: true, imei: true, categoria: { select: { nombre: true } } } },
+        asset: { select: { id: true, marca: NOMBRE, modelo: true, numeroSerie: true, imei: true, categoria: { select: { nombre: true } } } },
       },
       orderBy: { createdAt: 'desc' },
     }),

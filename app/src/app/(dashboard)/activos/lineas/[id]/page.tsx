@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { fichaLinea } from "@/modules/lineas/servidor";
 import { DetalleLinea } from "@/modules/lineas/componentes";
 
-// Activos > Lineas > ficha de una linea (SPEC 2.131). ?reasignar=1 abre el formulario de Reasignar.
+// Activos > Lineas > ficha de una linea (SPEC 2.131). ?reasignar=1 baja hasta sus acciones (SPEC 2.167).
 export default async function LineaPage({
   params,
   searchParams,

@@ -52,7 +52,7 @@ describe('ActivoForm - valoresDesdeActivo', () => {
   it('convierte fechas ISO a yyyy-mm-dd y nulos a texto vacio', () => {
     const v = valoresDesdeActivo({
       categoriaId: 'cat-1',
-      marca: 'Dell',
+      marca: { nombre: 'Dell' },
       modelo: 'Latitude',
       numeroSerie: null,
       estado: 'asignado',
@@ -61,7 +61,9 @@ describe('ActivoForm - valoresDesdeActivo', () => {
       fechaGarantiaFin: null,
       discoDuro: '256GB',
       pulgadas: 24,
-      sistemaOperativo: 'Windows 10 Pro',
+      sistemaOperativo: { nombre: 'Windows 10 Pro' },
+      licenciaMicrosoft365: { nombre: 'E3' },
+      antivirus: null,
     });
     expect(v.fechaCompra).toBe('2025-03-15');
     expect(v.fechaGarantiaFin).toBe('');
@@ -69,8 +71,10 @@ describe('ActivoForm - valoresDesdeActivo', () => {
     expect(v.almacenamiento).toBe('256GB');
     expect(v.pulgadas).toBe('24');
     expect(v.estado).toBe('asignado');
-    // Un valor historico se conserva aunque no este en el catalogo:
-    // CatalogSelect lo muestra como opcion.
+    // Las opciones de catalogo llegan por su relacion: el formulario usa su nombre (SPEC 2.168).
+    expect(v.marca).toBe('Dell');
     expect(v.sistemaOperativo).toBe('Windows 10 Pro');
+    expect(v.tipoLicenciaMicrosoft365).toBe('E3');
+    expect(v.antivirus).toBe('');
   });
 });

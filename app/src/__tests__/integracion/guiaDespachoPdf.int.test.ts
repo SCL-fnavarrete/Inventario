@@ -17,6 +17,7 @@ jest.mock('@react-pdf/renderer', () => ({
 
 import { registrarDespacho, anularDespacho } from '@/modules/despachos/servidor';
 import { generateGuiaDespacho } from '@/modules/despachos/documentos';
+import { crearEquipo } from '@/test-utils/catalogos';
 
 const hayBaseDePrueba = (process.env.DATABASE_URL ?? '').includes('_test');
 const describir = hayBaseDePrueba ? describe : describe.skip;
@@ -30,9 +31,7 @@ describir('guia de despacho en PDF con Postgres', () => {
     ids.destino = (await prisma.sede.create({ data: { codigo: `D${s}`, nombre: `Destino ${s}` } })).id;
     ids.categoria = (await prisma.assetCategory.create({ data: { nombre: `Cat Guia ${s}`, tipoFicha: 'computador' } })).id;
     ids.equipo = (
-      await prisma.asset.create({
-        data: { categoriaId: ids.categoria, sedeId: ids.origen, marca: 'Dell', modelo: `Latitude ${s}`, numeroSerie: `SN${s}`, estado: 'disponible' },
-      })
+      await crearEquipo({ categoriaId: ids.categoria, sedeId: ids.origen, marca: 'Dell', modelo: `Latitude ${s}`, numeroSerie: `SN${s}`, estado: 'disponible' })
     ).id;
   });
 

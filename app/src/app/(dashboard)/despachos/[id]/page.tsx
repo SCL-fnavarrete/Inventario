@@ -465,7 +465,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
               celda: (item) => (
                 <>
                   <Link href={`/activos/${item.asset.id}`} className="font-medium hover:text-primary-700">
-                    {item.asset.marca} {item.asset.modelo}
+                    {item.asset.marca.nombre} {item.asset.modelo}
                   </Link>
                   <div className="break-all font-mono text-xs text-fg-muted md:hidden">{identificadorActivo(item.asset, "-")}</div>
                   {botonesItem(item, "md:hidden mt-2 flex gap-2")}
@@ -630,7 +630,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
                     />
                     <CategoryIcon categoria={item.asset.categoria.nombre} className="h-4 w-4 text-fg-subtle" />
                     <span className="text-sm">
-                      <span className="font-medium">{item.asset.marca} {item.asset.modelo}</span>{" "}
+                      <span className="font-medium">{item.asset.marca.nombre} {item.asset.modelo}</span>{" "}
                       <span className="text-fg-subtle font-mono">{identificadorActivo(item.asset, "")}</span>
                     </span>
                   </label>
@@ -699,7 +699,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
         }}
         variant="info"
         title="Confirmar que llegó"
-        message={llego ? `${llego.asset.marca} ${llego.asset.modelo} pasa a ${guide.sedeDestino.nombre} como Disponible.` : ""}
+        message={llego ? `${llego.asset.marca.nombre} ${llego.asset.modelo} pasa a ${guide.sedeDestino.nombre} como Disponible.` : ""}
         confirmLabel="Llegó"
         cancelLabel="Volver"
         loading={updating}
@@ -713,7 +713,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
         titulo="Marcar como perdido"
         descripcion={
           perdido
-            ? `${perdido.asset.marca} ${perdido.asset.modelo} se da de baja por Extravío, con el motivo que escribas.`
+            ? `${perdido.asset.marca.nombre} ${perdido.asset.modelo} se da de baja por Extravío, con el motivo que escribas.`
             : undefined
         }
         etiqueta="Qué pasó"
@@ -733,7 +733,7 @@ export default function GuiaDespachoDetailPage({ params }: { params: Promise<{ i
         title="El equipo apareció"
         message={
           aparecio
-            ? `${aparecio.asset.marca} ${aparecio.asset.modelo} sale de la baja por extravío y queda Disponible en ${guide.sedeDestino.nombre}. La mantención de la baja queda como registro.`
+            ? `${aparecio.asset.marca.nombre} ${aparecio.asset.modelo} sale de la baja por extravío y queda Disponible en ${guide.sedeDestino.nombre}. La mantención de la baja queda como registro.`
             : ""
         }
         confirmLabel="Apareció"

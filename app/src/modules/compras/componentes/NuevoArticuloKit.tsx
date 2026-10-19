@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2, Plus } from "lucide-react";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { parseApiError, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { logger } from "@/shared/logger";
+import { MensajeCampo, claseCampo } from "@/shared/ui/CampoFormulario";
 
 export type ArticuloKitCreado = {
   id: string;
@@ -31,6 +32,14 @@ export function NuevoArticuloKit({
   const [categoria, setCategoria] = useState<ArticuloKitCreado["categoria"]>("kit_bienvenida");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+  // Sin conexion u otra falla que no es del nombre: se avisa sin marcar el campo.
+  const [errorGeneral, setErrorGeneral] = useState("");
+  const campoNombre = useRef<HTMLInputElement>(null);
+  // El error se marca en el nombre, el unico dato que se escribe, y lo deja listo para corregir.
+  const fallar = (mensaje: string) => {
+    setError(mensaje);
+    campoNombre.current?.focus();
+  };
 
   if (!abierto) {
     return (
@@ -46,11 +55,12 @@ export function NuevoArticuloKit({
 
   async function crear() {
     if (!nombre.trim()) {
-      setError("Escribe el nombre del artículo");
+      fallar("Escribe el nombre del artículo");
       return;
     }
     setGuardando(true);
     setError("");
+    setErrorGeneral("");
     try {
       const res = await fetch("/api/kit-items", {
         method: "POST",
@@ -58,7 +68,8 @@ export function NuevoArticuloKit({
         body: JSON.stringify({ nombre: nombre.trim(), categoria, sedeId }),
       });
       if (!res.ok) {
-        setError((await parseApiError(res, "No se pudo crear el artículo")).message);
+        const { message, fieldErrors } = await parseApiError(res, "No se pudo crear el artículo");
+        fallar(fieldErrors.nombre ?? message);
         return;
       }
       onCreado(await res.json());
@@ -66,7 +77,7 @@ export function NuevoArticuloKit({
       setAbierto(false);
     } catch (err) {
       logger.error("Error creando artículo de Kit/EPP", err);
-      setError(mensajeDeError(err, "No se pudo crear el artículo"));
+      setErrorGeneral(mensajeDeError(err, "No se pudo crear el artículo"));
     } finally {
       setGuardando(false);
     }
@@ -77,12 +88,18 @@ export function NuevoArticuloKit({
       <p className="mb-2 text-xs font-medium text-fg-muted">Artículo nuevo (queda en el catálogo de esta sede)</p>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <input
+          ref={campoNombre}
           value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
+          onChange={(e) => {
+            setNombre(e.target.value);
+            setError("");
+          }}
           placeholder="Nombre, ej. Casco de seguridad"
           aria-label="Nombre del artículo"
           maxLength={200}
-          className="field-input field-input-sm flex-1"
+          aria-invalid={!!error}
+          aria-describedby={error ? "nuevo-articulo-error" : undefined}
+          className={`${claseCampo(error)} field-input-sm flex-1`}
         />
         <select
           value={categoria}
@@ -101,7 +118,8 @@ export function NuevoArticuloKit({
           Cancelar
         </button>
       </div>
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      <MensajeCampo mensaje={error} id="nuevo-articulo-error" />
+      <MensajeCampo mensaje={errorGeneral} />
     </div>
   );
 }

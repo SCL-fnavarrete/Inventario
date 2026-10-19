@@ -128,7 +128,7 @@ export function DarDeBajaLinea() {
           </div>
           <div>
             <span className="text-fg-subtle">Celular:</span>{" "}
-            <span className="font-medium">{linea.activo ? `${linea.activo.marca} ${linea.activo.modelo}` : "-"}</span>
+            <span className="font-medium">{linea.activo ? `${linea.activo.marca.nombre} ${linea.activo.modelo}` : "-"}</span>
           </div>
           <div>
             <span className="text-fg-subtle">Persona:</span> <span className="font-medium">{persona ? nombrePersona(persona) : "-"}</span>

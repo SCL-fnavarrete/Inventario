@@ -34,16 +34,16 @@ import { CategoryIcon } from "@/modules/activos/componentes";
 
 type NotebookAsignado = {
   asignacionId: string;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   numeroSerie: string | null;
   procesador: string | null;
   discoDuro: string | null;
   ram: string | null;
   pulgadas: number | null;
-  sistemaOperativo: string | null;
+  sistemaOperativo: { nombre: string } | null;
   microsoft365: boolean;
-  tipoLicenciaMicrosoft365: string | null;
+  licenciaMicrosoft365: { nombre: string } | null;
   estado: string;
   condicion: string;
   fechaEntrega: string | null;
@@ -53,7 +53,7 @@ type NotebookAsignado = {
 
 type CelularAsignado = {
   asignacionId: string;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   numeroSerie: string | null;
   imei: string | null;
@@ -68,7 +68,7 @@ type CelularAsignado = {
 
 type MonitorAsignado = {
   asignacionId: string;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   numeroSerie: string | null;
   pulgadas: number | null;
@@ -106,7 +106,7 @@ type Ficha = {
   otrosEquipos: Array<{
     asignacionId: string;
     categoria: string;
-    marca: string;
+    marca: { nombre: string };
     modelo: string;
     numeroSerie: string | null;
     estado: string;
@@ -193,16 +193,16 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
   // Tarjetas del resumen: lo que la persona tiene hoy (equipos y lineas), no categorias fijas.
   const icono = (categoria: string) => <CategoryIcon categoria={categoria} className="h-5 w-5" />;
   const tarjetas = [
-    ...ficha.notebooks.map((e) => ({ clave: e.asignacionId, categoria: "Notebook", icono: icono("Notebook"), titulo: `${e.marca} ${e.modelo}`, detalle: identificadorActivo(e, "-") })),
+    ...ficha.notebooks.map((e) => ({ clave: e.asignacionId, categoria: "Notebook", icono: icono("Notebook"), titulo: `${e.marca.nombre} ${e.modelo}`, detalle: identificadorActivo(e, "-") })),
     ...ficha.celulares.map((e) => ({
       clave: e.asignacionId,
       categoria: "Celular",
       icono: icono("Celular"),
-      titulo: `${e.marca} ${e.modelo}`,
+      titulo: `${e.marca.nombre} ${e.modelo}`,
       detalle: e.lineas.length ? textoLineas(e.lineas) : "Sin línea",
     })),
-    ...ficha.monitores.map((e) => ({ clave: e.asignacionId, categoria: "Monitor", icono: icono("Monitor"), titulo: `${e.marca} ${e.modelo}`, detalle: identificadorActivo(e, "-") })),
-    ...ficha.otrosEquipos.map((e) => ({ clave: e.asignacionId, categoria: e.categoria, icono: icono(e.categoria), titulo: `${e.marca} ${e.modelo}`, detalle: identificadorActivo(e, "-") })),
+    ...ficha.monitores.map((e) => ({ clave: e.asignacionId, categoria: "Monitor", icono: icono("Monitor"), titulo: `${e.marca.nombre} ${e.modelo}`, detalle: identificadorActivo(e, "-") })),
+    ...ficha.otrosEquipos.map((e) => ({ clave: e.asignacionId, categoria: e.categoria, icono: icono(e.categoria), titulo: `${e.marca.nombre} ${e.modelo}`, detalle: identificadorActivo(e, "-") })),
     ...ficha.lineas.map((l) => ({ clave: l.id, categoria: "Línea", icono: <Phone className="h-5 w-5" />, titulo: textoLineas([l]), detalle: "Su propio teléfono (eSIM)" })),
   ];
 
@@ -368,7 +368,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <p className="text-sm text-fg-subtle">Marca / Modelo</p>
-                    <p className="font-medium">{notebook.marca} {notebook.modelo}</p>
+                    <p className="font-medium">{notebook.marca.nombre} {notebook.modelo}</p>
                   </div>
                   <div>
                     <p className="text-sm text-fg-subtle">N° Serie</p>
@@ -388,15 +388,15 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                   </div>
                   <div>
                     <p className="text-sm text-fg-subtle">Sistema Operativo</p>
-                    <p className="font-medium">{notebook.sistemaOperativo || "-"}</p>
+                    <p className="font-medium">{notebook.sistemaOperativo?.nombre || "-"}</p>
                   </div>
                   <div>
                     <p className="text-sm text-fg-subtle">Licencia Microsoft 365</p>
                     {/* Muestra el plan de Microsoft 365 cuando esta registrado;
                         el Si/No solo se usa cuando no hay plan. */}
                     <p className="font-medium flex items-center gap-1">
-                      {notebook.tipoLicenciaMicrosoft365 ? (
-                        <><CheckCircle size={16} className="text-green-500" /> {notebook.tipoLicenciaMicrosoft365}</>
+                      {notebook.licenciaMicrosoft365 ? (
+                        <><CheckCircle size={16} className="text-green-500" /> {notebook.licenciaMicrosoft365.nombre}</>
                       ) : notebook.microsoft365 ? (
                         <><CheckCircle size={16} className="text-green-500" /> Sin plan registrado</>
                       ) : (
@@ -453,7 +453,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <p className="text-sm text-fg-subtle">Marca / Modelo</p>
-                    <p className="font-medium">{celular.marca} {celular.modelo}</p>
+                    <p className="font-medium">{celular.marca.nombre} {celular.modelo}</p>
                   </div>
                   <div>
                     <p className="text-sm text-fg-subtle">N° Serie</p>
@@ -514,7 +514,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <p className="text-sm text-fg-subtle">Marca / Modelo</p>
-                    <p className="font-medium">{monitor.marca} {monitor.modelo}</p>
+                    <p className="font-medium">{monitor.marca.nombre} {monitor.modelo}</p>
                   </div>
                   <div>
                     <p className="text-sm text-fg-subtle">N° Serie</p>
@@ -550,7 +550,7 @@ export default function FichaEmpleadoPage({ params }: { params: Promise<{ id: st
               vacio="Sin otros equipos"
               columnas={[
                 { titulo: "Tipo", celda: (e) => e.categoria },
-                { titulo: "Marca/Modelo", celda: (e) => `${e.marca} ${e.modelo}` },
+                { titulo: "Marca/Modelo", celda: (e) => `${e.marca.nombre} ${e.modelo}` },
                 { titulo: "N° Serie", className: "font-mono", celda: (e) => identificadorActivo(e, "-") },
                 { titulo: "Fecha Entrega", celda: (e) => formatearFecha(e.fechaEntrega, {}, "-") },
               ]}

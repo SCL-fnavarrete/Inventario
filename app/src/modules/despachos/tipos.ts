@@ -5,18 +5,18 @@ export interface DispatchGuideAsset {
   id: string;
   numeroSerie: string | null;
   imei: string | null;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   procesador: string | null;
   ram: string | null;
   discoDuro: string | null;
-  sistemaOperativo: string | null;
+  sistemaOperativo: { nombre: string } | null;
   lineas?: { numero: string }[];
   // Specs de Monitor/perifericos, ademas de Notebook/Celular -- ver
   // modules/activos/especificaciones.ts.
   pulgadas: string | number | null;
   conectividad: string | null;
-  tipoLicenciaMicrosoft365: string | null;
+  licenciaMicrosoft365: { nombre: string } | null;
   condicion: CondicionActivo;
   categoria: {
     id: string;

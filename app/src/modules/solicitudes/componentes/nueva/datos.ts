@@ -33,7 +33,7 @@ export type EmployeeAssignment = {
   estadoDevolucion?: string | null;
   asset: {
     id: string;
-    marca: string;
+    marca: { nombre: string };
     modelo: string;
     numeroSerie: string | null;
     imei?: string | null;
@@ -64,13 +64,13 @@ export function toggleCategoriaRequerida(
 // RAM, etc., asi que habia que ir a Activos a revisarlas por separado.
 export type EquipoDisponible = {
   id: string;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   numeroSerie: string | null;
   procesador: string | null;
   ram: string | null;
   discoDuro: string | null;
-  sistemaOperativo: string | null;
+  sistemaOperativo: { nombre: string } | null;
   imei: string | null;
   lineas?: { numero: string }[];
   operador: string | null;
@@ -85,7 +85,7 @@ export function especificacionesEquipo(a: EquipoDisponible): string {
   if (a.procesador) partes.push(a.procesador);
   if (a.ram) partes.push(a.ram);
   if (a.discoDuro) partes.push(a.discoDuro);
-  if (a.sistemaOperativo) partes.push(a.sistemaOperativo);
+  if (a.sistemaOperativo) partes.push(a.sistemaOperativo.nombre);
   if (a.imei) partes.push(`IMEI ${a.imei}`);
   if (a.lineas?.length) partes.push(textoLineas(a.lineas));
   if (a.operador) partes.push(a.operador);

@@ -34,6 +34,8 @@ export const lineaSchema = z.object({
   operadorId: idOpcional,
   activoId: idOpcional,
   empleadoId: idOpcional,
+  // Sede donde se guarda el chip mientras esta disponible (opcional, SPEC 2.165).
+  sedeId: idOpcional,
   observaciones: textoLibre(),
 });
 
@@ -98,19 +100,21 @@ export const DESCRIPCION_ESTADO: Record<string, string> = {
 export const tonoEstadoLinea = (e: { deBaja: boolean }) => (e.deBaja ? 'neutral' : 'success');
 
 /**
- * Reasignar una linea (SPEC 2.131): a un telefono de la empresa (la persona sale
- * de el), a una persona (eSIM o telefono personal) o sin asignar. En los tres
- * casos. Nunca cambia quien tiene un telefono: eso
- * se hace en Asignaciones.
+ * Asignar o mover una linea disponible (SPEC 2.131, 2.167): a un telefono de la
+ * empresa sin linea, a una persona (eSIM) o dejarla disponible. Con `tipoChipId`
+ * cambia ademas su tipo (eSIM <-> chip fisico) en el mismo paso, con el mismo
+ * numero. Rige desde ahora. Nunca cambia quien tiene un telefono: eso se hace
+ * en Asignaciones.
  */
 export const reasignacionSchema = z
   .object({
     destino: z.enum(['telefono', 'persona', 'ninguno'] satisfies DestinoLinea[]),
     activoId: idOpcional,
     empleadoId: idOpcional,
-    // Desde cuando rige (por defecto, ahora).
-    desde: fechaTextoOpcional,
+    // El tipo de chip nuevo, si cambia (SPEC 2.167).
+    tipoChipId: idOpcional,
     motivoId: idOpcional,
+    // Lo usan las solicitudes para anotar de donde viene el cambio.
     detalle: textoLibre(500),
   })
   .superRefine((d, ctx) => {

@@ -3,7 +3,7 @@ import { prisma } from '@/shared/prisma';
 import { NotFoundError } from '@/shared/errores';
 import { filtroSede } from '@/shared/sedes/filtro';
 import { inicioDeHoy } from '@/shared/utilidades/fechas';
-import { busquedaActivo, palabrasDeBusqueda } from '@/modules/activos';
+import { busquedaActivo, palabrasDeBusqueda, CON_CATALOGOS } from '@/modules/activos';
 import type { MaintenanceFilters, VistaMantencion } from '@/modules/mantenciones/validaciones';
 
 /**
@@ -82,6 +82,7 @@ export const INCLUDE_LISTADO_MANTENCION = {
   tipo: true,
   asset: {
     include: {
+      ...CON_CATALOGOS,
       categoria: true,
       empleadoActual: {
         select: { id: true, rut: true, nombres: true, apellidoPaterno: true },
@@ -255,6 +256,7 @@ export async function detalleMantencion(id: string) {
       tipo: true,
       asset: {
         include: {
+          ...CON_CATALOGOS,
           categoria: true,
           empleadoActual: {
             select: {

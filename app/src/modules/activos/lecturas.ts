@@ -1,6 +1,7 @@
 import { prisma } from '@/shared/prisma';
 import { NotFoundError } from '@/shared/errores';
 import { LINEAS_DEL_EQUIPO, whereFiltrosActivos, type FiltrosActivos } from '@/modules/activos/consultas';
+import { CON_CATALOGOS } from '@/modules/activos/camposCatalogo';
 
 /**
  * Lecturas de Activos contra la base (SPEC 3.2.2): la lista, las tarjetas y
@@ -20,6 +21,7 @@ export async function listarActivos(
     prisma.asset.findMany({
       where,
       include: {
+        ...CON_CATALOGOS,
         categoria: { select: { id: true, nombre: true, tipoFicha: true } },
         empleadoActual: {
           select: {
@@ -97,6 +99,7 @@ export async function detalleActivo(id: string) {
   const asset = await prisma.asset.findUnique({
     where: { id },
     include: {
+      ...CON_CATALOGOS,
       categoria: true,
       empleadoActual: { select: { nombres: true, apellidoPaterno: true, rut: true } },
       assignments: {
@@ -128,6 +131,7 @@ export async function fichaActivo(id: string) {
   const asset = await prisma.asset.findUnique({
     where: { id },
     include: {
+      ...CON_CATALOGOS,
       categoria: true,
       sede: { select: { nombre: true } },
       empleadoActual: { select: { nombres: true, apellidoPaterno: true, rut: true } },

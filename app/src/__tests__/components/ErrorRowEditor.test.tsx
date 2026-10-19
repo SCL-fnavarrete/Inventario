@@ -31,7 +31,9 @@ test('guardar con un obligatorio vacio lo marca y no guarda; corregido, guarda',
   fireEvent.click(screen.getByRole('button', { name: /Guardar/ }));
   expect(onSave).not.toHaveBeenCalled();
   expect(screen.getByText('Escribe el modelo')).toBeTruthy();
-  expect(screen.getByText(/Faltan o están incorrectos: Modelo/)).toBeTruthy();
+  // El resumen lista el campo como enlace que lleva a el (SPEC 2.162).
+  expect(screen.getAllByText((_, el) => el?.textContent === "Faltan o están incorrectos: Modelo.").length).toBeGreaterThan(0);
+  expect(screen.getByRole("button", { name: "Modelo" })).toBeTruthy();
 
   fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'Latitude' } });
   fireEvent.click(screen.getByRole('button', { name: /Guardar/ }));

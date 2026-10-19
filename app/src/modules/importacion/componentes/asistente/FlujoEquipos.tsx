@@ -21,7 +21,7 @@ import {
 import { parseApiError, type FieldErrors, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { Button } from "@/shared/ui/Button";
-import { CampoFormulario, ResumenErrores, claseInput } from "@/shared/ui/CampoFormulario";
+import { CampoFormulario, ResumenErrores, claseInput, enfocarPrimerError } from "@/shared/ui/CampoFormulario";
 import { StatCard, StatGrid } from "@/shared/ui/StatCard";
 import { useCampoSede } from "@/shared/ui/providers/SedeSeleccionadaProvider";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
@@ -146,6 +146,8 @@ export function FlujoEquipos({ categoria, ficha, nombreCategoria }: { categoria:
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al leer la hoja");
         setError(message);
         setFieldErrors(fe);
+        // Lleva la vista al campo que rechazo el servidor, ya marcado en rojo.
+        enfocarPrimerError();
         return;
       }
       const data: PreviewData = await res.json();
@@ -187,6 +189,8 @@ export function FlujoEquipos({ categoria, ficha, nombreCategoria }: { categoria:
       const { message, fieldErrors: fe } = await parseApiError(res, "Error al validar los datos");
       setError(message);
       setFieldErrors(fe);
+      // Lleva la vista al campo que rechazo el servidor, ya marcado en rojo.
+      enfocarPrimerError();
       return null;
     }
     return (await res.json()) as ImportPreviewResult;
@@ -277,6 +281,8 @@ export function FlujoEquipos({ categoria, ficha, nombreCategoria }: { categoria:
           const { message, fieldErrors: fe } = await parseApiError(res, "Error al importar");
           setError(avisoParcial(message));
           setFieldErrors(fe);
+          // Lleva la vista al campo que rechazo el servidor, ya marcado en rojo.
+          enfocarPrimerError();
           mostrarResultado();
           return;
         }

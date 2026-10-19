@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { filtroSede } from '@/shared/sedes/filtro';
 import { inicioDeHoy } from '@/shared/utilidades/fechas';
-import { ACTIVOS_VIGENTES, ESTADO_ACTIVO_COLOR } from '@/modules/activos';
+import { ACTIVOS_VIGENTES, ESTADO_ACTIVO_COLOR, NOMBRE } from '@/modules/activos';
 import { resumenLineasDashboard } from '@/modules/lineas/servidor';
 
 /**
@@ -61,7 +61,7 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
           select: {
             numeroSerie: true,
             imei: true,
-            marca: true,
+            marca: NOMBRE,
             modelo: true,
             sede: { select: { nombre: true } },
           },
@@ -137,7 +137,7 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
       take: PENDIENTES_EN_PANEL,
       select: {
         id: true,
-        marca: true,
+        marca: NOMBRE,
         modelo: true,
         numeroSerie: true,
         imei: true,
@@ -156,7 +156,7 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
         descripcion: true,
         usuarioSistema: true,
         createdAt: true,
-        asset: { select: { id: true, marca: true, modelo: true, numeroSerie: true, imei: true } },
+        asset: { select: { id: true, marca: NOMBRE, modelo: true, numeroSerie: true, imei: true } },
       },
     }),
     resumenLineasDashboard(sedeIdFiltro),
@@ -166,7 +166,7 @@ export async function resumenDashboard(sedeIdFiltro: string | null) {
       take: ALERTAS_POR_GRUPO,
       select: {
         id: true,
-        marca: true,
+        marca: NOMBRE,
         modelo: true,
         numeroSerie: true,
         imei: true,

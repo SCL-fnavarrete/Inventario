@@ -4,7 +4,7 @@ import { NotFoundError, ValidationError } from '@/shared/errores';
 import { filtroSede } from '@/shared/sedes/filtro';
 import { coincideBusqueda } from '@/shared/utilidades/text';
 import { formatearFecha } from '@/shared/utilidades/fechas';
-import { LINEAS_DEL_EQUIPO } from '@/modules/activos';
+import { LINEAS_DEL_EQUIPO, CON_CATALOGOS } from '@/modules/activos';
 import { cambiarEstado } from '@/modules/activos/servidor';
 import { desdeTenenciaActual, listarLineas } from '@/modules/lineas/servidor';
 import { executeAssignment, executeReturn } from '@/modules/asignaciones/ejecucion';
@@ -20,7 +20,7 @@ import type {
  * (executeAssignment y executeReturn), que deciden el estado del equipo.
  */
 
-const CON_EQUIPO_Y_PERSONA = { asset: { include: { categoria: true } }, employee: true } as const;
+const CON_EQUIPO_Y_PERSONA = { asset: { include: { ...CON_CATALOGOS, categoria: true } }, employee: true } as const;
 
 /**
  * Lista con filtros (GET /api/asignaciones). La sede del navbar filtra por la
@@ -56,7 +56,7 @@ export async function listarAsignaciones(filters: AssignmentFilters, sedeId: str
           a.employee.apellidoMaterno,
           a.asset.numeroSerie,
           a.asset.imei,
-          a.asset.marca,
+          a.asset.marca.nombre,
           a.asset.modelo,
         ],
       })
@@ -91,7 +91,7 @@ export async function listarAsignacionesConLineas(filters: AssignmentFilters, se
     ? conPersona.filter(({ linea: l, persona: p }) =>
         coincideBusqueda(termino, {
           rut: p.rut,
-          campos: [p.nombres, p.apellidoPaterno, l.numero, l.operador?.nombre, l.tipoChip?.nombre, l.activo?.marca, l.activo?.modelo, l.activo?.imei],
+          campos: [p.nombres, p.apellidoPaterno, l.numero, l.operador?.nombre, l.tipoChip?.nombre, l.activo?.marca.nombre, l.activo?.modelo, l.activo?.imei],
         })
       )
     : conPersona;
@@ -120,7 +120,7 @@ export async function detalleAsignacion(id: string) {
     where: { id },
     include: {
       asset: {
-        include: { categoria: true, lineas: LINEAS_DEL_EQUIPO, history: { orderBy: { createdAt: 'desc' }, take: 10 } },
+        include: { ...CON_CATALOGOS, categoria: true, lineas: LINEAS_DEL_EQUIPO, history: { orderBy: { createdAt: 'desc' }, take: 10 } },
       },
       employee: true,
     },

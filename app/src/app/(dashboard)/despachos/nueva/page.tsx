@@ -32,12 +32,12 @@ type Asset = {
   id: string;
   numeroSerie: string | null;
   imei: string | null;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   procesador: string | null;
   ram: string | null;
   discoDuro: string | null;
-  sistemaOperativo: string | null;
+  sistemaOperativo: { nombre: string } | null;
   lineas?: { numero: string }[];
   // Deben coincidir estructuralmente con el `Asset` local de
   // SelectorActivos.tsx (ambos se llaman igual, TS los trata como

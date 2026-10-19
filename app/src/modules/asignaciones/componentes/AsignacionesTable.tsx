@@ -27,7 +27,7 @@ type Fila =
       asset: {
         id: string;
         numeroSerie: string | null;
-        marca: string;
+        marca: { nombre: string };
         modelo: string;
         categoria: { nombre: string };
       };
@@ -38,7 +38,7 @@ type Fila =
       id: string;
       fechaEntrega: string | null;
       linea: { numero: string; operador: string | null; tipoChip: string | null };
-      activo: { id: string; marca: string; modelo: string } | null;
+      activo: { id: string; marca: { nombre: string }; modelo: string } | null;
       employee: Persona;
     };
 
@@ -150,7 +150,7 @@ export function AsignacionesTable() {
                     <p className="text-sm font-medium text-fg">Línea {formatearNumero(a.linea.numero)}</p>
                     <p className="text-xs text-fg-subtle">
                       {[a.linea.operador, a.linea.tipoChip].filter(Boolean).join(" · ")}
-                      {a.activo ? ` · en ${a.activo.marca} ${a.activo.modelo}` : " · su propio teléfono"}
+                      {a.activo ? ` · en ${a.activo.marca.nombre} ${a.activo.modelo}` : " · su propio teléfono"}
                     </p>
                   </div>
                 </div>
@@ -161,7 +161,7 @@ export function AsignacionesTable() {
                   </span>
                   <div>
                     <p className="text-sm font-medium text-fg">
-                      {a.asset.marca} {a.asset.modelo}
+                      {a.asset.marca.nombre} {a.asset.modelo}
                     </p>
                     <p className="font-mono text-xs text-fg-subtle">{identificadorActivo(a.asset, "-")}</p>
                   </div>

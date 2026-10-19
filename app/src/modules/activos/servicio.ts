@@ -14,6 +14,8 @@ import { EVENTOS_SIN_USO, motivoSinEliminar } from '@/modules/activos/estados';
 import { assetHistoryService, type AssetHistoryData } from '@/modules/activos/historial';
 import { auditLogService } from '@/shared/auditoria';
 import { validateTransition, type TransitionContext } from '@/modules/activos/maquinaEstados';
+import { idsDeCatalogos } from '@/modules/activos/catalogos';
+import { MARCA_MODELO, NOMBRE, marcaModelo, type CampoCatalogo, type LlaveCatalogo } from '@/modules/activos/camposCatalogo';
 
 type Tx = Prisma.TransactionClient;
 
@@ -80,13 +82,21 @@ export async function cambiarEstado(
   if (p.historial) await assetHistoryService.registrar({ assetId: p.activo.id, ...p.historial }, tx);
 }
 
+/** Datos de un equipo nuevo con sus opciones de catalogo por nombre (las traduce `idsDeCatalogos`). */
+type AltaConNombres = Omit<Prisma.AssetUncheckedCreateInput, LlaveCatalogo> & { marca: string } & Partial<
+  Record<Exclude<CampoCatalogo, 'marca'>, string | null>
+>;
+
 /**
  * Alta de un equipo desde la importacion: entra con el estado y los datos
  * que trae el Excel, ya revisados fila por fila (procesarFila), y deja su
  * evento de creacion en el historial.
  */
-export async function crearActivoImportado(tx: Tx, datos: Prisma.AssetUncheckedCreateInput, usuario: string) {
-  const asset = await tx.asset.create({ data: datos });
+export async function crearActivoImportado(tx: Tx, datos: AltaConNombres, usuario: string) {
+  const { marca, sistemaOperativo, antivirus, tipoLicenciaMicrosoft365, ...resto } = datos;
+  // Datos historicos: una opcion que hoy esta desactivada se acepta igual.
+  const ids = await idsDeCatalogos(tx, { marca, sistemaOperativo, antivirus, tipoLicenciaMicrosoft365 }, { aceptarDesactivadas: true });
+  const asset = await tx.asset.create({ data: { ...resto, ...ids, marcaId: ids.marcaId! } });
   await assetHistoryService.registrar(
     { assetId: asset.id, tipoEvento: 'creacion', descripcion: 'Activo importado desde Excel', usuarioSistema: usuario },
     tx
@@ -152,11 +162,14 @@ export async function crearActivo(
     }
   }
 
+  const ids = await idsDeCatalogos(tx, datos);
   const asset = await tx.asset.create({
+    include: { marca: NOMBRE },
     data: {
+      ...ids,
+      marcaId: ids.marcaId!,
       categoriaId: datos.categoriaId,
       sedeId: opciones.sedeId,
-      marca: datos.marca,
       modelo: datos.modelo,
       numeroSerie: datos.numeroSerie || null,
       estado: opciones.estado ?? 'disponible',
@@ -166,16 +179,13 @@ export async function crearActivo(
       procesador: datos.procesador || null,
       ram: datos.ram || null,
       discoDuro: datos.discoDuro || null,
-      sistemaOperativo: datos.sistemaOperativo || null,
       imei: datos.imei || null,
       tieneCargador: datos.tieneCargador || false,
       pulgadas: datos.pulgadas || null,
       microsoft365: datos.microsoft365 || false,
-      tipoLicenciaMicrosoft365: datos.tipoLicenciaMicrosoft365 || null,
       intuneEnrolled: datos.intuneEnrolled || false,
       listaDistribucion: datos.listaDistribucion || null,
       observaciones: datos.observaciones || null,
-      antivirus: datos.antivirus || null,
       incidencia: datos.incidencia || null,
       nombreEquipo: datos.nombreEquipo || null,
       conectividad: datos.conectividad || null,
@@ -237,7 +247,7 @@ function leerPulgadas(value: string | number | null | undefined): number | null 
  * especificaciones quedan en el historial, en la misma transaccion.
  */
 export async function editarActivo(id: string, datos: UpdateAssetInput, usuario: string) {
-  const existente = await prisma.asset.findUnique({ where: { id } });
+  const existente = await prisma.asset.findUnique({ where: { id }, include: { sistemaOperativo: NOMBRE } });
   if (!existente) throw new NotFoundError('Activo no encontrado');
 
   // Si solo llega una de las dos fechas, se compara con la ya guardada.
@@ -295,7 +305,9 @@ export async function editarActivo(id: string, datos: UpdateAssetInput, usuario:
         ? existente.pulgadas === null
           ? null
           : Number(existente.pulgadas)
-        : existente[field];
+        : field === 'sistemaOperativo'
+          ? (existente.sistemaOperativo?.nombre ?? null)
+          : existente[field];
     const ahora = field === 'pulgadas' ? leerPulgadas(datos.pulgadas) : datos[field];
     if (ahora !== antes) {
       specsAnteriores[field] = antes;
@@ -334,11 +346,14 @@ export async function editarActivo(id: string, datos: UpdateAssetInput, usuario:
       );
     }
 
+    // La marca no se quita (es obligatoria): si llega vacia, no se toca.
+    const { marcaId, ...otrosIds } = await idsDeCatalogos(tx, { ...datos, marca: datos.marca || undefined }, { actual: existente });
     return tx.asset.update({
       where: { id },
       data: {
+        ...otrosIds,
+        ...(marcaId && { marcaId }),
         ...(datos.categoriaId && { categoriaId: datos.categoriaId }),
-        ...(datos.marca && { marca: datos.marca }),
         ...(datos.modelo && { modelo: datos.modelo }),
         ...(datos.numeroSerie !== undefined && { numeroSerie: datos.numeroSerie || null }),
         ...(datos.condicion && { condicion: datos.condicion }),
@@ -351,22 +366,15 @@ export async function editarActivo(id: string, datos: UpdateAssetInput, usuario:
         ...(datos.procesador !== undefined && { procesador: datos.procesador || null }),
         ...(datos.ram !== undefined && { ram: datos.ram || null }),
         ...(datos.discoDuro !== undefined && { discoDuro: datos.discoDuro || null }),
-        ...(datos.sistemaOperativo !== undefined && {
-          sistemaOperativo: datos.sistemaOperativo || null,
-        }),
         ...(datos.imei !== undefined && { imei: datos.imei || null }),
         ...(datos.tieneCargador !== undefined && { tieneCargador: datos.tieneCargador }),
         ...(datos.pulgadas !== undefined && { pulgadas: leerPulgadas(datos.pulgadas) }),
         ...(datos.microsoft365 !== undefined && { microsoft365: datos.microsoft365 }),
-        ...(datos.tipoLicenciaMicrosoft365 !== undefined && {
-          tipoLicenciaMicrosoft365: datos.tipoLicenciaMicrosoft365 || null,
-        }),
         ...(datos.intuneEnrolled !== undefined && { intuneEnrolled: datos.intuneEnrolled }),
         ...(datos.listaDistribucion !== undefined && {
           listaDistribucion: datos.listaDistribucion || null,
         }),
         ...(datos.observaciones !== undefined && { observaciones: datos.observaciones || null }),
-        ...(datos.antivirus !== undefined && { antivirus: datos.antivirus || null }),
         ...(datos.incidencia !== undefined && { incidencia: datos.incidencia || null }),
         ...(datos.nombreEquipo !== undefined && { nombreEquipo: datos.nombreEquipo || null }),
         ...(datos.conectividad !== undefined && { conectividad: datos.conectividad || null }),
@@ -392,8 +400,7 @@ export async function eliminarActivo(
   const existente = await prisma.asset.findUnique({
     where: { id },
     select: {
-      marca: true,
-      modelo: true,
+      ...MARCA_MODELO,
       estado: true,
       numeroSerie: true,
       deletedAt: true,
@@ -433,7 +440,7 @@ export async function eliminarActivo(
   });
   if (bloqueo) throw new ConflictError(bloqueo);
 
-  const nombre = `${existente.marca} ${existente.modelo} (S/N: ${existente.numeroSerie})`;
+  const nombre = `${marcaModelo(existente)} (S/N: ${existente.numeroSerie})`;
   await prisma.$transaction(async (tx) => {
     await tx.assetHistory.deleteMany({ where: { assetId: id } });
     await tx.asset.delete({ where: { id } });
@@ -441,7 +448,7 @@ export async function eliminarActivo(
       'activo',
       id,
       `Activo eliminado (ingresado por error): ${nombre}`,
-      { marca: existente.marca, modelo: existente.modelo, numeroSerie: existente.numeroSerie },
+      { marca: existente.marca.nombre, modelo: existente.modelo, numeroSerie: existente.numeroSerie },
       usuario,
       tx
     );

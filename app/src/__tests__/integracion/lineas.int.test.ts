@@ -11,6 +11,7 @@ import { prisma } from '@/shared/prisma';
 import { bajaLineaSchema, lineaSchema, reasignacionSchema } from '@/modules/lineas';
 import { columnasDeHoja, hojasDelArchivo, importarTandaLineas, vistaPreviaLineas } from '@/modules/lineas/excel';
 import { asignarEquipo, registrarDevolucion } from '@/modules/asignaciones/servidor';
+import { crearEquipo } from '@/test-utils/catalogos';
 import {
   darDeBajaLinea,
   crearLinea,
@@ -28,6 +29,7 @@ import {
   asociarLineaEnSolicitud,
   asociarEsimEnSolicitud,
   cambiarLineaEnSolicitud,
+  convertirLineaAEsimEnSolicitud,
   liberarLineaEnSolicitud,
   lineasDePersona,
   lineasDeEquipos,
@@ -98,21 +100,19 @@ describir('lineas telefonicas en Postgres', () => {
     const celular = await prisma.assetCategory.create({ data: { nombre: `Cel ${s}`, tipoFicha: 'celular' } });
     const notebook = await prisma.assetCategory.create({ data: { nombre: `Nb ${s}`, tipoFicha: 'computador' } });
     ids.categorias.push(celular.id, notebook.id);
-    ids.notebook = (await prisma.asset.create({ data: { categoriaId: notebook.id, marca: 'Dell', modelo: `Nb ${s}` } })).id;
+    ids.notebook = (await crearEquipo({ categoriaId: notebook.id, marca: 'Dell', modelo: `Nb ${s}` })).id;
     ids.empleado = (
       await prisma.employee.create({ data: { nombres: 'Prueba', apellidoPaterno: `Lineas${s}`, rut, estado: 'activo' } })
     ).id;
     // El celular lo tiene la persona de prueba.
     ids.celular = (
-      await prisma.asset.create({
-        data: { categoriaId: celular.id, marca: 'Samsung', modelo: `A55 ${s}`, imei: `35${s.replace(/\D/g, '7').slice(0, 6)}1234567`.slice(0, 15), estado: 'asignado', empleadoActualId: ids.empleado },
-      })
+      await crearEquipo({ categoriaId: celular.id, marca: 'Samsung', modelo: `A55 ${s}`, imei: `35${s.replace(/\D/g, '7').slice(0, 6)}1234567`.slice(0, 15), estado: 'asignado', empleadoActualId: ids.empleado })
     ).id;
     ids.otraPersona = (await prisma.employee.create({ data: { nombres: 'Otra', apellidoPaterno: `Lineas${s}b`, estado: 'activo' } })).id;
     ids.desvinculada = (await prisma.employee.create({ data: { nombres: 'Se fue', apellidoPaterno: `Lineas${s}c`, estado: 'desvinculado' } })).id;
-    ids.disponible = (await prisma.asset.create({ data: { categoriaId: celular.id, marca: 'Samsung', modelo: `Libre ${s}`, estado: 'disponible' } })).id;
-    ids.libre = (await prisma.asset.create({ data: { categoriaId: celular.id, marca: 'Motorola', modelo: `Bodega ${s}`, estado: 'disponible' } })).id;
-    ids.telefonoBaja = (await prisma.asset.create({ data: { categoriaId: celular.id, marca: 'Samsung', modelo: `Baja ${s}`, estado: 'baja' } })).id;
+    ids.disponible = (await crearEquipo({ categoriaId: celular.id, marca: 'Samsung', modelo: `Libre ${s}`, estado: 'disponible' })).id;
+    ids.libre = (await crearEquipo({ categoriaId: celular.id, marca: 'Motorola', modelo: `Bodega ${s}`, estado: 'disponible' })).id;
+    ids.telefonoBaja = (await crearEquipo({ categoriaId: celular.id, marca: 'Samsung', modelo: `Baja ${s}`, estado: 'baja' })).id;
     ids.sede = (await prisma.sede.create({ data: { codigo: `S${s}`, nombre: `Sede Uno ${s}` } })).id;
     ids.otraSede = (await prisma.sede.create({ data: { codigo: `T${s}`, nombre: `Sede Dos ${s}` } })).id;
     activa = (await prisma.estadoLinea.findUniqueOrThrow({ where: { clave: 'activa' } })).id;
@@ -121,6 +121,12 @@ describir('lineas telefonicas en Postgres', () => {
     motivoOtro = (await prisma.motivoBajaLinea.findUniqueOrThrow({ where: { clave: 'otro' } })).id;
     fisico = (await prisma.tipoChip.findUniqueOrThrow({ where: { nombre: 'Físico' } })).id;
     esim = (await prisma.tipoChip.findUniqueOrThrow({ where: { nombre: 'eSIM / MFF' } })).id;
+  });
+
+  // Un celular lleva una sola línea vigente (SPEC 2.164): cada test parte con los
+  // celulares de bodega sin las líneas que dejó el anterior.
+  beforeEach(async () => {
+    await prisma.lineaTelefonica.updateMany({ where: { activoId: { in: [ids.libre!, ids.disponible!] } }, data: { activoId: null } });
   });
 
   afterAll(async () => {
@@ -146,12 +152,14 @@ describir('lineas telefonicas en Postgres', () => {
     await prisma.$disconnect();
   });
 
-  test('crea Activa por defecto; solo en un celular sin persona; queda en el historial y la auditoría', async () => {
+  test('crea Activa por defecto; solo en un celular sin línea; queda en el historial y la auditoría', async () => {
     const n = nuevo();
-    // Un celular que tiene alguien no: la persona recibe la línea con una solicitud (SPEC 2.131).
-    await expect(crearLinea(datos({ numero: n, activoId: ids.celular }))).rejects.toMatchObject({
-      details: [{ field: 'activoId', message: expect.stringContaining('lo tiene una persona') }],
+    // Un celular que ya tiene una línea no (SPEC 2.164).
+    const ocupado = await crearLinea(datos({ numero: nuevo(), activoId: ids.disponible }));
+    await expect(crearLinea(datos({ numero: n, activoId: ids.disponible }))).rejects.toMatchObject({
+      details: [{ field: 'activoId', message: expect.stringContaining('ya tiene una línea') }],
     });
+    await reasignarLinea(ocupado.id, reasignacionSchema.parse({ destino: 'ninguno' }));
     const linea = await crearLinea(
       datos({ numero: `+56 9 ${n.slice(3, 7)} ${n.slice(7)}`, activoId: ids.libre, empleadoId: ids.empleado }),
       'jsoto'
@@ -161,6 +169,22 @@ describir('lineas telefonicas en Postgres', () => {
     expect(await prisma.auditLog.findFirst({ where: { entidadId: linea.id } })).toMatchObject({ accion: 'crear', usuarioSistema: 'jsoto' });
     const [encontrada] = await listarLineas({ estado: 'todas', q: n });
     expect(encontrada).toMatchObject({ id: linea.id, activo: { id: ids.libre, empleadoActual: null } });
+  });
+
+  test('sede de un chip disponible: opcional al crear, la ve el filtro de sede y al sacarlo de un celular queda la de ese celular (SPEC 2.165)', async () => {
+    const conSede = await crearLinea(datos({ numero: nuevo(), sedeId: ids.sede }));
+    const sinSede = await crearLinea(datos({ numero: nuevo() }));
+    expect(conSede.sedeId).toBe(ids.sede);
+    expect(sinSede.sedeId).toBeNull();
+    const enLaSede = (await listarLineas({ estado: 'todas', sedeId: ids.sede })).map((l) => l.id);
+    expect(enLaSede).toContain(conSede.id);
+    expect(enLaSede).not.toContain(sinSede.id);
+
+    await prisma.asset.update({ where: { id: ids.libre! }, data: { sedeId: ids.otraSede } });
+    const enCelular = await crearLinea(datos({ numero: nuevo(), activoId: ids.libre }));
+    const disponible = await reasignarLinea(enCelular.id, reasignacionSchema.parse({ destino: 'ninguno' }));
+    expect(disponible).toMatchObject({ activoId: null, empleadoId: null, sedeId: ids.otraSede });
+    await prisma.asset.update({ where: { id: ids.libre! }, data: { sedeId: null } });
   });
 
   test('sin celular (teléfono personal) la persona se guarda en la línea', async () => {
@@ -429,9 +453,7 @@ describir('lineas telefonicas en Postgres', () => {
       prisma.employee.create({ data: { nombres: 'Prueba', apellidoPaterno: `Ind${s}a`, estado: 'activo' } }),
       prisma.employee.create({ data: { nombres: 'Prueba', apellidoPaterno: `Ind${s}b`, estado: 'activo' } }),
     ]);
-    const celular = await prisma.asset.create({
-      data: { categoriaId: ids.categorias[0], marca: 'Samsung', modelo: `Ind ${s}`, estado: 'disponible' },
-    });
+    const celular = await crearEquipo({ categoriaId: ids.categorias[0], marca: 'Samsung', modelo: `Ind ${s}`, estado: 'disponible' });
     try {
       await crearLinea(datos({ numero: nuevo() })); // sin persona: disponible
       await crearLinea(datos({ numero: nuevo(), empleadoId: personal.id })); // teléfono personal
@@ -485,15 +507,17 @@ describir('lineas telefonicas en Postgres', () => {
     expect((await fichaLinea(linea.id)).reasignaciones).toBe(2);
   });
 
-  test('reasignar rechaza lo que no cambia, una persona desvinculada, un celular de baja, una fecha mala y una línea de baja', async () => {
+  test('reasignar rechaza lo que no cambia, una persona desvinculada, un celular de baja, un tipo de chip malo y una línea de baja', async () => {
     const n = nuevo();
     const linea = await crearLinea(datos({ numero: n, activoId: ids.libre }));
     const reasignar = (extra: Record<string, unknown>) => reasignarLinea(linea.id, reasignacionSchema.parse(extra));
     await expect(reasignar({ destino: 'telefono', activoId: ids.libre })).rejects.toMatchObject({ status: 409 });
-    // Un celular que tiene alguien no (SPEC 2.131).
-    await expect(reasignar({ destino: 'telefono', activoId: ids.celular })).rejects.toMatchObject({
-      details: [{ field: 'activoId', message: expect.stringContaining('lo tiene una persona') }],
+    // Un celular que ya tiene otra línea no (SPEC 2.164).
+    const otra = await crearLinea(datos({ numero: nuevo(), activoId: ids.disponible }));
+    await expect(reasignar({ destino: 'telefono', activoId: ids.disponible })).rejects.toMatchObject({
+      details: [{ field: 'activoId', message: expect.stringContaining('ya tiene una línea') }],
     });
+    await reasignarLinea(otra.id, reasignacionSchema.parse({ destino: 'ninguno' }));
     // Chip físico: no va directo a una persona (SPEC 2.131).
     await expect(reasignar({ destino: 'persona', empleadoId: ids.otraPersona })).rejects.toMatchObject({
       details: [{ field: 'destino', message: expect.stringContaining('chip físico') }],
@@ -509,11 +533,10 @@ describir('lineas telefonicas en Postgres', () => {
     await expect(reasignar({ destino: 'telefono', activoId: ids.telefonoBaja })).rejects.toMatchObject({
       details: [{ field: 'activoId', message: 'Ese celular está de baja' }],
     });
-    await expect(reasignar({ destino: 'ninguno', desde: '2999-01-01' })).rejects.toMatchObject({
-      details: [{ field: 'desde', message: 'La fecha no puede ser futura' }],
+    // Un tipo de chip que no existe no se acepta (SPEC 2.167).
+    await expect(reasignar({ destino: 'ninguno', tipoChipId: randomUUID() })).rejects.toMatchObject({
+      details: [{ field: 'tipoChipId', message: 'Elige un tipo de chip de la lista' }],
     });
-    // No puede empezar antes que el tramo actual (el alta fue hoy).
-    await expect(reasignar({ destino: 'ninguno', desde: '2000-01-01' })).rejects.toMatchObject({ details: [{ field: 'desde' }] });
     // Elegir "persona" o "teléfono" sin elegir cuál ni siquiera pasa la validación.
     expect(() => reasignacionSchema.parse({ destino: 'persona' })).toThrow();
     expect(() => reasignacionSchema.parse({ destino: 'telefono' })).toThrow();
@@ -538,11 +561,54 @@ describir('lineas telefonicas en Postgres', () => {
       details: [{ field: 'tipoChipId', message: 'Elige el tipo de chip' }],
     });
     await expect(editarLinea(linea.id, datos({ numero: n, tipoChipId: esim }))).rejects.toMatchObject({
-      details: [{ field: 'tipoChipId', message: expect.stringContaining('déjala sin asignar') }],
+      details: [{ field: 'tipoChipId', message: expect.stringContaining('acciones de su ficha') }],
     });
     // Sin asignar, sí puede pasar a eSIM.
     await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno' }));
     expect(await editarLinea(linea.id, datos({ numero: n, tipoChipId: esim }))).toMatchObject({ tipoChipId: esim });
+  });
+
+  test('dos líneas al mismo celular a la vez: el celular queda bloqueado y solo una entra (SPEC 2.164)', async () => {
+    const { categoriaId } = await prisma.asset.findUniqueOrThrow({ where: { id: ids.libre! }, select: { categoriaId: true } });
+    const celular = await crearEquipo({ categoriaId, marca: 'Xiaomi', modelo: `Carrera ${nuevo()}`, estado: 'disponible' });
+    const [a, b] = await Promise.all([crearLinea(datos({ numero: nuevo(), tipoChipId: fisico })), crearLinea(datos({ numero: nuevo(), tipoChipId: fisico }))]);
+    const resultados = await Promise.allSettled(
+      [a, b].map((l) => reasignarLinea(l.id, reasignacionSchema.parse({ destino: 'telefono', activoId: celular.id })))
+    );
+    expect(resultados.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(resultados.find((r) => r.status === 'rejected')).toMatchObject({ reason: { details: [{ message: expect.stringContaining('ya tiene una línea') }] } });
+    expect(await prisma.lineaTelefonica.count({ where: { activoId: celular.id } })).toBe(1);
+    // Este celular no esta en la limpieza general: sus lineas salen de ahi antes de borrarlo.
+    await prisma.lineaTenencia.deleteMany({ where: { activoId: celular.id } });
+    await prisma.lineaTelefonica.updateMany({ where: { activoId: celular.id }, data: { activoId: null } });
+    await prisma.asset.delete({ where: { id: celular.id } });
+  });
+
+  test('cambiar el tipo con el mismo número (SPEC 2.167): de un teléfono a eSIM con una persona, y de vuelta a chip físico', async () => {
+    const linea = await crearLinea(datos({ numero: nuevo(), activoId: ids.libre }));
+    // Chip físico en un teléfono sin persona -> eSIM con una persona, en un paso.
+    const aEsim = await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'persona', empleadoId: ids.otraPersona, tipoChipId: esim }));
+    expect(aEsim).toMatchObject({ tipoChipId: esim, activoId: null, empleadoId: ids.otraPersona });
+    let ficha = await fichaLinea(linea.id);
+    expect(ficha.tenencias[0]).toMatchObject({ origen: 'reasignacion', empleadoId: ids.otraPersona, hasta: null });
+    expect(ficha.historial.some((e) => e.tipo === 'datos' && e.descripcion.includes('tipo de chip'))).toBe(true);
+    // Ahora la usa una persona: no se toca desde Líneas.
+    await expect(reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', tipoChipId: fisico }))).rejects.toMatchObject({ status: 409 });
+
+    // Una eSIM disponible pasa a chip físico y queda disponible, sin tramo nuevo.
+    const disponible = await crearLinea(datos({ numero: nuevo(), tipoChipId: esim }));
+    const tramos = (await fichaLinea(disponible.id)).tenencias.length;
+    const aFisico = await reasignarLinea(disponible.id, reasignacionSchema.parse({ destino: 'ninguno', tipoChipId: fisico }));
+    expect(aFisico).toMatchObject({ tipoChipId: fisico, activoId: null, empleadoId: null });
+    ficha = await fichaLinea(disponible.id);
+    expect(ficha.tenencias).toHaveLength(tramos);
+    expect(await prisma.auditLog.findFirst({ where: { entidadId: disponible.id, descripcion: { contains: 'pasó a Físico' } } })).toBeTruthy();
+    // El tipo debe calzar con el destino: un chip físico no va a una persona.
+    await expect(
+      reasignarLinea(disponible.id, reasignacionSchema.parse({ destino: 'persona', empleadoId: ids.otraPersona }))
+    ).rejects.toMatchObject({ details: [{ field: 'destino' }] });
+    // Sin cambio de tipo ni de lugar, se rechaza.
+    await expect(reasignarLinea(disponible.id, reasignacionSchema.parse({ destino: 'ninguno', tipoChipId: fisico }))).rejects.toMatchObject({ status: 409 });
   });
 
   test('cambios simultáneos de una línea van uno tras otro: un solo tramo abierto y editar no deshace una asignación', async () => {
@@ -595,15 +661,12 @@ describir('lineas telefonicas en Postgres', () => {
     expect(delHistorial).toMatchObject([{ cierre: 'devolucion_telefono', linea: { id: linea.id } }]);
 
     // Asignar el mismo día de un cambio automático funciona (queda a continuación).
-    const hoy = new Date().toISOString().slice(0, 10);
-    await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno', desde: hoy }));
+    await reasignarLinea(linea.id, reasignacionSchema.parse({ destino: 'ninguno' }));
     expect((await fichaLinea(linea.id)).tenencias[0]).toMatchObject({ origen: 'reasignacion', activoId: null });
   });
 
-  test('sede: la línea no tiene sede propia; el navbar usa la de su celular o, sin celular, la de su persona', async () => {
-    const celular = await prisma.asset.create({
-      data: { categoriaId: ids.categorias[0], marca: 'Samsung', modelo: `Sede ${s}`, estado: 'disponible', sedeId: ids.sede },
-    });
+  test('sede: en un celular o con una persona, el navbar usa la sede de ellos, no la de la línea', async () => {
+    const celular = await crearEquipo({ categoriaId: ids.categorias[0], marca: 'Samsung', modelo: `Sede ${s}`, estado: 'disponible', sedeId: ids.sede });
     const persona = await prisma.employee.create({ data: { nombres: 'Prueba', apellidoPaterno: `Sede${s}`, estado: 'activo', sedeId: ids.otraSede } });
     try {
       const enCelular = await crearLinea(datos({ numero: nuevo(), activoId: celular.id }));
@@ -613,8 +676,8 @@ describir('lineas telefonicas en Postgres', () => {
       expect(await deSede(ids.sede!)).not.toContain(conPersona.id);
       expect(await deSede(ids.otraSede!)).toContain(conPersona.id);
       expect(await deSede(ids.otraSede!)).not.toContain(enCelular.id);
-      // La linea no guarda sede: ni en la linea ni en sus tramos.
-      expect(enCelular).not.toHaveProperty('sedeId');
+      // Sin sede elegida, la linea no guarda una; sus tramos nunca (la sede propia es solo de un chip disponible, SPEC 2.165).
+      expect(enCelular.sedeId).toBeNull();
       expect((await fichaLinea(enCelular.id)).tenencias[0]).not.toHaveProperty('sedeId');
     } finally {
       const propias = await prisma.lineaTelefonica.findMany({ where: { OR: [{ activoId: celular.id }, { empleadoId: persona.id }] }, select: { id: true } });
@@ -715,11 +778,88 @@ describir('lineas telefonicas en Postgres', () => {
     const otra = await crearLinea(datos({ numero: nuevo(), tipoChipId: fisico }));
     await expect(
       prisma.$transaction(async (tx) => {
-        await asociarLineaEnSolicitud(tx, otra.id, { activoId: ids.libre!, empleadoId: ids.empleado!, detalle: 'x', usuario: 'jsoto' });
+        await asociarLineaEnSolicitud(tx, otra.id, { activoId: ids.disponible!, empleadoId: ids.empleado!, detalle: 'x', usuario: 'jsoto' });
         throw new Error('falla después');
       })
     ).rejects.toThrow('falla después');
     expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: otra.id } })).toMatchObject({ activoId: null, empleadoId: null });
+  });
+
+  test('la línea de un celular en bodega se mueve al celular que se entrega; la de un celular con persona no (SPEC 2.163)', async () => {
+    const { categoriaId } = await prisma.asset.findUniqueOrThrow({ where: { id: ids.libre! }, select: { categoriaId: true } });
+    const celular = (modelo: string) => crearEquipo({ categoriaId, marca: 'Xiaomi', modelo, estado: 'disponible' });
+    const enBodega = await celular(`Bodega mover ${nuevo()}`);
+    const nuevoCelular = await celular(`Nuevo mover ${nuevo()}`);
+    const chip = await prisma.lineaTelefonica.create({ data: { numero: nuevo(), estadoId: activa, tipoChipId: fisico, activoId: enBodega.id } });
+
+    await prisma.$transaction((tx) =>
+      asociarLineaEnSolicitud(tx, chip.id, { activoId: nuevoCelular.id, empleadoId: ids.empleado!, detalle: 'Onboarding - T9', usuario: 'jsoto' })
+    );
+    expect(await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: chip.id } })).toMatchObject({ activoId: nuevoCelular.id });
+    expect((await fichaLinea(chip.id)).tenencias[0]).toMatchObject({ origen: 'reasignacion', activoId: nuevoCelular.id });
+
+    // La línea del celular que usa una persona no se toma: sigue con ella.
+    const enUso = await prisma.lineaTelefonica.create({ data: { numero: nuevo(), estadoId: activa, tipoChipId: fisico, activoId: ids.celular } });
+    await expect(
+      prisma.$transaction((tx) =>
+        asociarLineaEnSolicitud(tx, enUso.id, { activoId: enBodega.id, empleadoId: ids.empleado!, detalle: 'x', usuario: 'jsoto' })
+      )
+    ).rejects.toMatchObject({ status: 409 });
+
+    // Los celulares de este test no estan en la limpieza general.
+    const lineasTest = [chip.id, enUso.id];
+    await prisma.auditLog.deleteMany({ where: { entidadId: { in: lineasTest } } });
+    await prisma.lineaHistorial.deleteMany({ where: { lineaId: { in: lineasTest } } });
+    await prisma.lineaTelefonica.deleteMany({ where: { id: { in: lineasTest } } });
+    await prisma.assetHistory.deleteMany({ where: { assetId: { in: [enBodega.id, nuevoCelular.id] } } });
+    await prisma.asset.deleteMany({ where: { id: { in: [enBodega.id, nuevoCelular.id] } } });
+  });
+
+  test('asignar una línea a un celular que ya tiene persona y no tiene línea: la persona la usa (SPEC 2.164)', async () => {
+    const { categoriaId } = await prisma.asset.findUniqueOrThrow({ where: { id: ids.libre! }, select: { categoriaId: true } });
+    const entregado = await crearEquipo({ categoriaId, marca: 'Xiaomi', modelo: `Entregado ${nuevo()}`, estado: 'asignado', empleadoActualId: ids.otraPersona });
+    const chip = await crearLinea(datos({ numero: nuevo(), tipoChipId: fisico }));
+    const asignada = await reasignarLinea(chip.id, reasignacionSchema.parse({ destino: 'telefono', activoId: entregado.id }));
+    expect(asignada).toMatchObject({ activoId: entregado.id, empleadoId: null });
+    expect((await fichaLinea(chip.id)).tenencias[0]).toMatchObject({ activoId: entregado.id, empleadoId: ids.otraPersona });
+
+    // Ya con línea, ese celular no recibe otra.
+    const segunda = await crearLinea(datos({ numero: nuevo(), tipoChipId: fisico }));
+    await expect(reasignarLinea(segunda.id, reasignacionSchema.parse({ destino: 'telefono', activoId: entregado.id }))).rejects.toMatchObject({
+      details: [{ field: 'activoId', message: expect.stringContaining('ya tiene una línea') }],
+    });
+
+    const lineasTest = [chip.id, segunda.id];
+    await prisma.auditLog.deleteMany({ where: { entidadId: { in: lineasTest } } });
+    await prisma.lineaHistorial.deleteMany({ where: { lineaId: { in: lineasTest } } });
+    await prisma.lineaTelefonica.deleteMany({ where: { id: { in: lineasTest } } });
+    await prisma.asset.delete({ where: { id: entregado.id } });
+  });
+
+  test('cambio de equipo a eSIM con su misma línea: el chip del celular devuelto pasa a eSIM y queda con la persona (SPEC 2.166)', async () => {
+    const { categoriaId } = await prisma.asset.findUniqueOrThrow({ where: { id: ids.libre! }, select: { categoriaId: true } });
+    const devuelto = await crearEquipo({ categoriaId, marca: 'Xiaomi', modelo: `Devuelto ${nuevo()}`, estado: 'disponible' });
+    const chip = await prisma.lineaTelefonica.create({ data: { numero: nuevo(), estadoId: activa, tipoChipId: fisico, activoId: devuelto.id } });
+    await prisma.lineaTenencia.create({ data: { lineaId: chip.id, activoId: devuelto.id, desde: new Date(Date.now() - 60_000), origen: 'alta' } });
+
+    await prisma.$transaction((tx) =>
+      convertirLineaAEsimEnSolicitud(tx, { activoId: devuelto.id, empleadoId: ids.empleado!, detalle: 'Cambio de equipo - T8', usuario: 'jsoto' })
+    );
+    const linea = await prisma.lineaTelefonica.findUniqueOrThrow({ where: { id: chip.id }, include: { tipoChip: true } });
+    expect(linea).toMatchObject({ numero: chip.numero, activoId: null, empleadoId: ids.empleado, tipoChip: { sinCelular: true } });
+    const ficha = await fichaLinea(chip.id);
+    expect(ficha.tenencias[0]).toMatchObject({ origen: 'reasignacion', empleadoId: ids.empleado, detalle: 'Cambio de equipo - T8' });
+    expect(ficha.historial.map((e) => e.descripcion)).toEqual(expect.arrayContaining([expect.stringContaining('tipo de chip')]));
+
+    // Un celular sin línea no tiene qué convertir.
+    await expect(
+      prisma.$transaction((tx) => convertirLineaAEsimEnSolicitud(tx, { activoId: devuelto.id, empleadoId: ids.empleado!, detalle: 'x' }))
+    ).rejects.toMatchObject({ details: [{ field: 'convertirLineaEsim', message: expect.stringContaining('no tiene línea') }] });
+
+    await prisma.auditLog.deleteMany({ where: { entidadId: chip.id } });
+    await prisma.lineaHistorial.deleteMany({ where: { lineaId: chip.id } });
+    await prisma.lineaTelefonica.delete({ where: { id: chip.id } });
+    await prisma.asset.delete({ where: { id: devuelto.id } });
   });
 
   test('onboarding con eSIM: la eSIM queda con la persona y un chip físico se rechaza (SPEC 2.143)', async () => {

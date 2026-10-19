@@ -3,7 +3,19 @@
  */
 // Editar y eliminar un equipo (PUT y DELETE /api/activos/[id]), ahora en el
 // servicio de Activos (SPEC 2.118).
+// Opcion de catalogo encontrada por su nombre (SPEC 2.168): su id es "<tabla>-<nombre>".
+const catalogo = (tabla: string) => ({
+  findFirst: jest.fn(({ where }: { where: { nombre: { equals: string } } }) => ({
+    id: `${tabla}-${where.nombre.equals}`,
+    nombre: where.nombre.equals,
+    activo: true,
+  })),
+});
 const mockDb = {
+  marca: catalogo('marca'),
+  sistemaOperativo: catalogo('so'),
+  antivirus: catalogo('antivirus'),
+  licenciaMicrosoft365: catalogo('licencia'),
   asset: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
@@ -67,7 +79,7 @@ describe('editarActivo: valor (SPEC 2.124)', () => {
     const r = await editarActivo('a1', { marca: 'HP' }, 'yo');
     expect(mockDb.assetHistory.create).not.toHaveBeenCalled();
     expect(mockDb.asset.update.mock.calls[1][0].data).not.toHaveProperty('valor');
-    expect(r).toMatchObject({ marca: 'HP' });
+    expect(r).toMatchObject({ marcaId: 'marca-HP' });
   });
 
   test('quitar el valor también queda en el historial', async () => {
@@ -81,7 +93,8 @@ describe('editarActivo', () => {
   test('guarda los cambios y anota en el historial los de especificaciones', async () => {
     mockDb.asset.findUnique.mockResolvedValueOnce(activo);
     const r = await editarActivo('a1', { procesador: 'i7', marca: 'HP' }, 'yo@test.cl');
-    expect(r).toMatchObject({ procesador: 'i7', marca: 'HP' });
+    // La marca se guarda por su llave (SPEC 2.168).
+    expect(r).toMatchObject({ procesador: 'i7', marcaId: 'marca-HP' });
     expect(mockDb.assetHistory.create).toHaveBeenCalledTimes(1);
   });
 

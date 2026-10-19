@@ -64,7 +64,7 @@ type Confirmacion = {
 type Asset = {
   id: string;
   numeroSerie: string | null;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   estado: string;
   categoria: {
@@ -712,7 +712,7 @@ export default function CompraDetallePage({ params }: { params: Promise<{ id: st
                   </span>
                   <div>
                     <p className="text-sm font-medium">
-                      {pa.asset.marca} {pa.asset.modelo}
+                      {pa.asset.marca.nombre} {pa.asset.modelo}
                     </p>
                     <p className="text-xs text-fg-subtle">
                       {pa.asset.categoria.nombre}

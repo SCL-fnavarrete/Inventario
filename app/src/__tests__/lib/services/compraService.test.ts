@@ -71,10 +71,12 @@ describe('exigirSinReparto', () => {
 const nuevaTx = () => ({
   // Categoria de computador: exige N° de serie (reglasIdentificacion).
   assetCategory: { findUnique: jest.fn().mockResolvedValue({ tipoFicha: 'computador' }) },
+  // La marca se toma del catalogo por su nombre (SPEC 2.168).
+  marca: { findFirst: jest.fn().mockResolvedValue({ id: 'm-dell', nombre: 'Dell', activo: true }) },
   asset: {
     findUnique: jest.fn().mockResolvedValue(null),
     findFirst: jest.fn().mockResolvedValue(null),
-    create: jest.fn(({ data }) => Promise.resolve({ id: `a-${data.numeroSerie}`, ...data })),
+    create: jest.fn(({ data }) => Promise.resolve({ id: `a-${data.numeroSerie}`, ...data, marca: { nombre: 'Dell' } })),
     update: jest.fn(),
   },
   assetHistory: { create: jest.fn() },
@@ -93,9 +95,11 @@ describe('agregarEquiposNuevos', () => {
       [{ categoriaId: 'cat', marca: 'Dell', modelo: 'X', numeroSerie: 'S1', condicion: 'nuevo' }],
       'admin@x'
     );
-    expect(tx.asset.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ estado: 'por_repartir', sedeId: 'stgo', fechaCompra: compra.fechaFactura }),
-    });
+    expect(tx.asset.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ estado: 'por_repartir', sedeId: 'stgo', fechaCompra: compra.fechaFactura, marcaId: 'm-dell' }),
+      })
+    );
     expect(tx.purchaseAsset.create).toHaveBeenCalledWith({
       data: { purchaseId: 'c1', assetId: 'a-S1', llegoConCompra: true },
     });

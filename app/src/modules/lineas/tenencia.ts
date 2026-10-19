@@ -3,6 +3,7 @@ import { prisma } from '@/shared/prisma';
 import { ConflictError, errorDeCampo } from '@/shared/errores';
 import type { DatosReasignacion } from '@/modules/lineas/validaciones';
 import { registrarMovimiento } from '@/modules/lineas/historial';
+import { NOMBRE } from '@/modules/activos';
 
 /**
  * Tenencia de las lineas (SPEC 2.131): cada tramo de tiempo en que una linea
@@ -56,17 +57,38 @@ export async function exigirLineaDisponible(tx: Tx, l: { activoId: string | null
   if (await personaDe(tx, l)) throw new ConflictError(LINEA_ASIGNADA);
 }
 
-/** Un celular para una linea: del inventario, vigente y sin persona (la recibe con una solicitud). */
-export async function exigirCelularDisponible(tx: Pick<Tx, 'asset'>, activoId: string) {
+/**
+ * Un celular para una linea (SPEC 2.164): del inventario, vigente y sin otra
+ * linea vigente; con o sin persona (si la tiene, la persona pasa a usar la linea).
+ * `lineaId` es la que se asigna: no cuenta como "otra". Dentro de una transaccion
+ * bloquea el celular hasta el final: dos lineas a la vez no caben en el mismo.
+ */
+export async function exigirCelularDisponible(tx: Tx, activoId: string, lineaId?: string) {
+  await tx.$queryRaw`SELECT id FROM assets WHERE id = ${activoId} FOR UPDATE`;
   const telefono = await tx.asset.findFirst({
     where: { id: activoId, deletedAt: null },
-    select: { estado: true, empleadoActualId: true, categoria: { select: { tipoFicha: true } } },
+    select: {
+      estado: true,
+      categoria: { select: { tipoFicha: true } },
+      lineas: { where: { estado: { deBaja: false }, ...(lineaId && { id: { not: lineaId } }) }, select: { id: true }, take: 1 },
+    },
   });
   if (telefono?.categoria.tipoFicha !== 'celular') throw errorDeCampo('activoId', 'Elige un celular del inventario');
   if (telefono.estado === 'baja') throw errorDeCampo('activoId', 'Ese celular está de baja');
-  if (telefono.empleadoActualId) {
-    throw errorDeCampo('activoId', 'Ese celular lo tiene una persona: elige uno sin asignar. La persona recibe la línea cuando una solicitud le entrega el celular.');
-  }
+  if (telefono.lineas.length) throw errorDeCampo('activoId', 'Ese celular ya tiene una línea: elige uno sin línea');
+}
+
+/**
+ * Sede donde queda un chip que pasa a disponible (SPEC 2.165): la del celular o
+ * la persona donde estaba; si no tenian, la que ya tenia la linea.
+ */
+export async function sedeAlLiberar(tx: Tx, l: { activoId: string | null; empleadoId: string | null; sedeId: string | null }) {
+  const donde = l.activoId
+    ? await tx.asset.findUnique({ where: { id: l.activoId }, select: { sedeId: true } })
+    : l.empleadoId
+      ? await tx.employee.findUnique({ where: { id: l.empleadoId }, select: { sedeId: true } })
+      : null;
+  return donde?.sedeId ?? l.sedeId;
 }
 
 /**
@@ -77,10 +99,11 @@ export async function exigirCelularDisponible(tx: Pick<Tx, 'asset'>, activoId: s
 export async function liberarEsimDePersona(tx: Tx, empleadoId: string, c: { usuario?: string | null; detalle?: string | null } = {}) {
   const lineas = await tx.lineaTelefonica.findMany({
     where: { empleadoId, activoId: null, estado: { deBaja: false } },
-    select: { id: true },
+    select: { id: true, activoId: true, empleadoId: true, sedeId: true },
   });
   for (const l of lineas) {
-    await tx.lineaTelefonica.update({ where: { id: l.id }, data: { empleadoId: null } });
+    // Queda disponible en la sede de la persona (SPEC 2.165).
+    await tx.lineaTelefonica.update({ where: { id: l.id }, data: { empleadoId: null, sedeId: await sedeAlLiberar(tx, l) } });
     await cerrarYAbrir(
       tx,
       l.id,
@@ -208,9 +231,9 @@ export async function alCambiarTenedorDelTelefono(
  * telefono de la empresa (la persona sale de el), con una persona (eSIM o
  * telefono personal) o sin asignar.
  */
-export async function destinoDeReasignacion(tx: Tx, d: DatosReasignacion): Promise<Ubicacion> {
+export async function destinoDeReasignacion(tx: Tx, d: DatosReasignacion, lineaId?: string): Promise<Ubicacion> {
   if (d.destino === 'telefono') {
-    await exigirCelularDisponible(tx, d.activoId!);
+    await exigirCelularDisponible(tx, d.activoId!, lineaId);
     return { activoId: d.activoId!, empleadoId: null };
   }
   if (d.destino === 'persona') {
@@ -237,7 +260,7 @@ export function exigirCambio(antes: Ubicacion, despues: Ubicacion) {
 }
 
 const DETALLE = {
-  activo: { select: { id: true, marca: true, modelo: true, imei: true } },
+  activo: { select: { id: true, marca: NOMBRE, modelo: true, imei: true } },
   empleado: { select: { id: true, nombres: true, apellidoPaterno: true, rut: true } },
   motivo: { select: { nombre: true } },
 } satisfies Prisma.LineaTenenciaInclude;

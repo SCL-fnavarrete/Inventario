@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import type { CondicionCargador } from '@/modules/activos';
 import { ConflictError, NotFoundError } from '@/shared/errores';
 import { formatearClp } from '@/shared/utilidades/moneda';
-import { etiquetaEstadoActivo, etiquetaEstadoDevolucion } from '@/modules/activos';
+import { etiquetaEstadoActivo, etiquetaEstadoDevolucion, CON_CATALOGOS } from '@/modules/activos';
 import { cambiarEstado } from '@/modules/activos/servidor';
 import { cancelarAbiertasPorBaja, motivoParaBaja } from '@/modules/mantenciones/servidor';
 
@@ -141,7 +141,7 @@ export async function executeAssignment(
       }),
     },
     include: {
-      asset: { include: { categoria: true } },
+      asset: { include: { ...CON_CATALOGOS, categoria: true } },
       employee: true,
     },
   });
@@ -196,7 +196,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
         }),
       },
       include: {
-        asset: { include: { categoria: true } },
+        asset: { include: { ...CON_CATALOGOS, categoria: true } },
         employee: true,
       },
     });
@@ -263,7 +263,7 @@ export async function executeReturn(tx: PrismaTx, params: ExecuteReturnParams) {
       }),
     },
     include: {
-      asset: { include: { categoria: true } },
+      asset: { include: { ...CON_CATALOGOS, categoria: true } },
       employee: true,
     },
   });

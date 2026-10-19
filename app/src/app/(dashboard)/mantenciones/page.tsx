@@ -51,7 +51,7 @@ type Maintenance = {
   asset: {
     id: string;
     numeroSerie: string | null;
-    marca: string;
+    marca: { nombre: string };
     modelo: string;
     estado: string;
     empleadoActualId: string | null;
@@ -438,7 +438,7 @@ function Mantenciones() {
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-fg">
-                    {m.asset.marca} {m.asset.modelo}
+                    {m.asset.marca.nombre} {m.asset.modelo}
                   </span>
                   <span className="block truncate text-xs text-fg-subtle">
                     {m.tipo.nombre} · {identificadorActivo(m.asset, "Sin serie")}
@@ -467,7 +467,7 @@ function Mantenciones() {
                 </span>
                 <div>
                   <p className="text-sm font-medium group-hover:text-primary-700">
-                    {m.asset.marca} {m.asset.modelo}
+                    {m.asset.marca.nombre} {m.asset.modelo}
                   </p>
                   <p className="text-xs text-fg-subtle">{identificadorActivo(m.asset, "Sin serie")}</p>
                 </div>

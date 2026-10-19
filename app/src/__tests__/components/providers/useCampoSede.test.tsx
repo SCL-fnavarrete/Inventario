@@ -72,12 +72,12 @@ describe("useSedePorDefecto", () => {
     expect(result.current.lista).toBe(false);
   });
 
-  // SPEC 2.117: la sede no se impone. La primera vez parte en la del
-  // usuario; despues manda lo que el haya elegido.
-  test("un tecnico parte en su sede la primera vez", () => {
+  // SPEC 2.117 y 2.161: la sede no se impone. Sin nada elegido parte en
+  // todas, aunque el usuario tenga sede; despues manda lo que el haya elegido.
+  test("un tecnico parte en todas las sedes, no en la suya", () => {
     mockSesion = sesion("tecnico", "sede-tecnico");
     const { result } = renderHook(() => useSedeSeleccionada(), { wrapper: SedeSeleccionadaProvider });
-    expect(result.current.sedeSeleccionada).toBe("sede-tecnico");
+    expect(result.current.sedeSeleccionada).toBeNull();
   });
 
   test("un tecnico puede elegir otra sede o todas, y se respeta", () => {

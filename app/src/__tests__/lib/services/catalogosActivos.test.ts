@@ -12,6 +12,7 @@ jest.mock('@/shared/prisma', () => {
     delete: jest.fn(),
   });
   const prisma = {
+    marca: tabla(),
     antivirus: tabla(),
     sistemaOperativo: tabla(),
     licenciaMicrosoft365: tabla(),
@@ -34,7 +35,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/shared/prisma';
 import { requirePermission } from '@/shared/auth/guard';
 import { auditLogService } from '@/shared/auditoria';
-import { crearOpcion, eliminarOpcion, listarOpciones, renombrarOpcion } from '@/modules/activos/catalogos';
+import { crearOpcion, eliminarOpcion, idsDeCatalogos, listarOpciones, renombrarOpcion } from '@/modules/activos/catalogos';
 import { categoriaSchema } from '@/modules/activos/validacionesCategoria';
 import { DELETE as eliminarCategoria, PUT as editarCategoria } from '@/app/api/categorias/[id]/route';
 import { reglasIdentificacion } from '@/modules/activos/servicio';
@@ -54,20 +55,22 @@ beforeEach(() => {
 });
 
 describe('opciones de catálogo (una sola lógica para los tres)', () => {
-  test('cada catálogo usa su propia tabla y su campo del activo', async () => {
+  test('cada catálogo usa su propia tabla y cuenta los equipos por su llave (SPEC 2.168)', async () => {
     db.licenciaMicrosoft365.findMany.mockResolvedValue([{ id: '1', nombre: 'E3', activo: true }]);
-    db.asset.groupBy.mockResolvedValue([{ tipoLicenciaMicrosoft365: 'E3', _count: 4 }]);
+    db.asset.groupBy.mockResolvedValue([{ licenciaMicrosoft365Id: '1', _count: 4 }]);
     expect(await listarOpciones('licencias-m365', { conUso: true })).toEqual([
       { id: '1', nombre: 'E3', activo: true, enUso: 4, enSede: 4 },
     ]);
-    expect(db.asset.groupBy).toHaveBeenCalledWith(expect.objectContaining({ by: ['tipoLicenciaMicrosoft365'] }));
+    expect(db.asset.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ by: ['licenciaMicrosoft365Id'], where: expect.objectContaining({ licenciaMicrosoft365Id: { in: ['1'] } }) })
+    );
   });
 
   test('enUso cuenta todas las sedes; enSede, solo los vigentes de la sede del navbar', async () => {
     db.antivirus.findMany.mockResolvedValue([{ id: '1', nombre: 'Defender', activo: true }]);
     db.asset.groupBy
-      .mockResolvedValueOnce([{ antivirus: 'Defender', _count: 9 }])
-      .mockResolvedValueOnce([{ antivirus: 'Defender', _count: 2 }]);
+      .mockResolvedValueOnce([{ antivirusId: '1', _count: 9 }])
+      .mockResolvedValueOnce([{ antivirusId: '1', _count: 2 }]);
     const [opcion] = await listarOpciones('antivirus', { conUso: true, whereSede: { sedeId: 's1' } });
     expect(opcion).toMatchObject({ enUso: 9, enSede: 2 });
     expect(db.asset.groupBy).toHaveBeenLastCalledWith(
@@ -102,18 +105,16 @@ describe('opciones de catálogo (una sola lógica para los tres)', () => {
     });
   });
 
-  test('renombrar corrige los activos y lo deja en la auditoría', async () => {
+  test('renombrar no toca los equipos (la referencian por su llave) y queda en la auditoría', async () => {
     db.sistemaOperativo.findUnique.mockResolvedValue({ id: 's1', nombre: 'Win 10' });
     db.sistemaOperativo.findFirst.mockResolvedValue(null);
     db.sistemaOperativo.update.mockResolvedValue({ id: 's1', nombre: 'Windows 10' });
-    db.asset.updateMany.mockResolvedValue({ count: 7 });
+    db.asset.count.mockResolvedValue(7);
     await renombrarOpcion('sistemas-operativos', 's1', 'Windows 10', 'yo@x.cl');
-    expect(db.asset.updateMany).toHaveBeenCalledWith({
-      where: { sistemaOperativo: 'Win 10' },
-      data: { sistemaOperativo: 'Windows 10' },
-    });
+    expect(db.asset.updateMany).not.toHaveBeenCalled();
+    expect(db.asset.count).toHaveBeenCalledWith({ where: { sistemaOperativoId: 's1' } });
     expect(audit.registrarActualizacion.mock.calls[0][2]).toBe(
-      'Sistema operativo: opción renombrada "Win 10" → "Windows 10" (7 activo(s) corregidos)'
+      'Sistema operativo: opción renombrada "Win 10" → "Windows 10" (la usan 7 activo(s))'
     );
   });
 
@@ -132,8 +133,42 @@ describe('opciones de catálogo (una sola lógica para los tres)', () => {
     db.asset.count.mockResolvedValue(3);
     db.antivirus.delete.mockClear();
     await expect(eliminarOpcion('antivirus', 'a2', 'yo@x.cl')).resolves.toEqual({ desactivado: true });
+    expect(db.asset.count).toHaveBeenCalledWith({ where: { antivirusId: 'a2' } });
     expect(db.antivirus.delete).not.toHaveBeenCalled();
     expect(db.antivirus.update).toHaveBeenCalledWith({ where: { id: 'a2' }, data: { activo: false } });
+  });
+});
+
+// El unico paso por el que un equipo toma una opcion de catalogo (SPEC 2.168).
+describe('idsDeCatalogos: del nombre a la llave', () => {
+  test('busca sin importar mayúsculas; vacío deja sin valor y lo que no viene no se toca', async () => {
+    db.marca.findFirst.mockResolvedValue({ id: 'm1', nombre: 'Dell', activo: true });
+    db.antivirus.findFirst.mockResolvedValue({ id: 'a1', nombre: 'Defender', activo: true });
+    expect(await idsDeCatalogos(prisma as never, { marca: 'dell', antivirus: 'DEFENDER', sistemaOperativo: '' })).toEqual({
+      marcaId: 'm1',
+      antivirusId: 'a1',
+      sistemaOperativoId: null,
+    });
+    expect(db.marca.findFirst).toHaveBeenCalledWith({ where: { nombre: { equals: 'dell', mode: 'insensitive' } } });
+    expect(db.licenciaMicrosoft365.findFirst).not.toHaveBeenCalled();
+  });
+
+  test('una opción que no está en el catálogo es un error en su campo', async () => {
+    db.marca.findFirst.mockResolvedValue(null);
+    await expect(idsDeCatalogos(prisma as never, { marca: 'Patito' })).rejects.toMatchObject({
+      status: 409,
+      details: [{ field: 'marca', message: expect.stringContaining('no está en su catálogo') }],
+    });
+  });
+
+  test('una desactivada solo la conserva el equipo que ya la tiene', async () => {
+    db.antivirus.findFirst.mockResolvedValue({ id: 'a9', nombre: 'Viejo', activo: false });
+    await expect(idsDeCatalogos(prisma as never, { antivirus: 'Viejo' })).rejects.toMatchObject({
+      details: [{ field: 'antivirus', message: expect.stringContaining('desactivada') }],
+    });
+    expect(await idsDeCatalogos(prisma as never, { antivirus: 'Viejo' }, { actual: { antivirusId: 'a9' } })).toEqual({ antivirusId: 'a9' });
+    // La importacion trae datos historicos: la acepta igual.
+    expect(await idsDeCatalogos(prisma as never, { antivirus: 'Viejo' }, { aceptarDesactivadas: true })).toEqual({ antivirusId: 'a9' });
   });
 });
 

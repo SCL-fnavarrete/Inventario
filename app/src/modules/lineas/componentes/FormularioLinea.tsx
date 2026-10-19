@@ -43,6 +43,7 @@ const ETIQUETAS = {
   operadorId: 'Operador',
   estadoId: 'Estado',
   vigenteDesde: 'Rige desde',
+  sedeId: 'Sede',
 };
 
 const FORM_INICIAL = {
@@ -53,6 +54,7 @@ const FORM_INICIAL = {
   operadorId: '',
   activoId: '',
   empleadoId: '',
+  sedeId: '',
   observaciones: '',
 };
 type Form = typeof FORM_INICIAL;
@@ -239,6 +241,29 @@ export function FormularioLinea({
             error={errores.vigenteDesde}
             ayuda={estadoElegido?.deBaja ? 'Será su fecha de baja.' : undefined}
           />
+        )}
+        {nueva && (
+          <CampoFormulario
+            label="Sede"
+            error={errores.sedeId}
+            htmlFor={`${idForm}-sede`}
+            ayuda="Opcional: dónde se guarda el chip mientras no está en un teléfono."
+          >
+            <select
+              id={`${idForm}-sede`}
+              value={form.sedeId}
+              onChange={(e) => cambiar('sedeId', e.target.value)}
+              aria-invalid={!!errores.sedeId}
+              className={claseInput(errores.sedeId)}
+            >
+              <option value="">Sin sede</option>
+              {opciones.sedes.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre}
+                </option>
+              ))}
+            </select>
+          </CampoFormulario>
         )}
         <CampoFormulario
           label="Observaciones"

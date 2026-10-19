@@ -65,7 +65,8 @@ const ESCRITURA = /\b(?:prisma|tx)\.(\w+)\.(?:create|createMany|update|updateMan
 function archivos(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
     const ruta = path.join(dir, e.name);
-    if (e.isDirectory()) return e.name === '__tests__' ? [] : archivos(ruta);
+    // Los tests y sus ayudas (test-utils) preparan datos en la base: no son un modulo.
+    if (e.isDirectory()) return e.name === '__tests__' || e.name === 'test-utils' ? [] : archivos(ruta);
     return /\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name) ? [ruta] : [];
   });
 }

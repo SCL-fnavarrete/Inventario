@@ -5,7 +5,7 @@ import { Tag } from "lucide-react";
 import { textoDeFilas, type MarcaNueva } from "@/modules/importacion";
 import { parseApiError } from "@/shared/utilidades/apiErrors";
 import { Button } from "@/shared/ui/Button";
-import { claseInput } from "@/shared/ui/CampoFormulario";
+import { claseInput, enfocarPrimerError } from "@/shared/ui/CampoFormulario";
 
 /**
  * Las marcas del Excel que faltan en el catalogo (SPEC 2.133): se crean desde la
@@ -18,6 +18,8 @@ export function MarcasNuevas({ marcas, onCreadas, deshabilitado }: { marcas: Mar
   const [nombres, setNombres] = useState<Record<string, string>>({});
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState("");
+  // Marca que el servidor rechazo: su campo queda en rojo para corregirla.
+  const [fallida, setFallida] = useState("");
   if (marcas.length === 0) return null;
 
   const nombreDe = (m: MarcaNueva) => nombres[m.nombre] ?? m.nombre;
@@ -25,12 +27,15 @@ export function MarcasNuevas({ marcas, onCreadas, deshabilitado }: { marcas: Mar
   async function crear(lista: MarcaNueva[]) {
     setTrabajando(true);
     setError("");
+    setFallida("");
     let alguna = false;
     try {
       for (const m of lista) {
         const res = await fetch("/api/marcas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre: nombreDe(m) }) });
         if (!res.ok) {
           setError(`No se pudo crear "${nombreDe(m)}": ${(await parseApiError(res, "Error al crear la marca")).message}`);
+          setFallida(m.nombre);
+          enfocarPrimerError();
           break;
         }
         alguna = true;
@@ -62,8 +67,12 @@ export function MarcasNuevas({ marcas, onCreadas, deshabilitado }: { marcas: Mar
           <li key={m.nombre} className="flex flex-wrap items-center gap-2">
             <input
               value={nombreDe(m)}
-              onChange={(e) => setNombres((n) => ({ ...n, [m.nombre]: e.target.value }))}
-              className={`${claseInput()} max-w-xs`}
+              onChange={(e) => {
+                setNombres((n) => ({ ...n, [m.nombre]: e.target.value }));
+                if (fallida === m.nombre) setFallida("");
+              }}
+              aria-invalid={fallida === m.nombre}
+              className={`${claseInput(fallida === m.nombre ? error : undefined)} max-w-xs`}
               aria-label={`Nombre de la marca ${m.nombre}`}
               maxLength={100}
               disabled={trabajando}

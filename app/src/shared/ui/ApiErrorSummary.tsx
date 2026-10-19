@@ -2,6 +2,7 @@
 
 import { AlertCircle } from "lucide-react";
 import type { FieldErrors } from "@/shared/utilidades/apiErrors";
+import { EnlaceCampo } from "@/shared/ui/CampoFormulario";
 
 /**
  * Cartel de error de formulario. Si hay errores por campo (`fieldErrors`),
@@ -92,6 +93,7 @@ export function ApiErrorSummary({
 
   const etiquetas = { ...ETIQUETAS_BASE, ...fieldLabels };
   const entries = Object.entries(fieldErrors || {});
+  const nombres = entries.map(([field]) => etiquetaDe(field, etiquetas));
 
   return (
     // role="alert": el lector de pantalla anuncia el error apenas aparece
@@ -102,9 +104,10 @@ export function ApiErrorSummary({
         <div>
           <p className="font-medium text-red-700 mb-1">{error}</p>
           <ul className="list-disc list-inside space-y-0.5 text-sm text-red-700">
-            {entries.map(([field, msg]) => (
+            {/* Cada nombre lleva a su campo, marcado en rojo. */}
+            {entries.map(([field, msg], i) => (
               <li key={field}>
-                <span className="font-medium">{etiquetaDe(field, etiquetas)}:</span> {msg}
+                <EnlaceCampo nombres={nombres} indice={i} />: {msg}
               </li>
             ))}
           </ul>

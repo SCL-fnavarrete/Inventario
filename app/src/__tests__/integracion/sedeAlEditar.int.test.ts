@@ -8,6 +8,7 @@ import { randomUUID } from 'crypto';
 import { prisma } from '@/shared/prisma';
 import { editarActivo } from '@/modules/activos/servidor';
 import { resumenDashboard } from '@/modules/dashboard/servidor';
+import { crearEquipo } from '@/test-utils/catalogos';
 
 const hayBaseDePrueba = (process.env.DATABASE_URL ?? '').includes('_test');
 const describir = hayBaseDePrueba ? describe : describe.skip;
@@ -20,7 +21,7 @@ describir('sede de un equipo importado sin sede, en Postgres', () => {
     ids.sedeA = (await prisma.sede.create({ data: { codigo: `A${s}`, nombre: `Sede A ${s}` } })).id;
     ids.sedeB = (await prisma.sede.create({ data: { codigo: `B${s}`, nombre: `Sede B ${s}` } })).id;
     ids.categoria = (await prisma.assetCategory.create({ data: { nombre: `Mon ${s}` } })).id;
-    ids.activo = (await prisma.asset.create({ data: { categoriaId: ids.categoria, marca: 'Dell', modelo: 'P2422', numeroSerie: `SS-${s}`, estado: 'disponible' } })).id;
+    ids.activo = (await crearEquipo({ categoriaId: ids.categoria, marca: 'Dell', modelo: 'P2422', numeroSerie: `SS-${s}`, estado: 'disponible' })).id;
   });
 
   afterAll(async () => {

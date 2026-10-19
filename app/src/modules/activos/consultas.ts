@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { estadoActivoEnum } from '@/modules/activos/validaciones';
 import { filtroSede } from '@/shared/sedes/filtro';
 import { FILTROS_DATO, SIN_DATO, type FiltrosDato, type ParamFiltroDato } from '@/modules/activos/filtros';
+import { CAMPOS_CATALOGO, type CampoCatalogo } from '@/modules/activos/camposCatalogo';
 
 /**
  * Filtro de activos vigentes.
@@ -71,13 +72,13 @@ export function whereFiltrosActivos(f: FiltrosActivos): Prisma.AssetWhereInput {
   return where;
 }
 
-// Campo del activo de cada filtro por dato (el motivo de baja tiene su propia condicion, mas abajo).
-const CAMPO_FILTRO = {
+// Dato de catalogo de cada filtro (el motivo de baja tiene su propia condicion, mas abajo).
+const CAMPO_FILTRO: Record<'marca' | 'so' | 'antivirus' | 'licencia', CampoCatalogo> = {
   marca: 'marca',
   so: 'sistemaOperativo',
   antivirus: 'antivirus',
   licencia: 'tipoLicenciaMicrosoft365',
-} as const;
+};
 
 /** Condicion de un filtro por dato; SIN_DATO busca los que no lo tienen. */
 function condicionFiltroDato(param: ParamFiltroDato, valor: string): Prisma.AssetWhereInput {
@@ -102,8 +103,9 @@ function condicionFiltroDato(param: ParamFiltroDato, valor: string): Prisma.Asse
   }
   // Solo "Sin sede": la sede se elige en el navbar (SPEC 2.117).
   if (param === 'sede') return valor === SIN_DATO ? { sedeId: null } : { sedeId: valor };
-  const campo = CAMPO_FILTRO[param];
-  return valor === SIN_DATO ? { OR: [{ [campo]: null }, { [campo]: '' }] } : { [campo]: valor };
+  // El filtro trae el nombre de la opcion (legible en la URL); el equipo la referencia por su llave (SPEC 2.168).
+  const { relacion, llave } = CAMPOS_CATALOGO[CAMPO_FILTRO[param]];
+  return valor === SIN_DATO ? { [llave]: null } : { [relacion]: { nombre: valor } };
 }
 
 /** Filtros de la lista leidos de la URL: la lista, el Excel y las tarjetas leen lo mismo. */
@@ -141,7 +143,7 @@ export function busquedaActivo(palabra: string): Prisma.AssetWhereInput {
     OR: [
       { numeroSerie: c },
       { imei: c },
-      { marca: c },
+      { marca: { nombre: c } },
       { modelo: c },
       { nombreEquipo: c },
       // Numero de una linea del celular (SPEC 2.131), si lo escrito es un numero.

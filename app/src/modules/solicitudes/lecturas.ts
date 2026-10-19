@@ -13,6 +13,7 @@ import {
   devueltasDespues,
   paresDeCambio,
 } from '@/modules/solicitudes/consultasAsignaciones';
+import { CON_CATALOGOS } from '@/modules/activos';
 
 /**
  * Lecturas de Solicitudes contra la base (SPEC 3.2.2): la lista, las
@@ -156,7 +157,7 @@ export async function detalleSolicitud(id: string) {
     include: {
       employee: {
         include: {
-          assignments: { where: { activo: true }, include: { asset: { include: { categoria: true } } } },
+          assignments: { where: { activo: true }, include: { asset: { include: { ...CON_CATALOGOS, categoria: true } } } },
           // EPP entregado y aun no devuelto: para calificarlo desde el ticket
           // de offboarding, igual que los equipos.
           kitAssignments: { where: { estado: 'entregado', item: { categoria: 'epp' } }, include: { item: true } },

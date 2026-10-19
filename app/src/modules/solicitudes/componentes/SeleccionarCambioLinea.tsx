@@ -12,12 +12,12 @@ type LineaPersona = {
   id: string;
   numero: string;
   tipoChip: { nombre: string; sinCelular: boolean } | null;
-  activo: { id: string; marca: string; modelo: string } | null;
+  activo: { id: string; marca: { nombre: string }; modelo: string } | null;
 };
 
 type CelularDisponible = {
   id: string;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   numeroSerie: string | null;
   imei: string | null;
@@ -75,7 +75,7 @@ async function celularesDisponibles(sedeId?: string | null): Promise<CelularDisp
   return listas.flat();
 }
 
-const textoCelular = (c: CelularDisponible) => `${c.marca} ${c.modelo} · ${identificadorActivo(c, "s/serie")}`;
+const textoCelular = (c: CelularDisponible) => `${c.marca.nombre} ${c.modelo} · ${identificadorActivo(c, "s/serie")}`;
 
 /**
  * Lineas de la persona con una casilla cada una. Reporta las marcadas (aunque falten
@@ -199,7 +199,7 @@ export function SeleccionarCambioLinea({
               <span className="min-w-0 text-sm">
                 <span className="font-medium text-fg">Línea: {formatearNumero(l.numero)}</span>
                 <span className="block text-xs text-fg-subtle">
-                  {l.activo ? `En el celular ${l.activo.marca} ${l.activo.modelo}` : `${l.tipoChip?.nombre ?? "eSIM"} · con la persona`}
+                  {l.activo ? `En el celular ${l.activo.marca.nombre} ${l.activo.modelo}` : `${l.tipoChip?.nombre ?? "eSIM"} · con la persona`}
                 </span>
               </span>
             </label>
@@ -231,7 +231,7 @@ export function SeleccionarCambioLinea({
                         const elegido = opciones.find((c) => c.id === id);
                         actualizar(l.id, { newAssetId: id, newLineaId: "", celularConLinea: !!elegido?.lineas?.length });
                       }}
-                      textoDe={(c) => [c.marca, c.modelo, c.numeroSerie, c.imei, ...(c.lineas ?? []).map((x) => x.numero)]}
+                      textoDe={(c) => [c.marca.nombre, c.modelo, c.numeroSerie, c.imei, ...(c.lineas ?? []).map((x) => x.numero)]}
                       etiquetaElegida={textoCelular}
                       renderOpcion={(c) => (
                         <>

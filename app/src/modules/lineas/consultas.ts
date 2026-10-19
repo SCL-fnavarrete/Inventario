@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { SIN_DATO_LINEA, type FiltrosLineas } from '@/modules/lineas/filtros';
+import { NOMBRE } from '@/modules/activos';
 
 /**
  * Los filtros de Activos > Lineas como consulta (SPEC 2.131). La lista, las
@@ -33,10 +34,15 @@ const porId = (campo: 'tipoChipId' | 'operadorId', valor?: string): Prisma.Linea
 const porMotivoBaja = (valor?: string): Prisma.LineaTelefonicaWhereInput =>
   !valor ? {} : valor === SIN_DATO_LINEA ? { estado: { deBaja: true }, motivoBajaId: null } : { motivoBajaId: valor };
 
-/** Sede del navbar: la linea no tiene sede propia; es la de su celular o, sin celular, la de su persona. */
+/**
+ * Sede del navbar: la de su celular; sin celular, la de su persona; disponible
+ * (sin celular ni persona), la sede donde se guarda el chip (SPEC 2.165).
+ */
 export function deSede(sedeId?: string): Prisma.LineaTelefonicaWhereInput {
   if (!sedeId) return {};
-  return { OR: [{ activo: { sedeId } }, { activoId: null, empleado: { sedeId } }] };
+  return {
+    OR: [{ activo: { sedeId } }, { activoId: null, empleado: { sedeId } }, { activoId: null, empleadoId: null, sedeId }],
+  };
 }
 
 /** "+56 9 1234 5678" busca por numero; un texto, por persona o celular (operador y tipo de chip tienen su filtro). */
@@ -85,7 +91,7 @@ export function lineasDePersona(empleadoId: string) {
       id: true,
       numero: true,
       tipoChip: { select: { nombre: true, sinCelular: true } },
-      activo: { select: { id: true, marca: true, modelo: true } },
+      activo: { select: { id: true, marca: NOMBRE, modelo: true } },
     },
     orderBy: { numero: 'asc' },
   });
@@ -96,7 +102,7 @@ const PARA_SOLICITUD = {
   numero: true,
   tipoChip: { select: { nombre: true, sinCelular: true } },
   operador: { select: { nombre: true } },
-  activo: { select: { id: true, marca: true, modelo: true } },
+  activo: { select: { id: true, marca: NOMBRE, modelo: true } },
 } satisfies Prisma.LineaTelefonicaSelect;
 
 /** Las lineas con esos ids, en el mismo orden (las de un Cambio de equipo, SPEC 2.143). */

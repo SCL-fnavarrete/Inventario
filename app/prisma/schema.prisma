@@ -162,15 +162,16 @@ model Employee {
   @@map("employees")
 }
 
-// Catalogos de opciones para los campos de software del activo (antes
-// texto libre): se administran en Configuracion igual que AssetCategory.
-// El activo sigue guardando el nombre como texto plano; el catalogo solo
-// alimenta el selector y evita duplicados por typo o mayusculas.
+// Catalogos de opciones para los campos de software del activo: se
+// administran en Configuracion igual que AssetCategory. El activo los
+// referencia por su llave (SPEC 2.168): renombrar una opcion la cambia en
+// todos los equipos, y una en uso no se borra (se desactiva).
 model SistemaOperativo {
   id        String   @id @default(uuid())
   nombre    String   @unique
   activo    Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
+  assets    Asset[]
 
   @@map("sistemas_operativos")
 }
@@ -180,6 +181,7 @@ model Antivirus {
   nombre    String   @unique
   activo    Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
+  assets    Asset[]
 
   @@map("antivirus_opciones")
 }
@@ -189,6 +191,7 @@ model LicenciaMicrosoft365 {
   nombre    String   @unique
   activo    Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
+  assets    Asset[]
 
   @@map("licencias_microsoft365")
 }
@@ -211,13 +214,13 @@ model MotivoBaja {
   @@map("motivos_baja")
 }
 
-// Catalogo de marcas (SPEC 2.116.4). El activo guarda la marca como texto;
-// esta tabla solo decide que nombres se pueden elegir.
+// Catalogo de marcas (SPEC 2.116.4). El activo la referencia por su llave (SPEC 2.168).
 model Marca {
   id        String   @id @default(uuid())
   nombre    String   @unique
   activo    Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
+  assets    Asset[]
 
   @@map("marcas")
 }
@@ -251,78 +254,85 @@ enum TipoFicha {
 }
 
 model Asset {
-  id                       String              @id @default(uuid())
-  categoriaId              String              @map("categoria_id")
-  numeroSerie              String?             @unique @map("numero_serie")
+  id                     String                @id @default(uuid())
+  categoriaId            String                @map("categoria_id")
+  numeroSerie            String?               @unique @map("numero_serie")
   // Identifica al celular como unico, igual que numeroSerie a los demas
   // equipos (SPEC 2.112.7). Solo digitos: 15, con digito verificador.
-  imei                     String?             @unique
-  marca                    String
-  modelo                   String
-  procesador               String?
-  discoDuro                String?             @map("disco_duro")
-  ram                      String?
-  pulgadas                 Decimal?            @db.Decimal(4, 1)
-  sistemaOperativo         String?             @map("sistema_operativo")
-  tieneCargador            Boolean             @default(false) @map("tiene_cargador")
+  imei                   String?               @unique
+  marcaId                String                @map("marca_id")
+  marca                  Marca                 @relation(fields: [marcaId], references: [id], onDelete: Restrict)
+  modelo                 String
+  procesador             String?
+  discoDuro              String?               @map("disco_duro")
+  ram                    String?
+  pulgadas               Decimal?              @db.Decimal(4, 1)
+  sistemaOperativoId     String?               @map("sistema_operativo_id")
+  sistemaOperativo       SistemaOperativo?     @relation(fields: [sistemaOperativoId], references: [id], onDelete: Restrict)
+  tieneCargador          Boolean               @default(false) @map("tiene_cargador")
   // Conectividad compartida por los perifericos simples (Mouse, Teclado,
   // Webcam, Audifonos) -- un solo campo en vez de cuatro secciones casi
   // idénticas para ese mismo dato.
-  conectividad             String?
-  estado                   EstadoActivo        @default(disponible)
-  condicion                CondicionActivo     @default(nuevo)
-  microsoft365             Boolean             @default(false) @map("microsoft_365")
-  // Nombre del plan/licencia (ej. "Premium", "E3"), complementa el
-  // booleano de arriba.
-  tipoLicenciaMicrosoft365 String?             @map("tipo_licencia_microsoft365")
-  intuneEnrolled           Boolean             @default(false) @map("intune_enrolled")
-  listaDistribucion        String?             @map("lista_distribucion")
-  antivirus                String? // Software antivirus instalado
-  incidencia               String? // Incidencias reportadas (robo, falla, etc)
+  conectividad           String?
+  estado                 EstadoActivo          @default(disponible)
+  condicion              CondicionActivo       @default(nuevo)
+  microsoft365           Boolean               @default(false) @map("microsoft_365")
+  // Plan/licencia (ej. "Premium", "E3"), complementa el booleano de arriba.
+  licenciaMicrosoft365Id String?               @map("licencia_microsoft365_id")
+  licenciaMicrosoft365   LicenciaMicrosoft365? @relation(fields: [licenciaMicrosoft365Id], references: [id], onDelete: Restrict)
+  intuneEnrolled         Boolean               @default(false) @map("intune_enrolled")
+  listaDistribucion      String?               @map("lista_distribucion")
+  // Software antivirus instalado.
+  antivirusId            String?               @map("antivirus_id")
+  antivirus              Antivirus?            @relation(fields: [antivirusId], references: [id], onDelete: Restrict)
+  incidencia             String? // Incidencias reportadas (robo, falla, etc)
   // Cuanto vale el equipo, en pesos chilenos (SPEC 2.124). Opcional y se
   // actualiza a mano; cada cambio queda en el historial.
-  valor                    Int?
-  fechaCompra              DateTime?           @map("fecha_compra")
-  fechaGarantiaFin         DateTime?           @map("fecha_garantia_fin")
-  fechaBaja                DateTime?           @map("fecha_baja")
+  valor                  Int?
+  fechaCompra            DateTime?             @map("fecha_compra")
+  fechaGarantiaFin       DateTime?             @map("fecha_garantia_fin")
+  fechaBaja              DateTime?             @map("fecha_baja")
   // Por que se dio de baja (SPEC 2.140): el de la lista (`motivoBajaId`, para
   // contar bajas por motivo) y el texto que se muestra ("Robo: detalle").
-  motivoBajaId             String?             @map("motivo_baja_id")
-  motivoBaja               String?             @map("motivo_baja")
-  motivoBajaOpcion         MotivoBaja?         @relation(fields: [motivoBajaId], references: [id], onDelete: Restrict)
+  motivoBajaId           String?               @map("motivo_baja_id")
+  motivoBaja             String?               @map("motivo_baja")
+  motivoBajaOpcion       MotivoBaja?           @relation(fields: [motivoBajaId], references: [id], onDelete: Restrict)
   // Retira el activo de los listados sin borrar la fila ni su historial
   // (por ejemplo, duplicados de importacion). No reemplaza al estado
   // `baja`, que es un estado del ciclo de vida del equipo.
-  deletedAt                DateTime?           @map("deleted_at")
-  observaciones            String?
-  createdAt                DateTime            @default(now()) @map("created_at")
-  updatedAt                DateTime            @updatedAt @map("updated_at")
-  empleadoActualId         String?             @map("empleado_actual_id")
+  deletedAt              DateTime?             @map("deleted_at")
+  observaciones          String?
+  createdAt              DateTime              @default(now()) @map("created_at")
+  updatedAt              DateTime              @updatedAt @map("updated_at")
+  empleadoActualId       String?               @map("empleado_actual_id")
   // Nombre/etiqueta interna que TI o RRHH le puso al equipo (ej.
   // "SCL-BNEIRAC"), distinto de marca/modelo.
-  nombreEquipo             String?             @map("nombre_equipo")
+  nombreEquipo           String?               @map("nombre_equipo")
   // Sede donde esta almacenado FISICAMENTE el activo. Independiente de la
   // sede/ubicacion del empleado asignado -- no cambia por una asignacion o
   // devolucion, solo por una guia de despacho de tipo `traslado` ya
   // recibida.
-  sedeId                   String?             @map("sede_id")
-  history                  AssetHistory[]
-  categoria                AssetCategory       @relation(fields: [categoriaId], references: [id])
-  empleadoActual           Employee?           @relation("EmpleadoActual", fields: [empleadoActualId], references: [id])
-  sede                     Sede?               @relation(fields: [sedeId], references: [id])
-  assignments              Assignment[]
-  dispatchItems            DispatchGuideItem[]
-  maintenances             Maintenance[]
-  purchaseAssets           PurchaseAsset[]
-  lineas                   LineaTelefonica[]
-  tenenciasLinea           LineaTenencia[]
+  sedeId                 String?               @map("sede_id")
+  history                AssetHistory[]
+  categoria              AssetCategory         @relation(fields: [categoriaId], references: [id])
+  empleadoActual         Employee?             @relation("EmpleadoActual", fields: [empleadoActualId], references: [id])
+  sede                   Sede?                 @relation(fields: [sedeId], references: [id])
+  assignments            Assignment[]
+  dispatchItems          DispatchGuideItem[]
+  maintenances           Maintenance[]
+  purchaseAssets         PurchaseAsset[]
+  lineas                 LineaTelefonica[]
+  tenenciasLinea         LineaTenencia[]
 
   @@index([estado])
   @@index([categoriaId])
   @@index([empleadoActualId])
   @@index([sedeId])
   @@index([motivoBajaId])
-  @@index([marca])
+  @@index([marcaId])
+  @@index([sistemaOperativoId])
+  @@index([antivirusId])
+  @@index([licenciaMicrosoft365Id])
   @@index([createdAt])
   @@index([deletedAt])
   @@map("assets")
@@ -331,39 +341,44 @@ model Asset {
 // Linea telefonica contratada (SPEC 2.131). Es un registro propio: se asocia
 // a un celular y a una persona, pero no depende de ninguno de los dos.
 model LineaTelefonica {
-  id            String          @id @default(uuid())
+  id               String           @id @default(uuid())
   // Solo digitos, con el 56 delante (ej. 56912345678).
-  numero        String          @unique
-  estadoId      String          @map("estado_id")
+  numero           String           @unique
+  estadoId         String           @map("estado_id")
   // Fecha en que paso a un estado que cuenta como baja.
-  fechaBaja     DateTime?       @map("fecha_baja")
+  fechaBaja        DateTime?        @map("fecha_baja")
   // Por que se dio de baja (SPEC 2.140): el de la lista (`motivoBajaId`) y el
   // texto que se muestra ("Chip perdido: detalle").
-  motivoBajaId  String?         @map("motivo_baja_id")
-  motivoBaja    String?         @map("motivo_baja")
-  tipoChipId    String?         @map("tipo_chip_id")
+  motivoBajaId     String?          @map("motivo_baja_id")
+  motivoBaja       String?          @map("motivo_baja")
+  tipoChipId       String?          @map("tipo_chip_id")
   // Compania de la linea (Entel, Movistar...): catalogo seleccionable.
-  operadorId    String?         @map("operador_id")
+  operadorId       String?          @map("operador_id")
   // El celular donde esta. Si lo tiene, la persona es quien tiene el celular
   // y empleadoId queda vacio; sin celular (chip en un telefono personal),
   // la persona se guarda aqui (SPEC 2.131).
-  activoId      String?         @map("activo_id")
-  empleadoId    String?         @map("empleado_id")
-  observaciones String?
-  createdAt     DateTime        @default(now()) @map("created_at")
-  updatedAt     DateTime        @updatedAt @map("updated_at")
-  activo        Asset?          @relation(fields: [activoId], references: [id])
-  empleado      Employee?       @relation(fields: [empleadoId], references: [id])
-  tipoChip      TipoChip?       @relation(fields: [tipoChipId], references: [id])
-  operador      OperadorLinea?  @relation(fields: [operadorId], references: [id])
+  activoId         String?          @map("activo_id")
+  empleadoId       String?          @map("empleado_id")
+  // Sede donde se guarda el chip mientras esta disponible (SPEC 2.165). En un
+  // celular o con una persona, la sede que se muestra es la de ellos.
+  sedeId           String?          @map("sede_id")
+  observaciones    String?
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  activo           Asset?           @relation(fields: [activoId], references: [id])
+  empleado         Employee?        @relation(fields: [empleadoId], references: [id])
+  sede             Sede?            @relation(fields: [sedeId], references: [id])
+  tipoChip         TipoChip?        @relation(fields: [tipoChipId], references: [id])
+  operador         OperadorLinea?   @relation(fields: [operadorId], references: [id])
   motivoBajaOpcion MotivoBajaLinea? @relation(fields: [motivoBajaId], references: [id], onDelete: Restrict)
-  estado        EstadoLinea     @relation(fields: [estadoId], references: [id])
-  tenencias     LineaTenencia[]
+  estado           EstadoLinea      @relation(fields: [estadoId], references: [id])
+  tenencias        LineaTenencia[]
 
   @@index([estadoId])
   @@index([operadorId])
   @@index([activoId])
   @@index([empleadoId])
+  @@index([sedeId])
   @@index([tipoChipId])
   @@index([motivoBajaId])
   @@map("lineas_telefonicas")
@@ -448,24 +463,24 @@ enum TipoEventoLinea {
 // momento, asi la linea recuerda a sus propietarios anteriores igual que el
 // equipo. Sirve para la ficha de la linea y para el historial de la persona.
 model LineaTenencia {
-  id          String              @id @default(uuid())
-  lineaId     String              @map("linea_id")
+  id         String              @id @default(uuid())
+  lineaId    String              @map("linea_id")
   // El telefono de la empresa donde estaba el chip, si estaba en uno.
-  activoId    String?             @map("activo_id")
+  activoId   String?             @map("activo_id")
   // Quien la tenia entonces: la persona de ese telefono o, sin telefono de la
   // empresa (eSIM, telefono personal), la persona elegida.
-  empleadoId  String?             @map("empleado_id")
-  desde       DateTime
-  hasta       DateTime?
-  origen      OrigenTenencia
-  motivoId    String?             @map("motivo_id")
-  detalle     String?
-  usuario     String?
-  createdAt   DateTime            @default(now()) @map("created_at")
-  linea       LineaTelefonica     @relation(fields: [lineaId], references: [id], onDelete: Cascade)
-  activo      Asset?              @relation(fields: [activoId], references: [id], onDelete: SetNull)
-  empleado    Employee?           @relation(fields: [empleadoId], references: [id])
-  motivo      MotivoReasignacion? @relation(fields: [motivoId], references: [id])
+  empleadoId String?             @map("empleado_id")
+  desde      DateTime
+  hasta      DateTime?
+  origen     OrigenTenencia
+  motivoId   String?             @map("motivo_id")
+  detalle    String?
+  usuario    String?
+  createdAt  DateTime            @default(now()) @map("created_at")
+  linea      LineaTelefonica     @relation(fields: [lineaId], references: [id], onDelete: Cascade)
+  activo     Asset?              @relation(fields: [activoId], references: [id], onDelete: SetNull)
+  empleado   Employee?           @relation(fields: [empleadoId], references: [id])
+  motivo     MotivoReasignacion? @relation(fields: [motivoId], references: [id])
 
   @@index([lineaId, desde])
   @@index([empleadoId])
@@ -973,26 +988,27 @@ model DispatchGuideKitItem {
 }
 
 model Sede {
-  id             String               @id @default(uuid())
+  id           String               @id @default(uuid())
   // Slug corto y estable (ej: STGO, CCP). No cambia aunque el nombre
   // visible cambie -- es lo que idealmente se referencia en integraciones
   // futuras.
-  codigo         String               @unique
-  nombre         String
+  codigo       String               @unique
+  nombre       String
   // Permite desactivar una sede sin perder el historial de activos/guias
   // que la referencian.
-  activa         Boolean              @default(true)
-  createdAt      DateTime             @default(now()) @map("created_at")
-  updatedAt      DateTime             @updatedAt @map("updated_at")
-  assets         Asset[]
-  empleados      Employee[]
-  usuarios       SystemUser[]
-  solicitudes    WorkflowRequest[]
-  guias          DispatchGuide[]      @relation("GuiasSede")
-  guiasDestino   DispatchGuide[]      @relation("GuiasDestino")
-  kitItems       WelcomeKitItem[]
-  compras        Purchase[]
-  repartosKit    PurchaseKitReparto[] @relation("RepartosKitSede")
+  activa       Boolean              @default(true)
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+  assets       Asset[]
+  empleados    Employee[]
+  usuarios     SystemUser[]
+  solicitudes  WorkflowRequest[]
+  guias        DispatchGuide[]      @relation("GuiasSede")
+  guiasDestino DispatchGuide[]      @relation("GuiasDestino")
+  kitItems     WelcomeKitItem[]
+  compras      Purchase[]
+  repartosKit  PurchaseKitReparto[] @relation("RepartosKitSede")
+  lineas       LineaTelefonica[]
 
   @@map("sedes")
 }
@@ -1081,7 +1097,6 @@ model WorkflowRequest {
   kitReturnIds              String[]        @default([]) @map("kit_return_ids")
   // Lineas que cambio un Cambio de equipo, en pares [anterior1, nueva1, anterior2, ...] (SPEC 2.143).
   lineaIds                  String[]        @default([]) @map("linea_ids")
-  dispatchGuideId           String?         @map("dispatch_guide_id")
   // Sede de quien creo la solicitud -- determina que soporte la ve.
   sedeId                    String?         @map("sede_id")
   // General

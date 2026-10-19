@@ -13,13 +13,14 @@ export type ActivoParaSpecs = {
   procesador?: string | null;
   ram?: string | null;
   discoDuro?: string | null;
-  sistemaOperativo?: string | null;
+  // Opciones de catalogo leidas por su relacion (SPEC 2.168).
+  sistemaOperativo?: { nombre: string } | null;
   imei?: string | null;
   // Lineas vigentes del celular (SPEC 2.131).
   lineas?: LineaDelEquipo[];
   pulgadas?: string | number | null;
   conectividad?: string | null;
-  tipoLicenciaMicrosoft365?: string | null;
+  licenciaMicrosoft365?: { nombre: string } | null;
 };
 
 export type EspecificacionEtiquetada = { etiqueta: string; valor: string };
@@ -46,15 +47,15 @@ export function especificacionesActivo(a: ActivoParaSpecs): EspecificacionEtique
   if (a.procesador) partes.push({ etiqueta: "Procesador", valor: a.procesador });
   if (a.ram) partes.push({ etiqueta: "Memoria RAM", valor: a.ram });
   if (a.discoDuro) partes.push({ etiqueta: "Disco", valor: a.discoDuro });
-  if (a.sistemaOperativo) partes.push({ etiqueta: "Sistema Operativo", valor: a.sistemaOperativo });
+  if (a.sistemaOperativo) partes.push({ etiqueta: "Sistema Operativo", valor: a.sistemaOperativo.nombre });
   if (a.imei) partes.push({ etiqueta: "IMEI", valor: a.imei });
   if (a.lineas?.length) partes.push({ etiqueta: "Línea", valor: textoLineas(a.lineas) });
   if (a.pulgadas) partes.push({ etiqueta: "Pantalla", valor: `${a.pulgadas}"` });
   if (a.conectividad) {
     partes.push({ etiqueta: "Conectividad", valor: etiquetaConectividad(a.conectividad) });
   }
-  if (a.tipoLicenciaMicrosoft365) {
-    partes.push({ etiqueta: "Microsoft 365", valor: a.tipoLicenciaMicrosoft365 });
+  if (a.licenciaMicrosoft365) {
+    partes.push({ etiqueta: "Microsoft 365", valor: a.licenciaMicrosoft365.nombre });
   }
   return partes;
 }

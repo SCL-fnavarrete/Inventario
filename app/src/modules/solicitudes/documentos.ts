@@ -17,14 +17,7 @@ import {
   paresDeCambio,
 } from '@/modules/solicitudes/consultasAsignaciones';
 import { NotFoundError, ValidationError } from '@/shared/errores';
-import {
-  especificacionesActivo,
-  LINEAS_DEL_EQUIPO,
-  type ActivoParaSpecs,
-  etiquetaCondicionCargador,
-  etiquetaEstadoDevolucion,
-  type ContextoCargador,
-} from '@/modules/activos';
+import { especificacionesActivo, LINEAS_DEL_EQUIPO, type ActivoParaSpecs, etiquetaCondicionCargador, etiquetaEstadoDevolucion, type ContextoCargador, CON_CATALOGOS } from '@/modules/activos';
 import { formatearFecha } from "@/shared/utilidades/fechas";
 
 /** De quien gestiono la solicitud, los PDF solo imprimen el nombre: no se lee nada mas de su cuenta. */
@@ -66,7 +59,7 @@ export function filaEquipo(
   asset: Omit<ActivoParaSpecs, 'pulgadas'> & {
     pulgadas: { toString(): string } | null;
     categoria: { nombre: string };
-    marca: string;
+    marca: { nombre: string };
     modelo: string;
     numeroSerie: string | null;
   },
@@ -75,7 +68,7 @@ export function filaEquipo(
 ): FilaEquipoActa {
   return {
     equipo: asset.categoria.nombre,
-    marca: asset.marca,
+    marca: asset.marca.nombre,
     numeroSerie: asset.numeroSerie || asset.imei || null,
     descripcion: asset.modelo,
     especificaciones: especificacionesActivo({
@@ -95,14 +88,14 @@ type LineaDelDocumento = {
   numero: string;
   tipoChip: { nombre: string; sinCelular: boolean } | null;
   operador: { nombre: string } | null;
-  activo: { marca: string; modelo: string } | null;
+  activo: { marca: { nombre: string }; modelo: string } | null;
 };
 function filaLinea(l: LineaDelDocumento, movimiento: string): FilaLineaActa {
   return {
     numero: formatearNumero(l.numero),
     tipoChip: l.tipoChip?.nombre ?? '—',
     operador: l.operador?.nombre ?? '—',
-    ubicacion: l.activo ? `${l.activo.marca} ${l.activo.modelo}` : l.tipoChip?.sinCelular ? 'eSIM de la persona' : 'Sin celular',
+    ubicacion: l.activo ? `${l.activo.marca.nombre} ${l.activo.modelo}` : l.tipoChip?.sinCelular ? 'eSIM de la persona' : 'Sin celular',
     movimiento,
   };
 }
@@ -156,7 +149,7 @@ export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer>
         include: {
           assignments: {
             where: { activo: true },
-            include: { asset: { include: { categoria: true, lineas: LINEAS_DEL_EQUIPO } } },
+            include: { asset: { include: { ...CON_CATALOGOS, categoria: true, lineas: LINEAS_DEL_EQUIPO } } },
           },
         },
       },
@@ -173,7 +166,7 @@ export async function generateAnexoEntrega(solicitudId: string): Promise<Buffer>
       : solicitud.employee.assignments;
   const assets = asignaciones.map((a) => ({
     tipo: a.asset.categoria.nombre,
-    marca: a.asset.marca,
+    marca: a.asset.marca.nombre,
     modelo: a.asset.modelo,
     numeroSerie: a.asset.numeroSerie,
     procesador: a.asset.procesador,
@@ -206,7 +199,7 @@ export async function generateComprobanteEntrega(solicitudId: string): Promise<B
         include: {
           assignments: {
             where: { activo: true },
-            include: { asset: { include: { categoria: true, lineas: LINEAS_DEL_EQUIPO } } },
+            include: { asset: { include: { ...CON_CATALOGOS, categoria: true, lineas: LINEAS_DEL_EQUIPO } } },
           },
         },
       },
@@ -299,7 +292,7 @@ export async function generateActaDevolucion(solicitudId: string): Promise<Buffe
       employee: {
         include: {
           assignments: {
-            include: { asset: { include: { categoria: true, lineas: LINEAS_DEL_EQUIPO } } },
+            include: { asset: { include: { ...CON_CATALOGOS, categoria: true, lineas: LINEAS_DEL_EQUIPO } } },
             orderBy: { fechaEntrega: 'desc' },
           },
         },

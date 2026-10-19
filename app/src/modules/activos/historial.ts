@@ -57,13 +57,13 @@ export const assetHistoryService = {
   /**
    * Registra la creación de un activo
    */
-  async registrarCreacion(asset: Asset, usuario?: string, tx?: PrismaTx) {
+  async registrarCreacion(asset: Asset & { marca: { nombre: string } }, usuario?: string, tx?: PrismaTx) {
     return this.registrar({
       assetId: asset.id,
       tipoEvento: 'creacion',
-      descripcion: `Activo creado: ${asset.marca} ${asset.modelo}${asset.numeroSerie ? ` (S/N: ${asset.numeroSerie})` : asset.imei ? ` (IMEI: ${asset.imei})` : ''}`,
+      descripcion: `Activo creado: ${asset.marca.nombre} ${asset.modelo}${asset.numeroSerie ? ` (S/N: ${asset.numeroSerie})` : asset.imei ? ` (IMEI: ${asset.imei})` : ''}`,
       datosNuevos: {
-        marca: asset.marca,
+        marca: asset.marca.nombre,
         modelo: asset.modelo,
         numeroSerie: asset.numeroSerie,
         estado: asset.estado,

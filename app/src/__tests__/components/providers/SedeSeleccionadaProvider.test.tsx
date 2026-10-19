@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import {
+  olvidarSedeSeleccionada,
   SedeSeleccionadaProvider,
   useSedeSeleccionada,
 } from "@/shared/ui/providers/SedeSeleccionadaProvider";
@@ -78,5 +79,22 @@ describe("useSedeSeleccionada", () => {
     });
 
     expect(result.current.sedeSeleccionada).toBe("sede-concepcion");
+  });
+
+  test("al iniciar sesión se olvida la sede elegida y el filtro parte en todas (SPEC 2.161)", async () => {
+    window.localStorage.setItem(CLAVE_STORAGE, "sede-concepcion");
+    document.cookie = "inventario-sede-seleccionada=sede-concepcion; path=/";
+
+    olvidarSedeSeleccionada();
+
+    expect(window.localStorage.getItem(CLAVE_STORAGE)).toBeNull();
+    expect(document.cookie).not.toContain("sede-concepcion");
+    const { result, rerender } = renderHook(() => useSedeSeleccionada(), {
+      wrapper: SedeSeleccionadaProvider,
+    });
+    await act(async () => {
+      rerender();
+    });
+    expect(result.current.sedeSeleccionada).toBeNull();
   });
 });

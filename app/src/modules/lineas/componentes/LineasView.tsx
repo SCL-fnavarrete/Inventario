@@ -225,7 +225,7 @@ export function LineasView() {
             celda: (l) =>
               l.activo ? (
                 <Link href={`/activos/${l.activo.id}`} className="text-brand hover:underline">
-                  {l.activo.marca} {l.activo.modelo}
+                  {l.activo.marca.nombre} {l.activo.modelo}
                 </Link>
               ) : (
                 <span className="text-fg-subtle">—</span>
@@ -272,13 +272,13 @@ export function LineasView() {
             >
               <Eye size={18} />
             </Link>
-            {/* Solo se asigna una linea disponible: vigente y sin persona (SPEC 2.131). */}
+            {/* Solo se asigna o mueve una linea disponible: vigente y sin persona (SPEC 2.131, 2.167). */}
             {!l.estado.deBaja && !personaDe(l) && (
               <Link
                 href={`/activos/lineas/${l.id}?reasignar=1`}
                 className="rounded p-1 text-fg-muted hover:bg-surface-muted"
-                title="Asignar"
-                aria-label={`Asignar ${l.numero}`}
+                title="Asignar, mover o cambiar tipo"
+                aria-label={`Asignar, mover o cambiar tipo de ${l.numero}`}
               >
                 <Repeat size={18} />
               </Link>

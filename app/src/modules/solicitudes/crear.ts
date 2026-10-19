@@ -16,6 +16,7 @@ import {
   asociarEsimEnSolicitud,
   asociarLineaEnSolicitud,
   cambiarLineaEnSolicitud,
+  convertirLineaAEsimEnSolicitud,
   liberarEsimDePersona,
   liberarLineaEnSolicitud,
   lineasDeEquipos,
@@ -411,7 +412,7 @@ export async function crearSolicitud(
               where: { id: cambio.oldAssignmentId },
               select: {
                 asset: {
-                  select: { categoriaId: true, estado: true, categoria: { select: { nombre: true, tipoFicha: true } } },
+                  select: { id: true, categoriaId: true, estado: true, categoria: { select: { nombre: true, tipoFicha: true } } },
                 },
               },
             }),
@@ -423,7 +424,7 @@ export async function crearSolicitud(
               : null,
           ]);
           // eSIM: solo un celular se cambia por una eSIM (SPEC 2.143).
-          if (cambio.newEsimLineaId && viejo?.asset.categoria.tipoFicha !== 'celular') {
+          if ((cambio.newEsimLineaId || cambio.convertirLineaEsim) && viejo?.asset.categoria.tipoFicha !== 'celular') {
             throw new ValidationError('Solo un celular se puede cambiar por una eSIM');
           }
           if (viejo?.asset.estado === 'en_mantencion') {
@@ -461,11 +462,10 @@ export async function crearSolicitud(
           // eSIM: no se entrega equipo; la eSIM queda con la persona. En assignmentIds el
           // par lleva '' en lugar del equipo nuevo para no perder el orden [viejo, nuevo].
           if (!cambio.newAssetId) {
-            await asociarEsimEnSolicitud(tx, cambio.newEsimLineaId!, {
-              empleadoId: empId,
-              detalle: `Cambio de equipo - ${numero}`,
-              usuario: systemUser.usuario,
-            });
+            const esim = { empleadoId: empId, detalle: `Cambio de equipo - ${numero}`, usuario: systemUser.usuario };
+            // Su misma linea pasa a eSIM (SPEC 2.166), o una eSIM disponible (SPEC 2.143).
+            if (cambio.convertirLineaEsim) await convertirLineaAEsimEnSolicitud(tx, { ...esim, activoId: viejo!.asset.id });
+            else await asociarEsimEnSolicitud(tx, cambio.newEsimLineaId!, esim);
             assignmentIds.push(cambio.oldAssignmentId, '');
             continue;
           }

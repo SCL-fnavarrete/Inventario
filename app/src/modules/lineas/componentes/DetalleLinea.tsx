@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Edit, MapPin, Phone, PowerOff, Repeat, Smartphone, Tag, Trash2, User, Users } from "lucide-react";
+import { ChevronRight, Edit, MapPin, Phone, PowerOff, Smartphone, Tag, Trash2, User, Users } from "lucide-react";
 import { ActivosTabs } from "@/modules/activos/componentes";
 import { DESCRIPCION_ESTADO, formatearNumero, tonoEstadoLinea } from "@/modules/lineas";
 import { FormularioLinea } from "@/modules/lineas/componentes/FormularioLinea";
-import { ReasignarLinea } from "@/modules/lineas/componentes/ReasignarLinea";
+import { ReasignarLinea, accionesDeLinea, type AccionLinea } from "@/modules/lineas/componentes/ReasignarLinea";
 import { nombrePersona, personaDe, sedeDe, type FichaLinea } from "@/modules/lineas/componentes/tipos";
 import { parseApiError } from "@/shared/utilidades/apiErrors";
 import { formatearFecha, formatearFechaHoraCorta } from "@/shared/utilidades/fechas";
@@ -24,7 +24,8 @@ import { useToast } from "@/shared/ui/Toast";
 /**
  * Ficha de una linea (SPEC 2.131): sus datos, donde esta y con quien, quien la
  * ha tenido (con cuantas veces se reasigno y el propietario anterior) y el
- * historial de sus cambios. Desde aqui se edita, se reasigna y se elimina.
+ * historial de sus cambios. Desde aqui se edita, se elimina y, si no la usa
+ * nadie, se asigna, se mueve o se cambia su tipo con acciones escritas (SPEC 2.167).
  */
 
 export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLinea; abrirReasignar?: boolean }) {
@@ -35,9 +36,14 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
   const { linea, tenencias, historial, personas } = ficha;
   const deBaja = linea.estado.deBaja;
   const persona = personaDe(linea);
-  // Solo se asigna una linea disponible: vigente y sin persona (SPEC 2.131).
-  const asignable = !deBaja && !persona;
-  const [modo, setModo] = useState<"editar" | "reasignar" | null>(abrirReasignar && asignable ? "reasignar" : null);
+  // Solo se toca una linea disponible: vigente y sin persona (SPEC 2.131).
+  const acciones = accionesDeLinea(linea);
+  const [modo, setModo] = useState<"editar" | AccionLinea | null>(null);
+  const verAcciones = useRef<HTMLElement>(null);
+  // Desde la lista (?reasignar=1) la pantalla baja hasta las acciones.
+  useEffect(() => {
+    if (abrirReasignar) verAcciones.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [abrirReasignar]);
   const [aEliminar, setAEliminar] = useState(false);
 
   const tramoActual = tenencias[0];
@@ -77,11 +83,6 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
         actions={
           !modo && (
             <>
-              {asignable && (
-                <Button leftIcon={<Repeat size={18} />} onClick={() => setModo("reasignar")}>
-                  Asignar
-                </Button>
-              )}
               <Button variant="outline" leftIcon={<Edit size={18} />} onClick={() => setModo("editar")}>
                 Editar
               </Button>
@@ -102,7 +103,40 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
       />
 
       {modo === "editar" && <FormularioLinea linea={linea} onCerrar={cerrar} />}
-      {modo === "reasignar" && <ReasignarLinea linea={linea} onCerrar={cerrar} />}
+      {modo && modo !== "editar" && <ReasignarLinea key={modo.clave} linea={linea} accion={modo} onCerrar={cerrar} />}
+
+      {!deBaja && !modo && (
+        <section ref={verAcciones} aria-labelledby="acciones-linea" className="card scroll-mt-24 p-6">
+          <h2 id="acciones-linea" className="mb-3 text-lg font-semibold text-fg">
+            ¿Qué quieres hacer con esta línea?
+          </h2>
+          {persona ? (
+            <p className="text-sm text-fg-muted">
+              La usa {nombrePersona(persona)}, así que no se le puede quitar desde aquí. Para cambiarla, haz una{" "}
+              <Link href="/solicitudes/nueva" className="text-brand hover:underline">
+                solicitud
+              </Link>{" "}
+              de Cambio de equipo o de Desvinculación.
+            </p>
+          ) : acciones.length === 0 ? (
+            <p className="text-sm text-fg-muted">Indica primero su tipo de chip con Editar.</p>
+          ) : (
+            <ul className="divide-y divide-line">
+              {acciones.map((a) => (
+                <li key={a.clave}>
+                  <button type="button" onClick={() => setModo(a)} className="group flex w-full items-center gap-3 py-3 text-left">
+                    <span className="flex-1">
+                      <span className="font-medium text-brand group-hover:underline">{a.titulo}</span>
+                      <span className="block text-sm text-fg-subtle">{a.ayuda}</span>
+                    </span>
+                    <ChevronRight size={18} className="text-fg-subtle" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {/* Tarjetas de resumen, como en la ficha de un equipo */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -123,7 +157,7 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
               <p className="font-medium text-fg">
                 {linea.activo ? (
                   <Link href={`/activos/${linea.activo.id}`} className="text-brand hover:underline">
-                    {linea.activo.marca} {linea.activo.modelo}
+                    {linea.activo.marca.nombre} {linea.activo.modelo}
                   </Link>
                 ) : (
                   <span className="text-fg-subtle">Ninguno</span>
@@ -248,7 +282,7 @@ export function DetalleLinea({ ficha, abrirReasignar = false }: { ficha: FichaLi
                 persona: { nombre: nombrePersona(t.empleado!), enlace: `/empleados/${t.empleado!.id}` },
                 extra: t.activo ? (
                   <Link href={`/activos/${t.activo.id}`} className="text-brand hover:underline">
-                    {t.activo.marca} {t.activo.modelo}
+                    {t.activo.marca.nombre} {t.activo.modelo}
                   </Link>
                 ) : (
                   <span className="text-fg-subtle">Personal o eSIM</span>

@@ -27,7 +27,7 @@ type Asset = {
   id: string;
   numeroSerie: string | null;
   imei?: string | null;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   estado: string;
   categoria: { id: string; nombre: string };
@@ -245,7 +245,7 @@ export default function ProgramarMantencionPage() {
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-fg truncate">
-                    {equipo.marca} {equipo.modelo}
+                    {equipo.marca.nombre} {equipo.modelo}
                   </p>
                   <p className="text-sm text-fg-subtle truncate">
                     {identificadorActivo(equipo, "Sin número de serie")}
@@ -333,7 +333,7 @@ export default function ProgramarMantencionPage() {
                             </span>
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-fg truncate">
-                                {asset.marca} {asset.modelo}
+                                {asset.marca.nombre} {asset.modelo}
                               </p>
                               <p className="text-sm text-fg-subtle truncate">
                                 {asset.categoria.nombre} • {identificadorActivo(asset, "Sin número de serie")}

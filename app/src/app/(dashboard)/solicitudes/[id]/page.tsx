@@ -20,6 +20,7 @@ import { ApiErrorSummary } from '@/shared/ui/ApiErrorSummary';
 import { formatearFecha } from "@/shared/utilidades/fechas";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { VentanaMotivo } from '@/shared/ui/VentanaMotivo';
+import { MensajeCampo, claseCampo, enfocarPrimerError } from '@/shared/ui/CampoFormulario';
 import { formatearNumero } from '@/modules/lineas';
 import { FilaEquipoTicket, TicketSolicitud, type AsignacionFila } from '@/modules/solicitudes/componentes';
 import { documentoDeSolicitud } from '@/modules/solicitudes';
@@ -31,7 +32,7 @@ type LineaDeSolicitud = {
   numero: string;
   tipoChip: { nombre: string; sinCelular: boolean } | null;
   operador: { nombre: string } | null;
-  activo: { id: string; marca: string; modelo: string } | null;
+  activo: { id: string; marca: { nombre: string }; modelo: string } | null;
 };
 
 /** Numero de una linea con enlace a su ficha. */
@@ -44,10 +45,10 @@ function EnlaceLinea({ linea }: { linea: { id: string; numero: string } }) {
 }
 
 /** Celular donde esta una linea, con enlace a su ficha. */
-function EnlaceCelular({ activo }: { activo: { id: string; marca: string; modelo: string } }) {
+function EnlaceCelular({ activo }: { activo: { id: string; marca: { nombre: string }; modelo: string } }) {
   return (
     <Link href={`/activos/${activo.id}`} className="text-primary-700 hover:underline">
-      {activo.marca} {activo.modelo}
+      {activo.marca.nombre} {activo.modelo}
     </Link>
   );
 }
@@ -96,7 +97,6 @@ type WorkflowDetail = {
   // References
   assignmentIds: string[];
   kitReturnIds: string[];
-  dispatchGuideId: string | null;
   employee: {
     id: string;
     rut: string | null;
@@ -105,7 +105,7 @@ type WorkflowDetail = {
     apellidoMaterno: string | null;
     cargo: string | null;
     correoPersonal: string;
-    assignments: { id: string; activo: boolean; estadoDevolucion: string | null; asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; imei?: string | null; categoria: { nombre: string }; tieneCargador: boolean } }[];
+    assignments: { id: string; activo: boolean; estadoDevolucion: string | null; asset: { id: string; marca: { nombre: string }; modelo: string; numeroSerie: string | null; imei?: string | null; categoria: { nombre: string }; tieneCargador: boolean } }[];
     // EPP entregado y aun no devuelto (offboarding). El Kit de Bienvenida
     // no aparece aca -- es consumible, no se devuelve.
     kitAssignments: { id: string; estado: string; item: { id: string; nombre: string; categoria: 'kit_bienvenida' | 'epp' } }[];
@@ -370,6 +370,8 @@ export default function SolicitudDetailPage() {
       if (!res.ok) {
         const { message, fieldErrors: fe } = await parseApiError(res, 'Error al agregar comentario');
         setFieldErrors(fe);
+        // El comentario rechazado (ej. muy largo) se marca y queda listo para corregir.
+        if (fe.mensaje) enfocarPrimerError();
         throw new Error(message);
       }
       setCommentText('');
@@ -1167,9 +1169,12 @@ export default function SolicitudDetailPage() {
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
                   placeholder="Agregar comentario..."
+                  aria-label="Comentario"
+                  aria-invalid={!!fieldErrors.mensaje}
                   rows={2}
-                  className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm"
+                  className={cn(claseCampo(fieldErrors.mensaje), 'text-sm')}
                 />
+                <MensajeCampo mensaje={fieldErrors.mensaje} />
                 <div className="flex justify-between items-center mt-2">
                   <label className="flex items-center gap-2 text-sm text-fg-muted">
                     <input
@@ -1414,7 +1419,7 @@ export default function SolicitudDetailPage() {
                 {data.employee.assignments.map((a) => (
                   <div key={a.id} className="text-sm p-2 bg-surface-muted rounded">
                     <Link href={`/activos/${a.asset.id}`} className="font-medium text-primary-700 hover:underline">
-                      {a.asset.marca} {a.asset.modelo}
+                      {a.asset.marca.nombre} {a.asset.modelo}
                     </Link>
                     <span className="block text-xs text-fg-subtle">
                       {a.asset.categoria.nombre}

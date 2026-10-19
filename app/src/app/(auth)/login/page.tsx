@@ -11,6 +11,7 @@ import { MensajeCampo, ResumenErrores, claseCampo } from "@/shared/ui/CampoFormu
 import { InputClave } from "@/shared/ui/InputClave";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { CLAVE_AVISO_OTRA_SESION } from "@/shared/ui/AvisoOtraSesion";
+import { olvidarSedeSeleccionada } from "@/shared/ui/providers/SedeSeleccionadaProvider";
 
 // Se inicia sesion con el usuario, no con el correo (SPEC 2.122).
 const ETIQUETAS = { usuario: "Usuario", password: "Contraseña" };
@@ -58,6 +59,8 @@ export default function LoginPage() {
             // Sin almacenamiento del navegador, solo no se muestra el aviso.
           }
         }
+        // Cada sesion parte con el filtro en "Todas las sedes" (SPEC 2.161).
+        olvidarSedeSeleccionada();
         router.push("/");
         router.refresh();
       }

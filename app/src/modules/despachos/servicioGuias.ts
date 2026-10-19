@@ -3,7 +3,7 @@ import { prisma } from '@/shared/prisma';
 import { ConflictError, errorDeCampo, exigirSinErroresCampos, NotFoundError, ValidationError } from '@/shared/errores';
 import { auditLogService } from '@/shared/auditoria';
 import { sedeIdParaCrear } from '@/shared/sedes/filtro';
-import { ACTIVOS_VIGENTES, etiquetaEstadoActivo, identificadorActivo, validateTransition } from '@/modules/activos';
+import { ACTIVOS_VIGENTES, etiquetaEstadoActivo, identificadorActivo, validateTransition, NOMBRE } from '@/modules/activos';
 import { cambiarEstado } from '@/modules/activos/servidor';
 import { restarStockKit, sumarStockKit } from '@/modules/kit-epp/servidor';
 import { bajaEnTransaccion, motivoParaBaja } from '@/modules/mantenciones/servidor';
@@ -44,7 +44,7 @@ export async function registrarDespacho(body: Record<string, unknown>, quien: Qu
   // Solo equipos disponibles: puede haber cambiado mientras se llenaba el formulario.
   const assets = await prisma.asset.findMany({
     where: { ...ACTIVOS_VIGENTES, id: { in: assetIds } },
-    include: { sede: { select: { nombre: true } } },
+    include: { marca: NOMBRE, sede: { select: { nombre: true } } },
   });
   if (assets.length !== assetIds.length) {
     throw errorDeCampo('assetIds', 'Uno o más equipos ya no existen en el inventario. Vuelve a elegirlos.');
@@ -52,7 +52,7 @@ export async function registrarDespacho(body: Record<string, unknown>, quien: Qu
   const noDisponibles = assets.filter((a) => a.estado !== 'disponible');
   if (noDisponibles.length > 0) {
     const detalle = noDisponibles
-      .map((a) => `${a.marca} ${a.modelo} (${identificadorActivo(a, 'sin serie')}): ${etiquetaEstadoActivo(a.estado)}`)
+      .map((a) => `${a.marca.nombre} ${a.modelo} (${identificadorActivo(a, 'sin serie')}): ${etiquetaEstadoActivo(a.estado)}`)
       .join('; ');
     throw errorDeCampo('assetIds', `Ya no están disponibles para despacho: ${detalle}`);
   }
@@ -61,7 +61,7 @@ export async function registrarDespacho(body: Record<string, unknown>, quien: Qu
   const sedeId = sedeIdParaCrear(body.sedeId as string | undefined, { requerido: true });
   const deOtraSede = assets.filter((a) => a.sedeId !== sedeId);
   if (sedeId && deOtraSede.length > 0) {
-    const detalle = deOtraSede.map((a) => `${a.marca} ${a.modelo} (${a.sede?.nombre ?? 'sin sede'})`).join('; ');
+    const detalle = deOtraSede.map((a) => `${a.marca.nombre} ${a.modelo} (${a.sede?.nombre ?? 'sin sede'})`).join('; ');
     throw errorDeCampo('assetIds', `No son de la sede origen: ${detalle}`);
   }
   // Existe, esta activa y no es la de origen.
@@ -257,7 +257,7 @@ export async function resolverEquipoDespacho(id: string, itemId: string, accion:
   const item = guia.items.find((i) => i.id === itemId);
   if (!item) throw new NotFoundError('Ese equipo no es de este despacho');
   const usuario = quien.usuario;
-  const nombreEquipo = `${item.asset.marca} ${item.asset.modelo}`;
+  const nombreEquipo = `${item.asset.marca.nombre} ${item.asset.modelo}`;
   const auditar = (tx: Prisma.TransactionClient, texto: string, estado: string) =>
     auditLogService.registrarActualizacion('guia_despacho', id, `Despacho ${guia.numero}: ${texto}`, { estado: guia.estado }, { estado }, usuario, tx);
 
@@ -330,7 +330,7 @@ export async function resolverEquipoDespacho(id: string, itemId: string, accion:
     if (!transicion.valid) throw new ConflictError(transicion.errors[0]);
 
     return prisma.$transaction(async (tx) => {
-      const asset = await tx.asset.findUniqueOrThrow({ where: { id: item.assetId } });
+      const asset = await tx.asset.findUniqueOrThrow({ where: { id: item.assetId }, include: { marca: NOMBRE } });
       await bajaEnTransaccion(tx, {
         asset,
         motivoBajaId,

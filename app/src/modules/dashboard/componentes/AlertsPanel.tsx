@@ -22,7 +22,7 @@ interface Maintenance {
   asset: {
     numeroSerie: string | null;
     imei?: string | null;
-    marca: string;
+    marca: { nombre: string };
     modelo: string;
     sede: { nombre: string } | null;
   };
@@ -30,7 +30,7 @@ interface Maintenance {
 
 interface GarantiaPorVencer {
   id: string;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   numeroSerie: string | null;
   imei?: string | null;
@@ -194,7 +194,7 @@ export function AlertsPanel({
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-purple-900">Garantía por vencer</p>
                 <p className="text-xs text-purple-700 break-words">
-                  {a.marca} {a.modelo} ({identificadorActivo(a)})
+                  {a.marca.nombre} {a.modelo} ({identificadorActivo(a)})
                 </p>
                 <p className="text-xs text-purple-800">
                   {a.diasRestantes === 0
@@ -228,7 +228,7 @@ export function AlertsPanel({
                   Mantención Vencida
                 </p>
                 <p className="text-xs text-red-700 break-words">
-                  {m.asset.marca} {m.asset.modelo} ({identificadorActivo(m.asset)})
+                  {m.asset.marca.nombre} {m.asset.modelo} ({identificadorActivo(m.asset)})
                 </p>
                 <p className="text-xs text-red-700">{m.descripcion}</p>
                 <EtiquetaSede nombre={m.asset.sede?.nombre ?? null} />
@@ -253,7 +253,7 @@ export function AlertsPanel({
                   Mantención Próxima
                 </p>
                 <p className="text-xs text-yellow-700 break-words">
-                  {m.asset.marca} {m.asset.modelo} ({identificadorActivo(m.asset)})
+                  {m.asset.marca.nombre} {m.asset.modelo} ({identificadorActivo(m.asset)})
                 </p>
                 <p className="text-xs text-yellow-800">
                   {m.fechaProgramada

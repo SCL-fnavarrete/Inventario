@@ -1,5 +1,6 @@
 // Puerta de activos: reglas, validaciones y tipos, sin base de datos. Sirve
 // en pantallas y en el servidor (SPEC 2.118).
+export * from '@/modules/activos/camposCatalogo';
 export * from '@/modules/activos/condicionCargador';
 export * from '@/modules/activos/consultas';
 export * from '@/modules/activos/especificaciones';

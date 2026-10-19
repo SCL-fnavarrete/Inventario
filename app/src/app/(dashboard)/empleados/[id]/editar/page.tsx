@@ -8,7 +8,7 @@ import { parseApiError, type FieldErrors, mensajeDeError } from "@/shared/utilid
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
 import { buttonClasses } from "@/shared/ui/buttonStyles";
 import { PageHeader } from "@/shared/ui/PageHeader";
-import { MensajeCampo, ResumenErrores, claseCampo } from "@/shared/ui/CampoFormulario";
+import { MensajeCampo, ResumenErrores, claseCampo, enfocarPrimerError } from "@/shared/ui/CampoFormulario";
 import { esCorreoValido } from "@/shared/utilidades/text";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 
@@ -189,6 +189,8 @@ export default function EditarEmpleadoPage({ params }: { params: Promise<{ id: s
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar empleado");
         setError(message);
         setFieldErrors(fe);
+        // Lleva la vista al campo que rechazo el servidor, ya marcado en rojo.
+        enfocarPrimerError();
         return;
       }
 

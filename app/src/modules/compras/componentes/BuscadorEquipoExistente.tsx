@@ -11,7 +11,7 @@ export type EquipoBuscado = {
   id: string;
   numeroSerie: string | null;
   imei?: string | null;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   estado: string;
   categoria: { nombre: string };
@@ -111,7 +111,7 @@ export function BuscadorEquipoExistente({
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">
-                  {equipo.marca} {equipo.modelo}
+                  {equipo.marca.nombre} {equipo.modelo}
                 </p>
                 <p className="truncate text-xs text-fg-subtle">
                   {equipo.categoria.nombre} • {identificadorActivo(equipo, "Sin serie")}

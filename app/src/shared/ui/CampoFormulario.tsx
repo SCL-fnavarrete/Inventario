@@ -198,6 +198,71 @@ export function enfocarPrimerError() {
   });
 }
 
+/** Lleva la vista a un campo y le da el foco. */
+function irACampo(el: HTMLElement) {
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.focus({ preventScroll: true });
+}
+
+// "Marca *" o "N° de factura:" -> "marca", "n° de factura": para comparar nombres.
+const normalizar = (texto: string) =>
+  texto.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[*:]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+
+/** Nombre visible de un campo: su <label>, o su aria-label. */
+function nombreDelCampo(el: HTMLElement): string {
+  const label = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null;
+  return normalizar(label?.textContent || el.getAttribute("aria-label") || "");
+}
+
+/**
+ * Campo con error al que apunta un nombre del resumen. Se busca por su
+ * etiqueta (igual, o una empieza con la otra); si los nombres no calzan, se
+ * emparejan por orden los que quedan sin pareja. Sin nada, el primero con error.
+ */
+export function campoConError(nombres: string[], indice: number, raiz: ParentNode = document): HTMLElement | null {
+  const invalidos = Array.from(raiz.querySelectorAll<HTMLElement>('[aria-invalid="true"]'));
+  const etiquetas = invalidos.map(nombreDelCampo);
+  const buscados = nombres.map(normalizar);
+  const usados = new Set<number>();
+  const destino: (number | undefined)[] = buscados.map((n) => {
+    const i = etiquetas.findIndex((e, j) => !usados.has(j) && e === n);
+    if (i >= 0) usados.add(i);
+    return i >= 0 ? i : undefined;
+  });
+  buscados.forEach((n, k) => {
+    if (destino[k] !== undefined) return;
+    const i = etiquetas.findIndex((e, j) => !usados.has(j) && !!e && (e.startsWith(n) || n.startsWith(e)));
+    if (i >= 0) {
+      usados.add(i);
+      destino[k] = i;
+    }
+  });
+  const libres = invalidos.map((_, j) => j).filter((j) => !usados.has(j));
+  destino.forEach((d, k) => {
+    if (d === undefined && libres.length) destino[k] = libres.shift();
+  });
+  const elegido = destino[indice];
+  return elegido !== undefined ? invalidos[elegido] : (invalidos[0] ?? null);
+}
+
+/** Nombre de un campo en un resumen de errores: al tocarlo lleva a ese campo. */
+export function EnlaceCampo({ nombres, indice }: { nombres: string[]; indice: number }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        // Dentro de una ventana se busca solo en ella; si no, en la pagina.
+        const raiz = e.currentTarget.closest<HTMLElement>('[role="dialog"]') ?? document;
+        const campo = campoConError(nombres, indice, raiz);
+        if (campo) irACampo(campo);
+      }}
+      className="font-medium underline underline-offset-2 hover:text-red-900 dark:hover:text-red-200"
+    >
+      {nombres[indice]}
+    </button>
+  );
+}
+
 /** Devuelve el mapa de errores sin los campos indicados (para setState). */
 export function sinErrores(
   errores: Record<string, string>,
@@ -209,6 +274,8 @@ export function sinErrores(
   return next;
 }
 
+const PREFIJO_RESUMEN = "Faltan o están incorrectos: ";
+
 /**
  * Texto del resumen de errores de un formulario, el mismo de Onboarding:
  * "Faltan o están incorrectos: Marca, Modelo."
@@ -217,17 +284,37 @@ export function textoResumenErrores(
   errores: Record<string, string>,
   etiquetas: Record<string, string>
 ): string {
-  return `Faltan o están incorrectos: ${Object.keys(errores)
+  return `${PREFIJO_RESUMEN}${Object.keys(errores)
     .map((campo) => etiquetas[campo] ?? campo)
     .join(", ")}.`;
 }
 
-/** Recuadro rojo con el resumen de errores, sobre el formulario. */
+/**
+ * Recuadro rojo con el resumen de errores, sobre el formulario. En el resumen
+ * de campos ("Faltan o están incorrectos: Marca, IMEI."), cada nombre lleva a
+ * su campo; otro mensaje se muestra tal cual.
+ */
 export function ResumenErrores({ mensaje }: { mensaje?: string }) {
   if (!mensaje) return null;
+  const nombres = mensaje.startsWith(PREFIJO_RESUMEN)
+    ? mensaje.slice(PREFIJO_RESUMEN.length).replace(/\.$/, "").split(", ")
+    : null;
   return (
     <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">
-      {mensaje}
+      {nombres ? (
+        <>
+          {PREFIJO_RESUMEN}
+          {nombres.map((_, i) => (
+            <span key={i}>
+              {i > 0 && ", "}
+              <EnlaceCampo nombres={nombres} indice={i} />
+            </span>
+          ))}
+          .
+        </>
+      ) : (
+        mensaje
+      )}
     </div>
   );
 }

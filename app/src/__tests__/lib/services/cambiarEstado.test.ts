@@ -11,7 +11,7 @@ function txFalso(filas = 1, tenedorAntes: string | null = null) {
   return {
     asset: {
       updateMany: jest.fn().mockResolvedValue({ count: filas }),
-      findUnique: jest.fn().mockResolvedValue({ empleadoActualId: tenedorAntes }),
+      findUnique: jest.fn().mockResolvedValue({ empleadoActualId: tenedorAntes, marca: { nombre: 'Samsung' }, modelo: 'A55' }),
     },
     assetHistory: { create: jest.fn() },
     // Las lineas que estan en el equipo anotan su tenencia (SPEC 2.131).

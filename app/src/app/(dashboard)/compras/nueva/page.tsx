@@ -56,7 +56,7 @@ type Category = {
 type Asset = {
   id: string;
   numeroSerie: string | null;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   categoria: {
     nombre: string;
@@ -507,7 +507,7 @@ export default function NuevaCompraPage() {
                 >
                   <div className="flex-1">
                     <p className="font-medium text-sm">
-                      {item.asset.marca} {item.asset.modelo}
+                      {item.asset.marca.nombre} {item.asset.modelo}
                     </p>
                     <p className="text-xs text-fg-subtle">
                       {item.asset.categoria.nombre} • {identificadorActivo(item.asset, "Sin serie")}
@@ -516,7 +516,7 @@ export default function NuevaCompraPage() {
                   <span className="shrink-0 text-xs text-fg-subtle">Ya existía: solo se vincula</span>
                   <button
                     type="button"
-                    aria-label={`Quitar ${item.asset.marca} ${item.asset.modelo}`}
+                    aria-label={`Quitar ${item.asset.marca.nombre} ${item.asset.modelo}`}
                     onClick={() => removeAsset(item.assetId)}
                     className="p-1.5 text-red-500 hover:bg-red-50 rounded"
                   >

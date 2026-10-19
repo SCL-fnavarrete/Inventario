@@ -100,11 +100,13 @@ const aInputDate = (valor?: string | null) =>
 /** Valores del formulario a partir de un activo de GET /api/activos/[id]. */
 export function valoresDesdeActivo(asset: Record<string, unknown>): ActivoFormValues {
   const txt = (k: string) => (asset[k] == null ? "" : String(asset[k]));
+  // Opciones de catalogo: llegan por su relacion, con su nombre (SPEC 2.168).
+  const opcion = (k: string) => (asset[k] as { nombre?: string } | null | undefined)?.nombre ?? "";
   return {
     ...ACTIVO_FORM_VACIO,
     categoriaId: txt("categoriaId"),
     sinSede: asset.sedeId == null,
-    marca: txt("marca"),
+    marca: opcion("marca"),
     modelo: txt("modelo"),
     numeroSerie: txt("numeroSerie"),
     estado: txt("estado"),
@@ -115,16 +117,16 @@ export function valoresDesdeActivo(asset: Record<string, unknown>): ActivoFormVa
     procesador: txt("procesador"),
     ram: txt("ram"),
     almacenamiento: txt("discoDuro"),
-    sistemaOperativo: txt("sistemaOperativo"),
+    sistemaOperativo: opcion("sistemaOperativo"),
     imei: txt("imei"),
     tieneCargador: asset.tieneCargador == null ? "" : asset.tieneCargador ? "si" : "no",
     pulgadas: txt("pulgadas"),
     observaciones: txt("observaciones"),
-    antivirus: txt("antivirus"),
+    antivirus: opcion("antivirus"),
     incidencia: txt("incidencia"),
     nombreEquipo: txt("nombreEquipo"),
     conectividad: txt("conectividad"),
-    tipoLicenciaMicrosoft365: txt("tipoLicenciaMicrosoft365"),
+    tipoLicenciaMicrosoft365: opcion("licenciaMicrosoft365"),
   };
 }
 

@@ -71,7 +71,7 @@ type Maintenance = {
   asset: {
     id: string;
     numeroSerie: string | null;
-    marca: string;
+    marca: { nombre: string };
     modelo: string;
     estado: string;
     condicion: string;
@@ -371,7 +371,7 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
       <PageHeader
         backHref="/mantenciones"
         title="Detalle de Mantención"
-        description={<>{maintenance.asset.marca} {maintenance.asset.modelo}</>}
+        description={<>{maintenance.asset.marca.nombre} {maintenance.asset.modelo}</>}
         actions={
           <>
             {maintenance.estado === "pendiente" && !editando && (
@@ -678,7 +678,7 @@ export default function MantencionDetallePage({ params }: { params: Promise<{ id
               </span>
               <div>
                 <p className="font-medium">
-                  {maintenance.asset.marca} {maintenance.asset.modelo}
+                  {maintenance.asset.marca.nombre} {maintenance.asset.modelo}
                 </p>
                 <p className="text-sm text-fg-subtle">{maintenance.asset.categoria.nombre}</p>
               </div>

@@ -8,7 +8,7 @@ type LineaPersona = {
   id: string;
   numero: string;
   tipoChip: { nombre: string; sinCelular: boolean } | null;
-  activo: { id: string; marca: string; modelo: string } | null;
+  activo: { id: string; marca: { nombre: string }; modelo: string } | null;
 };
 
 /**
@@ -47,7 +47,7 @@ export function LineasAlDesvincular({ empleadoId }: { empleadoId: string }) {
               {l.tipoChip && <span className="text-xs font-normal text-fg-subtle">{l.tipoChip.nombre}</span>}
             </span>
             <span className="text-xs text-fg-muted">
-              {l.activo ? `Vuelve con el celular ${l.activo.marca} ${l.activo.modelo}` : "eSIM: queda disponible al desvincular"}
+              {l.activo ? `Vuelve con el celular ${l.activo.marca.nombre} ${l.activo.modelo}` : "eSIM: queda disponible al desvincular"}
             </span>
           </div>
         ))}

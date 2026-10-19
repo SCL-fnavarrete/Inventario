@@ -33,7 +33,7 @@ type Maintenance = {
   asset: {
     id: string;
     numeroSerie: string | null;
-    marca: string;
+    marca: { nombre: string };
     modelo: string;
     categoria: {
       nombre: string;
@@ -351,7 +351,7 @@ export default function CalendarioMantencionesPage() {
                       </span>
                     </div>
                     <p className="text-sm">
-                      {m.asset.marca} {m.asset.modelo}
+                      {m.asset.marca.nombre} {m.asset.modelo}
                     </p>
                     <p className="text-xs text-fg-subtle mt-1 line-clamp-2">
                       {m.descripcion}

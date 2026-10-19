@@ -18,7 +18,7 @@ import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 interface AssetData {
   id: string;
   numeroSerie: string | null;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   estado: EstadoActivo;
   condicion: CondicionActivo;
@@ -59,7 +59,7 @@ export function AssetCard({ asset, compact = false }: AssetCardProps) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm text-fg">
-              {asset.marca} {asset.modelo}
+              {asset.marca.nombre} {asset.modelo}
             </p>
             {/* El n° de serie no tiene espacios: se corta donde haga falta. */}
             <p className="text-xs text-fg-subtle break-all">{displayCode}</p>
@@ -105,7 +105,7 @@ export function AssetCard({ asset, compact = false }: AssetCardProps) {
             </div>
             <div>
               <p className="font-semibold text-fg">
-                {asset.marca} {asset.modelo}
+                {asset.marca.nombre} {asset.modelo}
               </p>
               <p className="text-sm text-fg-subtle">{asset.categoria.nombre}</p>
             </div>

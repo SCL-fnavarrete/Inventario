@@ -6,6 +6,7 @@ import {
   CONDICION_ACTIVO_LABEL,
   etiquetaEstadoDevolucion,
   identificadorActivo,
+  NOMBRE,
 } from '@/modules/activos';
 import { ESTADO_GUIA_LABELS } from '@/modules/despachos';
 import { STATE_LABELS } from '@/modules/solicitudes';
@@ -74,8 +75,8 @@ const EVENTOS = Prisma.sql`
   SELECT 'asset_history', h.id, 'activo', h.asset_id, h.tipo_evento::text,
          h.descripcion, h.usuario_sistema, u.nombre, u.usuario,
          h.datos_anteriores, h.datos_nuevos, h.created_at,
-         concat_ws(' ', s.marca, s.modelo, '(' || coalesce(s.numero_serie, 'IMEI ' || s.imei) || ')')
-  FROM asset_history h LEFT JOIN assets s ON s.id = h.asset_id LEFT JOIN system_users u ON h.usuario_sistema IN (u.usuario, u.email)
+         concat_ws(' ', mk.nombre, s.modelo, '(' || coalesce(s.numero_serie, 'IMEI ' || s.imei) || ')')
+  FROM asset_history h LEFT JOIN assets s ON s.id = h.asset_id LEFT JOIN marcas mk ON mk.id = s.marca_id LEFT JOIN system_users u ON h.usuario_sistema IN (u.usuario, u.email)
   UNION ALL
   SELECT 'workflow_transition', t.id, 'solicitud', t.request_id, t.estado_anterior::text || '>' || t.estado_nuevo::text,
          coalesce(nullif(t.comentario, ''), 'Cambio de estado'), u.usuario, u.nombre, u.usuario,
@@ -240,7 +241,7 @@ async function nombresDeReferencias(filas: FilaAuditoria[]): Promise<Nombres> {
       ? prisma.employee.findMany({ where: { id: { in: [...ids.empleado] } }, select: { id: true, nombres: true, apellidoPaterno: true } })
       : [],
     ids.activo.size
-      ? prisma.asset.findMany({ where: { id: { in: [...ids.activo] } }, select: { id: true, marca: true, modelo: true, numeroSerie: true, imei: true } })
+      ? prisma.asset.findMany({ where: { id: { in: [...ids.activo] } }, select: { id: true, marca: NOMBRE, modelo: true, numeroSerie: true, imei: true } })
       : [],
     ids.tipo.size ? prisma.maintenanceType.findMany({ where: { id: { in: [...ids.tipo] } }, select: { id: true, nombre: true } }) : [],
     ids.tipoChip.size ? prisma.tipoChip.findMany({ where: { id: { in: [...ids.tipoChip] } }, select: { id: true, nombre: true } }) : [],
@@ -249,7 +250,7 @@ async function nombresDeReferencias(filas: FilaAuditoria[]): Promise<Nombres> {
   return new Map<string, string>([
     ...sedes.map((s) => [s.id, s.nombre] as [string, string]),
     ...empleados.map((e) => [e.id, `${e.nombres} ${e.apellidoPaterno}`] as [string, string]),
-    ...activos.map((a) => [a.id, `${a.marca} ${a.modelo} (${identificadorActivo(a)})`] as [string, string]),
+    ...activos.map((a) => [a.id, `${a.marca.nombre} ${a.modelo} (${identificadorActivo(a)})`] as [string, string]),
     ...[...tipos, ...tiposChip, ...operadores].map((t) => [t.id, t.nombre] as [string, string]),
   ]);
 }

@@ -5,6 +5,7 @@
 import { randomUUID } from 'crypto';
 import { prisma } from '@/shared/prisma';
 import { registrarDespacho, confirmarRecepcion, resolverEquipoDespacho, resolverKitDespacho } from '@/modules/despachos/servidor';
+import { crearEquipo } from '@/test-utils/catalogos';
 
 const hayBaseDePrueba = (process.env.DATABASE_URL ?? '').includes('_test');
 const describir = hayBaseDePrueba ? describe : describe.skip;
@@ -16,7 +17,7 @@ describir('recepcion de un despacho con perdidos, en Postgres', () => {
   const guias: string[] = [];
 
   const equipo = (modelo: string) =>
-    prisma.asset.create({ data: { categoriaId: ids.categoria, sedeId: ids.origen, marca: 'Dell', modelo: `${modelo} ${s}`, estado: 'disponible' } });
+    crearEquipo({ categoriaId: ids.categoria, sedeId: ids.origen, marca: 'Dell', modelo: `${modelo} ${s}`, estado: 'disponible' });
   const despachar = async (assetIds: string[]) => {
     const g = await registrarDespacho(
       {

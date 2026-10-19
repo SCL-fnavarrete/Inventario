@@ -8,6 +8,7 @@ import {
   avanceReparto,
   sinAsignacion,
 } from '@/modules/compras/servicio';
+import { CON_CATALOGOS } from '@/modules/activos';
 
 /**
  * Lecturas de Compras contra la base (SPEC 3.2.2). La compra es de la
@@ -121,6 +122,7 @@ export async function detalleCompra(id: string) {
         include: {
           asset: {
             include: {
+              ...CON_CATALOGOS,
               categoria: true,
               sede: { select: { id: true, nombre: true } },
             },
@@ -181,7 +183,7 @@ export async function detalleCompra(id: string) {
 
 /** Lo que se muestra de cada equipo de una compra. */
 export const INCLUDE_EQUIPO_COMPRA = {
-  asset: { include: { categoria: true, sede: { select: { id: true, nombre: true } } } },
+  asset: { include: { ...CON_CATALOGOS, categoria: true, sede: { select: { id: true, nombre: true } } } },
 } as const;
 
 /** Equipos vigentes de una compra, sin a quien estan asignados (SPEC 2.111.6). */

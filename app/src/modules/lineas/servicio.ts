@@ -13,12 +13,14 @@ import {
   destinoDeReasignacion,
   exigirCambio,
   exigirCelularDisponible,
+  sedeAlLiberar,
   exigirLineaDisponible,
   exigirMotivo,
   fechaDeCambio,
   tenenciasDeLinea,
 } from '@/modules/lineas/tenencia';
 import { errorDeAsociacion, type DatosBajaLinea, type DatosLinea, type DatosReasignacion, type DestinoLinea } from '@/modules/lineas/validaciones';
+import { NOMBRE } from '@/modules/activos';
 
 /**
  * Lineas telefonicas (SPEC 2.131). Cada linea es un registro propio que se
@@ -34,8 +36,9 @@ import { errorDeAsociacion, type DatosBajaLinea, type DatosLinea, type DatosReas
 const PERSONA = { select: { id: true, nombres: true, apellidoPaterno: true, rut: true, estado: true, sede: { select: { nombre: true } } } } as const;
 
 const CON_ASOCIADOS = {
-  activo: { select: { id: true, marca: true, modelo: true, imei: true, sede: { select: { nombre: true } }, empleadoActual: PERSONA } },
+  activo: { select: { id: true, marca: NOMBRE, modelo: true, imei: true, sede: { select: { nombre: true } }, empleadoActual: PERSONA } },
   empleado: PERSONA,
+  sede: { select: { nombre: true } },
   tipoChip: { select: { id: true, nombre: true, sinCelular: true } },
   operador: { select: { id: true, nombre: true } },
   estado: { select: { id: true, nombre: true, deBaja: true, clave: true } },
@@ -71,14 +74,14 @@ const destinoActual = (l: { activoId: string | null; empleadoId: string | null }
 /**
  * Cambiar el tipo de chip al editar: no se quita, y el nuevo tiene que calzar con
  * donde esta la linea (una en un celular no pasa a eSIM, una con una persona no
- * pasa a chip fisico). Si no calza, primero se deja sin asignar con Reasignar.
+ * pasa a chip fisico). Si no calza, se cambia con las acciones de la ficha (SPEC 2.167).
  */
 async function exigirChipCompatible(nuevo: string | null | undefined, actual: LineaConNombres) {
   if ((nuevo || null) === actual.tipoChipId) return;
   if (!nuevo) throw errorDeCampo('tipoChipId', 'Elige el tipo de chip');
   if (errorDeAsociacion(await tipoChip(nuevo), destinoActual(actual))) {
     const donde = actual.activoId ? 'en un celular de la empresa' : 'con una persona';
-    throw errorDeCampo('tipoChipId', `La línea está ${donde}: déjala sin asignar con Reasignar y después cambia el tipo de chip`);
+    throw errorDeCampo('tipoChipId', `La línea está ${donde}: cambia el tipo desde las acciones de su ficha (si la usa una persona, con un Cambio de equipo)`);
   }
 }
 
@@ -93,8 +96,12 @@ async function validarAsociados(datos: DatosLinea, actual?: LineaConNombres) {
     const error = errorDeAsociacion(await tipoChip(datos.tipoChipId), destino);
     if (error) throw errorDeCampo(datos.activoId ? 'activoId' : 'empleadoId', error);
   }
-  // Al crear: un celular sin persona (la recibe con una solicitud) o, una eSIM, una persona activa (SPEC 2.131).
+  // Al crear: un celular sin otra linea (SPEC 2.164) o, una eSIM, una persona activa (SPEC 2.131).
   if (!actual && datos.activoId) await exigirCelularDisponible(prisma, datos.activoId);
+  if (!actual && datos.sedeId) {
+    const sede = await prisma.sede.findUnique({ where: { id: datos.sedeId }, select: { activa: true } });
+    if (!sede?.activa) throw errorDeCampo('sedeId', 'Elige una sede activa');
+  }
   if (!actual && datos.empleadoId && !datos.activoId) {
     const persona = await prisma.employee.findUnique({ where: { id: datos.empleadoId }, select: { estado: true } });
     if (!persona) throw errorDeCampo('empleadoId', 'La persona no existe');
@@ -142,6 +149,8 @@ async function aGuardar(datos: DatosLinea, vigenteDesde: Date, actual?: LineaCon
     operadorId: datos.operadorId || null,
     activoId: datos.activoId || null,
     empleadoId: datos.activoId ? null : datos.empleadoId || null,
+    // La sede se elige al crear (opcional); despues la anota quien deja la linea disponible.
+    sedeId: actual ? actual.sedeId : datos.sedeId || null,
     observaciones: datos.observaciones || null,
   };
 }
@@ -158,6 +167,8 @@ export async function crearLinea(datos: DatosLinea, usuario?: string | null) {
   const vigenteDesde = fechaVigencia(datos.vigenteDesde);
   const data = await aGuardar(datos, vigenteDesde);
   return prisma.$transaction(async (tx) => {
+    // De nuevo con el celular bloqueado: otra linea pudo llegar a el mientras se validaba.
+    if (data.activoId) await exigirCelularDisponible(tx, data.activoId);
     const linea = await tx.lineaTelefonica.create({ data, include: CON_NOMBRES });
     await registrarHistorial(tx, null, linea, { usuario, vigenteDesde });
     await abrirTenencia(tx, linea, { desde: vigenteDesde, origen: 'alta', usuario });
@@ -219,13 +230,22 @@ export async function darDeBajaLinea(id: string, datos: DatosBajaLinea, usuario?
 }
 
 /**
- * Reasigna una linea (SPEC 2.131): la lleva a otro telefono de la empresa (la
- * persona sale de el), a una persona (eSIM o telefono personal) o la deja sin
- * asignar. Nunca cambia quien tiene un telefono. Cierra su tramo de tenencia y
- * abre otro, con el motivo, y queda en la auditoria.
+ * Asigna o mueve una linea disponible (SPEC 2.131, 2.167): a otro telefono de la
+ * empresa sin linea, a una persona (eSIM) o la deja disponible, y si se pide
+ * cambia su tipo de chip con el mismo numero. Nunca cambia quien tiene un
+ * telefono. Cierra su tramo de tenencia y abre otro, con el motivo, y queda en
+ * el historial y la auditoria.
  */
 export async function reasignarLinea(id: string, datos: DatosReasignacion, usuario?: string | null) {
   return prisma.$transaction((tx) => reasignarLineaEnTx(tx, id, datos, usuario));
+}
+
+/** El tipo de chip con el que queda: el elegido (activo) o el que ya tiene. */
+async function tipoChipFinal(tx: Prisma.TransactionClient, tipoChipId: string | null | undefined, actual: LineaConNombres) {
+  if (!tipoChipId || tipoChipId === actual.tipoChipId) return actual.tipoChip;
+  const tipo = await tx.tipoChip.findFirst({ where: { id: tipoChipId, activo: true }, select: { sinCelular: true } });
+  if (!tipo) throw errorDeCampo('tipoChipId', 'Elige un tipo de chip de la lista');
+  return tipo;
 }
 
 /** Lo mismo que reasignarLinea, dentro de la transaccion de quien la llama (una solicitud). */
@@ -234,16 +254,29 @@ export async function reasignarLineaEnTx(tx: Prisma.TransactionClient, id: strin
   if (actual.estado.deBaja) throw new ConflictError('Una línea dada de baja no se asigna: cambia primero su estado');
   // Solo una disponible (sin persona): una asignada cambia con las solicitudes (SPEC 2.131).
   await exigirLineaDisponible(tx, actual);
-  // Chip fisico -> celular de la empresa; eSIM -> persona (o sin asignar).
-  const noPermitido = errorDeAsociacion(actual.tipoChip, datos.destino);
+  // Chip fisico -> celular de la empresa; eSIM -> persona (o disponible), segun el tipo con que queda.
+  const noPermitido = errorDeAsociacion(await tipoChipFinal(tx, datos.tipoChipId, actual), datos.destino);
   if (noPermitido) throw errorDeCampo('destino', noPermitido);
-  const desde = fechaDeCambio(datos.desde, 'desde');
-  const destino = await destinoDeReasignacion(tx, datos);
+  const destino = await destinoDeReasignacion(tx, datos, id);
   await exigirMotivo(tx, datos.motivoId);
-  exigirCambio({ activoId: actual.activoId, empleadoId: actual.empleadoId }, destino);
-  const linea = await tx.lineaTelefonica.update({ where: { id }, data: destino, include: CON_NOMBRES });
-  await cambiarTenencia(tx, id, destino, { desde, origen: 'reasignacion', usuario, motivoId: datos.motivoId, detalle: datos.detalle });
-  await auditLogService.registrarActualizacion('linea', id, `Línea ${linea.numero} reasignada`, foto(actual), foto(linea), usuario, tx);
+  const cambiaTipo = !!datos.tipoChipId && datos.tipoChipId !== actual.tipoChipId;
+  const cambiaLugar = actual.activoId !== destino.activoId || actual.empleadoId !== destino.empleadoId;
+  if (!cambiaTipo) exigirCambio({ activoId: actual.activoId, empleadoId: actual.empleadoId }, destino);
+  // Si queda disponible, se anota la sede donde estaba (SPEC 2.165).
+  const libre = !destino.activoId && !destino.empleadoId;
+  const data = {
+    ...destino,
+    ...(libre && cambiaLugar ? { sedeId: await sedeAlLiberar(tx, actual) } : {}),
+    ...(cambiaTipo ? { tipoChipId: datos.tipoChipId } : {}),
+  };
+  const linea = await tx.lineaTelefonica.update({ where: { id }, data, include: CON_NOMBRES });
+  // El tipo de chip va al historial de datos; el lugar, a un tramo de tenencia.
+  if (cambiaTipo) await registrarHistorial(tx, actual, { ...linea, activoId: actual.activoId, empleadoId: actual.empleadoId }, { usuario });
+  if (cambiaLugar) {
+    await cambiarTenencia(tx, id, destino, { desde: new Date(), origen: 'reasignacion', usuario, motivoId: datos.motivoId, detalle: datos.detalle });
+  }
+  const accion = cambiaTipo ? `pasó a ${linea.tipoChip?.nombre}` : 'reasignada';
+  await auditLogService.registrarActualizacion('linea', id, `Línea ${linea.numero} ${accion}`, foto(actual), foto(linea), usuario, tx);
   return linea;
 }
 
@@ -267,6 +300,36 @@ export async function asociarLineaEnSolicitud(
     { destino: aPersona ? 'persona' : 'telefono', activoId: aPersona ? undefined : c.activoId, empleadoId: aPersona ? c.empleadoId : undefined, detalle: c.detalle },
     c.usuario
   );
+}
+
+/**
+ * Cambio de equipo, celular -> eSIM con el mismo numero (SPEC 2.166): la linea del
+ * celular que se devuelve pasa a eSIM y queda con la persona, en su telefono
+ * personal. Se llama despues de devolver el celular. El celular debe tener una sola linea.
+ */
+export async function convertirLineaAEsimEnSolicitud(
+  tx: Prisma.TransactionClient,
+  c: { activoId: string; empleadoId: string; detalle: string; usuario?: string | null }
+) {
+  const enCelular = await tx.lineaTelefonica.findMany({ where: { activoId: c.activoId, estado: { deBaja: false } }, select: { id: true } });
+  if (enCelular.length !== 1) {
+    throw errorDeCampo(
+      'convertirLineaEsim',
+      enCelular.length ? 'El celular tiene más de una línea: elige una eSIM disponible' : 'El celular no tiene línea para convertir: elige una eSIM disponible'
+    );
+  }
+  const tipoEsim = await tx.tipoChip.findFirst({ where: { sinCelular: true, activo: true }, orderBy: { nombre: 'asc' } });
+  if (!tipoEsim) throw errorDeCampo('convertirLineaEsim', 'No hay un tipo de chip eSIM activo: créalo en Líneas > Catálogos');
+  const id = enCelular[0].id;
+  const actual = await lineaBloqueada(tx, id);
+  // Primero el tipo de chip (evento "datos" del historial); despues el lugar (tramo de tenencia).
+  const convertida = await tx.lineaTelefonica.update({ where: { id }, data: { tipoChipId: tipoEsim.id }, include: CON_NOMBRES });
+  await registrarHistorial(tx, actual, convertida, { usuario: c.usuario });
+  const destino = { activoId: null, empleadoId: c.empleadoId };
+  const linea = await tx.lineaTelefonica.update({ where: { id }, data: destino, include: CON_NOMBRES });
+  await cambiarTenencia(tx, id, destino, { desde: new Date(), origen: 'reasignacion', usuario: c.usuario, detalle: c.detalle });
+  await auditLogService.registrarActualizacion('linea', id, `Línea ${linea.numero} convertida a eSIM`, foto(actual), foto(linea), c.usuario, tx);
+  return linea;
 }
 
 /** Una eSIM queda con la persona que usa su propio telefono (onboarding, SPEC 2.143). */
@@ -299,7 +362,12 @@ export async function liberarLineaEnSolicitud(
   }
   if (c.soloEsim && anterior.activoId) throw errorDeCampo('lineaId', `La línea ${anterior.numero} está en un celular, no es una eSIM`);
   const libre = { activoId: null, empleadoId: null };
-  const sale = await tx.lineaTelefonica.update({ where: { id: anterior.id }, data: libre, include: CON_NOMBRES });
+  // Queda disponible en la sede donde estaba (SPEC 2.165).
+  const sale = await tx.lineaTelefonica.update({
+    where: { id: anterior.id },
+    data: { ...libre, sedeId: await sedeAlLiberar(tx, anterior) },
+    include: CON_NOMBRES,
+  });
   await cambiarTenencia(tx, anterior.id, libre, { desde: new Date(), origen: 'reasignacion', usuario: c.usuario, detalle: `Línea anterior - ${c.detalle}` });
   await auditLogService.registrarActualizacion('linea', anterior.id, `Línea ${sale.numero} cambiada`, foto(anterior), foto(sale), c.usuario, tx);
   return anterior;
@@ -379,16 +447,16 @@ export async function eliminarLinea(id: string, usuario?: string | null) {
 }
 
 /**
- * Lo que ofrecen los formularios de crear y asignar: celulares sin persona (la
- * recibe con una solicitud, SPEC 2.131), personas activas y catalogos activos.
+ * Lo que ofrecen los formularios de crear y asignar: celulares sin linea vigente,
+ * con o sin persona (SPEC 2.164), personas activas y catalogos activos.
  */
 export async function opcionesLinea() {
   const activos = { where: { activo: true }, orderBy: { nombre: 'asc' as const } };
-  const [celulares, personas, tiposChip, estados, operadores] = await Promise.all([
+  const [celulares, personas, tiposChip, estados, operadores, sedes] = await Promise.all([
     prisma.asset.findMany({
-      where: { deletedAt: null, estado: { not: 'baja' }, empleadoActualId: null, categoria: { tipoFicha: 'celular' } },
-      select: { id: true, marca: true, modelo: true, imei: true, sedeId: true, empleadoActual: PERSONA },
-      orderBy: [{ marca: 'asc' }, { modelo: 'asc' }],
+      where: { deletedAt: null, estado: { not: 'baja' }, categoria: { tipoFicha: 'celular' }, lineas: { none: { estado: { deBaja: false } } } },
+      select: { id: true, marca: NOMBRE, modelo: true, imei: true, sedeId: true, empleadoActual: PERSONA },
+      orderBy: [{ marca: { nombre: 'asc' } }, { modelo: 'asc' }],
     }),
     prisma.employee.findMany({
       where: { estado: { not: 'desvinculado' } },
@@ -398,6 +466,7 @@ export async function opcionesLinea() {
     prisma.tipoChip.findMany({ ...activos, select: { id: true, nombre: true, sinCelular: true } }),
     prisma.estadoLinea.findMany({ ...activos, select: { id: true, nombre: true, deBaja: true, clave: true } }),
     prisma.operadorLinea.findMany({ ...activos, select: { id: true, nombre: true } }),
+    prisma.sede.findMany({ where: { activa: true }, select: { id: true, nombre: true }, orderBy: { nombre: 'asc' } }),
   ]);
-  return { celulares, personas, tiposChip, estados, operadores };
+  return { celulares, personas, tiposChip, estados, operadores, sedes };
 }

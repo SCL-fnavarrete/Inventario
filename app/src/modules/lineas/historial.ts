@@ -1,6 +1,7 @@
 import type { Prisma, TipoEventoLinea } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { formatearNumero } from '@/modules/lineas/validaciones';
+import { NOMBRE } from '@/modules/activos';
 
 /**
  * Historial de una linea (SPEC 2.131), como el de los activos: cada cambio
@@ -13,12 +14,12 @@ export const CON_NOMBRES = {
   estado: { select: { nombre: true, deBaja: true } },
   tipoChip: { select: { nombre: true, sinCelular: true } },
   operador: { select: { nombre: true } },
-  activo: { select: { marca: true, modelo: true, imei: true } },
+  activo: { select: { marca: NOMBRE, modelo: true, imei: true } },
   empleado: { select: { nombres: true, apellidoPaterno: true } },
 } satisfies Prisma.LineaTelefonicaInclude;
 export type LineaConNombres = Prisma.LineaTelefonicaGetPayload<{ include: typeof CON_NOMBRES }>;
 
-const nombreCelular = (l: LineaConNombres) => (l.activo ? `${l.activo.marca} ${l.activo.modelo}` : '—');
+const nombreCelular = (l: LineaConNombres) => (l.activo ? `${l.activo.marca.nombre} ${l.activo.modelo}` : '—');
 const nombrePersona = (l: LineaConNombres) => (l.empleado ? `${l.empleado.nombres} ${l.empleado.apellidoPaterno}` : '—');
 
 /** Otros datos que se editan sin evento propio, con su nombre para la descripcion. */
@@ -128,16 +129,16 @@ export async function registrarMovimiento(
 ) {
   const [persona, celular, motivo] = await Promise.all([
     despues.empleadoId ? tx.employee.findUnique({ where: { id: despues.empleadoId }, select: { nombres: true, apellidoPaterno: true } }) : null,
-    despues.activoId ? tx.asset.findUnique({ where: { id: despues.activoId }, select: { marca: true, modelo: true } }) : null,
+    despues.activoId ? tx.asset.findUnique({ where: { id: despues.activoId }, select: { marca: NOMBRE, modelo: true } }) : null,
     c.motivoId ? tx.motivoReasignacion.findUnique({ where: { id: c.motivoId }, select: { nombre: true } }) : null,
   ]);
   const nombre = persona ? `${persona.nombres} ${persona.apellidoPaterno}` : '';
-  const equipo = celular ? `${celular.marca} ${celular.modelo}` : '';
+  const equipo = celular ? `${celular.marca.nombre} ${celular.modelo}` : '';
   const que = persona
     ? `Asignada a ${nombre}${equipo ? ` en el celular ${equipo}` : ' (eSIM o teléfono personal)'}`
     : equipo
       ? `Queda en el celular ${equipo}, sin persona`
-      : 'Queda disponible (sin persona ni celular)';
+      : 'Queda disponible';
   const porque = [motivo?.nombre, c.detalle].filter(Boolean).join(' · ') || ETIQUETA_ORIGEN[c.origen];
   await tx.lineaHistorial.create({
     data: {

@@ -67,14 +67,14 @@ export default async function DetalleActivoPage({
   if (asset.discoDuro) especificaciones.discoDuro = asset.discoDuro;
   if (asset.ram) especificaciones.ram = asset.ram;
   if (asset.pulgadas) especificaciones.pulgadas = String(asset.pulgadas);
-  if (asset.sistemaOperativo) especificaciones.sistemaOperativo = asset.sistemaOperativo;
-  if (asset.antivirus) especificaciones.antivirus = asset.antivirus;
+  if (asset.sistemaOperativo) especificaciones.sistemaOperativo = asset.sistemaOperativo.nombre;
+  if (asset.antivirus) especificaciones.antivirus = asset.antivirus.nombre;
   if (asset.nombreEquipo) especificaciones.nombreEquipo = asset.nombreEquipo;
   if (asset.lineas.length) especificaciones["Línea"] = <EnlacesLineas lineas={asset.lineas} />;
   if (asset.conectividad) especificaciones.conectividad = asset.conectividad;
   // Name of the Microsoft 365 plan (e.g. "Premium").
-  if (asset.tipoLicenciaMicrosoft365) {
-    especificaciones.microsoft365 = asset.tipoLicenciaMicrosoft365;
+  if (asset.licenciaMicrosoft365) {
+    especificaciones.microsoft365 = asset.licenciaMicrosoft365.nombre;
   }
 
   // Por que no se puede dar de baja (null si se puede).
@@ -129,7 +129,7 @@ export default async function DetalleActivoPage({
             <CategoryIcon categoria={asset.categoria.nombre} className="h-8 w-8" />
           </div>
         }
-        title={`${asset.marca} ${asset.modelo}`}
+        title={`${asset.marca.nombre} ${asset.modelo}`}
         description={`${asset.categoria.nombre} • ${identificadorActivo(asset, "Sin n° de serie")}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -175,7 +175,7 @@ export default async function DetalleActivoPage({
             ) : null}
             {sePuedeEliminar && (
               <Can recurso="activos" accion="delete">
-                <EliminarActivo id={asset.id} nombre={`${asset.marca} ${asset.modelo}`} />
+                <EliminarActivo id={asset.id} nombre={`${asset.marca.nombre} ${asset.modelo}`} />
               </Can>
             )}
           </div>
@@ -269,7 +269,7 @@ export default async function DetalleActivoPage({
               )}
               <div>
                 <dt className="text-sm text-fg-subtle">Marca</dt>
-                <dd className="font-medium text-fg">{asset.marca}</dd>
+                <dd className="font-medium text-fg">{asset.marca.nombre}</dd>
               </div>
               <div>
                 <dt className="text-sm text-fg-subtle">Modelo</dt>

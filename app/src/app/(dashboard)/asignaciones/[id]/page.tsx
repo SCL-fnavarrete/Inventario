@@ -42,12 +42,12 @@ type Assignment = {
   asset: {
     id: string;
     numeroSerie: string | null;
-    marca: string;
+    marca: { nombre: string };
     modelo: string;
     procesador: string | null;
     ram: string | null;
     discoDuro: string | null;
-    sistemaOperativo: string | null;
+    sistemaOperativo: { nombre: string } | null;
     imei: string | null;
     lineas: { id: string; numero: string }[];
     estado: string;
@@ -167,7 +167,7 @@ export default function AsignacionDetailPage({
           <div>
             <h1 className="text-2xl font-bold text-fg">Detalle de Asignación</h1>
             <p className="text-fg-muted">
-              {assignment.asset.marca} {assignment.asset.modelo} → {assignment.employee.nombres}{" "}
+              {assignment.asset.marca.nombre} {assignment.asset.modelo} → {assignment.employee.nombres}{" "}
               {assignment.employee.apellidoPaterno}
             </p>
           </div>
@@ -280,7 +280,7 @@ export default function AsignacionDetailPage({
           <div className="space-y-4">
             <div>
               <p className="font-semibold text-lg">
-                {assignment.asset.marca} {assignment.asset.modelo}
+                {assignment.asset.marca.nombre} {assignment.asset.modelo}
               </p>
               <p className="text-fg-subtle">{assignment.asset.categoria.nombre}</p>
             </div>
@@ -330,7 +330,7 @@ export default function AsignacionDetailPage({
                   {assignment.asset.sistemaOperativo && (
                     <div>
                       <p className="text-xs text-fg-subtle uppercase">S.O.</p>
-                      <p>{assignment.asset.sistemaOperativo}</p>
+                      <p>{assignment.asset.sistemaOperativo.nombre}</p>
                     </div>
                   )}
                 </>

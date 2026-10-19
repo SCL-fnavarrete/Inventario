@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
+import { enfocarPrimerError } from "@/shared/ui/CampoFormulario";
 import { useRouter } from "next/navigation";
 import { parseApiError, type FieldErrors, mensajeDeError } from "@/shared/utilidades/apiErrors";
 import { ApiErrorSummary } from "@/shared/ui/ApiErrorSummary";
@@ -60,6 +61,8 @@ export default function EditarActivoPage({ params }: { params: Promise<{ id: str
         const { message, fieldErrors: fe } = await parseApiError(res, "Error al actualizar activo");
         setError(message);
         setFieldErrors(fe);
+        // Lleva la vista al campo que rechazo el servidor, ya marcado en rojo.
+        enfocarPrimerError();
         return;
       }
       router.push(`/activos/${id}`);

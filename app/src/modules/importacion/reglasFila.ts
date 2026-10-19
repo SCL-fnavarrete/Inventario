@@ -120,7 +120,7 @@ export function interpretarRut(valor: string | null | undefined): LecturaRut {
  * serie duplicado" durante la importacion.
  */
 export interface ActivoDuplicado {
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   sedeId: string | null;
   empleadoActual: { nombres: string; apellidoPaterno: string; rut: string | null } | null;
@@ -141,7 +141,7 @@ export function mensajeSerieDuplicada(numeroSerie: string, existingAsset: Activo
     ? `${existingAsset.empleadoActual.nombres} ${existingAsset.empleadoActual.apellidoPaterno} (RUT: ${existingAsset.empleadoActual.rut})`
     : "Sin asignar";
 
-  return `N° de serie "${numeroSerie}" ya existe - Marca: ${existingAsset.marca}, Modelo: ${existingAsset.modelo}, Asignado a: ${asignadoA}`;
+  return `N° de serie "${numeroSerie}" ya existe - Marca: ${existingAsset.marca.nombre}, Modelo: ${existingAsset.modelo}, Asignado a: ${asignadoA}`;
 }
 /**
  * Sede real (id/nombre/codigo) para el mapa de resolucion por columna.

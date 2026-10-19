@@ -17,12 +17,12 @@ type Asset = {
   id: string;
   numeroSerie: string | null;
   imei: string | null;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   procesador: string | null;
   ram: string | null;
   discoDuro: string | null;
-  sistemaOperativo: string | null;
+  sistemaOperativo: { nombre: string } | null;
   lineas?: { numero: string }[];
   pulgadas: string | number | null;
   conectividad: string | null;
@@ -187,13 +187,13 @@ export function SelectorActivos({
               >
                 <CategoryIcon categoria={asset.categoria.nombre} className="h-4 w-4" />
                 <span className="text-primary-700">{asset.categoria.nombre}</span>
-                <span className="font-medium">{asset.marca} {asset.modelo}</span>
+                <span className="font-medium">{asset.marca.nombre} {asset.modelo}</span>
                 {(asset.numeroSerie || asset.imei) && (
                   <span className="text-primary-700">({identificadorActivo(asset)})</span>
                 )}
                 <button
                   type="button"
-                  aria-label={`Quitar ${asset.marca} ${asset.modelo}`}
+                  aria-label={`Quitar ${asset.marca.nombre} ${asset.modelo}`}
                   onClick={() => removeAsset(asset.id)}
                   className="ml-0.5 hover:text-primary-700"
                 >
@@ -304,7 +304,7 @@ export function SelectorActivos({
                       "font-medium",
                       isSelected ? "text-primary-950" : "text-fg"
                     )}>
-                      {asset.marca} {asset.modelo}
+                      {asset.marca.nombre} {asset.modelo}
                     </span>
                     {/* Nombre de categoria visible ademas del icono, en todos los
                         tamaños de pantalla. */}

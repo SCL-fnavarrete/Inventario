@@ -15,7 +15,7 @@ import { filaEquipo } from '@/modules/solicitudes/documentos';
 
 const base = {
   categoria: { nombre: 'Celular' },
-  marca: 'Samsung',
+  marca: { nombre: 'Samsung' },
   modelo: 'A55',
   pulgadas: null,
   ram: '8GB',

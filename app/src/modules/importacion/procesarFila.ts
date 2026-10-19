@@ -1,3 +1,4 @@
+import { NOMBRE } from '@/modules/activos';
 import { logger } from "@/shared/logger";
 import { buscarPersona, type PersonaIndexada } from "@/modules/personas";
 import { actualizarIndice, encontrarOCrearPersona } from "@/modules/personas/servidor";
@@ -236,7 +237,7 @@ export async function procesarFila(
     const existingAsset = await prismaClient.asset.findFirst({
       where: { numeroSerie: { equals: numeroSerie, mode: "insensitive" } },
       select: {
-        marca: true,
+        marca: NOMBRE,
         modelo: true,
         sedeId: true,
         empleadoActual: { select: { nombres: true, apellidoPaterno: true, rut: true } },

@@ -21,7 +21,10 @@ describe('whereFiltrosLineas', () => {
   it('"Sin ..." busca las que no tienen el dato; la sede del navbar es la del celular o, sin celular, la de la persona', () => {
     const w = partes(whereFiltrosLineas({ estado: 'todas', tipoChip: SIN_DATO_LINEA, operador: 'op1', sedeId: 's1' }));
     expect(w).toEqual(expect.arrayContaining([deSede('s1'), { tipoChipId: null }, { operadorId: 'op1' }]));
-    expect(deSede('s1')).toEqual({ OR: [{ activo: { sedeId: 's1' } }, { activoId: null, empleado: { sedeId: 's1' } }] });
+    // Disponible (sin celular ni persona): la sede donde se guarda el chip (SPEC 2.165).
+    expect(deSede('s1')).toEqual({
+      OR: [{ activo: { sedeId: 's1' } }, { activoId: null, empleado: { sedeId: 's1' } }, { activoId: null, empleadoId: null, sedeId: 's1' }],
+    });
     expect(deSede(undefined)).toEqual({});
     expect(w).not.toContainEqual({ estado: { deBaja: false } });
   });

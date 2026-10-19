@@ -489,15 +489,8 @@ export default function NuevaSolicitudPage() {
       }
     }
 
-    // Todo celular reservado sin linea necesita chip fisico o eSIM con su linea.
-    const celularSinLinea = categorias.some((c) => {
-      const id = equipoSeleccionado[c.id];
-      const equipo = id ? disponiblesPorCategoria[c.id]?.items.find((i) => i.id === id) : undefined;
-      const l = lineaOnboarding[c.id];
-      return c.tipoFicha === 'celular' && !!equipo && !equipo.lineas?.length && !l?.lineaId;
-    });
+    // Con eSIM se elige cual; un celular sin linea se puede entregar asi (SPEC 2.160).
     if (usaEsim && !esimLineaId) errores.lineaCelular = 'Elige la eSIM de la persona';
-    if (celularSinLinea) errores.lineaCelular = 'Elige la línea (chip físico) del celular';
 
     // Coordinacion de entrega: obligatoria si se reservo al menos un equipo.
     if (Object.values(equipoSeleccionado).length > 0) {
@@ -754,7 +747,9 @@ export default function NuevaSolicitudPage() {
             oldAssignmentId: c.oldAssignmentId,
             newAssetId: c.modoCelular === 'esim' ? undefined : c.newAssetId,
             newLineaId: c.lineaNueva?.lineaId || undefined,
-            newEsimLineaId: c.modoCelular === 'esim' ? c.esimLineaId : undefined,
+            newEsimLineaId: c.modoCelular === 'esim' && !c.convertirEsim ? c.esimLineaId : undefined,
+            // Su misma linea pasa a eSIM (SPEC 2.166).
+            convertirLineaEsim: c.modoCelular === 'esim' && c.convertirEsim ? true : undefined,
             estadoDevolucion: c.estadoDevolucion,
             // Danado: se da de baja con el motivo de la lista (SPEC 2.135).
             ...((c.estadoDevolucion === 'danado' || c.estadoDevolucion === 'baja') && {
@@ -1174,7 +1169,7 @@ export default function NuevaSolicitudPage() {
                           {cat.nombre}
                           {equipoElegido && (
                             <span className="ml-2 text-xs text-fg-subtle truncate">
-                              — {equipoElegido.marca} {equipoElegido.modelo}
+                              — {equipoElegido.marca.nombre} {equipoElegido.modelo}
                             </span>
                           )}
                         </span>
@@ -1250,7 +1245,7 @@ export default function NuevaSolicitudPage() {
                           </div>
                           <ul className="text-xs text-fg-muted space-y-0.5 max-h-60 overflow-y-auto pr-1">
                             {disp.items
-                              .filter((item) => item.id === seleccionado || coincidePorPalabras(busquedaEquipos, [item.marca, item.modelo, item.numeroSerie, item.imei, especificacionesEquipo(item)]))
+                              .filter((item) => item.id === seleccionado || coincidePorPalabras(busquedaEquipos, [item.marca.nombre, item.modelo, item.numeroSerie, item.imei, especificacionesEquipo(item)]))
                               .map((item) => (
                               <li key={item.id}>
                                 <label className="flex items-center gap-2 cursor-pointer">
@@ -1261,7 +1256,7 @@ export default function NuevaSolicitudPage() {
                                     className="rounded border-line-strong"
                                   />
                                   <span>
-                                    {item.marca} {item.modelo}
+                                    {item.marca.nombre} {item.modelo}
                                     {item.numeroSerie ? ` — N° serie ${item.numeroSerie}` : item.imei ? ` — IMEI ${item.imei}` : ''}
                                     {item.condicion === 'usado' && (
                                       <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700">
@@ -1278,7 +1273,7 @@ export default function NuevaSolicitudPage() {
                               </li>
                             ))}
                           </ul>
-                          {busquedaEquipos.trim() && !disp.items.some((item) => coincidePorPalabras(busquedaEquipos, [item.marca, item.modelo, item.numeroSerie, item.imei, especificacionesEquipo(item)])) && (
+                          {busquedaEquipos.trim() && !disp.items.some((item) => coincidePorPalabras(busquedaEquipos, [item.marca.nombre, item.modelo, item.numeroSerie, item.imei, especificacionesEquipo(item)])) && (
                             <p className="text-fg-subtle">Ningún equipo coincide con «{busquedaEquipos}».</p>
                           )}
                           {disp.total > disp.items.length && (
@@ -1325,7 +1320,7 @@ export default function NuevaSolicitudPage() {
                             />
                           </div>
                         )}
-                      {/* Un celular que llega sin linea: se le puede asociar una al momento (SPEC 2.143). */}
+                      {/* Un celular que llega sin linea: se le puede asociar una al momento, o entregarlo sin linea (SPEC 2.143, 2.160). */}
                       {cat.tipoFicha === 'celular' && equipoElegido && !equipoElegido.lineas?.length && (
                         <ElegirLineaCelular
                           valor={lineaOnboarding[cat.id] ?? SIN_LINEA}
@@ -1334,7 +1329,7 @@ export default function NuevaSolicitudPage() {
                             limpiarError('lineaCelular');
                           }}
                           excluidas={Object.entries(lineaOnboarding).filter(([id]) => id !== cat.id).map(([, l]) => l.lineaId).filter(Boolean)}
-                          error={fieldErrors.lineaCelular}
+                          aviso={lineaOnboarding[cat.id]?.lineaId ? undefined : 'Se entrega sin línea. Puedes asociarle una después desde Líneas.'}
                         />
                       )}
                     </div>
@@ -1640,7 +1635,7 @@ export default function NuevaSolicitudPage() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-medium text-fg">
-                                    {asset.categoria.nombre}: {asset.marca} {asset.modelo}
+                                    {asset.categoria.nombre}: {asset.marca.nombre} {asset.modelo}
                                   </p>
                                   <p className="text-xs text-fg-subtle">
                                     {asset.numeroSerie || !asset.imei ? 'Serie: ' : ''}{identificadorActivo(asset, 'Sin serie')}
@@ -1650,7 +1645,7 @@ export default function NuevaSolicitudPage() {
                               <div className="mt-3 pl-1 space-y-2">
                                   <ElegirEstadoDevolucion
                                     nombre={`devolucion-${a.id}`}
-                                    etiqueta={`${asset.marca} ${asset.modelo}`}
+                                    etiqueta={`${asset.marca.nombre} ${asset.modelo}`}
                                     valor={devolucionEstados[a.id]}
                                     onElegir={(estado) => {
                                       limpiarError('devoluciones');
@@ -1676,7 +1671,7 @@ export default function NuevaSolicitudPage() {
                                   )}
                                   <input
                                     type="text"
-                                    aria-label={`Observaciones de ${asset.marca} ${asset.modelo}`}
+                                    aria-label={`Observaciones de ${asset.marca.nombre} ${asset.modelo}`}
                                     maxLength={1000}
                                     value={devolucionObservaciones[a.id] || ''}
                                     onChange={(e) =>

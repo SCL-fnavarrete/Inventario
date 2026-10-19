@@ -175,6 +175,8 @@ const cambioEquipoFields = z.object({
         newLineaId: z.string().uuid().optional().nullable(),
         // eSIM: el empleado usa su propio telefono, no se entrega equipo y la eSIM queda con la persona.
         newEsimLineaId: z.string().uuid().optional().nullable(),
+        // eSIM con el mismo numero: la linea del celular que vuelve pasa a eSIM (SPEC 2.166).
+        convertirLineaEsim: z.boolean().optional().default(false),
         // SPEC 2.135: en un cambio el equipo anterior vuelve en buen estado o
         // danado; danado (o "baja", lo mismo) se da de baja en el acto con un
         // motivo de la lista. "No devolvio" es solo de la desvinculacion.
@@ -192,11 +194,11 @@ const cambioEquipoFields = z.object({
         observacionesCargadorNuevo: z.string().optional().nullable(),
       })
         .refine(conMotivoSiDanado, MOTIVO_OBLIGATORIO)
-        .refine((c) => !!c.newAssetId !== !!c.newEsimLineaId, {
+        .refine((c) => [c.newAssetId, c.newEsimLineaId, c.convertirLineaEsim].filter(Boolean).length === 1, {
           path: ['newAssetId'],
-          message: 'Elige el reemplazo: un equipo o una eSIM, no los dos',
+          message: 'Elige el reemplazo: un equipo, una eSIM o su misma línea como eSIM',
         })
-        .refine((c) => !(c.newEsimLineaId && c.newLineaId), {
+        .refine((c) => !((c.newEsimLineaId || c.convertirLineaEsim) && c.newLineaId), {
           path: ['newLineaId'],
           message: 'Con eSIM no se entrega celular, así que no lleva chip físico',
         })

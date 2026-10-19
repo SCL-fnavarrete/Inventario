@@ -34,6 +34,7 @@ import { executeAssignment, executeReturn } from '@/modules/asignaciones/ejecuci
 import { executeKitDelivery } from '@/modules/solicitudes/ejecucion';
 import { POST as darDeBaja } from '@/app/api/activos/[id]/baja/route';
 import { POST as completar } from '@/app/api/mantenciones/[id]/completar/route';
+import { crearEquipo } from '@/test-utils/catalogos';
 
 const hayBaseDePrueba = (process.env.DATABASE_URL ?? '').includes('_test');
 const describir = hayBaseDePrueba ? describe : describe.skip;
@@ -52,9 +53,7 @@ describir('concurrencia real en Postgres', () => {
   } = { activos: [] };
 
   const nuevoActivo = async () => {
-    const a = await prisma.asset.create({
-      data: { categoriaId: ids.categoriaId!, sedeId: ids.sedeId!, marca: 'Dell', modelo: `Test ${s}`, estado: 'disponible' },
-    });
+    const a = await crearEquipo({ categoriaId: ids.categoriaId!, sedeId: ids.sedeId!, marca: 'Dell', modelo: `Test ${s}`, estado: 'disponible' });
     ids.activos.push(a.id);
     return a.id;
   };

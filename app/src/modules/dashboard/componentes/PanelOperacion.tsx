@@ -47,7 +47,7 @@ interface PanelOperacionProps {
   noDevueltos: number;
   pendientes: {
     id: string;
-    marca: string;
+    marca: { nombre: string };
     modelo: string;
     numeroSerie: string | null;
     imei: string | null;
@@ -60,7 +60,7 @@ interface PanelOperacionProps {
     descripcion: string;
     usuarioSistema: string | null;
     createdAt: Date;
-    asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; imei: string | null };
+    asset: { id: string; marca: { nombre: string }; modelo: string; numeroSerie: string | null; imei: string | null };
   }[];
   lineas: { vigentes: number; disponibles: number; asignadas: number; esim: number; fisicas: number };
 }
@@ -115,7 +115,7 @@ export function PanelOperacion({ noDevueltos, pendientes, actividad, lineas }: P
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-fg">
-                      {e.marca} {e.modelo}
+                      {e.marca.nombre} {e.modelo}
                     </span>
                     <span className="block truncate text-xs text-fg-subtle">
                       {e.empleadoActual ? `${e.empleadoActual.nombres} ${e.empleadoActual.apellidoPaterno}` : "Sin persona"}
@@ -148,7 +148,7 @@ export function PanelOperacion({ noDevueltos, pendientes, actividad, lineas }: P
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm text-fg">
-                        <b className="font-semibold">{evento.label}</b> · {e.asset.marca} {e.asset.modelo}
+                        <b className="font-semibold">{evento.label}</b> · {e.asset.marca.nombre} {e.asset.modelo}
                       </span>
                       <span className="block truncate text-xs text-fg-subtle">
                         {e.descripcion}

@@ -19,7 +19,7 @@ import type { EstadoActivo, CondicionActivo } from "@prisma/client";
 interface AssetData {
   id: string;
   numeroSerie: string | null;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   estado: EstadoActivo;
   condicion: CondicionActivo;

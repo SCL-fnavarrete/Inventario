@@ -15,7 +15,7 @@ import { AssetConditionBadge, AssetStatusBadge } from "@/modules/activos/compone
 /** Un equipo como lo trae la lista de Activos. */
 export type ActivoFila = {
   id: string;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   numeroSerie: string | null;
   estado: EstadoActivo;
@@ -23,7 +23,7 @@ export type ActivoFila = {
   procesador: string | null;
   ram: string | null;
   discoDuro: string | null;
-  sistemaOperativo: string | null;
+  sistemaOperativo: { nombre: string } | null;
   microsoft365: boolean;
   intuneEnrolled: boolean;
   fechaCompra: Date | null;
@@ -74,7 +74,7 @@ const COLUMNAS: ColumnaDatos<ActivoFila>[] = [
     celda: (a) => (
       <div>
         <Link href={`/activos/${a.id}`} className="block text-sm font-medium text-fg hover:text-primary-700 hover:underline">
-          {a.marca}
+          {a.marca.nombre}
         </Link>
         <p className="text-xs text-fg-subtle">{a.modelo}</p>
       </div>
@@ -117,7 +117,7 @@ const COLUMNAS: ColumnaDatos<ActivoFila>[] = [
             <span className="truncate">{[a.ram, a.discoDuro].filter(Boolean).join(" / ")}</span>
           </div>
         )}
-        {a.sistemaOperativo && <p className="truncate text-xs text-fg-subtle">{a.sistemaOperativo}</p>}
+        {a.sistemaOperativo && <p className="truncate text-xs text-fg-subtle">{a.sistemaOperativo.nombre}</p>}
         {!a.procesador && !a.ram && !a.discoDuro && !a.sistemaOperativo && <p className="text-xs text-fg-subtle">-</p>}
       </div>
     ),

@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import { prisma } from '@/shared/prisma';
 import { inicioDeHoy } from '@/shared/utilidades/fechas';
 import { ALERTAS_POR_GRUPO, resumenDashboard } from '@/modules/dashboard/resumen';
+import { crearEquipo } from '@/test-utils/catalogos';
 
 const hayBaseDePrueba = (process.env.DATABASE_URL ?? '').includes('_test');
 const describir = hayBaseDePrueba ? describe : describe.skip;
@@ -32,9 +33,7 @@ describir('resumen del Dashboard en Postgres', () => {
       data: { nombres: 'Prueba', apellidoPaterno: s, estado: 'activo', sedeId: sede.id },
     });
     Object.assign(ids, { sedeId: sede.id, categoriaId: categoria.id, tipoId: tipo.id, empleadoId: empleado.id });
-    const activo = await prisma.asset.create({
-      data: { categoriaId: categoria.id, sedeId: sede.id, marca: 'Dell', modelo: `Dash ${s}`, estado: 'disponible' },
-    });
+    const activo = await crearEquipo({ categoriaId: categoria.id, sedeId: sede.id, marca: 'Dell', modelo: `Dash ${s}`, estado: 'disponible' });
     ids.activos.push(activo.id);
     // 8 vencidas (hace 1 a 8 dias) y 7 proximas (hoy a 6 dias).
     const mantencion = (fechaProgramada: Date) => ({
@@ -100,12 +99,10 @@ describir('resumen del Dashboard en Postgres', () => {
 
   test('avisa de las garantías que vencen en los próximos 30 días (solo informativo)', async () => {
     const equipo = (garantia: Date | null, estado: 'disponible' | 'baja' = 'disponible') =>
-      prisma.asset.create({
-        data: {
+      crearEquipo({
           categoriaId: ids.categoriaId!, sedeId: ids.sedeId!, marca: 'HP', modelo: `Gar ${s}`,
           estado, fechaGarantiaFin: garantia,
-        },
-      });
+        });
     const creados = await Promise.all([
       equipo(dias(10)), // entra: faltan 10 dias
       equipo(dias(0)), // entra: vence hoy

@@ -23,7 +23,7 @@ export type AsignacionFila = {
   recuperadoEn?: { id: string; numero: string } | null;
   asset: {
     id: string;
-    marca: string;
+    marca: { nombre: string };
     modelo: string;
     numeroSerie: string | null;
     imei?: string | null;
@@ -107,7 +107,7 @@ export function FilaEquipoTicket({
           {a.asset.categoria.nombre}
           {' — '}
           <Link href={`/activos/${a.asset.id}`} className="text-primary-700 hover:underline">
-            {a.asset.marca} {a.asset.modelo}
+            {a.asset.marca.nombre} {a.asset.modelo}
           </Link>
         </span>
         {devolucion && (

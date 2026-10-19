@@ -7,7 +7,7 @@ const equipo = (o: Record<string, unknown> = {}) => ({
   fechaDevolucion: null,
   estadoDevolucion: null,
   activo: true,
-  asset: { id: 'a1', marca: 'Dell', modelo: 'Latitude', numeroSerie: 'SN1', imei: null, categoria: { nombre: 'Notebook' } },
+  asset: { id: 'a1', marca: { nombre: 'Dell' }, modelo: 'Latitude', numeroSerie: 'SN1', imei: null, categoria: { nombre: 'Notebook' } },
   ...o,
 });
 const kit = (o: Record<string, unknown> = {}) => ({
@@ -49,7 +49,7 @@ test('un equipo: en uso, devuelto, dañado y "no devuelto" (que deja la asignaci
 
 test('un equipo sin número de serie muestra su IMEI', () => {
   const [c] = armarHistorialAsignaciones({
-    equipos: [equipo({ asset: { id: 'a2', marca: 'Samsung', modelo: 'A55', numeroSerie: null, imei: '356789112345671', categoria: { nombre: 'Celular' } } })],
+    equipos: [equipo({ asset: { id: 'a2', marca: { nombre: 'Samsung' }, modelo: 'A55', numeroSerie: null, imei: '356789112345671', categoria: { nombre: 'Celular' } } })],
     kit: [],
     lineas: [],
   });
@@ -69,7 +69,7 @@ test('Kit/EPP: cantidad, tipo y estado', () => {
 test('una línea: cómo terminó cada tramo y dónde estaba', () => {
   const cierre = (c: string | null, o: Record<string, unknown> = {}) =>
     armarHistorialAsignaciones({ equipos: [], kit: [], lineas: [tramo({ hasta: new Date('2026-06-01'), cierre: c, ...o })] })[0];
-  expect(cierre('devolucion_telefono', { activo: { marca: 'Samsung', modelo: 'A55' } })).toMatchObject({
+  expect(cierre('devolucion_telefono', { activo: { marca: { nombre: 'Samsung' }, modelo: 'A55' } })).toMatchObject({
     estado: 'Devuelta (con el teléfono)',
     detalle: 'En Samsung A55',
     vigente: false,

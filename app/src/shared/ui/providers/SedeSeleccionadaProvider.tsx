@@ -36,6 +36,19 @@ function escribirCookie(sedeId: string | null) {
   }
 }
 
+/**
+ * Al iniciar sesion el filtro vuelve a "Todas las sedes" (SPEC 2.161): se
+ * olvida la sede elegida en la sesion anterior. Lo llama la pantalla de login.
+ */
+export function olvidarSedeSeleccionada() {
+  try {
+    window.localStorage.removeItem(CLAVE_STORAGE);
+  } catch {
+    // Sin almacenamiento del navegador no hay nada que olvidar.
+  }
+  escribirCookie(null);
+}
+
 interface SedeSeleccionadaContextValue {
   /** null = "todas las sedes" (sin filtro). */
   sedeSeleccionada: string | null;
@@ -52,17 +65,15 @@ export function SedeSeleccionadaProvider({ children }: { children: React.ReactNo
   const [sedeSeleccionada, setSedeSeleccionadaState] = useState<string | null>(null);
 
   const router = useRouter();
-  const { data: session } = useSession();
-  const sedePropia = session?.user?.sedeId ?? null;
 
   useEffect(() => {
     try {
       // Lectura de localStorage tras el montaje, a proposito: el servidor no
       // tiene localStorage, asi que el estado arranca en null y se actualiza
       // recien aca para evitar un mismatch de hidratacion. "" guardado es
-      // "todas las sedes"; sin nada guardado (primera vez) parte en la sede
-      // del usuario (SPEC 2.117).
-      const inicial = window.localStorage.getItem(CLAVE_STORAGE) ?? sedePropia;
+      // "todas las sedes", igual que sin nada guardado (recien iniciada la
+      // sesion, SPEC 2.161).
+      const inicial = window.localStorage.getItem(CLAVE_STORAGE);
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSedeSeleccionadaState(inicial || null);
       // La cookie puede haberse perdido mientras localStorage sigue teniendo la
@@ -73,7 +84,7 @@ export function SedeSeleccionadaProvider({ children }: { children: React.ReactNo
       // localStorage puede fallar (modo privado, storage bloqueado) -- no es
       // crítico, simplemente se queda en "todas las sedes".
     }
-  }, [sedePropia]);
+  }, []);
 
   const setSedeSeleccionada = useCallback(
     (sedeId: string | null) => {

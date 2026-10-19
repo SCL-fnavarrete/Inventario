@@ -8,6 +8,7 @@
 import { prisma } from '@/shared/prisma';
 import { SIN_DATO_LINEA } from '@/modules/lineas';
 import { indicadoresLineas, listarLineas } from '@/modules/lineas/servidor';
+import { crearEquipo } from '@/test-utils/catalogos';
 
 const hayBaseDePrueba = (process.env.DATABASE_URL ?? '').includes('_test');
 const describir = hayBaseDePrueba ? describe : describe.skip;
@@ -26,7 +27,7 @@ describir('filtros de líneas, en Postgres', () => {
     ids.categoria = (await prisma.assetCategory.create({ data: { nombre: `Cel ${trozo}`, tipoFicha: 'celular' } })).id;
     ids.empleado = (await prisma.employee.create({ data: { nombres: 'Ana', apellidoPaterno: `F${trozo}`, estado: 'activo', sedeId: ids.sede } })).id;
     ids.ido = (await prisma.employee.create({ data: { nombres: 'Beto', apellidoPaterno: `F${trozo}`, estado: 'desvinculado' } })).id;
-    ids.celular = (await prisma.asset.create({ data: { categoriaId: ids.categoria, marca: 'Samsung', modelo: 'A15', estado: 'baja' } })).id;
+    ids.celular = (await crearEquipo({ categoriaId: ids.categoria, marca: 'Samsung', modelo: 'A15', estado: 'baja' })).id;
     const crear = (i: number, data: object) => prisma.lineaTelefonica.create({ data: { numero: numero(i), estadoId: activa, ...data } }).then((l) => ids.lineas.push(l.id));
     await crear(1, { empleadoId: ids.empleado, tipoChipId: ids.chip }); // activa, con persona (de la sede de prueba), con tipo de chip
     await crear(2, {}); // activa, sin persona

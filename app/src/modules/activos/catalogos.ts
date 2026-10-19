@@ -1,28 +1,26 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
-import { NotFoundError, errorRepetido } from '@/shared/errores';
+import { NotFoundError, errorDeCampo, errorRepetido } from '@/shared/errores';
 import { auditLogService } from '@/shared/auditoria';
 import { ACTIVOS_VIGENTES } from '@/modules/activos/consultas';
 import { nombreDeMarca } from '@/modules/activos/nombreMarca';
+import { CAMPOS_CATALOGO, NOMBRES_CAMPOS_CATALOGO, type CampoCatalogo, type LlaveCatalogo } from '@/modules/activos/camposCatalogo';
 
 /**
  * Catalogos de opciones de los activos: marca (SPEC 2.116.4), sistema
  * operativo, antivirus y licencia Microsoft 365 (SPEC 2.112.7). Antes eran seis rutas copiadas; la
  * logica vive aqui y cada ruta solo abre con su permiso y llama a esto.
  *
- * El campo del activo es texto plano (no una relacion): renombrar una opcion
- * corrige tambien los activos que tenian el nombre anterior, y eliminarla no
- * los toca (solo deja de ofrecerse para activos nuevos).
+ * El equipo referencia la opcion por su llave (SPEC 2.168): renombrarla la
+ * cambia en todos los equipos sin tocarlos, y una en uso no se borra (se
+ * desactiva; la llave foranea tampoco lo permitiria).
  */
+const de = (campo: CampoCatalogo) => ({ llave: CAMPOS_CATALOGO[campo].llave, etiqueta: CAMPOS_CATALOGO[campo].etiqueta });
 export const CATALOGOS = {
-  marcas: { modelo: 'marca', campo: 'marca', etiqueta: 'Marca' },
-  'sistemas-operativos': { modelo: 'sistemaOperativo', campo: 'sistemaOperativo', etiqueta: 'Sistema operativo' },
-  antivirus: { modelo: 'antivirus', campo: 'antivirus', etiqueta: 'Antivirus' },
-  'licencias-m365': {
-    modelo: 'licenciaMicrosoft365',
-    campo: 'tipoLicenciaMicrosoft365',
-    etiqueta: 'Licencia Microsoft 365',
-  },
+  marcas: { modelo: 'marca', ...de('marca') },
+  'sistemas-operativos': { modelo: 'sistemaOperativo', ...de('sistemaOperativo') },
+  antivirus: { modelo: 'antivirus', ...de('antivirus') },
+  'licencias-m365': { modelo: 'licenciaMicrosoft365', ...de('tipoLicenciaMicrosoft365') },
 } as const;
 
 export type ClaveCatalogo = keyof typeof CATALOGOS;
@@ -51,25 +49,25 @@ export async function listarOpciones(
   clave: ClaveCatalogo,
   { soloActivas = false, conUso = false, whereSede = {} as Prisma.AssetWhereInput } = {}
 ) {
-  const { campo } = CATALOGOS[clave];
+  const { llave } = CATALOGOS[clave];
   const opciones = await tabla(prisma, clave).findMany({
     where: soloActivas ? { activo: true } : undefined,
     orderBy: { nombre: 'asc' },
   });
   if (!conUso || opciones.length === 0) return opciones;
 
-  const deEstas = { [campo]: { in: opciones.map((o) => o.nombre) } } as Prisma.AssetWhereInput;
+  const deEstas = { [llave]: { in: opciones.map((o) => o.id) } } as Prisma.AssetWhereInput;
   const contar = async (where: Prisma.AssetWhereInput) => {
-    const filas = (await prisma.asset.groupBy({ by: [campo], where, _count: true })) as unknown as Array<
-      Record<string, string> & { _count: number }
+    const filas = (await prisma.asset.groupBy({ by: [llave], where, _count: true })) as unknown as Array<
+      Record<LlaveCatalogo, string> & { _count: number }
     >;
-    return new Map(filas.map((c) => [c[campo], c._count]));
+    return new Map(filas.map((c) => [c[llave], c._count]));
   };
   const [total, sede] = await Promise.all([
     contar(deEstas),
     contar({ ...deEstas, ...ACTIVOS_VIGENTES, ...whereSede }),
   ]);
-  return opciones.map((o) => ({ ...o, enUso: total.get(o.nombre) ?? 0, enSede: sede.get(o.nombre) ?? 0 }));
+  return opciones.map((o) => ({ ...o, enUso: total.get(o.id) ?? 0, enSede: sede.get(o.id) ?? 0 }));
 }
 
 /**
@@ -99,10 +97,10 @@ export async function crearOpcion(clave: ClaveCatalogo, nombreEscrito: string, u
   return { opcion, creada: !existente };
 }
 
-/** Renombra una opcion y corrige los activos que tenian el nombre anterior. */
+/** Renombra una opcion: los equipos la referencian por su llave, asi que todos muestran el nombre nuevo. */
 export async function renombrarOpcion(clave: ClaveCatalogo, id: string, nombreEscrito: string, usuario?: string | null) {
   const nombre = clave === 'marcas' ? nombreDeMarca(nombreEscrito) : nombreEscrito;
-  const { campo, etiqueta } = CATALOGOS[clave];
+  const { llave, etiqueta } = CATALOGOS[clave];
   const actual = await tabla(prisma, clave).findUnique({ where: { id } });
   if (!actual) throw new NotFoundError('Opción no encontrada');
 
@@ -111,21 +109,17 @@ export async function renombrarOpcion(clave: ClaveCatalogo, id: string, nombreEs
   });
   if (repetida) throw errorRepetido('nombre', `Ya existe la opción "${repetida.nombre}"`);
 
-  const { opcion, activos } = await prisma.$transaction(async (tx) => {
-    const opcion = await tabla(tx, clave).update({ where: { id }, data: { nombre } });
-    const { count } = await tx.asset.updateMany({
-      where: { [campo]: actual.nombre } as Prisma.AssetWhereInput,
-      data: { [campo]: nombre } as Prisma.AssetUpdateManyMutationInput,
-    });
-    return { opcion, activos: count };
-  });
+  const [opcion, activos] = await Promise.all([
+    tabla(prisma, clave).update({ where: { id }, data: { nombre } }),
+    prisma.asset.count({ where: { [llave]: id } as Prisma.AssetWhereInput }),
+  ]);
 
   await auditLogService.registrarActualizacion(
     'catalogo',
     id,
-    `${etiqueta}: opción renombrada "${actual.nombre}" → "${nombre}"${activos ? ` (${activos} activo(s) corregidos)` : ''}`,
+    `${etiqueta}: opción renombrada "${actual.nombre}" → "${nombre}"${activos ? ` (la usan ${activos} activo(s))` : ''}`,
     { catalogo: etiqueta, nombre: actual.nombre },
-    { catalogo: etiqueta, nombre, activosCorregidos: activos },
+    { catalogo: etiqueta, nombre, activosQueLaUsan: activos },
     usuario
   );
   return opcion;
@@ -137,11 +131,11 @@ export async function renombrarOpcion(clave: ClaveCatalogo, id: string, nombreEs
  * (SPEC 2.136). Devuelve si quedo desactivada.
  */
 export async function eliminarOpcion(clave: ClaveCatalogo, id: string, usuario?: string | null) {
-  const { etiqueta, campo } = CATALOGOS[clave];
+  const { etiqueta, llave } = CATALOGOS[clave];
   const actual = await tabla(prisma, clave).findUnique({ where: { id } });
   if (!actual) throw new NotFoundError('Opción no encontrada');
 
-  const enUso = await prisma.asset.count({ where: { [campo]: actual.nombre } as Prisma.AssetWhereInput });
+  const enUso = await prisma.asset.count({ where: { [llave]: id } as Prisma.AssetWhereInput });
   if (enUso > 0) {
     await tabla(prisma, clave).update({ where: { id }, data: { activo: false } });
     await auditLogService.registrarActualizacion(
@@ -164,4 +158,41 @@ export async function eliminarOpcion(clave: ClaveCatalogo, id: string, usuario?:
     usuario
   );
   return { desactivado: false };
+}
+
+type NombresCatalogo = Partial<Record<CampoCatalogo, string | null | undefined>>;
+type IdsCatalogo = Partial<Record<LlaveCatalogo, string | null>>;
+
+/**
+ * Traduce los nombres que llegan al crear o editar un equipo (marca, sistema
+ * operativo, antivirus, licencia) a la llave de su opcion (SPEC 2.168). Es el
+ * unico paso por el que un equipo toma una opcion de catalogo.
+ * - Un campo que no viene (undefined) no se toca; vacio o null lo deja sin valor.
+ * - Se busca sin importar mayusculas. Si no existe, error en ese campo.
+ * - Una opcion desactivada solo se acepta si el equipo ya la tiene (`actual`)
+ *   o si son datos historicos (`aceptarDesactivadas`, la importacion).
+ */
+export async function idsDeCatalogos(
+  tx: Prisma.TransactionClient,
+  datos: NombresCatalogo,
+  { actual = {}, aceptarDesactivadas = false }: { actual?: IdsCatalogo; aceptarDesactivadas?: boolean } = {}
+): Promise<IdsCatalogo> {
+  const ids: IdsCatalogo = {};
+  for (const campo of NOMBRES_CAMPOS_CATALOGO) {
+    const escrito = datos[campo];
+    if (escrito === undefined) continue;
+    const { llave, catalogo, etiqueta } = CAMPOS_CATALOGO[campo];
+    const nombre = escrito?.trim();
+    if (!nombre) {
+      ids[llave] = null;
+      continue;
+    }
+    const opcion = await tabla(tx, catalogo).findFirst({ where: { nombre: { equals: nombre, mode: 'insensitive' } } });
+    if (!opcion) throw errorDeCampo(campo, `${etiqueta} "${nombre}" no está en su catálogo: elígela de la lista`);
+    if (!opcion.activo && !aceptarDesactivadas && opcion.id !== actual[llave]) {
+      throw errorDeCampo(campo, `${etiqueta} "${opcion.nombre}" está desactivada: elige otra o actívala en Catálogos`);
+    }
+    ids[llave] = opcion.id;
+  }
+  return ids;
 }

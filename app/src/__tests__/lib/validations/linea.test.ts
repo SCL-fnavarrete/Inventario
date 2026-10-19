@@ -33,9 +33,15 @@ test('un número inválido marca su campo', () => {
   expect(r.error?.issues.map((i) => i.path[0])).toEqual(['numero']);
 });
 
-test('la línea ya no lleva plan, precio, sede ni responsable', () => {
-  const r = lineaSchema.parse({ numero: '9 1234 5678', planId: 'x', precioMensual: '5', sedeId: 'x', responsable: 'Bodega' });
-  for (const campo of ['planId', 'precioMensual', 'sedeId', 'responsable']) expect(r).not.toHaveProperty(campo);
+test('la línea ya no lleva plan, precio ni responsable', () => {
+  const r = lineaSchema.parse({ numero: '9 1234 5678', planId: 'x', precioMensual: '5', responsable: 'Bodega' });
+  for (const campo of ['planId', 'precioMensual', 'responsable']) expect(r).not.toHaveProperty(campo);
+});
+
+test('la sede es opcional: vacía queda sin sede y una que no es id se rechaza (SPEC 2.165)', () => {
+  expect(lineaSchema.parse({ numero: '9 1234 5678', sedeId: '' }).sedeId).toBeNull();
+  expect(lineaSchema.parse({ numero: '9 1234 5678' }).sedeId).toBeUndefined();
+  expect(lineaSchema.safeParse({ numero: '9 1234 5678', sedeId: 'x' }).success).toBe(false);
 });
 
 test('el mapeo se propone por el nombre de la columna, sin tildes ni mayúsculas', () => {
@@ -132,5 +138,11 @@ describe('reasignar una línea (SPEC 2.131)', () => {
   test('el detalle tiene largo máximo y ya no lleva sede', () => {
     expect(reasignacionSchema.safeParse({ destino: 'ninguno', detalle: 'x'.repeat(501) }).success).toBe(false);
     expect(reasignacionSchema.parse({ destino: 'ninguno', sedeId: UUID })).not.toHaveProperty('sedeId');
+  });
+
+  test('ya no lleva "desde cuándo" y puede traer el tipo de chip nuevo (SPEC 2.167)', () => {
+    expect(reasignacionSchema.parse({ destino: 'ninguno', desde: '2026-01-01' })).not.toHaveProperty('desde');
+    expect(reasignacionSchema.parse({ destino: 'ninguno', tipoChipId: UUID })).toMatchObject({ tipoChipId: UUID });
+    expect(reasignacionSchema.parse({ destino: 'ninguno', tipoChipId: '' })).toMatchObject({ tipoChipId: null });
   });
 });

@@ -17,7 +17,7 @@ import { ahoraParaInputFechaHora, inputFechaHoraAISO } from "@/shared/utilidades
 import { ETIQUETAS_GUIA, validarDatosDespacho } from "@/modules/despachos";
 import { identificadorActivo } from "@/modules/activos";
 
-type EquipoPendiente = { id: string; marca: string; modelo: string; numeroSerie: string | null; categoria: string };
+type EquipoPendiente = { id: string; marca: { nombre: string }; modelo: string; numeroSerie: string | null; categoria: string };
 type LineaPendiente = { id: string; nombre: string; porRepartir: number };
 
 type Props = {
@@ -187,7 +187,7 @@ function ContenidoReparto({
                 <input type="checkbox" className="h-4 w-4" checked={elegidos.has(e.id)} onChange={() => alternar(e.id)} />
                 <span className="min-w-0 flex-1 text-sm">
                   <span className="font-medium">
-                    {e.marca} {e.modelo}
+                    {e.marca.nombre} {e.modelo}
                   </span>
                   <span className="block text-xs text-fg-subtle break-all">
                     {e.categoria} • {identificadorActivo(e, "Sin serie")}

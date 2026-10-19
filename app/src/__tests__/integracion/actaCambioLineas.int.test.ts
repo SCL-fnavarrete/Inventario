@@ -18,6 +18,7 @@ jest.mock('@react-pdf/renderer', () => ({
 import { crearSolicitud, detalleSolicitud } from '@/modules/solicitudes/servidor';
 import { generateComprobanteCambio } from '@/modules/solicitudes/documentos';
 import { createWorkflowRequestSchema } from '@/modules/solicitudes';
+import { crearEquipo } from '@/test-utils/catalogos';
 
 const hayBaseDePrueba = (process.env.DATABASE_URL ?? '').includes('_test');
 const describir = hayBaseDePrueba ? describe : describe.skip;
@@ -38,7 +39,7 @@ describir('acta de cambio con lineas en Postgres', () => {
   let esim: string;
 
   const celular = (modelo: string, extra: object = {}) =>
-    prisma.asset.create({ data: { categoriaId: ids.categoria, sedeId: ids.sede, marca: 'Samsung', modelo: `${modelo} ${s}`, estado: 'disponible', ...extra } });
+    crearEquipo({ categoriaId: ids.categoria, sedeId: ids.sede, marca: 'Samsung', modelo: `${modelo} ${s}`, estado: 'disponible', ...extra });
   const linea = (extra: object) =>
     prisma.lineaTelefonica.create({ data: { numero: nuevo(), estadoId: activa, ...extra } });
   const usuario = () => ({ id: ids.usuario, nombre: 'Tecnico Prueba', usuario: `tec${s}` });

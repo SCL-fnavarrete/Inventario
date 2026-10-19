@@ -32,7 +32,7 @@ export type EquipoDelHistorial = {
   fechaDevolucion: Fecha;
   estadoDevolucion: string | null;
   activo: boolean;
-  asset: { id: string; marca: string; modelo: string; numeroSerie: string | null; imei: string | null; categoria: { nombre: string } };
+  asset: { id: string; marca: { nombre: string }; modelo: string; numeroSerie: string | null; imei: string | null; categoria: { nombre: string } };
 };
 
 export type KitDelHistorial = {
@@ -51,7 +51,7 @@ export type TramoDelHistorial = {
   cierre: string | null;
   motivo: { nombre: string } | null;
   linea: { id: string; numero: string };
-  activo: { marca: string; modelo: string } | null;
+  activo: { marca: { nombre: string }; modelo: string } | null;
 };
 
 const ESTADO_KIT: Record<string, string> = {
@@ -87,7 +87,7 @@ export function armarHistorialAsignaciones(d: {
   const equipos: ItemHistorial[] = d.equipos.map((e) => ({
     clave: `equipo-${e.id}`,
     tipo: 'equipo',
-    titulo: `${e.asset.categoria.nombre} ${e.asset.marca} ${e.asset.modelo}`,
+    titulo: `${e.asset.categoria.nombre} ${e.asset.marca.nombre} ${e.asset.modelo}`,
     detalle: e.asset.numeroSerie ? `N° de serie ${e.asset.numeroSerie}` : e.asset.imei ? `IMEI ${e.asset.imei}` : null,
     desde: e.fechaEntrega,
     hasta: e.fechaDevolucion,
@@ -111,7 +111,7 @@ export function armarHistorialAsignaciones(d: {
     clave: `linea-${t.id}`,
     tipo: 'linea',
     titulo: formatearNumero(t.linea.numero),
-    detalle: [t.activo ? `En ${t.activo.marca} ${t.activo.modelo}` : 'Teléfono personal o eSIM', t.motivo?.nombre].filter(Boolean).join(' · '),
+    detalle: [t.activo ? `En ${t.activo.marca.nombre} ${t.activo.modelo}` : 'Teléfono personal o eSIM', t.motivo?.nombre].filter(Boolean).join(' · '),
     desde: t.desde,
     hasta: t.hasta,
     estado: t.hasta ? (t.cierre ? CIERRE_LINEA[t.cierre] ?? 'Terminó' : 'Terminó') : 'En uso',

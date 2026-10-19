@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { ConflictError, NotFoundError, ValidationError } from '@/shared/errores';
-import { ACTIVOS_VIGENTES } from '@/modules/activos';
+import { ACTIVOS_VIGENTES, NOMBRE } from '@/modules/activos';
 import type { CreateAssetInput } from '@/modules/activos';
 import type {
   CreatePurchaseWithAssetsInput,
@@ -260,7 +260,7 @@ export async function repartirCompra(
       sede: { select: { id: true, nombre: true } },
       purchaseAssets: {
         include: {
-          asset: { select: { id: true, estado: true, sedeId: true, deletedAt: true, marca: true, modelo: true } },
+          asset: { select: { id: true, estado: true, sedeId: true, deletedAt: true, marca: NOMBRE, modelo: true } },
         },
       },
       purchaseKitItems: { include: { item: true } },
@@ -277,7 +277,7 @@ export async function repartirCompra(
       throw new ValidationError('Uno de los equipos no es de esta compra');
     }
     if (pa.asset.estado !== 'por_repartir') {
-      throw new ConflictError(`${pa.asset.marca} ${pa.asset.modelo} ya se repartió`);
+      throw new ConflictError(`${pa.asset.marca.nombre} ${pa.asset.modelo} ya se repartió`);
     }
     return pa.asset;
   });

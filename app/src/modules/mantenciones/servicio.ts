@@ -3,13 +3,7 @@ import { prisma } from '@/shared/prisma';
 import { ConflictError, errorDeCampo, NotFoundError, ValidationError } from '@/shared/errores';
 import { siSigueIgual } from '@/shared/utilidades/concurrencia';
 import { formatearFechaConHora, formatearFechaCorta } from '@/shared/utilidades/fechas';
-import {
-  estadoTrasMantencion,
-  motivoSinBaja,
-  motivoSinEsperaDeRepuestos,
-  motivoSinMantencion,
-  validateTransition,
-} from '@/modules/activos';
+import { estadoTrasMantencion, motivoSinBaja, motivoSinEsperaDeRepuestos, motivoSinMantencion, validateTransition, CON_CATALOGOS, NOMBRE } from '@/modules/activos';
 import { assetHistoryService, cambiarEstado } from '@/modules/activos/servidor';
 import { auditLogService } from '@/shared/auditoria';
 import { mantencionACerrar } from '@/modules/mantenciones/utilidades';
@@ -131,7 +125,7 @@ export async function tipoMantencionImportada() {
 export async function bajaEnTransaccion(
   tx: PrismaTx,
   datos: {
-    asset: { id: string; estado: EstadoActivo; marca: string; modelo: string; condicion: string };
+    asset: { id: string; estado: EstadoActivo; marca: { nombre: string }; modelo: string; condicion: string };
     /** De motivoParaBaja: el motivo de la lista y su texto (SPEC 2.116.5). */
     motivoBajaId: string;
     motivoTexto: string;
@@ -166,7 +160,7 @@ export async function bajaEnTransaccion(
   await auditLogService.registrarActualizacion(
     'activo',
     asset.id,
-    `${asset.marca} ${asset.modelo} dado de baja: ${motivoTexto}`,
+    `${asset.marca.nombre} ${asset.modelo} dado de baja: ${motivoTexto}`,
     { estado: asset.estado },
     { estado: 'baja', motivoBaja: motivoTexto },
     usuario,
@@ -189,7 +183,7 @@ export async function darDeBajaEnTransaccion(
     asset: {
       id: string;
       estado: EstadoActivo;
-      marca: string;
+      marca: { nombre: string };
       modelo: string;
       condicion: string;
       maintenances: MantencionAbierta[];
@@ -262,7 +256,7 @@ export async function darDeBajaEnTransaccion(
     await auditLogService.registrarActualizacion(
       'mantencion',
       m.id,
-      `Mantención ${tipo.nombre} cerrada como Sin reparación: ${asset.marca} ${asset.modelo} dado de baja`,
+      `Mantención ${tipo.nombre} cerrada como Sin reparación: ${asset.marca.nombre} ${asset.modelo} dado de baja`,
       { estado: abierta.estado },
       { estado: 'completada', resultadoTipo: 'no_reparable', motivoBaja: motivoTexto },
       usuario,
@@ -272,7 +266,7 @@ export async function darDeBajaEnTransaccion(
     await auditLogService.registrarCreacion(
       'mantencion',
       m.id,
-      `Mantención de baja: ${tipo.nombre} para ${asset.marca} ${asset.modelo}`,
+      `Mantención de baja: ${tipo.nombre} para ${asset.marca.nombre} ${asset.modelo}`,
       { assetId: asset.id, tipoId: tipo.id, resultadoTipo: 'no_reparable', motivoBaja: motivoTexto },
       usuario,
       tx
@@ -288,12 +282,12 @@ export async function darDeBajaEnTransaccion(
  * --------------------------------------------------------------------- */
 
 /** Lo que devuelven las acciones: la mantencion con su tipo y su equipo. */
-const CON_DETALLE = { tipo: true, asset: { include: { categoria: true } } } as const;
+const CON_DETALLE = { tipo: true, asset: { include: { ...CON_CATALOGOS, categoria: true } } } as const;
 
 async function buscarMantencion(id: string) {
   const m = await prisma.maintenance.findUnique({
     where: { id },
-    include: { asset: true, tipo: true },
+    include: { asset: { include: { marca: NOMBRE } }, tipo: true },
   });
   if (!m) throw new NotFoundError('Mantención no encontrada');
   return m;
@@ -367,7 +361,7 @@ export async function iniciarMantencion(id: string, usuario: string) {
     await auditLogService.registrarActualizacion(
       'mantencion',
       id,
-      `Mantención iniciada: ${existente.tipo.nombre} para ${asset.marca} ${asset.modelo}`,
+      `Mantención iniciada: ${existente.tipo.nombre} para ${asset.marca.nombre} ${asset.modelo}`,
       { estado: existente.estado },
       { estado: 'en_proceso' },
       usuario,
@@ -402,7 +396,7 @@ export async function cancelarMantencion(id: string, motivo: string | undefined,
     await auditLogService.registrarActualizacion(
       'mantencion',
       id,
-      `Mantención cancelada: ${existente.tipo.nombre} para ${asset.marca} ${asset.modelo}`,
+      `Mantención cancelada: ${existente.tipo.nombre} para ${asset.marca.nombre} ${asset.modelo}`,
       { estado: existente.estado },
       { estado: 'cancelada', resultado: motivo ?? null },
       usuario,
@@ -476,7 +470,7 @@ export async function editarMantencion(id: string, data: UpdateMaintenanceInput,
     await auditLogService.registrarActualizacion(
       'mantencion',
       id,
-      `Mantención editada: ${tipoNombre} para ${asset.marca} ${asset.modelo}`,
+      `Mantención editada: ${tipoNombre} para ${asset.marca.nombre} ${asset.modelo}`,
       campos(existente),
       campos(actualizada),
       usuario,
@@ -500,7 +494,7 @@ export async function eliminarMantencion(id: string, usuario: string) {
     await auditLogService.registrarEliminacion(
       'mantencion',
       m.id,
-      `Mantención eliminada: ${m.tipo.nombre} para ${m.asset.marca} ${m.asset.modelo}`,
+      `Mantención eliminada: ${m.tipo.nombre} para ${m.asset.marca.nombre} ${m.asset.modelo}`,
       { assetId: m.assetId, estado: m.estado },
       usuario,
       tx
@@ -677,7 +671,7 @@ export async function completarMantencion(
  * rechaza el equipo que no admite mantenciones, con el motivo en palabras.
  */
 export async function programarMantencion(data: CreateMaintenanceInput, usuario: string | null | undefined) {
-  const asset = await prisma.asset.findUnique({ where: { id: data.assetId } });
+  const asset = await prisma.asset.findUnique({ where: { id: data.assetId }, include: { marca: NOMBRE } });
   if (!asset) throw new NotFoundError('Activo no encontrado');
   // Tipo del catalogo (Mantenciones > Tipos).
   const tipo = await prisma.maintenanceType.findUnique({ where: { id: data.tipoId } });
@@ -700,12 +694,12 @@ export async function programarMantencion(data: CreateMaintenanceInput, usuario:
         proveedorExterno: data.proveedorExterno,
         estado: 'pendiente',
       },
-      include: { tipo: true, asset: { include: { categoria: true } } },
+      include: { tipo: true, asset: { include: { ...CON_CATALOGOS, categoria: true } } },
     });
     await auditLogService.registrarCreacion(
       'mantencion',
       mantencion.id,
-      `Mantención creada: ${mantencion.tipo.nombre} para ${asset.marca} ${asset.modelo}`,
+      `Mantención creada: ${mantencion.tipo.nombre} para ${asset.marca.nombre} ${asset.modelo}`,
       { assetId: data.assetId, tipoId: data.tipoId, descripcion: data.descripcion, estado: mantencion.estado },
       usuario,
       tx
@@ -731,7 +725,7 @@ export async function programarMantencion(data: CreateMaintenanceInput, usuario:
  * asignado (SPEC 2.106).
  */
 export async function darDeBajaEquipo(assetId: string, data: BajaEquipoDatos, usuario: string) {
-  const asset = await prisma.asset.findUnique({ where: { id: assetId } });
+  const asset = await prisma.asset.findUnique({ where: { id: assetId }, include: { marca: NOMBRE } });
   if (!asset) throw new NotFoundError('Activo no encontrado');
   if (asset.deletedAt) throw new ConflictError('Este activo esta descartado y no admite movimientos');
   // Regla unica de la baja (SPEC 2.106): solo un equipo sin empleado asignado.

@@ -9,6 +9,7 @@ import { prisma } from '@/shared/prisma';
 import { bajaEquipoSchema } from '@/modules/mantenciones';
 import { whereFiltrosActivos } from '@/modules/activos/consultas';
 import { darDeBajaEquipo, listarMotivosBaja } from '@/modules/mantenciones/servidor';
+import { crearEquipo } from '@/test-utils/catalogos';
 
 const hayBaseDePrueba = (process.env.DATABASE_URL ?? '').includes('_test');
 const describir = hayBaseDePrueba ? describe : describe.skip;
@@ -19,9 +20,7 @@ describir('baja directa de un equipo, en Postgres', () => {
   const activos: string[] = [];
 
   const nuevoEquipo = async (extra: object = {}) => {
-    const a = await prisma.asset.create({
-      data: { categoriaId: ids.categoria, sedeId: ids.sede, marca: 'Dell', modelo: `Baja ${s}`, estado: 'disponible', ...extra },
-    });
+    const a = await crearEquipo({ categoriaId: ids.categoria, sedeId: ids.sede, marca: 'Dell', modelo: `Baja ${s}`, estado: 'disponible', ...extra });
     activos.push(a.id);
     return a.id;
   };

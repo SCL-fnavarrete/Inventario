@@ -10,6 +10,7 @@ import { randomUUID } from 'crypto';
 import ExcelJS from 'exceljs';
 import { prisma } from '@/shared/prisma';
 import { importarHistorial } from '@/modules/importacion/servidor';
+import { crearEquipo } from '@/test-utils/catalogos';
 
 const hayBaseDePrueba = (process.env.DATABASE_URL ?? '').includes('_test');
 const describir = hayBaseDePrueba ? describe : describe.skip;
@@ -71,7 +72,7 @@ describir('historial de equipos, en Postgres', () => {
     ids.categoria = (await prisma.assetCategory.create({ data: { nombre: `Cel ${s}`, tipoFicha: 'celular' } })).id;
     ids.ana = (await prisma.employee.create({ data: { rut: ruts.ana, nombres: 'Ana', apellidoPaterno: apellido, estado: 'activo', sedeId: ids.sede } })).id;
     ids.carla = (await prisma.employee.create({ data: { rut: ruts.carla, nombres: 'Carla', apellidoPaterno: `${apellido}Carla`, estado: 'activo', sedeId: ids.sede } })).id;
-    ids.activo = (await prisma.asset.create({ data: { categoriaId: ids.categoria, sedeId: ids.sede, marca: 'Motorola', modelo: 'G54', imei: imeiA, estado: 'asignado', empleadoActualId: ids.ana } })).id;
+    ids.activo = (await crearEquipo({ categoriaId: ids.categoria, sedeId: ids.sede, marca: 'Motorola', modelo: 'G54', imei: imeiA, estado: 'asignado', empleadoActualId: ids.ana })).id;
   });
 
   afterAll(async () => {
@@ -126,9 +127,7 @@ describir('historial de equipos, en Postgres', () => {
 
   test('un monitor, mouse o impresora (sin IMEI) se encuentra por su N° de serie, sin distinguir mayúsculas', async () => {
     const serie = `MON${letras(6).toUpperCase()}${s.toUpperCase()}`;
-    const monitor = await prisma.asset.create({
-      data: { categoriaId: ids.categoria!, sedeId: ids.sede!, marca: 'Samsung', modelo: 'S27', numeroSerie: serie, estado: 'asignado', empleadoActualId: ids.ana },
-    });
+    const monitor = await crearEquipo({ categoriaId: ids.categoria!, sedeId: ids.sede!, marca: 'Samsung', modelo: 'S27', numeroSerie: serie, estado: 'asignado', empleadoActualId: ids.ana });
     try {
       const wb = new ExcelJS.Workbook();
       const e = wb.addWorksheet('ENTREGAS');

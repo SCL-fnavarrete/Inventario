@@ -4,6 +4,7 @@ import { formatearFecha, hoyISO } from '@/shared/utilidades/fechas';
 import { LINEAS_DEL_EQUIPO, whereFiltrosActivos, type FiltrosActivos } from '@/modules/activos/consultas';
 import { formatearNumero } from '@/modules/lineas';
 import { CONDICION_ACTIVO_LABEL, ESTADO_ACTIVO_LABEL } from '@/modules/activos/estados';
+import { CON_CATALOGOS, nombreDe } from '@/modules/activos/camposCatalogo';
 
 /**
  * Excel de Activos (GET /api/activos/exportar). Tiene su propia puerta,
@@ -174,6 +175,7 @@ export async function excelDeActivos(filtros: FiltrosActivos) {
   const assets = await prisma.asset.findMany({
     where,
     include: {
+      ...CON_CATALOGOS,
       categoria: {
         select: { nombre: true },
       },
@@ -201,7 +203,7 @@ export async function excelDeActivos(filtros: FiltrosActivos) {
       },
       lineas: LINEAS_DEL_EQUIPO,
     },
-    orderBy: [{ sede: { nombre: "asc" } }, { categoria: { nombre: "asc" } }, { marca: "asc" }],
+    orderBy: [{ sede: { nombre: "asc" } }, { categoria: { nombre: "asc" } }, { marca: { nombre: "asc" } }],
   });
 
   function filaExcel(asset: (typeof assets)[number]): Record<string, string | number> {
@@ -227,7 +229,7 @@ export async function excelDeActivos(filtros: FiltrosActivos) {
       numeroSerie: asset.numeroSerie || "",
       nombreEquipo: asset.nombreEquipo || "",
       categoria: asset.categoria.nombre,
-      marca: asset.marca,
+      marca: asset.marca.nombre,
       modelo: asset.modelo,
       imei: asset.imei || "",
       // El numero es de las lineas del celular (SPEC 2.131).
@@ -247,15 +249,15 @@ export async function excelDeActivos(filtros: FiltrosActivos) {
       procesador: asset.procesador || "",
       ram: asset.ram || "",
       discoDuro: asset.discoDuro || "",
-      sistemaOperativo: asset.sistemaOperativo || "",
+      sistemaOperativo: nombreDe(asset.sistemaOperativo) ?? "",
       pulgadas: asset.pulgadas ? Number(asset.pulgadas) : "",
       conectividad: asset.conectividad || "",
       tieneCargador: asset.tieneCargador ? "Sí" : "No",
       microsoft365: asset.microsoft365 ? "Sí" : "No",
-      licenciaMicrosoft365: asset.tipoLicenciaMicrosoft365 || "",
+      licenciaMicrosoft365: nombreDe(asset.licenciaMicrosoft365) ?? "",
       intuneEnrolled: asset.intuneEnrolled ? "Sí" : "No",
       listaDistribucion: asset.listaDistribucion || "",
-      antivirus: asset.antivirus || "",
+      antivirus: nombreDe(asset.antivirus) ?? "",
       ultimaMantencionRealizada: ultimaMantencionRealizada ? formatearFecha(ultimaMantencionRealizada) : "",
       proximaMantencionProgramada: proximaMantencionProgramada ? formatearFecha(proximaMantencionProgramada) : "",
       fechaCompra: asset.fechaCompra ? formatearFecha(asset.fechaCompra) : "",

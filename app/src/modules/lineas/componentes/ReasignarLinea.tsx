@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { ArrowRight, Repeat } from "lucide-react";
-import { destinosPermitidos, errorDeAsociacion, formatearNumero, type DestinoLinea } from "@/modules/lineas";
+import { formatearNumero, type DestinoLinea } from "@/modules/lineas";
 import { ListaConBuscador } from "@/modules/lineas/componentes/ListaConBuscador";
 import {
   OPCIONES_VACIAS,
@@ -14,64 +14,92 @@ import {
   type OpcionesLinea,
 } from "@/modules/lineas/componentes/tipos";
 import { parseApiError } from "@/shared/utilidades/apiErrors";
-import { hoyISO } from "@/shared/utilidades/fechas";
 import { useEnvio } from "@/shared/hooks/useEnvio";
 import { useErroresFormulario } from "@/shared/hooks/useErroresFormulario";
 import { Button } from "@/shared/ui/Button";
-import { CampoFormulario, CampoTexto, ResumenErrores, claseInput } from "@/shared/ui/CampoFormulario";
+import { CampoFormulario, ResumenErrores, claseInput } from "@/shared/ui/CampoFormulario";
 import { CatalogSelect } from "@/shared/ui/CatalogSelect";
 import { useToast } from "@/shared/ui/Toast";
 
 /**
- * Asignar una linea disponible (SPEC 2.131): solo una sin persona. Segun su tipo
- * de chip, un chip fisico va a un celular sin asignar (la persona la recibe
- * cuando una solicitud le entrega ese celular) y una eSIM a una persona activa;
- * tambien puede quedar sin asignar (sacar el chip). Una linea
- * asignada cambia de persona con las solicitudes. Queda anotado, con la fecha,
- * el motivo y quien lo hizo.
+ * Acciones de una linea disponible (SPEC 2.131, 2.167), escritas para que se
+ * entienda que hace cada una: asignarla o moverla a un telefono sin linea,
+ * asignar una eSIM a una persona, sacar el chip o cambiar su tipo (eSIM <-> chip
+ * fisico) con el mismo numero. Una linea que usa una persona no se toca aqui:
+ * cambia con las solicitudes. Queda anotado con el motivo y quien lo hizo.
  */
 
-type Destino = DestinoLinea;
+export type ClaveAccion = "telefono" | "persona" | "sacar" | "aEsim" | "aFisico";
+export type AccionLinea = { clave: ClaveAccion; titulo: string; ayuda: string };
 
-const ETIQUETAS = { destino: "Destino", activoId: "Teléfono", empleadoId: "Persona", desde: "Desde cuándo", motivoId: "Motivo" };
+type LineaAcciones = Pick<LineaLista, "activo" | "empleado" | "tipoChip" | "estado">;
 
-const DESTINOS: { valor: Destino; titulo: string; ayuda: string }[] = [
-  { valor: "telefono", titulo: "A un celular sin asignar", ayuda: "Un celular de bodega. La persona recibe la línea cuando una solicitud le entrega ese celular." },
-  { valor: "persona", titulo: "A una persona", ayuda: "Con su eSIM, en su teléfono personal." },
-  { valor: "ninguno", titulo: "Sin asignar", ayuda: "Se saca el chip: queda disponible, por ejemplo en una bodega." },
-];
+/** Lo que se puede hacer con la linea hoy. Vacio si es de baja, la usa una persona o no tiene tipo de chip. */
+export function accionesDeLinea(l: LineaAcciones): AccionLinea[] {
+  if (l.estado.deBaja || personaDe(l) || !l.tipoChip) return [];
+  if (l.tipoChip.sinCelular) {
+    return [
+      { clave: "persona", titulo: "Asignar a una persona", ayuda: "La persona usa la eSIM en su teléfono personal." },
+      { clave: "aFisico", titulo: "Cambiar a chip físico", ayuda: "Mismo número, ahora con chip. Si quieres, eliges en el mismo paso el teléfono sin línea donde va." },
+    ];
+  }
+  const enTelefono = !!l.activo;
+  return [
+    enTelefono
+      ? { clave: "telefono", titulo: "Mover a otro teléfono", ayuda: "El chip pasa a otro celular de la empresa que no tenga línea. Si ese teléfono lo tiene alguien, esa persona pasa a usar la línea." }
+      : { clave: "telefono", titulo: "Asignar a un teléfono sin línea", ayuda: "El chip va a un celular de la empresa sin línea. Si ese teléfono lo tiene alguien, esa persona pasa a usar la línea." },
+    { clave: "aEsim", titulo: "Cambiar a eSIM", ayuda: `Mismo número, ahora como eSIM${enTelefono ? " (sale del teléfono)" : ""}. Si quieres, eliges en el mismo paso la persona que la usará.` },
+    ...(enTelefono ? [{ clave: "sacar" as const, titulo: "Sacar el chip", ayuda: "La línea sale del teléfono y queda disponible para asignarla después." }] : []),
+  ];
+}
+
+/** A donde va la linea segun la accion y lo elegido (al cambiar el tipo, el destino es opcional). */
+export function destinoDeAccion(clave: ClaveAccion, elegido: { activoId: string; empleadoId: string }): DestinoLinea {
+  if (clave === "telefono" || (clave === "aFisico" && elegido.activoId)) return "telefono";
+  if (clave === "persona" || (clave === "aEsim" && elegido.empleadoId)) return "persona";
+  return "ninguno";
+}
+
+const ETIQUETAS = { destino: "Destino", activoId: "Teléfono", empleadoId: "Persona", tipoChipId: "Tipo de chip", motivoId: "Motivo" };
 
 /** Donde esta la linea hoy, en una frase. */
-function dondeEsta(l: Pick<LineaLista, "activo" | "empleado">) {
+function dondeEsta(l: Pick<LineaLista, "activo" | "empleado" | "sede">) {
   const persona = personaDe(l);
   const nombreSede = sedeDe(l);
   const sede = nombreSede ? ` · Sede ${nombreSede}` : "";
   if (l.activo) {
-    return `En ${l.activo.marca} ${l.activo.modelo} · ${persona ? `la usa ${nombrePersona(persona)}` : "sin persona"}${sede}`;
+    return `En ${l.activo.marca.nombre} ${l.activo.modelo} · ${persona ? `la usa ${nombrePersona(persona)}` : "sin persona"}${sede}`;
   }
   if (persona) return `Con ${nombrePersona(persona)} (teléfono personal o eSIM)${sede}`;
-  return "Sin asignar";
+  return `Disponible${sede}`;
 }
 
-export function ReasignarLinea({ linea, onCerrar }: { linea: LineaLista; onCerrar: (guardada: boolean) => void }) {
+export function ReasignarLinea({ linea, accion, onCerrar }: { linea: LineaLista; accion: AccionLinea; onCerrar: (guardada: boolean) => void }) {
   const toast = useToast();
   const { enviando, ejecutar } = useEnvio();
   const [opciones, setOpciones] = useState<OpcionesLinea>(OPCIONES_VACIAS);
-  // Fisico -> telefono de la empresa; eSIM -> persona; sin tipo de chip, solo sin asignar.
-  const permitidos = destinosPermitidos(linea.tipoChip);
-  const [destino, setDestino] = useState<Destino>(permitidos[0]);
   const [activoId, setActivoId] = useState("");
   const [empleadoId, setEmpleadoId] = useState("");
-  const [desde, setDesde] = useState(hoyISO());
+  const [tipoElegidoId, setTipoChipId] = useState("");
   const [motivoId, setMotivoId] = useState("");
-  const [detalle, setDetalle] = useState("");
   const [error, setError] = useState("");
   const { errores, resumen, reportar, reportarServidor, limpiar } = useErroresFormulario(ETIQUETAS);
   const ref = useRef<HTMLDivElement>(null);
   const idForm = useId();
 
+  const { clave } = accion;
+  const cambiaTipo = clave === "aEsim" || clave === "aFisico";
+  // Los tipos de chip a los que puede pasar: eSIM o fisicos. Si hay uno solo, no se pregunta.
+  const tipos = opciones.tiposChip.filter((t) => t.sinCelular === (clave === "aEsim"));
+  const tipoChipId = cambiaTipo ? tipoElegidoId || tipos[0]?.id || "" : "";
+  const pideTelefono = clave === "telefono" || clave === "aFisico";
+  const pidePersona = clave === "persona" || clave === "aEsim";
+
   useEffect(() => {
-    fetch("/api/lineas/opciones").then(async (r) => r.ok && setOpciones(await r.json()));
+    const fallo = () => setError("No se pudieron cargar los teléfonos y personas. Recarga la página.");
+    fetch("/api/lineas/opciones")
+      .then(async (r) => (r.ok ? setOpciones(await r.json()) : fallo()))
+      .catch(fallo);
   }, []);
 
   // Si el formulario no se ve, la pantalla va hasta el.
@@ -82,50 +110,50 @@ export function ReasignarLinea({ linea, onCerrar }: { linea: LineaLista; onCerra
     if (top < 80 || top > window.innerHeight * 0.6) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
-  const elegirDestino = (d: Destino) => {
-    setDestino(d);
-    setError("");
-    limpiar("destino", "activoId", "empleadoId");
-  };
+  const destino = destinoDeAccion(clave, { activoId, empleadoId });
 
   const guardar = async () => {
     const faltan: Record<string, string> = {};
-    if (destino === "telefono" && !activoId) faltan.activoId = "Elige el teléfono";
-    if (destino === "persona" && !empleadoId) faltan.empleadoId = "Elige la persona";
+    if (clave === "telefono" && !activoId) faltan.activoId = "Elige el teléfono";
+    if (clave === "persona" && !empleadoId) faltan.empleadoId = "Elige la persona";
+    if (cambiaTipo && !tipoChipId) faltan.tipoChipId = `No hay un tipo de chip ${clave === "aEsim" ? "eSIM" : "físico"} activo: créalo en Catálogos`;
     if (reportar(faltan)) return;
     const res = await fetch(`/api/lineas/${linea.id}/reasignar`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ destino, activoId, empleadoId, desde, motivoId, detalle }),
+      body: JSON.stringify({ destino, activoId, empleadoId, tipoChipId, motivoId }),
     }).catch(() => null);
     if (!res?.ok) {
-      const { message, fieldErrors } = res ? await parseApiError(res, "Error al asignar la línea") : { message: "Error al asignar la línea", fieldErrors: {} };
+      const { message, fieldErrors } = res ? await parseApiError(res, "Error al guardar la línea") : { message: "Error al guardar la línea", fieldErrors: {} };
       if (!reportarServidor(fieldErrors)) setError(message);
       return;
     }
-    toast.success("Línea asignada");
+    toast.success("Línea actualizada");
     onCerrar(true);
   };
 
   // Como quedaria la linea.
   const celularElegido = opciones.celulares.find((c) => c.id === activoId);
   const personaElegida = opciones.personas.find((p) => p.id === empleadoId);
-  const despues =
+  const tipoElegido = cambiaTipo ? opciones.tiposChip.find((t) => t.id === tipoChipId)?.nombre : null;
+  const lugar =
     destino === "telefono"
       ? celularElegido
-        ? `En ${celularElegido.marca} ${celularElegido.modelo} · ${celularElegido.empleadoActual ? `la usará ${nombrePersona(celularElegido.empleadoActual)}` : "sin persona (el teléfono está libre)"}`
+        ? `En ${celularElegido.marca.nombre} ${celularElegido.modelo} · ${celularElegido.empleadoActual ? `la usará ${nombrePersona(celularElegido.empleadoActual)}` : "sin persona"}`
         : "—"
       : destino === "persona"
         ? personaElegida
-          ? `Con ${nombrePersona(personaElegida)} (teléfono personal o eSIM)`
+          ? `Con ${nombrePersona(personaElegida)} (teléfono personal)`
           : "—"
-        : "Sin asignar";
+        : "Disponible";
+  const despues = tipoElegido ? `${tipoElegido} · ${lugar}` : lugar;
 
   return (
     <div ref={ref} className="card scroll-mt-24 p-6">
-      <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-fg">
-        <Repeat size={20} className="text-fg-subtle" /> Asignar la línea {formatearNumero(linea.numero)}
+      <h2 className="mb-1 flex items-center gap-2 text-lg font-semibold text-fg">
+        <Repeat size={20} className="text-fg-subtle" /> {accion.titulo}: {formatearNumero(linea.numero)}
       </h2>
+      <p className="mb-4 text-sm text-fg-subtle">{accion.ayuda}</p>
       <div className="mb-4 empty:hidden">
         <ResumenErrores mensaje={resumen || error} />
       </div>
@@ -133,7 +161,7 @@ export function ReasignarLinea({ linea, onCerrar }: { linea: LineaLista; onCerra
       <div className="mb-4 grid grid-cols-1 items-center gap-3 rounded-control bg-surface-muted p-4 md:grid-cols-[1fr_auto_1fr]">
         <div>
           <p className="text-xs uppercase text-fg-subtle">Ahora</p>
-          <p className="text-sm text-fg">{dondeEsta(linea)}</p>
+          <p className="text-sm text-fg">{[linea.tipoChip?.nombre, dondeEsta(linea)].filter(Boolean).join(" · ")}</p>
         </div>
         <ArrowRight size={18} className="hidden text-fg-subtle md:block" />
         <div>
@@ -142,72 +170,54 @@ export function ReasignarLinea({ linea, onCerrar }: { linea: LineaLista; onCerra
         </div>
       </div>
 
-      <fieldset className="mb-4">
-        <legend className="field-label">¿A dónde va la línea?</legend>
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-          {DESTINOS.map((d) => {
-            const bloqueado = !permitidos.includes(d.valor);
-            return (
-              <label
-                key={d.valor}
-                className={`rounded-control border p-3 text-sm ${bloqueado ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${destino === d.valor ? "border-primary-600 bg-primary-50 dark:bg-primary-950/30" : "border-line"}`}
-              >
-                <input
-                  type="radio"
-                  name={`${idForm}-destino`}
-                  className="mr-2"
-                  checked={destino === d.valor}
-                  disabled={bloqueado}
-                  onChange={() => elegirDestino(d.valor)}
-                />
-                <span className="font-medium text-fg">{d.titulo}</span>
-                <span className="block pl-5 text-xs text-fg-subtle">{bloqueado ? errorDeAsociacion(linea.tipoChip, d.valor) : d.ayuda}</span>
-              </label>
-            );
-          })}
-        </div>
-      </fieldset>
-
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {destino === "telefono" && (
+        {cambiaTipo && tipos.length > 1 && (
+          <CampoFormulario label="Tipo de chip" error={errores.tipoChipId} htmlFor={`${idForm}-tipo`}>
+            <select
+              id={`${idForm}-tipo`}
+              value={tipoChipId}
+              onChange={(e) => {
+                setTipoChipId(e.target.value);
+                limpiar("tipoChipId");
+              }}
+              className={claseInput(errores.tipoChipId)}
+            >
+              {tipos.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nombre}
+                </option>
+              ))}
+            </select>
+          </CampoFormulario>
+        )}
+        {pideTelefono && (
           <ListaConBuscador
-            label="Teléfono de la empresa"
+            label={clave === "aFisico" ? "Teléfono sin línea (opcional)" : "Teléfono sin línea"}
             valor={activoId}
             onChange={(v) => {
               setActivoId(v);
-              limpiar("activoId");
+              limpiar("activoId", "destino");
             }}
             error={errores.activoId}
-            vacio="Elige un teléfono"
+            vacio={clave === "aFisico" ? "Ninguno: queda disponible" : "Elige un teléfono"}
             buscar="Buscar por marca, modelo o IMEI"
             opciones={opciones.celulares.map((c) => ({ id: c.id, texto: nombreCelular(c) }))}
           />
         )}
-        {destino === "persona" && (
+        {pidePersona && (
           <ListaConBuscador
-            label="Persona"
+            label={clave === "aEsim" ? "Persona (opcional)" : "Persona"}
             valor={empleadoId}
             onChange={(v) => {
               setEmpleadoId(v);
-              limpiar("empleadoId");
+              limpiar("empleadoId", "destino");
             }}
             error={errores.empleadoId}
-            vacio="Elige una persona"
+            vacio={clave === "aEsim" ? "Ninguna: queda disponible" : "Elige una persona"}
             buscar="Buscar por nombre o RUT"
             opciones={opciones.personas.map((p) => ({ id: p.id, texto: nombrePersona(p) + (p.rut ? ` · ${p.rut}` : "") }))}
           />
         )}
-        <CampoTexto
-          label="Desde cuándo"
-          type="date"
-          max={hoyISO()}
-          value={desde}
-          onChange={(v) => {
-            setDesde(v);
-            limpiar("desde");
-          }}
-          error={errores.desde}
-        />
         <CampoFormulario label="Motivo" error={errores.motivoId} htmlFor={`${idForm}-motivo`}>
           <CatalogSelect
             id={`${idForm}-motivo`}
@@ -222,18 +232,15 @@ export function ReasignarLinea({ linea, onCerrar }: { linea: LineaLista; onCerra
             invalido={!!errores.motivoId}
           />
         </CampoFormulario>
-        <CampoFormulario label="Detalle (opcional)" className="md:col-span-2">
-          <textarea rows={2} value={detalle} onChange={(e) => setDetalle(e.target.value)} className={claseInput()} maxLength={500} />
-        </CampoFormulario>
       </div>
 
-      <p className="mt-3 text-xs text-fg-subtle">Solo se asignan líneas disponibles. Una línea asignada cambia de persona con las solicitudes: al entregar, cambiar o devolver su celular; una eSIM se libera con la devolución por término.</p>
       <div className="mt-4 flex justify-end gap-3">
         <Button variant="outline" onClick={() => onCerrar(false)}>
           Cancelar
         </Button>
-        <Button loading={enviando} leftIcon={<Repeat size={18} />} onClick={() => ejecutar(guardar)}>
-          Asignar
+        {/* Hasta que llegan las opciones no se sabe a que tipos de chip puede pasar. */}
+        <Button loading={enviando} disabled={opciones === OPCIONES_VACIAS} leftIcon={<Repeat size={18} />} onClick={() => ejecutar(guardar)}>
+          Guardar
         </Button>
       </div>
     </div>

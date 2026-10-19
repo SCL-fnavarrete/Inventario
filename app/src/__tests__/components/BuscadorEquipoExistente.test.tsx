@@ -4,7 +4,7 @@ import { BuscadorEquipoExistente } from '@/modules/compras/componentes';
 
 const equipo = (id: string, marca: string) => ({
   id,
-  marca,
+  marca: { nombre: marca },
   modelo: 'X1',
   numeroSerie: `S-${id}`,
   estado: 'disponible',

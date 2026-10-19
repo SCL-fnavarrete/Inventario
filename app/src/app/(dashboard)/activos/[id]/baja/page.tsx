@@ -16,7 +16,7 @@ import { useToast } from "@/shared/ui/Toast";
 
 type Activo = {
   id: string;
-  marca: string;
+  marca: { nombre: string };
   modelo: string;
   numeroSerie: string | null;
   estado: string;
@@ -98,7 +98,7 @@ export default function DarDeBajaPage() {
         else setError(message);
         return;
       }
-      toast.success("Equipo dado de baja", `${activo.marca} ${activo.modelo} quedó en Baja.`);
+      toast.success("Equipo dado de baja", `${activo.marca.nombre} ${activo.modelo} quedó en Baja.`);
       router.push(`/activos/${activo.id}`);
       router.refresh();
     } catch (err: unknown) {
@@ -128,7 +128,7 @@ export default function DarDeBajaPage() {
           <div>
             <span className="text-fg-subtle">Marca/Modelo:</span>{" "}
             <span className="font-medium">
-              {activo.marca} {activo.modelo}
+              {activo.marca.nombre} {activo.modelo}
             </span>
           </div>
           <div>
